@@ -15,7 +15,7 @@ along with this software (see the LICENSE.md file). If not, see
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Edit Report" default-menu-index="2">
 
-    <parameter name="dataDocumentId" required="true" from="dataDocumentId ?: dataDocumentId_0"/>
+    <parameter name="dataDocumentId" required="true" from="dataDocumentId || dataDocumentId_0"/>
 
     <transition name="updateDataDocument"><service-call name="org.moqui.impl.EntityServices.update#DataDocument"/>
         <default-response url="."/></transition>
@@ -27,7 +27,7 @@ along with this software (see the LICENSE.md file). If not, see
             <econdition field-name="dataDocumentId"/>
             <econdition field-name="userGroupId" operator="in" from="ec.user.getUserGroupIdSet()"/>
         </entity-find>
-        <if condition="!ddugList"><return error="true" message="You are not in a group allowed to see Report ${dataDocumentId}"/></if>
+        <if condition="!ddugList?.length"><return error="true" message="You are not in a group allowed to see Report ${dataDocumentId}"/></if>
         <set field="userGroupId" from="ddugList[0].userGroupId"/>
 
         <entity-find-one entity-name="moqui.entity.document.DataDocument" value-field="dataDocument"/>

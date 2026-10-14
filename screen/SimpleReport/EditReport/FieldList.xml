@@ -15,7 +15,7 @@ along with this software (see the LICENSE.md file). If not, see
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-include="false" standalone="true">
 
-    <parameter name="dataDocumentId" required="true" from="dataDocumentId ?: dataDocumentId_0"/>
+    <parameter name="dataDocumentId" required="true" from="dataDocumentId || dataDocumentId_0"/>
 
     <transition name="createDataDocumentCondition"><service-call name="create#moqui.entity.document.DataDocumentCondition"/>
         <default-response url=".."/></transition>
@@ -44,7 +44,7 @@ along with this software (see the LICENSE.md file). If not, see
             <econdition field-name="dataDocumentId"/><order-by field-name="sequenceNum,fieldPath"/></entity-find>
         <set field="fieldAliasSet" from="new LinkedHashSet()"/>
         <iterate list="ddFieldList" entry="ddf">
-            <script>fieldAliasSet.add(ddf.fieldNameAlias ?: (ddf.fieldPath.contains(':') ? ddf.fieldPath.substring(ddf.fieldPath.lastIndexOf(':')+1) : ddf.fieldPath))</script>
+            <script>fieldAliasSet.add(ddf.fieldNameAlias || (ddf.fieldPath.contains(':') ? ddf.fieldPath.substring(ddf.fieldPath.lastIndexOf(':')+1) : ddf.fieldPath))</script>
         </iterate>
     </actions>
     <widgets>

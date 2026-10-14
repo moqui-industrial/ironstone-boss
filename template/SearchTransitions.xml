@@ -26,10 +26,10 @@ along with this software (see the LICENSE.md file). If not, see
         <parameter name="pageIndex"/>
         <actions>
             <if condition="!term &amp;&amp; !pageIndex"><script>ec.web.sendJsonResponse([])</script><return/></if>
-            <set field="term" from="term ?: '*'"/>
+            <set field="term" from="term || '*'"/>
 
-            <set field="indexName" from="indexName ?: searchIndexName ?: 'mantle'"/>
-            <set field="documentType" from="documentType ?: searchPartyDocType ?: 'MantleParty'"/>
+            <set field="indexName" from="indexName || searchIndexName || 'mantle'"/>
+            <set field="documentType" from="documentType || searchPartyDocType || 'MantleParty'"/>
             <!-- <log message="====== searchPartyList indexName=${indexName}, documentType=${documentType}, term=${term}"/> -->
 
             <entity-find-one entity-name="mantle.party.PartyDetail" value-field="partyDetail">
@@ -37,7 +37,7 @@ along with this software (see the LICENSE.md file). If not, see
 
             <if condition="partyDetail != null"><then>
                 <script>
-                    def outList = [[value:partyDetail.partyId, label:ec.resource.expand("PartyNameTemplate", "", partyDetail)]]
+                    def outList = [{value:partyDetail.partyId, label:ec.resource.expand("PartyNameTemplate", "", partyDetail)}]
                     ec.web.sendJsonResponse(outList)
                 </script>
             </then><else>
@@ -54,22 +54,22 @@ along with this software (see the LICENSE.md file). If not, see
 
                     if (roleTypeId) termSb.append(' AND roles.roleTypeId:(').append(roleTypeId.replaceAll(/,/, ' OR ')).append(')')
                     if (partyTypeEnumId) termSb.append(' AND (partyTypeEnumId:' + partyTypeEnumId + ')')
-                    if (!'true'.equals(includeDisabled)) termSb.append(' AND (NOT disabled:Y)')
-                    if (activeOrgId && 'true'.equals(restrictActiveOrg)) termSb.append(' AND (partyId:' + activeOrgId + ')')
+                    if (!('true' === includeDisabled)) termSb.append(' AND (NOT disabled:Y)')
+                    if (activeOrgId && ('true' === restrictActiveOrg)) termSb.append(' AND (partyId:' + activeOrgId + ')')
 
-                    if ('MANTLE_USER_ORG'.equals(entityFilterSetId)) {
+                    if ('MANTLE_USER_ORG' === entityFilterSetId) {
                         termSb.append(' AND ownerPartyId:(' + (filterOrgIds ? filterOrgIds.join(' OR ') + ' OR ' : '') + '_NA_)')
-                    } else if ('MANTLE_ACTIVE_ORG'.equals(entityFilterSetId) && activeOrgId) {
+                    } else if (('MANTLE_ACTIVE_ORG' === entityFilterSetId) && activeOrgId) {
                         termSb.append(' AND ownerPartyId:(' + activeOrgId + ' OR _NA_)')
                     }
                 ]]></script>
                 <!-- <log level="warn" message="Doing party search with queryString [${termSb.toString()}], indexName:${indexName}, documentType:${documentType}"/> -->
                 <service-call name="org.moqui.search.SearchServices.search#DataDocuments" out-map="context"
-                        in-map="[queryString:termSb.toString(), indexName:indexName, documentType:documentType]"/>
+                        in-map="{queryString:termSb.toString(), indexName:indexName, documentType:documentType}"/>
                 <!-- <log level="warn" message="Got party search results: ${documentList}"/> -->
                 <script>
                     def outList = []
-                    for (document in documentList) outList.add([value:document._id, label:ec.resource.expand("PartyNameTemplate", "", document)])
+                    for (document in documentList) outList.add({value:document._id, label:ec.resource.expand("PartyNameTemplate", "", document)})
                     ec.web.sendJsonResponse(outList)
                 </script>
                 <!-- <log level="warn" message="Got party search outList: ${outList}"/> -->
@@ -89,8 +89,8 @@ along with this software (see the LICENSE.md file). If not, see
         <parameter name="documentType"/>
         <parameter name="pageIndex"/>
         <actions>
-            <set field="indexName" from="indexName ?: searchIndexName ?: 'mantle'"/>
-            <set field="documentType" from="documentType ?: searchProductDocType ?: 'MantleProduct'"/>
+            <set field="indexName" from="indexName || searchIndexName || 'mantle'"/>
+            <set field="documentType" from="documentType || searchProductDocType || 'MantleProduct'"/>
             <!-- <log message="====== getProductList indexName=${indexName}, documentType=${documentType}, term=${term}"/> -->
 
             <set field="outList" from="[]"/>
@@ -98,12 +98,12 @@ along with this software (see the LICENSE.md file). If not, see
             <entity-find-one entity-name="mantle.product.Product" value-field="product">
                 <field-map field-name="productId" from="term"/></entity-find-one>
             <if condition="product != null"><then>
-                <script>outList.add([value:product.productId, label:ec.resource.expand("ProductNameTemplate", "", product)])</script>
+                <script>outList.add({value:product.productId, label:ec.resource.expand("ProductNameTemplate", "", product)})</script>
             </then><else>
                 <entity-find-one entity-name="mantle.product.Product" value-field="pseudoProduct">
                     <field-map field-name="pseudoId" from="term"/></entity-find-one>
                 <if condition="pseudoProduct != null">
-                    <script>outList.add([value:pseudoProduct.productId, label:ec.resource.expand("ProductNameTemplate", "", pseudoProduct)])</script></if>
+                    <script>outList.add({value:pseudoProduct.productId, label:ec.resource.expand("ProductNameTemplate", "", pseudoProduct)})</script></if>
             </else></if>
 
             <!-- if we have activeOrgId or filterOrgIds see if user has active org or user org filters -->
@@ -162,12 +162,12 @@ along with this software (see the LICENSE.md file). If not, see
                 <set field="orderByFields" from="term ? null : ['pseudoId']"/>
             -->
             <service-call name="org.moqui.search.SearchServices.search#DataDocuments" out-map="context" ignore-error="true"
-                    in-map="[queryString:termSb.toString(), indexName:indexName, documentType:documentType,
-                        orderByFields:orderByFields, pageIndex:pageIndex, pageSize:(pageSize?:20)]"/>
+                    in-map="{queryString:termSb.toString(), indexName:indexName, documentType:documentType,
+                        orderByFields:orderByFields, pageIndex:pageIndex, pageSize:(pageSize||20)}"/>
             <!-- <log level="warn" message="Got product search results: ${documentList}"/> -->
             <script>
-                for (document in documentList) outList.add([value:document._id, label:ec.resource.expand("ProductNameTemplate", "", [productName:document.name,productId:document._id,pseudoId:document.pseudoId])])
-                if (pageIndex) ec.web.sendJsonResponse([options:outList, pageSize:documentListPageSize, count:documentListCount])
+                for (document in documentList) outList.add({value:document._id, label:ec.resource.expand("ProductNameTemplate", "", {productName:document.name,productId:document._id,pseudoId:document.pseudoId})})
+                if (pageIndex) ec.web.sendJsonResponse({options:outList, pageSize:documentListPageSize, count:documentListCount})
                 else ec.web.sendJsonResponse(outList)
             </script>
             <!-- <log level="warn" message="Got product search outList: ${outList}"/> -->

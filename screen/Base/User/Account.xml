@@ -41,7 +41,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="factorSubmit"><service-call name="org.moqui.impl.UserServices.invalidate#UserAuthcFactorEntry" in-map="context"/>
         <default-response url="."/></transition>
     <transition name="sendOtp">
-        <service-call name="org.moqui.impl.UserServices.send#ExternalAuthcCode" in-map="[factorId:factorId]"/>
+        <service-call name="org.moqui.impl.UserServices.send#ExternalAuthcCode" in-map="{factorId:factorId}"/>
         <default-response url="."/>
     </transition>
 
@@ -63,12 +63,12 @@ along with this software (see the LICENSE.md file). If not, see
 
         <if condition="partyId &amp;&amp; !personAndUserAccount?.emailAddress">
             <service-call name="mantle.party.ContactServices.get#PrimaryEmailAddress"
-                    in-map="[partyId:partyId]" out-map="primaryEmail"/>
+                    in-map="{partyId:partyId}" out-map="primaryEmail"/>
         </if>
 
         <set field="localeStringList" from="[]"/>
         <iterate list="Locale.getAvailableLocales()" entry="lcl">
-            <script>if (lcl.toString()) localeStringList.add([locale:lcl.toString(), name:lcl.getDisplayName(ec.user.locale)])</script></iterate>
+            <script>if (lcl.toString()) localeStringList.add({locale:lcl.toString(), name:lcl.getDisplayName(ec.user.locale)})</script></iterate>
         <order-map-list list="localeStringList"><order-by field-name="name"/></order-map-list>
 
         <!-- only show SMS dialog if org.moqui.SmsServices.send#SmsMessage service is NOT from moqui-framework (on classpath) -->
@@ -113,7 +113,7 @@ along with this software (see the LICENSE.md file). If not, see
                     <field name="firstName"><default-field><text-line size="15"/></default-field></field>
                     <field name="middleName"><default-field><text-line size="15"/></default-field></field>
                     <field name="lastName"><default-field><text-line size="15"/></default-field></field>
-                    <field name="emailAddress" from="emailAddress ?: primaryEmail?.emailAddress"><default-field><text-line/></default-field></field>
+                    <field name="emailAddress" from="emailAddress || primaryEmail?.emailAddress"><default-field><text-line/></default-field></field>
 
                     <field name="locale"><default-field>
                         <drop-down allow-empty="true"><list-options list="localeStringList" key="${locale}" text="${name}"/></drop-down>
@@ -206,13 +206,13 @@ along with this software (see the LICENSE.md file). If not, see
                             <field name="action">
                                 <conditional-field condition="needsValidation == 'Y' &amp;&amp; factorTypeEnumId == 'UafTotp'">
                                     <dynamic-dialog id="VerifyTotpDialog" button-text="Verify" transition="VerifyTotp"
-                                            parameter-map="[userId:userId, factorId:factorId, verify:true]"/></conditional-field>
+                                            parameter-map="{userId:userId, factorId:factorId, verify:true}"/></conditional-field>
                                 <conditional-field condition="needsValidation == 'Y' &amp;&amp; factorTypeEnumId == 'UafEmail'">
                                     <dynamic-dialog id="VerifyEmailDialog" button-text="Verify" transition="VerifyEmail"
-                                            parameter-map="[userId:userId, factorId:factorId]"/></conditional-field>
+                                            parameter-map="{userId:userId, factorId:factorId}"/></conditional-field>
                                 <conditional-field condition="needsValidation == 'Y' &amp;&amp; factorTypeEnumId == 'UafSms'">
                                     <dynamic-dialog id="VerifySmsDialog" button-text="Verify" transition="VerifySms"
-                                            parameter-map="[userId:userId, factorId:factorId]"/></conditional-field>
+                                            parameter-map="{userId:userId, factorId:factorId}"/></conditional-field>
                                 <conditional-field condition="needsValidation == 'N' &amp;&amp; factorTypeEnumId in ['UafEmail', 'UafSms']">
                                     <label text="${factorOption}"/></conditional-field>
                             </field>

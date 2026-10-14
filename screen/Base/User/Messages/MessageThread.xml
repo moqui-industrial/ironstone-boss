@@ -24,7 +24,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <actions>
         <entity-find-one entity-name="mantle.party.communication.CommunicationEvent" value-field="commEvent"/>
-        <set field="rootCommEventId" from="commEvent.rootCommEventId ?: commEvent.communicationEventId"/>
+        <set field="rootCommEventId" from="commEvent.rootCommEventId || commEvent.communicationEventId"/>
         <entity-find-one entity-name="mantle.party.communication.CommunicationEvent" value-field="rootCommEvent">
             <field-map field-name="communicationEventId" from="rootCommEventId"/></entity-find-one>
 
@@ -39,7 +39,7 @@ along with this software (see the LICENSE.md file). If not, see
         </script>
     </actions>
     <widgets>
-        <label text="${rootCommEvent?.subject ?: 'Thread'}" type="h3"/>
+        <label text="${rootCommEvent?.subject || 'Thread'}" type="h3"/>
 
         <container style="row">
             <container style="col-lg-4">

@@ -43,7 +43,7 @@ along with this software (see the LICENSE.md file). If not, see
     </actions>
     <widgets>
         <container style="row"><container style="col-lg-6">
-            <label text="${commEvent.subject ?: 'Message'}" type="h3"/>
+            <label text="${commEvent.subject || 'Message'}" type="h3"/>
 
             <link url="messageThread" text="Thread"/>
             <container-dialog id="ReplyDialog" button-text="Reply">

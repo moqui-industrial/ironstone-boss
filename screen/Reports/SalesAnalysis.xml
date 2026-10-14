@@ -24,7 +24,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition-include name="getProductList" location="component://ironstone-boss/template/SearchTransitions.xml"/>
 
     <actions>
-        <set field="pageSize" from="pageSize ?: '100'"/>
+        <set field="pageSize" from="pageSize || '100'"/>
 
         <set field="orderStatusList" from="['OrderPlaced', 'OrderProcessing', 'OrderApproved', 'OrderSent', 'OrderCompleted', 'OrderHold']"/>
         <entity-find entity-name="moqui.basic.EnumGroupMember" list="productItemTypeEgms" cache="true">
@@ -49,15 +49,15 @@ along with this software (see the LICENSE.md file). If not, see
 
             <field name="vendorPartyId">
                 <header-field title="Vendor" show-order-by="true"><drop-down allow-empty="true" allow-multiple="true">
-                    <dynamic-options transition="searchPartyList" server-search="true" min-length="0" parameter-map="[roleTypeId:'OrgInternal']"/></drop-down></header-field>
+                    <dynamic-options transition="searchPartyList" server-search="true" min-length="0" parameter-map="{roleTypeId:'OrgInternal'}"/></drop-down></header-field>
                 <default-field><link url="editParty" text="PartyNameTemplate" link-type="anchor" condition="vendorPartyId"
-                        entity-name="mantle.party.PartyDetail" parameter-map="[partyId:vendorPartyId]"/></default-field>
+                        entity-name="mantle.party.PartyDetail" parameter-map="{partyId:vendorPartyId}"/></default-field>
             </field>
             <field name="customerPartyId">
                 <header-field title="Customer" show-order-by="true"><drop-down allow-empty="true" allow-multiple="true">
-                    <dynamic-options transition="searchPartyList" server-search="true" min-length="0" parameter-map="[roleTypeId:'Customer']"/></drop-down></header-field>
+                    <dynamic-options transition="searchPartyList" server-search="true" min-length="0" parameter-map="{roleTypeId:'Customer'}"/></drop-down></header-field>
                 <default-field><link url="editParty" text="PartyNameTemplate" link-type="anchor" condition="vendorPartyId"
-                        entity-name="mantle.party.PartyDetail" parameter-map="[partyId:customerPartyId]"/></default-field>
+                        entity-name="mantle.party.PartyDetail" parameter-map="{partyId:customerPartyId}"/></default-field>
             </field>
             <field name="productStoreId">
                 <header-field title="Store" show-order-by="true"><drop-down allow-empty="true" allow-multiple="true">
@@ -97,10 +97,10 @@ along with this software (see the LICENSE.md file). If not, see
             <field name="totalCost" align="right" show-total="sum"><header-field show-order-by="true"/>
                 <default-field><display format="#,##0.00"/></default-field></field>
 
-            <field name="marginAmount" from="(totalIssued ?: 0.0) - (totalCost ?: 0.0)" align="right" show-total="true">
+            <field name="marginAmount" from="(totalIssued || 0.0) - (totalCost || 0.0)" align="right" show-total="true">
                 <default-field title="Margin Amount"><display format="#,##0.00"/></default-field></field>
             <field name="marginPercent" align="right"><default-field title="Margin Percent">
-                <display text="${ec.l10n.format(totalIssued ? ((((totalIssued ?: 0.0) - (totalCost ?: 0.0)).divide(totalIssued, 10, BigDecimal.ROUND_HALF_EVEN))*100.0) : 0.0, '0.00')}"/></default-field></field>
+                <display text="${ec.l10n.format(totalIssued ? ((((totalIssued || 0.0) - (totalCost || 0.0)).divide(totalIssued, 10, BigDecimal.ROUND_HALF_EVEN))*100.0) : 0.0, '0.00')}"/></default-field></field>
 
             <field name="find"><header-field title="Find"><submit/></header-field></field>
 
