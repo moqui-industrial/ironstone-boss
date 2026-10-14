@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a 
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Time" default-menu-index="5">
+
+    <transition name="taskDetail"><default-response url="../Task/TaskDetail"/></transition>
+
+    <!-- TODO: add new service for this screen that is more limited, ie can't specify rates/etc -->
+    <transition name="recordTimeEntry">
+        <actions>
+            <entity-find-one entity-name="mantle.work.time.TimeEntry" value-field="timeEntry"/>
+            <if condition="timeEntry != null &amp;&amp; timeEntry.partyId != ec.user.userAccount?.partyId">
+                <return error="true" message="You may only update your own time entries, Time Entry ${timeEntryId} owned by different party"/></if>
+            <service-call name="mantle.work.TimeServices.store#TimeEntry" in-map="context"/>
+        </actions>
+        <default-response url="."/>
+    </transition>
+    <transition name="clockInTimeEntry"><service-call name="mantle.work.TimeServices.create#TimeEntryClockIn"/>
+        <default-response url="."/></transition>
+
+    <transition-include name="getFacilityList" location="component://SimpleScreens/template/facility/FacilityTransitions.xml"/>
+    <transition-include name="getTaskList" location="component://SimpleScreens/template/work/WorkTransitions.xml"/>
+
+    <subscreens>
+        <subscreens-item name="EditTimeEntry" location="component://SimpleScreens/screen/SimpleScreens/Party/PartyTimeEntries/EditTimeEntry.xml"/>
+    </subscreens>
+
+    <actions>
+        <entity-find entity-name="mantle.work.time.TimeEntry" list="timeEntryList">
+            <search-form-inputs default-order-by="-fromDate"/>
+            <econdition field-name="partyId"/>
+        </entity-find>
+
+        <service-call name="mantle.humanres.PositionServices.get#PartyEmployersAndPositionClasses"
+                in-map="[partyId:partyId]" out-map="context"/>
+    </actions>
+    <widgets>
+        <section-include name="ClockInOutSection" location="component://SimpleScreens/screen/SimpleScreens/Party/PartyTimeEntries.xml"/>
+
+        <dynamic-dialog id="AddTimeDialogDyn" button-text="Record Time" transition="EditTimeEntry"
+                parameter-map="[partyId:partyId, timeEntryId:null]"/>
+
+        <form-list name="TimeEntryList" list="timeEntryList" transition="recordTimeEntry" header-dialog="true" saved-finds="true">
+            <field name="timeEntryId"><default-field><hidden/></default-field></field>
+
+            <field name="editButton"><default-field title="">
+                <dynamic-dialog id="EditTimeEntryDialog" button-text=" " icon="fa fa-pencil" transition="EditTimeEntry"
+                        parameter-map="[partyId:partyId, timeEntryId:timeEntryId]"/>
+            </default-field></field>
+
+            <field name="fromDate"><header-field show-order-by="true"><date-period allow-empty="true"/></header-field>
+                <default-field><display also-hidden="false"/></default-field></field>
+            <field name="thruDate"><header-field show-order-by="true"><date-period allow-empty="true"/></header-field>
+                <default-field><display also-hidden="false"/></default-field></field>
+
+            <field name="hours"><header-field show-order-by="true"/>
+                <default-field><display format="0.00" also-hidden="false"/></default-field></field>
+            <field name="breakHours"><header-field show-order-by="true"/>
+                <default-field title="Break"><display format="0.00" also-hidden="false"/></default-field></field>
+            <field name="pieceCount"><header-field show-order-by="true"/>
+                <default-field><display also-hidden="false"/></default-field></field>
+
+            <field name="clientPartyId">
+                <header-field title="Employer"><drop-down allow-empty="true">
+                    <list-options list="employerPartyList" key="${partyId}" text="PartyNameTemplate"/></drop-down></header-field>
+                <default-field><display-entity entity-name="mantle.party.PartyDetail" text="PartyNameTemplate"/></default-field>
+            </field>
+            <field name="workEffortId">
+                <header-field title="Task" show-order-by="true">
+                    <drop-down allow-empty="true"><dynamic-options transition="getTaskList" min-length="0" server-search="true"
+                            parameter-map="[assignedPartyId:partyId]"/></drop-down>
+                </header-field>
+                <default-field><link url="taskDetail" entity-name="mantle.work.effort.WorkEffort" text="WorkEffortNameTemplate" link-type="anchor"/></default-field>
+            </field>
+            <field name="workTypeEnumId">
+                <header-field title="Work Type"><drop-down allow-empty="true">
+                    <list-options list="workTypeEnumerationList" key="${enumId}" text="${description}"/></drop-down></header-field>
+                <default-field><display-entity entity-name="moqui.basic.Enumeration" also-hidden="false"/></default-field>
+            </field>
+            <field name="emplPositionClassId">
+                <header-field title="Position Class" show-order-by="true"><drop-down allow-empty="true">
+                    <list-options list="emplPositionClassList" key="${emplPositionClassId}" text="${title}"/></drop-down></header-field>
+                <default-field><display-entity entity-name="mantle.humanres.position.EmplPositionClass" text="${title}"/></default-field>
+            </field>
+            <field name="rateTypeEnumId">
+                <header-field title="Rate Type" show-order-by="true">
+                    <widget-template-include location="component://webroot/template/screen/BasicWidgetTemplates.xml#enumGroupDropDown">
+                        <set field="enumGroupEnumId" value="EngRateCommonEntry"/><set field="allowEmpty" value="true"/></widget-template-include>
+                </header-field>
+                <default-field><display-entity entity-name="moqui.basic.Enumeration" key-field-name="enumId" also-hidden="false"/></default-field>
+            </field>
+
+            <field name="comments"><default-field><text-area cols="50" rows="2"/></default-field></field>
+
+            <field name="findButton"><header-field title="Find"><submit/></header-field>
+                <default-field><submit text="Update"/></default-field></field>
+
+            <form-list-column><field-ref name="editButton"/></form-list-column>
+            <form-list-column><field-ref name="fromDate"/><field-ref name="thruDate"/></form-list-column>
+            <form-list-column><field-ref name="hours"/><field-ref name="breakHours"/><field-ref name="pieceCount"/></form-list-column>
+            <form-list-column><field-ref name="clientPartyId"/><field-ref name="workEffortId"/></form-list-column>
+            <form-list-column><field-ref name="workTypeEnumId"/><field-ref name="emplPositionClassId"/>
+                <field-ref name="rateTypeEnumId"/></form-list-column>
+            <form-list-column><field-ref name="comments"/></form-list-column>
+            <form-list-column><field-ref name="findButton"/></form-list-column>
+        </form-list>
+    </widgets>
+</screen>
