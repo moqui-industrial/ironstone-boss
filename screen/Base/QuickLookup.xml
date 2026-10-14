@@ -49,8 +49,8 @@ along with this software (see the LICENSE.md file). If not, see
         <label text="Results for ID '${lookupId}'" type="h4" condition="lookupId"/>
 
         <section name="AssetSection" condition="asset != null"><actions>
-            <set field="aprod" from="asset.'mantle.product.Product'"/>
-            <set field="facLoc" from="asset.'mantle.facility.FacilityLocation'"/>
+            <set field="aprod" from="asset['mantle.product.Product']"/>
+            <set field="facLoc" from="asset['mantle.facility.FacilityLocation']"/>
         </actions><widgets>
             <container-box><box-header title="Asset ${assetId}"/><box-toolbar>
                 <link url="assetDetail" text="Asset"/>
@@ -58,12 +58,12 @@ along with this software (see the LICENSE.md file). If not, see
             </box-toolbar><box-body>
                 <container-row>
                     <row-col md="1"><label text="Type" type="strong"/></row-col>
-                    <row-col md="2"><label text="${asset.'AssetType#moqui.basic.Enumeration'?.description||''}"/></row-col>
+                    <row-col md="2"><label text="${asset['AssetType#moqui.basic.Enumeration']?.description||''}"/></row-col>
                     <row-col md="1"><label text="Facility" type="strong"/></row-col>
-                    <row-col md="2"><link url="editFacility" text="${asset.'mantle.facility.Facility'?.facilityName||''}"
+                    <row-col md="2"><link url="editFacility" text="${asset['mantle.facility.Facility']?.facilityName||''}"
                             parameter-map="{facilityId:asset.facilityId}" link-type="anchor" condition="asset.facilityId"/></row-col>
                     <row-col md="1"><label text="ATP/QOH" type="strong"/></row-col>
-                    <row-col md="2"><label text="${ec.l10n.format(asset.availableToPromiseTotal, null)}/${ec.l10n.format(asset.quantityOnHandTotal, null)} (${aprod.'Amount#moqui.basic.Uom'?.description||'each'})"/></row-col>
+                    <row-col md="2"><label text="${ec.l10n.format(asset.availableToPromiseTotal, null)}/${ec.l10n.format(asset.quantityOnHandTotal, null)} (${aprod['Amount#moqui.basic.Uom']?.description||'each'})"/></row-col>
                     <row-col md="2"><link url="editRun" text="WorkEffortNameTemplate" text-map="{workEffortId:asset.acquireWorkEffortId}"
                             parameter-map="{workEffortId:asset.acquireWorkEffortId}" link-type="anchor" condition="asset.acquireWorkEffortId"/></row-col>
                 </container-row>
@@ -90,7 +90,7 @@ along with this software (see the LICENSE.md file). If not, see
             </box-toolbar><box-body>
                 <container-row>
                     <row-col md="1"><label text="Type" type="strong"/></row-col>
-                    <row-col md="2"><label text="${facility.'FacilityType#moqui.basic.Enumeration'?.description||''}"/></row-col>
+                    <row-col md="2"><label text="${facility['FacilityType#moqui.basic.Enumeration']?.description||''}"/></row-col>
                     <row-col md="1"><label text="Owner" type="strong"/></row-col>
                     <row-col md="2"><link url="editParty" text="PartyNameTemplate" text-map="partyDetail"
                             parameter-map="{partyId:facility.ownerPartyId}" link-type="anchor" condition="partyDetail"/></row-col>
@@ -118,7 +118,7 @@ along with this software (see the LICENSE.md file). If not, see
                 </container-row>
                 <container-row>
                     <row-col md="1"><label text="Status" type="strong"/></row-col>
-                    <row-col md="2"><label text="${invoice.'Invoice#moqui.basic.StatusItem'?.description||''}"/></row-col>
+                    <row-col md="2"><label text="${invoice['Invoice#moqui.basic.StatusItem']?.description||''}"/></row-col>
                     <row-col md="1"><label text="To" type="strong"/></row-col>
                     <row-col md="3"><link url="editParty" text="PartyNameTemplate" text-map="toParty"
                             parameter-map="{partyId:toParty?.partyId}" link-type="anchor" condition="toParty"/></row-col>
@@ -202,7 +202,7 @@ along with this software (see the LICENSE.md file). If not, see
                     <row-col md="1"><label text="Roles" type="strong"/></row-col>
                     <row-col md="8">
                         <section-iterate name="RoleList" list="roleList" entry="role">
-                            <widgets><label text="${role.'mantle.party.RoleType'.description||''}${role_has_next ? ', ' : ''}"/></widgets></section-iterate>
+                            <widgets><label text="${role['mantle.party.RoleType'].description||''}${role_has_next ? ', ' : ''}"/></widgets></section-iterate>
                     </row-col>
                 </container-row>
             </box-body></container-box>
@@ -224,13 +224,13 @@ along with this software (see the LICENSE.md file). If not, see
                     <row-col md="3"><link url="editParty" text="PartyNameTemplate" text-map="fromParty"
                             parameter-map="{partyId:fromParty?.partyId}" link-type="anchor" condition="fromParty"/></row-col>
                     <row-col md="1"><label text="Type" type="strong"/></row-col>
-                    <row-col md="2"><label text="${payment.'PaymentType#moqui.basic.Enumeration'?.description||''}"/></row-col>
+                    <row-col md="2"><label text="${payment['PaymentType#moqui.basic.Enumeration']?.description||''}"/></row-col>
                     <row-col md="1"><label text="Reference" type="strong"/></row-col>
                     <row-col md="1"><label text="${payment.paymentRefNum||''}"/></row-col>
                 </container-row>
                 <container-row>
                     <row-col md="1"><label text="Status" type="strong"/></row-col>
-                    <row-col md="2"><label text="${payment.'Payment#moqui.basic.StatusItem'?.description||''}"/></row-col>
+                    <row-col md="2"><label text="${payment['Payment#moqui.basic.StatusItem']?.description||''}"/></row-col>
                     <row-col md="1"><label text="To" type="strong"/></row-col>
                     <row-col md="3"><link url="editParty" text="PartyNameTemplate" text-map="toParty"
                             parameter-map="{partyId:toParty?.partyId}" link-type="anchor" condition="toParty"/></row-col>
@@ -242,7 +242,7 @@ along with this software (see the LICENSE.md file). If not, see
 
         <section-iterate name="ProductSection" list="productList" entry="product"><actions>
             <script>
-                amountUom = product.'Amount#moqui.basic.Uom'
+                amountUom = product['Amount#moqui.basic.Uom']
                 pantMap = {}
                 pantMap.putAll((Map) product)
                 if (amountUom != null) pantMap.putAll((Map) amountUom)
@@ -254,7 +254,7 @@ along with this software (see the LICENSE.md file). If not, see
             </box-toolbar><box-body>
                 <container-row>
                     <row-col md="1"><label text="Type" type="strong"/></row-col>
-                    <row-col md="2"><label text="${product.'ProductType#moqui.basic.Enumeration'?.description||''}"/></row-col>
+                    <row-col md="2"><label text="${product['ProductType#moqui.basic.Enumeration']?.description||''}"/></row-col>
                     <row-col md="1"><label text="Amount/UOM" type="strong"/></row-col>
                     <row-col md="2"><label text="ProductAmountNameTemplate" text-map="pantMap"/></row-col>
                     <row-col md="1"><label text="Description" type="strong"/></row-col>
@@ -284,26 +284,26 @@ along with this software (see the LICENSE.md file). If not, see
             </box-toolbar><box-body>
                 <container-row>
                     <row-col md="1"><label text="Type" type="strong"/></row-col>
-                    <row-col md="1"><label text="${shipment.'ShipmentType#moqui.basic.Enumeration'?.description||''}"/></row-col>
+                    <row-col md="1"><label text="${shipment['ShipmentType#moqui.basic.Enumeration']?.description||''}"/></row-col>
                     <row-col md="1"><label text="Ready" type="strong"/></row-col>
                     <row-col md="1"><label text="${ec.l10n.format(shipment.estimatedReadyDate, null)}"/></row-col>
                     <row-col md="1"><label text="From" type="strong"/></row-col>
                     <row-col md="3"><link url="editParty" text="PartyNameTemplate" text-map="fromParty"
                             parameter-map="{partyId:fromParty?.partyId}" link-type="anchor" condition="fromParty"/></row-col>
                     <row-col md="1"><label text="Origin" type="strong"/></row-col>
-                    <row-col md="3"><link url="editFacility" text="${srs?.'Origin#mantle.facility.Facility'?.facilityName||''}"
+                    <row-col md="3"><link url="editFacility" text="${srs?.['Origin#mantle.facility.Facility']?.facilityName||''}"
                             parameter-map="{facilityId:srs.originFacilityId}" link-type="anchor" condition="srs.originFacilityId"/></row-col>
                 </container-row>
                 <container-row>
                     <row-col md="1"><label text="Status" type="strong"/></row-col>
-                    <row-col md="1"><label text="${shipment.'Shipment#moqui.basic.StatusItem'?.description||''}"/></row-col>
+                    <row-col md="1"><label text="${shipment['Shipment#moqui.basic.StatusItem']?.description||''}"/></row-col>
                     <row-col md="1"><label text="Arrival" type="strong"/></row-col>
                     <row-col md="1"><label text="${ec.l10n.format(shipment.estimatedArrivalDate, null)}"/></row-col>
                     <row-col md="1"><label text="To" type="strong"/></row-col>
                     <row-col md="3"><link url="editParty" text="PartyNameTemplate" text-map="toParty"
                             parameter-map="{partyId:toParty?.partyId}" link-type="anchor" condition="toParty"/></row-col>
                     <row-col md="1"><label text="Destination" type="strong"/></row-col>
-                    <row-col md="3"><link url="editFacility" text="${srs?.'Destination#mantle.facility.Facility'?.facilityName||''}"
+                    <row-col md="3"><link url="editFacility" text="${srs?.['Destination#mantle.facility.Facility']?.facilityName||''}"
                             parameter-map="{facilityId:srs.destinationFacilityId}" link-type="anchor" condition="srs.destinationFacilityId"/></row-col>
                 </container-row>
             </box-body></container-box>
@@ -318,17 +318,17 @@ along with this software (see the LICENSE.md file). If not, see
             </box-toolbar><box-body>
                 <container-row>
                     <row-col lg="1"><label text="Type" type="strong"/></row-col>
-                    <row-col lg="2"><label text="${workEffort.'WorkEffortType#moqui.basic.Enumeration'?.description||''}"/></row-col>
+                    <row-col lg="2"><label text="${workEffort['WorkEffortType#moqui.basic.Enumeration']?.description||''}"/></row-col>
                     <row-col lg="1"><label text="Status" type="strong"/></row-col>
-                    <row-col lg="3"><label text="${workEffort.'WorkEffort#moqui.basic.StatusItem'?.description||''}"/></row-col>
+                    <row-col lg="3"><label text="${workEffort['WorkEffort#moqui.basic.StatusItem']?.description||''}"/></row-col>
                     <row-col lg="1"><label text="Name" type="strong"/></row-col>
                     <row-col lg="4"><label text="${workEffort.workEffortName||''}"/></row-col>
                 </container-row>
                 <container-row>
                     <row-col lg="1"><label text="Purpose" type="strong"/></row-col>
-                    <row-col lg="2"><label text="${workEffort.'WorkEffortPurpose#moqui.basic.Enumeration'?.description||''}"/></row-col>
+                    <row-col lg="2"><label text="${workEffort['WorkEffortPurpose#moqui.basic.Enumeration']?.description||''}"/></row-col>
                     <row-col lg="1"><label text="Facility" type="strong"/></row-col>
-                    <row-col lg="3"><link url="editFacility" text="${workEffort?.'mantle.facility.Facility'?.facilityName||''}"
+                    <row-col lg="3"><link url="editFacility" text="${workEffort?.['mantle.facility.Facility']?.facilityName||''}"
                             parameter-map="{facilityId:workEffort.facilityId}" link-type="anchor" condition="workEffort.facilityId"/></row-col>
                     <row-col lg="1"><label text="Schedule" type="strong"/></row-col>
                     <row-col lg="4"><label text="${ec.l10n.format(workEffort.estimatedStartDate, null)} ${workEffort.estimatedWorkDuration ? ec.l10n.format(workEffort.estimatedWorkDuration, null) + ' hours' : ''}"/></row-col>

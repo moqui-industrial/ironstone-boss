@@ -233,7 +233,7 @@ along with this software (see the LICENSE.md file). If not, see
 
                     <field name="statusId"><default-field title="Status">
                         <widget-template-include location="component://webroot/template/screen/BasicWidgetTemplates.xml#statusTransitionDropDown">
-                            <set field="currentDescription" from="equipmentList_entry?.'WorkEffortAssetAssign#moqui.basic.StatusItem'?.description"/>
+                            <set field="currentDescription" from="equipmentList_entry?.['WorkEffortAssetAssign#moqui.basic.StatusItem']?.description"/>
                             <set field="statusId" from="invoice?.statusId"/></widget-template-include>
                     </default-field></field>
                     <field name="comments"><default-field><text-area cols="50" rows="2"/></default-field></field>
