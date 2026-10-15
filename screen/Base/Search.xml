@@ -23,8 +23,7 @@ along with this software (see the LICENSE.md file). If not, see
         </if>
     </actions>
     <widgets>
-        <link url="https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-query-string-query.html#query-string-syntax"
-                url-type="plain" link-type="anchor" target-window="_blank" text="Search String Reference"/>
+        <label text="Search syntax: words match whole words, word* matches a prefix, field:value searches one field, &quot;a phrase&quot;, field:[a TO b], _exists_:field, AND, OR, NOT, and parentheses" type="p" style="text-muted"/>
         <form-single name="SearchOptions" transition="." focus-field="queryString">
             <field name="documentType"><default-field title=""><drop-down no-current-selected-key=" ">
                 <option key=" " text="Any Type"/>
@@ -58,7 +57,7 @@ along with this software (see the LICENSE.md file). If not, see
                 </entity-find>
                 <set field="linksList" from="[]"/>
                 <iterate list="ddLinkList" entry="ddLink"><if condition="!ddLink.linkCondition || ec.resource.condition(ddLink.linkCondition, '')">
-                    <script>linksList.add(ddLink)</script></if></iterate>
+                    <script>linksList.push(ddLink)</script></if></iterate>
             </row-actions>
             <field name="type"><default-field><display text="${dataDocument.documentName}"/></default-field></field>
             <field name="id"><default-field><display text="${_id}"/></default-field></field>

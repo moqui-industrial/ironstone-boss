@@ -36,10 +36,7 @@ along with this software (see the LICENSE.md file). If not, see
                 <field-map field-name="partyId" from="term"/></entity-find-one>
 
             <if condition="partyDetail != null"><then>
-                <script>
-                    def outList = [{value:partyDetail.partyId, label:ec.resource.expand("PartyNameTemplate", "", partyDetail)}]
-                    ec.web.sendJsonResponse(outList)
-                </script>
+                <script>ec.web.sendJsonResponse([{value:partyDetail.partyId, label:ec.resource.expand("PartyNameTemplate", "", partyDetail)}])</script>
             </then><else>
                 <!-- if we have activeOrgId or filterOrgIds see if user has active org or user org filters -->
                 <set field="activeOrgId" from="ec.user.context?.activeOrgId"/>
@@ -49,29 +46,24 @@ along with this software (see the LICENSE.md file). If not, see
                 <!-- <log level="warn" message="Doing party search with activeOrgId ${activeOrgId} filterOrgIds ${filterOrgIds} entityFilterSetId ${entityFilterSetId}"/> -->
 
                 <script><![CDATA[
-                    StringBuilder termSb = new StringBuilder('(')
-                    termSb.append(elasticQueryAutoWildcard(term, false)).append(')')
+                    let queryString = '(' + elasticQueryAutoWildcard(term, false) + ')'
+                    if (roleTypeId) queryString += ' AND roles.roleTypeId:(' + roleTypeId.replace(/,/g, ' OR ') + ')'
+                    if (partyTypeEnumId) queryString += ' AND (partyTypeEnumId:' + partyTypeEnumId + ')'
+                    if (!('true' === includeDisabled)) queryString += ' AND (NOT disabled:Y)'
+                    if (activeOrgId && ('true' === restrictActiveOrg)) queryString += ' AND (partyId:' + activeOrgId + ')'
+                    partySearch = {queryString: queryString, indexName: indexName, documentType: documentType}
 
-                    if (roleTypeId) termSb.append(' AND roles.roleTypeId:(').append(roleTypeId.replaceAll(/,/, ' OR ')).append(')')
-                    if (partyTypeEnumId) termSb.append(' AND (partyTypeEnumId:' + partyTypeEnumId + ')')
-                    if (!('true' === includeDisabled)) termSb.append(' AND (NOT disabled:Y)')
-                    if (activeOrgId && ('true' === restrictActiveOrg)) termSb.append(' AND (partyId:' + activeOrgId + ')')
-
-                    if ('MANTLE_USER_ORG' === entityFilterSetId) {
-                        termSb.append(' AND ownerPartyId:(' + (filterOrgIds ? filterOrgIds.join(' OR ') + ' OR ' : '') + '_NA_)')
-                    } else if (('MANTLE_ACTIVE_ORG' === entityFilterSetId) && activeOrgId) {
-                        termSb.append(' AND ownerPartyId:(' + activeOrgId + ' OR _NA_)')
-                    }
+                    // the org limit is a trusted filter, so it does not change scores and the user query cannot widen it
+                    let ownerPartyIds = null
+                    if ('MANTLE_USER_ORG' === entityFilterSetId) ownerPartyIds = (filterOrgIds || []).concat(['_NA_'])
+                    else if ('MANTLE_ACTIVE_ORG' === entityFilterSetId && activeOrgId) ownerPartyIds = [activeOrgId, '_NA_']
+                    if (ownerPartyIds != null) partySearch.filter = {field: {name: 'ownerPartyId', op: 'in', values: ownerPartyIds}}
                 ]]></script>
                 <!-- <log level="warn" message="Doing party search with queryString [${termSb.toString()}], indexName:${indexName}, documentType:${documentType}"/> -->
                 <service-call name="org.moqui.search.SearchServices.search#DataDocuments" out-map="context"
-                        in-map="{queryString:termSb.toString(), indexName:indexName, documentType:documentType}"/>
+                        in-map="partySearch"/>
                 <!-- <log level="warn" message="Got party search results: ${documentList}"/> -->
-                <script>
-                    def outList = []
-                    for (document in documentList) outList.add({value:document._id, label:ec.resource.expand("PartyNameTemplate", "", document)})
-                    ec.web.sendJsonResponse(outList)
-                </script>
+                <script>ec.web.sendJsonResponse(documentList.map((document) => ({value:document._id, label:ec.resource.expand("PartyNameTemplate", "", document)})))</script>
                 <!-- <log level="warn" message="Got party search outList: ${outList}"/> -->
             </else></if>
         </actions>
@@ -98,12 +90,12 @@ along with this software (see the LICENSE.md file). If not, see
             <entity-find-one entity-name="mantle.product.Product" value-field="product">
                 <field-map field-name="productId" from="term"/></entity-find-one>
             <if condition="product != null"><then>
-                <script>outList.add({value:product.productId, label:ec.resource.expand("ProductNameTemplate", "", product)})</script>
+                <script>outList.push({value:product.productId, label:ec.resource.expand("ProductNameTemplate", "", product)})</script>
             </then><else>
                 <entity-find-one entity-name="mantle.product.Product" value-field="pseudoProduct">
                     <field-map field-name="pseudoId" from="term"/></entity-find-one>
                 <if condition="pseudoProduct != null">
-                    <script>outList.add({value:pseudoProduct.productId, label:ec.resource.expand("ProductNameTemplate", "", pseudoProduct)})</script></if>
+                    <script>outList.push({value:pseudoProduct.productId, label:ec.resource.expand("ProductNameTemplate", "", pseudoProduct)})</script></if>
             </else></if>
 
             <!-- if we have activeOrgId or filterOrgIds see if user has active org or user org filters -->
@@ -114,39 +106,22 @@ along with this software (see the LICENSE.md file). If not, see
             <!-- <log level="warn" message="Doing product search with activeOrgId ${activeOrgId} filterOrgIds ${filterOrgIds} entityFilterSetId ${entityFilterSetId}"/> -->
 
             <script><![CDATA[
-                StringBuilder termSb = new StringBuilder('(')
-                termSb.append(elasticQueryAutoWildcard(term, false)).append(')')
-                if (productFeatureIds) {
-                    List productFeatureIdList = productFeatureIds.split(',')
-                    // NOTE: using features.productFeatureId instead of plain productFeatureId as newer ElasticSearch doesn't search in nested fields
-                    termSb.append(' AND features.productFeatureId:')
-                    if (productFeatureIdList.size() > 1) termSb.append('(')
-                    for (int i = 0; i < productFeatureIdList.size(); i++) {
-                        termSb.append(productFeatureIdList.get(i))
-                        if (i < (productFeatureIdList.size() - 1)) termSb.append(' OR ')
-                    }
-                    if (productFeatureIdList.size() > 1) termSb.append(')')
-                }
-                if (productCategoryIds) {
-                    List productCategoryIdList = productCategoryIds.split(',')
-                    termSb.append(' AND categories.productCategoryId:')
-                    if (productCategoryIdList.size() > 1) termSb.append('(')
-                    for (int i = 0; i < productCategoryIdList.size(); i++) {
-                        termSb.append(productCategoryIdList.get(i))
-                        if (i < (productCategoryIdList.size() - 1)) termSb.append(' OR ')
-                    }
-                    if (productCategoryIdList.size() > 1) termSb.append(')')
-                }
-                if (productTypeEnumId) termSb.append(' AND productTypeEnumId:').append(productTypeEnumId)
-                if (productClassEnumId) termSb.append(' AND productClassEnumId:').append(productClassEnumId)
-                if (assetTypeEnumId) termSb.append(' AND assetTypeEnumId:').append(assetTypeEnumId)
-                if (assetClassEnumId) termSb.append(' AND assetClassEnumId:').append(assetClassEnumId)
+                let queryString = '(' + elasticQueryAutoWildcard(term, false) + ')'
+                // NOTE: using features.productFeatureId instead of plain productFeatureId as newer ElasticSearch doesn't search in nested fields
+                if (productFeatureIds) queryString += ' AND features.productFeatureId:(' + productFeatureIds.split(',').join(' OR ') + ')'
+                if (productCategoryIds) queryString += ' AND categories.productCategoryId:(' + productCategoryIds.split(',').join(' OR ') + ')'
+                if (productTypeEnumId) queryString += ' AND productTypeEnumId:' + productTypeEnumId
+                if (productClassEnumId) queryString += ' AND productClassEnumId:' + productClassEnumId
+                if (assetTypeEnumId) queryString += ' AND assetTypeEnumId:' + assetTypeEnumId
+                if (assetClassEnumId) queryString += ' AND assetClassEnumId:' + assetClassEnumId
+                productSearch = {queryString: queryString, indexName: indexName, documentType: documentType,
+                        orderByFields: orderByFields, pageIndex: pageIndex, pageSize: pageSize || 20}
 
-                if ('MANTLE_USER_ORG'.equals(entityFilterSetId)) {
-                    termSb.append(' AND ownerPartyId:(' + filterOrgIds.join(' OR ') + ')')
-                } else if ('MANTLE_ACTIVE_ORG'.equals(entityFilterSetId) && activeOrgId) {
-                    termSb.append(' AND ownerPartyId:(' + activeOrgId + ' OR _NA_)')
-                }
+                // the org limit is a trusted filter, so it does not change scores and the user query cannot widen it
+                let ownerPartyIds = null
+                if ('MANTLE_USER_ORG' === entityFilterSetId) ownerPartyIds = (filterOrgIds || []).slice()
+                else if ('MANTLE_ACTIVE_ORG' === entityFilterSetId && activeOrgId) ownerPartyIds = [activeOrgId, '_NA_']
+                if (ownerPartyIds != null) productSearch.filter = {field: {name: 'ownerPartyId', op: 'in', values: ownerPartyIds}}
             ]]></script>
             <!-- <log level="warn" message="Doing product search with queryString [${termSb.toString()}], indexName:${indexName}, documentType:${documentType}"/> -->
             <!--
@@ -162,11 +137,10 @@ along with this software (see the LICENSE.md file). If not, see
                 <set field="orderByFields" from="term ? null : ['pseudoId']"/>
             -->
             <service-call name="org.moqui.search.SearchServices.search#DataDocuments" out-map="context" ignore-error="true"
-                    in-map="{queryString:termSb.toString(), indexName:indexName, documentType:documentType,
-                        orderByFields:orderByFields, pageIndex:pageIndex, pageSize:(pageSize||20)}"/>
+                    in-map="productSearch"/>
             <!-- <log level="warn" message="Got product search results: ${documentList}"/> -->
             <script>
-                for (document in documentList) outList.add({value:document._id, label:ec.resource.expand("ProductNameTemplate", "", {productName:document.name,productId:document._id,pseudoId:document.pseudoId})})
+                for (const document of (documentList || [])) outList.push({value:document._id, label:ec.resource.expand("ProductNameTemplate", "", {productName:document.name,productId:document._id,pseudoId:document.pseudoId})})
                 if (pageIndex) ec.web.sendJsonResponse({options:outList, pageSize:documentListPageSize, count:documentListCount})
                 else ec.web.sendJsonResponse(outList)
             </script>

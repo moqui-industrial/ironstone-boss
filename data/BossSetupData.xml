@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a 
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<entity-facade-xml type="seed-initial">
+    <!-- Artifact group and authz for the IronStone BOSS app, via its root screen -->
+    <artifactGroups artifactGroupId="BOSS_APP" description="IronStone BOSS App (via root screen)">
+        <artifacts artifactName="component://ironstone-boss/screen/boss.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
+        <!-- the active organization limits finds and search, as in PopCommerce; MANTLE_USER_ORG limits to all the user's orgs -->
+        <authz artifactAuthzId="BOSS_APP_ADMIN" userGroupId="ADMIN" authzTypeEnumId="AUTHZT_ALWAYS" authzActionEnumId="AUTHZA_ALL">
+            <filters entityFilterSetId="MANTLE_ACTIVE_ORG"/></authz>
+    </artifactGroups>
+</entity-facade-xml>

@@ -1,0 +1,26 @@
+<#--
+This software is in the public domain under CC0 1.0 Universal plus a Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<#-- The four summary charts. The configs are built in the screen actions; output here is not escaped, so an
+    attribute value goes through WebUtilities.encodeHtml. -->
+<#if sri.getRenderMode() == "qvt">
+<div class="row"><#list summaryCharts as chart><div class="${statsChartColStyle}">
+    <m-chart height="300px" :config="${WebUtilities.encodeHtml(chart.config)}"></m-chart>
+</div></#list></div>
+<#else>
+<div class="row"><#list summaryCharts as chart><div class="${statsChartColStyle}">
+    <div class="chart-container" style="position:relative; height:300px; width:100%;"><canvas id="${chart.id}"></canvas></div>
+</div></#list></div>
+<script><#list summaryCharts as chart>
+    var ${chart.id} = new Chart(document.getElementById("${chart.id}"), ${chart.config});
+</#list></script>
+</#if>

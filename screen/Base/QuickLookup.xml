@@ -193,8 +193,8 @@ along with this software (see the LICENSE.md file). If not, see
         </actions><widgets>
             <container-box><box-header title="Party: ${ec.resource.expand('PartyNameTemplate','',party)}"/><box-toolbar>
                 <link url="editParty" text="Party"/>
-                <link url="editSupplier" text="Supplier" condition="supplierRoleList"/>
-                <link url="editCustomer" text="Customer" condition="customerRoleList"/>
+                <link url="editSupplier" text="Supplier" condition="supplierRoleList?.length"/>
+                <link url="editCustomer" text="Customer" condition="customerRoleList?.length"/>
             </box-toolbar><box-body>
                 <container-row>
                     <row-col md="1"><label text="Type" type="strong"/></row-col>
@@ -243,9 +243,7 @@ along with this software (see the LICENSE.md file). If not, see
         <section-iterate name="ProductSection" list="productList" entry="product"><actions>
             <script>
                 amountUom = product['Amount#moqui.basic.Uom']
-                pantMap = {}
-                pantMap.putAll((Map) product)
-                if (amountUom != null) pantMap.putAll((Map) amountUom)
+                pantMap = Object.assign({}, product.getMap(), amountUom != null ? amountUom.getMap() : {})
             </script>
         </actions><widgets>
             <container-box><box-header title="Product: ${ec.resource.expand('ProductNameTemplate','',product)}"/><box-toolbar>

@@ -26,14 +26,13 @@ along with this software (see the LICENSE.md file). If not, see
         <service-call name="mantle.party.PartyServices.setup#UserOrganizationInfo" out-map="context"/>
     </always-actions>
 
+    <!-- the search and sales summary screens; the others are not ported to JavaScript yet -->
     <subscreens default-item="QuickSearch" always-use-full-path="true">
         <subscreens-item name="QuickSearch" location="component://ironstone-boss/screen/Base/QuickSearch.xml" menu-index="1"/>
         <subscreens-item name="Search" location="component://ironstone-boss/screen/Base/Search.xml" menu-index="2"/>
         <subscreens-item name="QuickLookup" location="component://ironstone-boss/screen/Base/QuickLookup.xml" menu-include="false"/>
 
         <subscreens-item name="SalesSummary" location="component://ironstone-boss/screen/Reports/SalesSummary.xml" menu-index="10"/>
-        <subscreens-item name="SalesAnalysis" location="component://ironstone-boss/screen/Reports/SalesAnalysis.xml" menu-index="11"/>
-        <subscreens-item name="SimpleReport" location="component://ironstone-boss/screen/SimpleReport.xml" menu-index="20"/>
     </subscreens>
 
     <widgets><subscreens-panel id="boss-panel" type="popup"/></widgets>
