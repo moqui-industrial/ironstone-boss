@@ -194,6 +194,16 @@ Implement a WOPI host in BOSS once and keep the engine swappable.
 | OnlyOffice | AGPL-3.0, open core + commercial | Best Microsoft-format fidelity; 9.4 removed the 20-connection cap; licensing disputes in 2026 |
 | Euro-Office | Fork of OnlyOffice | March 2026 fork by a European consortium; watch for maturity |
 
+### Moonshot: embedded ArtCraft WASM apps
+
+An alternative to WOPI that is not yet fully viable, and does not change the WOPI decision. Instead of an external editor server, BOSS would embed the WASM distributions of the ArtCraft applications and run them in the browser, with files read and written through BOSS storage.
+
+- Typical office apps: WordCraft, GridCraft, DeckCraft.
+- Apps that would be very useful to typical Moqui users: PdfCraft, CADCraft, PhotoCraft.
+- Other ArtCraft apps, or other browser-WASM-compatible apps, may turn out well too.
+- Benefits to evaluate: no editor server to run, client-side editing, one embedding pattern for many app types.
+- To verify before committing: maturity, licensing, file-format fidelity, and how embedded apps would load and save through BOSS storage (a WOPI-like or direct file API).
+
 ## Decisions and open questions
 
 ### Decided
@@ -221,4 +231,5 @@ Implement a WOPI host in BOSS once and keep the engine swappable.
 
 ### Open
 
+- [ ] Is the ArtCraft WASM embedding viable as an alternative or complement to WOPI?
 - [ ] Which header elements can Assist reach? Start from the split between system-owned header elements and app plugin widgets (My Account widget, per-app search).
