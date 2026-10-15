@@ -52,7 +52,21 @@ along with this software (see the LICENSE.md file). If not, see
             <label text=" for Asset, Facility, Invoice, Order, Return, Party, Badge, Payment, Product, Shipment, Work Effort (Project, Task, Picklist, Production Run), GL Transaction"/>
         </container>
 
-        <form-single name="SearchOptions" transition="." extends="component://ironstone-boss/screen/Base/Search.xml#SearchOptions"/>
+        <form-single name="SearchOptions" transition="." focus-field="queryString">
+            <field name="documentType"><default-field title=""><drop-down no-current-selected-key=" ">
+                <option key=" " text="Any Type"/>
+                <entity-options key="${dataDocumentId}" text="${documentName}">
+                    <entity-find entity-name="moqui.entity.document.DataDocument" cache="true">
+                        <econdition field-name="indexName" from="searchIndexName"/><order-by field-name="documentName"/>
+                    </entity-find>
+                </entity-options>
+            </drop-down></default-field></field>
+            <field name="queryString" from="originalQueryString"><default-field title="" tooltip="Matches whole words, use the asterisk (*) wildcard to match partial words; use field:term to search a specific field">
+                <text-line size="60"/></default-field></field>
+            <field name="submitButton"><default-field title="Search"><submit/></default-field></field>
+            <field-layout><field-row-big><field-ref name="documentType"/><field-ref name="queryString"/>
+                <field-ref name="submitButton"/></field-row-big></field-layout>
+        </form-single>
 
         <section-include name="AssetSection" location="component://ironstone-boss/screen/Base/QuickLookup.xml"/>
         <section-include name="FacilitySection" location="component://ironstone-boss/screen/Base/QuickLookup.xml"/>
@@ -72,7 +86,30 @@ along with this software (see the LICENSE.md file). If not, see
         </widgets></section-iterate>
 
         <container-box><box-header title="Search Results"/><box-body-nopad>
-            <form-list name="SearchResults" list="documentList" extends="component://ironstone-boss/screen/Base/Search.xml#SearchResults"/>
+            <form-list name="SearchResults" list="documentList">
+            <row-actions>
+                <entity-find-one entity-name="moqui.entity.document.DataDocument" value-field="dataDocument" cache="true">
+                    <field-map field-name="dataDocumentId" from="_type"/></entity-find-one>
+                <set field="documentTitle" from="ec.resource.expand(dataDocument?.documentTitle, '')"/>
+
+                <entity-find entity-name="moqui.entity.document.DataDocumentLink" list="ddLinkList" cache="true">
+                    <econdition field-name="dataDocumentId" from="_type"/>
+                    <econdition field-name="linkSet" operator="in" from="searchLinkSets"/>
+                </entity-find>
+                <set field="linksList" from="[]"/>
+                <iterate list="ddLinkList" entry="ddLink"><if condition="!ddLink.linkCondition || ec.resource.condition(ddLink.linkCondition, '')">
+                    <script>linksList.push(ddLink)</script></if></iterate>
+            </row-actions>
+            <field name="type"><default-field><display text="${dataDocument.documentName}"/></default-field></field>
+            <field name="id"><default-field><display text="${_id}"/></default-field></field>
+            <field name="documentTitle"><default-field title="Title"><display/></default-field></field>
+            <field name="link"><default-field>
+                <section-iterate name="LinksListSection" list="linksList" entry="ddLink"><widgets>
+                    <link url="${ec.resource.expand(ddLink.linkUrl, null)}" text="${ec.resource.expand(ddLink.label, null)}"
+                            link-type="anchor" url-type="${ddLink.urlType||'plain'}"/>
+                </widgets></section-iterate>
+            </default-field></field>
+        </form-list>
             <label text="Full search string: ${queryString||''}" type="p"/>
             <label text="Search syntax: words match whole words, word* matches a prefix, field:value searches one field, &quot;a phrase&quot;, field:[a TO b], _exists_:field, AND, OR, NOT, and parentheses" type="p" style="text-muted"/>
         </box-body-nopad></container-box>
