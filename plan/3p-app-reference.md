@@ -8,7 +8,7 @@ where that app's screens / UI files live in the checkout.
   (open-source ERP/CRM/etc. systems plus Nextcloud apps).
 - **Paths** in every table are relative to that repository's own root (the directory
   named in the section heading). For a repository that bundles several projects
-  (Frappe, Nextcloud, Ever Co, Odoo) each bundled project gets its own sub-section.
+  (Frappe, Nextcloud, Ever Co, Odoo, Zimbra) each bundled project gets its own sub-section.
 - **UI location.** Only the top-level screen/UI locations are recorded, not every
   file. Paths were spot-checked; a path lists a directory that contains the app's
   screens/views, or a small set of named files.
@@ -33,6 +33,7 @@ where that app's screens / UI files live in the checkout.
 | Nextcloud | `3p_other/nextcloud` | Groupware suite (apps + server core) | PHP + Vue/JS | AGPL-3 |
 | Odoo | `3p_other/odoo` | ERP/CRM with 640+ community modules + industry packages | Python + OWL/JS | LGPL-3.0 |
 | Twenty | `3p_other/twenty` | Modern CRM | TypeScript / React / NestJS | AGPL-3 |
+| Zimbra | `3p_other/Zimbra` | Email/collaboration suite (6 repos: mailbox, web client, admin console, desktop, OnlyOffice, build) | Java + JS | GPL-2.0 / CPAL 1.0 / GPL-3.0 / AGPL-3.0 |
 
 ---
 
@@ -475,3 +476,104 @@ IronStone Sales.
 | Email / calendar sync | `packages/twenty-front/src/modules/message-campaign/`, standard objects `message`, `calendarEvent` |
 | Apps / extensions | `packages/twenty-apps/public/`, `packages/twenty-apps/examples/` |
 | Shared UI | `packages/twenty-ui/`, `packages/twenty-front-component-renderer/` |
+
+### Zimbra
+
+Zimbra Collaboration Suite (FOSS) — email, calendar, contacts, tasks, files and admin —
+delivered as several repositories rather than one tree. Licenses differ per repo (noted
+below).
+**IronStone relevance:** a full reference implementation of Comms (mail, calendar,
+contacts, tasks, briefcase/files) and of a separate admin console; `zm-onlyoffice` is a
+concrete OnlyOffice document-server deployment relevant to the Office/WOPI decision.
+
+#### zm-web-client — Zimbra Web Client
+
+The standard and advanced (Ajax) web client. App UI is JavaScript under
+`WebRoot/js/zimbraMail/<app>/`, page templates under `WebRoot/templates/<app>/`, and
+skins under `WebRoot/skins/`. License: CPAL 1.0 (Zimbra).
+
+| App / Module | Screen / UI files (relative path) |
+| --- | --- |
+| Mail | `WebRoot/js/zimbraMail/mail/`, `WebRoot/templates/mail/` |
+| Calendar | `WebRoot/js/zimbraMail/calendar/`, `WebRoot/templates/calendar/` |
+| Address Book / contacts | `WebRoot/js/zimbraMail/abook/`, `WebRoot/templates/abook/` |
+| Tasks | `WebRoot/js/zimbraMail/tasks/`, `WebRoot/templates/tasks/` |
+| Briefcase (files) | `WebRoot/js/zimbraMail/briefcase/`, `WebRoot/templates/briefcase/` |
+| Preferences | `WebRoot/js/zimbraMail/prefs/`, `WebRoot/templates/prefs/` |
+| Portal / mashups | `WebRoot/js/zimbraMail/portal/` |
+| Documents / offline / quick command | `WebRoot/js/zimbraMail/docs/`, `WebRoot/js/zimbraMail/offline/`, `WebRoot/js/zimbraMail/quickCommand/` |
+| Voice mail | `WebRoot/js/zimbraMail/voicemail/`, `WebRoot/templates/voicemail/` |
+| Sharing | `WebRoot/js/zimbraMail/share/`, `WebRoot/templates/share/` |
+| Core client / DWT toolkit | `WebRoot/js/zimbraMail/core/`, `WebRoot/js/zimbraMail/package/`, `WebRoot/templates/dwt/` |
+| Skins | `WebRoot/skins/` (bare, beach, carbon, harmony, hotrod, lake, …) |
+| Rich-text editor | `tiny_mce/` |
+
+#### zm-admin-console — Administration Console
+
+The administrator web console. UI is JavaScript under `WebRoot/js/zimbraAdmin/<area>/`,
+with templates and admin skins alongside. License: CPAL 1.0 (Zimbra).
+
+| App / Module | Screen / UI files (relative path) |
+| --- | --- |
+| Accounts | `WebRoot/js/zimbraAdmin/accounts/` |
+| Domains | `WebRoot/js/zimbraAdmin/domains/` |
+| Class of service | `WebRoot/js/zimbraAdmin/cos/` |
+| Servers | `WebRoot/js/zimbraAdmin/servers/` |
+| Global config | `WebRoot/js/zimbraAdmin/globalconfig/` |
+| MTA | `WebRoot/js/zimbraAdmin/mta/` |
+| Distribution lists | `WebRoot/js/zimbraAdmin/dl/` |
+| Resources | `WebRoot/js/zimbraAdmin/resource/` |
+| Help desk / search | `WebRoot/js/zimbraAdmin/helpdesk/`, `WebRoot/js/zimbraAdmin/search/` |
+| Statistics / status | `WebRoot/js/zimbraAdmin/statistics/`, `WebRoot/js/zimbraAdmin/status/` |
+| Zimlets / extensions | `WebRoot/js/zimbraAdmin/zimlets/`, `WebRoot/js/zimbraAdmin/adminext/` |
+| Common / home / config | `WebRoot/js/zimbraAdmin/common/`, `WebRoot/js/zimbraAdmin/home/`, `WebRoot/js/zimbraAdmin/config/` |
+| Templates / skins | `WebRoot/templates/admin/`, `WebRoot/admin_skins/` |
+
+#### zm-mailbox — Server / platform
+
+Core platform code (server, store, SOAP API, native). No end-user app screens; the only
+web UI is a handful of servlet pages. License: GPL-2.0 (parts Zimbra Public License).
+
+| Area | Screen / UI files (relative path) |
+| --- | --- |
+| Document editor servlet | `store/WebRoot/document/editor.jsp` |
+| Error / SPNEGO pages | `store/WebRoot/error/`, `store/WebRoot/spnego/` |
+| SOAP API | `soap/src/java/com/zimbra/soap/` |
+| Store / server | `store/src/java/com/zimbra/` |
+| Common / client libraries | `common/src/`, `client/src/` |
+
+#### zd-full — Zimbra Desktop
+
+Legacy cross-platform desktop client (web client + bundled offline store + IM), now
+mostly superseded by the web client but useful as a desktop-shell reference.
+License: GPL-3.0.
+
+| App / Module | Screen / UI files (relative path) |
+| --- | --- |
+| Mail | `ZimbraWebClient/WebRoot/js/zimbraMail/mail/`, `ZimbraWebClient/WebRoot/templates/mail/` |
+| Calendar | `ZimbraWebClient/WebRoot/js/zimbraMail/calendar/`, `ZimbraWebClient/WebRoot/templates/calendar/` |
+| Address Book | `ZimbraWebClient/WebRoot/js/zimbraMail/abook/`, `ZimbraWebClient/WebRoot/templates/abook/` |
+| Tasks / briefcase | `ZimbraWebClient/WebRoot/js/zimbraMail/tasks/`, `ZimbraWebClient/WebRoot/js/zimbraMail/briefcase/` |
+| Notebook / slides / spreadsheets | `ZimbraWebClient/WebRoot/js/zimbraMail/notebook/`, `…/slides/`, `…/spreadsheets/` |
+| Instant messaging | `ZimbraWebClient/WebRoot/js/zimbraMail/im/`, `ZimbraIM/` |
+| Offline shell | `ZimbraOffline/WebRoot/` |
+| Portal / zimlets | `ZimbraWebClient/WebRoot/portals/`, `ZimbraWebClient/WebRoot/zimlets/` |
+
+#### zm-onlyoffice — OnlyOffice Document Server
+
+The OnlyOffice document server (Ascensio System) bundled by Zimbra for online document
+editing. Server-side components only — the editor UI assets are built/backend-provided
+and are not in this checkout. License: AGPL-3.0.
+
+| App / Module | Screen / UI files (relative path) |
+| --- | --- |
+| Document / co-editing service | `DocService/sources/` (server, `wopiClient.js`, `routes/static.js`) |
+| File conversion | `FileConverter/sources/` |
+| Spell checker | `SpellChecker/sources/` |
+| Shared server code | `Common/sources/` |
+| Metrics | `Metrics/` |
+
+#### zm-build — Build tooling
+
+Build scripts and packaging that assemble a FOSS build of the suite; no application UI
+(`zm-build/` — `build.pl`, `instructions/`, `RE/`).
