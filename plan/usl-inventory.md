@@ -5,853 +5,853 @@ Per-service inventory of the mr-mantle-usl component, for tracking service-level
 - Source: `runtime/component/mr-mantle-usl/service/` (current working tree).
 - Service: every `<service>` element in the service definition XML files under `service/mantle/` (including `GeneralServices.xml`).
 - Test services (`PaymentTestServices.xml`, `OrderTestServices.xml`), service ECAs (`*.secas.xml`), and the REST API definition (`mantle.rest.xml`) are excluded.
-- The **IronStone screens that use the service** column is intentionally left blank. It is a placeholder to record progress; the current IronStone screens are not permanent.
+- The **Designed in** column is filled when a design file is reviewed with the IronStone screen path(s) whose form summaries call the service (blank when no screen calls it); the **Implemented in** column is filled during implementation with the screens that call it. See [design-doc-guide.md](design-doc-guide.md) §9.
 
 ## Account (162 services)
 
-| Service XML | Service | IronStone screens that use the service |
-| --- | --- | --- |
-| BaiServices | upload#BaiVersion2 |  |
-| BaiServices | consume#Bai2SystemMessage |  |
-| BaiServices | import#BaiVersion2 |  |
-| FinancialAccountServices | get#StatementPrintInfo |  |
-| FinancialAccountServices | create#FinancialAccount |  |
-| FinancialAccountServices | update#FinancialAccount |  |
-| FinancialAccountServices | getOrCreate#FinancialAccount |  |
-| FinancialAccountServices | calculate#FinancialAccountTotals |  |
-| FinancialAccountServices | adjust#FinancialAccount |  |
-| FinancialAccountServices | deposit#FinancialAccount |  |
-| FinancialAccountServices | withdraw#FinancialAccount |  |
-| FinancialAccountServices | transfer#FinancialAccount |  |
-| FinancialAccountServices | reverse#FinancialAccountTrans |  |
-| FinancialAccountServices | authorize#FinancialAccount |  |
-| FinancialAccountServices | expire#FinancialAccountAuth |  |
-| FinancialAccountServices | disburse#FinancialAccount |  |
-| FinancialAccountServices | replenish#FinancialAccount |  |
-| FinancialAccountServices | checkCreate#InvoiceTransactions |  |
-| FinancialAccountServices | checkCreate#InvoiceItemTrans |  |
-| FinancialAccountServices | reverse#InvoiceTransactions |  |
-| FinancialAccountServices | checkCreate#PaymentTrans |  |
-| FinancialAccountServices | reverse#PaymentTrans |  |
-| FinancialAccountServices | authorize#FinancialAccountPayment |  |
-| FinancialAccountServices | capture#FinancialAccountPayment |  |
-| FinancialAccountServices | release#FinancialAccountPayment |  |
-| FinancialAccountServices | refund#FinancialAccountPayment |  |
-| InvoiceServices | get#InvoiceBasicInfo |  |
-| InvoiceServices | get#InvoiceDisplayInfo |  |
-| InvoiceServices | get#InvoiceTotal |  |
-| InvoiceServices | update#InvoiceTotals |  |
-| InvoiceServices | calculate#MissingInvoiceTotals |  |
-| InvoiceServices | get#InvoicePrintInfo |  |
-| InvoiceServices | get#ReceivableStatementInfo |  |
-| InvoiceServices | create#Invoice |  |
-| InvoiceServices | update#Invoice |  |
-| InvoiceServices | update#InvoiceClosed |  |
-| InvoiceServices | checkSet#InvoiceDueDate |  |
-| InvoiceServices | create#InvoiceItem |  |
-| InvoiceServices | update#InvoiceItem |  |
-| InvoiceServices | update#InvoiceItemClosed |  |
-| InvoiceServices | update#InvoiceItemAdjustment |  |
-| InvoiceServices | delete#InvoiceItem |  |
-| InvoiceServices | adjust#Invoice |  |
-| InvoiceServices | create#EntireOrderPartInvoice |  |
-| InvoiceServices | create#SalesShipmentInvoices |  |
-| InvoiceServices | create#PurchaseShipmentInvoices |  |
-| InvoiceServices | create#ProjectExpenseInvoice |  |
-| InvoiceServices | create#ProjectInvoiceItems |  |
-| InvoiceServices | create#WorkerInvoiceItems |  |
-| InvoiceServices | create#TimeEntryInvoiceItems |  |
-| InvoiceServices | create#InvoiceBillThroughItems |  |
-| InvoiceServices | create#InvoiceCreditMemo |  |
-| InvoiceServices | reverse#Invoice |  |
-| InvoiceServices | cancel#Invoice |  |
-| InvoiceServices | cancel#InvoiceAndPayments |  |
-| InvoiceServices | unpay#Invoice |  |
-| InvoiceServices | autoApplyTo#Invoice |  |
-| InvoiceServices | create#InvoiceItemDetail |  |
-| InvoiceServices | distribute#InvoiceItemDetail |  |
-| InvoiceServices | apply#InvoiceToOrder |  |
-| InvoiceServices | apply#InvoiceItemToOrder |  |
-| InvoiceServices | unapply#InvoiceItemFromOrder |  |
-| InvoiceServices | apply#InvoiceToShipment |  |
-| InvoiceServices | apply#InvoiceItemToShipment |  |
-| InvoiceServices | unapply#InvoiceItemFromShipment |  |
-| InvoiceServices | check#InvoicesPaid |  |
-| InvoiceServices | find#InvoiceProductStores |  |
-| InvoiceServices | send#InvoiceStoreEmail |  |
-| InvoiceServices | send#SalesInvoicePastDueEmails |  |
-| InvoiceServices | send#CustomerPastDueEmail |  |
-| InvoiceServices | get#InvoiceContentLocation |  |
-| InvoiceServices | create#InvoiceContent |  |
-| InvoiceServices | update#InvoiceContent |  |
-| InvoiceServices | save#InvoiceContentFile |  |
-| NachaServices | generate#NachaFile |  |
-| NachaServices | consume#NachaReturnSystemMessage |  |
-| NachaServices | import#NachaReturn |  |
-| OfxServices | upload#OfxVersion1 |  |
-| OfxServices | consume#OfxV1SystemMessage |  |
-| OfxServices | import#OfxVersion1 |  |
-| PaymentMethodServices | get#PartyPaymentMethodInfo |  |
-| PaymentMethodServices | get#PartyPaymentMethodInfoList |  |
-| PaymentMethodServices | store#PaymentMethodInfo |  |
-| PaymentMethodServices | update#PaymentMethodMutable |  |
-| PaymentMethodServices | delete#PaymentMethod |  |
-| PaymentMethodServices | checkDelete#PaymentPaymentMethods |  |
-| PaymentMethodServices | expunge#PaymentMethod |  |
-| PaymentMethodServices | create#CreditCard |  |
-| PaymentMethodServices | update#CreditCard |  |
-| PaymentMethodServices | create#BankAccount |  |
-| PaymentMethodServices | update#BankAccount |  |
-| PaymentMethodServices | update#BankAccountMutable |  |
-| PaymentMethodServices | get#PaymentMethodContentLocation |  |
-| PaymentMethodServices | create#PaymentMethodContent |  |
-| PaymentMethodServices | update#PaymentMethodContent |  |
-| PaymentMethodServices | save#PaymentMethodContentFile |  |
-| PaymentMethodServices | update#PaymentMethodFileComplete |  |
-| PaymentMethodServices | cancel#PaymentMethodFile |  |
-| PaymentMethodServices | produce#PaymentMethodFileSystemMessage |  |
-| PaymentServices | get#PaymentDisplayInfo |  |
-| PaymentServices | get#PaymentDescription |  |
-| PaymentServices | get#PaymentTotals |  |
-| PaymentServices | update#PaymentTotals |  |
-| PaymentServices | calculate#MissingPaymentTotals |  |
-| PaymentServices | assign#BankAccountCheckNumber |  |
-| PaymentServices | set#PaymentDate |  |
-| PaymentServices | get#PaymentCheckInfo |  |
-| PaymentServices | create#Payment |  |
-| PaymentServices | set#PaymentAutoInfo |  |
-| PaymentServices | create#InvoicePayment |  |
-| PaymentServices | create#RefundPayment |  |
-| PaymentServices | set#PaymentRefundFor |  |
-| PaymentServices | send#PromisedPayment |  |
-| PaymentServices | check#InvoiceStatusForPayment |  |
-| PaymentServices | update#Payment |  |
-| PaymentServices | apply#InvoicePayment |  |
-| PaymentServices | apply#PaymentForInvoice |  |
-| PaymentServices | apply#InvoiceForPayments |  |
-| PaymentServices | apply#OrderPaymentsToInvoice |  |
-| PaymentServices | apply#PaymentToPayment |  |
-| PaymentServices | apply#InvoiceToInvoice |  |
-| PaymentServices | cancel#PaymentAndInvoices |  |
-| PaymentServices | void#Payment |  |
-| PaymentServices | unapply#PaymentApplication |  |
-| PaymentServices | autoApply#Payment |  |
-| PaymentServices | authorize#Payment |  |
-| PaymentServices | capture#Payment |  |
-| PaymentServices | release#Payment |  |
-| PaymentServices | refund#Payment |  |
-| PaymentServices | get#PaymentGatewayDetails |  |
-| PaymentServices | authorize#OrderPayments |  |
-| PaymentServices | authorize#StorePayment |  |
-| PaymentServices | authorize#SinglePayment |  |
-| PaymentServices | get#AuthorizePaymentGatewayResponse |  |
-| PaymentServices | capture#InvoicePayments |  |
-| PaymentServices | capture#AppliedPayment |  |
-| PaymentServices | capture#SinglePayment |  |
-| PaymentServices | release#SinglePayment |  |
-| PaymentServices | refund#SinglePayment |  |
-| PaymentServices | get#SinglePaymentGatewayDetails |  |
-| PaymentServices | poll#PaymentGatewayDetails |  |
-| PaymentServices | get#PaymentContentLocation |  |
-| PaymentServices | create#PaymentContent |  |
-| PaymentServices | update#PaymentContent |  |
-| PaymentServices | save#PaymentContentFile |  |
-| PositivePayServices | generate#PositivePayFile |  |
-| PositivePayServices | send#PositivePayJob |  |
-| PositivePayServices | generate#PositivePayInterface |  |
-| PositivePayServices | generate#PmftBankOfAmericaAr |  |
-| PositivePayServices | generate#PmftCityBankCnb |  |
-| PositivePayServices | generate#PmftSunTrustCpr |  |
-| PositivePayServices | generate#PmftWachoviaAr |  |
-| PositivePayServices | generate#PmftWellsFargoArp |  |
-| PositivePayServices | generate#PmftZionsBankCsv |  |
-| ReconciliationServices | match#PaymentMethodTransUnmatched |  |
-| ReconciliationServices | create#PaymentMethodTrans |  |
-| ReconciliationServices | update#PaymentMethodTrans |  |
-| ReconciliationServices | noReconcile#PaymentMethodTrans |  |
-| ReconciliationServices | create#TransPayment |  |
-| ReconciliationServices | reconcile#PaymentMethodTrans |  |
-| ReconciliationServices | unreconcile#PaymentMethodTrans |  |
-| ReconciliationServices | clear#PaymentTrans |  |
+| Service XML | Service | Designed in | Implemented in |
+| --- | --- | --- | --- |
+| BaiServices | upload#BaiVersion2 |  |  |
+| BaiServices | consume#Bai2SystemMessage |  |  |
+| BaiServices | import#BaiVersion2 |  |  |
+| FinancialAccountServices | get#StatementPrintInfo |  |  |
+| FinancialAccountServices | create#FinancialAccount |  |  |
+| FinancialAccountServices | update#FinancialAccount |  |  |
+| FinancialAccountServices | getOrCreate#FinancialAccount |  |  |
+| FinancialAccountServices | calculate#FinancialAccountTotals |  |  |
+| FinancialAccountServices | adjust#FinancialAccount |  |  |
+| FinancialAccountServices | deposit#FinancialAccount |  |  |
+| FinancialAccountServices | withdraw#FinancialAccount |  |  |
+| FinancialAccountServices | transfer#FinancialAccount |  |  |
+| FinancialAccountServices | reverse#FinancialAccountTrans |  |  |
+| FinancialAccountServices | authorize#FinancialAccount |  |  |
+| FinancialAccountServices | expire#FinancialAccountAuth |  |  |
+| FinancialAccountServices | disburse#FinancialAccount |  |  |
+| FinancialAccountServices | replenish#FinancialAccount |  |  |
+| FinancialAccountServices | checkCreate#InvoiceTransactions |  |  |
+| FinancialAccountServices | checkCreate#InvoiceItemTrans |  |  |
+| FinancialAccountServices | reverse#InvoiceTransactions |  |  |
+| FinancialAccountServices | checkCreate#PaymentTrans |  |  |
+| FinancialAccountServices | reverse#PaymentTrans |  |  |
+| FinancialAccountServices | authorize#FinancialAccountPayment |  |  |
+| FinancialAccountServices | capture#FinancialAccountPayment |  |  |
+| FinancialAccountServices | release#FinancialAccountPayment |  |  |
+| FinancialAccountServices | refund#FinancialAccountPayment |  |  |
+| InvoiceServices | get#InvoiceBasicInfo |  |  |
+| InvoiceServices | get#InvoiceDisplayInfo |  |  |
+| InvoiceServices | get#InvoiceTotal |  |  |
+| InvoiceServices | update#InvoiceTotals |  |  |
+| InvoiceServices | calculate#MissingInvoiceTotals |  |  |
+| InvoiceServices | get#InvoicePrintInfo |  |  |
+| InvoiceServices | get#ReceivableStatementInfo |  |  |
+| InvoiceServices | create#Invoice |  |  |
+| InvoiceServices | update#Invoice |  |  |
+| InvoiceServices | update#InvoiceClosed |  |  |
+| InvoiceServices | checkSet#InvoiceDueDate |  |  |
+| InvoiceServices | create#InvoiceItem |  |  |
+| InvoiceServices | update#InvoiceItem |  |  |
+| InvoiceServices | update#InvoiceItemClosed |  |  |
+| InvoiceServices | update#InvoiceItemAdjustment |  |  |
+| InvoiceServices | delete#InvoiceItem |  |  |
+| InvoiceServices | adjust#Invoice |  |  |
+| InvoiceServices | create#EntireOrderPartInvoice |  |  |
+| InvoiceServices | create#SalesShipmentInvoices |  |  |
+| InvoiceServices | create#PurchaseShipmentInvoices |  |  |
+| InvoiceServices | create#ProjectExpenseInvoice |  |  |
+| InvoiceServices | create#ProjectInvoiceItems |  |  |
+| InvoiceServices | create#WorkerInvoiceItems |  |  |
+| InvoiceServices | create#TimeEntryInvoiceItems |  |  |
+| InvoiceServices | create#InvoiceBillThroughItems |  |  |
+| InvoiceServices | create#InvoiceCreditMemo |  |  |
+| InvoiceServices | reverse#Invoice |  |  |
+| InvoiceServices | cancel#Invoice |  |  |
+| InvoiceServices | cancel#InvoiceAndPayments |  |  |
+| InvoiceServices | unpay#Invoice |  |  |
+| InvoiceServices | autoApplyTo#Invoice |  |  |
+| InvoiceServices | create#InvoiceItemDetail |  |  |
+| InvoiceServices | distribute#InvoiceItemDetail |  |  |
+| InvoiceServices | apply#InvoiceToOrder |  |  |
+| InvoiceServices | apply#InvoiceItemToOrder |  |  |
+| InvoiceServices | unapply#InvoiceItemFromOrder |  |  |
+| InvoiceServices | apply#InvoiceToShipment |  |  |
+| InvoiceServices | apply#InvoiceItemToShipment |  |  |
+| InvoiceServices | unapply#InvoiceItemFromShipment |  |  |
+| InvoiceServices | check#InvoicesPaid |  |  |
+| InvoiceServices | find#InvoiceProductStores |  |  |
+| InvoiceServices | send#InvoiceStoreEmail |  |  |
+| InvoiceServices | send#SalesInvoicePastDueEmails |  |  |
+| InvoiceServices | send#CustomerPastDueEmail |  |  |
+| InvoiceServices | get#InvoiceContentLocation |  |  |
+| InvoiceServices | create#InvoiceContent |  |  |
+| InvoiceServices | update#InvoiceContent |  |  |
+| InvoiceServices | save#InvoiceContentFile |  |  |
+| NachaServices | generate#NachaFile |  |  |
+| NachaServices | consume#NachaReturnSystemMessage |  |  |
+| NachaServices | import#NachaReturn |  |  |
+| OfxServices | upload#OfxVersion1 |  |  |
+| OfxServices | consume#OfxV1SystemMessage |  |  |
+| OfxServices | import#OfxVersion1 |  |  |
+| PaymentMethodServices | get#PartyPaymentMethodInfo |  |  |
+| PaymentMethodServices | get#PartyPaymentMethodInfoList |  |  |
+| PaymentMethodServices | store#PaymentMethodInfo |  |  |
+| PaymentMethodServices | update#PaymentMethodMutable |  |  |
+| PaymentMethodServices | delete#PaymentMethod |  |  |
+| PaymentMethodServices | checkDelete#PaymentPaymentMethods |  |  |
+| PaymentMethodServices | expunge#PaymentMethod |  |  |
+| PaymentMethodServices | create#CreditCard |  |  |
+| PaymentMethodServices | update#CreditCard |  |  |
+| PaymentMethodServices | create#BankAccount |  |  |
+| PaymentMethodServices | update#BankAccount |  |  |
+| PaymentMethodServices | update#BankAccountMutable |  |  |
+| PaymentMethodServices | get#PaymentMethodContentLocation |  |  |
+| PaymentMethodServices | create#PaymentMethodContent |  |  |
+| PaymentMethodServices | update#PaymentMethodContent |  |  |
+| PaymentMethodServices | save#PaymentMethodContentFile |  |  |
+| PaymentMethodServices | update#PaymentMethodFileComplete |  |  |
+| PaymentMethodServices | cancel#PaymentMethodFile |  |  |
+| PaymentMethodServices | produce#PaymentMethodFileSystemMessage |  |  |
+| PaymentServices | get#PaymentDisplayInfo |  |  |
+| PaymentServices | get#PaymentDescription |  |  |
+| PaymentServices | get#PaymentTotals |  |  |
+| PaymentServices | update#PaymentTotals |  |  |
+| PaymentServices | calculate#MissingPaymentTotals |  |  |
+| PaymentServices | assign#BankAccountCheckNumber |  |  |
+| PaymentServices | set#PaymentDate |  |  |
+| PaymentServices | get#PaymentCheckInfo |  |  |
+| PaymentServices | create#Payment |  |  |
+| PaymentServices | set#PaymentAutoInfo |  |  |
+| PaymentServices | create#InvoicePayment |  |  |
+| PaymentServices | create#RefundPayment |  |  |
+| PaymentServices | set#PaymentRefundFor |  |  |
+| PaymentServices | send#PromisedPayment |  |  |
+| PaymentServices | check#InvoiceStatusForPayment |  |  |
+| PaymentServices | update#Payment |  |  |
+| PaymentServices | apply#InvoicePayment |  |  |
+| PaymentServices | apply#PaymentForInvoice |  |  |
+| PaymentServices | apply#InvoiceForPayments |  |  |
+| PaymentServices | apply#OrderPaymentsToInvoice |  |  |
+| PaymentServices | apply#PaymentToPayment |  |  |
+| PaymentServices | apply#InvoiceToInvoice |  |  |
+| PaymentServices | cancel#PaymentAndInvoices |  |  |
+| PaymentServices | void#Payment |  |  |
+| PaymentServices | unapply#PaymentApplication |  |  |
+| PaymentServices | autoApply#Payment |  |  |
+| PaymentServices | authorize#Payment |  |  |
+| PaymentServices | capture#Payment |  |  |
+| PaymentServices | release#Payment |  |  |
+| PaymentServices | refund#Payment |  |  |
+| PaymentServices | get#PaymentGatewayDetails |  |  |
+| PaymentServices | authorize#OrderPayments |  |  |
+| PaymentServices | authorize#StorePayment |  |  |
+| PaymentServices | authorize#SinglePayment |  |  |
+| PaymentServices | get#AuthorizePaymentGatewayResponse |  |  |
+| PaymentServices | capture#InvoicePayments |  |  |
+| PaymentServices | capture#AppliedPayment |  |  |
+| PaymentServices | capture#SinglePayment |  |  |
+| PaymentServices | release#SinglePayment |  |  |
+| PaymentServices | refund#SinglePayment |  |  |
+| PaymentServices | get#SinglePaymentGatewayDetails |  |  |
+| PaymentServices | poll#PaymentGatewayDetails |  |  |
+| PaymentServices | get#PaymentContentLocation |  |  |
+| PaymentServices | create#PaymentContent |  |  |
+| PaymentServices | update#PaymentContent |  |  |
+| PaymentServices | save#PaymentContentFile |  |  |
+| PositivePayServices | generate#PositivePayFile |  |  |
+| PositivePayServices | send#PositivePayJob |  |  |
+| PositivePayServices | generate#PositivePayInterface |  |  |
+| PositivePayServices | generate#PmftBankOfAmericaAr |  |  |
+| PositivePayServices | generate#PmftCityBankCnb |  |  |
+| PositivePayServices | generate#PmftSunTrustCpr |  |  |
+| PositivePayServices | generate#PmftWachoviaAr |  |  |
+| PositivePayServices | generate#PmftWellsFargoArp |  |  |
+| PositivePayServices | generate#PmftZionsBankCsv |  |  |
+| ReconciliationServices | match#PaymentMethodTransUnmatched |  |  |
+| ReconciliationServices | create#PaymentMethodTrans |  |  |
+| ReconciliationServices | update#PaymentMethodTrans |  |  |
+| ReconciliationServices | noReconcile#PaymentMethodTrans |  |  |
+| ReconciliationServices | create#TransPayment |  |  |
+| ReconciliationServices | reconcile#PaymentMethodTrans |  |  |
+| ReconciliationServices | unreconcile#PaymentMethodTrans |  |  |
+| ReconciliationServices | clear#PaymentTrans |  |  |
 
 ## Facility (15 services)
 
-| Service XML | Service | IronStone screens that use the service |
-| --- | --- | --- |
-| ContactServices | get#FacilityDefaultShipDest |  |
-| ContactServices | get#FacilityDefaultShipOrigin |  |
-| ContactServices | get#FacilityContactInfo |  |
-| ContactServices | update#FacilityPostalAddress |  |
-| ContactServices | update#FacilityTelecomNumber |  |
-| ContactServices | update#FacilityContactOther |  |
-| ContactServices | delete#FacilityContactMech |  |
-| FacilityServices | get#Facility |  |
-| FacilityServices | get#FacilitiesByOwner |  |
-| FacilityServices | create#Facility |  |
-| FacilityServices | update#Facility |  |
-| FacilityServices | update#FacilityCertification |  |
-| FacilityServices | create#FacilityLocation |  |
-| FacilityServices | create#FacilityNote |  |
-| FacilityServices | get#ScannedIdGeneral |  |
+| Service XML | Service | Designed in | Implemented in |
+| --- | --- | --- | --- |
+| ContactServices | get#FacilityDefaultShipDest |  |  |
+| ContactServices | get#FacilityDefaultShipOrigin |  |  |
+| ContactServices | get#FacilityContactInfo |  |  |
+| ContactServices | update#FacilityPostalAddress |  |  |
+| ContactServices | update#FacilityTelecomNumber |  |  |
+| ContactServices | update#FacilityContactOther |  |  |
+| ContactServices | delete#FacilityContactMech |  |  |
+| FacilityServices | get#Facility |  |  |
+| FacilityServices | get#FacilitiesByOwner |  |  |
+| FacilityServices | create#Facility |  |  |
+| FacilityServices | update#Facility |  |  |
+| FacilityServices | update#FacilityCertification |  |  |
+| FacilityServices | create#FacilityLocation |  |  |
+| FacilityServices | create#FacilityNote |  |  |
+| FacilityServices | get#ScannedIdGeneral |  |  |
 
 ## HumanRes (38 services)
 
-| Service XML | Service | IronStone screens that use the service |
-| --- | --- | --- |
-| EmploymentServices | create#Employment |  |
-| EmploymentServices | update#Employment |  |
-| EmploymentServices | delete#Employment |  |
-| EmploymentServices | create#EmploymentSalary |  |
-| EmploymentServices | check#NextPayrollTimePeriods |  |
-| PayrollDocumentServices | get#EmploymentInfo |  |
-| PayrollDocumentServices | get#EmploymentWageAndTaxInfo |  |
-| PayrollDocumentServices | create#PeriodWageAndTaxRecords |  |
-| PayrollDocumentServices | get#UsaIrsW2FormData |  |
-| PayrollDocumentServices | generate#Efw2File |  |
-| PayrollDocumentServices | get#UsaIrs1099MiscFormData |  |
-| PayrollServices | get#TimePeriodEmployments |  |
-| PayrollServices | process#TimePeriodPay |  |
-| PayrollServices | reopen#PayrollPeriod |  |
-| PayrollServices | approve#PeriodInvoices |  |
-| PayrollServices | create#PeriodPayments |  |
-| PayrollServices | set#PeriodPaymentDates |  |
-| PayrollServices | set#PeriodPaymentRefNums |  |
-| PayrollServices | authorize#PeriodPayments |  |
-| PayrollServices | deliver#PeriodPayments |  |
-| PayrollServices | process#EmploymentPay |  |
-| PayrollServices | get#EmploymentPayAmount |  |
-| PayrollServices | get#TimePeriodTotalPayAmount |  |
-| PayrollServices | get#EmploymentPayDetail |  |
-| PayrollServices | calculate#Adjustment |  |
-| PayrollServices | calculate#PayrollAdjustment |  |
-| PayrollServices | create#WorkersCompRate |  |
-| PayrollServices | delete#WorkersCompRate |  |
-| PayrollServices | update#WorkersCompRate |  |
-| PayrollServices | create#GarnishmentDetail |  |
-| PayrollServices | update#GarnishmentDetail |  |
-| PayrollServices | create#PayrollAdjustmentAndDetail |  |
-| PayrollServices | update#PayrollAdjustmentAndDetail |  |
-| PayrollServices | delete#PayrollAdjustmentAndDetail |  |
-| PayrollServices | create#PayrollInvoice |  |
-| PositionServices | get#PartyEmployersAndPositionClasses |  |
-| RateServices | create#RateAmount |  |
-| RateServices | update#RateAmount |  |
+| Service XML | Service | Designed in | Implemented in |
+| --- | --- | --- | --- |
+| EmploymentServices | create#Employment |  |  |
+| EmploymentServices | update#Employment |  |  |
+| EmploymentServices | delete#Employment |  |  |
+| EmploymentServices | create#EmploymentSalary |  |  |
+| EmploymentServices | check#NextPayrollTimePeriods |  |  |
+| PayrollDocumentServices | get#EmploymentInfo |  |  |
+| PayrollDocumentServices | get#EmploymentWageAndTaxInfo |  |  |
+| PayrollDocumentServices | create#PeriodWageAndTaxRecords |  |  |
+| PayrollDocumentServices | get#UsaIrsW2FormData |  |  |
+| PayrollDocumentServices | generate#Efw2File |  |  |
+| PayrollDocumentServices | get#UsaIrs1099MiscFormData |  |  |
+| PayrollServices | get#TimePeriodEmployments |  |  |
+| PayrollServices | process#TimePeriodPay |  |  |
+| PayrollServices | reopen#PayrollPeriod |  |  |
+| PayrollServices | approve#PeriodInvoices |  |  |
+| PayrollServices | create#PeriodPayments |  |  |
+| PayrollServices | set#PeriodPaymentDates |  |  |
+| PayrollServices | set#PeriodPaymentRefNums |  |  |
+| PayrollServices | authorize#PeriodPayments |  |  |
+| PayrollServices | deliver#PeriodPayments |  |  |
+| PayrollServices | process#EmploymentPay |  |  |
+| PayrollServices | get#EmploymentPayAmount |  |  |
+| PayrollServices | get#TimePeriodTotalPayAmount |  |  |
+| PayrollServices | get#EmploymentPayDetail |  |  |
+| PayrollServices | calculate#Adjustment |  |  |
+| PayrollServices | calculate#PayrollAdjustment |  |  |
+| PayrollServices | create#WorkersCompRate |  |  |
+| PayrollServices | delete#WorkersCompRate |  |  |
+| PayrollServices | update#WorkersCompRate |  |  |
+| PayrollServices | create#GarnishmentDetail |  |  |
+| PayrollServices | update#GarnishmentDetail |  |  |
+| PayrollServices | create#PayrollAdjustmentAndDetail |  |  |
+| PayrollServices | update#PayrollAdjustmentAndDetail |  |  |
+| PayrollServices | delete#PayrollAdjustmentAndDetail |  |  |
+| PayrollServices | create#PayrollInvoice |  |  |
+| PositionServices | get#PartyEmployersAndPositionClasses |  |  |
+| RateServices | create#RateAmount |  |  |
+| RateServices | update#RateAmount |  |  |
 
 ## Ledger (81 services)
 
-| Service XML | Service | IronStone screens that use the service |
-| --- | --- | --- |
-| AssetAutoPostServices | post#AssetReceipt |  |
-| AssetAutoPostServices | repost#AssetReceipt |  |
-| AssetAutoPostServices | post#AssetIssuance |  |
-| AssetAutoPostServices | revert#AssetIssuanceOnCancel |  |
-| AssetAutoPostServices | repost#AssetIssuance |  |
-| AssetAutoPostServices | calculate#FixedAssetDepreciation |  |
-| AssetAutoPostServices | post#FixedAssetDepreciation |  |
-| AssetAutoPostServices | calculateAndPost#FixedAssetDepreciation |  |
-| AssetAutoPostServices | calculateAndPost#AllFixedAssetDepreciations |  |
-| AssetAutoPostServices | post#PhysicalInventoryVariance |  |
-| AssetAutoPostServices | repost#PhysicalInventoryVariance |  |
-| AssetAutoPostServices | get#AssetTypeGlAccount |  |
-| AssetAutoPostServices | repost#Asset |  |
-| InvoiceAutoPostServices | post#Invoice |  |
-| InvoiceAutoPostServices | post#InvoiceAdjustment |  |
-| InvoiceAutoPostServices | get#InvoicePartyAcctgPreferences |  |
-| InvoiceAutoPostServices | get#InvoiceTypeTransType |  |
-| InvoiceAutoPostServices | get#InvoiceItemGlAccount |  |
-| InvoiceAutoPostServices | repost#Invoice |  |
-| InvoiceAutoPostServices | repost#InvoiceAdjustment |  |
-| InvoiceAutoPostServices | repost#AllInvoices |  |
-| InvoiceAutoPostServices | revert#InvoicePost |  |
-| LedgerReportServices | get#ReportBasicInfo |  |
-| LedgerReportServices | run#IncomeStatement |  |
-| LedgerReportServices | run#BalanceSheet |  |
-| LedgerReportServices | run#CashFlowStatement |  |
-| LedgerReportServices | run#RetainedEarningsStatement |  |
-| LedgerReportServices | run#FinancialRatios |  |
-| LedgerReportServices | get#GlAccountClassInfoSums |  |
-| LedgerReportServices | get#GlAccountClassReportInfo |  |
-| LedgerReportServices | run#PostedAmountSummary |  |
-| LedgerReportServices | get#PostedAmountSummarySide |  |
-| LedgerReportServices | get#AccountLedgerInfo |  |
-| LedgerReportServices | get#PeriodSeriesSummary |  |
-| LedgerReportServices | get#PeriodSeriesSummaryRows |  |
-| LedgerServices | create#GlAccount |  |
-| LedgerServices | init#PartyAccountingConfiguration |  |
-| LedgerServices | find#PartyAcctgPreference |  |
-| LedgerServices | find#RootGlAccountClassEnum |  |
-| LedgerServices | set#GlAccountFlags |  |
-| LedgerServices | set#MissingGlAccountFlags |  |
-| LedgerServices | expand#ParentOrganizationList |  |
-| LedgerServices | expand#ChildOrganizationList |  |
-| LedgerServices | get#DefaultGlAccountByType |  |
-| LedgerServices | create#AcctgTrans |  |
-| LedgerServices | update#AcctgTrans |  |
-| LedgerServices | update#AcctgTransPosted |  |
-| LedgerServices | delete#AcctgTrans |  |
-| LedgerServices | create#AcctgTransEntry |  |
-| LedgerServices | update#AcctgTransEntry |  |
-| LedgerServices | delete#AcctgTransEntry |  |
-| LedgerServices | calculate#AcctgTransTrialBalance |  |
-| LedgerServices | post#AcctgTrans |  |
-| LedgerServices | unpost#AcctgTrans |  |
-| LedgerServices | update#GlAccountOrgSummariesForTx |  |
-| LedgerServices | post#ReverseAcctgTrans |  |
-| LedgerServices | move#AcctgTransEntry |  |
-| LedgerServices | get#OrganizationFiscalTimePeriods |  |
-| LedgerServices | check#NextFiscalTimePeriods |  |
-| LedgerServices | close#FinancialTimePeriod |  |
-| LedgerServices | recalculate#GlAccountOrgTimePeriodAmounts |  |
-| LedgerServices | reopen#FinancialTimePeriod |  |
-| LedgerServices | create#PeriodCloseAcctgTrans |  |
-| LedgerServices | recalculate#GlAccountOrgSummaries |  |
-| LedgerServices | create#GlJournal |  |
-| LedgerServices | update#GlJournal |  |
-| LedgerServices | calculate#GlJournalTrialBalance |  |
-| LedgerServices | post#GlJournal |  |
-| OtherAutoPostServices | post#WorkEffortCost |  |
-| OtherAutoPostServices | post#FinancialAccountTrans |  |
-| OtherAutoPostServices | get#FinancialAccountGlAccount |  |
-| OtherAutoPostServices | get#FinancialAccountTransGlAccount |  |
-| PaymentAutoPostServices | post#Payment |  |
-| PaymentAutoPostServices | revert#PaymentPost |  |
-| PaymentAutoPostServices | get#PaymentPartyAcctgPreferences |  |
-| PaymentAutoPostServices | create#PaymentTypeEntry |  |
-| PaymentAutoPostServices | get#PaymentTypeGlAccount |  |
-| PaymentAutoPostServices | get#PaymentMethodGlAccount |  |
-| PaymentAutoPostServices | post#PaymentApplication |  |
-| PaymentAutoPostServices | revert#PaymentApplicationPost |  |
-| PaymentAutoPostServices | repost#PaymentAndApplications |  |
+| Service XML | Service | Designed in | Implemented in |
+| --- | --- | --- | --- |
+| AssetAutoPostServices | post#AssetReceipt |  |  |
+| AssetAutoPostServices | repost#AssetReceipt |  |  |
+| AssetAutoPostServices | post#AssetIssuance |  |  |
+| AssetAutoPostServices | revert#AssetIssuanceOnCancel |  |  |
+| AssetAutoPostServices | repost#AssetIssuance |  |  |
+| AssetAutoPostServices | calculate#FixedAssetDepreciation |  |  |
+| AssetAutoPostServices | post#FixedAssetDepreciation |  |  |
+| AssetAutoPostServices | calculateAndPost#FixedAssetDepreciation |  |  |
+| AssetAutoPostServices | calculateAndPost#AllFixedAssetDepreciations |  |  |
+| AssetAutoPostServices | post#PhysicalInventoryVariance |  |  |
+| AssetAutoPostServices | repost#PhysicalInventoryVariance |  |  |
+| AssetAutoPostServices | get#AssetTypeGlAccount |  |  |
+| AssetAutoPostServices | repost#Asset |  |  |
+| InvoiceAutoPostServices | post#Invoice |  |  |
+| InvoiceAutoPostServices | post#InvoiceAdjustment |  |  |
+| InvoiceAutoPostServices | get#InvoicePartyAcctgPreferences |  |  |
+| InvoiceAutoPostServices | get#InvoiceTypeTransType |  |  |
+| InvoiceAutoPostServices | get#InvoiceItemGlAccount |  |  |
+| InvoiceAutoPostServices | repost#Invoice |  |  |
+| InvoiceAutoPostServices | repost#InvoiceAdjustment |  |  |
+| InvoiceAutoPostServices | repost#AllInvoices |  |  |
+| InvoiceAutoPostServices | revert#InvoicePost |  |  |
+| LedgerReportServices | get#ReportBasicInfo |  |  |
+| LedgerReportServices | run#IncomeStatement |  |  |
+| LedgerReportServices | run#BalanceSheet |  |  |
+| LedgerReportServices | run#CashFlowStatement |  |  |
+| LedgerReportServices | run#RetainedEarningsStatement |  |  |
+| LedgerReportServices | run#FinancialRatios |  |  |
+| LedgerReportServices | get#GlAccountClassInfoSums |  |  |
+| LedgerReportServices | get#GlAccountClassReportInfo |  |  |
+| LedgerReportServices | run#PostedAmountSummary |  |  |
+| LedgerReportServices | get#PostedAmountSummarySide |  |  |
+| LedgerReportServices | get#AccountLedgerInfo |  |  |
+| LedgerReportServices | get#PeriodSeriesSummary |  |  |
+| LedgerReportServices | get#PeriodSeriesSummaryRows |  |  |
+| LedgerServices | create#GlAccount |  |  |
+| LedgerServices | init#PartyAccountingConfiguration |  |  |
+| LedgerServices | find#PartyAcctgPreference |  |  |
+| LedgerServices | find#RootGlAccountClassEnum |  |  |
+| LedgerServices | set#GlAccountFlags |  |  |
+| LedgerServices | set#MissingGlAccountFlags |  |  |
+| LedgerServices | expand#ParentOrganizationList |  |  |
+| LedgerServices | expand#ChildOrganizationList |  |  |
+| LedgerServices | get#DefaultGlAccountByType |  |  |
+| LedgerServices | create#AcctgTrans |  |  |
+| LedgerServices | update#AcctgTrans |  |  |
+| LedgerServices | update#AcctgTransPosted |  |  |
+| LedgerServices | delete#AcctgTrans |  |  |
+| LedgerServices | create#AcctgTransEntry |  |  |
+| LedgerServices | update#AcctgTransEntry |  |  |
+| LedgerServices | delete#AcctgTransEntry |  |  |
+| LedgerServices | calculate#AcctgTransTrialBalance |  |  |
+| LedgerServices | post#AcctgTrans |  |  |
+| LedgerServices | unpost#AcctgTrans |  |  |
+| LedgerServices | update#GlAccountOrgSummariesForTx |  |  |
+| LedgerServices | post#ReverseAcctgTrans |  |  |
+| LedgerServices | move#AcctgTransEntry |  |  |
+| LedgerServices | get#OrganizationFiscalTimePeriods |  |  |
+| LedgerServices | check#NextFiscalTimePeriods |  |  |
+| LedgerServices | close#FinancialTimePeriod |  |  |
+| LedgerServices | recalculate#GlAccountOrgTimePeriodAmounts |  |  |
+| LedgerServices | reopen#FinancialTimePeriod |  |  |
+| LedgerServices | create#PeriodCloseAcctgTrans |  |  |
+| LedgerServices | recalculate#GlAccountOrgSummaries |  |  |
+| LedgerServices | create#GlJournal |  |  |
+| LedgerServices | update#GlJournal |  |  |
+| LedgerServices | calculate#GlJournalTrialBalance |  |  |
+| LedgerServices | post#GlJournal |  |  |
+| OtherAutoPostServices | post#WorkEffortCost |  |  |
+| OtherAutoPostServices | post#FinancialAccountTrans |  |  |
+| OtherAutoPostServices | get#FinancialAccountGlAccount |  |  |
+| OtherAutoPostServices | get#FinancialAccountTransGlAccount |  |  |
+| PaymentAutoPostServices | post#Payment |  |  |
+| PaymentAutoPostServices | revert#PaymentPost |  |  |
+| PaymentAutoPostServices | get#PaymentPartyAcctgPreferences |  |  |
+| PaymentAutoPostServices | create#PaymentTypeEntry |  |  |
+| PaymentAutoPostServices | get#PaymentTypeGlAccount |  |  |
+| PaymentAutoPostServices | get#PaymentMethodGlAccount |  |  |
+| PaymentAutoPostServices | post#PaymentApplication |  |  |
+| PaymentAutoPostServices | revert#PaymentApplicationPost |  |  |
+| PaymentAutoPostServices | repost#PaymentAndApplications |  |  |
 
 ## Order (89 services)
 
-| Service XML | Service | IronStone screens that use the service |
-| --- | --- | --- |
-| OrderBulkServices | store#Order |  |
-| OrderBulkServices | change#OrderPartsStatus |  |
-| OrderInfoServices | get#OrderDisplayInfo |  |
-| OrderInfoServices | get#OrderItemsTotalCount |  |
-| OrderInfoServices | get#OrderItemDisplayInfo |  |
-| OrderInfoServices | get#OrderPartBillingAddress |  |
-| OrderInfoServices | validate#Order |  |
-| OrderInfoServices | validate#OrderRequireManual |  |
-| OrderInfoServices | check#OrderPreApprove |  |
-| OrderInfoServices | send#OrderStoreEmail |  |
-| OrderInfoServices | notify#OrderHighPriority |  |
-| OrderServices | create#Order |  |
-| OrderServices | update#OrderHeader |  |
-| OrderServices | create#OrderPart |  |
-| OrderServices | update#OrderPart |  |
-| OrderServices | get#OrderItemTotal |  |
-| OrderServices | create#OrderItem |  |
-| OrderServices | update#OrderItem |  |
-| OrderServices | delete#OrderItem |  |
-| OrderServices | recalc#OrderItemAmount |  |
-| OrderServices | recalc#OrderPartItemAmounts |  |
-| OrderServices | check#AvailableInventory |  |
-| OrderServices | add#OrderProductQuantity |  |
-| OrderServices | update#OrderProductQuantity |  |
-| OrderServices | merge#OrderItems |  |
-| OrderServices | set#OrderBillingShippingInfo |  |
-| OrderServices | add#OrderPartPayment |  |
-| OrderServices | create#OrderPayments50Split |  |
-| OrderServices | change#OrderStatusInterface |  |
-| OrderServices | update#OrderStatus |  |
-| OrderServices | propose#Order |  |
-| OrderServices | place#Order |  |
-| OrderServices | approve#Order |  |
-| OrderServices | autoApprove#OrdersDelayed |  |
-| OrderServices | autoApprove#Order |  |
-| OrderServices | isFulfilled#OrderPart |  |
-| OrderServices | isFulfilled#OrderItem |  |
-| OrderServices | checkComplete#OrderPart |  |
-| OrderServices | checkStillComplete#Order |  |
-| OrderServices | checkCancelComplete#Order |  |
-| OrderServices | checkRejectedComplete#Order |  |
-| OrderServices | complete#OrderPart |  |
-| OrderServices | complete#Order |  |
-| OrderServices | cancel#Order |  |
-| OrderServices | cancel#OrderPart |  |
-| OrderServices | cancel#OrderItem |  |
-| OrderServices | reject#Order |  |
-| OrderServices | reject#OrderPart |  |
-| OrderServices | reject#OrderItem |  |
-| OrderServices | clone#Order |  |
-| OrderServices | update#OrderRecur |  |
-| OrderServices | create#RecurringOrders |  |
-| OrderServices | create#RecurringOrder |  |
-| OrderServices | handle#OrderItemChange |  |
-| OrderServices | handle#OrderPartChange |  |
-| OrderServices | handle#OrderMajorChange |  |
-| OrderServices | update#OrderHeaderTotal |  |
-| OrderServices | update#OrderPartTotal |  |
-| OrderServices | increment#OrderRevision |  |
-| OrderServices | create#OrderContent |  |
-| OrderServices | update#OrderContent |  |
-| OrderServices | save#OrderContentFile |  |
-| OrderServices | create#PurchaseRequestOrder |  |
-| ReturnServices | get#ReturnDisplayInfo |  |
-| ReturnServices | create#Return |  |
-| ReturnServices | create#ReturnFromOrder |  |
-| ReturnServices | find#OrderOpenReturns |  |
-| ReturnServices | find#ReturnableOrderItems |  |
-| ReturnServices | calculate#OrderItemReturnable |  |
-| ReturnServices | add#OrderItemToReturn |  |
-| ReturnServices | change#ReturnStatusInterface |  |
-| ReturnServices | update#ReturnStatus |  |
-| ReturnServices | checkUpdate#ReturnHeaderStatus |  |
-| ReturnServices | request#Return |  |
-| ReturnServices | approve#Return |  |
-| ReturnServices | receive#ReturnShipmentItems |  |
-| ReturnServices | receive#ReturnWithoutShipment |  |
-| ReturnServices | receive#ReturnItem |  |
-| ReturnServices | complete#ReturnItem |  |
-| ReturnServices | process#ReturnItemResponses |  |
-| ReturnServices | cancel#Return |  |
-| ReturnServices | cancel#ReturnItem |  |
-| ReturnServices | update#ReturnItem |  |
-| ReturnServices | delete#ReturnItem |  |
-| ReturnServices | create#ReturnShipment |  |
-| ReturnServices | add#ReturnToShipment |  |
-| ReturnServices | returnAndResell#Shipment |  |
-| ReturnServices | return#Shipment |  |
-| ReturnServices | resell#Shipment |  |
+| Service XML | Service | Designed in | Implemented in |
+| --- | --- | --- | --- |
+| OrderBulkServices | store#Order |  |  |
+| OrderBulkServices | change#OrderPartsStatus |  |  |
+| OrderInfoServices | get#OrderDisplayInfo |  |  |
+| OrderInfoServices | get#OrderItemsTotalCount |  |  |
+| OrderInfoServices | get#OrderItemDisplayInfo |  |  |
+| OrderInfoServices | get#OrderPartBillingAddress |  |  |
+| OrderInfoServices | validate#Order |  |  |
+| OrderInfoServices | validate#OrderRequireManual |  |  |
+| OrderInfoServices | check#OrderPreApprove |  |  |
+| OrderInfoServices | send#OrderStoreEmail |  |  |
+| OrderInfoServices | notify#OrderHighPriority |  |  |
+| OrderServices | create#Order |  |  |
+| OrderServices | update#OrderHeader |  |  |
+| OrderServices | create#OrderPart |  |  |
+| OrderServices | update#OrderPart |  |  |
+| OrderServices | get#OrderItemTotal |  |  |
+| OrderServices | create#OrderItem |  |  |
+| OrderServices | update#OrderItem |  |  |
+| OrderServices | delete#OrderItem |  |  |
+| OrderServices | recalc#OrderItemAmount |  |  |
+| OrderServices | recalc#OrderPartItemAmounts |  |  |
+| OrderServices | check#AvailableInventory |  |  |
+| OrderServices | add#OrderProductQuantity |  |  |
+| OrderServices | update#OrderProductQuantity |  |  |
+| OrderServices | merge#OrderItems |  |  |
+| OrderServices | set#OrderBillingShippingInfo |  |  |
+| OrderServices | add#OrderPartPayment |  |  |
+| OrderServices | create#OrderPayments50Split |  |  |
+| OrderServices | change#OrderStatusInterface |  |  |
+| OrderServices | update#OrderStatus |  |  |
+| OrderServices | propose#Order |  |  |
+| OrderServices | place#Order |  |  |
+| OrderServices | approve#Order |  |  |
+| OrderServices | autoApprove#OrdersDelayed |  |  |
+| OrderServices | autoApprove#Order |  |  |
+| OrderServices | isFulfilled#OrderPart |  |  |
+| OrderServices | isFulfilled#OrderItem |  |  |
+| OrderServices | checkComplete#OrderPart |  |  |
+| OrderServices | checkStillComplete#Order |  |  |
+| OrderServices | checkCancelComplete#Order |  |  |
+| OrderServices | checkRejectedComplete#Order |  |  |
+| OrderServices | complete#OrderPart |  |  |
+| OrderServices | complete#Order |  |  |
+| OrderServices | cancel#Order |  |  |
+| OrderServices | cancel#OrderPart |  |  |
+| OrderServices | cancel#OrderItem |  |  |
+| OrderServices | reject#Order |  |  |
+| OrderServices | reject#OrderPart |  |  |
+| OrderServices | reject#OrderItem |  |  |
+| OrderServices | clone#Order |  |  |
+| OrderServices | update#OrderRecur |  |  |
+| OrderServices | create#RecurringOrders |  |  |
+| OrderServices | create#RecurringOrder |  |  |
+| OrderServices | handle#OrderItemChange |  |  |
+| OrderServices | handle#OrderPartChange |  |  |
+| OrderServices | handle#OrderMajorChange |  |  |
+| OrderServices | update#OrderHeaderTotal |  |  |
+| OrderServices | update#OrderPartTotal |  |  |
+| OrderServices | increment#OrderRevision |  |  |
+| OrderServices | create#OrderContent |  |  |
+| OrderServices | update#OrderContent |  |  |
+| OrderServices | save#OrderContentFile |  |  |
+| OrderServices | create#PurchaseRequestOrder |  |  |
+| ReturnServices | get#ReturnDisplayInfo |  |  |
+| ReturnServices | create#Return |  |  |
+| ReturnServices | create#ReturnFromOrder |  |  |
+| ReturnServices | find#OrderOpenReturns |  |  |
+| ReturnServices | find#ReturnableOrderItems |  |  |
+| ReturnServices | calculate#OrderItemReturnable |  |  |
+| ReturnServices | add#OrderItemToReturn |  |  |
+| ReturnServices | change#ReturnStatusInterface |  |  |
+| ReturnServices | update#ReturnStatus |  |  |
+| ReturnServices | checkUpdate#ReturnHeaderStatus |  |  |
+| ReturnServices | request#Return |  |  |
+| ReturnServices | approve#Return |  |  |
+| ReturnServices | receive#ReturnShipmentItems |  |  |
+| ReturnServices | receive#ReturnWithoutShipment |  |  |
+| ReturnServices | receive#ReturnItem |  |  |
+| ReturnServices | complete#ReturnItem |  |  |
+| ReturnServices | process#ReturnItemResponses |  |  |
+| ReturnServices | cancel#Return |  |  |
+| ReturnServices | cancel#ReturnItem |  |  |
+| ReturnServices | update#ReturnItem |  |  |
+| ReturnServices | delete#ReturnItem |  |  |
+| ReturnServices | create#ReturnShipment |  |  |
+| ReturnServices | add#ReturnToShipment |  |  |
+| ReturnServices | returnAndResell#Shipment |  |  |
+| ReturnServices | return#Shipment |  |  |
+| ReturnServices | resell#Shipment |  |  |
 
 ## Other (22 services)
 
-| Service XML | Service | IronStone screens that use the service |
-| --- | --- | --- |
-| BudgetReportServices | run#BudgetExpenseReport |  |
-| BudgetReportServices | run#BudgetExpenseDetailReport |  |
-| BudgetServices | get#GlAccountAppls |  |
-| BudgetServices | get#AssetGlAppls |  |
-| BudgetServices | get#FacilityGlAppls |  |
-| BudgetServices | create#Budget |  |
-| BudgetServices | store#BudgetItem |  |
-| BudgetServices | get#BudgetItemsAccountsSubPeriods |  |
-| BudgetServices | store#BudgetItemsSubPeriods |  |
-| BudgetServices | store#BudgetItemDetail |  |
-| BudgetServices | store#BudgetItemDetailsSubPeriods |  |
-| TaxServices | calculate#SalesTax |  |
-| TaxServices | calculate#OrderSalesTax |  |
-| TaxServices | calculate#InvoiceSalesTax |  |
-| TaxServices | calculate#SalesTaxLocal |  |
-| TaxServices | create#TaxStatement |  |
-| TaxServices | delete#TaxStatement |  |
-| TaxServices | create#AllVendor1099MiscStatements |  |
-| TaxServices | create#Vendor1099MiscStatement |  |
-| TaxServices | get#UsaIrs1099MiscFormData |  |
-| TaxServices | get#RecipientTaxInfo |  |
-| TaxServices | get#PayerTaxInfo |  |
+| Service XML | Service | Designed in | Implemented in |
+| --- | --- | --- | --- |
+| BudgetReportServices | run#BudgetExpenseReport |  |  |
+| BudgetReportServices | run#BudgetExpenseDetailReport |  |  |
+| BudgetServices | get#GlAccountAppls |  |  |
+| BudgetServices | get#AssetGlAppls |  |  |
+| BudgetServices | get#FacilityGlAppls |  |  |
+| BudgetServices | create#Budget |  |  |
+| BudgetServices | store#BudgetItem |  |  |
+| BudgetServices | get#BudgetItemsAccountsSubPeriods |  |  |
+| BudgetServices | store#BudgetItemsSubPeriods |  |  |
+| BudgetServices | store#BudgetItemDetail |  |  |
+| BudgetServices | store#BudgetItemDetailsSubPeriods |  |  |
+| TaxServices | calculate#SalesTax |  |  |
+| TaxServices | calculate#OrderSalesTax |  |  |
+| TaxServices | calculate#InvoiceSalesTax |  |  |
+| TaxServices | calculate#SalesTaxLocal |  |  |
+| TaxServices | create#TaxStatement |  |  |
+| TaxServices | delete#TaxStatement |  |  |
+| TaxServices | create#AllVendor1099MiscStatements |  |  |
+| TaxServices | create#Vendor1099MiscStatement |  |  |
+| TaxServices | get#UsaIrs1099MiscFormData |  |  |
+| TaxServices | get#RecipientTaxInfo |  |  |
+| TaxServices | get#PayerTaxInfo |  |  |
 
 ## Party (86 services)
 
-| Service XML | Service | IronStone screens that use the service |
-| --- | --- | --- |
-| AgreementServices | create#AgreementContent |  |
-| AgreementServices | update#AgreementContent |  |
-| AgreementServices | save#AgreementContentFile |  |
-| CommunicationServices | find#PartyCommunicationEvents |  |
-| CommunicationServices | create#Message |  |
-| CommunicationServices | reply#CommunicationEvent |  |
-| CommunicationServices | add#WikiPageComment |  |
-| CommunicationServices | get#CommunicationEventContentLocation |  |
-| CommunicationServices | create#CommunicationEventContent |  |
-| CommunicationServices | update#CommunicationEventContent |  |
-| CommunicationServices | save#CommunicationEventContentFile |  |
-| ContactServices | get#PartyContactInfo |  |
-| ContactServices | get#PartyContactInfoList |  |
-| ContactServices | get#PartyDefaultBilling |  |
-| ContactServices | store#PartyContactInfo |  |
-| ContactServices | create#PostalAddress |  |
-| ContactServices | update#PartyPostalAddress |  |
-| ContactServices | get#PostalAddressGeoIdSet |  |
-| ContactServices | findOrCreate#PartyPostalAddress |  |
-| ContactServices | clean#TelecomNumber |  |
-| ContactServices | create#TelecomNumber |  |
-| ContactServices | update#PartyTelecomNumber |  |
-| ContactServices | findOrCreate#PartyTelecomNumber |  |
-| ContactServices | create#EmailAddress |  |
-| ContactServices | get#PrimaryEmailAddress |  |
-| ContactServices | findOrCreate#PartyEmailAddress |  |
-| ContactServices | create#WebAddress |  |
-| ContactServices | create#ContactMechOther |  |
-| ContactServices | update#PartyContactOther |  |
-| ContactServices | update#ContactMechMutable |  |
-| ContactServices | store#PartyContactMech |  |
-| ContactServices | delete#PartyContactMech |  |
-| ContactServices | undelete#PartyContactMech |  |
-| DuplicateServices | find#PartyHasDuplicates |  |
-| DuplicateServices | find#PartyDuplicates |  |
-| DuplicateServices | find#TelecomNumbers |  |
-| DuplicateServices | find#PostalAddresses |  |
-| DuplicateServices | check#AllPartyDuplicates |  |
-| DuplicateServices | merge#AllDuplicateParties |  |
-| DuplicateServices | merge#Parties |  |
-| GooglePartyServices | get#MapsGeoCodeResults |  |
-| GooglePartyServices | get#MapsPlaceSearchText |  |
-| GooglePartyServices | get#MapsPlaceDetails |  |
-| PartyServices | find#Party |  |
-| PartyServices | search#Party |  |
-| PartyServices | search#Person |  |
-| PartyServices | get#UserNoticeCounts |  |
-| PartyServices | setup#UserOrganizationInfo |  |
-| PartyServices | get#PartyOrganizationInfo |  |
-| PartyServices | create#Account |  |
-| PartyServices | update#Account |  |
-| PartyServices | create#UserAccountPerson |  |
-| PartyServices | create#PartyUserAccount |  |
-| PartyServices | update#PartyUserAccount |  |
-| PartyServices | create#Person |  |
-| PartyServices | create#PersonCustomer |  |
-| PartyServices | create#PersonEmployee |  |
-| PartyServices | create#Organization |  |
-| PartyServices | update#PartyDetail |  |
-| PartyServices | convert#PartyToOrganization |  |
-| PartyServices | convert#PartyToPerson |  |
-| PartyServices | ensure#PartyRole |  |
-| PartyServices | set#PartyClassification |  |
-| PartyServices | remove#PartyClassification |  |
-| PartyServices | get#PartyBadgeInfo |  |
-| PartyServices | lookup#PartyBadge |  |
-| PartyServices | scan#PartyBadge |  |
-| PartyServices | get#PartyContentLocation |  |
-| PartyServices | create#PartyContent |  |
-| PartyServices | update#PartyContent |  |
-| PartyServices | save#PartyContentFile |  |
-| PartyServices | get#PartySettingValue |  |
-| PartyServices | store#PartySetting |  |
-| PartyServices | store#PartyRelationshipSetting |  |
-| PartyServices | validate#PartySetting |  |
-| PartyServices | send#DataDocumentNotifications |  |
-| TimeServices | get#DescendantPeriods |  |
-| TimeServices | create#TimePeriod |  |
-| TimeServices | reset#TimePeriodNames |  |
-| TimeServices | delete#TimePeriod |  |
-| TimeServices | getOrCreate#TimePeriod |  |
-| TimeServices | getOrCreate#NextTimePeriod |  |
-| TimeServices | get#NextTimePeriod |  |
-| TimeServices | getOrCreate#PreviousTimePeriod |  |
-| TimeServices | get#TimePeriodInfo |  |
-| TimeServices | find#PartyTimePeriodGroups |  |
+| Service XML | Service | Designed in | Implemented in |
+| --- | --- | --- | --- |
+| AgreementServices | create#AgreementContent |  |  |
+| AgreementServices | update#AgreementContent |  |  |
+| AgreementServices | save#AgreementContentFile |  |  |
+| CommunicationServices | find#PartyCommunicationEvents |  |  |
+| CommunicationServices | create#Message |  |  |
+| CommunicationServices | reply#CommunicationEvent |  |  |
+| CommunicationServices | add#WikiPageComment |  |  |
+| CommunicationServices | get#CommunicationEventContentLocation |  |  |
+| CommunicationServices | create#CommunicationEventContent |  |  |
+| CommunicationServices | update#CommunicationEventContent |  |  |
+| CommunicationServices | save#CommunicationEventContentFile |  |  |
+| ContactServices | get#PartyContactInfo |  |  |
+| ContactServices | get#PartyContactInfoList |  |  |
+| ContactServices | get#PartyDefaultBilling |  |  |
+| ContactServices | store#PartyContactInfo |  |  |
+| ContactServices | create#PostalAddress |  |  |
+| ContactServices | update#PartyPostalAddress |  |  |
+| ContactServices | get#PostalAddressGeoIdSet |  |  |
+| ContactServices | findOrCreate#PartyPostalAddress |  |  |
+| ContactServices | clean#TelecomNumber |  |  |
+| ContactServices | create#TelecomNumber |  |  |
+| ContactServices | update#PartyTelecomNumber |  |  |
+| ContactServices | findOrCreate#PartyTelecomNumber |  |  |
+| ContactServices | create#EmailAddress |  |  |
+| ContactServices | get#PrimaryEmailAddress |  |  |
+| ContactServices | findOrCreate#PartyEmailAddress |  |  |
+| ContactServices | create#WebAddress |  |  |
+| ContactServices | create#ContactMechOther |  |  |
+| ContactServices | update#PartyContactOther |  |  |
+| ContactServices | update#ContactMechMutable |  |  |
+| ContactServices | store#PartyContactMech |  |  |
+| ContactServices | delete#PartyContactMech |  |  |
+| ContactServices | undelete#PartyContactMech |  |  |
+| DuplicateServices | find#PartyHasDuplicates |  |  |
+| DuplicateServices | find#PartyDuplicates |  |  |
+| DuplicateServices | find#TelecomNumbers |  |  |
+| DuplicateServices | find#PostalAddresses |  |  |
+| DuplicateServices | check#AllPartyDuplicates |  |  |
+| DuplicateServices | merge#AllDuplicateParties |  |  |
+| DuplicateServices | merge#Parties |  |  |
+| GooglePartyServices | get#MapsGeoCodeResults |  |  |
+| GooglePartyServices | get#MapsPlaceSearchText |  |  |
+| GooglePartyServices | get#MapsPlaceDetails |  |  |
+| PartyServices | find#Party |  |  |
+| PartyServices | search#Party |  |  |
+| PartyServices | search#Person |  |  |
+| PartyServices | get#UserNoticeCounts |  |  |
+| PartyServices | setup#UserOrganizationInfo |  |  |
+| PartyServices | get#PartyOrganizationInfo |  |  |
+| PartyServices | create#Account |  |  |
+| PartyServices | update#Account |  |  |
+| PartyServices | create#UserAccountPerson |  |  |
+| PartyServices | create#PartyUserAccount |  |  |
+| PartyServices | update#PartyUserAccount |  |  |
+| PartyServices | create#Person |  |  |
+| PartyServices | create#PersonCustomer |  |  |
+| PartyServices | create#PersonEmployee |  |  |
+| PartyServices | create#Organization |  |  |
+| PartyServices | update#PartyDetail |  |  |
+| PartyServices | convert#PartyToOrganization |  |  |
+| PartyServices | convert#PartyToPerson |  |  |
+| PartyServices | ensure#PartyRole |  |  |
+| PartyServices | set#PartyClassification |  |  |
+| PartyServices | remove#PartyClassification |  |  |
+| PartyServices | get#PartyBadgeInfo |  |  |
+| PartyServices | lookup#PartyBadge |  |  |
+| PartyServices | scan#PartyBadge |  |  |
+| PartyServices | get#PartyContentLocation |  |  |
+| PartyServices | create#PartyContent |  |  |
+| PartyServices | update#PartyContent |  |  |
+| PartyServices | save#PartyContentFile |  |  |
+| PartyServices | get#PartySettingValue |  |  |
+| PartyServices | store#PartySetting |  |  |
+| PartyServices | store#PartyRelationshipSetting |  |  |
+| PartyServices | validate#PartySetting |  |  |
+| PartyServices | send#DataDocumentNotifications |  |  |
+| TimeServices | get#DescendantPeriods |  |  |
+| TimeServices | create#TimePeriod |  |  |
+| TimeServices | reset#TimePeriodNames |  |  |
+| TimeServices | delete#TimePeriod |  |  |
+| TimeServices | getOrCreate#TimePeriod |  |  |
+| TimeServices | getOrCreate#NextTimePeriod |  |  |
+| TimeServices | get#NextTimePeriod |  |  |
+| TimeServices | getOrCreate#PreviousTimePeriod |  |  |
+| TimeServices | get#TimePeriodInfo |  |  |
+| TimeServices | find#PartyTimePeriodGroups |  |  |
 
 ## Product (108 services)
 
-| Service XML | Service | IronStone screens that use the service |
-| --- | --- | --- |
-| AssetServices | get#AssetDisplayInfo |  |
-| AssetServices | get#AvailableInventory |  |
-| AssetServices | get#AvailableForOrder |  |
-| AssetServices | get#AvailableInventoryMulti |  |
-| AssetServices | update#Asset |  |
-| AssetServices | update#AssetAcquireCost |  |
-| AssetServices | update#ProductAcquireCost |  |
-| AssetServices | update#AssetFromDetail |  |
-| AssetServices | recalculate#AllAssetTotals |  |
-| AssetServices | get#AssetPools |  |
-| AssetServices | reserve#AssetsForOrder |  |
-| AssetServices | checkReserve#AssetForOrderItem |  |
-| AssetServices | reserve#AssetForOrderItem |  |
-| AssetServices | remove#OrderItemReservations |  |
-| AssetServices | remove#OrderReservations |  |
-| AssetServices | reduce#AssetReservation |  |
-| AssetServices | reReserve#Assets |  |
-| AssetServices | reserve#IncreasedAsset |  |
-| AssetServices | move#AssetReservation |  |
-| AssetServices | move#ReservationsFromNonPickLocations |  |
-| AssetServices | check#AssetReservations |  |
-| AssetServices | check#AssetReservationValid |  |
-| AssetServices | check#FacilityReservations |  |
-| AssetServices | displace#AssetReservations |  |
-| AssetServices | change#AssetQuantity |  |
-| AssetServices | checkReserve#ProductAssets |  |
-| AssetServices | issue#AssetReservation |  |
-| AssetServices | issue#Asset |  |
-| AssetServices | issue#AssetToWorkEffort |  |
-| AssetServices | issue#AnyAssetToWorkEffort |  |
-| AssetServices | issue#AnyAssetForShipmentItemSource |  |
-| AssetServices | move#IssuancesToNewShipment |  |
-| AssetServices | cancel#AssetIssuance |  |
-| AssetServices | update#AssetIssuedDate |  |
-| AssetServices | receive#Asset |  |
-| AssetServices | update#AssetAndReceipt |  |
-| AssetServices | replace#AssetPartyAssignment |  |
-| AssetServices | move#Product |  |
-| AssetServices | moveVerify#Product |  |
-| AssetServices | check#ScanLocation |  |
-| AssetServices | move#Asset |  |
-| AssetServices | record#PhysicalInventoryQuantity |  |
-| AssetServices | record#PhysicalInventoryChange |  |
-| AssetServices | create#ProductAssetAdHoc |  |
-| AssetServices | update#PhysicalInventoryDate |  |
-| EquipmentServices | create#Equipment |  |
-| EquipmentServices | get#AssetMaintenanceNeeded |  |
-| EquipmentServices | create#AssetMaintenance |  |
-| EquipmentServices | create#AssetMaintenanceContent |  |
-| EquipmentServices | update#AssetMaintenanceContent |  |
-| EquipmentServices | save#AssetMaintenanceContentFile |  |
-| InventoryReportServices | get#InventoryProjectedInfo |  |
-| InventoryReportServices | get#PriceHistoryInfo |  |
-| PriceServices | modify#ProductPrice |  |
-| PriceServices | get#ProductPriceByType |  |
-| PriceServices | get#ProductPrice |  |
-| PriceServices | get#OrderProductPrice |  |
-| ProductServices | find#ProductByIdValue |  |
-| ProductServices | clone#Product |  |
-| ProductServices | create#ProductFeature |  |
-| ProductServices | apply#ProductFeatures |  |
-| ProductServices | find#ProductFeatures |  |
-| ProductServices | find#ProductFeatureGroups |  |
-| ProductServices | find#ProductCategoryFeatures |  |
-| ProductServices | get#ProductCategoryFeatureList |  |
-| ProductServices | get#FeatureByIactnOrAll |  |
-| ProductServices | find#VariantProduct |  |
-| ProductServices | get#VariantProductsInfo |  |
-| ProductServices | create#VariantProducts |  |
-| ProductServices | create#VariantProduct |  |
-| ProductServices | delete#VariantProducts |  |
-| ProductServices | delete#Product |  |
-| ProductServices | add#ProductsToCategory |  |
-| ProductServices | remove#ProductsFromCategory |  |
-| ProductServices | add#FeatureToProducts |  |
-| ProductServices | remove#FeatureFromProducts |  |
-| ProductServices | create#ProductContent |  |
-| ProductServices | update#ProductContent |  |
-| ProductServices | save#ProductContentFile |  |
-| ProductServices | create#ProductCategoryContent |  |
-| ProductServices | update#ProductCategoryContent |  |
-| ProductServices | save#ProductCategoryContentFile |  |
-| ProductServices | get#ProductManualDocumentData |  |
-| PromotionServices | apply#Promotion |  |
-| PromotionServices | apply#OrderPromotions |  |
-| PromotionServices | add#OrderPromoCode |  |
-| PromotionServices | remove#OrderPromoCode |  |
-| PromotionServices | apply#NewCustomerDiscount |  |
-| PromotionServices | apply#BuyGetDiscount |  |
-| PromotionServices | apply#FlatDiscount |  |
-| StoreServices | create#StoreShippingOption |  |
-| StoreServices | get#StoreShippingOptions |  |
-| StoreServices | clone#ProductStore |  |
-| StoreServices | format#UrlSlug |  |
-| StoreServices | generate#UrlSlugFromProductName |  |
-| StoreServices | generate#UrlSlugFromCategoryName |  |
-| SubscriptionServices | init#SubscriptionResource |  |
-| SubscriptionServices | renew#SubscriptionResourceAccess |  |
-| SubscriptionServices | revoke#SubscriptionResourceAccess |  |
-| SubscriptionServices | restore#SubscriptionResourceAccess |  |
-| SubscriptionServices | destroy#SubscriptionResource |  |
-| SubscriptionServices | fulfill#OrderSubscriptions |  |
-| SubscriptionServices | fulfill#OrderPartSubscriptions |  |
-| SubscriptionServices | fulfill#ProductSubscriptionResource |  |
-| TenantSubscriptionServices | init#Tenant |  |
-| TenantSubscriptionServices | revoke#TenantAccess |  |
-| TenantSubscriptionServices | restore#TenantAccess |  |
-| TenantSubscriptionServices | destroy#Tenant |  |
+| Service XML | Service | Designed in | Implemented in |
+| --- | --- | --- | --- |
+| AssetServices | get#AssetDisplayInfo |  |  |
+| AssetServices | get#AvailableInventory |  |  |
+| AssetServices | get#AvailableForOrder |  |  |
+| AssetServices | get#AvailableInventoryMulti |  |  |
+| AssetServices | update#Asset |  |  |
+| AssetServices | update#AssetAcquireCost |  |  |
+| AssetServices | update#ProductAcquireCost |  |  |
+| AssetServices | update#AssetFromDetail |  |  |
+| AssetServices | recalculate#AllAssetTotals |  |  |
+| AssetServices | get#AssetPools |  |  |
+| AssetServices | reserve#AssetsForOrder |  |  |
+| AssetServices | checkReserve#AssetForOrderItem |  |  |
+| AssetServices | reserve#AssetForOrderItem |  |  |
+| AssetServices | remove#OrderItemReservations |  |  |
+| AssetServices | remove#OrderReservations |  |  |
+| AssetServices | reduce#AssetReservation |  |  |
+| AssetServices | reReserve#Assets |  |  |
+| AssetServices | reserve#IncreasedAsset |  |  |
+| AssetServices | move#AssetReservation |  |  |
+| AssetServices | move#ReservationsFromNonPickLocations |  |  |
+| AssetServices | check#AssetReservations |  |  |
+| AssetServices | check#AssetReservationValid |  |  |
+| AssetServices | check#FacilityReservations |  |  |
+| AssetServices | displace#AssetReservations |  |  |
+| AssetServices | change#AssetQuantity |  |  |
+| AssetServices | checkReserve#ProductAssets |  |  |
+| AssetServices | issue#AssetReservation |  |  |
+| AssetServices | issue#Asset |  |  |
+| AssetServices | issue#AssetToWorkEffort |  |  |
+| AssetServices | issue#AnyAssetToWorkEffort |  |  |
+| AssetServices | issue#AnyAssetForShipmentItemSource |  |  |
+| AssetServices | move#IssuancesToNewShipment |  |  |
+| AssetServices | cancel#AssetIssuance |  |  |
+| AssetServices | update#AssetIssuedDate |  |  |
+| AssetServices | receive#Asset |  |  |
+| AssetServices | update#AssetAndReceipt |  |  |
+| AssetServices | replace#AssetPartyAssignment |  |  |
+| AssetServices | move#Product |  |  |
+| AssetServices | moveVerify#Product |  |  |
+| AssetServices | check#ScanLocation |  |  |
+| AssetServices | move#Asset |  |  |
+| AssetServices | record#PhysicalInventoryQuantity |  |  |
+| AssetServices | record#PhysicalInventoryChange |  |  |
+| AssetServices | create#ProductAssetAdHoc |  |  |
+| AssetServices | update#PhysicalInventoryDate |  |  |
+| EquipmentServices | create#Equipment |  |  |
+| EquipmentServices | get#AssetMaintenanceNeeded |  |  |
+| EquipmentServices | create#AssetMaintenance |  |  |
+| EquipmentServices | create#AssetMaintenanceContent |  |  |
+| EquipmentServices | update#AssetMaintenanceContent |  |  |
+| EquipmentServices | save#AssetMaintenanceContentFile |  |  |
+| InventoryReportServices | get#InventoryProjectedInfo |  |  |
+| InventoryReportServices | get#PriceHistoryInfo |  |  |
+| PriceServices | modify#ProductPrice |  |  |
+| PriceServices | get#ProductPriceByType |  |  |
+| PriceServices | get#ProductPrice |  |  |
+| PriceServices | get#OrderProductPrice |  |  |
+| ProductServices | find#ProductByIdValue |  |  |
+| ProductServices | clone#Product |  |  |
+| ProductServices | create#ProductFeature |  |  |
+| ProductServices | apply#ProductFeatures |  |  |
+| ProductServices | find#ProductFeatures |  |  |
+| ProductServices | find#ProductFeatureGroups |  |  |
+| ProductServices | find#ProductCategoryFeatures |  |  |
+| ProductServices | get#ProductCategoryFeatureList |  |  |
+| ProductServices | get#FeatureByIactnOrAll |  |  |
+| ProductServices | find#VariantProduct |  |  |
+| ProductServices | get#VariantProductsInfo |  |  |
+| ProductServices | create#VariantProducts |  |  |
+| ProductServices | create#VariantProduct |  |  |
+| ProductServices | delete#VariantProducts |  |  |
+| ProductServices | delete#Product |  |  |
+| ProductServices | add#ProductsToCategory |  |  |
+| ProductServices | remove#ProductsFromCategory |  |  |
+| ProductServices | add#FeatureToProducts |  |  |
+| ProductServices | remove#FeatureFromProducts |  |  |
+| ProductServices | create#ProductContent |  |  |
+| ProductServices | update#ProductContent |  |  |
+| ProductServices | save#ProductContentFile |  |  |
+| ProductServices | create#ProductCategoryContent |  |  |
+| ProductServices | update#ProductCategoryContent |  |  |
+| ProductServices | save#ProductCategoryContentFile |  |  |
+| ProductServices | get#ProductManualDocumentData |  |  |
+| PromotionServices | apply#Promotion |  |  |
+| PromotionServices | apply#OrderPromotions |  |  |
+| PromotionServices | add#OrderPromoCode |  |  |
+| PromotionServices | remove#OrderPromoCode |  |  |
+| PromotionServices | apply#NewCustomerDiscount |  |  |
+| PromotionServices | apply#BuyGetDiscount |  |  |
+| PromotionServices | apply#FlatDiscount |  |  |
+| StoreServices | create#StoreShippingOption |  |  |
+| StoreServices | get#StoreShippingOptions |  |  |
+| StoreServices | clone#ProductStore |  |  |
+| StoreServices | format#UrlSlug |  |  |
+| StoreServices | generate#UrlSlugFromProductName |  |  |
+| StoreServices | generate#UrlSlugFromCategoryName |  |  |
+| SubscriptionServices | init#SubscriptionResource |  |  |
+| SubscriptionServices | renew#SubscriptionResourceAccess |  |  |
+| SubscriptionServices | revoke#SubscriptionResourceAccess |  |  |
+| SubscriptionServices | restore#SubscriptionResourceAccess |  |  |
+| SubscriptionServices | destroy#SubscriptionResource |  |  |
+| SubscriptionServices | fulfill#OrderSubscriptions |  |  |
+| SubscriptionServices | fulfill#OrderPartSubscriptions |  |  |
+| SubscriptionServices | fulfill#ProductSubscriptionResource |  |  |
+| TenantSubscriptionServices | init#Tenant |  |  |
+| TenantSubscriptionServices | revoke#TenantAccess |  |  |
+| TenantSubscriptionServices | restore#TenantAccess |  |  |
+| TenantSubscriptionServices | destroy#Tenant |  |  |
 
 ## Request (12 services)
 
-| Service XML | Service | IronStone screens that use the service |
-| --- | --- | --- |
-| RequestServices | create#Request |  |
-| RequestServices | update#Request |  |
-| RequestServices | create#ContactRequest |  |
-| RequestServices | create#ContactRequestReCaptcha |  |
-| RequestServices | replace#RequestParty |  |
-| RequestServices | add#RequestComment |  |
-| RequestServices | update#RequestComment |  |
-| RequestServices | delete#RequestComment |  |
-| RequestServices | get#RequestContentLocation |  |
-| RequestServices | create#RequestContent |  |
-| RequestServices | update#RequestContent |  |
-| RequestServices | save#RequestContentFile |  |
+| Service XML | Service | Designed in | Implemented in |
+| --- | --- | --- | --- |
+| RequestServices | create#Request |  |  |
+| RequestServices | update#Request |  |  |
+| RequestServices | create#ContactRequest |  |  |
+| RequestServices | create#ContactRequestReCaptcha |  |  |
+| RequestServices | replace#RequestParty |  |  |
+| RequestServices | add#RequestComment |  |  |
+| RequestServices | update#RequestComment |  |  |
+| RequestServices | delete#RequestComment |  |  |
+| RequestServices | get#RequestContentLocation |  |  |
+| RequestServices | create#RequestContent |  |  |
+| RequestServices | update#RequestContent |  |  |
+| RequestServices | save#RequestContentFile |  |  |
 
 ## Sales (8 services)
 
-| Service XML | Service | IronStone screens that use the service |
-| --- | --- | --- |
-| AccountServices | create#Account |  |
-| AccountServices | create#Contact |  |
-| AccountServices | add#Contact |  |
-| AccountServices | delete#Contact |  |
-| SalesReportServices | get#SalesOrderSummary |  |
-| SalesReportServices | get#SalesInvoiceSummary |  |
-| SalesReportServices | get#SalesTopProduct |  |
-| SalesReportServices | get#InvoicesByCustomerClass |  |
+| Service XML | Service | Designed in | Implemented in |
+| --- | --- | --- | --- |
+| AccountServices | create#Account |  |  |
+| AccountServices | create#Contact |  |  |
+| AccountServices | add#Contact |  |  |
+| AccountServices | delete#Contact |  |  |
+| SalesReportServices | get#SalesOrderSummary |  |  |
+| SalesReportServices | get#SalesInvoiceSummary |  |  |
+| SalesReportServices | get#SalesTopProduct |  |  |
+| SalesReportServices | get#InvoicesByCustomerClass |  |  |
 
 ## Search (1 service)
 
-| Service XML | Service | IronStone screens that use the service |
-| --- | --- | --- |
-| UniversalSearchServices | search#Universal |  |
+| Service XML | Service | Designed in | Implemented in |
+| --- | --- | --- | --- |
+| UniversalSearchServices | search#Universal |  |  |
 
 ## Shipment (68 services)
 
-| Service XML | Service | IronStone screens that use the service |
-| --- | --- | --- |
-| CarrierServices | get#OrderShippingRate |  |
-| CarrierServices | get#ShippingRatesBulk |  |
-| CarrierServices | get#AutoPackageInfo |  |
-| CarrierServices | get#ShippingRate |  |
-| CarrierServices | request#ShippingLabels |  |
-| CarrierServices | refund#ShippingLabels |  |
-| CarrierServices | track#ShippingLabels |  |
-| CarrierServices | validate#ShippingPostalAddress |  |
-| CarrierServices | validate#PostalAddress |  |
-| CarrierServices | validate#PostalAddressBulk |  |
-| CarrierServices | calculate#OrderShipping |  |
-| CarrierServices | calculate#OrderPartShipping |  |
-| CarrierServices | get#OrderShippingRatesBulk |  |
-| CarrierServices | get#ShipmentRates |  |
-| CarrierServices | request#ShipmentLabels |  |
-| CarrierServices | get#ShipLabelMarkup |  |
-| CarrierServices | refund#ShipmentLabels |  |
-| CarrierServices | track#ShipmentLabels |  |
-| CarrierServices | get#ShipmentGatewayDetails |  |
-| CarrierServices | remove#ShipmentLabelInfo |  |
-| CarrierServices | remove#ShipmentReturnLabelInfo |  |
-| CarrierServices | get#ShipmentPackageRequiresInsurance |  |
-| CarrierServices | get#GeneralPackageRequiresInsurance |  |
-| CarrierServices | get#OrderShippingRateLocal |  |
-| ShipmentInfoServices | get#ShipmentDisplayInfo |  |
-| ShipmentInfoServices | get#ShipmentContactInfo |  |
-| ShipmentInfoServices | get#ShipmentShippingOptions |  |
-| ShipmentInfoServices | get#ShipmentLoadPickInfo |  |
-| ShipmentInfoServices | get#ShipmentPickPackInfo |  |
-| ShipmentServices | create#Shipment |  |
-| ShipmentServices | update#ShipmentAndRouteSegment |  |
-| ShipmentServices | create#ShipmentItem |  |
-| ShipmentServices | update#ShipmentItem |  |
-| ShipmentServices | ensure#ShipmentItemQuantityRemaining |  |
-| ShipmentServices | create#ShipmentPackage |  |
-| ShipmentServices | update#ShipmentPackageAndRouteSeg |  |
-| ShipmentServices | delete#ShipmentPackage |  |
-| ShipmentServices | add#ItemToPackage |  |
-| ShipmentServices | update#ShipmentPackageContent |  |
-| ShipmentServices | reset#ShipmentPackage |  |
-| ShipmentServices | ship#OrderPart |  |
-| ShipmentServices | create#OrderPartShipment |  |
-| ShipmentServices | add#OrderPartToShipment |  |
-| ShipmentServices | pickMove#ProductToContainer |  |
-| ShipmentServices | pickMove#ShipmentProduct |  |
-| ShipmentServices | get#ShipmentProductByScan |  |
-| ShipmentServices | pack#ShipmentProductScan |  |
-| ShipmentServices | pack#ShipmentProduct |  |
-| ShipmentServices | pack#ShipmentItemSource |  |
-| ShipmentServices | pack#ShipmentAssemblyComponent |  |
-| ShipmentServices | unpack#ShipmentItemIssuance |  |
-| ShipmentServices | create#ShipmentAutoPackages |  |
-| ShipmentServices | receive#EntireShipment |  |
-| ShipmentServices | receive#ShipmentProduct |  |
-| ShipmentServices | convert#ProductBoxQuantity |  |
-| ShipmentServices | get#ShipmentPackageWeight |  |
-| ShipmentServices | print#ShipmentLabels |  |
-| ShipmentServices | complete#ShipmentPack |  |
-| ShipmentServices | pack#Shipment |  |
-| ShipmentServices | ship#Shipment |  |
-| ShipmentServices | deliver#Shipment |  |
-| ShipmentServices | checkSet#ShipmentDeliveredByPackages |  |
-| ShipmentServices | cancel#Shipment |  |
-| ShipmentServices | reduce#QuantitiesToHandled |  |
-| ShipmentServices | send#ShipmentStoreEmail |  |
-| ShipmentServices | create#ShipmentContent |  |
-| ShipmentServices | update#ShipmentContent |  |
-| ShipmentServices | save#ShipmentContentFile |  |
+| Service XML | Service | Designed in | Implemented in |
+| --- | --- | --- | --- |
+| CarrierServices | get#OrderShippingRate |  |  |
+| CarrierServices | get#ShippingRatesBulk |  |  |
+| CarrierServices | get#AutoPackageInfo |  |  |
+| CarrierServices | get#ShippingRate |  |  |
+| CarrierServices | request#ShippingLabels |  |  |
+| CarrierServices | refund#ShippingLabels |  |  |
+| CarrierServices | track#ShippingLabels |  |  |
+| CarrierServices | validate#ShippingPostalAddress |  |  |
+| CarrierServices | validate#PostalAddress |  |  |
+| CarrierServices | validate#PostalAddressBulk |  |  |
+| CarrierServices | calculate#OrderShipping |  |  |
+| CarrierServices | calculate#OrderPartShipping |  |  |
+| CarrierServices | get#OrderShippingRatesBulk |  |  |
+| CarrierServices | get#ShipmentRates |  |  |
+| CarrierServices | request#ShipmentLabels |  |  |
+| CarrierServices | get#ShipLabelMarkup |  |  |
+| CarrierServices | refund#ShipmentLabels |  |  |
+| CarrierServices | track#ShipmentLabels |  |  |
+| CarrierServices | get#ShipmentGatewayDetails |  |  |
+| CarrierServices | remove#ShipmentLabelInfo |  |  |
+| CarrierServices | remove#ShipmentReturnLabelInfo |  |  |
+| CarrierServices | get#ShipmentPackageRequiresInsurance |  |  |
+| CarrierServices | get#GeneralPackageRequiresInsurance |  |  |
+| CarrierServices | get#OrderShippingRateLocal |  |  |
+| ShipmentInfoServices | get#ShipmentDisplayInfo |  |  |
+| ShipmentInfoServices | get#ShipmentContactInfo |  |  |
+| ShipmentInfoServices | get#ShipmentShippingOptions |  |  |
+| ShipmentInfoServices | get#ShipmentLoadPickInfo |  |  |
+| ShipmentInfoServices | get#ShipmentPickPackInfo |  |  |
+| ShipmentServices | create#Shipment |  |  |
+| ShipmentServices | update#ShipmentAndRouteSegment |  |  |
+| ShipmentServices | create#ShipmentItem |  |  |
+| ShipmentServices | update#ShipmentItem |  |  |
+| ShipmentServices | ensure#ShipmentItemQuantityRemaining |  |  |
+| ShipmentServices | create#ShipmentPackage |  |  |
+| ShipmentServices | update#ShipmentPackageAndRouteSeg |  |  |
+| ShipmentServices | delete#ShipmentPackage |  |  |
+| ShipmentServices | add#ItemToPackage |  |  |
+| ShipmentServices | update#ShipmentPackageContent |  |  |
+| ShipmentServices | reset#ShipmentPackage |  |  |
+| ShipmentServices | ship#OrderPart |  |  |
+| ShipmentServices | create#OrderPartShipment |  |  |
+| ShipmentServices | add#OrderPartToShipment |  |  |
+| ShipmentServices | pickMove#ProductToContainer |  |  |
+| ShipmentServices | pickMove#ShipmentProduct |  |  |
+| ShipmentServices | get#ShipmentProductByScan |  |  |
+| ShipmentServices | pack#ShipmentProductScan |  |  |
+| ShipmentServices | pack#ShipmentProduct |  |  |
+| ShipmentServices | pack#ShipmentItemSource |  |  |
+| ShipmentServices | pack#ShipmentAssemblyComponent |  |  |
+| ShipmentServices | unpack#ShipmentItemIssuance |  |  |
+| ShipmentServices | create#ShipmentAutoPackages |  |  |
+| ShipmentServices | receive#EntireShipment |  |  |
+| ShipmentServices | receive#ShipmentProduct |  |  |
+| ShipmentServices | convert#ProductBoxQuantity |  |  |
+| ShipmentServices | get#ShipmentPackageWeight |  |  |
+| ShipmentServices | print#ShipmentLabels |  |  |
+| ShipmentServices | complete#ShipmentPack |  |  |
+| ShipmentServices | pack#Shipment |  |  |
+| ShipmentServices | ship#Shipment |  |  |
+| ShipmentServices | deliver#Shipment |  |  |
+| ShipmentServices | checkSet#ShipmentDeliveredByPackages |  |  |
+| ShipmentServices | cancel#Shipment |  |  |
+| ShipmentServices | reduce#QuantitiesToHandled |  |  |
+| ShipmentServices | send#ShipmentStoreEmail |  |  |
+| ShipmentServices | create#ShipmentContent |  |  |
+| ShipmentServices | update#ShipmentContent |  |  |
+| ShipmentServices | save#ShipmentContentFile |  |  |
 
 ## Work (87 services)
 
-| Service XML | Service | IronStone screens that use the service |
-| --- | --- | --- |
-| EventServices | get#FullCalendarData |  |
-| EventServices | create#Event |  |
-| EventServices | get#NextBusinessDay |  |
-| EventServices | get#FutureBusinessDay |  |
-| ManufacturingServices | get#ProductionRunDisplayInfo |  |
-| ManufacturingServices | create#ProductionRun |  |
-| ManufacturingServices | create#ShipmentAssemblyWorkEffort |  |
-| ManufacturingServices | set#ProducedProductQuantity |  |
-| ManufacturingServices | recreate#ConsumeProductsFromProduce |  |
-| ManufacturingServices | produce#AvailableAssemblies |  |
-| ManufacturingServices | breakDown#Assembly |  |
-| ManufacturingServices | unissue#AssemblyComponents |  |
-| ManufacturingServices | unissue#Component |  |
-| ManufacturingServices | cancel#AssemblyWorkEffort |  |
-| ManufacturingServices | get#ConsumedAssetRemaining |  |
-| ManufacturingServices | get#ProducedProductComplete |  |
-| ManufacturingServices | get#ProductionRunProduceConsumeDetail |  |
-| ManufacturingServices | get#ProductBomDetail |  |
-| ManufacturingServices | get#ProductionRunPickInfo |  |
-| MeasurementServices | get#MeasurementUomsByMeasurementType |  |
-| ProjectServices | clone#Project |  |
-| ProjectServices | create#Project |  |
-| ProjectServices | update#Project |  |
-| ProjectServices | get#ProjectStats |  |
-| ProjectServices | get#ProjectMilestoneSummary |  |
-| ProjectServices | get#WorkEffortChildStats |  |
-| ProjectServices | get#ProjectParties |  |
-| ProjectServices | get#ProjectTeams |  |
-| ProjectServices | get#ProjectTasks |  |
-| ProjectServices | get#ProjectMilestones |  |
-| ProjectServices | create#Milestone |  |
-| ProjectServices | update#Milestone |  |
-| ShipmentWorkServices | create#ShipmentLoadShip |  |
-| ShipmentWorkServices | add#ShipmentToShipmentLoad |  |
-| ShipmentWorkServices | add#OrderPartToShipmentLoad |  |
-| ShipmentWorkServices | make#ShipmentLoadOrderConditions |  |
-| ShipmentWorkServices | create#ShipmentLoadsForOrders |  |
-| ShipmentWorkServices | check#ShipmentLoadStatusChange |  |
-| ShipmentWorkServices | set#ShipmentLoadStatusOnShipmentStatus |  |
-| ShipmentWorkServices | setAll#ShipmentLoadStatusFromShipments |  |
-| ShipmentWorkServices | set#ShipmentLoadStatusFromShipments |  |
-| ShipmentWorkServices | complete#ShipmentLoadShip |  |
-| ShipmentWorkServices | close#ShipmentLoadShip |  |
-| TaskServices | get#FullCalendarData |  |
-| TaskServices | create#Task |  |
-| TaskServices | create#SimpleTask |  |
-| TaskServices | update#Task |  |
-| TaskServices | set#TaskMilestone |  |
-| TaskServices | set#TaskDefaults |  |
-| TaskServices | add#TaskComment |  |
-| TaskServices | update#TaskComment |  |
-| TaskServices | delete#TaskComment |  |
-| TaskServices | add#TaskTime |  |
-| TaskServices | update#TaskFromTime |  |
-| TaskServices | update#ProjectTimeFromTask |  |
-| TimeServices | store#TimeEntry |  |
-| TimeServices | create#TimeEntryClockIn |  |
-| TimeServices | delete#TimeEntry |  |
-| TimeServices | delete#TimeEntries |  |
-| TimeServices | store#TimeEntryWorkEffort |  |
-| TimeServices | store#WorkEffortPartyTime |  |
-| TimeServices | get#TeamTimesheetInfo |  |
-| TimeServices | get#TimeEntryAmount |  |
-| TimeServices | resetAndGet#TimeEntryRates |  |
-| TimeServices | resetAndGet#ProjectTimeEntryRates |  |
-| TimeServices | get#TimeEntryRate |  |
-| TimeServices | get#TimeEntryFacility |  |
-| TimeServices | get#TimeEntryRiskClassInfo |  |
-| TimeServices | find#RateAmount |  |
-| TimeServices | find#TimeEntryRateAmount |  |
-| TimeServices | upload#TimeSummaryFile |  |
-| TimeServices | import#TimeSummaryFile |  |
-| TimeServices | import#TimeSummaryRecord |  |
-| TimeServices | upload#TimeDetailFile |  |
-| TimeServices | import#TimeDetailFile |  |
-| TimeServices | import#TimeDetailRecord |  |
-| WorkEffortServices | clone#WorkEffort |  |
-| WorkEffortServices | delete#WorkEffort |  |
-| WorkEffortServices | add#WorkEffortParty |  |
-| WorkEffortServices | remove#WorkEffortParty |  |
-| WorkEffortServices | replace#WorkEffortParty |  |
-| WorkEffortServices | add#WorkEffortProduct |  |
-| WorkEffortServices | get#WorkEffortStartEnd |  |
-| WorkEffortServices | get#WorkEffortContentLocation |  |
-| WorkEffortServices | create#WorkEffortContent |  |
-| WorkEffortServices | update#WorkEffortContent |  |
-| WorkEffortServices | save#WorkEffortContentFile |  |
+| Service XML | Service | Designed in | Implemented in |
+| --- | --- | --- | --- |
+| EventServices | get#FullCalendarData |  |  |
+| EventServices | create#Event |  |  |
+| EventServices | get#NextBusinessDay |  |  |
+| EventServices | get#FutureBusinessDay |  |  |
+| ManufacturingServices | get#ProductionRunDisplayInfo |  |  |
+| ManufacturingServices | create#ProductionRun |  |  |
+| ManufacturingServices | create#ShipmentAssemblyWorkEffort |  |  |
+| ManufacturingServices | set#ProducedProductQuantity |  |  |
+| ManufacturingServices | recreate#ConsumeProductsFromProduce |  |  |
+| ManufacturingServices | produce#AvailableAssemblies |  |  |
+| ManufacturingServices | breakDown#Assembly |  |  |
+| ManufacturingServices | unissue#AssemblyComponents |  |  |
+| ManufacturingServices | unissue#Component |  |  |
+| ManufacturingServices | cancel#AssemblyWorkEffort |  |  |
+| ManufacturingServices | get#ConsumedAssetRemaining |  |  |
+| ManufacturingServices | get#ProducedProductComplete |  |  |
+| ManufacturingServices | get#ProductionRunProduceConsumeDetail |  |  |
+| ManufacturingServices | get#ProductBomDetail |  |  |
+| ManufacturingServices | get#ProductionRunPickInfo |  |  |
+| MeasurementServices | get#MeasurementUomsByMeasurementType |  |  |
+| ProjectServices | clone#Project |  |  |
+| ProjectServices | create#Project |  |  |
+| ProjectServices | update#Project |  |  |
+| ProjectServices | get#ProjectStats |  |  |
+| ProjectServices | get#ProjectMilestoneSummary |  |  |
+| ProjectServices | get#WorkEffortChildStats |  |  |
+| ProjectServices | get#ProjectParties |  |  |
+| ProjectServices | get#ProjectTeams |  |  |
+| ProjectServices | get#ProjectTasks |  |  |
+| ProjectServices | get#ProjectMilestones |  |  |
+| ProjectServices | create#Milestone |  |  |
+| ProjectServices | update#Milestone |  |  |
+| ShipmentWorkServices | create#ShipmentLoadShip |  |  |
+| ShipmentWorkServices | add#ShipmentToShipmentLoad |  |  |
+| ShipmentWorkServices | add#OrderPartToShipmentLoad |  |  |
+| ShipmentWorkServices | make#ShipmentLoadOrderConditions |  |  |
+| ShipmentWorkServices | create#ShipmentLoadsForOrders |  |  |
+| ShipmentWorkServices | check#ShipmentLoadStatusChange |  |  |
+| ShipmentWorkServices | set#ShipmentLoadStatusOnShipmentStatus |  |  |
+| ShipmentWorkServices | setAll#ShipmentLoadStatusFromShipments |  |  |
+| ShipmentWorkServices | set#ShipmentLoadStatusFromShipments |  |  |
+| ShipmentWorkServices | complete#ShipmentLoadShip |  |  |
+| ShipmentWorkServices | close#ShipmentLoadShip |  |  |
+| TaskServices | get#FullCalendarData |  |  |
+| TaskServices | create#Task |  |  |
+| TaskServices | create#SimpleTask |  |  |
+| TaskServices | update#Task |  |  |
+| TaskServices | set#TaskMilestone |  |  |
+| TaskServices | set#TaskDefaults |  |  |
+| TaskServices | add#TaskComment |  |  |
+| TaskServices | update#TaskComment |  |  |
+| TaskServices | delete#TaskComment |  |  |
+| TaskServices | add#TaskTime |  |  |
+| TaskServices | update#TaskFromTime |  |  |
+| TaskServices | update#ProjectTimeFromTask |  |  |
+| TimeServices | store#TimeEntry |  |  |
+| TimeServices | create#TimeEntryClockIn |  |  |
+| TimeServices | delete#TimeEntry |  |  |
+| TimeServices | delete#TimeEntries |  |  |
+| TimeServices | store#TimeEntryWorkEffort |  |  |
+| TimeServices | store#WorkEffortPartyTime |  |  |
+| TimeServices | get#TeamTimesheetInfo |  |  |
+| TimeServices | get#TimeEntryAmount |  |  |
+| TimeServices | resetAndGet#TimeEntryRates |  |  |
+| TimeServices | resetAndGet#ProjectTimeEntryRates |  |  |
+| TimeServices | get#TimeEntryRate |  |  |
+| TimeServices | get#TimeEntryFacility |  |  |
+| TimeServices | get#TimeEntryRiskClassInfo |  |  |
+| TimeServices | find#RateAmount |  |  |
+| TimeServices | find#TimeEntryRateAmount |  |  |
+| TimeServices | upload#TimeSummaryFile |  |  |
+| TimeServices | import#TimeSummaryFile |  |  |
+| TimeServices | import#TimeSummaryRecord |  |  |
+| TimeServices | upload#TimeDetailFile |  |  |
+| TimeServices | import#TimeDetailFile |  |  |
+| TimeServices | import#TimeDetailRecord |  |  |
+| WorkEffortServices | clone#WorkEffort |  |  |
+| WorkEffortServices | delete#WorkEffort |  |  |
+| WorkEffortServices | add#WorkEffortParty |  |  |
+| WorkEffortServices | remove#WorkEffortParty |  |  |
+| WorkEffortServices | replace#WorkEffortParty |  |  |
+| WorkEffortServices | add#WorkEffortProduct |  |  |
+| WorkEffortServices | get#WorkEffortStartEnd |  |  |
+| WorkEffortServices | get#WorkEffortContentLocation |  |  |
+| WorkEffortServices | create#WorkEffortContent |  |  |
+| WorkEffortServices | update#WorkEffortContent |  |  |
+| WorkEffortServices | save#WorkEffortContentFile |  |  |
 
 ## General (2 services)
 
-| Service XML | Service | IronStone screens that use the service |
-| --- | --- | --- |
-| GeneralServices | lookup#ById |  |
-| GeneralServices | search#MantleFiltered |  |
+| Service XML | Service | Designed in | Implemented in |
+| --- | --- | --- | --- |
+| GeneralServices | lookup#ById |  |  |
+| GeneralServices | search#MantleFiltered |  |  |
