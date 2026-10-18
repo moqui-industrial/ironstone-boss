@@ -2,12 +2,17 @@
 
 Oct 18, 2026
 
-Deeper research pass on the **IronStone Customer Service** app (Cases/Requests, order
+Reviewed against sources Oct 18, 2026; follows [research-crosscut.md](research-crosscut.md).
+
+Deeper research pass on the **IronStone Customer Service** app (Cases (Requests), order
 lookup & changes, returns/RMA, availability lookup, Customer 360, knowledge-base links),
 cataloguing every relevant screen/page found in the reference apps. Companion to
 [3p-app-reference.md](3p-app-reference.md); feeds the Customer Service row in
-[initial-design.md](initial-design.md) plus the service face of the shared Customer 360
-and Order detail screens.
+[initial-design.md](initial-design.md). Customer Service owns the shared **Request /
+case** screen (intake form, queues, SLA) and RMA authorization; it supplies the service
+face of **Customer 360** and **Order detail** (both owned by Sales), the read-only face of
+**Inventory availability** and **Shipment detail** (Warehouse), the search/suggest/link
+face of knowledge-base articles (Commons wiki), and the CSAT face of surveys (Marketing).
 
 **Organization.** Sorted by functional area (not by app): all case queues together, all
 case-detail surfaces together, etc. Within each area, sub-tables per reference app.
@@ -19,28 +24,41 @@ records, order lookup, return flows, availability views, knowledge-base screens.
 models are noted only where they shape a screen (status categories, SLA clocks,
 returnable-quantity caps, allocation of stock).
 
-**Path conventions.** Paths are relative to each repository's own root, as in
-3p-app-reference.md. Checkout locations:
+**Path conventions.** Every backticked path resolves against the checkout for its prefix
+below (per [research-crosscut.md](research-crosscut.md) §1). All checkouts are under
+`/home/jonesde/work/moquiwork/`. A bare tail in a table cell is relative to the directory
+named earlier in the same cell or row.
 
-| Prefix in this doc | Checkout |
-| --- | --- |
-| **Frappe Helpdesk** | `/home/jonesde/work/moquiwork/3p_other/frappe/helpdesk` — agent/customer SPA in `desk/src/` (Vue 3 + frappe-ui), backend doctypes in `helpdesk/helpdesk/doctype/`, portal pages in `helpdesk/helpdesk/www/`, templates in `helpdesk/helpdesk/templates/` |
-| **ERPNext** | `/home/jonesde/work/moquiwork/3p_other/frappe/erpnext` — support under `erpnext/support/`, portal pages under `erpnext/templates/pages/`, sales/stock/account doctypes under `erpnext/{selling,stock,accounts}/doctype/` |
-| **Frappe framework** | `/home/jonesde/work/moquiwork/3p_other/frappe/frappe` — Help Article/Category live under `frappe/website/doctype/` |
-| **Odoo** | `/home/jonesde/work/moquiwork/3p_other/odoo` — paths below use `odoo/addons/<addon>/…`; each addon's views in `<addon>/views/`, JS in `<addon>/static/src/` |
-| **Dolibarr** | `/home/jonesde/work/moquiwork/3p_other/dolibarr` — module pages under `htdocs/<module>/`, shared ticket form in `htdocs/core/class/html.formticket.class.php`, customer tabs in `htdocs/core/lib/company.lib.php` |
-| **Carbon** | `/home/jonesde/work/moquiwork/3p_other/carbon` — React Router modules under `apps/erp/app/modules/` and route files under `apps/erp/app/routes/x+/` |
-| **AureusERP** | `/home/jonesde/work/moquiwork/3p_other/aureuserp` — Filament resources/clusters under `plugins/webkul/<plugin>/src/Filament/` |
-| **Akaunting** | `/home/jonesde/work/moquiwork/3p_other/akaunting` — Blade views in `resources/views/` |
-| **Moqui Sales** | `/home/jonesde/work/moquiwork/3p_moqui/Sales` — Moqui XML screens in `screen/Sales/`, paired QVue components beside them |
-| **Twenty** | `/home/jonesde/work/moquiwork/3p_other/twenty` — paths relative to the repo root (`packages/twenty-front`) |
-| **metasfresh** | `/home/jonesde/work/moquiwork/3p_other/metasfresh` — React WebUI in `frontend/src/`; business windows and service/repair processes in backend `de.metas.*` modules |
+| Prefix | Checkout | Paths start with |
+| --- | --- | --- |
+| **Frappe Helpdesk** | `3p_other/frappe/helpdesk` | `desk/src/…` (agent and customer SPA, Vue 3 + frappe-ui); backend `helpdesk/helpdesk/doctype/…`, web forms `helpdesk/helpdesk/web_form/…`; API `helpdesk/api/…`, search `helpdesk/search.py`, email templates `helpdesk/templates/…`, ERPNext sync `helpdesk/integrations/…` |
+| **ERPNext** | `3p_other/frappe/erpnext` | `erpnext/<module>/…` (support in `erpnext/support/`, sidebars in `erpnext/workspace_sidebar/`, portal pages in `erpnext/templates/pages/`, doctypes in `erpnext/{selling,stock,accounts}/doctype/`) |
+| **Frappe framework** | `3p_other/frappe/frappe` | `frappe/<area>/…` (Help Article/Category in `frappe/website/doctype/`, Assignment Rule in `frappe/automation/doctype/`) |
+| **Frappe Wiki** | `3p_other/frappe/wiki` | `frontend/src/…`, backend `wiki/wiki/doctype/…` |
+| **Odoo** | `3p_other/odoo` | `odoo/addons/<addon>/…` (views in `<addon>/views/`, OWL in `<addon>/static/src/`) |
+| **Dolibarr** | `3p_other/dolibarr` | `htdocs/<module>/…` (shared ticket form `htdocs/core/class/html.formticket.class.php`, third-party tabs `htdocs/core/lib/company.lib.php`) |
+| **Carbon** | `3p_other/carbon` | `apps/erp/app/{modules,routes}/…` (route files under `apps/erp/app/routes/x+/`), schema `packages/database/supabase/migrations/…` |
+| **AureusERP** | `3p_other/aureuserp` | `plugins/webkul/<plugin>/src/Filament/…` |
+| **Akaunting** | `3p_other/akaunting` | `resources/views/…`, `app/…` |
+| **Twenty** | `3p_other/twenty` | `packages/twenty-front/src/…` |
+| **metasfresh** | `3p_other/metasfresh` | `frontend/src/…`, `backend/de.metas.<module>/…` |
+| **Ever Gauzy** | `3p_other/ever-co/ever-gauzy` | `apps/gauzy/src/app/pages/…`, `packages/…` |
+| **Nextcloud** | `3p_other/nextcloud` | `<app>/src/…` (Collectives: `collectives/src/`) |
+| **Redmine** | `3p_other/redmine` | `app/{views,controllers,models}/…` |
+| **Moqui Sales**, **Moqui WorkManagement** | `3p_moqui/{Sales,WorkManagement}` | `screen/…` (XML screens with paired QVue components) |
+| **Moqui baseline** | `mr-moqui-base/runtime` | `component/MrSimpleScreens/screen/SimpleScreens/…`, `component/MrSimpleScreens/screen/MyAccount/…`, `component/MrMarbleERP/screen/…`, `component/mr-mantle-udm/{entity,data}/…`, `component/mr-mantle-usl/service/mantle/…`, `component/mr-mantle-usl/entity/…`, `base-component/framework/{entity,service}/…`, `component/ironstone-boss/screen/…` |
 
-Not used here: Nextcloud, Zimbra, Ever Co and Signal ship no customer-service/case
-functionality in this checkout. Nextcloud/Zimbra groupware screens are covered by
-[research-drawers-commons.md](research-drawers-commons.md).
+Not used here: Signal ships nothing relevant. Zimbra's admin `helpdesk/` folder
+(`zm-admin-console/WebRoot/js/zimbraAdmin/helpdesk/`) is the admin console's help view,
+not a case desk. Twenty's `packages/twenty-front/src/modules/support/` only embeds the
+vendor's own support chat. OpenProject, the other Frappe apps, and the Moqui components
+other than Sales and WorkManagement have no case, return or KB screens; ridgecrest only
+files `Request` records from its storefront contact form
+(`mantle.request.RequestServices.create#ContactRequestReCaptcha`) and for retailer
+sign-up (custom type `RqtRetailer`). Nextcloud and Zimbra groupware screens are covered
+by [research-drawers-commons.md](research-drawers-commons.md).
 
-Sections: [1 service home & queues](#1-service-home--queues) · [2 case intake & channels](#2-case-intake--channels) · [3 case detail & conversation](#3-case-detail--conversation) · [4 assignment, teams & SLA](#4-assignment-teams--sla) · [5 customer 360](#5-customer-360) · [6 order lookup & changes](#6-order-lookup--changes) · [7 returns / RMA](#7-returns--rma) · [8 availability lookup](#8-availability-lookup) · [9 knowledge base & self-service](#9-knowledge-base--self-service) · [10 feedback, reporting & settings](#10-feedback-reporting--settings) · [11 gaps & notables](#11-gaps--notables)
+Sections: [1 service home & queues](#1-service-home--queues) · [2 case intake & channels](#2-case-intake--channels) · [3 case detail & conversation](#3-case-detail--conversation) · [4 assignment, teams & SLA](#4-assignment-teams--sla) · [5 customer 360](#5-customer-360) · [6 order lookup & changes](#6-order-lookup--changes) · [7 returns / RMA](#7-returns--rma) · [8 availability lookup](#8-availability-lookup) · [9 knowledge base & self-service](#9-knowledge-base--self-service) · [10 feedback, reporting & settings](#10-feedback-reporting--settings) · [11 cross-app surfaces](#11-cross-app-surfaces) · [12 current Moqui baseline](#12-current-moqui-baseline-mrsimplescreens--marbleerp--mantle) · [13 gaps & BOSS implications](#13-gaps--boss-implications)
 
 ---
 
@@ -72,7 +90,7 @@ shared Insights widgets.
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Support workspace | Desk module page: Open/Overdue/Resolved issue number cards, shortcuts to Issue, Maintenance Schedule, Maintenance Visit, Warranty Claim, setup links (Issue Type, Issue Priority, Service Level Agreement), reports and Support Settings. | `erpnext/support/workspace/support/support.json` |
+| Support workspace | Desk module page: "Issues Opened" chart plus Open/Overdue/Resolved issue number cards; the module sidebar links Issue, Maintenance Schedule, Maintenance Visit, Warranty Claim, a Setup group (Issue Type, Issue Priority, Service Level Agreement), the First Response Time report and Support Settings. | `erpnext/support/workspace/support/support.json`, `erpnext/workspace_sidebar/support.json` |
 | Issue dashboard charts | "Issues Opened" line chart plus standard number cards; charts are Frappe Dashboard Chart records over `Issue`. | `erpnext/support/dashboard_chart/issues_opened/`, `erpnext/support/number_card/{open_issues,overdue_issues,resolved_issues}/` |
 | Issue reports | Issue Summary, Issue Analytics, First Response Time for Issues, Support Hour Distribution. | `erpnext/support/report/{issue_summary,issue_analytics,first_response_time_for_issues,support_hour_distribution}/` |
 | Support settings | Close issue after N days, SLA tracking toggle, allow resetting SLA, greeting title/subtitle, search sources, optional forum feed. | `erpnext/support/doctype/support_settings/support_settings.json`; `erpnext/templates/pages/help.py` |
@@ -91,10 +109,13 @@ useful layout references for dense operational lists but not for case management
 
 ### Gaps in the other references
 
-- **Dolibarr:** ticket module has a list and statistics page, but no manager dashboard;
-  the module menu exposes Tickets, Categories, and Statistics.
+- **Dolibarr:** the ticket area index (`htdocs/ticket/index.php`) is a small dashboard:
+  tickets-by-status chart for a chosen year, latest unread tickets, and the user's
+  dashboard boxes. The module menu exposes New ticket, List, My assigned tickets,
+  Statistics and Categories (`htdocs/core/modules/modTicket.class.php`). There is no
+  per-agent or SLA dashboard.
 - **Odoo:** no `helpdesk` addon in this community checkout (Helpdesk is Enterprise).
-  Service work is split across CRM activities, Repair, and stock returns.
+  Service work is split across CRM activities, Live Chat (§2), Repair, and stock returns.
 - **AureusERP:** the `support` plugin is shared infrastructure (activities, calendars,
   UOM, companies), not a support desk. No ticket UI exists.
 - **Akaunting / Moqui Sales / Twenty / metasfresh:** no case queue. Twenty's record
@@ -108,7 +129,7 @@ useful layout references for dense operational lists but not for case management
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| New ticket (agent) | Template-aware form: template `about` text, visible custom fields (with field dependencies), subject + rich description, attachments, submit. Agent can create without the customer-portal KB search. | `desk/src/pages/ticket/TicketNew.vue`, `desk/src/components/UniInput`, `desk/src/components/Settings/FieldDependency/` |
+| New ticket (agent) | Template-aware form: template `about` text, visible custom fields (with field dependencies), subject + rich description, attachments, submit. Agent can create without the customer-portal KB search. | `desk/src/pages/ticket/TicketNew.vue`, `desk/src/components/UniInput.vue`, `desk/src/components/Settings/FieldDependency/` |
 | New ticket (customer portal) | Same form, but after 3 subject characters it runs article search and shows "These articles may already cover what you are looking for" with matching article title/headings/snippet; "View All" opens the public KB; empty state suggests rephrasing. | `desk/src/pages/ticket/TicketNew.vue`, `desk/src/components/SearchArticles.vue` |
 | Web form | Public `HD Ticket` web form with subject, description, priority and custom fields; separate `email_feedback` web form for feedback. | `helpdesk/helpdesk/web_form/tickets/tickets.json`, `helpdesk/helpdesk/web_form/email_feedback/` |
 | Email intake | Email Account setup screens (new/edit/list, provider icons); inbound mail creates/threads tickets and outbound replies use the account. Email notifications are configured separately (acknowledgement, reply-to-agents, reply-via-agent, share-feedback). | `desk/src/components/Settings/{EmailAccountList,EmailAccountCard,EmailAdd,EmailEdit,EmailConfig}.vue`, `desk/src/components/Settings/EmailNotifications/`, `helpdesk/templates/emails/` |
@@ -127,11 +148,12 @@ agent/customer response, raised-outside-working-hours, and failed-by durations.
 **BOSS implications.** IronStone cases are `Request` records, so the intake form should
 be a request-type-driven form, not a ticket-only form: the same screen must serve
 Customer Service, Projects request intake and Commons "requests assigned". Adopt
-Frappe's template + field-dependency model for request types, and its mandatory
-article suggestion before submit on the customer-facing form. The most important gap
+Frappe's template + field-dependency model for request types, and its article
+suggestions shown while the customer types the subject. The most important gap
 to close in BOSS is channel capture: Frappe ties email accounts and telephony directly
 to the ticket, which is exactly what the Comms/SystemMessage layer should provide as a
-shared capability.
+shared capability; `Request.salesChannelEnumId` (Web, Phone, E-Mail, …) can record the
+channel a case came in on.
 
 ### ERPNext — Issue + warranty intake
 
@@ -145,9 +167,10 @@ shared capability.
 
 **BOSS implications.** ERPNext confirms that warranty/AMC is a separate record from the
 case. BOSS should model a case subtype or linked record for warranty claims rather than
-stuffing serial/warranty fields into every request. The public help page is the right
-shape for a customer-facing support portal: search first, articles second, tickets
-third, and a single "open a new ticket" action.
+stuffing serial/warranty fields into every request (`Request` has no product, serial or
+asset field; `RequestItem.productId` is the nearest hook). The public help page is the
+right shape for a customer-facing support portal: search first, articles second, the
+customer's own cases third, and a single "open a new case" action.
 
 ### Dolibarr — ticket form with knowledge suggestions
 
@@ -162,6 +185,47 @@ Frappe's full-text article search: when a request type/category is chosen, show 
 articles linked to that category. That is cheap to implement on Mantle categories and
 useful even when no free-text search service is configured.
 
+### Dolibarr — email collector (inbound mail to tickets, events, leads)
+
+| Screen/page | What it is | Key files |
+| --- | --- | --- |
+| Email collector list/card | Per-mailbox collector (host, port, encryption, login or OAuth service, source folder, target folder after processing, max emails per collect), Test collect / Collect now buttons, last result and last OK date. | `htdocs/admin/emailcollector_list.php`, `htdocs/admin/emailcollector_card.php`, `htdocs/emailcollector/class/emailcollector.class.php` |
+| Filters | Match on from, to, cc, bcc, reply-to, subject / not in subject, body / not in body, header, seen/unseen, answered/unanswered, size, with or without a Dolibarr tracking ID, is/is not an answer. | `htdocs/emailcollector/class/emailcollectorfilter.class.php`, `emailcollector.class.php` |
+| Operations | Ordered actions per collector: load or create third party, load or create contact, record an agenda event, attach files, create a project/lead, create a **ticket**, create a recruitment candidature. Replies are matched to an existing ticket by the tracking ID in the Message-ID or by the stored message references. | `htdocs/emailcollector/class/emailcollectoraction.class.php`, `emailcollector.class.php` |
+
+**BOSS implications.** This is a configurable inbound pipeline, not code: filters decide
+which mails apply, and an ordered list of operations turns a mail into a party, a
+contact, an event and a case. The receive side belongs to Comms (mr-moqui protocols,
+initial-design); Customer Service needs only the "create or append to a case" operation
+and the mailbox-to-queue mapping.
+
+### Redmine — mail handler (email to issue, replies threaded)
+
+| Screen/page | What it is | Key files |
+| --- | --- | --- |
+| Incoming email settings | Settings tab: body delimiters to truncate quoted replies (optionally regex), excluded attachment names, preferred body part (text/HTML), enable the incoming-mail API with a key. | `app/views/settings/_mail_handler.html.erb` |
+| Mail handler | Threads a mail by In-Reply-To/References message IDs, then by a `[#123]` subject tag, else creates an issue; unknown senders are ignored, accepted as anonymous, or get a new account added to a default group; auto-generated mail is ignored by header; attributes in the body can override issue fields when allowed. | `app/models/mail_handler.rb`, `app/controllers/mail_handler_controller.rb`, `app/views/mail_handler/new.html.erb` |
+
+**BOSS implications.** The threading order (message-ID headers, then subject tag, then
+new case) and the unknown-sender policy are the two rules case email intake needs. Both
+belong in the Comms receive path with the case as the target record.
+
+### Odoo — Live Chat channels, chatbots and session reporting
+
+| Screen/page | What it is | Key files |
+| --- | --- | --- |
+| Live Chat channels | Channel kanban/form: operators (join/leave), welcome message, button and window colors, session limits per operator, "no chats during call", review link, ongoing sessions, rating %; widget tab with embed script. | `odoo/addons/im_livechat/views/im_livechat_channel_views.xml`, `odoo/addons/im_livechat/models/im_livechat_channel.py` |
+| Channel rules | Per URL regex and country: show/auto-open/hide the button, open timer, chatbot to run and when. | `odoo/addons/im_livechat/views/im_livechat_channel_views.xml` (`im_livechat.channel.rule.*`) |
+| Chatbot scripts | Scripted steps and answers before handing to an operator. | `odoo/addons/im_livechat/views/{chatbot_script_views,chatbot_script_step_views,chatbot_script_answer_views}.xml` |
+| Operator expertise | Expertise tags on operators; operator selection prefers matching language, country and expertise. | `odoo/addons/im_livechat/views/im_livechat_expertise_views.xml`, `odoo/addons/im_livechat/models/im_livechat_channel.py` |
+| Session statistics | Report over sessions: channel, agent, country, day/hour, response time, messages, rated Happy/Neutral/Unhappy, escalated, not answered. | `odoo/addons/im_livechat/report/im_livechat_report_channel_views.xml`, `im_livechat_conversation_report.xml` |
+| Lead from chat | `crm_livechat` adds a "Create Lead" chatbot step that creates a CRM lead for a sales team. | `odoo/addons/crm_livechat/models/chatbot_script_step.py` |
+
+**BOSS implications.** Chat is a case channel like email: a chat session is a
+`CommunicationEvent` thread owned by Comms, and Customer Service needs "create case from
+chat" plus routing by channel rules and agent capacity. Session limits per agent and the
+"not answered / escalated" counters are the queue metrics worth keeping.
+
 ---
 
 ## 3. Case detail & conversation
@@ -174,7 +238,7 @@ useful even when no free-text search service is configured.
 | Activity panel | Tabs: Activity, Emails, Comments, Calls (when telephony enabled), Analytics. Each tab reuses the timeline filtered by communication type; a persistent communication area at the bottom sends email replies. | `desk/src/components/ticket-agent/TicketActivityPanel.vue`, `desk/src/components/ticket-agent/timeline/TicketTimeline.vue`, `desk/src/components/CommunicationArea.vue` |
 | Timeline | Shared activity-timeline feed (`HD Ticket`, visible types), pinned-comments bar, per-row comments, reactions, email reply hooks. | `desk/src/components/ticket-agent/timeline/{TicketTimeline,TimelineCommentRow,TimelineReactions,PinnedCommentsBar}.vue`, `helpdesk/api/timeline.py` |
 | Sidebar | Contact card, SLA cards, feedback block (once rated), Overview (assignee, core fields, tags), More Details (custom fields), Recent Tickets, Similar Tickets; resizable split. | `desk/src/components/ticket-agent/{TicketSidebar,TicketDetailsTab,TicketSLA,TicketContact}.vue`, `desk/src/components/customer/TicketStats.vue` |
-| Communication composer | Rich text, attachments with upload tracking, Ctrl/Cmd+Enter send, email/comment modes, canned replies selector, saved-reply action chips. | `desk/src/components/{CommunicationArea,TicketTextEditor,EmailEditor,SavedRepliesSelectorModal}.vue`, `desk/src/components/SavedReplyActions/` |
+| Communication composer | Rich text, attachments with upload tracking, Ctrl/Cmd+Enter send, email/comment modes, canned replies selector, saved-reply action chips. | `desk/src/components/{CommunicationArea,EmailEditor,CommentTextEditor,SavedRepliesSelectorModal}.vue`, `desk/src/pages/ticket/TicketTextEditor.vue`, `desk/src/components/SavedReplyActions/` |
 | Split / merge | Split a ticket into a new one; merge duplicates into a target, with merged-with link and subject modal. | `desk/src/components/ticket/{TicketSplitModal,TicketMergeModal}.vue`, `hd_ticket_split_from` / `is_merged` / `merged_with` fields |
 | Customer ticket page | Simpler conversation + attachments composer, Close button, Details tab on mobile, customer-side template fields, feedback dialog, outside-hours banner, customer sidebar. | `desk/src/pages/ticket/{TicketCustomer,TicketConversation,TicketCustomerTemplateFields,TicketFeedback}.vue`, `desk/src/components/ticket/TicketCustomerSidebar.vue` |
 | Ticket analytics tab | Per-ticket analytics: metric cards, conversation summary, ticket timeline. | `desk/src/components/ticket-agent/analytics/{TicketAnalyticsTab,AnalyticsMetricCards,ConversationSummary,TicketTimeline}.vue` |
@@ -224,7 +288,9 @@ may not.
 **BOSS implications.** Repair is a different workflow from a case, but Customer Service
 often needs it. BOSS should keep "case" and "repair/return order" as linked records:
 the case holds communication and SLA, the repair order holds parts, operations and
-stock. Do not merge them into one form.
+stock. Do not merge them into one form. Mantle has no repair-order record; the nearest
+are a `WorkEffort` with purpose `WepMaintenance` (Maintenance's work order) linked by
+`RequestWorkEffort`, and `ReturnHeader` for the goods (see Open questions).
 
 ### Carbon — operational record pages
 
@@ -239,11 +305,11 @@ visible in customers and orders and is a useful shell reference; see §5–§7.
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Assignment rules list/editor | Rules have name, priority (Low → High), disabled switch, description, condition builder (assign + unassign), and a rule mode. Editor supports legacy Python conditions and the structured condition builder. | `desk/src/components/Settings/Assignment Rules/{AssignmentRules,AssignmentRulesListView,AssignmentRuleView,AssignmentRulesList,AssignmentRuleListItem,AssignmentConditionsFilter}.vue`, `helpdesk/api/assignment_rule.py` |
-| Rule distribution | Frappe core Assignment Rule modes: Round Robin, Load Balancing, Based on Field, Weighted Distribution; users table, last user, assignment days, due-date field, close condition. | `3p_other/frappe/frappe/frappe/automation/doctype/assignment_rule/assignment_rule.json` |
-| Teams | Team name, users (multi-select), assignment rule, "ignore restrictions" switch, disabled switch. Team modal, edit, rename, member selector. | `helpdesk/helpdesk/doctype/hd_team/`, `hd_team_member`, `desk/src/components/Settings/Teams/{TeamsList,TeamEdit,NewTeam,AgentSelector}.vue` |
+| Assignment rules list/editor | Rules have name, priority (Low → High), disabled switch, description, condition builder (assign + unassign), assignee list and schedule (assignment days). Editor shows a legacy Python condition read-only ("Old Condition") beside the structured condition builder. | `desk/src/components/Settings/Assignment Rules/{AssignmentRules,AssignmentRulesList,AssignmentRulesListView,AssignmentRuleListItem,AssignmentRuleView,AssigneeRules,AssignmentSchedule}.vue`, `desk/src/components/conditions-filter/`, `helpdesk/api/assignment_rule.py` |
+| Rule distribution (Frappe framework) | Frappe core Assignment Rule modes: Round Robin, Load Balancing, Based on Field, Weighted Distribution; users table, last user, assignment days, due-date field, close condition. | `frappe/automation/doctype/assignment_rule/assignment_rule.json` |
+| Teams | Team name, users (multi-select), assignment rule, "ignore restrictions" switch, disabled switch. Team modal, edit, rename, member selector. | `helpdesk/helpdesk/doctype/hd_team/`, `hd_team_member`, `desk/src/components/Settings/Teams/{TeamsList,TeamEdit,NewTeam,RenameTeamModal}.vue`, `desk/src/components/Settings/Teams/components/AgentSelector.vue` |
 | Agents | Agent user link, display name, active flag, image, availability status and who/when changed. Availability options carry Active/Away/Unavailable categories, ordering and colors. | `helpdesk/helpdesk/doctype/hd_agent/`, `hd_agent_status/`, `desk/src/components/Settings/Agents.vue`, `AgentCard.vue` |
-| SLA list/editor | Service level name, holiday list, start/end dates, working-hours table, per-priority response/resolution times, default SLA/priority, rank, enabled, apply-to-resolution switch, condition, reopen status, default status. | `helpdesk/helpdesk/doctype/hd_service_level_agreement/`, `hd_service_level_priority/`, `hd_service_day/`, `desk/src/components/Settings/Sla/{SlaPolicies,SlaPolicyView,SlaPolicyList,SlaPriorities,SlaWorkDays,SlaHolidays}.vue` |
+| SLA list/editor | Service level name, holiday list, start/end dates, working-hours table, per-priority response/resolution times, default SLA/priority, rank, enabled, apply-to-resolution switch, condition, reopen status, default status (both picked from statuses in the Open category); pause and fulfil behaviour comes from the status category (Open / Paused / Resolved on `HD Ticket Status`), not from per-SLA lists. | `helpdesk/helpdesk/doctype/hd_service_level_agreement/`, `hd_service_level_priority/`, `hd_service_day/`, `desk/src/components/Settings/Sla/{SlaPolicies,SlaPolicyView,SlaPolicyList,SlaPriorityList,SlaWorkDaysList,SlaHolidays,SlaStatusList,SlaAssignmentConditions}.vue` |
 | SLA display | First Response and Resolution cards: fulfilled in X, due by, on-hold since, actual responded/resolved timestamps, delay in working hours and total delay; color shifts to danger on failure. | `desk/src/components/ticket-agent/TicketSLA.vue`, `desk/src/composables/useSLA.ts` |
 | Holidays | Holiday list with from/to date, total, weekly-off day, generate weekly-off dates, recurring holidays, holiday rows and color; calendar and table views. | `helpdesk/helpdesk/doctype/hd_service_holiday_list/`, `hd_holiday/`, `desk/src/components/Settings/Holiday/` |
 
@@ -251,7 +317,7 @@ visible in customers and orders and is a useful shell reference; see §5–§7.
 hours + holidays) × per-priority response/resolution targets × statuses that pause or
 fulfil the clock. BOSS already has `Request` and party/role data, so the SLA record
 should attach to request type/customer/team and compute response/resolution due dates
-server-side; the ticket screen only displays the computed clocks. Assignment must be
+server-side; the case screen only displays the computed clocks. Assignment must be
 rule-based and auditable: priority-ordered conditions, explicit assign/unassign
 conditions, and one of round-robin / load-balancing / weighted distribution. Agent
 availability belongs in the header presence model, not a case-only table.
@@ -268,8 +334,9 @@ availability belongs in the header presence model, not a case-only table.
 **BOSS implications.** ERPNext's pause/fulfil status lists are the important detail:
 SLA behaviour is driven by request status, so statuses must be classified once
 (open/paused/resolved/closed) and reused by every SLA and dashboard. For BOSS, store the
-category on the status record, as Frappe Helpdesk does (`HD Ticket Status.category`),
-and derive pause/fulfil behaviour from the category plus optional per-SLA overrides.
+category with the status, as Frappe Helpdesk does (`HD Ticket Status.category`), and
+derive pause/fulfil behaviour from the category plus optional per-SLA overrides. Moqui's
+`StatusItem` has no category field, so this is a small new mapping (§13).
 
 ### Dolibarr / Odoo / Carbon
 
@@ -293,12 +360,12 @@ and derive pause/fulfil behaviour from the category plus optional per-SLA overri
 | Customer page | Header with image/name/type/domain/primary contact; Edit and delete actions; ticket stats strip; tabs Tickets and Contacts with counts; ticket list filterable by contact when a customer has multiple contacts. | `desk/src/pages/customer/{Customer,Customers}.vue`, `desk/src/components/customer/{TicketsTab,CustomerContactTab,ContactCard}.vue` |
 | Customer stats | Four compact charts/cards: avg. feedback received (with review count), failed SLAs, avg. first response time, avg. resolution time; scoped to the customer or contact. | `desk/src/components/customer/TicketStats.vue`, `helpdesk/api/ticket_stats.py` |
 | Contact page | Contact info (email/phone/country), invitation badge/actions, ticket stats, tabs Tickets and Feedback with counts; linked customers, invite/reset-password actions. | `desk/src/pages/contact/Contact.vue`, `desk/src/components/contact/{ContactCustomers,ContactFeedback,EditContactDialog}.vue` |
-| Customer/contact dialogs | New/edit customer, invite contact, revoke invite, new/edit contact; customer deletion explicitly removes references from related tickets. | `desk/src/components/customer/{NewCustomerDialog,EditCustomerDialog,InviteContactDialog,RevokeInviteButton,DeleteWithTicketsDialog}.vue`, `desk/src/components/contact/{NewContactDialog,EditContactDialog}.vue` |
-| ERPNext integration | Union-merge HD Customers with ERPNext Customers, link both directions, mirror DocShares so portal users see the same customer in both apps; sync settings with in-sync gate and "Sync now". | `helpdesk/integrations/erpnext/{api,customer,doc_share}.py`, `desk/src/components/erpnext-integration/ERPNextIntegrationSettings.vue` |
+| Customer/contact dialogs | New/edit customer, invite contact, revoke invite, new/edit contact; customer deletion explicitly removes references from related tickets. | `desk/src/components/customer/{NewCustomerDialog,EditCustomerDialog,InviteContactDialog,RevokeInviteButton}.vue`, `desk/src/components/DeleteWithTicketsDialog.vue`, `desk/src/components/contact/{NewContactDialog,EditContactDialog}.vue` |
+| ERPNext integration (Helpdesk side) | Union-merge HD Customers with ERPNext Customers, link both directions, mirror DocShares so portal users see the same customer in both apps; sync settings with in-sync gate and "Sync now". | `helpdesk/integrations/erpnext/{api,customer,doc_share}.py`, `desk/src/components/erpnext-integration/ERPNextIntegrationSettings.vue` |
 
-**BOSS implications.** This is almost exactly the shared Customer 360 surface BOSS
-needs, minus orders and money. Reuse one party record with tabs whose content is
-role-driven: Customer Service shows tickets/contacts/feedback; Sales adds opportunities;
+**BOSS implications.** This is almost exactly the service face of the shared Customer 360
+(owned by Sales), minus orders and money. Reuse one party record with tabs whose content is
+role-driven: Customer Service shows cases/contacts/feedback; Sales adds opportunities;
 Accounting adds invoices/credit; Commerce adds store orders. The stats strip should be
 permission-gated (a support agent sees service metrics, not receivables). The ERPNext
 integration is a warning as much as a reference: BOSS must not create a second customer
@@ -330,9 +397,9 @@ the navigation contract: every linked document type should open the shared recor
 
 **BOSS implications.** Dolibarr proves the tabbed third-party hub works for small
 businesses and that tabs should be module-contributed with count badges. BOSS's version
-should be a shared `Party` 360 with tab registration from each app: Service adds Cases
-and Feedback, Sales adds Opportunities/Orders, Accounting adds Invoices/Balance, Commons
-adds Files/Notes/Calendar. Keep the badge counts cheap; Dolibarr caches some counts
+is the shared Customer 360 on `Party` (owned by Sales) with tab registration from each
+app: Service adds Cases, Returns and Feedback, Sales adds Opportunities/Orders,
+Accounting adds Invoices/Balance, Commons adds Files/Notes/Calendar. Keep the badge counts cheap; Dolibarr caches some counts
 because the card otherwise queries every module.
 
 ### Odoo — partner form, stat buttons and chatter
@@ -345,7 +412,7 @@ because the card otherwise queries every module.
 
 **BOSS implications.** Odoo's stat-button pattern is the cleanest "one record, many
 apps" navigation: a count button in the header jumps to a filtered list. BOSS should
-adopt that for Party 360 and for Order detail (cases, shipments, invoices, returns),
+adopt that for Customer 360 and for Order detail (cases, shipments, invoices, returns),
 using the shared context plumbing so Assist and the header tray can see the current
 record.
 
@@ -353,7 +420,7 @@ record.
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Customer record | Header with status, tags, type, contacts/phone chrome, audit log and delete; sidebar tabs: Details, Contacts, Locations, Payment, Bank Accounts, Documents, Tax, Shipping, Risks, RFQs, Quotes, Orders, Invoices (filtered lists). | `apps/erp/app/routes/x+/customer+/`, `apps/erp/app/modules/sales/ui/Customer/{CustomerHeader,CustomerSidebar}`, `apps/erp/app/modules/sales/ui/Customer/CustomerSidebar/useCustomerSidebar.tsx` |
+| Customer record | Header with status, tags, type, contacts/phone chrome, audit log and delete; sidebar tabs: Details, Contacts, Locations, Payment, Bank Accounts, Documents, Tax, Shipping, Risks, RFQs, Quotes, Orders, Invoices (filtered lists). | `apps/erp/app/routes/x+/customer+/`, `apps/erp/app/modules/sales/ui/Customer/CustomerHeader.tsx`, `apps/erp/app/modules/sales/ui/Customer/CustomerSidebar/{CustomerSidebar,useCustomerSidebar}.tsx` |
 | Customer forms | Details, contacts, locations, shipping, tax, payment, bank accounts, risk register. | `apps/erp/app/modules/sales/ui/Customer/{CustomerForm,CustomerContactForm,CustomerLocationForm,CustomerShippingForm,CustomerTaxForm,CustomerPaymentForm,CustomerBankAccountForm,CustomerRiskRegister}.tsx` |
 | Customer list | Searchable/filterable table with types/statuses; create/edit routes. | `apps/erp/app/modules/sales/ui/Customers/CustomersTable.tsx`, `apps/erp/app/routes/x+/sales+/customers.tsx` |
 
@@ -371,9 +438,10 @@ tabs belong to Accounting but can be surfaced read-only when the viewer has perm
 | Company/People record pages | Standard objects use the same record shell; companies show people/opportunities, people show company/activities. | `packages/twenty-front/src/modules/{companies,people}/` |
 
 **BOSS implications.** Twenty is the reference for user-arrangeable record pages. For
-BOSS, do not build a separate Customer 360; build a Party record page whose widgets are
-registered by app, then let users arrange them. The timeline widget is the same shared
-activity feed needed by cases and orders, so it should be one component, not three.
+BOSS, do not build a service-only customer page; the shared Customer 360 is a Party
+record page whose widgets are registered by app, then arranged by users. The timeline
+widget is the same shared activity feed needed by cases and orders, so it should be one
+component, not three.
 
 ### Akaunting / Moqui Sales — lighter customer surfaces
 
@@ -432,6 +500,7 @@ sales edit rights. "Order Again" is a Sales/Commerce action, not a service actio
 | Order card | Header with ref/customer/status, lines, availability delay selector, warehouse selector, shipping method, notes, linked documents/events; actions Validate, Modify, Create Shipment, Create Bill, Classify Shipped, Close, Cancel, Reopen. | `htdocs/commande/card.php`, `htdocs/commande/class/commande.class.php` (`STATUS_*`) |
 | Shipment card | Lines with qty shipped/to ship, warehouse stock warnings, tracking number and tracking URL, shipping date, signed status, documents/notes/events. | `htdocs/expedition/card.php`, `htdocs/expedition/class/expedition.class.php` |
 | Customer order/shipment tabs | Customer card links to filtered orders/invoices/shipments through module tabs. | `htdocs/core/lib/company.lib.php`, `htdocs/societe/card.php` |
+| Web portal | Customer login portal with lists of the customer's proposals, orders, invoices, interventions and tickets, shared documents, member and partnership cards. | `htdocs/webportal/controllers/{orderlist,invoicelist,propallist,ticketlist,ficheinterlist,shareddocuments}.controller.class.php` |
 
 **BOSS implications.** Dolibarr's order card is a good model for the service action set:
 Validate, Create Shipment, Create Bill, Classify Shipped, Close, Cancel and Reopen are
@@ -443,10 +512,10 @@ and tracking URL belong on the shipment, not the order.
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Sales order list | Table columns: Sales Order Number, Customer, Status, Jobs, Customer PO, Order Date, Order Total, Assignee, Promised Date, Shipping Method, Location, Payment Terms, Drop Shipment, Created/Updated By/At. Favorite filter route. | `apps/erp/app/modules/sales/ui/SalesOrder/SalesOrdersTable.tsx`, `apps/erp/app/routes/x+/sales+/orders.tsx`, `orders.favorite.tsx` |
+| Sales order list | Table columns: Sales Order Number, Customer, Status, Jobs, Customer PO, Order Date, Order Total, Assignee, Promised Date, Shipping Method, Location, Payment Terms, Drop Shipment, Created/Updated By/At. Favorite filter route. | `apps/erp/app/modules/sales/ui/SalesOrder/SalesOrdersTable.tsx`, `apps/erp/app/routes/x+/sales+/orders.tsx`, `apps/erp/app/routes/x+/sales-order+/orders.favorite.tsx` |
 | Sales order detail routes | Shell + tabs: details, lines, line jobs, line shipment, shipment, payment, invoice summary, status, confirm, cancel preview, contract, exchange rate; delete line/order. | `apps/erp/app/routes/x+/sales-order+/` (`$orderId.*`), `apps/erp/app/modules/sales/ui/SalesOrder/` |
 | Order status | Draft, In Progress (jobs incomplete), Needs Approval, To Ship and Invoice, To Ship, To Invoice, Completed, Cancelled, Closed; status badge colors and job-derived "In Progress". | `apps/erp/app/modules/sales/sales.models.ts` (`salesOrderStatusType`), `ui/SalesOrder/SalesStatus.tsx` |
-| Customer portal | Portal configuration per customer (create/edit/delete) and portal line/operation progress UI; portal implementation is Enterprise (`ee`). | `apps/erp/app/routes/x+/sales+/customer-portals*.tsx`, `apps/erp/app/modules/sales/ui/CustomerPortals/*.ee.tsx`, `ui/CustomerPortal/` |
+| Customer portal | Portal configuration per customer (create/edit/delete) and portal line/operation progress UI; portal implementation is Enterprise (`ee`). | `apps/erp/app/routes/x+/sales+/customer-portals*.tsx`, `apps/erp/app/modules/sales/ui/CustomerPortals/*.ee.tsx`, `apps/erp/app/modules/sales/ui/CustomerPortal/` |
 
 **BOSS implications.** Carbon's route-per-action model is worth copying: confirm,
 cancel, shipment, payment and invoice are separate routes with their own permissions and
@@ -458,14 +527,15 @@ that authz easy.
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Find Order | Saved finds, CSV/XLSX export, selectable columns, filters by account, order ID/name, status, total range; create-order dialog (store, customer); row links to account/order. | `screen/Sales/Order/FindOrder.xml` (and `.qvue`) |
-| View Order | Order header (status, created, grand total, customer email), ship-to/bill-to blocks with address selection and editing, shipping method + live shipping options, payment information; explicitly marked "alpha" with placeholder text "Put order buttons here (change status, etc)". | `screen/Sales/Order/ViewOrder.xml` (and `.qvue`) |
+| Find Order | Saved finds, CSV/XLSX export, selectable columns, filters by account, order ID/name, status, total range; create-order dialog (store, customer); row links to account/order. | `screen/Sales/Order/{FindOrder.xml,FindOrder.qvue}` |
+| View Order | Order header (status, created, grand total, customer email), ship-to/bill-to blocks with address selection and editing, shipping method + live shipping options, payment information; menu title "View Order (alpha)" with placeholder toolbar text "Put order buttons here (change status, etc)". | `screen/Sales/Order/{ViewOrder.xml,ViewOrder.qvue}` |
 | Account → orders | `ViewAccount` lists the account's orders and links each to View Order. | `screen/Sales/Account/ViewAccount.xml` |
 
 **BOSS implications.** Moqui Sales proves the data path (Mantle order views, party
 contact info, shipping options) but not the finished UI: the order screen openly lacks
 status actions, shipments, invoices and returns. BOSS can reuse the Mantle lookups and
-build the missing action set; do not port the alpha screen as-is.
+build the missing action set; do not port the alpha screen as-is. The fuller baseline is
+SimpleScreens `OrderDetail.xml` (status actions, shipments, invoices, Create Return; §12).
 
 ### Akaunting — invoices, not orders
 
@@ -483,40 +553,47 @@ not for order lifecycle.
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
 | RMA list | Table columns: RMA Number, Customer, Status, Customer Reference, Order Date, Received, Credited, Assignee, Created At; searchable/filterable. | `apps/erp/app/modules/sales/ui/SalesReturnOrders/SalesReturnOrdersTable.tsx`, `apps/erp/app/routes/x+/sales+/rmas.tsx` |
-| New/edit RMA | Customer, contact, location, source sales order, RMA ID, order date, expiration, currency, status; description: "A return merchandise authorization (RMA) authorizes a customer to return goods for credit, replacement, or repair." | `ui/SalesReturnOrders/SalesReturnOrderForm.tsx`, `apps/erp/app/routes/x+/sales-return-order+/new.tsx` |
-| Returnable lines picker | Loads delivered, returnable shipment lines; snapshots item/price/UoM/sales-order line; quantity clamped to `returnableQuantity`; submits all selected lines. | `ui/SalesReturnOrders/ReturnableLinesModal.tsx`, `apps/erp/app/routes/x+/sales-return-order+/returnable-lines.tsx` |
-| RMA detail / summary | Header actions Confirm, Cancel, Receive, Ship, Issue Credit, Create Replacement/Replacement Order, Reopen, Delete; line summary with ordered/received quantities, restock fee, subtotal/total. | `ui/SalesReturnOrders/{SalesReturnOrderHeader,SalesReturnOrderSummary,SalesReturnOrderStatus}.tsx`, `apps/erp/app/routes/x+/sales-return-order+/$id.tsx` |
-| Line details | Source linkage (shipment/order/invoice line), item, return quantity, unit price, restock fee percent, return reason, disposition; "Resume/Stop Receiving". | `ui/SalesReturnOrders/SalesReturnOrderLineForm.tsx`, `apps/erp/app/routes/x+/sales-return-order+/$id.$lineId.details.tsx` |
-| Disposition / issue | Line disposition: Pending, Return to Customer, Rework, Scrap, Use As Is; Scrap/Rework go through an issue/escalation route; receiving is opened/closed per line. | `sales.models.ts` (`salesReturnDispositionType`), `routes/x+/sales-return-order+/$id.$lineId.{disposition,issue,receiving}.tsx` |
-| Credit | Credits received-but-not-yet-credited quantity per line; creates a credit memo; caps enforced server-side with row locking. | `ui/SalesReturnOrders/SalesReturnOrderCreditModal.tsx`, `routes/x+/sales-return-order+/$id.credit.tsx` |
-| Replacement | Creates a replacement sales order from the RMA. | `routes/x+/sales-return-order+/$id.replacement.tsx`, `SalesReturnOrderHeader.tsx` |
-| Return reasons | Return reason master with "Zero Inventory Value" flag (returned goods re-enter inventory at zero value). | `ui/ReturnReasons/{ReturnReasonForm,ReturnReasonsTable}.tsx`, `routes/x+/sales+/return-reasons*` |
+| New/edit RMA | Customer, contact, location, source sales order, RMA ID, order date, expiration, currency, status; description: "A return merchandise authorization (RMA) authorizes a customer to return goods for credit, replacement, or repair." | `apps/erp/app/modules/sales/ui/SalesReturnOrders/SalesReturnOrderForm.tsx`, `apps/erp/app/routes/x+/sales-return-order+/new.tsx` |
+| Returnable lines picker | Loads delivered, returnable shipment lines; snapshots item/price/UoM/sales-order line; quantity clamped to `returnableQuantity`; submits all selected lines. | `apps/erp/app/modules/sales/ui/SalesReturnOrders/ReturnableLinesModal.tsx`, `apps/erp/app/routes/x+/sales-return-order+/returnable-lines.tsx` |
+| RMA detail / summary | Header actions Confirm (draft), Cancel, Receive (To Receive), Ship and Issue Credit (once something is received), Create Replacement / Replacement Order, Reopen, Delete; line summary with ordered/received quantities, restock fee, subtotal/total. | `apps/erp/app/modules/sales/ui/SalesReturnOrders/{SalesReturnOrderHeader,SalesReturnOrderSummary,SalesReturnOrderStatus}.tsx`, `apps/erp/app/routes/x+/sales-return-order+/$id.tsx` |
+| Line details | Source linkage (shipment/order/invoice line), item, return quantity, unit price, restock fee percent, return reason, disposition; "Resume/Stop Receiving". | `apps/erp/app/modules/sales/ui/SalesReturnOrders/SalesReturnOrderLineForm.tsx`, `apps/erp/app/routes/x+/sales-return-order+/$id.$lineId.details.tsx` |
+| Disposition / issue | Line disposition picker: Pending, Return to Customer, Rework, Scrap, Use As Is; Scrap/Rework are set through an issue (non-conformance) escalation; receiving is opened/closed per line. | `apps/erp/app/modules/sales/sales.models.ts` (`salesReturnDispositionType`), `apps/erp/app/routes/x+/sales-return-order+/$id.$lineId.{disposition,issue,receiving}.tsx` |
+| Credit | Credits received-but-not-yet-credited quantity per line; creates a credit memo; caps enforced server-side with row locking. | `apps/erp/app/modules/sales/ui/SalesReturnOrders/SalesReturnOrderCreditModal.tsx`, `apps/erp/app/routes/x+/sales-return-order+/$id.credit.tsx` |
+| Replacement | Creates a replacement sales order from the RMA. | `apps/erp/app/routes/x+/sales-return-order+/$id.replacement.tsx`, `apps/erp/app/modules/sales/ui/SalesReturnOrders/SalesReturnOrderHeader.tsx` |
+| Return reasons | Return reason master with "Zero Inventory Value" flag (returned goods re-enter inventory at zero value). | `apps/erp/app/modules/sales/ui/ReturnReasons/{ReturnReasonForm,ReturnReasonsTable}.tsx`, `apps/erp/app/routes/x+/sales+/return-reasons*` |
+| Data model | `salesReturnOrder` (status Draft / To Receive / Completed / Cancelled, customer, contact, location, customer reference, source and replacement sales order, order and **expiration** date, internal/external notes, **assignee**); `salesReturnOrderLine` (quantity, quantity received, unit price, **restock fee percent**, reason, source sales-order / shipment / **invoice** line, **disposition**, closed-complete); tracked-entity (serial/lot) lines; credit lines per memo with restock fee; link to non-conformance. | `packages/database/supabase/migrations/20260908142501_returns-module.sql` |
 
-**BOSS implications.** This is the reference implementation to follow. Model an RMA as
-its own record linked to order/shipment/invoice lines, with a per-line disposition and
-separate received/credited quantities. The state machine is Draft → To Receive →
-Completed/Cancelled, with actions Confirm, Receive, Ship (return to customer), Issue
-Credit, Create Replacement, Cancel. Critical invariants: returnable quantity comes from
-delivered lines, credit is capped by received quantity, and cancellation releases the
-authorized quantities back to the source documents.
+**BOSS implications.** This is the reference for the RMA screens and invariants. Mantle
+already has the record: build on `ReturnHeader` / `ReturnItem` / `ReturnItemBilling`
+(see §12), and add what Carbon's model has that `ReturnHeader` lacks: an authorization
+expiration date, an assignee, a customer reference, internal/external notes, a
+per-line restock fee, a disposition (Mantle has only `ReturnItem.inventoryStatusId` for
+the status of received stock), and links to the source shipment and invoice lines
+(Mantle links `orderId`/`orderItemSeqId` only). Carbon's four-state flow maps onto
+Mantle's longer one (Created → Requested → Approved → Shipped → Received → Completed,
+plus Manual Response Required and Cancelled). Critical invariants: returnable quantity
+comes from delivered lines (Mantle `find#ReturnableOrderItems`,
+`calculate#OrderItemReturnable`), credit is capped by received quantity, and
+cancellation releases the authorized quantities back to the source documents.
 
 ### Odoo — portal returns, stock returns and repair
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
 | Portal return entry | `/my/order/return_data` builds returnable lines from done outgoing moves and return reasons; portal shows a Return button when `allow_spontaneous_returns` and within `return_validity_days`. | `odoo/addons/sale_stock/controllers/return_order.py`, `odoo/addons/sale_stock/models/sale_order.py` (`_is_portal_return_allowed`) |
-| Return label | Downloads a PDF return label grouped by picking, logs the returned products + reason in the order chatter. | `sale_stock/controllers/return_order.py`, `sale_stock/views/sale_stock_portal_template.xml`, report `sale_stock.action_report_return_label` |
-| Return reasons | Return reason master + settings (allow spontaneous returns, validity days, link to reasons). | `sale_stock/views/return_reason_views.xml`, `sale_stock/views/res_config_settings_views.xml` |
-| Stock return | Delivery/picking form exposes Return and Exchange; return creates a reverse transfer linked by `return_id`; "Returns" stat button lists them; return report grouped by reason. | `stock/views/stock_picking_views.xml`, `stock/models/stock_picking.py` (`action_return`, `action_exchange`, `action_see_returns`), `sale_stock/views/stock_picking_views.xml` |
-| Repair order | Repair workflow for returned/defective goods: confirm, reserve parts, parts/services, end repair, quote/invoice, cancel/reopen. | `repair/views/repair_views.xml`, `repair/models/repair.py` |
-| Returns reporting | Graph/pivot over incoming pickings with `return_id`, grouped by return reason. | `sale_stock/views/stock_picking_views.xml` (`action_stock_picking_return_report`) |
+| Return label | Downloads a PDF return label grouped by picking, logs the returned products + reason in the order chatter. | `odoo/addons/sale_stock/controllers/return_order.py`, `odoo/addons/sale_stock/views/sale_stock_portal_template.xml`, report `sale_stock.action_report_return_label` |
+| Return reasons | Return reason master + settings (allow spontaneous returns, validity days, link to reasons). | `odoo/addons/sale_stock/views/return_reason_views.xml`, `odoo/addons/sale_stock/views/res_config_settings_views.xml` |
+| Stock return | Delivery/picking form exposes Return and Exchange; return creates a reverse transfer linked by `return_id`; "Returns" stat button lists them; return report grouped by reason. | `odoo/addons/stock/views/stock_picking_views.xml`, `odoo/addons/stock/models/stock_picking.py` (`action_return`, `action_exchange`, `action_see_returns`), `odoo/addons/sale_stock/views/stock_picking_views.xml` |
+| Repair order | Repair workflow for returned/defective goods: confirm, reserve parts, parts/services, end repair, quote/invoice, cancel/reopen. | `odoo/addons/repair/views/repair_views.xml`, `odoo/addons/repair/models/repair.py` |
+| Returns reporting | Graph/pivot over incoming pickings with `return_id`, grouped by return reason. | `odoo/addons/sale_stock/views/stock_picking_views.xml` (`action_stock_picking_return_report`) |
 
 **BOSS implications.** Odoo separates three things BOSS must keep separate: a
 customer-initiated return request (portal, reason, label), the physical return transfer
 (stock), and the repair/replacement/credit outcome. For Customer Service, the case
-should link to the return request and show its status; Warehouse owns the physical
-receipt; Accounting owns the credit. "Allow spontaneous returns" and a validity window
-are valuable policy switches.
+should link to the return (`ReturnHeader`, in Requested/Approved status) and show its
+status; Warehouse owns the physical receipt; Accounting owns the credit. "Allow
+spontaneous returns" and a validity window are valuable policy switches; Mantle has
+neither as a setting.
 
 ### ERPNext — delivery return + credit note + warranty claim
 
@@ -529,8 +606,11 @@ are valuable policy switches.
 
 **BOSS implications.** ERPNext has no RMA record: returns are negative Delivery Notes
 and Credit Notes. That works for accounting but loses the authorization/reason/disposition
-story. BOSS should keep the Carbon RMA model and post ERPNext-style return documents
-behind it, so stock and accounting stay standard while Customer Service gets a real RMA.
+story. Mantle already separates the two: the RMA is `ReturnHeader`/`ReturnItem`, and the
+stock and money documents hang off it (sales-return `Shipment` of type
+`ShpTpSalesReturn`, `AssetReceipt`, credit-memo `Invoice` through `ReturnItemBilling`,
+refund `Payment`, replacement `OrderHeader`). BOSS keeps that shape: Customer Service
+authorizes, Warehouse receives, Accounting credits.
 
 ### Dolibarr / metasfresh / others
 
@@ -542,8 +622,8 @@ behind it, so stock and accounting stay standard while Customer Service gets a r
   return calculation and repair manufacturing orders. The UI is backend-window based,
   so it is a model reference rather than a screen reference.
 - **Akaunting / AureusERP / Moqui Sales / Twenty** have no RMA UI in this
-  checkout. AureusERP inventories has receipts/deliveries/scrap but no customer-return
-  resource.
+  checkout. AureusERP inventories has receipts, deliveries, dropship, internal transfers,
+  replenishment and scrap but no customer-return resource.
 
 ---
 
@@ -556,7 +636,7 @@ behind it, so stock and accounting stay standard while Customer Service gets a r
 | Forecasted report | Client action with warehouse filter; header cards On Hand, Incoming, Outgoing, Forecasted; graph over `report.stock.quantity`; details table with Available, Outgoing, used-by document links, `Not Available`, and future forecast including draft transfers; Replenish and Update Quantity buttons. | `odoo/addons/stock/static/src/stock_forecasted/{stock_forecasted.xml,forecasted_header.xml,forecasted_details.xml,forecasted_graph.xml,forecasted_buttons.xml,forecasted_warehouse_filter.xml}`, `odoo/addons/stock/views/stock_forecasted.xml` |
 | Product form/list | On Hand, Free to Use, Incoming, Outgoing, Forecasted; stat button to open quants/forecast; list filters "Available Products" and "Negative Forecasted Quantity"; forecast widget on lines. | `odoo/addons/stock/views/product_views.xml`, `odoo/addons/sale/views/product_views.xml`, `odoo/addons/stock/static/src/widgets/forecast_widget.xml` |
 | Stock move/picking lines | `forecast_availability` widget shows availability inline on operations. | `odoo/addons/stock/views/stock_picking_views.xml` |
-| Replenishment | Replenish wizard and replenishment info; used from forecast and reordering rules. | `odoo/addons/stock/wizard/{product_replenish,stock_replenishment_info}.{py,xml}` |
+| Replenishment | Replenish wizard and replenishment info; used from forecast and reordering rules. | `odoo/addons/stock/wizard/{product_replenish.py,product_replenish_views.xml,stock_replenishment_info.py,stock_replenishment_info.xml}` |
 
 **BOSS implications.** This is the availability screen to emulate for Customer Service:
 one product/warehouse view with On Hand, Incoming, Outgoing, Forecasted and the list of
@@ -584,15 +664,15 @@ not be recalculated in the service screen.
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Inventory table | Searchable item list with On Hand, Days remaining, Lead Time, Reorder Policy, Replenishment, Usage/Day (30d/90d), On Purchase Order, On Jobs, On Production Demand, On Sales Order, Demand Forecast, UoM, item attributes, storage types/units. | `apps/erp/app/modules/inventory/ui/Inventory/InventoryTable.tsx`, `apps/erp/app/routes/x+/inventory+/{_index,quantities}.tsx` |
+| Inventory table | Searchable item list with On Hand, Days (of supply remaining), Lead Time, Reorder Policy, Replenishment, Usage/Day (30d/90d), On Purchase Order, On Jobs, On Production Demand, On Sales Order, Demand Forecast, UoM, item attributes, storage types/units. | `apps/erp/app/modules/inventory/ui/Inventory/InventoryTable.tsx`, `apps/erp/app/routes/x+/inventory+/{_index,quantities}.tsx` |
 | Item quantity details | Quantity panel: On Hand, On Purchase Order, On Sales Order, On Production Order, On Production Demand; storage units and ledger activity tabs. | `apps/erp/app/modules/inventory/ui/Inventory/{InventoryDetails,InventoryStorageUnits,InventoryActivity}.tsx` |
-| Stock movements / traceability | Movement list and traceability graph for lot/serial and document lineage. | `ui/StockMovements/`, `ui/Traceability/` |
-| Replenishment | Reordering policies and replenishment system fields on the inventory table. | `ui/Inventory/InventoryTable.tsx` |
+| Stock movements / traceability | Movement list and traceability graph for lot/serial and document lineage. | `apps/erp/app/modules/inventory/ui/{StockMovements,Traceability}/` |
+| Replenishment | Reordering policies and replenishment system fields on the inventory table. | `apps/erp/app/modules/inventory/ui/Inventory/InventoryTable.tsx` |
 
 **BOSS implications.** Carbon's table is excellent for a warehouse/purchasing user but
 too dense for support. For Customer Service, reuse the same query with a fixed column
-set: On Hand, On Sales Order, On Purchase Order, On Jobs, Days remaining, Lead time,
-Demand forecast. The "Days remaining" and "Lead Time" pair is the fastest way to answer
+set: On Hand, On Sales Order, On Purchase Order, On Jobs, Days, Lead time, Demand
+forecast. The "Days" (supply remaining) and "Lead Time" pair is the fastest way to answer
 "when can I get more?".
 
 ### Dolibarr — product stock card and stock-at-date
@@ -640,10 +720,10 @@ category tree, full-text search, article view with helpful/not-helpful feedback,
 inline suggestion block on case intake. BOSS should store articles in Commons
 knowledge (Wiki/content) and expose a service-scoped read view rather than creating a
 parallel KB. The two features worth copying exactly are (1) suggestions after the
-customer types a subject, not only after submit, and (2) "if this did not help, create a
-ticket" on every article. The `preferKnowledgeBase` switch is a useful policy knob.
+customer types a subject, not only after submit, and (2) "if this did not help, open a
+case" on every article. The `preferKnowledgeBase` switch is a useful policy knob.
 
-### ERPNext / Frappe — Help Articles + support search sources
+### ERPNext / Frappe framework — Help Articles + support search sources
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
@@ -664,8 +744,8 @@ self-service default when there is no query.
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Knowledge list | Search/filter by question, language, category, status (Draft/Validated/Obsolete); mass actions; create. | `htdocs/knowledgemanagement/knowledgerecord_list.php` |
-| Knowledge card | Question, language, categories, answer (rich text, with layout/AI fill helpers), suggested ticket category, status, notes/documents, agenda, contacts. | `htdocs/knowledgemanagement/knowledgerecord_card.php`, `knowledgerecord.class.php` |
+| Knowledge list | Search/filter by question, language, category, status (Draft / Validated / Obsolete); mass actions; create. | `htdocs/knowledgemanagement/knowledgerecord_list.php` |
+| Knowledge card | Question, language, categories, answer (rich text, with layout/AI fill helpers), suggested ticket category, status, notes/documents, agenda, contacts. | `htdocs/knowledgemanagement/knowledgerecord_card.php`, `htdocs/knowledgemanagement/class/knowledgerecord.class.php` |
 | Ticket form integration | On selecting a ticket category, AJAX loads matching knowledge records and lists them under "Knowledge found for ticket group"; can open the article in a dialog. | `htdocs/core/class/html.formticket.class.php` |
 | Knowledge dashboard | Module home with recent/draft records and quick links; no public customer portal in this checkout. | `htdocs/knowledgemanagement/knowledgemanagementindex.php` |
 
@@ -674,28 +754,49 @@ copy: each request type/category can list relevant KB articles even without full
 search. Its language field matters for BOSS's multilingual support; articles should be
 keyed by language and category, not just title.
 
-### Frappe Wiki / Nextcloud Collectives — shared knowledge source
+### Frappe Wiki — shared knowledge source with feedback
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Wiki spaces | All Spaces list with search, restricted-access markers, create space, space details. | `wiki/frontend/src/pages/{AllSpaces,SpaceDetails}.vue`, `components/{SpaceSidebar,SpaceTreePanel,SpaceWelcome}.vue` |
-| Wiki page editor/viewer | Rich-text editor, table of contents, version/diff viewer, contributions and review queue, assignment, page settings. | `wiki/frontend/src/components/{WikiEditor,WikiContentViewer,WikiDocumentPanel,DiffViewer,ContributionsPanel,DraftContributionPanel,SubmitForReviewButton}.vue`, `pages/{Contributions,ContributionReview}.vue` |
-| Command palette | Jump to pages/spaces and run actions. | `wiki/frontend/src/components/CommandPalette.vue` |
-| Nextcloud Collectives | Wiki/knowledge base inside Nextcloud with its own page tree and editor; catalogued in [research-drawers-commons.md](research-drawers-commons.md). | `collectives/src/`, `collectives/templates/` |
+| Wiki spaces | All Spaces list with search, restricted-access markers, create space, space details. | `frontend/src/pages/{AllSpaces,SpaceDetails}.vue`, `frontend/src/components/{SpaceSidebar,SpaceTreePanel,SpaceWelcome}.vue` |
+| Wiki page editor/viewer | Rich-text editor, table of contents, version/diff viewer, contributions and review queue, assignment, page settings. | `frontend/src/components/{WikiEditor,WikiContentViewer,WikiDocumentPanel,DiffViewer,ContributionsPanel,DraftContributionPanel,SubmitForReviewButton,AssignDialog,PageSettingsPanel}.vue`, `frontend/src/pages/{Contributions,ContributionReview}.vue` |
+| Command palette | Jump to pages/spaces and run actions. | `frontend/src/components/CommandPalette.vue` |
+| Page feedback | Reader feedback per page: rating, Good / Ok / Bad, comment, optional email, Open / Closed triage status; settings to enable feedback and limit submissions. | `wiki/wiki/doctype/wiki_feedback/`, `frontend/src/components/WikiSettings/FeedbackPanel.vue` |
+| Analytics | Views and new visitors over time, top pages, date presets. | `frontend/src/components/Analytics/{AnalyticsDashboard,TopList}.vue` |
+
+### Nextcloud Collectives — team wiki
+
+| Screen/page | What it is | Key files |
+| --- | --- | --- |
+| Collective pages | Page tree with favorites, subpages, drag-to-move and trash; new-page dialog; landing page with recent pages and members widgets; tags; search dialog. | `collectives/src/components/PageList/`, `collectives/src/components/Page/{LandingPageWidgets,SearchDialog,PageTags,TagsModal}.vue` |
+| Page sidebar | Tabs for attachments, backlinks, sharing (public links) and versions with compare and labels. | `collectives/src/components/PageSidebar/{SidebarTabAttachments,SidebarTabBacklinks,SidebarTabSharing,SidebarTabVersions,VersionComparisonDialog}.vue` |
+| Page reference widget | Link preview card when a page is referenced elsewhere in Nextcloud. | `collectives/src/views/PageReferenceWidget.vue` |
+
+Collectives is also catalogued in [research-drawers-commons.md](research-drawers-commons.md).
 
 **BOSS implications.** Knowledge articles for Customer Service should be authored in
 the Commons wiki, not in a service-only editor. The service app needs a read/search
 surface plus "link this case to this article" and "suggest an article edit" actions.
 Frappe Wiki's contribution review is a good pattern if articles are editable by many
-staff.
+staff, and its page feedback with Open/Closed triage is the "article did not help" loop
+Customer Service should feed. Collectives' backlinks tab is a cheap way to show which
+cases cite an article.
+
+### Ever Gauzy — internal Help Center
+
+| Screen/page | What it is | Key files |
+| --- | --- | --- |
+| Help Center | Knowledge bases (name, icon, color, description) and categories in a sidebar tree; article list with search by name, filter by author, draft flag, created date; add/delete article dialogs (name, description, rich body). | `apps/gauzy/src/app/pages/help-center/`, `packages/ui-core/shared/src/lib/sidebar/knowledge-base/` |
+
+Internal only: no public portal and no link to a case.
 
 ### Moqui WorkManagement — native wiki and task surfaces
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Wiki spaces | Moqui screen rendered as a QVue app; space list/detail for wiki content. | `screen/wiki/WikiSpaces.xml`, `screen/wiki/WikiDetail.xml` |
-| Wiki blog posts | Blog-post list/detail alongside the wiki; useful when KB content is published as articles/blog entries. | `screen/wiki/WikiBlogs.xml` |
-| Task screen | QVue task workspace: saved finds by person/role/project/status, text search, assignee/project/status/priority editing, due date, mark complete, task comments. | `screen/wm/Task.xml`, `screen/wm/Task/Task.qvue`, `screen/Sales/Task/EditTask.xml` |
+| Wiki spaces | Moqui screen rendered as a QVue app; space list/detail for wiki content. | `screen/wiki/{WikiSpaces,WikiDetail}.xml`, `screen/wiki/Wiki/{WikiSpaces,WikiDetail}.qvue` |
+| Wiki blog posts | Blog-post list/detail alongside the wiki; useful when KB content is published as articles/blog entries. | `screen/wiki/WikiBlogs.xml`, `screen/wiki/WikiBlogs/` |
+| Task screen | QVue task workspace: saved finds by person/role/project/status, text search, assignee/project/status/priority editing, due date, mark complete, task comments. | `screen/wm/Task.xml`, `screen/wm/Task/Task.qvue` |
 
 **BOSS implications.** This is the Moqui-native proof that a wiki list/detail and a
 task workspace can be built with screens plus QVue. Reuse the saved-find pattern for
@@ -718,29 +819,43 @@ in Commons.
 | Ticket analytics tab | Per-ticket metric cards, conversation summary and timeline. | `desk/src/components/ticket-agent/analytics/` |
 | Export | Queue export modal (export selected vs all) and CSV/XLSX flows. | `desk/src/pages/ticket/Tickets.vue`, `desk/src/components/ticket/ExportModal.vue` |
 
-**BOSS implications.** CSAT should be a first-class field on the request, not an
-afterthought: rating + preset reason + free text, captured at close and visible on the
-case and Customer 360. Report CSAT by resolution date, not creation date. The minimum
-service dashboard is tickets, SLA %, first response, resolution and CSAT; channel/team/
+**BOSS implications.** CSAT should be first-class on the case, not an afterthought:
+rating + preset reason + free text, captured at close and visible on the case and
+Customer 360. Surveys are owned by Marketing (framework `DbForm` + `FormResponse`), so
+the CSAT form is a Marketing survey that Customer Service sends and reads; the case
+needs a link to the response and a stored rating for reporting (`FormResponse` has no
+record link today). Report CSAT by resolution date, not creation date. The minimum
+service dashboard is cases, SLA %, first response, resolution and CSAT; channel/team/
 type/tag breakdowns are the next layer.
+
+### Odoo — rating mixin (CSAT on any record)
+
+| Screen/page | What it is | Key files |
+| --- | --- | --- |
+| Rating request page | Public token page: pick Happy / Neutral / Unhappy, optional free-text feedback, "Thank you for your feedback!". | `odoo/addons/rating/views/rating_templates.xml`, `odoo/addons/rating/controllers/` |
+| Ratings list/report | Ratings with customer, rated operator, resource and document, rating text, submitted date; filters My Ratings, Happy/Neutral/Unhappy, last 7/30/365 days; rating (/5). | `odoo/addons/rating/views/rating_rating_views.xml` |
+| Rating mixin | Any model that inherits the mixin gets rating requests, rated-in-chatter messages and satisfaction percentages (used by Live Chat channels). | `odoo/addons/rating/models/{rating_mixin,rating_parent_mixin,rating}.py` |
+
+**BOSS implications.** A three-face rating sent as a token link is the lowest-friction
+CSAT; it fits the Marketing survey builder as a one-question form attached to the case.
 
 ### ERPNext / Dolibarr — reporting and settings
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
 | ERPNext support reports | Issue Summary, Issue Analytics, First Response Time, Support Hour Distribution; standard filters/export. | `erpnext/support/report/` |
-| ERPNext support workspace | Number cards + shortcuts described in §1; no per-agent home. | `erpnext/support/workspace/support/support.json` |
+| ERPNext support workspace | Chart, number cards and sidebar links described in §1; no per-agent home. | `erpnext/support/workspace/support/support.json` |
 | Dolibarr ticket statistics | Ticket statistics page with grouping/filters; module list and dashboard. | `htdocs/ticket/stats/index.php`, `htdocs/ticket/class/ticketstats.class.php` |
-| Dolibarr ticket setup | Ticket module admin (categories, types, severities, notification defaults, public portal settings). | `htdocs/admin/ticket.php`, `htdocs/ticket/admin/` (if present in checkout) |
+| Dolibarr ticket setup | Ticket module admin (categories, types, severities, notification defaults), public portal settings, ticket email templates. | `htdocs/admin/{ticket,ticket_public,mails_ticket}.php` |
 
 ### Helpdesk settings inventory (the configuration surface to plan for)
 
 | Area | Settings that shape screens/behaviour | Files |
 | --- | --- | --- |
 | General / branding | Logo, brand color/name, ticket settings (auto-close, allow anyone to create, default type, restrict by agent group, prefer KB, skip email workflow). | `desk/src/components/Settings/General/`, `helpdesk/api/config.py` |
-| Agents & teams | Agents, active flag, availability, teams, team members, assignment rule per team. | `helpdesk/helpdesk/doctype/{hd_agent,hd_team}/`, `desk/src/components/Settings/{Agents,Teams}/` |
+| Agents & teams | Agents, active flag, availability, teams, team members, assignment rule per team. | `helpdesk/helpdesk/doctype/{hd_agent,hd_team}/`, `desk/src/components/Settings/Agents.vue`, `desk/src/components/Settings/Teams/` |
 | Assignment rules | Priority, conditions, assign/unassign, distribution mode, users, days, close condition. | Frappe core Assignment Rule, `desk/src/components/Settings/Assignment Rules/` |
-| SLA | Policies, priorities, working hours, holidays, pause/fulfil statuses, default/reopen status. | `helpdesk/helpdesk/doctype/hd_service_level_agreement/`, `desk/src/components/Settings/Sla/` |
+| SLA | Policies, priorities, working hours, holidays, default/reopen status; pause/fulfil from status categories. | `helpdesk/helpdesk/doctype/hd_service_level_agreement/`, `desk/src/components/Settings/Sla/` |
 | Saved replies | Title, message, scope (Global/Team/Personal), teams, actions (set fields, assign, tags, comment). | `helpdesk/helpdesk/doctype/hd_saved_reply/`, `desk/src/components/Settings/SavedReplies/`, `desk/src/components/SavedReplyActions/` |
 | Email | Email accounts, inbound/outbound config, notifications (acknowledgement, reply-to-agents, reply-via-agent, share-feedback). | `desk/src/components/Settings/{EmailAccountList,EmailAccountCard,EmailAdd,EmailEdit,EmailConfig}.vue`, `desk/src/components/Settings/EmailNotifications/` |
 | Telephony | Exotel/Twilio credentials and call UI settings; call logs. | `desk/src/components/Settings/Telephony/`, `desk/src/pages/call-logs/` |
@@ -757,7 +872,122 @@ rules. Plan those as first-class records, not JSON blobs.
 
 ---
 
-## 11. Gaps & notables
+## 11. Cross-app surfaces
+
+Owners and faces follow [research-crosscut.md](research-crosscut.md) §3–§4.
+
+| Surface | Customer Service face | Reference evidence |
+| --- | --- | --- |
+| **Request / case** (owner: Customer Service) | Owns the intake form, queues, SLA clocks and case detail. Commons shows "requests assigned"; Projects converts work to tasks (`RequestWorkEffort`); Purchasing (`RqtPurchase`) and Sales (`RqtQuote`) reuse the same screen with their own types | Frappe Helpdesk ticket model and agent/customer views; ERPNext Issue; Dolibarr tickets; Moqui Request screens (§12) |
+| **Customer 360** (shared: Sales) | Cases, returns and orders tabs; service stats strip (open cases, failed SLAs, first response, resolution, CSAT); contacts | Frappe Helpdesk customer/contact pages and ticket stats; Dolibarr third-party Tickets tab with count; ERPNext customer dashboard "Support" group; Carbon customer sidebar |
+| **Order detail** (shared: Sales) | Read-only order with a service action set: open case, create return, change or cancel request, resend confirmation | ERPNext Sales Order Create buttons; Odoo portal order with Return button; Dolibarr order card actions; Carbon route-per-action; Moqui Order detail **Create Return** |
+| **Returns / RMA** (owner: Customer Service for authorization, reasons, case link) | Authorize, approve or cancel, response (credit, refund, replace), customer messages; Warehouse receives and dispositions (`ShpTpSalesReturn`); Accounting credits and refunds (`ReturnItemBilling`) | Carbon RMA; Odoo portal return, stock return and return reasons; ERPNext return Delivery Note and Credit Note; Moqui Return screens |
+| **Inventory availability** (shared: Warehouse) | Read-only on hand, reserved, available to promise, incoming with dates, per facility; no adjust or replenish actions | Odoo forecasted report; ERPNext Stock Balance and projected qty; Carbon inventory table; Dolibarr stock at date |
+| **Shipment detail** (shared: Warehouse) | Tracking number and URL, ship and estimated delivery dates, return label | Dolibarr shipment card tracking; Odoo portal delivery tracking and return label; Moqui pack-time return labels |
+| **Knowledge base articles** (owner: Commons wiki) | Search, suggest on intake, link article to case (`WikiPageRequest`), suggest edit, "did not help" feedback | Frappe Helpdesk KB and intake article suggestions; Dolibarr category → knowledge records; Frappe Wiki feedback and contribution review; ERPNext search sources |
+| **Surveys / CSAT** (owner: Marketing) | Send CSAT at close; show rating on the case and Customer 360; CSAT KPIs | Frappe Helpdesk ticket feedback; Odoo rating mixin; Frappe Wiki page feedback |
+| **Chatter & activities** (owner: Commons / Comms) | Case timeline of emails, comments, calls and chat; follow-up activities and tasks (Task / work item, shared: Projects) | Frappe Helpdesk activity panel; Odoo chatter; Twenty timeline widget |
+| **Email, chat and phone channels** (owner: Comms) | Mailbox-to-queue mapping, create-or-append case from mail or chat, reply from the case | Frappe Helpdesk email accounts and telephony; Dolibarr email collector; Redmine mail handler; Odoo Live Chat |
+| **Customer agreements** (owner: Sales) | Read: warranty and service terms for the customer | crosscut §4 (Customer Service: read) |
+| **Dashboard widgets** (owner: Insights) | Landing-page KPIs: open, overdue, unassigned, SLA %, first response, resolution, CSAT | Frappe Helpdesk dashboard KPI cards; ERPNext issue number cards |
+
+**BOSS implications.** Customer Service builds one shared screen family (the case) and
+one RMA authorization flow; everything else it shows is a face of a screen another app
+owns, opened with a service context that limits the action set.
+
+---
+
+## 12. Current Moqui baseline (MrSimpleScreens / MarbleERP / Mantle)
+
+The baseline has the records Customer Service needs (`Request`, `ReturnHeader`,
+`CommunicationEvent`, wiki pages, available-to-promise services) and generic screens for
+each, but no service app: no queue per team, no SLA, no case conversation beyond nested
+comments, and no link between a case and an order or return. MarbleERP
+(`component/MrMarbleERP/screen/marble.xml`) mounts the SimpleScreens `Request`, `Return`,
+`Customer`, `Order`, `Party`, `Survey` and `Wiki` trees; its flow map
+(`component/MrMarbleERP/screen/marble/dashboard.xml`) shows customer request counts
+(Submitted, In Progress) and links Sales Returns & RMA, Customer Return Shipments and
+Customer Credit Memos. Moqui Sales (`3p_moqui/Sales`) adds `ViewAccount` and an alpha
+`ViewOrder` (§5–§6).
+
+### Screens
+
+Paths are under `component/MrSimpleScreens/screen/SimpleScreens/` unless they start with
+`component/`.
+
+| Screen/page | What it is | Key files |
+| --- | --- | --- |
+| Find Request | Saved finds and selectable columns; filters party + role, priority, ID, name, store, project, facility, type, status, resolution, request and due dates, customer, assignee; defaults to open statuses (Draft, Submitted, Reviewed, In Progress). **New Request** dialog: customer, store, project, facility, assignee (defaults to current user), priority 1–9, due date, type (default Support), initial status (default Submitted), name, description | `Request/FindRequest.xml` (`mantle.request.RequestAndParty`) |
+| Edit Request | Header form (ID, filed by, customer, store, project, facility, assignee, due date, type, resolution, name) and status change; nested comments (`RequestCommEventDetail`); parties with role and notify flag; notes; content attachments; linked task list | `Request/EditRequest.xml`, `Request/EditRequest/{RequestCommentNested,RequestCommentReply,RequestCommentUpdate}.xml` |
+| Request tabs | Items (request items, create purchase order from items), Tasks (link or create tasks), Assignments (parties and roles), Wiki Pages (link pages through `WikiPageRequest`) | `Request/{EditRequestItems,EditTasks,EditUsers,EditWikiPages}.xml` |
+| My Requests | The user's own open requests, New Request dialog (name, type, store, project, description), detail with comments; IronStone already has a copy under Base | `component/MrSimpleScreens/screen/MyAccount/User/Request/{MyRequests,EditRequest}.xml`, `component/ironstone-boss/screen/Base/User/Request/` |
+| Find Return | Customer and supplier returns; **Create Customer Return** / **Create Supplier Return** dialogs | `Return/FindReturn.xml` |
+| Edit Return | Header (customer, vendor, warehouse, shipping address and phone, shipment method, credit account), **Set Requested**, **Approve**, **Cancel**, audit log | `Return/EditReturn.xml` |
+| Return items | Item, reason, response (Credit / Refund / Replace / Manual), immediate flag, return and received quantities, return price, response amount, inventory status, replacement product and order, credit memo invoice, refund payment; **Create Return Shipment**, **Receive without Shipment**, **Process Item Responses** | `Return/EditReturnItems.xml` |
+| Add From Orders | Returnable items from the customer's orders within a look-back window; add to the return with reason and response | `Return/AddOrderItems.xml` |
+| Order detail | Status actions, parts, items, shipments, invoices, notes, content, order emails; **Create Return** per part when no open return exists | `Order/OrderDetail.xml`, `Order/OrderDetail/ReturnItem.xml` |
+| Customer find/edit | Find with new person / organization / sales account / sales contact; Edit Customer header links Requests (with count), Orders, Shipments To, Statement PDF | `Customer/{FindCustomer,EditCustomer,CustomerData}.xml` |
+| Party tabs | Requests (add the party to a request), Messages, Emails | `Party/{PartyRequests,PartyMessages,PartyEmails}.xml` |
+| Asset summary | On hand and available by product, facility, location, lot; no projected or promise-date view | `Asset/Asset/FindSummary.xml` (`AssetSummaryView`) |
+| Return labels | Return labels can be requested with the outbound package label at pack time | `Shipping/PackShipment/PackPackages.xml` |
+| Quick lookup, search | Lookup by ID (order, return, shipment, invoice, payment, party, product, asset); full-text search over Mantle documents (Request, Wiki Page, Order, Party, …) | `QuickLookup.xml`, `Search.xml` |
+| Wiki | Spaces, page tree, pages with comments, attachments and categories, page history, **Page Requests** / Page Tasks lists, blog posts, compare | `Wiki/{WikiSpaces,EditWikiSpace,EditWikiPage,ViewWikiPage,WikiBlogs,WikiCompare}.xml`, `Wiki/wiki.xml` |
+| Surveys | Survey (DbForm) builder, fields, responses and response stats; Marketing owns it | `Survey/{FindSurvey,EditSurvey,Fields,Responses,ResponseDetails,ResponseStats}.xml` |
+
+### Data model available
+
+| Entity / enum | What it gives Customer Service | Key files |
+| --- | --- | --- |
+| `mantle.request.Request` | Type, category, status (audit-logged), name, description, priority, request date, one due date (`responseRequiredDate`), resolution, store, **`salesChannelEnumId`** (Web, Phone, E-Mail, Fax, Postal Mail, … usable as intake channel), `emailContactMechId` (where to send results), facility, root work effort, filed-by party, visit | `component/mr-mantle-udm/entity/RequestEntities.xml` |
+| Request types | `RqtSupport`, `RqtInformation`, `RqtBugFix`, `RqtNewFeature`, `RqtProposal`, `RqtQuote`, `RqtInventory`, `RqtPurchase`, `RqtContact` | same |
+| Request status and resolution | Draft → Submitted → Reviewed → In Progress → Completed, Cancelled; Re-open from Completed. Resolutions Fixed, Can't Reproduce, Won't Fix, Duplicate, Rejected, Insufficient Information, Completed, Unresolved. No waiting-on-customer or on-hold status, no status category | same |
+| `RequestCategory` | Category tree (`parentCategoryId`) with **`responsiblePartyId`** (person or group): the nearest thing to a team or queue | same |
+| `RequestParty` | Party + role over time with `receiveNotifications`; role group `RgpRequest`: Assignee, Manager, Reporter, Watcher, Customer, CustomerBillTo | same |
+| `RequestCommEvent`, `RequestEmailMessage` | Case conversation as `CommunicationEvent` (types Email, Comment, Phone, Message, WebSite, FaceToFace, Letter, Fax, AutoEmail; purposes include `CpCustomerService`, `CpCustomerSupport`; threads via `parentCommEventId` / `rootCommEventId`) and raw `EmailMessage` with party and status | same, `component/mr-mantle-udm/entity/PartyEntities.xml` |
+| `RequestNote`, `RequestContent` | Internal notes; attachments typed Internal, User Defined, Documentation, Story, Image | `component/mr-mantle-udm/entity/RequestEntities.xml` |
+| `RequestItem`, `RequestItemOrder` | Product and quantity lines; a request item can point at an order item (used for purchase requests) | same |
+| `RequestWorkEffort`, `WikiPageRequest` | Follow-up tasks; article links | same |
+| `mantle.order.return.ReturnHeader` | Customer, vendor, status (Created, Requested, Approved, Shipped, Received, Completed, Manual Response Required, Cancelled; audit-logged), refund payment method, single-refund flag, financial account, entry date, postal and telecom contact, facility, ship method and carrier (for labels), `displayId` / `externalId` / `originId`, `supplierRmaId` | `component/mr-mantle-udm/entity/OrderEntities.xml` |
+| `ReturnItem` | Parent item, reason (13 seeded `Rrsn*` reasons, e.g. Damaged in Shipping, Defective, Wrong Item Shipped), response (`RrspCredit`, `RrspRefund`, `RrspReplace`, `RrspManual`), `responseImmediate`, item type, product and replacement product, order item, status, `inventoryStatusId` of received stock, `returnQuantity` vs `receivedQuantity`, return price, response amount and date, replacement order, financial-account transaction, refund payment; links to `AssetIssuance`, `AssetReceipt`, `ShipmentItemSource` | same |
+| `ReturnItemBilling`, `ReturnContactMech` | Credit-memo invoice item per return item with quantity, amount and receipt; return contact mechanisms | same |
+| `ProductStore` return settings | Return postal address for labels (`returnPostalContactMechId`), store setting `PsstGetReturnLabels`, store email types `PsetReturnAccepted`, `PsetReturnCompleted`, `PsetReturnCancelled`; no return window or self-service switch | `component/mr-mantle-udm/entity/ProductStoreEntities.xml` |
+| Order status `OrderBeingChanged` | Orders can be put into Being Changed for edits and placed again | same |
+| `AssetSummaryView`, `ProductFacility` | On hand / available by product and facility | `component/mr-mantle-usl/entity/ProductAssetViewEntities.xml`, `component/mr-mantle-udm/entity/FacilityEntities.xml` |
+| `moqui.resource.wiki.WikiPage`; data documents `MantleWikiPage`, `MantleRequest` | KB pages and requests indexed for full-text search | `base-component/framework/entity/ResourceEntities.xml`, `component/mr-mantle-udm/data/{MantleDocumentData,MantleDocumentWorkData}.xml` |
+| `moqui.screen.form.DbForm`, `FormResponse` | Survey forms and responses; a response records only `userId` and date, no link to a case | `base-component/framework/entity/ScreenEntities.xml` |
+| Holidays | `WorkEffort` events with purpose `WepHoliday` in categories `HolidayUsaFed`, `HolidayUsaBank`; no working-hours entity | `component/mr-mantle-udm/entity/WorkEffortEntities.xml`, `component/mr-mantle-udm/data/HolidayUsaData.xml` |
+
+**Missing for Customer Service:** SLA policy and targets; first-response and resolution
+due dates kept separately (only one `responseRequiredDate`); first-responded and resolved
+timestamps; pause time; status categories; CSAT on the case; tags; team membership and
+agent availability; assignment rules; saved replies; case templates and field
+dependencies; merged / split links; and any link from a `Request` to an `OrderHeader`,
+`ReturnHeader`, `Shipment` or `Invoice` (only `RequestItemOrder` at item level). On the
+return side: authorization expiration, assignee, notes, restock fee, disposition beyond
+`inventoryStatusId`, and links to the source shipment and invoice lines.
+
+### Services
+
+| Service | Purpose | Key files |
+| --- | --- | --- |
+| `create#Request` (defaults status `ReqDraft`, priority 5, type `RqtSupport`, resolution `RrUnresolved`, filed by current user; takes `assignToPartyId`, `customerPartyId`), `update#Request`, `replace#RequestParty` | Case create, update, reassign | `component/mr-mantle-usl/service/mantle/request/RequestServices.xml` |
+| `create#ContactRequest`, `create#ContactRequestReCaptcha` | Public contact-us intake | same |
+| `add#RequestComment`, `update#RequestComment`, `delete#RequestComment` | Comment as a `CommunicationEvent` (type Comment) joined by `RequestCommEvent` | same |
+| `get#RequestContentLocation`, `create#RequestContent`, `update#RequestContent`, `save#RequestContentFile` | Attachments | same |
+| `create#Return`, `create#ReturnFromOrder`, `find#OrderOpenReturns`, `find#ReturnableOrderItems`, `calculate#OrderItemReturnable`, `add#OrderItemToReturn` | Create returns and cap them by returnable quantity | `component/mr-mantle-usl/service/mantle/order/ReturnServices.xml` |
+| `request#Return`, `approve#Return`, `cancel#Return`, `cancel#ReturnItem`, `update#ReturnItem`, `delete#ReturnItem`, `update#ReturnStatus`, `checkUpdate#ReturnHeaderStatus` | Authorization flow | same |
+| `create#ReturnShipment`, `add#ReturnToShipment`, `receive#ReturnShipmentItems`, `receive#ReturnWithoutShipment`, `receive#ReturnItem`, `complete#ReturnItem`, `process#ReturnItemResponses` | Receipt and response (credit, refund, replacement); Warehouse and Accounting faces | same |
+| `get#AvailableInventory`, `get#AvailableForOrder`, `get#AvailableInventoryMulti` (available to promise by product, facility or store); `check#AvailableInventory` on order items | Availability lookup | `component/mr-mantle-usl/service/mantle/product/AssetServices.xml`, `component/mr-mantle-usl/service/mantle/order/OrderServices.xml` |
+| `get#InventoryProjectedInfo` | Projected inventory from asset, order item and production documents in the search index; no screen uses it yet | `component/mr-mantle-usl/service/mantle/product/InventoryReportServices.xml` |
+| `find#PartyCommunicationEvents`, `create#Message`, `reply#CommunicationEvent` | Party message history and replies | `component/mr-mantle-usl/service/mantle/party/CommunicationServices.xml` |
+| `org.moqui.impl.WikiServices` (`get#UserWikiSpaces`, `get#UserSpaceWikiPageSimpleList`, `get#PublishedWikiPageText`, …) | Article lookup for case links | `base-component/framework/service/org/moqui/impl/WikiServices.xml` |
+
+No service creates or appends a case from inbound email or chat; that is the Comms
+receive path (initial-design).
+
+---
+
+## 13. Gaps & BOSS implications
 
 ### Gaps in the reference set
 
@@ -766,63 +996,164 @@ rules. Plan those as first-class records, not JSON blobs.
   ERPNext Support is the second, but its UI is generic Frappe forms. Dolibarr Tickets is
   a credible small-business third. Everything else is partial or absent.
 - **No Odoo Helpdesk.** Helpdesk is Enterprise and is not in this community checkout.
-  Odoo's service-relevant screens are CRM activities, Repair and stock returns.
+  Odoo's service-relevant screens are CRM activities, Live Chat, the rating mixin, Repair
+  and stock returns.
 - **No RMA in ERPNext or Dolibarr.** Carbon is the only complete RMA screen set;
   Odoo has portal-initiated returns and stock returns; metasfresh has a backend
-  service/repair domain. No reference RMA maps directly onto Mantle, but Mantle already
-  has the record (`ReturnHeader`/`ReturnItem`, see [research-crosscut.md](research-crosscut.md) §5); BOSS designs the screens and policies.
+  service/repair domain. Mantle already has the record (`ReturnHeader`/`ReturnItem`);
+  BOSS designs the screens and policies.
 - **No shared Customer 360 across service + orders + accounting** in any single app
   except ERPNext's Customer Overview, which is sales/accounts-centric and has no cases.
-  BOSS's shared Party 360 is still a new design.
 - **No order-change request flow.** References allow back-office edits/cancels or
   portal reorder/returns, but none model "customer asks for an address/quantity change
-  and service approves it". This is a BOSS-specific workflow to design.
+  and service approves it". Mantle's `OrderBeingChanged` status covers the edit, not
+  the request.
 - **Availability promise dates are only strong in Odoo.** ERPNext exposes projected
-  quantities, Carbon exposes days remaining/lead time, Dolibarr exposes stock-at-date;
-  none combines them into a customer-facing promise date as cleanly as Odoo's forecast.
-- **No multilingual KB outside Dolibarr.** Frappe Helpdesk articles have no language
-  field; ERPNext Help Articles have a level but no language. BOSS should add language.
+  quantities, Carbon exposes days of supply and lead time, Dolibarr exposes
+  stock-at-date; none combines them into a customer-facing promise date as cleanly as
+  Odoo's forecast.
+- **No multilingual KB outside Dolibarr.** Frappe Helpdesk articles, ERPNext Help
+  Articles and Frappe Wiki pages have no language field.
 - **No case-to-KB authoring workflow.** Helpdesk lets agents write articles, but not
-  "convert this resolved case into an article" with redaction/review. This is a valuable
-  BOSS feature and a gap in all references.
+  "convert this resolved case into an article" with redaction/review.
 
-### Notables worth carrying forward
+### Notable gaps in the Moqui baseline
 
-- **Frappe Helpdesk saved-reply actions** are more than canned text: a reply can set
-  status, priority, team, type, assign an agent or the sender, add/remove tags, and add
-  a comment. This is the right model for service macros.
-- **Frappe Helpdesk SLA display** distinguishes working-hours delay from total delay
-  and shows on-hold time; that nuance prevents misleading breach reports.
-- **Carbon RMA invariants**: returnable quantity from delivered lines, received vs
-  credited quantities per line, credit capped by received, cancellation releases
-  authorized quantities, locked statuses stop edits. These should become BOSS tests.
-- **Odoo portal return** gives customers a reason + return label and logs the action in
-  the order chatter; a low-cost, high-value self-service flow.
-- **ERPNext Customer Overview** hides accounting sections when the viewer lacks
-  permission rather than showing zeros; BOSS should do the same on the shared 360.
-- **Dolibarr ticket category → KB suggestion** is cheap and works without a search
-  service; pair it with full-text suggestions when available.
-- **Moqui Sales Order is explicitly alpha** and lacks status/shipment/invoice/return
-  actions; do not treat it as an implementation reference beyond the Mantle data path.
-- **metasfresh service/repair** is the only reference with handling-unit-level customer
-  returns, warranty cases and repair projects; use it when designing serialized/asset
-  returns, not for the primary UI.
+- **No queue or team model.** `FindRequest` is one list with saved finds; teams exist
+  only as `RequestCategory.responsiblePartyId`. No agent availability, no assignment
+  rules, no bulk reply/assign.
+- **No SLA.** One due date, no first-response/resolution split, no business hours, no
+  pause on waiting statuses, no breach display. Holidays exist as `WepHoliday` events.
+- **Thin conversation.** Comments are `CommunicationEvent` rows of type Comment; there is
+  no email reply from the case, no channel filter, no composer with saved replies, and no
+  inbound mail to case.
+- **No case ↔ order / return links.** A case cannot show the order or return it is about;
+  Order detail and Edit Return cannot show their cases.
+- **Returns lack authorization detail.** No expiration, assignee, notes, restock fee or
+  disposition, and Edit Return has no case link or customer message.
+- **No availability face.** `FindSummary` is a warehouse list; nothing shows incoming
+  stock with dates or a promise date, and `get#InventoryProjectedInfo` has no screen.
+- **No CSAT.** Surveys exist, but a response cannot point at a case.
+- **No service landing page.** MarbleERP's flow map shows two request counts only.
+
+### What each reference contributes
+
+| Reference | Take |
+| --- | --- |
+| Frappe Helpdesk | Agent queue with views and bulk actions; template-driven intake with KB suggestions after three characters; activity-centric case page with channel tabs, fixed composer and sidebar (contact, SLA, fields, related cases); status categories Open/Paused/Resolved driving SLA; SLA with working hours, holidays and per-priority targets; assignment rules and teams; saved replies with actions; CSAT with preset reasons; customer/contact pages with service stats; KPI dashboard |
+| ERPNext | Workspace landing with number cards; SLA pause/fulfil status lists and entity scope; Warranty Claim as a separate record; Customer Overview blocks gated by permission; portal order/invoice/shipment/issue lists; federated help search sources |
+| Dolibarr | Small-team status ladder (need more info vs on hold); category → knowledge suggestions with language; email collector (filters + ordered operations to ticket); third-party card with module tabs and count badges; web portal; stock at date |
+| Odoo | Chatter and activities; portal return with reasons, validity window and label; reverse transfers and returns report; forecasted availability report; Live Chat channels, rules, chatbots and session stats; three-face rating mixin; Repair as a separate record |
+| Carbon | RMA screens and invariants (returnable from delivered lines, credit capped by received, cancel releases quantities, locked statuses); per-line disposition with non-conformance escalation; restock fee; return reasons with zero-inventory-value flag; route-per-action order detail; dense customer sidebar |
+| Redmine | Email threading order (message IDs, subject tag, new case) and unknown-sender policy |
+| Frappe Wiki | Contribution review; page feedback with Open/Closed triage; page analytics |
+| Nextcloud Collectives | Page backlinks, versions, sharing links |
+| Twenty | User-arrangeable record page and timeline widget |
+| metasfresh | Handling-unit-level customer returns, warranty cases and repair projects (model reference) |
+| Moqui Sales / WorkManagement | Moqui-native QVue account, order and task screens with saved finds |
+
+### Recommended screen inventory (IronStone Customer Service)
+
+| Area | Screens |
+| --- | --- |
+| Home | Landing page: KPI strip (open, overdue, unassigned, SLA %, first response, resolution, CSAT; widgets from Insights), my cases, team queues with counts, returns awaiting approval |
+| Cases | Case queue (saved finds per team/queue, selectable columns, bulk assign/reply/status, list and board by status); **Request / case** detail (header with status, priority, assignee, SLA; timeline of `RequestCommEvent` with email/comment/call/chat filters; composer with saved replies; sidebar with customer card, SLA cards, linked orders/returns/articles, related cases, tasks); new case form (type/category-driven fields, KB suggestions); merge and split |
+| Customer 360 (shared: Sales) | Service face: cases, returns, orders, contacts, service stats, CSAT |
+| Orders (shared: Sales) | Order lookup (ID, customer, email, phone; Quick lookup); Order detail with the service action set (open case, create return, change or cancel request, resend confirmation); Shipment detail tracking (shared: Warehouse) |
+| Returns / RMA | Return list (status, customer, order, assignee, expiration); new return from order with returnable-lines picker; return detail (approve, cancel, reasons, response credit/refund/replace, customer messages, label, linked case); receipt and disposition (shared: Warehouse) and credit (shared: Accounting) shown read-only |
+| Availability (shared: Warehouse) | Product availability lookup: on hand, reserved, available to promise, incoming with dates, per facility; stock at date |
+| Knowledge (shared: Commons) | Article search and read view, link to case, suggest edit, "did not help" feedback |
+| Reports | SLA compliance, first response and resolution, volume by channel/type/category/team, CSAT results (shared: Marketing survey responses), per-case analytics |
+| Settings | Request types and categories (queues with responsible team), statuses with category, SLA policies with working hours and holidays, assignment rules, saved replies, case templates and fields, mailbox-to-queue mapping (shared: Comms), return reasons and return policy (validity window, self-service returns) |
+
+### Data-model implications
+
+- **Case = `Request`.** Conversation through `RequestCommEvent` / `RequestEmailMessage`,
+  tasks through `RequestWorkEffort`, articles through `WikiPageRequest`, people through
+  `RequestParty` (Customer, Assignee, Watcher), team through
+  `RequestCategory.responsiblePartyId`, intake channel through `salesChannelEnumId`.
+  Services: `mantle.request.RequestServices.create#Request` and siblings.
+- **Add SLA fields to the case** (on `Request` or a one-to-one extension): SLA policy,
+  first-response due (can reuse `responseRequiredDate`), resolution due, first responded
+  at, resolved at, on-hold since and total hold, agreement status, merged-into and
+  split-from. New records: SLA policy with per-priority targets, a working-hours
+  calendar that reuses `WepHoliday` events for holidays, assignment rule, saved reply
+  with actions, case template with fields and dependencies, case tags.
+- **Statuses.** Add waiting-on-customer and on-hold `Request` statuses and a status
+  category (Open / Paused / Resolved) that SLA and dashboards read; `StatusItem` has no
+  category field, so this needs a small mapping record.
+- **Links.** No join exists between `Request` and `OrderHeader`, `ReturnHeader`,
+  `Shipment` or `Invoice`; add joins (e.g. request-order, request-return) or the
+  generic record link in crosscut §8.
+- **RMA = `ReturnHeader` / `ReturnItem` / `ReturnItemBilling`** with
+  `mantle.order.ReturnServices` (`create#ReturnFromOrder`, `find#ReturnableOrderItems`,
+  `request#Return`, `approve#Return`, `cancel#Return`, `process#ReturnItemResponses`).
+  Add what Carbon has and Mantle lacks: authorization expiration date, assignee (no
+  return-party record exists), customer reference, notes, per-line restock fee,
+  disposition (owned by Warehouse; today only `inventoryStatusId`), source shipment and
+  invoice line links. Return reasons stay `ReturnReason` enumerations; a
+  zero-inventory-value flag would need an attribute.
+- **CSAT** reuses Marketing's `DbForm` / `FormResponse`; add a response-to-case link and
+  a stored rating on the case for reporting.
+- **Availability** reads `mantle.product.AssetServices.get#AvailableInventory*` and
+  `InventoryReportServices.get#InventoryProjectedInfo`; no new records.
+
+### First-release cut
+
+Ships first: case queue with saved finds per category, case detail with the comment and
+email timeline, new case form, manual assignment with the category's responsible party
+as default, waiting/on-hold statuses, one SLA policy per category and priority with
+business hours and holidays (first-response and resolution due, breach flags), the
+service face of Customer 360, order lookup with Create Return, returns list and detail
+on `ReturnHeader` with the existing services plus a case link, read-only availability
+from `get#AvailableInventory`, article search and link through `MantleWikiPage` and
+`WikiPageRequest`, and landing KPIs (open, overdue, unassigned).
+
+Deferred: rule-based auto-assignment and agent availability, saved replies with
+actions, templates with field dependencies, chat and telephony, the customer portal,
+CSAT (needs the survey link), merge/split, case-to-article, restock fees and warranty
+claims, and analytics beyond the KPI strip.
+
+### Open questions
+
+- **Case ↔ order/return links:** dedicated join entities, or the generic record link
+  proposed in crosscut §8?
+- **Status categories:** a new mapping record, or new `Request` statuses only with the
+  category hard-coded in SLA logic?
+- **Customer portal owner:** Customer Service (my cases, request a return) or Commerce
+  (store account, which crosscut §3 gives the Customer 360 Commerce face)?
+- **Order change requests:** a case of a new type linked to the order (approved by
+  service, applied with `OrderBeingChanged`), or direct edits under a service
+  permission?
+- **Warranty and customer-owned equipment repair:** Customer Service or Maintenance
+  (research-maintenance.md asks the same)? Mantle has no warranty-claim record.
+- **Working-hours calendar owner:** SLA business hours, People shift schedules and
+  Commons calendars could share one record; which app owns it?
+- **CSAT ownership:** crosscut §8 asks whether surveys stay in Marketing; Customer
+  Service only needs a one-question form linked to the case.
 
 ### Checkout path quirks
 
-- Frappe Helpdesk backend paths are `helpdesk/helpdesk/doctype/...` (repo contains a
-  `helpdesk/` app directory and a `desk/` front end); portal pages are
-  `helpdesk/helpdesk/www/`, templates `helpdesk/helpdesk/templates/`.
-- ERPNext paths above are relative to the `erpnext/` app inside the
-  `3p_other/frappe/erpnext` checkout; Frappe framework paths are relative to
-  `3p_other/frappe/frappe`.
-- Odoo paths are relative to `3p_other/odoo`: `odoo/addons/<addon>/...` is `3p_other/odoo/odoo/addons/<addon>/`.
+- Frappe Helpdesk: the doctypes and web forms are under `helpdesk/helpdesk/`, but the
+  API (`helpdesk/api/`), search (`helpdesk/search.py`), email templates
+  (`helpdesk/templates/`), portal pages (`helpdesk/www/`) and ERPNext sync
+  (`helpdesk/integrations/`) are one level up; `TicketTextEditor.vue` is in
+  `desk/src/pages/ticket/`, not `desk/src/components/`.
+- ERPNext's Support module links live in `erpnext/workspace_sidebar/support.json`; the
+  workspace JSON holds only the chart and number cards.
+- Odoo paths are relative to `3p_other/odoo`: `odoo/addons/<addon>/...` is
+  `3p_other/odoo/odoo/addons/<addon>/`.
 - Carbon route paths use React Router's `x+/` convention; `$id`/`$lineId` are route
-  params, not literal directories.
+  params, literal in file names. The favorite orders route is
+  `apps/erp/app/routes/x+/sales-order+/orders.favorite.tsx`, not under `sales+/`.
 - Moqui Sales `FindAccount.xml` is absent in this checkout; the account find screen is
   `FindAccount.qvue` only. `ViewAccount.xml` remains the XML reference.
+- Moqui WorkManagement wiki XML screens are 20-line shells; the UI is in
+  `screen/wiki/Wiki/*.qvue`.
 - Dolibarr's ticket form is shared with the public portal through
   `FormTicket`; `htdocs/public/ticket/` is the customer-facing entry point.
 
----
-
+**Bottom line.** Build cases on `Request` and returns on `ReturnHeader`, copy Frappe
+Helpdesk's case page, SLA and status-category model and Carbon's RMA invariants, and
+add the missing links (case ↔ order/return, survey ↔ case) and SLA records rather than a
+parallel ticket or RMA table.
