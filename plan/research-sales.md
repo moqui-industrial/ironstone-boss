@@ -8,11 +8,12 @@ Deeper research pass on the **IronStone Sales** app (Pipeline: leads and opportu
 accounts and contacts; quotes; orders; agreements and price lists; sales reports),
 cataloguing every relevant screen/page found in the reference apps. Companion to
 [3p-app-reference.md](3p-app-reference.md); feeds the Sales row in
-[initial-design.md](initial-design.md). Sales owns two shared screens — the **Customer
-360** and the sales/quote action set of the shared **Order detail** — and builds the
-sales faces of Inventory availability (inline on quote and order lines), Product 360
-(price and availability), Request / case (requests for quote), Task / work item
-(follow-up tasks) and Chatter & activities (crosscut §3).
+[initial-design.md](initial-design.md). It also covers the reused screens Sales would
+include (crosscut §3–§4) and what Sales' version of each emphasizes: the **Customer 360**
+(pipeline, quotes, orders, agreements), **Order detail** (the quote and sales-order
+action set), prices and agreements, Chatter & activities, Inventory availability (inline
+on quote and order lines), Product 360 (price and availability), Request / case (requests
+for quote) and Task / work item (follow-up tasks).
 
 **Organization.** Sorted by functional area (not by app): all pipeline screens together,
 all quote screens together, etc. Within each area, sub-tables per reference app.
@@ -51,7 +52,7 @@ functionality (their groupware surfaces are in
 resistmanagement and WorkManagement (no sales screens); ridgecrest (storefront order views
 and stub admin order reports, covered by research-commerce.md). Case, RMA and service
 screens are in [research-customer-service.md](research-customer-service.md); this pass
-keeps the sales side of the Customer 360 and Order detail it shares with them.
+covers the sales emphasis of the reused Customer 360 and Order detail.
 
 Sections: [1 sales home & pipeline](#1-sales-home--pipeline) ·
 [2 leads](#2-leads) · [3 opportunities & deal detail](#3-opportunities--deal-detail) ·
@@ -173,19 +174,19 @@ reference for the *landing page*: open-document counters, "assigned to me", a ch
 with previous-period comparison, and a role-grouped module rail — a better fit for a
 small-business app home than a bare chart canvas. Dolibarr and metasfresh show the
 generic list/kanban/statistics triad; Gauzy shows the minimal pipeline model (pipeline →
-stage → deal with a coarse probability), which is close to Mantle's
-`SalesOpportunity` + `SalesOpportunityStage` shape. Frappe CRM adds the third landing
-shape — an admin-arranged chart dashboard — while ERPNext's workspace pages and separate
-Sales Funnel page show shortcut/counter blocks and funnel analysis working side by side;
-Twenty confirms that index view switching and saved views should be generic across
-objects, not pipeline-specific. Mantle has the data model (`SalesOpportunityStage` with
+stage → deal with a coarse probability), which is close to Mantle's `SalesOpportunity` +
+`SalesOpportunityStage` shape. Frappe CRM adds the third landing shape — an
+admin-arranged chart dashboard — while ERPNext's workspace pages and separate Sales
+Funnel page show shortcut/counter blocks and funnel analysis working side by side; Twenty
+suggests that index view switching and saved views work generically across objects, not
+only for the pipeline. Mantle has the data model (`SalesOpportunityStage` with
 `sequenceNum` and `defaultProbability`; Moqui Sales seeds six demo stages) and a
 `SalesForecast` record, but neither Moqui Sales nor the Moqui baseline has a board,
 dashboard or forecast screen, so the pipeline board and sales home are net-new BOSS
-screens. Build them as one shared opportunity dataset with view switching, keep
-forecast as a distinct planned-revenue view, and make the app landing the pipeline board
-with a compact open-document/assigned-to-me strip (Carbon) rather than a chart wall;
-chart widgets on it come from Insights (crosscut §3).
+screens. The evidence favors one opportunity dataset with view switching, forecast as a
+distinct planned-revenue view, and an app landing that is the pipeline board with a
+compact open-document/assigned-to-me strip (Carbon) rather than a chart wall; chart
+widgets on it would be the reused dashboard widgets (crosscut §3).
 
 ## 2. Leads
 
@@ -265,23 +266,25 @@ chart widgets on it come from Insights (crosscut §3).
 **BOSS implications.** Odoo's single table with a `type` discriminator is the cheapest
 model: a lead becomes an opportunity by filling the account/contact and flipping the
 type, so no data is copied and conversion stays reversible. Carbon covers the other
-intake path that matters in B2B — a customer RFQ document arrives and must become a
-quote; its extract-and-map flow is worth keeping as an optional RFQ intake on the quote
-screen (in Mantle an RFQ is a `Request` of type `RqtQuote`, the shared Request screen
-owned by Customer Service). BOSS should add the screens Moqui lacks: source/campaign
-fields on the form (the Mantle fields exist), duplicate detection (Mantle
-`DuplicateServices` already finds and merges duplicate parties), a lost reason, and a
-conversion action that promotes a lead onto an account. Do not build a second record
-type unless the workflow genuinely differs; the Mantle `SalesOpportunity` plus a
-lead/opportunity flag (its `typeEnumId` has no seeded values yet) and a stage/probability
-model covers both — see Open questions for the alternative of a `Prospect`-role party
-with `LeadStatus`. Frappe CRM and Odoo `website_crm` show the intake surfaces BOSS should
-expose as configuration rather than code: a publishable web form that creates a lead
-(built with Marketing's form builder, crosscut §4), and scheduled assignment rules
-(round-robin by team/territory) — plus an explicit conversion modal that records when
-and by whom the record became a deal. Lead sources and campaign attribution are owned by
-Marketing; Sales shows them on the lead. ERPNext's multi-target conversion (customer,
-opportunity, quotation, prospect) is more than BOSS needs; keep one conversion target.
+intake path that matters in B2B — a customer RFQ document arrives and has to become a
+quote; its extract-and-map flow is a candidate optional RFQ intake on the quote screen
+(in Mantle an RFQ is a `Request` of type `RqtQuote`, on the reused Request / case screen
+that Customer Service, Purchasing and other apps also include). The screens Moqui lacks
+are source/campaign fields on the form (the Mantle fields exist), duplicate detection
+(Mantle `DuplicateServices` already finds and merges duplicate parties), a lost reason,
+and a conversion action that promotes a lead onto an account. The evidence does not call
+for a second record type unless the workflow genuinely differs; the Mantle
+`SalesOpportunity` plus a lead/opportunity flag (its `typeEnumId` has no seeded values
+yet) and a stage/probability model covers both — see Open questions for the alternative
+of a `Prospect`-role party with `LeadStatus`. Frappe CRM and Odoo `website_crm` show
+intake surfaces that work as configuration rather than code: a publishable web form that
+creates a lead (built with the reused form builder, crosscut §4), and scheduled
+assignment rules (round-robin by team/territory) — plus an explicit conversion modal that
+records when and by whom the record became a deal. Lead sources and campaign attribution
+are a reused function (crosscut §4): Sales' version shows them on the lead, Marketing's
+emphasizes campaigns. ERPNext's multi-target conversion (customer, opportunity,
+quotation, prospect) goes beyond what the other references need; one conversion target
+covers them.
 
 ## 3. Opportunities & deal detail
 
@@ -363,21 +366,20 @@ opportunity, quotation, prospect) is more than BOSS needs; keep one conversion t
 record carrying amount, stage, probability, close date, team and linked documents, with
 quotation/order roll-up and expected-revenue feedback from confirmed orders. Carbon's
 document-pipeline view is a useful *secondary* presentation — it answers "where is this
-deal in the RFQ → quote → order flow?" without duplicating the documents. BOSS can build
-both on Mantle: `SalesOpportunity` supplies the record fields (amount,
-`estimatedProbability`, close date, stage, `nextStep`, campaign, source), and the linked
-`OrderHeader` quotes and orders (`SalesOpportunityOrder`, `OrderItem.salesOpportunityId`)
-supply the stepper; `SalesOpportunityCompetitor` matches ERPNext's opportunity Competitors
-table. The gaps to close versus Moqui Sales are the quote/request sections (commented
-out), notes and attachments (not wired in the XML screen), merge/dedupe, and a won/lost
-outcome with reason — `SalesOpportunity` has no status or lost-reason field, and Moqui
-Sales models the outcome only as "Closed Won"/"Closed Lost" demo stages. Frappe CRM shows
-a lighter version worth copying: editable product rows that drive the deal value, a
-read-only Quotations tab, and a lost-reason modal that forces a reason at the moment of
-loss; ERPNext adds opportunity line items and explicit close/reopen. Twenty's side-by-side
-merge is the best dedupe reference. Keep the opportunity form compact: summary + stage +
-linked documents + activity timeline, with account, contacts and team as collapsible
-sections.
+deal in the RFQ → quote → order flow?" without duplicating the documents. Both fit on
+Mantle: `SalesOpportunity` supplies the record fields (amount, `estimatedProbability`,
+close date, stage, `nextStep`, campaign, source), and the linked `OrderHeader` quotes and
+orders (`SalesOpportunityOrder`, `OrderItem.salesOpportunityId`) supply the stepper;
+`SalesOpportunityCompetitor` matches ERPNext's opportunity Competitors table. The gaps
+versus Moqui Sales are the quote/request sections (commented out), notes and attachments
+(not wired in the XML screen), merge/dedupe, and a won/lost outcome with reason —
+`SalesOpportunity` has no status or lost-reason field, and Moqui Sales models the outcome
+only as "Closed Won"/"Closed Lost" demo stages. Frappe CRM shows a lighter candidate:
+editable product rows that drive the deal value, a read-only Quotations tab, and a
+lost-reason modal that forces a reason at the moment of loss; ERPNext adds opportunity
+line items and explicit close/reopen. Twenty's side-by-side merge is the best dedupe
+reference. The references favor a compact opportunity form: summary + stage + linked
+documents + activity timeline, with account, contacts and team as collapsible sections.
 
 ## 4. Accounts & contacts
 
@@ -479,25 +481,25 @@ sections.
 | Customers | Customer list, create/edit forms and customer detail page | `resources/views/sales/customers/{index,create,edit,show}.blade.php` |
 | Portal profile | Customer-portal profile edit | `resources/views/portal/profile/edit.blade.php` |
 
-**BOSS implications.** The account record must carry the commercial defaults, not just
-identity: pricelist, payment terms, currency, tax profile, shipping/billing locations,
-incoterm, salesperson/team and credit/risk state. Carbon's tab set is the strongest
-inventory of what those tabs should be, and Odoo shows how little chrome is needed when
-the same partner record is reused across sales, accounting and service. Sales owns
-the shared Customer 360 (crosscut §3): it builds the screen with the sales tabs (RFQs,
-quotes, orders, agreements, opportunities) and hosts the faces other apps add — cases
-and returns (Customer Service), engagement and consent (Marketing), balance, credit and
-statements (Accounting), store account and carts (Commerce). Moqui Sales links account →
-contacts/opportunities/orders but has no quotes, invoices, agreements or 360 summary;
-SimpleScreens `EditCustomer` already has Requests/Orders/Shipments counters, a statement
-PDF, duplicate finder and party sections, and Mantle `mantle.sales.AccountServices`
-creates accounts and contacts (§12), so the gap is the 360 layout, not the plumbing.
-Frappe CRM and Twenty both keep organization and person as separate records with
-explicit links, which avoids Odoo's sometimes awkward parent/child partner tree; BOSS
-should model account and contact separately (Mantle Party plus roles) and let the
-account show roll-up counters. ERPNext's customer form is the best checklist for the
-360 header: addresses/contacts, credit limit, loyalty, sales partner and linked
-transactions.
+**BOSS implications.** The references show the account record carrying the commercial
+defaults, not just identity: pricelist, payment terms, currency, tax profile,
+shipping/billing locations, incoterm, salesperson/team and credit/risk state. Carbon's
+tab set is the strongest inventory of candidate tabs, and Odoo shows how little chrome is
+needed when the same partner record is reused across sales, accounting and service. The
+Customer 360 is a reused screen (crosscut §3): Sales' version emphasizes the sales tabs
+(RFQs, quotes, orders, agreements, opportunities), while the versions in the other apps
+that include it emphasize cases and returns (Customer Service), engagement and consent
+(Marketing), balance, credit and statements (Accounting), and store account and carts
+(Commerce). Moqui Sales links account → contacts/opportunities/orders but has no quotes,
+invoices, agreements or 360 summary; SimpleScreens `EditCustomer` already has
+Requests/Orders/Shipments counters, a statement PDF, duplicate finder and party sections,
+and Mantle `mantle.sales.AccountServices` creates accounts and contacts (§12), so the gap
+is the 360 layout, not the plumbing. Frappe CRM and Twenty both keep organization and
+person as separate records with explicit links, which avoids Odoo's sometimes awkward
+parent/child partner tree; the evidence favors account and contact as separate records
+(Mantle Party plus roles) with roll-up counters on the account. ERPNext's customer form
+is the best checklist for the 360 header: addresses/contacts, credit limit, loyalty,
+sales partner and linked transactions.
 
 ## 5. Quotes, price lists & product selection
 
@@ -593,31 +595,33 @@ transactions.
 
 **BOSS implications.** The quote screen is the heart of IronStone Sales and the largest
 gap in Moqui Sales (the Moqui baseline does have one: SimpleScreens `OrderDetail` with
-Quote Requested / Propose Quote / Place actions, §12). Start from Odoo's line grid plus
-templates: header defaults from the account and opportunity, line entry with catalog
-picker, quantity/price/discount/tax, optional upsell lines, validity date, terms and
-signature requirement. Add Carbon's two differentiators where the business needs them: a
-**price explanation** ("how this price was calculated") backed by a price list + customer
-override + quantity-break + date-validity chain, and **quote revisions** with a
-finalize/send step and a share link that converts to an order with the customer's PO
-number. The explanation comes from the shared price resolver owned by Products (crosscut
-§4; today `mantle.product.PriceServices.get#ProductPrice`); Sales supplies the customer
-and agreement prices it reads (`ProductPrice` rows with `customerPartyId` or
-`agreementId`) and the manual discounts on quote lines, while promotions stay with
-Marketing. Inline availability on lines is the Warehouse-owned availability face. Costing
-(materials, operations, lead time) belongs behind a manufacturing flag, not in the default
-quote form. ERPNext adds two cheap wins: quote revisions as a first-class action and
-product bundles that expand into component lines; its print-format variants and tax/terms
-templates also deserve to be data, not hard-coded PDFs. Do not copy Akaunting's
-invoice-only model or Ever Gauzy's estimate-as-invoice flag: a quote is a distinct
-lifecycle state before the order, and Mantle's `OrderHeader` already carries it without a
-second document table — `OrderOpen` → `OrderRequested` (quote requested by customer) →
+Quote Requested / Propose Quote / Place actions, §12). Odoo's line grid plus templates is
+the strongest starting point: header defaults from the account and opportunity, line
+entry with catalog picker, quantity/price/discount/tax, optional upsell lines, validity
+date, terms and signature requirement. Carbon adds two differentiators where the business
+needs them: a **price explanation** ("how this price was calculated") backed by a price
+list + customer override + quantity-break + date-validity chain, and **quote revisions**
+with a finalize/send step and a share link that converts to an order with the customer's
+PO number. The explanation would come from the one price service behind every price
+screen (crosscut §4: prices are reused across Products, Sales, Commerce and Purchasing;
+today `mantle.product.PriceServices.get#ProductPrice`); Sales' version of the price
+screens emphasizes the customer and agreement prices it reads (`ProductPrice` rows with
+`customerPartyId` or `agreementId`) and the manual discounts on quote lines, while
+promotion programs are the emphasis of Marketing and Commerce. Inline availability on
+lines is the reused Inventory availability screen. Costing (materials, operations, lead
+time) fits behind a manufacturing flag rather than in the default quote form. ERPNext
+adds two cheap wins: quote revisions as a first-class action and product bundles that
+expand into component lines; its print-format variants and tax/terms templates also
+suggest keeping those as data rather than hard-coded PDFs. Akaunting's invoice-only model
+and Ever Gauzy's estimate-as-invoice flag fit poorly: a quote is a distinct lifecycle
+state before the order, and Mantle's `OrderHeader` already carries it without a second
+document table — `OrderOpen` → `OrderRequested` (quote requested by customer) →
 `OrderProposed` (quote proposed) → `OrderPlaced`, with `OrderRejected`/`OrderCancelled`
 for lost quotes, `OrderPart.validFromDate`/`validThruDate` usable for the validity date
 (no screen shows them yet), `OrderPart.otherPartyOrderId` ("Their Order ID") for the
 customer PO. `OrderHeader.orderRevision` is only a change counter
-(`increment#OrderRevision`), so Carbon/ERPNext-style saved quote revisions need a new link
-between quote versions.
+(`increment#OrderRevision`), so Carbon/ERPNext-style saved quote revisions need a new
+link between quote versions.
 
 ## 6. Orders & fulfillment handoff
 
@@ -711,28 +715,30 @@ between quote versions.
 | Recurring invoices | Recurring invoice list/create/edit/show | `resources/views/sales/recurring_invoices/` |
 | Portal invoices / payments | Customer portal invoice list/detail/preview/signed and payment pages | `resources/views/portal/{invoices,payments}/` |
 
-**BOSS implications.** The order screen is a shared business screen (initial-design: "one
+**BOSS implications.** The order screen is a reused business screen (initial-design: "one
 screen with role-based action sets for Sales, Customer Service, Warehouse and
-Accounting"), so it should not be rebuilt per app. Sales owns the screen together with
-Purchasing (crosscut §3): Sales builds the sales and quote action set; Customer Service
-adds changes, returns and cases, Warehouse fulfillment, Accounting invoices and payments,
-Commerce channel filters on the shared order list. Take Odoo's lifecycle and smart buttons
-(invoices, payments, delivery) and Carbon's execution detail for fulfillment (jobs,
-shipments, drop-ship, tracking) behind capability flags. ERPNext states the handoff
-contract most clearly: per-line delivered and billed percentages, partial delivery and
-partial billing, and back-links from each invoice/delivery to the order. The minimum sales
-face is: customer/PO/terms/addresses, lines with delivered and invoiced quantities, a
-status bar, and links to the quote, shipments, invoices and payments. Moqui Sales has the
-address/payment-terms/shipping-method skeleton and an `Item` subscreen, but no status
-actions, fulfillment, invoicing or returns. The Moqui baseline is far ahead of it:
-SimpleScreens `OrderDetail` already has the status actions, part invoicing and shipping,
-payments, promo codes, notes, content, email, returns, clone and recurrence (§12), so BOSS
-restyles and role-scopes that screen rather than starting from Moqui Sales. Its lines
-already show quantity not shipped, quantity not billed and reservations
+Accounting"), built once and included in each app that needs it (crosscut §3: Sales,
+Purchasing, Customer Service, Warehouse, Accounting, Commerce). Sales' version emphasizes
+the sales and quote action set; Customer Service's emphasizes changes, returns and cases,
+Warehouse's fulfillment, Accounting's invoices and payments, Commerce's channel filters
+on the order list, and Purchasing's purchase orders. The references point to Odoo's
+lifecycle and smart buttons (invoices, payments, delivery) and Carbon's execution detail
+for fulfillment (jobs, shipments, drop-ship, tracking) behind capability flags. ERPNext
+states the handoff contract most clearly: per-line delivered and billed percentages,
+partial delivery and partial billing, and back-links from each invoice/delivery to the
+order. The minimum for Sales' version is: customer/PO/terms/addresses, lines with
+delivered and invoiced quantities, a status bar, and links to the quote, shipments,
+invoices and payments. Moqui Sales has the address/payment-terms/shipping-method skeleton
+and an `Item` subscreen, but no status actions, fulfillment, invoicing or returns. The
+Moqui baseline is far ahead of it: SimpleScreens `OrderDetail` already has the status
+actions, part invoicing and shipping, payments, promo codes, notes, content, email,
+returns, clone and recurrence (§12), so one option is to restyle and role-scope that
+screen rather than start from Moqui Sales. Its lines already show quantity not shipped,
+quantity not billed and reservations
 (`component/MrSimpleScreens/screen/SimpleScreens/Order/OrderItems.xml`); what it lacks is
-a quote-first layout, linked-document counters at the top and order-level delivered/billed
-percentages. Keep order actions role-scoped and put destructive transitions (cancel, lock)
-behind confirmation with a preview, as Carbon and Odoo both do.
+a quote-first layout, linked-document counters at the top and order-level
+delivered/billed percentages. Carbon and Odoo both keep order actions role-scoped and put
+destructive transitions (cancel, lock) behind confirmation with a preview.
 
 ## 7. Agreements, contracts & subscriptions
 
@@ -828,16 +834,16 @@ activation/confirmation, a billing schedule (cycle, advance/arrears, next invoic
 amendments with effective dates, renewal or open-ended terms, and revenue recognition
 where the business needs it. ERPNext completes the picture with two reusable pieces: a
 contract template plus signature audit (signee, signed-on, IP) and a subscription plan
-that binds item, price list and billing interval. Build service contracts and price
-agreements on the same agreement record, with a billing schedule child; treat rentals as a
-separate mode (units, deposits, lease classification) and do not pull that complexity into
-the default Sales app. Keep the agreement-to-order and agreement-to-invoice links
-first-class, because the agreement is the source of the customer's negotiated prices.
-Sales owns agreements and subscriptions (crosscut §4); Accounting adds the terms and
-recurring-invoicing face, Commerce the subscription products in the store, and Customer
-Service a read face. Recurring orders already exist in Mantle
-(`OrderHeader.recurCronExpression`, `create#RecurringOrders`) and are a cheaper first step
-than a contract billing engine.
+that binds item, price list and billing interval. One option is service contracts and
+price agreements on the same agreement record, with a billing schedule child, and rentals
+as a separate mode (units, deposits, lease classification) outside the default Sales
+screens. The agreement-to-order and agreement-to-invoice links matter because the
+agreement is the source of the customer's negotiated prices. Customer agreements and
+subscriptions are reused functions (crosscut §4): Sales' version emphasizes the agreement
+and subscription records, Accounting's terms and recurring invoicing, Commerce's
+subscription products in the store, and Customer Service's read-only view. Recurring
+orders already exist in Mantle (`OrderHeader.recurCronExpression`,
+`create#RecurringOrders`) and are cheaper than a contract billing engine.
 
 ## 8. Activities, chatter & next actions
 
@@ -928,24 +934,24 @@ than a contract billing engine.
 
 **BOSS implications.** The initial design already puts activities and Chatter in the
 shared layer: activities roll up into the header "Today" panel, and Chatter is the
-Odoo-style message/activity/attachment timeline shared with Comms. This research
-confirms the minimum record contract: a message thread with followers, scheduled
-activities (type, due date, assignee, summary), a user-level "my activities" queue, and
-attachments. Sales does not build these: Chatter & activities is the shared component
-owned by Commons/Comms (crosscut §3), and Sales places it on its records. An activity is
-a `WorkEffort` task (`WetTask`) with purpose `WepToDo`, `WepPhoneCall`, `WepMeeting` or
-`WepEmail`, assigned through `WorkEffortParty` and linked to the record — Moqui Sales'
-`create#Task` already does this for accounts and opportunities
-(`SalesOpportunityWorkEffort`), which is the pattern to keep; quotes and orders need a
-link record too (only `OrderItemWorkEffort` exists; see the crosscut open question on
-generic record links). Messages are `CommunicationEvent` rows with
-`OrderCommunicationEvent` for orders. Keep one activity model on every record type
-(opportunity, quote, order, agreement, account) rather than per-app tables, and show the
-next open activity on the pipeline card; `SalesOpportunity.nextStep` is a free-text
-field, useful as a note but not a dated activity. Frappe CRM and Twenty validate the
-typed activity model (email, comment, call, task, note, attachment all rendered through
-one feed); ERPNext's appointment record and public booking page belong to the Commons
-calendar, and telephony/WhatsApp to Comms, as activity types rather than Sales screens.
+Odoo-style message/activity/attachment timeline shared with Comms. This research confirms
+the minimum record contract: a message thread with followers, scheduled activities (type,
+due date, assignee, summary), a user-level "my activities" queue, and attachments.
+Chatter & activities is one reused component on every app's record screens (crosscut §3),
+and Sales includes it on its records. An activity is a `WorkEffort` task (`WetTask`) with
+purpose `WepToDo`, `WepPhoneCall`, `WepMeeting` or `WepEmail`, assigned through
+`WorkEffortParty` and linked to the record — Moqui Sales' `create#Task` already does this
+for accounts and opportunities (`SalesOpportunityWorkEffort`), a working pattern; quotes
+and orders need a link record too (only `OrderItemWorkEffort` exists; see the crosscut
+open question on generic record links). Messages are `CommunicationEvent` rows with
+`OrderCommunicationEvent` for orders. The references favor one activity model on every
+record type (opportunity, quote, order, agreement, account) rather than per-app tables,
+with the next open activity shown on the pipeline card; `SalesOpportunity.nextStep` is a
+free-text field, useful as a note but not a dated activity. Frappe CRM and Twenty
+validate the typed activity model (email, comment, call, task, note, attachment all
+rendered through one feed); ERPNext's appointment record and public booking page fit the
+reused calendar, and telephony/WhatsApp fit Comms as activity types, rather than
+Sales-only screens.
 
 ## 9. Reports, targets & commissions
 
@@ -1027,21 +1033,21 @@ calendar, and telephony/WhatsApp to Comms, as activity types rather than Sales s
   `SalesSummary` and `SalesAnalysis` screens over `mantle.sales.SalesReportServices` and
   `OrderItemSalesSummary` (§12).
 
-**BOSS implications.** Separate three things that references blur together: operational
-counters (Carbon/ERPNext number cards), analytical reports (Odoo/ERPNext pivot and
-saved reports), and targets/commissions (ERPNext reports; Odoo community only as
-gamification challenges). Targets and commission rates belong on salesperson, team and
-territory records, with variance reported by item group and period; commission
-summaries should be generated from orders/invoices, not typed. Mantle already has both
-records: `SalesForecast` (quota, forecast, best-case, closed and pipeline amounts per
-internal party and `timePeriodId`, with `SalesForecastDetail` by product or category)
-for targets, and `Agreement` type `AgrCommission` with `AitCommissionRate` items for
-commission plans. Dolibarr's margin-by-rep/customer/product view is the useful
-profitability companion. Build saved reports and charts on the Insights widget and
-report builder (crosscut §3, "Dashboard widgets") — the Frappe framework's query report
-and Twenty's dashboard widgets show the generic surface — and keep the existing
-`SalesSummary`/`SalesAnalysis` screens as the Sales reports section, rather than
-hard-coding each report screen.
+**BOSS implications.** The references blur together three things that look separable:
+operational counters (Carbon/ERPNext number cards), analytical reports (Odoo/ERPNext
+pivot and saved reports), and targets/commissions (ERPNext reports; Odoo community only
+as gamification challenges). The evidence puts targets and commission rates on
+salesperson, team and territory records, with variance reported by item group and period,
+and commission summaries generated from orders/invoices rather than typed. Mantle already
+has both records: `SalesForecast` (quota, forecast, best-case, closed and pipeline
+amounts per internal party and `timePeriodId`, with `SalesForecastDetail` by product or
+category) for targets, and `Agreement` type `AgrCommission` with `AitCommissionRate`
+items for commission plans. Dolibarr's margin-by-rep/customer/product view is the useful
+profitability companion. One option is saved reports and charts on the reused dashboard
+widgets and report builder (crosscut §3, "Dashboard widgets") — the Frappe framework's
+query report and Twenty's dashboard widgets show the generic surface — with the existing
+`SalesSummary`/`SalesAnalysis` screens as the Sales reports section, rather than a
+hard-coded screen per report.
 
 ## 10. Configuration & admin
 
@@ -1146,45 +1152,48 @@ hard-coding each report screen.
 | Stages | Seeded in demo data (six stages with sequence/probability); no stage editor | `data/SalesDemoData.xml` |
 
 **BOSS implications.** Configuration is where small-business ERPs diverge most: Odoo
-hides CRM settings in a settings page but exposes teams, stages, tags and lost reasons
-as separate masters; ERPNext exposes every master; Frappe CRM consolidates everything
-into one role-gated modal; Carbon treats sales rules as a small predicate engine with
-severity and acknowledgement. BOSS should keep the *UX* consolidated (one Sales
-Settings page plus a small master-data section, linked from the Admin settings index
-per crosscut §4) while keeping pipelines, stages (`SalesOpportunityStage`), teams,
-targets, territories, lost reasons and sales rules as first-class data so per-team
-variation does not require code. Base price lists and price rules are Products' screens;
-Sales settings link to them. The Carbon sales-rule pattern — evaluate on line add,
-message + severity, allow proceed with acknowledgement — is the right model for
-discount/price/credit guardrails; do not hard-code those checks into the quote form.
-Moqui Sales has no configuration UI (stages are demo data only), and neither does the
-Moqui baseline for opportunities.
+hides CRM settings in a settings page but exposes teams, stages, tags and lost reasons as
+separate masters; ERPNext exposes every master; Frappe CRM consolidates everything into
+one role-gated modal; Carbon treats sales rules as a small predicate engine with severity
+and acknowledgement. The evidence favors consolidated *UX* (one Sales Settings page plus
+a small master-data section, linked from the Admin settings index per crosscut §4) with
+pipelines, stages (`SalesOpportunityStage`), teams, targets, territories, lost reasons
+and sales rules as first-class data, so per-team variation does not require code. Base
+price lists and price rules are reused price screens (crosscut §4: Products, Sales,
+Commerce, Purchasing); Sales' version emphasizes customer and agreement prices, and a
+business running only Sales would include the base price lists too. The Carbon sales-rule
+pattern — evaluate on line add, message + severity, allow proceed with acknowledgement —
+is a candidate model for discount/price/credit guardrails, as an alternative to
+hard-coding those checks into the quote form. Moqui Sales has no configuration UI (stages
+are demo data only), and neither does the Moqui baseline for opportunities.
 
 ## 11. Cross-app surfaces
 
-| Surface | Sales face | Reference evidence |
-| --- | --- | --- |
-| **Customer 360** (owner: Sales) | Builds the screen and its sales tabs: overview with commercial defaults, contacts, opportunities, RFQs, quotes, orders, agreements, activities; hosts the faces of Customer Service (cases, returns, orders), Marketing (engagement, consent, campaigns), Accounting (balance, credit, aging, statements) and Commerce (store account, carts, online orders) | Carbon `CustomerSidebar` tabs (§4); ERPNext `customer_dashboard.py`; Odoo partner smart buttons (Opportunities, Sales); Dolibarr third-party card tabs; SimpleScreens `EditCustomer` counters (Requests, Orders, Shipments To, Statement PDF) |
-| **Order detail** (owners: Sales for sales orders and quotes, Purchasing for purchase orders) | Builds the sales and quote action set: quote requested / propose / reject, place, approve, hold, cancel, clone, recurrence, PDF and email; Customer Service adds changes and returns, Warehouse fulfillment, Accounting invoices and payments, Commerce channel filters on the shared list | Odoo order form statusbar and smart buttons; ERPNext per-delivered / per-billed; Carbon order header actions; SimpleScreens `OrderDetail` quote actions |
-| **Contact / party record** (owner: Commons) | Opens the shared contact record from accounts, leads and opportunities; adds the account–contact link (`PrtContact`) and sales role | Frappe CRM and Twenty separate organization and person records; Moqui Sales `ViewContact` add-to-account |
-| **Inventory availability** (owner: Warehouse) | Read-only availability and promise date inline on quote and order lines | Odoo `quantity_availability` widget in the product picker; Carbon quote-line lead time; Mantle `check#AvailableInventory` |
-| **Product 360** (owner: Products) | Price and availability face; product picker, variant grid and bundle expansion on quote lines | Odoo product configurator, combo configurator and `sale_product_matrix`; ERPNext Product Bundle |
-| **Price lists & base prices** (owner: Products) | Customer price agreements and customer-specific prices that the shared resolver reads; price explanation shown on quote lines | Carbon price overrides, pricing rules and price trace; Odoo pricelists; Mantle `ProductPrice` (`customerPartyId`, `agreementId`) |
-| **Promotions, coupons, loyalty** (owner: Marketing) | Manual discounts on quotes only; promotions evaluate in the shared resolver | Odoo order discount wizard; Mantle `OrderPromoCode` and the promo-code forms on `OrderDetail` |
-| **Request / case** (owner: Customer Service) | Requests for quote (`RqtQuote`) as an intake that becomes a quote; the RFQ list is a filtered face | Carbon RFQ list and auto-fill; Moqui Sales commented-out `RequestSection`; MarbleERP dashboard customer-request counters |
-| **Shipment detail** (owner: Warehouse) | Tracking and promise dates on the order and the Customer 360 | Carbon order shipment details; ERPNext Delivery Note; Odoo delivery smart button |
-| **Task / work item** (owner: Projects) | Follow-up tasks on accounts and opportunities | Moqui Sales `create#Task` (account `Customer` role + `SalesOpportunityWorkEffort`); Frappe CRM Tasks page |
-| **Chatter & activities** (owner: Commons / Comms) | Placed on lead, opportunity, quote, order, agreement and account; next activity shown on pipeline cards; activities roll into the Today panel | Odoo chatter and Schedule Activity; Frappe CRM typed activity feed; Twenty timeline; AureusERP chatter plugin |
-| **Calendar & schedules** (owner: Commons) | Customer meetings and appointment slots | ERPNext Appointment and booking page; Odoo activity calendar |
-| **Dashboard widgets** (owner: Insights) | Sales landing page places counters, KPI and pipeline widgets; saved sales reports | Carbon `/sales` KPIs; Frappe CRM dashboard grid; ERPNext Selling and CRM workspaces |
-| **Leads & opportunities** (owner: Sales) | Leads, pipeline, forecast; Marketing adds lead sources and campaign attribution | Odoo UTM fields and `website_crm`; ERPNext sales funnel UTM charts; Mantle `MarketingCampaign`, `TrackingCode`, `SalesOpportunityTracking` |
-| **Customer agreements; subscriptions & recurring contracts** (owner: Sales) | Agreement and subscription records; Accounting adds terms and recurring invoicing, Commerce subscription products, Customer Service a read face | Carbon service contracts; Dolibarr contracts; ERPNext Contract and Subscription; Mantle `Agreement`, `Subscription` |
+| Reused screen or link | Use in Sales | Other apps that include it | Reference evidence |
+| --- | --- | --- | --- |
+| **Customer 360** | Sales tabs: overview with commercial defaults, contacts, opportunities, RFQs, quotes, orders, agreements, activities | Customer Service (cases, returns, orders), Marketing (engagement, consent, campaigns), Accounting (balance, credit, aging, statements), Commerce (store account, carts, online orders) | Carbon `CustomerSidebar` tabs (§4); ERPNext `customer_dashboard.py`; Odoo partner smart buttons (Opportunities, Sales); Dolibarr third-party card tabs; SimpleScreens `EditCustomer` counters (Requests, Orders, Shipments To, Statement PDF) |
+| **Order detail** (sales and purchase) | Sales and quote action set: quote requested / propose / reject, place, approve, hold, cancel, clone, recurrence, PDF and email | Purchasing (purchase orders), Customer Service (changes, returns, cases), Warehouse (fulfillment), Accounting (invoices, payments), Commerce (online orders, channel filters on the order list) | Odoo order form statusbar and smart buttons; ERPNext per-delivered / per-billed; Carbon order header actions; SimpleScreens `OrderDetail` quote actions |
+| **Contact / party record** | Opened from accounts, leads and opportunities; adds the account–contact link (`PrtContact`) and sales role | Commons (contacts, address book), Admin, People, every app that shows a person or organization | Frappe CRM and Twenty separate organization and person records; Moqui Sales `ViewContact` add-to-account |
+| **Inventory availability** | Read-only availability and promise date inline on quote and order lines | Warehouse (full stock), Customer Service, Purchasing, Manufacturing, Commerce | Odoo `quantity_availability` widget in the product picker; Carbon quote-line lead time; Mantle `check#AvailableInventory` |
+| **Product 360** | Price and availability; product picker, variant grid and bundle expansion on quote lines | Products (master data), Commerce, Purchasing, Manufacturing, Warehouse, Accounting | Odoo product configurator, combo configurator and `sale_product_matrix`; ERPNext Product Bundle |
+| **Prices & price rules** | Customer price agreements and customer-specific prices; base price lists for a business running only Sales; price explanation on quote lines | Products (base prices, costs, rules), Commerce (store prices), Purchasing (supplier prices) | Carbon price overrides, pricing rules and price trace; Odoo pricelists; Mantle `ProductPrice` (`customerPartyId`, `agreementId`) |
+| **Promotions, coupons, loyalty** | Manual discounts on quotes; promotions evaluate in the one price service | Marketing (programs), Commerce (store promotions and checkout) | Odoo order discount wizard; Mantle `OrderPromoCode` and the promo-code forms on `OrderDetail` |
+| **Request / case** | Requests for quote (`RqtQuote`) as an intake that becomes a quote; the RFQ list is the same list filtered to quote requests | Customer Service (cases), Purchasing, Maintenance, Projects, Warehouse, Commons | Carbon RFQ list and auto-fill; Moqui Sales commented-out `RequestSection`; MarbleERP dashboard customer-request counters |
+| **Shipment detail** | Tracking and promise dates on the order and the Customer 360 | Warehouse (receive, pick, pack, ship), Customer Service, Purchasing, Commerce, Accounting | Carbon order shipment details; ERPNext Delivery Note; Odoo delivery smart button |
+| **Task / work item** | Follow-up tasks on accounts and opportunities | Projects (work items), Commons (my tasks), Customer Service, People | Moqui Sales `create#Task` (account `Customer` role + `SalesOpportunityWorkEffort`); Frappe CRM Tasks page |
+| **Chatter & activities** | On lead, opportunity, quote, order, agreement and account; next activity shown on pipeline cards; activities roll into the Today panel | Every app's record screens | Odoo chatter and Schedule Activity; Frappe CRM typed activity feed; Twenty timeline; AureusERP chatter plugin |
+| **Calendar & schedules** | Customer meetings and appointment slots | Commons (calendars, booking), Maintenance, Projects, People | ERPNext Appointment and booking page; Odoo activity calendar |
+| **Approvals waiting** | Quote and discount approvals (`OrderDecision`) and bulk order approval | Header Notifications panel (all apps); People, Projects, Purchasing, Accounting | SimpleScreens Find Order bulk Approve form (`component/MrSimpleScreens/screen/SimpleScreens/Order/FindOrder.xml`); Mantle `OrderDecision` / `OrderDecisionReason` (§12) |
+| **Dashboard widgets** | Sales landing counters, KPI and pipeline widgets; saved sales reports | Insights (dashboards), every app's landing page | Carbon `/sales` KPIs; Frappe CRM dashboard grid; ERPNext Selling and CRM workspaces |
+| **Leads & opportunities** | Leads, pipeline, forecast | Marketing (lead sources, campaign attribution) | Odoo UTM fields and `website_crm`; ERPNext sales funnel UTM charts; Mantle `MarketingCampaign`, `TrackingCode`, `SalesOpportunityTracking` |
+| **Customer agreements; subscriptions & recurring contracts** | Agreement and subscription records | Accounting (terms, recurring invoicing), Commerce (subscription products in the store), Customer Service (read-only) | Carbon service contracts; Dolibarr contracts; ERPNext Contract and Subscription; Mantle `Agreement`, `Subscription` |
 
-**BOSS implications.** Sales is an owner of two shared screens (Customer 360 and the sales
-side of Order detail) and of three features (leads and opportunities, customer
-agreements, subscriptions); for the eleven other surfaces it is a consumer. Every face
-above opens the owning app's screen with a Sales context rather than a copy, so the Sales
-app itself is mostly the pipeline, the quote action set, agreements, the landing page and
+**BOSS implications.** Of the reused screens above, the Customer 360 and Order detail
+carry the most Sales-specific content (the sales tabs and the quote and sales-order
+action set), along with the leads and opportunities, customer agreements and
+subscriptions functions; the others Sales includes with a lighter sales emphasis. Each is
+the same screen opened with a Sales context rather than a copy, so the Sales-specific
+build is mostly the pipeline, the quote action set, agreements, the landing page and
 settings.
 
 ## 12. Current Moqui baseline (MrSimpleScreens / MarbleERP / Mantle)
@@ -1211,7 +1220,7 @@ which is outside the baseline. MarbleERP mounts the SimpleScreens `Customer`, `O
 | Find Order | **Create Sales Order** / **Create Purchase Order** dialogs, bulk **Approve** and **Close** forms; default status filter includes Proposed and Requested (open carts excluded) | `component/MrSimpleScreens/screen/SimpleScreens/Order/FindOrder.xml` |
 | Order Detail | Status actions **Quote Requested**, **Propose Quote**, **Reject Quote Request**, Place, Approve, Send, Hold, Cancel, **Clone**; recurrence options; promo codes; notes, content and email; parts with ship-to, carrier and terms; payments and gateway authorize; ship and invoice per part; returns; audit log; PDF | `component/MrSimpleScreens/screen/SimpleScreens/Order/OrderDetail.xml`, `component/MrSimpleScreens/screen/SimpleScreens/Order/PrintOrder.xml` |
 | Order items | Line grid with **Qty Not Shipped**, **Qty Not Billed**, reservations and Reserve Assets; quick item entry; edit, reserve and return item dialogs | `component/MrSimpleScreens/screen/SimpleScreens/Order/{OrderItems,QuickItems}.xml`, `component/MrSimpleScreens/screen/SimpleScreens/Order/OrderDetail/{EditItem,ItemReserve,ReturnItem}.xml` |
-| Requests | Request find/edit with items, tasks and wiki pages (type `RqtQuote` for requests for quote); owned by Customer Service | `component/MrSimpleScreens/screen/SimpleScreens/Request/{FindRequest,EditRequest,EditRequestItems,EditTasks}.xml` |
+| Requests | Request find/edit with items, tasks and wiki pages (type `RqtQuote` for requests for quote); a reused screen (Customer Service, Sales, Purchasing and others) | `component/MrSimpleScreens/screen/SimpleScreens/Request/{FindRequest,EditRequest,EditRequestItems,EditTasks}.xml` |
 | Product prices | Product price rows with customer and vendor scope (Products' screen) | `component/MrSimpleScreens/screen/SimpleScreens/Catalog/Product/EditPrices.xml` |
 | Sales reports | Sales Summary (order and invoice summaries, top products, invoices by customer class) and Sales Analysis (over `OrderItemSalesSummary`), in SimpleScreens Accounting and again in IronStone BOSS | `component/MrSimpleScreens/screen/SimpleScreens/Accounting/Reports/{SalesSummary,SalesAnalysis}.xml`, `component/ironstone-boss/screen/Reports/{SalesSummary,SalesAnalysis}.xml` |
 | MarbleERP dashboard | Sales counters **Placed**, **Approved**, **Held**; customer request counters; flow-map links to Customers, "Sales Orders & Quotes", sales shipments, payments and returns | `component/MrMarbleERP/screen/marble/dashboard.xml`, `component/MrMarbleERP/screen/marble.xml` |
@@ -1230,7 +1239,7 @@ which is outside the baseline. MarbleERP mounts the SimpleScreens `Customer`, `O
 | `Agreement`, `AgreementParty`, `AgreementItem`, `AgreementTerm`, `AgreementContent`, `AgreementAddendum`, `AgreementAssoc` | Types `AgrSales`, `AgrProduct`, `AgrCommission`, `AgrEula`, …; item types `AitPricing`, `AitCommissionRate`, `AitSection`, …; `isTemplate` / `templateAgreementId`; an `Agreement` status type with **no status items seeded** | `component/mr-mantle-udm/entity/PartyEntities.xml` |
 | `ProductPrice`, `ProductPriceModify` | One price table for list, store, customer (`customerPartyId`) and agreement (`agreementId`, `agreementItemSeqId`) prices, with `minQuantity`, from/thru dates, price types and purposes (incl. `PppRecurring`) | `component/mr-mantle-udm/entity/ProductDefinitionEntities.xml` |
 | `Subscription`, `SubscriptionResource`, `ProductSubscriptionResource`, `SubscriptionDelivery` | Subscriber, resource, from/thru and purchase dates, use limits; created from order items | same |
-| `BillingAccount` | `accountLimit` for customer credit (Accounting's face on the Customer 360) | `component/mr-mantle-udm/entity/AccountingAccountEntities.xml` |
+| `BillingAccount` | `accountLimit` for customer credit (shown in Accounting's version of the Customer 360) | `component/mr-mantle-udm/entity/AccountingAccountEntities.xml` |
 | `Request` type `RqtQuote` | Request for quote | `component/mr-mantle-udm/entity/RequestEntities.xml` |
 | `WorkEffort` purposes `WepToDo`, `WepPhoneCall`, `WepMeeting`, `WepEmail`; `WorkEffortParty` | Activities as tasks with assignees | `component/mr-mantle-udm/entity/WorkEffortEntities.xml` |
 | `MarketingCampaign`, `TrackingCode` | Campaign and tracking-code attribution on opportunities | `component/mr-mantle-udm/entity/MarketingEntities.xml` |
@@ -1248,7 +1257,7 @@ Moqui Sales adds four records of its own (outside the baseline): `SalesOpportuni
 | `mantle.sales.SalesReportServices.get#SalesOrderSummary`, `get#SalesInvoiceSummary`, `get#SalesTopProduct`, `get#InvoicesByCustomerClass` | Period summaries behind the Sales Summary screens | `component/mr-mantle-usl/service/mantle/sales/SalesReportServices.xml` |
 | `mantle.order.OrderServices` `create#Order`, `create#OrderPart`, `add#OrderProductQuantity`, `update#OrderStatus`, `propose#Order`, `place#Order`, `approve#Order`, `reject#Order`, `cancel#Order`, `clone#Order`, `update#OrderRecur`, `create#RecurringOrders`, `increment#OrderRevision`, `check#AvailableInventory`, `recalc#OrderPartItemAmounts` | Quote and order lifecycle, recurrence and line pricing | `component/mr-mantle-usl/service/mantle/order/OrderServices.xml` |
 | `mantle.order.OrderInfoServices` `get#OrderDisplayInfo`, `validate#Order`, `check#OrderPreApprove`, `send#OrderStoreEmail` | Order display data, validation and notification | `component/mr-mantle-usl/service/mantle/order/OrderInfoServices.xml` |
-| `mantle.product.PriceServices.get#ProductPrice`, `get#OrderProductPrice`, `modify#ProductPrice` | Price resolver (Products-owned): matches store, vendor and **customer** prices, quantity breaks and dates; the `agreementId` lookup is still a TODO | `component/mr-mantle-usl/service/mantle/product/PriceServices.xml` |
+| `mantle.product.PriceServices.get#ProductPrice`, `get#OrderProductPrice`, `modify#ProductPrice` | Price resolver (the one price service behind every price screen): matches store, vendor and **customer** prices, quantity breaks and dates; the `agreementId` lookup is still a TODO | `component/mr-mantle-usl/service/mantle/product/PriceServices.xml` |
 | `mantle.product.SubscriptionServices` `fulfill#OrderSubscriptions`, `fulfill#OrderPartSubscriptions`, `renew#SubscriptionResourceAccess`, `revoke#SubscriptionResourceAccess` | Subscriptions created from orders and resource access | `component/mr-mantle-usl/service/mantle/product/SubscriptionServices.xml` |
 | `mantle.party.DuplicateServices` `find#PartyDuplicates`, `merge#Parties` | Duplicate detection and merge for accounts and contacts | `component/mr-mantle-usl/service/mantle/party/DuplicateServices.xml` |
 | `mantle.party.AgreementServices` `create#AgreementContent`, `update#AgreementContent` | Agreement files only; agreement CRUD is entity-auto | `component/mr-mantle-usl/service/mantle/party/AgreementServices.xml` |
@@ -1278,8 +1287,8 @@ There is no opportunity, lead or forecast service in Mantle. Moqui Sales has
   here" toolbars.
 - **Moqui Sales QVue screens are dead code.** Substantial QVue components exist for every
   find/view screen (e.g. `Order/ViewOrder.qvue`, 118 KB), but the XML screens render the
-  QVT path and the QVue `render-mode` blocks are commented out. Do not treat the QVue
-  files as evidence of shipped behavior.
+  QVT path and the QVue `render-mode` blocks are commented out, so the QVue files are not
+  evidence of shipped behavior.
 - **Carbon's sales module is manufacturing-shaped.** Its best ideas (line costing,
   make/buy methods, BoM/BoP, lead time, price trace, jobs, rentals) assume discrete
   manufacturing. Customer portals are enterprise files
@@ -1335,7 +1344,7 @@ There is no opportunity, lead or forecast service in Mantle. Moqui Sales has
 | Dolibarr | List/kanban/statistics triad; proposals with sign / no-sign mass actions; third-party roles instead of a lead record; margin by rep, customer and product; per-record agenda and notes |
 | metasfresh | Order-candidate workbench; document-reference chain on records |
 | AureusERP | Filament relation managers for deliveries and invoices; to-invoice and upsell clusters; reusable chatter plugin |
-| Ever Gauzy | Minimal pipeline model; estimates as a flag on invoices (a model to avoid); goals and KPIs |
+| Ever Gauzy | Minimal pipeline model; estimates as a flag on invoices (a poor fit); goals and KPIs |
 | Akaunting | Invoice and portal patterns only |
 | Moqui Sales | Find screens with saved finds, column choice and export; opportunity sales-team and contact sections; agreement with addresses and payment method; `create#Task` linking tasks to account and opportunity; demo stage data |
 | Moqui baseline | `OrderDetail` quote actions and order lifecycle; `EditCustomer` counters; party agreements; duplicate finder; Mantle opportunity, forecast, agreement, subscription and pricing records; Sales Summary and Sales Analysis reports |
@@ -1365,65 +1374,86 @@ There is no opportunity, lead or forecast service in Mantle. Moqui Sales has
 | Print/PDF formats as data | Quotes/orders need branding and locale variants without code changes | ERPNext print formats, Odoo PDF quote builder, Mantle `OrgTemplateOrderPrint` party setting |
 | Customer portal for quotes/orders | Acceptance, signature and payment without email round-trips | Odoo portal, Carbon digital quote, Akaunting portal |
 
-### Recommended screen inventory (IronStone Sales)
+### Candidate screen inventory (IronStone Sales)
+
+The screens the research points to for Sales' audience (reps, sales managers). Screens
+other apps would also include are marked **(reused: …)** with those apps, per crosscut
+§3–§4; the rest are Sales screens. Input to design, not a design.
 
 | Area | Screens |
 | --- | --- |
-| Home | Sales landing: open RFQs / quotes / orders counters, assigned to me, my activities due, pipeline summary; widgets **(shared: Insights)** |
-| Pipeline | Pipeline board by stage with list / calendar / pivot / graph switch over `SalesOpportunity`; Leads list (lead-flagged opportunities) with Convert action; Opportunity detail (summary, stage bar, amount, probability, close date, next step, team, contacts, competitors, linked quotes and orders stepper, Chatter **(shared: Commons / Comms)**); Won / Lost dialog with reason; Forecast view (later) |
-| Accounts & contacts | Accounts list; **Customer 360** (owned here; tabs Overview, Contacts, Opportunities, Quotes, Orders, Agreements, Activities, plus faces from Customer Service, Marketing, Accounting, Commerce); Contact record **(shared: Commons)**; Merge duplicates (Mantle `DuplicateServices`) |
-| Quotes | Quote list (`OrderHeader` in `OrderOpen` / `OrderRequested` / `OrderProposed`); quote action set on **Order detail (shared: Sales / Purchasing)** with product picker **(shared: Products, Product 360)**, inline availability **(shared: Warehouse)**, price explanation from the shared resolver **(shared: Products)**, manual discount, validity, Propose and send PDF, Place on acceptance; RFQ intake **(shared: Customer Service, Request)**; Quote templates (later) |
-| Orders | Sales order list; sales action set on **Order detail** (place, approve, hold, cancel, clone, recurrence); shipment tracking **(shared: Warehouse)**; invoices and payments **(shared: Accounting)** |
-| Agreements & price lists | Agreement list and detail (parties, terms, `AitPricing` items with their `ProductPrice` rows, content); customer price view (`ProductPrice` rows with `customerPartyId`) linking to base price lists **(shared: Products)**; Subscriptions and recurring orders list |
-| Reports | Sales Summary and Sales Analysis (existing); pipeline, win/loss and lost-reason reports; target vs actual over `SalesForecast` (later); commissions (later) — saved views on **(shared: Insights)** |
-| Settings | Sales settings: stages, opportunity types, lost reasons, quote validity default, teams and targets; lead sources shown from Marketing; linked from the Admin settings index |
+| Home | Sales landing: open RFQs / quotes / orders counters, assigned to me, my activities due, pipeline summary; dashboard widgets **(reused: Insights, every app's landing page)** |
+| Pipeline | Pipeline board by stage with list / calendar / pivot / graph switch over `SalesOpportunity`; Leads list (lead-flagged opportunities) with Convert action; Opportunity detail (summary, stage bar, amount, probability, close date, next step, team, contacts, competitors, linked quotes and orders stepper, Chatter & activities **(reused: every app)**); Won / Lost dialog with reason; Forecast view over `SalesForecast` |
+| Accounts & contacts | Accounts list; **Customer 360** **(reused: Customer Service, Marketing, Accounting, Commerce)** with the sales tabs Overview, Contacts, Opportunities, Quotes, Orders, Agreements, Activities; Contact record **(reused: Commons, Admin, People, every app that shows a person)**; Merge duplicates (Mantle `DuplicateServices`) |
+| Quotes | Quote list (`OrderHeader` in `OrderOpen` / `OrderRequested` / `OrderProposed`); quote action set on **Order detail** **(reused: Purchasing, Customer Service, Warehouse, Accounting, Commerce)** with product picker from Product 360 **(reused: Products, Commerce, Purchasing, Manufacturing, Warehouse, Accounting)**, inline availability **(reused: Warehouse, Customer Service, Purchasing, Manufacturing, Commerce)**, price explanation from the one price service, manual discount, validity, Propose and send PDF, Place on acceptance; RFQ intake on Request / case **(reused: Customer Service, Purchasing, Maintenance, Projects, Warehouse, Commons)**; quote and discount approvals **(reused: header Notifications, People, Projects, Purchasing, Accounting)**; Quote templates |
+| Orders | Sales order list; sales action set on **Order detail** (place, approve, hold, cancel, clone, recurrence); shipment tracking on Shipment detail **(reused: Warehouse, Customer Service, Purchasing, Commerce, Accounting)**; invoice and payment links |
+| Agreements & price lists | Agreement list and detail (parties, terms, `AitPricing` items with their `ProductPrice` rows, content) **(reused: Accounting, Customer Service)**; customer and agreement prices on the price screens **(reused: Products, Commerce, Purchasing)**, with the base price lists a business running only Sales needs; Subscriptions and recurring orders list **(reused: Accounting, Commerce)** |
+| Reports | Sales Summary and Sales Analysis (existing); pipeline, win/loss and lost-reason reports; target vs actual over `SalesForecast`; commissions over `AgrCommission` agreements — saved views on the dashboard widgets **(reused: Insights, every app's landing page)** |
+| Settings | Sales settings: stages, opportunity types, lost reasons, quote validity default, teams and targets; lead sources **(reused: Marketing)**; linked from the Admin settings index |
 
-### Data-model implications
+### Data-model findings
 
-- **Reuse as is:** `SalesOpportunity` with `SalesOpportunityParty`, `SalesOpportunityStage`,
-  `SalesOpportunityWorkEffort`, `SalesOpportunityOrder`, `SalesOpportunityCompetitor`,
-  `SalesOpportunityTracking`; `OrderHeader` / `OrderPart` / `OrderItem` with the quote
-  statuses; `OrderDecision` for quote and discount approvals; `Agreement`,
-  `AgreementItem`, `AgreementTerm`, `AgreementContent`; `ProductPrice` rows with
-  `customerPartyId` and `agreementId`; `Subscription`; `Request` type `RqtQuote`;
+- **Fits as is:** `SalesOpportunity` with `SalesOpportunityParty`,
+  `SalesOpportunityStage`, `SalesOpportunityWorkEffort`, `SalesOpportunityOrder`,
+  `SalesOpportunityCompetitor`, `SalesOpportunityTracking`; `OrderHeader` / `OrderPart` /
+  `OrderItem` with the quote statuses; `OrderDecision` for quote and discount approvals;
+  `Agreement`, `AgreementItem`, `AgreementTerm`, `AgreementContent`; `ProductPrice` rows
+  with `customerPartyId` and `agreementId`; `Subscription`; `Request` type `RqtQuote`;
   `WorkEffort` tasks with `WepToDo` / `WepPhoneCall` / `WepMeeting` / `WepEmail`;
   `CommunicationEvent` with `OrderCommunicationEvent`; roles `Account`, `Customer`,
   `Contact`, `SalesRepresentative`, `Prospect`, `AccountLead`; `PrtContact` links.
-- **Seed data to add:** default `SalesOpportunityStage` rows in setup data (Moqui Sales
-  has them only as demo data); `SalesOpportunity` type values (Lead, Opportunity);
-  `Agreement` status items (Draft, Active, Expired, Cancelled, or similar); lost-reason
-  enumeration.
-- **Fields or records to add:** an opportunity status or outcome plus `lostReasonEnumId`
-  on `SalesOpportunity`; a link from quotes and orders to activities (an
-  `OrderWorkEffort` join or the generic record link the crosscut asks about); a quote
+- **Seed data the baseline lacks:** default `SalesOpportunityStage` rows in setup data
+  (Moqui Sales has them only as demo data); `SalesOpportunity` type values (Lead,
+  Opportunity); `Agreement` status items (Draft, Active, Expired, Cancelled, or similar);
+  lost-reason enumeration.
+- **Where new fields or records look necessary:** an opportunity status or outcome plus
+  `lostReasonEnumId` on `SalesOpportunity`; a link from quotes and orders to activities
+  (an `OrderWorkEffort` join or the generic record link the crosscut asks about); a quote
   revision chain (candidate: `clone#Order` with `parentOrderId`, which Mantle already
-  sets on clones); later, a quote-template record, a contract billing-schedule child of
-  `Agreement`, and sales team / territory records.
-- **Service change, owned by Products:** make `get#ProductPrice` honour `agreementId` and
-  `agreementItemSeqId` so customer agreements price quotes.
-- **Not adopted from Moqui Sales:** `SalesOpportunityNote` (notes belong in Chatter);
+  sets on clones); for templates, contracts and teams, a quote-template record, a
+  contract billing-schedule child of `Agreement`, and sales team / territory records.
+- **Price service change:** `get#ProductPrice`, the one price service behind the price
+  screens of Products, Sales, Commerce and Purchasing, does not yet honour `agreementId`
+  and `agreementItemSeqId`; customer agreements price quotes only once it does.
+- **Moqui Sales additions:** `SalesOpportunityNote` overlaps Chatter notes;
   `AgreementContactMech` and `Agreement.paymentMethodId` are worth reviewing for
   agreement-level ship-to/bill-to and payment defaults.
 
-### First-release cut
+### Sequencing notes
 
-- **Ships first:** Sales landing (counters, assigned to me, activities due); pipeline
-  board and list over `SalesOpportunity` with seeded stages; opportunity detail with
-  won/lost and reason and linked quotes; leads as lead-flagged opportunities with a
-  simple Convert; Customer 360 sales tabs built on the `EditCustomer` counters and
-  party sections; quote list plus the quote action set on the shared Order detail,
-  using the existing `OrderDetail` transitions and `PrintOrder` PDF; customer price
-  agreements (`Agreement` + `ProductPrice.agreementId`, which needs the resolver change
-  from Products); Sales Summary and Sales Analysis; Chatter and activities as the shared
-  component lands.
-- **Deferred:** forecast view and quotas, targets and commissions, quote templates,
-  optional products and saved revisions, customer e-signature and portal acceptance,
-  contract billing schedules, amendments and revenue recognition, rentals, the
-  sales-rules engine, RFQ document auto-fill, assignment rules and web-form lead intake.
+**Cheap on the baseline.** The quote and order lifecycle (`OrderDetail` transitions Quote
+Requested / Propose Quote / Place, `PrintOrder` PDF, `clone#Order`, recurrence); the
+Customer 360 sales tabs (`EditCustomer` counters, statement PDF, duplicate finder and
+party sections, `mantle.sales.AccountServices`); agreement terms, items and content
+(SimpleScreens Party → Agreements tab); Sales Summary and Sales Analysis; recurring
+orders (`recurCronExpression`, `create#RecurringOrders`); the pipeline records
+(`SalesOpportunity` and its joins exist; stages only as Moqui Sales demo data).
+
+**Dependencies.**
+
+- Customer agreement prices on quotes depend on agreement pricing in `get#ProductPrice`
+  (`agreementId` is a TODO) and on `Agreement` status items.
+- The pipeline board, landing counters and forecast depend on seeded stages and
+  opportunity types; win/loss reports depend on an outcome and lost reason on
+  `SalesOpportunity`.
+- Leads as lead-flagged opportunities depend on `SalesOpportunity.typeEnumId` values, and
+  the Convert action on the lead-model question (Open questions).
+- Activities on quotes and orders depend on an order activity link (only
+  `OrderItemWorkEffort` exists) and on the reused Chatter & activities component;
+  accounts and opportunities already have `SalesOpportunityWorkEffort` and `create#Task`.
+- Saved quote revisions depend on a revision link (`parentOrderId` on clones or a new
+  record); quote templates and optional products on a template record.
+- Forecasts and targets need only screens over the existing `SalesForecast`; commissions
+  over `AgrCommission` agreements; teams and territories need new records.
+- Contract billing schedules, amendments, revenue recognition and rentals need new
+  records; customer e-signature and portal acceptance depend on the portal question
+  (crosscut §8).
+- The sales-rules engine, RFQ document auto-fill and assignment rules have no Mantle
+  basis; web-form lead intake depends on the reused form builder.
 
 ### Open questions
 
-- **Lead model.** This file recommends one `SalesOpportunity` record with a lead flag
+- **Lead model.** The evidence here favors one `SalesOpportunity` record with a lead flag
   (`typeEnumId`), as Odoo does. Mantle also supports a party-first model (`Prospect` or
   `AccountLead` role with `LeadStatus`), closer to Dolibarr and ERPNext. Which one?
 - **Opportunity outcome.** Add a status and lost reason to `SalesOpportunity` (a Mantle
@@ -1432,16 +1462,13 @@ There is no opportunity, lead or forecast service in Mantle. Moqui Sales has
   record so a superseded quote stays readable?
 - **Customer-specific prices.** Agreements (`Agreement` + `AitPricing` items +
   `ProductPrice.agreementId`) or plain `ProductPrice.customerPartyId` rows? This repeats
-  crosscut §8 "Price ownership split"; this file suggests agreements for negotiated
-  contracts and customer rows for simple customer prices, both maintained in Sales and
-  read by the Products resolver.
-- **Quote and discount approvals.** Should quote/discount approvals (Mantle
-  `OrderDecision`) appear in the header Approvals panel? Crosscut §3 lists People,
-  Purchasing and Accounting faces only.
+  crosscut §8 ("Prices"); the evidence here suggests agreements for negotiated contracts
+  and customer rows for simple customer prices, both edited in Sales' version of the
+  price screens and read by the one price service.
 - **Teams and territories.** Party groups with relationships, or new records? Neither
   exists in Mantle.
 - **Quote acceptance portal.** Customer acceptance and signature on a shared link: a
-  Sales screen or a Commerce portal page?
+  Sales screen, or a customer portal that several apps include (crosscut §8, "Portals")?
 
 ### Checkout path quirks
 
@@ -1480,9 +1507,9 @@ There is no opportunity, lead or forecast service in Mantle. Moqui Sales has
 UX, quote editing, pricing provenance, activity scheduling and targets. The Moqui
 baseline is strongest where the references are thinnest for a Moqui build: a complete
 order lifecycle that already treats quotes as order statuses, and Mantle records for
-opportunities, forecasts, agreements, subscriptions and prices. Build the Sales app as
-the pipeline plus the quote action set on the shared Order detail; keep quotes as a
-lifecycle of `OrderHeader`, not a parallel entity; read prices from the Products
-resolver and supply it customer agreements; place Chatter, activities and Insights
-widgets rather than building them; and own the Customer 360 that the other apps add
-faces to.
+opportunities, forecasts, agreements, subscriptions and prices. The evidence points to a
+Sales app that is mostly the pipeline plus the quote action set on the reused Order
+detail, with quotes as a lifecycle of `OrderHeader` rather than a parallel entity, prices
+from the one price service with customer agreements added to it, Chatter, activities and
+dashboard widgets included as reused components, and the Customer 360 included with its
+sales emphasis.
