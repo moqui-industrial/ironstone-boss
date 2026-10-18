@@ -1,38 +1,48 @@
-# IronStone BOSS — Projects research
+# IronStone BOSS — Projects app research
 
 Oct 18, 2026
 
-Deeper research pass on every screen/page relevant to **IronStone Projects** (Project managers, services staff): projects and milestones, tasks, timesheets, resource scheduling, time-and-materials billing and request intake. Companion to [3p-app-reference.md](3p-app-reference.md); feeds the IronStone Projects sections of [initial-design.md](initial-design.md). Cross-app screens that Projects shares with Commons, Customer Service, Sales and Accounting are cross-referenced rather than duplicated.
+Reviewed against sources Oct 18, 2026; follows [research-crosscut.md](research-crosscut.md).
+
+Deeper research pass on every screen/page relevant to **IronStone Projects** (project managers, services staff), covering the initial-design sections Projects & milestones · Tasks · Timesheets · Resource scheduling · Time and materials billing · Request intake. Companion to [3p-app-reference.md](3p-app-reference.md); feeds the IronStone Projects row in [initial-design.md](initial-design.md). Projects owns the shared **Task / work item** screen (the Commons "tasks assigned" face, the follow-up-task face in Customer Service and Sales, People onboarding checklists), time entry and timesheets, and project costing; it adds the allocations and timesheets face to People's **Employee 360**, consumes converted work from Customer Service's **Request / case**, and feeds plan views into the Commons **Calendar & schedules** (research-crosscut §3–§4).
 
 **Two significant sources were added to the checkout after 3p-app-reference.md was written.** They are the primary references for this app and are treated first in each section:
 
 | Source | Checkout | Why it matters |
 | --- | --- | --- |
-| **OpenProject** | `/home/jonesde/work/moquiwork/3p_other/openproject` | Project-management-first application: portfolio/program hierarchy, work packages, Gantt/timeline, boards, backlogs, team planner, resource management, budgets and cost reports. The closest overall model for IronStone Projects. |
-| **Redmine** | `/home/jonesde/work/moquiwork/3p_other/redmine` | Long-lived, minimal project tracker: projects, issues, queries, versions/roadmap, Gantt/calendar, time logs, wiki/files/forums. The best reference for a compact, comprehensible project UI and for email-driven issue intake. |
+| **OpenProject** | `3p_other/openproject` | Project-management-first application: portfolio/program hierarchy, work packages, Gantt/timeline, boards, backlogs, team planner, resource management, budgets and cost reports. The closest overall model for IronStone Projects. |
+| **Redmine** | `3p_other/redmine` | Long-lived, minimal project tracker: projects, issues, queries, versions/roadmap, Gantt/calendar, time logs, wiki/files/forums. The best reference for a compact, comprehensible project UI and for email-driven issue intake. |
 
 **Organization.** Sorted by functional area, not by app: all project-list/create screens together, all task/work-item screens together, all timesheet screens together, etc. Within each area, sub-tables per reference app. Each section ends with **BOSS implications**.
 
-**Path conventions.** Paths are relative to each repository's own root, as in 3p-app-reference.md. Checkout locations:
+**Scope.** Business UI only: project lists and hubs, work-item lists/boards/Gantt/calendars, milestone and version screens, time entry and timesheet grids, resource planners, budget/cost views, billing hand-off queues, intake forms and project settings. Scheduling algorithms, posting logic and invoice generation are noted only where they shape a Projects screen; invoices themselves belong to Accounting/Sales, Request intake to Customer Service, attendance and working schedules to People.
 
-| Prefix in this doc | Checkout |
-| --- | --- |
-| **OpenProject** | `/home/jonesde/work/moquiwork/3p_other/openproject` — Rails backend (`app/`, `modules/`), Angular front end (`frontend/src/app/features/`), ERB/Primer views (`app/views/`, `app/components/`) |
-| **Redmine** | `/home/jonesde/work/moquiwork/3p_other/redmine` — Rails + ERB; `app/views/`, `app/controllers/`, `app/models/` |
-| **Odoo** | `/home/jonesde/work/moquiwork/3p_other/odoo` — modules under `odoo/addons/`; views in `<module>/views/`, OWL UI in `<module>/static/src/` |
-| **ERPNext** | `/home/jonesde/work/moquiwork/3p_other/frappe/erpnext` — `erpnext/projects/` |
-| **Frappe framework** | `/home/jonesde/work/moquiwork/3p_other/frappe/frappe` — paths start `frappe/<area>/` |
-| **AureusERP** | `/home/jonesde/work/moquiwork/3p_other/aureuserp` — `plugins/webkul/projects/`, `plugins/webkul/timesheets/` (Filament PHP UI) |
-| **Dolibarr** | `/home/jonesde/work/moquiwork/3p_other/dolibarr` — `htdocs/projet/` + shared `htdocs/core/lib/project.lib.php` |
-| **Ever Gauzy** | `/home/jonesde/work/moquiwork/3p_other/ever-co/ever-gauzy` — (`apps/gauzy/src/app/pages/…`) |
-| **Moqui WorkManagement** | `/home/jonesde/work/moquiwork/3p_moqui/WorkManagement` — `screen/wm/` |
-| **Moqui Sales** | `/home/jonesde/work/moquiwork/3p_moqui/Sales` — `screen/Sales/` |
-| **Moqui WeCreate** | `/home/jonesde/work/moquiwork/3p_moqui/WeCreate` — `screen/wcinternal/Project/` |
-| **Nextcloud** | `/home/jonesde/work/moquiwork/3p_other/nextcloud` — `tasks/src/`, `deck/src/` (catalogued in [research-drawers-commons.md](research-drawers-commons.md) §11) |
-| **Twenty** | `/home/jonesde/work/moquiwork/3p_other/twenty` — `packages/twenty-front/src/modules/activities/` (per-record task/note widgets) |
-| **Carbon / Akaunting / metasfresh / Zimbra** | no project-management module in these checkouts; see §15 for the exact gap |
+**Path conventions.** Every backticked path resolves against the checkout of its prefix (research-crosscut §1); checkouts are under `/home/jonesde/work/moquiwork/`. In a table row a bare file name is relative to the directory named earlier in the same cell.
 
-Sections: [1 landing/portfolio/my work](#1-landing-portfolio--my-work) · [2 projects list, create, templates](#2-projects-list-create--templates) · [3 project detail & 360](#3-project-detail--project-360) · [4 tasks / work packages](#4-tasks--work-packages) · [5 boards, backlogs & sprints](#5-boards-backlogs--sprints) · [6 gantt, timeline & calendar](#6-gantt-timeline--calendar) · [7 milestones, versions & phases](#7-milestones-versions--phases) · [8 time tracking & timesheets](#8-time-tracking--timesheets) · [9 resource scheduling & capacity](#9-resource-scheduling--capacity) · [10 budgets, costs & T&M billing](#10-budgets-costs--tm-billing) · [11 request intake & cross-app handoffs](#11-request-intake--cross-app-handoffs) · [12 reporting & analytics](#12-reporting--analytics) · [13 settings & administration](#13-settings--administration) · [14 BOSS screen map](#14-boss-screen-map) · [15 gaps & notables](#15-gaps--notables)
+| Prefix | Checkout | Paths start with |
+| --- | --- | --- |
+| **OpenProject** | `3p_other/openproject` | `app/{views,controllers,models,components}/…`, `modules/<module>/…`, `frontend/src/app/features/…`, `config/…` |
+| **Redmine** | `3p_other/redmine` | `app/{views,controllers,models,helpers}/…`, `lib/redmine/…`, `config/…` |
+| **Odoo** | `3p_other/odoo` | `odoo/addons/<addon>/…` (`project`, `project_todo`, `project_account`, `sale_project`, `sale_timesheet`, `hr_timesheet`, …) |
+| **ERPNext** | `3p_other/frappe/erpnext` | `erpnext/<module>/…` (mainly `erpnext/projects/`, `erpnext/support/`) |
+| **Frappe framework** (desk) | `3p_other/frappe/frappe` | `frappe/<area>/…` (e.g. `frappe/public/js/frappe/views/`) |
+| **Frappe CRM** | `3p_other/frappe/crm` | `frontend/src/…`, backend `crm/fcrm/doctype/…` |
+| **Gameplan** | `3p_other/frappe/gameplan` | `frontend/src/…`, backend `gameplan/gameplan/doctype/…` |
+| **AureusERP** | `3p_other/aureuserp` | `plugins/webkul/<plugin>/src/Filament/…` (`projects`, `timesheets`, `full-calendar`) |
+| **Dolibarr** | `3p_other/dolibarr` | `htdocs/<module>/…` (mainly `htdocs/projet/`, shared `htdocs/core/lib/project.lib.php`) |
+| **Ever Gauzy** | `3p_other/ever-co/ever-gauzy` | `apps/gauzy/src/app/pages/…`, desktop apps `apps/{desktop,desktop-timer}/` |
+| **Ever Teams** | `3p_other/ever-co/ever-teams` | repo root (`apps/web/core/…`) |
+| **metasfresh** | `3p_other/metasfresh` | `backend/de.metas.<module>/…` |
+| **Carbon** | `3p_other/carbon` | `apps/erp/app/{modules,routes}/…` |
+| **Nextcloud** | `3p_other/nextcloud` | `<app>/src/…` (`tasks/src/`, `deck/src/`; catalogued in [research-drawers-commons.md](research-drawers-commons.md) §11) |
+| **Twenty** | `3p_other/twenty` | `packages/twenty-front/src/…` |
+| **Zimbra** (zm-web-client) | `3p_other/Zimbra` | `zm-web-client/WebRoot/…` |
+| **Moqui components** (Moqui WorkManagement, Moqui Sales, WeCreate) | `3p_moqui/<component>` (`WorkManagement`, `Sales`, `WeCreate`) | `screen/…`, `service/…` |
+| **Moqui baseline** | `mr-moqui-base/runtime` | `component/MrSimpleScreens/screen/{SimpleScreens,MyAccount}/…`, `component/MrMarbleERP/screen/…`, `component/mr-mantle-udm/entity/…`, `component/mr-mantle-usl/service/mantle/…`, `component/ironstone-boss/screen/…` |
+
+Not used here: Akaunting, Frappe Helpdesk (no project field on HD Ticket; intake is covered in [research-customer-service.md](research-customer-service.md)), Signal and the other Moqui components (coarchy, resistmanagement, ServiceJobMonitor, ridgecrest) ship no project, task or timesheet UI. Carbon's only project record is an accounting dimension (name, description) used on sales contracts and reimbursements (`apps/erp/app/modules/accounting/ui/Projects/`); its `resources` module and `packages/planning` are production scheduling. Zimbra Tasks is a personal task list and Frappe CRM Tasks are record follow-ups (both cited once in §4). metasfresh has project and service-provider records but no project screens of its own (§4).
+
+Sections: [1 landing/portfolio/my work](#1-landing-portfolio--my-work) · [2 projects list, create, templates](#2-projects-list-create--templates) · [3 project detail & 360](#3-project-detail--project-360) · [4 tasks / work packages](#4-tasks--work-packages) · [5 boards, backlogs & sprints](#5-boards-backlogs--sprints) · [6 gantt, timeline & calendar](#6-gantt-timeline--calendar) · [7 milestones, versions & phases](#7-milestones-versions--phases) · [8 time tracking & timesheets](#8-time-tracking--timesheets) · [9 resource scheduling & capacity](#9-resource-scheduling--capacity) · [10 budgets, costs & T&M billing](#10-budgets-costs--tm-billing) · [11 request intake & cross-app handoffs](#11-request-intake--cross-app-handoffs) · [12 reporting & analytics](#12-reporting--analytics) · [13 settings & administration](#13-settings--administration) · [14 cross-app surfaces](#14-cross-app-surfaces) · [15 current Moqui baseline](#15-current-moqui-baseline-mrsimplescreens--marbleerp--mantle) · [16 gaps & BOSS implications](#16-gaps--boss-implications)
 
 ---
 
@@ -80,7 +90,7 @@ IronStone Projects needs three different landing surfaces: an app home for manag
 | My Tasks | Task kanban/list/calendar/activity/pivot/graph filtered to the current user, grouped by personal stage. | `odoo/addons/project/views/project_task_views.xml` (`action_view_my_task`) |
 | Tasks analysis | Pivot/graph analysis over tasks (stage, assignee, working hours, rating). | `odoo/addons/project/views/project_task_views.xml` (`view_project_task_pivot`, `view_project_task_graph`) |
 
-### ERPNext / AureusERP / Gauzy / Dolibarr / Moqui — landing patterns
+### Odoo to-do / ERPNext / AureusERP / Ever Gauzy / Dolibarr / Moqui WorkManagement — landing patterns
 
 | App | Screen/page | What it is | Key files |
 | --- | --- | --- | --- |
@@ -88,11 +98,11 @@ IronStone Projects needs three different landing surfaces: an app home for manag
 | ERPNext | Projects workspace | Desk module page: onboarding, Project Summary chart, Open Projects / Non-completed Tasks / Timesheet Working Hours number cards, Project Reports card, links to Project/Task/Timesheet. | `erpnext/projects/workspace/projects/projects.json`, `erpnext/projects/sidebar/projects/projects.json` |
 | ERPNext | Project dashboard | Connections dashboard (Tasks, Timesheets, Issues, Project Updates; material/sales/purchase/manufacture transactions) plus a timesheet heatmap. | `erpnext/projects/doctype/project/project_dashboard.py` |
 | AureusERP | Projects dashboard | Filament dashboard widgets: stats overview, tasks by state, tasks by stage, top assignees, top projects. | `plugins/webkul/projects/src/Filament/Widgets/`, `plugins/webkul/projects/src/Filament/Pages/Dashboard.php` |
-| Gauzy | Projects list | Table and card-grid layouts, pagination, permissions, favorite toggle, add/edit/delete, "add module" action. | `apps/gauzy/src/app/pages/projects/components/project-list/list.component.html` |
-| Gauzy | Project layout | Detail/edit routes and project manager/guard wiring. | `apps/gauzy/src/app/pages/projects/layout/`, `projects-routing.module.ts` |
+| Ever Gauzy | Projects list | Table and card-grid layouts, pagination, permissions, favorite toggle, add/edit/delete, "add module" action. | `apps/gauzy/src/app/pages/projects/components/project-list/list.component.html` |
+| Ever Gauzy | Project layout | Detail/edit routes and project manager/guard wiring. | `apps/gauzy/src/app/pages/projects/layout/`, `projects-routing.module.ts` |
 | Dolibarr | Project list | Dense filter list: status, opportunity status/amount/probability, third party, contact, assigned user, sales rep, late alert, parent project, tags/extra fields; mass close; group-by; column chooser. | `htdocs/projet/list.php` |
 | Dolibarr | Project statistics | Graph/statistics view over projects (leads vs projects mode). | `htdocs/projet/stats/index.php` |
-| WorkManagement | Projects screen | QVue page with a right-hand "Find Options" drawer (person, role, status, order by, free text) and inline project/task table. | `screen/wm/Project/Project.qvue`, `screen/wm/Project.xml` |
+| Moqui WorkManagement | Projects screen | QVue page with a right-hand "Find Options" drawer (person, role, status, order by, free text) and inline project/task table. | `screen/wm/Project/Project.qvue`, `screen/wm/Project.xml` |
 
 **BOSS implications.** Use OpenProject's three-surface split, not a single dashboard: (1) **Projects home** = portfolio health + workload + overdue/milestone/billing exceptions; (2) **Find Projects** = saved-view table with hierarchy and the same filters OpenProject models; (3) **My work** = personal list/calendar plus running timer and upcoming allocations, which is also what the header "Today" panel should surface. Adopt the six-state project health, but keep it separate from task status and from the commercial project state (prospect/active/closed). Portfolios/programs are worth supporting in the data model even if the first UI only exposes projects — OpenProject's parent-type rules are the cheapest correct constraint.
 
@@ -109,7 +119,7 @@ IronStone Projects needs three different landing surfaces: an app home for manag
 | Project templates | Any project can be flagged `templated`; new projects copy from a template (`copy` service copies work packages, members, versions, settings). A default template can be assigned per subproject type. | `app/models/project.rb` (`templated`, `template_id`, `templated_projects`, `subproject_template_assignments`), `app/controllers/projects/templated_controller.rb`, `app/services/projects/copy_service.rb`, `app/models/subproject_template_assignment.rb` |
 | Project settings → Template | Marks/uses a project as a template from project settings. | `app/components/projects/settings/template/settings_component.rb`, `app/controllers/projects/settings/template_controller.rb` |
 | Copy project | Copy form with selectable components (work packages, members, versions, etc.). | `app/views/projects/copy_form.html.erb`, `app/services/projects/copy_service.rb` |
-| Close / archive / delete | Project status changes (finish/discontinue), archive and delete flows; delete warns about work-package reassignment. | `app/controllers/projects/status_controller.rb`, `app/controllers/projects/archive_controller.rb`, `app/views/projects/destroy.html.erb` |
+| Close / archive / delete | Project status changes (finish/discontinue), archive and delete flows; delete warns about work-package reassignment. | `app/controllers/projects/status_controller.rb`, `app/controllers/projects/archive_controller.rb`, `app/components/projects/delete_dialog_component.html.erb` |
 | Project identifier / reserved identifiers | Editable identifier with suggestions and a reserved-identifier admin list. | `app/controllers/projects/identifier_controller.rb`, `app/controllers/projects/identifier_suggestion_controller.rb`, `app/controllers/admin/settings/project_reserved_identifiers_controller.rb` |
 | Subitems | Project settings for subitem types/templates. | `app/controllers/projects/settings/subitems_controller.rb`, `app/views/projects/settings/subitems/` |
 
@@ -121,7 +131,7 @@ IronStone Projects needs three different landing surfaces: an app home for manag
 | Copy project | Copy metadata, members, versions, issue categories, issues, documents, wiki, news, queries, time entries, boards, files, repository (selectable). | `app/views/projects/copy.html.erb`, `app/models/project.rb` (`copy`), `app/controllers/projects_controller.rb` |
 | Close/reopen/archive | Project status ladder: active → closed → archived; close cascades to descendants. | `app/models/project.rb` (`close`, `reopen`, `archive`, `unarchive`), `app/views/projects/show.html.erb` |
 | Project modules | Per-project on/off switch for issue tracking, time tracking, news, documents, files, wiki, repository, boards, calendar, gantt. | `config/settings.yml` (`default_projects_modules`), `app/models/project.rb` (`enabled_module_names`), `app/views/projects/settings/_*.html.erb` |
-| Project settings | Tabs: members, versions, issue categories, modules, repository, activities, boards. | `app/views/projects/settings/`, `app/views/projects/settings.html.erb` |
+| Project settings | Tabs: project (info, modules), members, issue tracking, versions, issue categories, repositories, boards, time-tracking activities. | `app/views/projects/settings/`, `app/views/projects/settings.html.erb`, `app/helpers/projects_helper.rb` (`project_settings_tabs`) |
 
 ### Odoo — quick create, templates, stages, visibility, email alias
 
@@ -136,22 +146,22 @@ IronStone Projects needs three different landing surfaces: an app home for manag
 | Visibility | `privacy_visibility` (portal users / internal / invited internal users). | `odoo/addons/project/models/project_project.py` |
 | Email alias | Each project can own an alias; incoming mail creates tasks in that project, with allowed-sender policy. | `odoo/addons/project/models/project_project.py` (`alias_id`, `_alias_get_creation_values`), `odoo/addons/project/views/project_project_views.xml` |
 
-### ERPNext / AureusERP / Dolibarr / Gauzy / WeCreate / WorkManagement
+### ERPNext / AureusERP / Dolibarr / Ever Gauzy / WeCreate / Moqui WorkManagement
 
 | App | Screen/page | What it is | Key files |
 | --- | --- | --- | --- |
 | ERPNext | Project form | Series, name, status (Open/On hold/Completed/Cancelled), type, % complete method (manual/task completion/task progress/task weight), template, priority, department, active flag, timeline (expected/actual dates + actual time), customer + sales order, notes, accounting/costing/billing, progress-update collection, users. | `erpnext/projects/doctype/project/project.json` |
-| ERPNext | Project template | Project type + child task templates; used when creating/copying projects. | `erpnext/projects/doctype/project_template/`, `project_template_task` |
+| ERPNext | Project template | Project type + child task templates; used when creating/copying projects. | `erpnext/projects/doctype/project_template/`, `erpnext/projects/doctype/project_template_task/` |
 | AureusERP | Project form | Progress stepper (stage), name/description, manager, customer, start/end dates, allocated hours, tags, company, visibility (private/internal/public), allow-timesheets, allow-milestones. | `plugins/webkul/projects/src/Filament/Resources/ProjectResource/Schemas/ProjectForm.php` |
 | AureusERP | Projects table | Rich project card stack (name/customer/date/remaining hours/manager/tags), group by stage/manager/customer/created, reorderable, query-builder filters. | `plugins/webkul/projects/src/Filament/Resources/ProjectResource/Tables/ProjectsTable.php` |
 | AureusERP | Project pages | List/create/view/edit; relation managers for milestones/tasks; manage milestones/tasks pages. | `plugins/webkul/projects/src/Filament/Resources/ProjectResource/Pages/` |
 | Dolibarr | Project create/edit card | Ref, title, parent project, status, opportunity fields (amount/probability/status), dates, third party/contact, assigned users, visibility/public, usage flags (`usage_task`, `usage_bill_time`, `usage_opportunity`, `usage_organize_event`), extra fields. | `htdocs/projet/card.php`, `htdocs/projet/class/project.class.php` |
 | Dolibarr | Clone project | Clone with contacts, tasks, project files, task files, notes, date shift, third party. | `htdocs/projet/card.php` (`createFromClone` block) |
-| Gauzy | Project create/edit | Dialog forms; project modules; favorites; card/table layouts. | `apps/gauzy/src/app/pages/projects/components/{project-create,project-edit}/` |
+| Ever Gauzy | Project create/edit | Dialog forms; project modules; favorites; card/table layouts. | `apps/gauzy/src/app/pages/projects/components/{project-create,project-edit}/` |
 | WeCreate | Create project | Account, project name, visibility, start date, estimated hours, description; status flow driven by Mantle `StatusItem`/`StatusFlowTransition`; posts/photos on the project profile. | `screen/wcinternal/Project/FindProject.xml`, `screen/wcinternal/Project/ViewProject.xml` |
-| WorkManagement | Find/create project | QVue list with inline project creation and a find-options drawer; project detail is a simple edit/view screen. | `screen/wm/Project/Project.qvue`, `screen/wm/Project.xml` |
+| Moqui WorkManagement | Find/create project | QVue list with inline project creation and a find-options drawer; project detail is a simple edit/view screen. | `screen/wm/Project/Project.qvue`, `screen/wm/Project.xml` |
 
-**BOSS implications.** Creation should be a short form plus an optional wizard, not one giant form. OpenProject's **template = a real project flagged `templated`** is the cheapest model: copy tasks, milestones, members, roles, rates and settings from it, and allow a default template per project type/subitem type. Keep the commercial fields (customer, sales order, contract) on the project only when they apply — ERPNext and Odoo both put them on the project, but BOSS should link to Sales rather than duplicate price data. Odoo's **project email alias** is worth adopting as the default request-intake path; it maps directly onto system messages/CommunicationEvent.
+**BOSS implications.** Creation should be a short form plus an optional wizard, not one giant form. OpenProject's **template = a real project flagged `templated`** is the cheapest model: copy tasks, milestones, members, roles, rates and settings from it, and allow a default template per project type/subitem type. Keep the commercial fields (customer, sales order, contract) on the project only when they apply — ERPNext and Odoo both put them on the project, but BOSS should link to Sales rather than duplicate price data. Odoo's **project email alias** is worth adopting as a per-project mail route: Comms receives the mail (SystemMessage/`CommunicationEvent`) and either Customer Service intake creates a `Request` for the project or a project rule creates a work item directly. The Moqui baseline already has the copy step: `mantle.work.ProjectServices.clone#Project` deep-clones a project's tasks, milestones and parties (§15).
 
 ---
 
@@ -174,9 +184,9 @@ IronStone Projects needs three different landing surfaces: an app home for manag
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
 | Project overview | Description, homepage/custom fields, issue-tracking table per tracker (open/closed/total), spent-time box (estimated/spent + log-time/report links), members, latest news, subprojects, wiki content. | `app/views/projects/show.html.erb` |
-| Project menu | Per-project tabs for Overview, Activity, Issues, Gantt, Calendar, News, Documents, Files, Wiki, Repository, Boards; module-dependent. | `app/views/projects/menus/`, `app/helpers/projects_helper.rb`, `config/initializers/menus.rb` |
+| Project menu | Per-project tabs for Overview, Activity, Issues, Gantt, Calendar, News, Documents, Files, Wiki, Repository, Boards; module-dependent. | `lib/redmine/preparation.rb` (`MenuManager.map :project_menu`), `app/helpers/projects_helper.rb` |
 | Project sidebar | Issue tracking summary, time tracking, members, latest news. | `app/views/projects/_sidebar.html.erb` |
-| Settings tabs | Members, versions, issue categories, modules, repository, activities, boards. | `app/views/projects/settings/` |
+| Settings tabs | Project (info, modules), members, issue tracking, versions, issue categories, repositories, boards, activities. | `app/views/projects/settings/` |
 
 ### Odoo — project form as the 360
 
@@ -188,7 +198,7 @@ IronStone Projects needs three different landing surfaces: an app home for manag
 | Updates | Project update list/kanban/form/graph; each update has status, progress, author, date, description and task counts. | `odoo/addons/project/views/project_update_views.xml`, `odoo/addons/project/models/project_update.py` |
 | Portal | Customer portal templates for projects and tasks. | `odoo/addons/project/views/project_portal_project_project_templates.xml`, `odoo/addons/project/views/project_portal_project_task_templates.xml` |
 
-### ERPNext / AureusERP / Dolibarr / Gauzy / WeCreate
+### ERPNext / AureusERP / Dolibarr / Ever Gauzy / WeCreate / Moqui WorkManagement
 
 | App | Screen/page | What it is | Key files |
 | --- | --- | --- | --- |
@@ -197,9 +207,9 @@ IronStone Projects needs three different landing surfaces: an app home for manag
 | AureusERP | Project view | Infolist + relation managers (milestones, tasks), timesheets relation on tasks. | `plugins/webkul/projects/src/Filament/Resources/ProjectResource/Schemas/ProjectInfolist.php`, `RelationManagers/` |
 | Dolibarr | Project card tabs | Project, Contacts, Tasks (with badge), Time spent, Project overview/elements (proposals, orders, invoices, contracts, interventions, shipments, MOs, trips…), Tickets, Event organization, Emailings, Notes, Documents, Agenda. | `htdocs/core/lib/project.lib.php` (`project_prepare_head`), `htdocs/projet/card.php`, `htdocs/projet/element.php` |
 | Dolibarr | Project statistics | Statistics mode over the project list. | `htdocs/projet/stats/index.php` |
-| Gauzy | Project detail | Record page + edit dialog; task view has a right-side quick-look drawer and a bookmarkable full page that render the same sections. | `apps/gauzy/src/app/pages/projects/`, `apps/gauzy/src/app/pages/tasks/components/task-view/`, `apps/gauzy/src/app/pages/tasks/components/task-view/task-view-sections.ts` |
+| Ever Gauzy | Project detail | Record page + edit dialog; task view has a right-side quick-look drawer and a bookmarkable full page that render the same sections. | `apps/gauzy/src/app/pages/projects/`, `apps/gauzy/src/app/pages/tasks/components/task-view/`, `apps/gauzy/src/app/pages/tasks/components/task-view/task-view-sections.ts` |
 | WeCreate | Project profile | Instagram-like project page: owner profile, status transition links, visibility, start date, estimated hours, description, posts/photos; positions are managed on a separate screen. | `screen/wcinternal/Project/ViewProject.xml`, `FindProjectPositions.xml` |
-| WorkManagement | Project detail | Simple inline-edit project view; task list is the main content. | `screen/wm/Project/Project.qvue` |
+| Moqui WorkManagement | Project detail | Simple inline-edit project view; task list is the main content. | `screen/wm/Project/Project.qvue` |
 
 **BOSS implications.** The project detail page should be a **hub with smart buttons**, not a form: header (health, dates, manager, customer), tabs for Overview / Work items / Milestones / Timesheets / Costs / Files / Activity, and links to the linked Sales order, Requests and invoices. OpenProject's widget grid is the right long-term overview; the first cut can be a fixed layout with the same widgets (health, timeline, next milestone, budget vs actual, overdue tasks, recent activity). Do not copy Dolibarr's tab explosion verbatim — group commercial elements under "Related" instead of one tab per document type.
 
@@ -254,28 +264,32 @@ IronStone Projects needs three different landing surfaces: an app home for manag
 | Rating | Customer rating on tasks/projects (`rating_last_value`, rating stat button). | `odoo/addons/project/views/project_task_views.xml`, `odoo/addons/project/views/project_project_views.xml` |
 | Portal sharing | Share project/task with portal users; portal task/project templates. | `odoo/addons/project/views/project_sharing_project_task_views.xml`, `odoo/addons/project/views/project_portal_project_project_templates.xml`, `odoo/addons/project/views/project_portal_project_task_templates.xml` |
 
-### ERPNext / AureusERP / Dolibarr / Gauzy / WorkManagement
+### ERPNext / AureusERP / Dolibarr / Ever Gauzy / Moqui WorkManagement / others
 
 | App | Screen/page | What it is | Key files |
 | --- | --- | --- | --- |
 | ERPNext | Task form | Subject, project, issue, type, group flag, status (Open/Working/Pending Review/Overdue/Template/Completed/Cancelled), priority, weight, parent task, completed by/on, template flags, begin/duration, expected dates/time, progress, milestone flag, description, dependencies, actual dates/time, costing/billing, review/closing dates, department/company. | `erpnext/projects/doctype/task/task.json` |
-| ERPNext | Task list/Gantt/calendar | Standard list with Gantt view (Frappe Gantt) and calendar; task dashboard connections. | `erpnext/projects/doctype/task/task_list.js`, `erpnext/projects/doctype/task/task_calendar.js`, `frappe/public/js/frappe/views/gantt/gantt_view.js`, `erpnext/projects/doctype/task/task_dashboard.py` |
+| ERPNext | Task list/Gantt/calendar | Standard list with Gantt view (Frappe Gantt) and calendar; task dashboard connections. | `erpnext/projects/doctype/task/task_list.js`, `erpnext/projects/doctype/task/task_calendar.js`, `erpnext/projects/doctype/task/task_dashboard.py`, (Frappe framework) `frappe/public/js/frappe/views/gantt/gantt_view.js` |
 | ERPNext | Task dependencies | `Task Depends On` / `Dependent Task` child tables. | `erpnext/projects/doctype/task_depends_on/`, `erpnext/projects/doctype/dependent_task/` |
 | AureusERP | Task table | Priority toggle, state icon/modal, title, project, milestone, customer, assignees, allocated hours, time spent, remaining, progress, deadline, tags. | `plugins/webkul/projects/src/Filament/Resources/TaskResource/Tables/TasksTable.php` |
 | AureusERP | Task form | Progress stepper per project stage, title, state, tags, description, project, milestone, customer, assignees, deadline, allocated hours. | `plugins/webkul/projects/src/Filament/Resources/TaskResource/Schemas/TaskForm.php` |
 | AureusERP | Task relations | Sub-tasks and timesheets relation managers; manage-tasks/manage-subtasks/manage-timesheets pages. | `plugins/webkul/projects/src/Filament/Resources/TaskResource/RelationManagers/`, `plugins/webkul/projects/src/Filament/Resources/TaskResource/Pages/` |
 | Dolibarr | Project tasks list | Tasks table with filters, progress, assigned users, dates, time spent; tasks can be grouped/sorted and mass-updated. | `htdocs/projet/tasks.php`, `htdocs/projet/tasks/list.php` |
 | Dolibarr | Task card | Task identity, dates, progress, assigned users, contacts, notes, documents, comments, time spent; status progression. | `htdocs/projet/tasks/task.php`, `htdocs/core/lib/project.lib.php` (`task_prepare_head`) |
-| Gauzy | Task lists | Table, kanban, and sprint views; task dialog for create/edit; team and "my task" dialogs. | `apps/gauzy/src/app/pages/tasks/components/task/`, `apps/gauzy/src/app/pages/tasks/components/task-view/` |
-| Gauzy | Task view | Shared read-only sections rendered in both a right-side drawer and a full-width route page (details, relations: members, project, parent, tags, teams, sprint, status/priority/size, estimate). | `apps/gauzy/src/app/pages/tasks/components/task-view/task-view-sections.ts`, `task-view-page.component.html` |
-| WorkManagement | Task screen | QVue task table with full-screen task editor, inline edit of name/assignee/project/status/priority/due date, comments, saved finds, filter drawer (person/role/project/status/order/text). | `screen/wm/Task/Task.qvue`, `screen/wm/Task.xml` |
-| WorkManagement | Task notifications | Task update/assignment email templates. | `screen/EmailTemplates/WMTaskUpdateNotificationEmail.xml` |
-| Nextcloud Tasks / Deck | See Commons research §11 | VTODO-backed personal tasks and kanban cards with details/attachments/comments/activity tabs. | [research-drawers-commons.md](research-drawers-commons.md) §11 |
+| Ever Gauzy | Task lists | Table, kanban, and sprint views; task dialog for create/edit; team and "my task" dialogs. | `apps/gauzy/src/app/pages/tasks/components/task/`, `apps/gauzy/src/app/pages/tasks/components/task-view/` |
+| Ever Gauzy | Task view | Shared read-only sections rendered in both a right-side drawer and a full-width route page (details, relations: members, project, parent, tags, teams, sprint, status/priority/size, estimate). | `apps/gauzy/src/app/pages/tasks/components/task-view/task-view-sections.ts`, `task-view-page.component.html` |
+| Moqui WorkManagement | Task screen | QVue task table with full-screen task editor, inline edit of name/assignee/project/status/priority/due date, comments, saved finds, filter drawer (person/role/project/status/order/text). | `screen/wm/Task/Task.qvue`, `screen/wm/Task.xml` |
+| Moqui WorkManagement | Task notifications | Task update/assignment email templates. | `screen/EmailTemplates/WMTaskUpdateNotificationEmail.xml` |
+| Nextcloud Tasks / Nextcloud Deck | See Commons research §11 | VTODO-backed personal tasks and kanban cards with details/attachments/comments/activity tabs. | [research-drawers-commons.md](research-drawers-commons.md) §11 |
 | Moqui Sales | Edit task | Moqui-native task edit screen tied to a sales opportunity: task id/name/status/estimated completion/description; links to project summary, milestone summary and task summary; uses SimpleScreens work transitions for user project list/milestones/task list. | `screen/Sales/Task/EditTask.xml` (references `component://SimpleScreens/template/work/WorkTransitions.xml`) |
-| Zimbra | Tasks | Personal task list over task-list folders: sortable list columns, detail view, edit view with due date, percent complete, priority and reminder; new task-folder dialog. | `WebRoot/js/zimbraMail/tasks/view/{ZmTaskListView,ZmTaskView,ZmTaskEditView,ZmNewTaskFolderDialog}.js`, `WebRoot/templates/tasks/Tasks.template` |
+| Zimbra (zm-web-client) | Tasks | Personal task list over task-list folders: sortable list columns, detail view, edit view with due date, percent complete, priority and reminder; new task-folder dialog. | `zm-web-client/WebRoot/js/zimbraMail/tasks/view/{ZmTaskListView,ZmTaskView,ZmTaskEditView,ZmNewTaskFolderDialog}.js`, `zm-web-client/WebRoot/templates/tasks/Tasks.template` |
 | Twenty | Per-record tasks widget | Task component and hooks used inside record timelines; not a full project module. | `packages/twenty-front/src/modules/activities/tasks/` |
+| Gameplan | My Tasks / Space tasks / task page | Task list with tabs All / Assigned to me / Created by me, grouped by status (Backlog, Todo, In Progress, Done, Canceled) with collapsible groups; task fields title, description, start/due date, priority (Urgent/High/Medium/Low), project, team, assignee, completed at/by, comment count. | `frontend/src/pages/{MyTasks,SpaceTasks,Task}.vue`, `frontend/src/components/TaskList.vue`, `gameplan/gameplan/doctype/gp_task/gp_task.json` |
+| Gameplan | Space (project) | A GP Project is shown as a "space" with Discussions, Pages and Tasks tabs; members, readme, icon, private flag, archive. Tasks sit beside discussion threads and documents rather than in a planning tool. | `frontend/src/pages/{Space,SpaceDiscussions,SpacePages,SpaceTasks}.vue`, `gameplan/gameplan/doctype/gp_project/gp_project.json` |
+| Frappe CRM | Tasks | Follow-up tasks linked to any record (`reference_doctype` / `reference_docname`): title, status (Backlog/Todo/In Progress/Done/Canceled), priority, assignee, start/due date; list and kanban views. | `frontend/src/pages/Tasks.vue`, `crm/fcrm/doctype/crm_task/crm_task.json` |
+| metasfresh | Service-provider issues | `S_Issue` with project, milestone, parent issue, estimated / budgeted effort, aggregated and invoicable child effort, planned UAT and delivered dates; `S_Milestone` (name, due date); `S_TimeBooking`; issues and bookings are imported from GitHub and Everhour. Backend records only; no custom project screens in the frontend *(window layout unverified)*. | `backend/de.metas.serviceprovider/src/main/java/de/metas/serviceprovider/{issue,milestone,timebooking,github,everhour}/`, `backend/de.metas.business/src/main/java/de/metas/project/` |
 
-**BOSS implications.** Build **one work-item screen** over Mantle `WorkEffort` and switch views over the same dataset: list/table, kanban/board, calendar, timeline/Gantt. OpenProject's **saved queries + configurable columns + grouping + split view** is the right interaction model, and Redmine proves that a compact column/filter set is enough for small teams. Keep three concepts separate: (1) **work-item status** (per type workflow), (2) **project health** (six-state), and (3) **stage/board column** (per project). Adopt OpenProject's typed relations (parent/child, blocked-by/blocks, relates, duplicates, precedes/follows, requires) rather than free-text links; adopt Odoo's recurrence and personal "My Tasks" stage view, and Redmine's watchers + email reply intake. Request records should stay a separate entity linked to work items, not a disguised task, because SLA and communication semantics differ (see §11).
+**BOSS implications.** Build **one work-item screen** over Mantle `WorkEffort` and switch views over the same dataset: list/table, kanban/board, calendar, timeline/Gantt. OpenProject's **saved queries + configurable columns + grouping + split view** is the right interaction model, and Redmine proves that a compact column/filter set is enough for small teams. Keep three concepts separate: (1) **work-item status** (per type workflow), (2) **project health** (six-state), and (3) **stage/board column** (per project). Adopt OpenProject's typed relations (parent/child, blocked-by/blocks, relates, duplicates, precedes/follows with lag, includes/part-of, requires) rather than free-text links; Mantle `WorkEffortAssoc` already has Relates To, Depends On (Blocked By), Duplicates, Based On, Clones, Caused By and Independent Of, and `WorkEffort.parentWorkEffortId` gives the hierarchy, so only precedes/follows with a lag needs adding (§16); adopt Odoo's recurrence and personal "My Tasks" stage view, and Redmine's watchers + email reply intake. Request records should stay a separate entity linked to work items, not a disguised task, because SLA and communication semantics differ (see §11). Gameplan and Frappe CRM show the light end of the same record: a five-state task list grouped by status, and follow-up tasks linked to any record, which is the Commons and Sales face of the shared work-item screen.
 
 ---
 
@@ -299,10 +313,10 @@ IronStone Projects needs three different landing surfaces: an app home for manag
 | --- | --- | --- | --- |
 | Nextcloud Deck | Board + card sidebar | Kanban stacks, card drag/reorder, card details/attachments/comments/activity tabs, labels, assignees, due/start, dependencies, board sharing and timeline; also a Gantt board mode. | `deck/src/components/board/Board.vue`, `components/card/CardSidebar*.vue` (see Commons research §11) |
 | Odoo | Task kanban | Kanban grouped by stage (default) or project; quick create; drag changes stage. | `odoo/addons/project/views/project_task_views.xml` (`view_task_kanban*`) |
-| Gauzy | Sprint view | Task board organized by sprint; task/task-view components shared with list pages. | `apps/gauzy/src/app/pages/tasks/components/task/tasks-layouts/tasks-sprint-view/` |
+| Ever Gauzy | Sprint view | Task board organized by sprint; task/task-view components shared with list pages. | `apps/gauzy/src/app/pages/tasks/components/task/tasks-layouts/tasks-sprint-view/` |
 | Redmine | Boards | **Not kanban** — project forums with topics/messages. Worth keeping as a discussion surface, not a work board. | `app/views/boards/`, `app/views/messages/` |
-| ERPNext | Kanban | Generic Frappe kanban on Task/Project; no sprint/backlog module in this checkout. | `frappe/public/js/frappe/views/kanban/` (framework), `erpnext/projects/` |
-| WorkManagement / WeCreate | none | Table/detail only. | — |
+| ERPNext | Kanban | Generic Frappe kanban on Task/Project; no sprint/backlog module in this checkout. | (Frappe framework) `frappe/public/js/frappe/views/kanban/`, `erpnext/projects/` |
+| Moqui WorkManagement / WeCreate | none | Table/detail only. | — |
 
 **BOSS implications.** Implement boards as **views over the work-item query with a column action**, matching OpenProject: columns can be status, assignee, milestone, project, or parent task. That keeps one board implementation instead of separate "status board / team board / milestone board" screens. Backlogs/sprints are only worth building if IronStone targets agile teams; the data model can support them as a work-item field (sprint/backlog bucket) without a separate backlog UI at first. Redmine's "board = forum" is a reminder that project discussion is a different feature; put discussions in Commons/Comms rather than overloading the board.
 
@@ -321,10 +335,10 @@ IronStone Projects needs three different landing surfaces: an app home for manag
 | Redmine | Gantt | Query-driven Gantt chart with relations and progress line. | `app/views/gantts/show.html.erb`, `_chart.html.erb`, `app/controllers/gantts_controller.rb` |
 | Redmine | Calendar | Issue calendar by start/due date, with project/user filters. | `app/views/calendars/show.html.erb`, `app/controllers/calendars_controller.rb` |
 | Dolibarr | Gantt | Project Gantt view (jsGantt) and per-project Gantt include. | `htdocs/projet/ganttview.php`, `ganttchart.inc.php`, `jsgantt_language.js.php` |
-| ERPNext | Gantt/calendar | Frappe Gantt view and task calendar. | `frappe/public/js/frappe/views/gantt/gantt_view.js`, `erpnext/projects/doctype/task/task_calendar.js` |
+| ERPNext | Gantt/calendar | Frappe Gantt view and task calendar. | (Frappe framework) `frappe/public/js/frappe/views/gantt/gantt_view.js`, `erpnext/projects/doctype/task/task_calendar.js` |
 | Odoo | Calendar | Task calendar and project calendar by planned dates. | `odoo/addons/project/views/project_task_views.xml` (`view_task_calendar`), `project_project_views.xml` (`view_project_calendar`) |
 | AureusERP | Full calendar | Generic full-calendar plugin used by project/task resources. | `plugins/webkul/full-calendar/` (listed in 3p-app-reference.md) |
-| Gauzy | Calendar | Time-log/timesheet calendar plus task dates. | `apps/gauzy/src/app/pages/employees/timesheet/calendar/` |
+| Ever Gauzy | Calendar | Time-log/timesheet calendar plus task dates. | `apps/gauzy/src/app/pages/employees/timesheet/calendar/` |
 
 **BOSS implications.** Gantt should be a **view of the work-item query**, with dependencies as bars/arrows and the same filters/columns as the list; OpenProject's inline timeline plus baseline is the strongest model, and Redmine's query-driven Gantt is the minimum viable one. Calendar should be the same dataset by date fields. If scheduling people matters more than task bars, the team planner (§9) is the better default landing than a Gantt.
 
@@ -339,19 +353,19 @@ IronStone Projects needs **milestones** (client-visible dates/deliverables), **v
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
 | Versions index / roadmap | Project version list with roadmap filter and version links; each version shows status, date, description and issue/work-package counts. | `app/views/versions/index.html.erb`, `_roadmap_filter.html.erb`, `_roadmap_version_links.html.erb` |
-| Version detail | Name, status, overview, linked wiki page, time tracking (estimated, remaining, spent), status-by breakdown, related work packages, edit/delete. | `app/views/versions/show.html.erb`, `_overview.html.erb`, `_issue_counts.html.erb` |
-| Version settings | Create/edit version, status, due date, description, wiki page. | `app/views/versions/new.html.erb`, `edit.html.erb`, `_form.html.erb` |
-| Version widgets | Overview widget, work-packages graph, wiki widget, progress widget, related-issues widget. | `app/components/projects/settings/versions/` |
+| Version detail | Page header with edit/delete, then a widget grid: overview, progress (estimated, remaining and spent time), wiki page, related work packages, work-packages graph. | `app/views/versions/show.html.erb`, `app/components/projects/settings/versions/` |
+| Version form | Name, description, status, wiki page, start date, finish date, sharing, custom fields. | `app/views/versions/new.html.erb`, `edit.html.erb`, `app/forms/versions/form.rb` |
+| Version widgets | Overview, progress, wiki, related-issues and work-packages-graph widget components used by the detail page. | `app/components/projects/settings/versions/` |
 | Project phases | Admin-defined phase definitions with start/finish gates and position; project-level start/finish dates per phase; duration calculated over working days; previous-phase chaining. | `app/models/project/phase.rb`, `app/models/project/phase_definition.rb`, `modules/overviews/app/components/overviews/project_phases/` |
 | Phase settings | Activate/deactivate phases per project; reschedule; working-day-aware duration. | `app/controllers/projects/settings/life_cycle_steps_controller.rb`, `app/services/project_phases/` |
 | Phase filtering | Project/work-package filters by phase, any phase, phase gate. | `app/models/queries/work_packages/filter/project_phase_filter.rb`, `app/models/queries/projects/filters/project_phase_*.rb` |
-| Milestone work packages | No dedicated milestone model: milestones are either a work-package **type** (admin-configured) or represented by versions/phases. | `app/models/type.rb`, `app/models/version.rb` |
+| Milestone work packages | No dedicated milestone model: a milestone is a work-package **type** flagged `is_milestone` (single date, shown as a diamond), or is represented by versions/phases. | `app/models/type.rb` (`scopes :milestone`), `app/models/version.rb` |
 
 ### Redmine — versions/roadmap
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Roadmap / versions index | Versions grouped by status, with issue counts, dates and completion; roadmap filter. | `app/views/versions/index.html.erb`, `_roadmap_filter.html.erb` |
+| Roadmap / versions index | Open versions (completed ones behind a filter), each with a status badge, issue counts, dates and completion; sidebar filter by tracker, completed versions and subprojects. | `app/views/versions/index.html.erb`, `_sidebar.html.erb` |
 | Version detail | Name, status badge, overview, wiki page content, time tracking (estimated, remaining, spent), status-by breakdown, related issues. | `app/views/versions/show.html.erb`, `_overview.html.erb` |
 | Version form | Name, description, status (open/locked/closed), due date, sharing, wiki page title. | `app/views/versions/_form.html.erb` |
 | Version settings | Project settings → versions list; issue category/version assignment. | `app/views/projects/settings/_versions.html.erb` |
@@ -367,10 +381,10 @@ IronStone Projects needs **milestones** (client-visible dates/deliverables), **v
 | ERPNext | Project template | Template project type + template tasks; copied into new projects. | `erpnext/projects/doctype/project_template/` |
 | AureusERP | Milestones | Configurable milestone records (name, deadline, completed) attached to projects/tasks. | `plugins/webkul/projects/src/Filament/Clusters/Configurations/Resources/MilestoneResource/` |
 | Dolibarr | none | No milestone/version object; use task dates and project start/end. | `htdocs/projet/` |
-| Gauzy | Goals/OKRs | Goals/key results are a separate management layer, not project milestones. | `apps/gauzy/src/app/pages/goals/` |
-| WeCreate / WorkManagement | none | Estimated dates/hours only. | `screen/wcinternal/Project/`, `screen/wm/` |
+| Ever Gauzy | Goals/OKRs | Goals/key results are a separate management layer, not project milestones. | `apps/gauzy/src/app/pages/goals/` |
+| WeCreate / Moqui WorkManagement | none | Estimated dates/hours only. | (WeCreate) `screen/wcinternal/Project/`, (Moqui WorkManagement) `screen/wm/` |
 
-**BOSS implications.** Decide explicitly: **milestones** are client-facing deliverables (date + reached state + optional billing trigger), **versions/releases** are a set of work items that ship together, and **phases** are the project life cycle. OpenProject's phase/gate model is the richest and fits services delivery; Odoo's milestone → sales-order milestone billing is the cleanest T&M link; Redmine's roadmap is the cheapest version/roadmap UI. For the first cut, implement milestones and phases; add version/roadmap only if releases are a real workflow. Do not make milestones a task type with no reached/billing semantics.
+**BOSS implications.** Decide explicitly: **milestones** are client-facing deliverables (date + reached state + optional billing trigger), **versions/releases** are a set of work items that ship together, and **phases** are the project life cycle. OpenProject's phase/gate model is the richest and fits services delivery; Odoo's milestone → sales-order milestone billing is the cleanest T&M link; Redmine's roadmap is the cheapest version/roadmap UI. Mantle already models the first two as `WorkEffort` types: `WetMilestone` and `WetRelease` under a `WetProject`, with tasks linked by `WorkEffortAssoc` types `WeatMilestone` / `WeatRelease`, and the baseline has milestone screens (§15). Reached = status `WeComplete` plus `actualCompletionDate`. What the billing trigger lacks is a share of an order line: `OrderItemWorkEffort` links a sales order line to a work effort (with `requiredWork`), but has no quantity-percentage field like Odoo's `quantity_percentage` (§16). Phases have no Mantle record. For the first cut, implement milestones on the existing type and add phases; add version/roadmap only if releases are a real workflow.
 
 ---
 
@@ -413,25 +427,27 @@ IronStone Projects needs **milestones** (client-visible dates/deliverables), **v
 | Timer | **No native timer in this community checkout** (only `timesheet_grid`/enterprise or third-party adds one). | — |
 | Timesheet settings | Time unit, encode reminders (including a reminder to approvers), time-off-generated timesheets, and project/task linkage; the approval UI itself is not in this community checkout. | `odoo/addons/hr_timesheet/views/res_config_settings_views.xml` |
 
-### ERPNext / AureusERP / Gauzy / Dolibarr
+### ERPNext / AureusERP / Ever Gauzy / Ever Teams / Dolibarr
 
 | App | Screen/page | What it is | Key files |
 | --- | --- | --- | --- |
 | ERPNext | Timesheet form | Title, company, customer, currency, sales invoice, status (Draft/Submitted/Partially Billed/Billed/Payslip/Completed/Cancelled), project, user, start/end date, employee/department, `time_logs` grid, totals, billing details, note. | `erpnext/projects/doctype/timesheet/timesheet.json` |
 | ERPNext | Time log row | Activity type, from/to time, expected hours, hours, completed, project, task, billing hours/rate/amount, costing rate/amount, sales invoice, billable flag, description. | `erpnext/projects/doctype/timesheet_detail/timesheet_detail.json` |
 | ERPNext | Timer | In-form timer starts/stops a row and creates new rows; `timer.js` loaded by the Timesheet form. | `erpnext/projects/doctype/timesheet/timesheet.js`, `erpnext/public/js/projects/timer.js` |
-| ERPNext | Timesheet calendar/list | Calendar and list views, dashboard connections. | `timesheet_calendar.js`, `timesheet_list.js`, `timesheet_dashboard.py` |
+| ERPNext | Timesheet calendar/list | Calendar and list views, dashboard connections. | `erpnext/projects/doctype/timesheet/{timesheet_calendar,timesheet_list}.js`, `erpnext/projects/doctype/timesheet/timesheet_dashboard.py` |
 | AureusERP | Timesheet resource | Date, employee, project, task, description, time spent (unit amount); list/manage pages. | `plugins/webkul/timesheets/src/Filament/Resources/TimesheetResource/Schemas/TimesheetForm.php`, `Pages/ManageTimesheets.php` |
-| Gauzy | Weekly timesheet | Project/task rows × weekday columns, per-cell duration with popover detail, add-time button, filters. | `apps/gauzy/src/app/pages/employees/timesheet/weekly/weekly/weekly.component.html` |
-| Gauzy | Daily timesheet | Row-per-log table: project/task, employee, log type, source, duration, time span, notes; bulk selection/delete; edit/add. | `apps/gauzy/src/app/pages/employees/timesheet/daily/daily/daily.component.html` |
-| Gauzy | Calendar timesheet | Calendar view of logs. | `apps/gauzy/src/app/pages/employees/timesheet/calendar/` |
-| Gauzy | Approvals | Approval requests list/table, approve/reject actions, approval policies. | `apps/gauzy/src/app/pages/approvals/` |
-| Gauzy | Timer | Desktop timer/activity apps feed time logs. | `apps/desktop-timer/`, `apps/desktop-activity/` |
+| Ever Gauzy | Weekly timesheet | Project/task rows × weekday columns, per-cell duration with popover detail, add-time button, filters. | `apps/gauzy/src/app/pages/employees/timesheet/weekly/weekly/weekly.component.html` |
+| Ever Gauzy | Daily timesheet | Row-per-log table: project/task, employee, log type, source, duration, time span, notes; bulk selection/delete; edit/add. | `apps/gauzy/src/app/pages/employees/timesheet/daily/daily/daily.component.html` |
+| Ever Gauzy | Calendar timesheet | Calendar view of logs. | `apps/gauzy/src/app/pages/employees/timesheet/calendar/` |
+| Ever Gauzy | Approvals | Timesheet approval tab beside daily/weekly/calendar, plus a general approval-requests list with approve/reject actions and approval policies. | `apps/gauzy/src/app/pages/employees/timesheet/approvals/`, `apps/gauzy/src/app/pages/approvals/` |
+| Ever Gauzy | Timer | Desktop timer and desktop apps feed time logs. | `apps/desktop-timer/`, `apps/desktop/` |
 | Dolibarr | Time spent list | Per project/task time entries with date, user, duration, product, billed flag; filters incl. date and duration. | `htdocs/projet/tasks/time.php` |
 | Dolibarr | Timesheet input | Per day / per week / per month input grids. | `htdocs/projet/activity/perday.php`, `perweek.php`, `permonth.php`, `htdocs/core/lib/project.lib.php` (`project_timesheet_prepare_head`) |
-| WorkManagement / WeCreate | none | Only estimated hours on tasks/projects. | — |
+| Ever Teams | Timesheet views | Weekly and monthly timesheet calendars, compact view and view toggle over tracked time. | `apps/web/core/components/timesheet/` |
+| Ever Teams | Daily plan | Plan the day's tasks with planned work hours and task estimates, compare plan to estimates, suggested plan, "enforce planned task" when starting the timer. | `apps/web/core/components/features/daily-plan/` |
+| Moqui WorkManagement / WeCreate | none | Only estimated hours on tasks/projects. | — |
 
-**BOSS implications.** Use one **time-entry** entity (user, date, hours/start-end, project, work item, activity, billable flag, rate, invoice link, comment) and build three surfaces over it: **My week** (grid + timer), **project/task time tab** (list + totals), and **team approval/report** (group by person/project/task/date/activity, export). OpenProject's separate "allocation" vs "actual time entry" distinction is essential for scheduling; do not conflate them. Copy Redmine's configurable required fields (issue/comment) and activities, ERPNext's billable/costing split and timer, Gauzy's weekly grid, and Dolibarr's per-day/week/month input as alternative views. Approval is a People/manager concern; make it a workflow on the timesheet period, not a field on each row.
+**BOSS implications.** Use one **time-entry** entity (user, date, hours/start-end, project, work item, activity, billable flag, rate, invoice link, comment) and build three surfaces over it — Mantle `TimeEntry` already carries party, work effort, from/thru, hours, break hours, work type (activity), client and vendor rates from `RateAmount`, and client and vendor invoice-item links, grouped by `Timesheet` (§15): **My week** (grid + timer), **project/task time tab** (list + totals), and **team approval/report** (group by person/project/task/date/activity, export). OpenProject's separate "allocation" vs "actual time entry" distinction is essential for scheduling; do not conflate them. Copy Redmine's configurable required fields (issue/comment) and activities, ERPNext's billable/costing split and timer, Ever Gauzy's weekly grid, and Dolibarr's per-day/week/month input as alternative views. Approval belongs to Projects (research-crosscut §4) with People reading the approved, pay-relevant totals; make it a workflow on the timesheet period (`Timesheet` statuses In-Process → Completed → Approved, which has no reject transition yet), not a field on each row. Ever Teams' daily plan and weekly-limit report are worth borrowing for the My week view.
 
 ---
 
@@ -444,7 +460,7 @@ IronStone Projects needs **milestones** (client-visible dates/deliverables), **v
 | Team planner index/overview | Saved plan views (name/public/starred); global and project overview lists. | `modules/team_planner/app/controllers/team_planner/team_planner_controller.rb`, `modules/team_planner/app/views/team_planner/` |
 | Team planner board | Timeline of assignees × days/weeks with assigned work packages; add work packages, split view/create, view selector, assignee lanes. | `frontend/src/app/features/team-planner/team-planner/` (`planner/`, `assignee/`, `add-work-packages/`, `view-select/`) |
 | Resource planners | Named planner views scoped to project/global, public/favorite, with a work-package list content and query behind it. | `modules/resource_management/app/controllers/resource_management/resource_planners_controller.rb`, `modules/resource_management/app/views/resource_management/resource_planners/`, `resource_planner_views/` |
-| Resource allocations | Polymorphic allocation to a work package; requested → allocated/rejected/canceled; placeholder user requested vs named principal staffed; date range, allocated time, requested/reviewed/assigned-by. | `modules/resource_management/app/models/resource_allocation.rb` |
+| Resource allocations | Polymorphic allocation to a work package; states requested / allocated / rejected / canceled (the code notes the state machine is not used yet: every allocation goes straight to allocated); placeholder user requested vs named principal staffed; date range, allocated time, requested/reviewed/assigned-by. | `modules/resource_management/app/models/resource_allocation.rb` |
 | Staffing | Allocation list + assignment dialog: candidate list, overbooking warning with working schedules, assign principal. | `modules/resource_management/app/controllers/resource_management/staffing_controller.rb`, `modules/resource_management/app/components/resource_allocations/` |
 | Working hours / non-working times | User working hours and non-working times, used by duration/overbooking calculations; global working days/hours settings. | `app/controllers/users/working_hours_controller.rb`, `app/controllers/users/non_working_times_controller.rb`, `app/models/user_working_hours.rb`, `app/models/user_non_working_time.rb`, `app/views/users/working_hours/`, `app/views/users/non_working_times/` |
 | My work allocations | Personal view of upcoming/remaining allocations. | `app/components/my/work/allocation_row.rb`, `remaining_allocations.rb` |
@@ -454,14 +470,15 @@ IronStone Projects needs **milestones** (client-visible dates/deliverables), **v
 | App | Screen/page | What it is | Key files |
 | --- | --- | --- | --- |
 | Odoo | Assignees/roles | Multiple assignees per task; project roles assigned from templates; resource calendar on project; no capacity planner in this community checkout. | `odoo/addons/project/models/project_task.py` (`user_ids`, `role_ids`), `project_project.py` (`resource_calendar_id`) |
-| ERPNext | Project users + holidays | Project User child table (welcome email, attachments, hide timesheets, status); Holiday List on project for working-day calculations; no capacity planner. | `erpnext/projects/doctype/project_user/project_user.json`, `project.json` (`holiday_list`) |
-| Gauzy | People/teams/time off | Employees, teams, time-off, approvals; resource context for project/task assignment, but no allocation planner. | `apps/gauzy/src/app/pages/{employees,teams,time-off,approvals}/` |
+| ERPNext | Project users + holidays | Project User child table (welcome email, attachments, hide timesheets, status); Holiday List on project for working-day calculations; no capacity planner. | `erpnext/projects/doctype/project_user/project_user.json`, `erpnext/projects/doctype/project/project.json` (`holiday_list`) |
+| Ever Gauzy | People/teams/time off | Employees, teams, time-off, approvals; resource context for project/task assignment, but no allocation planner. | `apps/gauzy/src/app/pages/{employees,teams,time-off,approvals}/` |
 | Dolibarr | Project contacts/roles | Internal/external contacts with project/task roles; agenda/events; no workload view. | `htdocs/projet/contact.php`, `htdocs/projet/tasks/contact.php`, `htdocs/projet/agenda.php` |
 | Redmine | Members/roles | Project membership with roles and per-role permissions; no workload planning. | `app/views/projects/settings/_members.html.erb`, `app/models/member.rb`, `app/models/role.rb` |
 | WeCreate | Project positions | Role/position records with invited/applied accounts and approval status — role-based staffing rather than named allocations. | `screen/wcinternal/Project/FindProjectPositions.xml` |
-| WorkManagement | Assignee only | Task assignee; no capacity data. | `screen/wm/Task/Task.qvue` |
+| Moqui WorkManagement | Assignee only | Task assignee; no capacity data. | `screen/wm/Task/Task.qvue` |
+| Ever Teams | Weekly limit report | Hours tracked per member against a weekly limit (percentage used, remaining), grouped and exportable. | `apps/web/core/components/pages/reports/weekly-limit/` |
 
-**BOSS implications.** Resource scheduling is the weakest area in the ERP references and the strongest in OpenProject; make it a first-class Projects screen. Model **allocations separately from time entries and from task assignments**: an allocation is a request for N hours over a date range against a project/work item, optionally against a placeholder role, later staffed to a person. OpenProject's placeholder-user → named-principal flow, overbooking warning and working-hours basis are the right defaults. Team planner (people × time) should be the primary manager view; a role/capacity view (People app) can aggregate across projects. Do not infer capacity from assigned tasks alone.
+**BOSS implications.** Resource scheduling is the weakest area in the ERP references and the strongest in OpenProject; make it a first-class Projects screen. Model **allocations separately from time entries and from task assignments**: an allocation is a request for N hours over a date range against a project/work item, optionally against a placeholder role, later staffed to a person. Mantle has no such record: `WorkEffortParty` carries party, role, from/thru, status (Offered → Assigned …) and `emplPositionClassId` but no hours and needs a real party, and `WorkEffortSkillStandard` holds only an estimated head count, duration and cost per skill (§16). OpenProject's placeholder-user → named-principal flow, overbooking warning and working-hours basis are the right defaults. Team planner (people × time) should be the primary manager view; a role/capacity view (People app) can aggregate across projects. Do not infer capacity from assigned tasks alone.
 
 ---
 
@@ -504,17 +521,18 @@ IronStone Projects needs **milestones** (client-visible dates/deliverables), **v
 | Sales invoice | Timesheets link to a Sales Invoice; billing summary report reconciles billable vs billed. | `erpnext/projects/doctype/timesheet/timesheet.json` (`sales_invoice`), `erpnext/projects/report/timesheet_billing_summary/` |
 | Project transactions | Dashboard connections for sales order/invoice, purchase order/receipt/invoice, stock entry, work order, material request/BOM. | `erpnext/projects/doctype/project/project_dashboard.py` |
 
-### Dolibarr / Gauzy / Redmine
+### Dolibarr / Ever Gauzy / Redmine / metasfresh
 
 | App | Screen/page | What it is | Key files |
 | --- | --- | --- | --- |
 | Dolibarr | Billable time | Project flag `usage_bill_time`; time entries can carry a product and a "billed" flag; project overview aggregates proposals, orders, invoices, contracts, interventions, shipments, MOs and trips. | `htdocs/projet/card.php`, `htdocs/projet/tasks/time.php`, `htdocs/projet/element.php`, `htdocs/core/lib/project.lib.php` |
 | Dolibarr | Project statistics | Graph/statistics view over projects (counts, status and opportunity data). | `htdocs/projet/stats/index.php` |
-| Gauzy | Invoices/expenses/income/payments | Accounting records exist (invoices, payments, expenses, income, recurring expenses); no project-level T&M billing automation is visible in the project/task pages. | `apps/gauzy/src/app/pages/{invoices,payments,expenses,income,expense-recurring}/` |
+| Ever Gauzy | Invoices/expenses/income/payments | Accounting records exist (invoices, payments, expenses, income, recurring expenses); no project-level T&M billing automation is visible in the project/task pages. | `apps/gauzy/src/app/pages/{invoices,payments,expenses,income,expense-recurring}/` |
 | Redmine | Time/cost only | Estimated/spent hours and time reports; no rates, budgets or invoicing. | `app/models/time_entry.rb`, `app/views/timelog/report.html.erb` |
-| WorkManagement / WeCreate | none | Estimated hours only; no rates/billing. | — |
+| metasfresh | Budgeted and invoicable effort | `S_Issue` carries estimated, budgeted and rough-estimate effort, rolls effort up the issue tree, and keeps an invoicable child-effort quantity for billing service work *(how it reaches an invoice is unverified)*. | `backend/de.metas.serviceprovider/src/main/java/de/metas/serviceprovider/issue/IssueEntity.java` |
+| Moqui WorkManagement / WeCreate | none | Estimated hours only; no rates/billing. | — |
 
-**BOSS implications.** Split the problem cleanly: **costing** (rates × time + material/expense costs) belongs in Projects; **billing** (invoice draft, tax, revenue recognition) belongs in Accounting/Sales. OpenProject's budget-vs-actual widgets and ERPNext's `billable` vs `costing` split are the right data model. Support three billing bases from the start, because the references all converge on them: **time & materials** (billable hours × rate), **milestones** (reached milestone releases a percentage), and **fixed fee/prepaid** (ordered quantity). Keep rate cards versioned (OpenProject rate history; ERPNext activity-type rates), and make "unbilled time" a first-class queue in Projects that hands off to Accounting.
+**BOSS implications.** Split the problem cleanly: **costing** (rates × time + material/expense costs) belongs in Projects; **billing** (invoice draft, tax, revenue recognition) belongs in Accounting/Sales. OpenProject's budget-vs-actual widgets and ERPNext's `billable` vs `costing` split are the right data model. Support three billing bases from the start, because the references all converge on them: **time & materials** (billable hours × rate), **milestones** (reached milestone releases a percentage), and **fixed fee/prepaid** (ordered quantity). Keep rate cards versioned (OpenProject rate history; ERPNext activity-type rates) — Mantle `RateAmount` already is, with from/thru, client vs vendor purpose and party / work effort / work type / position-class matching — and make "unbilled time" a first-class queue in Projects that hands off to Accounting, which owns the invoice (the baseline already has `mantle.account.InvoiceServices.create#ProjectInvoiceItems`, §15). Mantle's `Budget` is a period/GL-account budget with no work-effort link; project-level caps exist only as `WorkEffort.totalTimeAllowed` and `totalClientCostAllowed` (§16).
 
 ---
 
@@ -528,12 +546,12 @@ Projects intake in BOSS means: a customer/internal request arrives (Customer Ser
 | --- | --- | --- | --- |
 | **OpenProject** | Authenticated work-package create (list/split/full view); project creation wizard for new-project requests; no public request form in this checkout. Access controlled by `add_work_packages`/project permissions. | Work package (type/status/project preset) or project | `app/components/work_packages/full_view/create_component.*`, `app/views/projects/creation_wizard/show.html.erb`, `app/controllers/projects/creation_wizard_controller.rb` |
 | **Redmine** | Email intake via mail handler; issue create from any project/global context; issue categories/trackers route the request. Replies thread into the issue journal. | Issue (tracker/status/priority/assignee/category/version) | `app/models/mail_handler.rb`, `app/views/issues/new.html.erb`, `app/views/issues/_form.html.erb` |
-| **Odoo** | Project email alias creates tasks; portal users can create/view tasks; service products on sales orders generate projects/tasks; project/task sharing. | Task (project alias), project/task from SO | `odoo/addons/project/models/project_project.py` (`alias_id`), `odoo/addons/sale_project/models/sale_order_line.py`, `project_sharing_project_task_views.xml` |
-| **ERPNext** | Issue linked to a project; public issue web form and task web form; project linked to sales order. | Issue, Task, Project | `erpnext/projects/web_form/tasks/tasks.json`, `erpnext/support/doctype/issue/issue.json`, `project.json` (`sales_order`) |
+| **Odoo** | Project email alias creates tasks; portal users can create/view tasks; service products on sales orders generate projects/tasks; project/task sharing. | Task (project alias), project/task from SO | `odoo/addons/project/models/project_project.py` (`alias_id`), `odoo/addons/sale_project/models/sale_order_line.py`, `odoo/addons/project/views/project_sharing_project_task_views.xml` |
+| **ERPNext** | Issue linked to a project; portal web forms for issues and tasks (both `login_required`, so not anonymous); project linked to sales order. | Issue, Task, Project | `erpnext/projects/web_form/tasks/tasks.json`, `erpnext/support/web_form/issues/issues.json`, `erpnext/support/doctype/issue/issue.json`, `erpnext/projects/doctype/project/project.json` (`sales_order`) |
 | **Dolibarr** | Project tab "Tickets"; public ticket portal; project links to proposals/orders/invoices/contracts/interventions. | Ticket, linked commercial documents | `htdocs/core/lib/project.lib.php` (`project_prepare_head`), `htdocs/ticket/`, `htdocs/public/ticket/`, `htdocs/projet/element.php` |
 | **Frappe Helpdesk / Customer Service** | Ticket templates, portal article suggestions, email/telephony channels; no project field exists in this checkout, so project linkage would be an added `Request` relation/custom field. | HD Ticket | see [research-customer-service.md](research-customer-service.md) §2–§3 |
-| **Moqui Commons** | Shared tasks/requests screens; request assigned from any app. | WorkEffort task / Mantle Request | [initial-design.md](initial-design.md), [research-drawers-commons.md](research-drawers-commons.md) §11 |
-| **Gauzy / WorkManagement / WeCreate** | Internal task/project creation only; WeCreate adds project positions/applications (people apply to roles). | Task / project / position application | `apps/gauzy/src/app/pages/tasks/`, `screen/wm/Task/`, `screen/wcinternal/Project/FindProjectPositions.xml` |
+| **Moqui baseline** | Request form (type, customer, project, assignee, priority, response-required date) and a request **Tasks** tab that creates or links tasks; My Requests in MyAccount. Commons (planned) shows requests assigned. | Mantle `Request` + `RequestWorkEffort`; project via `Request.rootWorkEffortId` | `component/MrSimpleScreens/screen/SimpleScreens/Request/{FindRequest,EditRequest,EditTasks}.xml`, `component/MrSimpleScreens/screen/MyAccount/User/Request/MyRequests.xml` |
+| **Ever Gauzy / Moqui WorkManagement / WeCreate** | Internal task/project creation only; WeCreate adds project positions/applications (people apply to roles). | Task / project / position application | (Ever Gauzy) `apps/gauzy/src/app/pages/tasks/`, (Moqui WorkManagement) `screen/wm/Task/`, (WeCreate) `screen/wcinternal/Project/FindProjectPositions.xml` |
 
 ### Sales-to-project handoff
 
@@ -544,7 +562,7 @@ Projects intake in BOSS means: a customer/internal request arrives (Customer Ser
 | Dolibarr | Project overview/elements tab lists proposals, orders, invoices, contracts, interventions, shipments; project can be created from an opportunity (lead/project mode). | `htdocs/projet/element.php`, `htdocs/projet/card.php`, `htdocs/projet/list.php` (`LeadsOrProjects`) |
 | OpenProject / Redmine | No sales integration; external reference fields/custom fields only. | — |
 
-**BOSS implications.** Make **Request → Project/Work item** an explicit conversion with linked records, not a copy: the Request keeps SLA/channel/communication; the project/work item gets plan dates, assignee, estimate. Reuse the Customer Service intake form and its template/field-dependency model (see that research) rather than building a second intake UI. Odoo's project **email alias → task** and Redmine's **mail handler → issue** should be the default asynchronous channel, normalized through Comms/SystemMessage. For sales, follow Odoo/ERPNext: a service line on a quote/order should be able to create a project from a template and link the order, with the billing basis stored on the line. Do not duplicate customer or price data on the project; link to Party/Sales.
+**BOSS implications.** Make **Request → Project/Work item** an explicit conversion with linked records, not a copy: the Request keeps SLA/channel/communication; the project/work item gets plan dates, assignee, estimate. Reuse the Customer Service intake form and its template/field-dependency model (see that research) rather than building a second intake UI; Mantle already links both ends (`Request.rootWorkEffortId` for the project, `RequestWorkEffort` for tasks) and the baseline request screen has a Tasks tab that creates linked tasks. Odoo's project **email alias → task** and Redmine's **mail handler → issue** should be the default asynchronous channel, normalized through Comms/SystemMessage. For sales, follow Odoo/ERPNext: a service line on a quote/order should be able to create a project from a template and link the order, with the billing basis stored on the line. Do not duplicate customer or price data on the project; link to Party/Sales.
 
 ---
 
@@ -561,13 +579,13 @@ Projects intake in BOSS means: a customer/internal request arrives (Customer Ser
 | Redmine | Project overview | Live counts by tracker + spent/estimated hours. | `app/views/projects/show.html.erb` |
 | Odoo | Task analysis | Pivot/graph of tasks by stage/assignee/project/working hours/rating. | `odoo/addons/project/views/project_task_views.xml` (`view_project_task_pivot`, `view_project_task_graph`) |
 | Odoo | Burndown | Project/task burndown chart embedded action. | `odoo/addons/project/views/project_task_views.xml` (`project_embedded_action_project_burndown_chart`), `odoo/addons/project/static/src/views/burndown_chart/` |
-| Odoo | Project updates / ratings | Health narrative + customer ratings. | `project_update_views.xml`, `rating_rating_views.xml` |
+| Odoo | Project updates / ratings | Health narrative + customer ratings. | `odoo/addons/project/views/{project_update_views,rating_rating_views}.xml` |
 | ERPNext | Projects workspace | Project Summary chart, Open Projects / Non-completed Tasks / Timesheet Working Hours cards, report links. | `erpnext/projects/workspace/projects/projects.json` |
 | ERPNext | Reports | Project Summary, Delayed Tasks Summary, Timesheet Billing Summary, Daily Timesheet Summary, Project-wise Stock Tracking. | `erpnext/projects/report/` |
 | AureusERP | Dashboard widgets | Stats overview, tasks by state/stage, top assignees, top projects. | `plugins/webkul/projects/src/Filament/Widgets/` |
-| Gauzy | Reports | Time reports, weekly time reports, manual time, project/team reports; custom dashboards. | `apps/gauzy/src/app/pages/reports/{time-reports,weekly-time-reports,manual-time}/`, `pages/dashboard/custom-dashboard/` |
+| Ever Gauzy | Reports | Time reports, weekly time reports, manual time, project/team reports; custom dashboards. | `apps/gauzy/src/app/pages/reports/{time-reports,weekly-time-reports,manual-time}/`, `pages/dashboard/custom-dashboard/` |
 | Dolibarr | Project statistics | Graph/statistics over projects. | `htdocs/projet/stats/index.php` |
-| WorkManagement / WeCreate | none | Simple lists/counts only. | — |
+| Moqui WorkManagement / WeCreate | none | Simple lists/counts only. | — |
 
 **BOSS implications.** Keep operational reports in Projects (task counts by status/assignee, overdue, milestone slippage, unbilled time, budget vs actual, utilization) and put cross-app BI in Insights. Adopt OpenProject's saved-report model (saved filters + grouping + export) rather than hard-coded reports; adopt ERPNext's small fixed set for the landing page (open projects, non-completed tasks, hours, billing). Utilization and margin must be defined explicitly: hours logged vs allocated, billable vs non-billable, cost vs billable amount.
 
@@ -595,7 +613,7 @@ Projects intake in BOSS means: a customer/internal request arrives (Customer Ser
 | Project settings | Members/roles, versions, issue categories, modules, repository, activities, boards. | `app/views/projects/settings/`, `app/controllers/projects_controller.rb` |
 | Custom fields | Issue/time-entry/project/version/user/group custom fields with format, visibility and role filters. | `app/views/custom_fields/`, `app/models/custom_field.rb` |
 
-### Odoo / ERPNext / AureusERP / Dolibarr / Gauzy
+### Odoo / ERPNext / AureusERP / Dolibarr / Ever Gauzy
 
 | App | Area | Screens | Key files |
 | --- | --- | --- | --- |
@@ -603,69 +621,206 @@ Projects intake in BOSS means: a customer/internal request arrives (Customer Ser
 | ERPNext | Project settings | Project Settings, Project Type, Task Type, Activity Type (costing/billing rates), Project Template. | `erpnext/projects/doctype/{projects_settings,project_type,task_type,activity_type,project_template}/` |
 | AureusERP | Project configuration cluster | Activity plans, tags, task stages, milestones, project stages; settings pages for tasks/time. | `plugins/webkul/projects/src/Filament/Clusters/Configurations/`, `plugins/webkul/projects/src/Filament/Clusters/Settings/Pages/ManageTasks.php`, `plugins/webkul/projects/src/Filament/Clusters/Settings/Pages/ManageTime.php` |
 | Dolibarr | Project admin | Project module setup, extra fields for project/task, permissions, opportunities toggle, timesheet visibility, billable-time switch, project numbering. | `htdocs/projet/admin/`, `htdocs/core/lib/project.lib.php` (`project_admin_prepare_head`), `htdocs/admin/` |
-| Gauzy | Project/task settings | Project/task statuses, priorities, sizes, tags, project modules, organization settings. | `apps/gauzy/src/app/pages/{settings,tags,projects,tasks}/` |
-| WorkManagement / WeCreate | minimal | Status/enumeration data comes from Mantle `StatusItem`/`StatusFlow`; no dedicated admin UI. | `screen/wm/`, `screen/wcinternal/` |
+| Ever Gauzy | Project/task settings | Project/task statuses, priorities, sizes, tags, project modules, organization settings. | `apps/gauzy/src/app/pages/{settings,tags,projects,tasks}/` |
+| Moqui WorkManagement / WeCreate | minimal | Status/enumeration data comes from Mantle `StatusItem`/`StatusFlow`; no dedicated admin UI. | (Moqui WorkManagement) `screen/wm/`, (WeCreate) `screen/wcinternal/` |
 
 **BOSS implications.** Global configuration should own **work-item types, status flows, priorities, custom fields, project phases, rate cards, cost types and time-entry activities**; per-project settings should only choose/enable them and set project-specific rates/templates/visibility. OpenProject's separation of global type/form/workflow configuration from per-project enablement is the right pattern. Use Mantle status flows for the workflow matrix rather than a new engine. Do not expose a raw "task stage" and a raw "status" to users without explaining which one the board uses; BOSS should pick one board-column concept per board and derive the rest.
 
 ---
 
-## 14. BOSS screen map
+## 14. Cross-app surfaces
 
-Recommended screen set for IronStone Projects, with the strongest reference for each. Shared screens marked **C** are also used by Commons/Customer Service/People.
+Faces as assigned in research-crosscut §3–§4. Projects owns the **Task / work item** screen, time entry and timesheets, and project costing; the other surfaces are faces Projects adds to, or reads from, screens other apps own.
 
-| # | Screen | Purpose | Primary reference | Data basis / notes |
-| --- | --- | --- | --- | --- |
-| 1 | Projects home | Portfolio health, workload, overdue/milestone/billing exceptions, quick links | OpenProject project/portfolio dashboard + ERPNext workspace | Saved dashboard widgets; fixed first-cut layout |
-| 2 | Find Projects | Find/filter/saved views; hierarchy; favorites | OpenProject projects index + Redmine project query | `WorkEffort` project type; saved finds; columns incl. custom fields |
-| 3 | Project 360 | Header + Overview / Work items / Milestones / Timesheets / Costs / Files / Activity | OpenProject overview + Redmine project hub + Odoo smart buttons | Smart buttons to Sales order, Requests, invoices, People |
-| 4 | Create project / template | Short create form + optional wizard; template copy | OpenProject creation wizard/template + Odoo template | Template = project flagged `templated`; copy tasks/milestones/roles/rates |
-| 5 | **C** Work items | One dataset, switch list/table, kanban, calendar, timeline/Gantt | OpenProject work packages + Redmine issues | `WorkEffort` tasks; saved queries; configurable columns; split view |
-| 6 | **C** Work item detail | Overview, activity/chatter, relations, watchers, files, time | OpenProject full view + Odoo task form | Status flow + stage; subtasks/dependencies/recurrence; CommunicationEvent timeline |
-| 7 | Milestones / roadmap | Client deliverables, reached state, billing trigger; optional versions | Odoo milestones + OpenProject phases/versions + Redmine roadmap | Separate milestone entity; phase dates; version optional |
-| 8 | **C** My work / my timesheet | Personal tasks, today/overdue, week grid, timer | OpenProject My work + Gauzy weekly + Redmine My page | Time entries + allocations; header Today panel reuses it |
-| 9 | Team timesheets / approvals | Team hours, missing time, approve/reject period | Gauzy approvals + OpenProject cost/time reports | Approval workflow on timesheet period; People integration |
-| 10 | Resource planner | People × time allocation, capacity, overbooking | OpenProject team planner + resource management | Allocations separate from time entries/task assignment |
-| 11 | Allocations / staffing | Requested vs staffed, placeholder roles, candidate assignment | OpenProject resource allocations/staffing | Allocation states; overbooking warning; working hours |
-| 12 | Budget & cost | Budget vs actual, labor/material, rates | OpenProject budgets/cost reports + ERPNext costing | Costing only; no invoice creation here |
-| 13 | Billing queue | Unbilled time/milestones/fixed fees → invoice draft | Odoo sale_timesheet + ERPNext timesheet billing | Hands off to Accounting; billing basis on project/SO line |
-| 14 | **C** Request intake | Request form/templates, email/portal channel, convert to project/work item | Customer Service research + Redmine mail handler + Odoo alias | Mantle `Request`; conversion links, does not copy |
-| 15 | Project reports | Task/milestone/budget/utilization/unbilled reports | OpenProject cost/WP reports + ERPNext reports | Saved reports; cross-app BI in Insights |
-| 16 | Project settings | General, phases, members/roles, modules, custom fields, rates, templates | OpenProject project settings + Redmine project settings | Per-project enablement over global config |
-| 17 | Portfolio / program (later) | Roll-up of projects, shared budgets/capacity | OpenProject portfolio/program | Data model supports parent workspace types now |
+| Surface | Projects face | Reference evidence |
+| --- | --- | --- |
+| **Task / work item** (owner: Projects) | Projects builds the work-item list, board, calendar, Gantt and detail over `WorkEffort` (`WetTask`). Commons opens the same screen as "tasks assigned" (Commons says "task"); Customer Service and Sales open it for follow-up tasks; People for onboarding checklists | OpenProject work packages; Odoo `project_todo` (personal to-dos over `project.task`); Gameplan My Tasks; Frappe CRM record-linked tasks; Moqui baseline `component/MrSimpleScreens/screen/MyAccount/User/Task/MyTasks.xml` and `component/MrSimpleScreens/screen/SimpleScreens/Task/` over one `WorkEffort` record |
+| **Time entry & timesheets** (owner: Projects) | Projects: My week, project and task time tabs, timesheet-period approval. People: attendance (clock in/out) and pay-relevant totals. Accounting: billing | Mantle `TimeEntry`, `Timesheet`; ERPNext Timesheet; Odoo `hr_timesheet`; Ever Gauzy timesheet approvals; baseline Clock In (`create#TimeEntryClockIn`) |
+| **Employee 360** (owner: People) | Allocations and timesheets tabs; capacity is read from People's working schedules and leave | OpenProject My work allocations and user working hours / non-working times; Ever Gauzy employee timesheets; Moqui baseline `component/MrSimpleScreens/screen/SimpleScreens/Party/{PartyProjects,PartyTasks,PartyTimeEntries}.xml` |
+| **Request / case** (owner: Customer Service) | Projects consumes converted requests: a request links to a project (`Request.rootWorkEffortId`) or to work items (`RequestWorkEffort`); Project 360 lists them. Projects does not build its own intake form | Redmine mail handler; Odoo project alias; ERPNext `Issue.project`; Dolibarr project Tickets tab; Moqui baseline `component/MrSimpleScreens/screen/SimpleScreens/Request/EditTasks.xml` and `component/MrSimpleScreens/screen/SimpleScreens/Task/EditRequests.xml` |
+| **Calendar & schedules** (owner: Commons) | Work items and milestones by date feed the calendar; plan views (team planner) are Projects screens that read the same events and holidays | OpenProject WP calendar and team planner; Redmine calendar; baseline `TaskServices.get#FullCalendarData` used by My Calendar and Party Calendar |
+| **Billing / invoicing** (owner: Accounting; Sales for order-based billing) | Projects shows unbilled time, reached milestones and budget vs billed, and hands a batch to Accounting; the invoice is created and posted there | Odoo `sale_timesheet` invoicing policies; ERPNext timesheet billing; Mantle `create#ProjectInvoiceItems` / `create#TimeEntryInvoiceItems` |
+| **Sales handoff** (owner: Sales) | A quote or order line creates a project from a template and links back; Project 360 shows the order | Odoo `service_tracking`; ERPNext `Project.sales_order`; Mantle `OrderItemWorkEffort`, `AgreementItemWorkEffort`, `SalesOpportunityWorkEffort` |
+| **Expense claims** (owner: People) | Project-linked expenses are re-billed from the project | Odoo `project_sale_expense`; baseline MyAccount expense with Project field and `create#ProjectExpenseInvoice` |
+| **Chatter & activities** (owner: Commons / Comms) | Work-item and project Activity tabs use the shared Chatter component | OpenProject Activity tab; Odoo chatter on tasks; Mantle `WorkEffortCommEvent`; baseline TaskSummary comments |
+| **Approvals waiting** (header Notifications) | Timesheets awaiting approval appear as a filtered face | Ever Gauzy timesheet approvals; Odoo timesheet reminders to approvers |
+| **Dashboard widgets** (owner: Insights) | Projects home places widgets; cross-project BI lives in Insights | ERPNext Projects workspace number cards; OpenProject overview widget grid |
+| **Knowledge base** (owner: Commons) | Wiki pages linked to projects and work items | Redmine and OpenProject wiki modules; Moqui baseline `component/MrSimpleScreens/screen/SimpleScreens/Project/EditWikiPages.xml` (`WikiPageWorkEffort`) |
+| **Purchasing / Warehouse / Manufacturing / Maintenance** | Project-linked purchases, stock issues and repair costs roll into project costing (later) | Odoo `project_purchase`, `project_stock`, `project_mrp*`; ERPNext project dashboard connections; Mantle `AcctgTrans.workEffortId`, `InvoiceItemDetail.workEffortId` |
 
-**Data-model sketch (Mantle-based).** `WorkEffort` for project and task; a project-type flag or `WorkEffortType`; `WorkEffortParty` for manager/members/roles; Mantle status entities/status flows for status and stage (or stage as a project-specific status flow); `WorkEffort` parent/child for subtasks and project hierarchy; a typed relation table for blocked-by/blocks/relates/duplicates/precedes/follows/requires; `TimeEntry` linked to work item + project + party + activity + rate; `ResourceAllocation` linked to work item/project + placeholder/party + date range + hours; `Budget` + labor/material items or cost entries; `Request` linked to work item; Sales order line linked to project; `CommunicationEvent` for the timeline. Milestones are their own entity (name, date, reached, billing percentage) because they carry commercial semantics; versions/releases can reuse a WorkEffort subtype if needed.
+**BOSS implications.** Projects is an owner of one shared screen (work items) and a heavy consumer of four others (Employee 360, Request, Calendar, Order detail); its own screens are mostly planning, time and money views over records the other apps already create.
 
 ---
 
-## 15. Gaps & notables
+## 15. Current Moqui baseline (MrSimpleScreens / MarbleERP / Mantle)
 
-- **OpenProject and Redmine are the only project-management-first references.** Odoo, ERPNext, Dolibarr and Gauzy are ERP/HR suites with project modules bolted on; they are stronger on commercial handoff and weaker on planning. Use OpenProject for planning/work-item UX, Redmine for compactness/email intake, and Odoo/ERPNext for sales/costing/billing links.
-- **No dedicated milestone record** in OpenProject (versions/phases/types) or ERPNext (`is_milestone` flag). Odoo and AureusERP have real milestone records; only Odoo connects them to billing. BOSS needs the real record because of the T&M billing requirement.
-- **Odoo community has no timer and no capacity/resource planner.** Timer exists in OpenProject and ERPNext; capacity planning exists in OpenProject (team planner/resource management). Do not assume Odoo community covers either.
-- **OpenProject has no invoicing/billing.** It stops at budgets, rates and cost reports. Odoo (`sale_timesheet`), ERPNext (timesheets/invoices) and Dolibarr (billable time) are the billing references.
-- **Redmine "boards" are forums**, not kanban; its Gantt/calendar are query views. This is still a useful discussion surface, but not a work board.
-- **Nextcloud Tasks/Deck and Twenty tasks are Commons/record-widget references**, not a project suite; they are catalogued in the Commons/Drawers research.
-- **No project module** in Akaunting, metasfresh, Carbon or Zimbra in these checkouts. Carbon's `resources`/`planning` packages are production planning, not project management. Zimbra Tasks is a personal task list (Commons-adjacent).
-- **WorkManagement is a minimal Moqui project/task app** (QVue table, find drawer, comments, simple project edit); it is the closest shape to a Moqui-native implementation but has no Gantt, timesheets, budgets or resource planning.
-- **WeCreate contributes role-based staffing** (project positions with invitations/applications/approval) and a profile-like project page. Its position model is worth borrowing for generic/placeholder resource requests, but it has no timesheets or billing.
-- **Gauzy is the strongest timesheet UX** (weekly day-grid, daily log table, calendar, approvals, timer apps) and the weakest on project planning (no Gantt/allocations/budgets in the project pages).
-- **Request intake is fragmented everywhere.** Project-management tools assume authenticated users; ERP tools have email aliases, web forms or tickets; Customer Service owns the portal/SLA screens. BOSS should centralize intake in Request/Customer Service and let Projects consume converted requests.
-- **Public/customer-facing project visibility** is thin: Odoo has portal project/task templates, ERPNext has web forms, the others are internal. Treat customer-visible project portals as a later, deliberate surface (Odoo's portal templates are the best reference).
+The baseline is a working project tracker, not a stub: projects, milestones, tasks with assignments and typed relations, requests linked to tasks, time entry with client and vendor rates, and T&M invoicing from a project. What it lacks is planning (boards, Gantt, capacity), timesheet periods and approval, budgets per project, and any landing page. MarbleERP (`component/MrMarbleERP/screen/marble.xml`) mounts the SimpleScreens `Project`, `Request`, `Task` and `Wiki` trees; its dashboard (`component/MrMarbleERP/screen/marble/dashboard.xml`) only links Projects and Tasks and shows Submitted / In Progress request counts. IronStone BOSS already carries copies of the MyAccount user screens (`component/ironstone-boss/screen/Base/User/{Task,Request,TimeEntries,Calendar}.xml`).
 
-### Adopt / avoid summary
+### Screens
 
-| Adopt | Avoid |
+| Screen/page | What it is | Key files |
+| --- | --- | --- |
+| Find Project | Saved-find list (ID, name, client, vendor, status, purpose, priority, estimated completion, estimated/actual hours) with header filters; **New Project** dialog | `component/MrSimpleScreens/screen/SimpleScreens/Project/FindProject.xml` (`create#Project`) |
+| Project Summary | Project header (client, vendor, status, status flow, dates, estimated/actual hours), task counts by status as links (In Planning, Approved, In Progress, On Hold, Complete/Closed, Cancelled), milestone list, parties, wiki pages, task tree | `component/MrSimpleScreens/screen/SimpleScreens/Project/ProjectSummary.xml` (`get#ProjectStats`) |
+| Edit Project | Name, status, status flow, purpose, visibility, priority, client and vendor, dates, **time allowed** and **client cost allowed** (the only budget fields); computed actual cost / client cost / profit, client budget remaining and used %, estimated complete %; **Clone Project** dialog | `component/MrSimpleScreens/screen/SimpleScreens/Project/EditProject.xml` (`update#Project`, `clone#Project`) |
+| Milestones | Milestone list with **Create Milestone** dialog; Milestone Summary shows the milestone's inactive, active and done task lists | `component/MrSimpleScreens/screen/SimpleScreens/Project/{EditMilestones,MilestoneSummary}.xml` |
+| Progress report | Per-milestone and per-child stats in hours and days: estimated, actual, remaining, time allowed, work and budget actual/remaining % | `component/MrSimpleScreens/screen/SimpleScreens/Project/ProjectProgressReport.xml` (`get#ProjectMilestoneSummary`, `get#WorkEffortChildStats`) |
+| Project parties | Add/update party assignments: role, position class, expectation, status, from/thru | `component/MrSimpleScreens/screen/SimpleScreens/Project/EditUsers.xml` |
+| Project time entries | Time entries across the project's tasks with client and vendor rates and invoice links; Hide/Show Invoiced; **Update Rates**; create project invoice items | `component/MrSimpleScreens/screen/SimpleScreens/Project/ProjectTimeEntries.xml` (`store#TimeEntry`, `resetAndGet#ProjectTimeEntryRates`, `create#ProjectInvoiceItems`) |
+| Find Task | Full-text search (DataDocument) plus saved-find list with column selection, CSV/XLSX: project, milestone, parent, assignee, team, status, priority, purpose, resolution, estimated completion, estimated/remaining/actual hours; bulk **Assign / Unassign / Update Selected**; **New Task** dialog | `component/MrSimpleScreens/screen/SimpleScreens/Task/FindTask.xml` |
+| Task Summary | Header with inline status, resolution and field updates; nested comments; child tasks; content attachments; **Clock In**; links to project, milestone and requests | `component/MrSimpleScreens/screen/SimpleScreens/Task/TaskSummary.xml`, `TaskSummary/TaskCommentNested.xml` |
+| Task tabs | Edit Task; Assignments (person or team); Related (`WorkEffortAssoc` from/to); Requests (`RequestWorkEffort`); Time (add time, clock in, delete); Wiki pages | `component/MrSimpleScreens/screen/SimpleScreens/Task/{EditTask,EditUsers,EditRelated,EditRequests,EditTimeEntries,EditWikiPages}.xml` |
+| Requests | Find/Edit Request (type, customer, project, facility, store, assignee, priority, response-required date, resolution; comments, parties, notes, content, items) and a **Tasks** tab that creates or links tasks | `component/MrSimpleScreens/screen/SimpleScreens/Request/{FindRequest,EditRequest,EditRequestItems,EditTasks}.xml` |
+| MyAccount | My Tasks (list + New Task), Task Detail (notes, assignments, clone), Time (own entries, clock in, record time), My Requests, My Calendar (events and tasks); expense invoices with a Project field | `component/MrSimpleScreens/screen/MyAccount/User/{Task/MyTasks,Task/TaskDetail,TimeEntries,Request/MyRequests,Calendar/MyCalendar}.xml`, `component/MrSimpleScreens/screen/MyAccount/Expense/{FindExpenseInvoice,EditExpenseInvoice}.xml` |
+| Party tabs | A party's projects, tasks, requests, calendar, and time entries with rates and a **Worker Invoice** action | `component/MrSimpleScreens/screen/SimpleScreens/Party/{PartyProjects,PartyTasks,PartyRequests,PartyCalendar,PartyTimeEntries}.xml` |
+| Rates | Rate amounts by type, purpose, party, work effort, work type, position class, from/thru | `component/MrSimpleScreens/screen/SimpleScreens/HumanRes/EditRateAmounts.xml` |
+| Project invoices | **Project Client Invoice** and **Project Worker Invoice** dialogs on Find Invoice | `component/MrSimpleScreens/screen/SimpleScreens/Accounting/Invoice/FindInvoice.xml` |
+| Team timesheet (print only) | Print template for a team timesheet; no screen calls it | `component/MrSimpleScreens/template/work/TeamTimesheet.xsl-fo.ftl` (data from `get#TeamTimesheetInfo`) |
+
+### Data model available (mr-mantle-udm)
+
+| Entity / enum | What it gives Projects | Key files |
+| --- | --- | --- |
+| `WorkEffort` | One record for project, milestone, release, component and task: types `WetProject`, `WetMilestone`, `WetRelease`, `WetComponent`, `WetTask` (also `WetEvent`, `WetTimeOff`); `parentWorkEffortId` + `rootWorkEffortId` (tree and project), `statusId` + per-record `statusFlowId`, priority, `percentComplete`, visibility, purpose, resolution, estimated/actual start and completion, recurrence (`recurStartCron`, `recurLimit`, `recurEndDate`), estimated / remaining / actual work time, **`totalTimeAllowed`**, `actualCost`, `actualClientCost`, **`totalClientCostAllowed`** | `component/mr-mantle-udm/entity/WorkEffortEntities.xml` |
+| Purposes, statuses, resolutions | Task purposes Task, Bug Fix, New Feature, Feature Enhancement, Feature Test, To Do, Document, Communication, Placeholder (`WepTask` …); project purposes `WepPr*`; statuses In Planning, Approved, In Progress, On Hold, Complete, Closed, Cancelled (`We*`, flows `Default` and `WorkEffortOther`); resolutions Completed, Incomplete, Won't Complete, Duplicate, Cannot Reproduce, Insufficient Information | same |
+| `WorkEffortParty` | Members, assignees, managers, reporters, watchers, client manager/billing, vendor (role groups `RgpProject`, `RgpTask`, `RgpProjectClient`, `RgpProjectVendor`); from/thru; status Offered → Assigned → Arrived → Departed, Declined, Unassigned; availability, expectation, position class, `receiveNotifications`. No hours field | same |
+| `WorkEffortAssoc` | Typed relations: Relates To, Depends On (Blocked By), Duplicates, Based On, Clones, Caused By, Independent Of; membership types Milestone, Release, Component (`WeatMilestone`, `WeatRelease`, `WeatComponent`); from/thru, sequence. No lag | same |
+| `WorkEffortSkillStandard`, `WorkEffortEmplPosition`, `WorkEffortProduct` | Estimated head count / duration / cost per skill; link to an employee position; products with estimated quantity and cost (a material estimate) | same |
+| `TimeEntry`, `Timesheet`, `TimesheetParty` | Time: party, team, vendor, client, work effort, facility, from/thru, hours, break hours, piece count, work type, position class, rate type (including `RatpNoCharge`), client and vendor hourly/piece rates and `RateAmount` refs, client and vendor invoice items; timesheet per party/client and period with status In-Process → Completed → Approved | same |
+| `RateAmount` | Versioned rate card: rate type, purpose (`RaprClient` billing, `RaprVendor` pay), currency, from/thru, matched by work effort, party, work type, pay grade, position class | `component/mr-mantle-udm/entity/HumanResourcesEntities.xml` |
+| `WorkEffortBilling`, `WorkEffortInvoice`, `InvoiceItemDetail.workEffortId`, `AcctgTrans.workEffortId` | Which invoice items billed a work effort (with a percentage), invoices per project, project dimension on invoice details and GL transactions | `component/mr-mantle-udm/entity/{WorkEffortEntities,AccountingAccountEntities,AccountingLedgerEntities}.xml` |
+| `OrderItemWorkEffort`, `AgreementItemWorkEffort`, `SalesOpportunityWorkEffort` | Order line ↔ project/task (with `requiredWork` and `forStatusId` fulfillment rules), agreement item ↔ work effort, opportunity ↔ work effort | `component/mr-mantle-udm/entity/{OrderEntities,PartyEntities,SalesEntities}.xml` |
+| `Request`, `RequestWorkEffort` | `Request.rootWorkEffortId` links a request to a project; `RequestWorkEffort` to tasks; types include `RqtBugFix`, `RqtNewFeature`, `RqtSupport`; statuses Draft, Submitted, Reviewed, In Progress, Completed, Cancelled | `component/mr-mantle-udm/entity/RequestEntities.xml` |
+| `WorkEffortCommEvent`, `WorkEffortNote`, `WorkEffortContent`, `WikiPageWorkEffort` | Chatter messages, notes, files and wiki links on any work effort | `component/mr-mantle-udm/entity/WorkEffortEntities.xml` |
+| `Budget`, `BudgetItem`, `BudgetItemDetail`, `BudgetRevision`, `BudgetReview`, `BudgetParty`, `BudgetScenario` (`mantle.other.budget`) | Period budgets (types Capital, Operating) with items by GL account, product and sub-period; **no work-effort link** | `component/mr-mantle-udm/entity/AccountingOtherEntities.xml` |
+| Holidays | Holiday `WorkEffort` rows (purpose `WepHoliday`) skipped by `get#NextBusinessDay` / `get#FutureBusinessDay` | `component/mr-mantle-udm/entity/WorkEffortEntities.xml` |
+
+Missing for Projects: a resource allocation record, project phases and gates, project health / status updates, a template marker, precedes/follows with lag, a milestone billing share, project budget lines, a working-schedule record (People), and a sprint/backlog field.
+
+### Services (mr-mantle-usl)
+
+| Service | Purpose | Key files |
+| --- | --- | --- |
+| `create#Project`, `update#Project`, `clone#Project` (deep clone), `get#ProjectStats`, `get#ProjectMilestoneSummary`, `get#WorkEffortChildStats`, `get#ProjectParties`, `get#ProjectTeams`, `get#ProjectTasks`, `get#ProjectMilestones`, `create#Milestone`, `update#Milestone` | Projects with client/vendor/manager roles, project-as-template copy, budget and progress stats, milestones | `component/mr-mantle-usl/service/mantle/work/ProjectServices.xml` |
+| `create#Task`, `create#SimpleTask`, `update#Task`, `set#TaskMilestone`, `set#TaskDefaults`, `add#TaskComment` / `update#TaskComment` / `delete#TaskComment`, `add#TaskTime`, `update#TaskFromTime`, `update#ProjectTimeFromTask`, `get#FullCalendarData` | Tasks, milestone membership, comments, time rollups, calendar feed | `component/mr-mantle-usl/service/mantle/work/TaskServices.xml` |
+| `store#TimeEntry`, `create#TimeEntryClockIn`, `delete#TimeEntry`, `store#TimeEntryWorkEffort`, `store#WorkEffortPartyTime`, `get#TeamTimesheetInfo`, `get#TimeEntryAmount`, `resetAndGet#TimeEntryRates`, `resetAndGet#ProjectTimeEntryRates`, `get#TimeEntryRate`, `find#RateAmount`, `import#TimeSummaryFile`, `import#TimeDetailFile` | Time entry, clock-in timer, rate lookup and reset, team timesheet data, time-clock imports | `component/mr-mantle-usl/service/mantle/work/TimeServices.xml` |
+| `clone#WorkEffort`, `delete#WorkEffort`, `add#WorkEffortParty` / `remove#WorkEffortParty` / `replace#WorkEffortParty`, `get#WorkEffortStartEnd`, `create#WorkEffortContent` | Generic work-effort copy, assignment, dates and files | `component/mr-mantle-usl/service/mantle/work/WorkEffortServices.xml` |
+| `create#ProjectInvoiceItems`, `create#TimeEntryInvoiceItems`, `create#ProjectExpenseInvoice`, `create#WorkerInvoiceItems` | T&M invoicing of a project's time and expenses (per entry, per worker or one line; client or vendor side) | `component/mr-mantle-usl/service/mantle/account/InvoiceServices.xml` |
+| `create#Request`, `update#Request`, `replace#RequestParty`, `add#RequestComment` | Requests (intake owned by Customer Service) | `component/mr-mantle-usl/service/mantle/request/RequestServices.xml` |
+| `create#Budget`, `store#BudgetItem`, `run#BudgetExpenseReport` | Period/GL budgets (Accounting) | `component/mr-mantle-usl/service/mantle/other/{BudgetServices,BudgetReportServices}.xml` |
+| `post#WorkEffortCost` | Declared but empty (`TODO: implement this`) | `component/mr-mantle-usl/service/mantle/ledger/OtherAutoPostServices.xml` |
+| `get#NextBusinessDay`, `get#FutureBusinessDay` | Business-day arithmetic skipping weekends and holiday work efforts | `component/mr-mantle-usl/service/mantle/work/EventServices.xml` |
+
+---
+
+## 16. Gaps & BOSS implications
+
+### Gaps in the reference set
+
+- **OpenProject and Redmine are the only project-management-first references.** Odoo, ERPNext, Dolibarr and Ever Gauzy are ERP/HR suites with project modules added; they are stronger on commercial handoff and weaker on planning. Use OpenProject for planning and work-item UX, Redmine for compactness and email intake, and Odoo/ERPNext for sales, costing and billing links.
+- **No dedicated milestone record** in OpenProject (a work-package type flagged `is_milestone`, or versions/phases) or ERPNext (`Task.is_milestone`). Odoo and AureusERP have milestone records; only Odoo connects them to billing (`sale_line_id` + `quantity_percentage`).
+- **Odoo community has no timer and no capacity planner.** `planning` and `timesheet_grid` are not in this checkout. Timers exist in OpenProject, ERPNext, Ever Gauzy's desktop apps and Ever Teams; capacity planning only in OpenProject (team planner, resource management).
+- **OpenProject has no invoicing.** It stops at budgets, rates and cost reports. Odoo (`sale_timesheet`), ERPNext (timesheets → sales invoice) and Dolibarr (billable time) are the billing references.
+- **OpenProject's allocation workflow is not live yet.** The requested → allocated / rejected / canceled states exist, but the code sends every allocation straight to allocated; the placeholder → named-person staffing flow is the part to copy.
+- **Redmine "boards" are forums**, not kanban; its Gantt and calendar are query views.
+- **Lightweight task tools are not project tools.** Nextcloud Tasks/Deck and Twenty tasks are Commons/record-widget references (catalogued in the Commons research); Gameplan puts tasks beside discussions and pages with a five-state status and no planning; Frappe CRM tasks are record follow-ups.
+- **No project module** in Akaunting or Zimbra; Carbon's project is only an accounting dimension; metasfresh has project, issue, milestone and time-booking records (imported from GitHub/Everhour) but no project screens.
+- **Moqui WorkManagement is a minimal Moqui project/task app** (QVue table, find drawer, saved finds, comments, simple project edit) with no Gantt, timesheets, budgets or resource planning; **WeCreate** contributes role-based staffing (project positions with invitations, applications and approval) and a profile-like project page.
+- **Ever Gauzy is the strongest timesheet UX** (weekly day-grid, daily log table, calendar, approvals, timer apps) and the weakest on planning; Ever Teams adds a daily plan and a weekly-limit report.
+- **Request intake is fragmented everywhere.** Project tools assume authenticated users; ERP tools have email aliases, logged-in web forms (ERPNext's issue and task web forms both require login) or tickets.
+- **Customer-facing project portals are thin**: Odoo has portal project/task templates and project sharing; the others are internal.
+
+### Notable gaps in the Moqui baseline
+
+- **No planning views.** Tasks are lists only; there is no board, Gantt/timeline or dependency view, and the only task calendar is the personal/party calendar feed.
+- **No landing page.** MarbleERP's dashboard links to Projects and Tasks; there is no portfolio, workload, overdue or unbilled summary.
+- **No timesheet periods.** `Timesheet` has entity and statuses but no screen; `get#TeamTimesheetInfo` feeds only a print template; there is no week grid, submit or approve step, and no reject transition.
+- **No allocation or capacity.** Nothing records "N hours of person or role X on project Y in weeks A–B"; `WorkEffortParty` has no hours and needs a named party.
+- **Budgets are caps, not plans.** Projects have `totalTimeAllowed` and `totalClientCostAllowed`; Mantle `Budget` is a GL/period budget with no project link; `post#WorkEffortCost` is an empty stub, so project cost is computed, not posted.
+- **T&M only.** `create#ProjectInvoiceItems` bills time and expenses; there is no milestone-share or fixed-fee billing basis.
+- **Missing project concepts:** phases and gates, health status and periodic status updates, a template flag (any project can be cloned), precedes/follows with lag, project types with enabled modules, sprints/backlog.
+- **Good parts to keep:** one `WorkEffort` tree for project/milestone/task, typed `WorkEffortAssoc`, `WorkEffortParty` roles, the clock-in timer, versioned `RateAmount` client and vendor rates, `Request` ↔ project/task links, and project invoicing from time entries.
+
+### What each reference contributes
+
+| Reference | Take |
 | --- | --- |
-| OpenProject: saved queries, configurable columns, split view, typed relations, board-as-column-action, team planner, allocation vs time-entry split, budget-vs-actual widgets, phases/gates | One giant project form; a separate board implementation per column type; treating allocations as time entries |
-| Redmine: compact issue columns/filters, watchers, configurable required time-entry fields, email intake, roadmap/time report | Board-as-forum for work; hard-coded reports |
-| Odoo: project email alias, milestones with billing percentage, personal task stages, recurrence, services→project/task generation, analytic items | Duplicating customer/price data on the project; relying on Odoo community for timer/capacity |
-| ERPNext: costing vs billable split, timesheet status/billing fields, small fixed dashboard card set, project template tasks | Deep desk-specific UI patterns; one-record-per-document tab explosion |
-| Gauzy: weekly/daily timesheet grids, approvals, timer apps | Project planning (absent) |
-| Dolibarr: per-day/week/month time input, project-element overview, usage flags | PHP-era tab sprawl |
-| WeCreate: role/position staffing, profile-like project page | No plan/billing features |
+| OpenProject | Saved queries, configurable columns, split view, typed relations, board-as-column-action, team planner, allocation vs time-entry split, placeholder staffing, budget-vs-actual widgets, phases/gates, portfolio/program parent rules. Avoid: one giant project form; a separate board implementation per column type |
+| Redmine | Compact issue columns/filters, watchers, configurable required time-entry fields, mail handler intake, roadmap, spent-time report by up to three criteria. Avoid: board-as-forum for work; hard-coded reports |
+| Odoo | Project email alias, milestones with billing percentage, personal task stages and to-do, recurrence, service product → project/task generation, invoicing policies (ordered, timesheets, milestones), project updates. Avoid: duplicating customer/price data on the project; relying on community for timer or capacity |
+| ERPNext | Costing vs billable split, timesheet status and billing fields, activity-type and per-employee activity costs, small fixed workspace card set, project template tasks, % complete methods |
+| AureusERP | Simple milestone records, task table with allocated/spent/remaining hours, project dashboard widgets |
+| Dolibarr | Per-day/week/month time input, project-elements overview, usage flags (tasks, bill time, opportunity, events). Avoid: one tab per document type |
+| Ever Gauzy | Weekly/daily timesheet grids, timesheet approvals, desktop timer apps |
+| Ever Teams | Daily plan against estimates, weekly-limit report |
+| Gameplan / Frappe CRM | The light Commons and Sales faces of the work-item screen: grouped-by-status list, record-linked follow-ups with list/kanban |
+| metasfresh | Budgeted vs estimated effort and invoicable effort rolled up an issue tree (reference only) |
+| Moqui WorkManagement / WeCreate | A QVue task table with find drawer and saved finds; role/position staffing with applications |
+| Moqui baseline | The data model and services for projects, milestones, tasks, time, rates, requests and T&M invoicing (§15) |
 
----
+### Recommended screen inventory (IronStone Projects)
 
-**Bottom line.** IronStone Projects should be built as a **project-management-first app with ERP handoffs**: OpenProject supplies the interaction model (work items, saved queries, boards, Gantt, team planner, allocations, budgets, phases), Redmine supplies the compact query/email-intake discipline, and Odoo/ERPNext/Dolibarr supply the sales-order, milestone-billing and timesheet-invoicing links. The two surfaces that must not be compromised are **My work / timesheets** and **resource planning**, because they are where services staff and managers actually live, and they are exactly where the ERP references are weakest.
+| Area | Screens |
+| --- | --- |
+| Home | **Projects home**: portfolio health, workload, overdue work items, milestones due, unbilled time, budget exceptions; fixed layout first, widgets later **(shared: Insights widget types)** |
+| Projects | **Find Projects** (saved views, hierarchy, favorites; over `WorkEffort` `WetProject`, `get#ProjectStats`) · **Project 360** hub: header (health, dates, manager, client) and tabs Overview, Work items, Milestones, Time, Costs, Files, Activity **(shared: Commons/Comms Chatter)**, Related: order **(shared: Sales Order detail)**, requests **(shared: Customer Service Request / case)**, invoices **(shared: Accounting)** · **Create project** short form + from template (`clone#Project`) · **Portfolio / program** roll-up (later) |
+| Work items | **Work items** list / board / calendar / timeline over one query (owner of the shared Task / work item screen; Commons "tasks assigned", Customer Service and Sales follow-ups and People checklists open it in their context) · **Work item detail**: status and resolution, assignees and watchers (`WorkEffortParty`), relations (`WorkEffortAssoc`), subtasks, recurrence, time, files, Activity |
+| Milestones & phases | **Milestones / roadmap** over `WetMilestone` (and `WetRelease` when used): due date, reached, task progress, billing share · **Phases** with gates (later) |
+| Time | **My week**: week grid plus clock-in timer over `TimeEntry`; also the source of the header Today panel's time widget · **Project / work item time tab** with rates and invoiced flags · **Team timesheets & approval** by `Timesheet` period (Notifications approvals face; People reads approved totals) |
+| Resources | **Team planner**: people × weeks of assigned work and estimates, capacity from **(shared: People working schedules and leave)** · **Allocations / staffing**: requested vs staffed, placeholder roles, overbooking warning (later; needs the new record) · allocations and timesheets tabs on **(shared: People Employee 360)** |
+| Money | **Budget & cost**: budget vs actual hours and cost, labor and material, rates · **Billing queue**: unbilled time, reached milestones, fixed fees → batch to Accounting `create#ProjectInvoiceItems` **(shared: Accounting invoices)** |
+| Intake | **Project requests**: requests linked to the project and **Convert to work item** on the request **(shared: Customer Service Request / case)**; no separate intake form |
+| Reports | **Project reports**: work items by status/assignee, overdue, milestone slippage, utilization, unbilled time, budget vs actual; saved reports, cross-app BI in Insights |
+| Settings | **Project settings** (general, members and roles, enabled tabs, rates, template) · **Global configuration**: work-item purposes and status flows, priorities, time-entry work types, rate cards (`RateAmount`), project templates |
 
+### Data-model implications
+
+Reuse (names verified in `mr-moqui-base/runtime/component/mr-mantle-udm/entity/`):
+
+- **Projects, milestones, releases and work items** stay `WorkEffort` with `WetProject`, `WetMilestone`, `WetRelease`, `WetTask`; hierarchy by `parentWorkEffortId` / `rootWorkEffortId`; milestone and release membership by `WorkEffortAssoc` `WeatMilestone` / `WeatRelease`. The earlier sketch's "milestones are their own entity" is dropped: a milestone is a `WetMilestone` work effort, its deadline is `estimatedCompletionDate`, reached is `WeComplete` plus `actualCompletionDate`.
+- **Status and board columns**: `statusId` with a per-project `statusFlowId`; board columns as a view action over status, assignee, milestone or parent, not a second stage field.
+- **Members, assignees, watchers**: `WorkEffortParty` with the `RgpProject` / `RgpTask` role groups (not `WorkEffortPartyAssignment`).
+- **Relations**: `WorkEffortAssoc` types `WeatRelatesTo`, `WeatDependsOn`, `WeatDuplicates`, `WeatBasedOn`, `WeatClone`, `WeatCausedBy`, `WeatIndependentOf`.
+- **Time and rates**: `TimeEntry`, `Timesheet`, `TimesheetParty`, `RateAmount`; non-billable time is rate type `RatpNoCharge`, so no separate billable flag is needed.
+- **Billing links**: `TimeEntry.invoiceId` / `vendorInvoiceId`, `WorkEffortBilling`, `WorkEffortInvoice`, `OrderItemWorkEffort` for the order line behind a project or milestone; services `create#ProjectInvoiceItems`, `create#TimeEntryInvoiceItems`.
+- **Requests**: `Request.rootWorkEffortId` and `RequestWorkEffort`; **Chatter and files**: `WorkEffortCommEvent`, `WorkEffortNote`, `WorkEffortContent`, `WikiPageWorkEffort`.
+- **Budget caps**: `WorkEffort.totalTimeAllowed`, `totalClientCostAllowed`, `actualCost`, `actualClientCost` via `get#ProjectStats`.
+
+New or extended records:
+
+- **Milestone billing share.** Odoo's milestone billing needs, on the order-line link, the share of the line released when the milestone is reached. Add a quantity-percentage (or amount) field to `OrderItemWorkEffort`; `WorkEffortBilling.percentage` already records what was billed afterwards.
+- **Resource allocation** (new, e.g. `WorkEffortAllocation`): work effort, optional party, `emplPositionClassId` for a placeholder role, from/thru, allocated hours, status (Requested, Allocated, Rejected, Cancelled), requested/reviewed by. `WorkEffortParty` cannot carry it (no hours, party is part of the key) and `WorkEffortSkillStandard` has no dates or person.
+- **Precedes/follows with lag**: a new `WorkEffortAssoc` type and a lag field (days) for Gantt scheduling.
+- **Project phases and gates**: phase definitions plus per-project phase rows with dates and gate dates; either a new `WorkEffort` type under the project or a small phase record (Open questions).
+- **Project health and updates**: a project-update record (date, author, health, progress %, narrative) whose latest row is the project's six-state health, kept apart from `statusId`.
+- **Template marker** for projects meant only to be cloned (an indicator or a `WorkEffortCategory`).
+- **Project budget lines**, if caps are not enough: a link from `Budget` to `WorkEffort` with labor/material items, or work-effort budget lines; `WorkEffortProduct` estimates already cover material quantities.
+- **Working schedule** (People-owned, research-people §7) as the capacity source; Projects only reads it.
+- **Sprint / backlog** field on work items (later, only for agile teams).
+
+### First-release cut
+
+Ships first: Projects home (fixed layout), Find Projects, Project 360 (Overview, Work items, Milestones, Time, Costs from `get#ProjectStats`, Activity, Related), Create project and from-template via `clone#Project`, Work items list + board (status and assignee columns) + calendar, Work item detail, Milestones on `WetMilestone`, My week grid with the existing clock-in, project and work-item time tabs, Timesheet submit/approve (add a reject transition), a basic Team planner from assignments and estimates, the unbilled-time queue handing off to Accounting, project requests and Convert on the Customer Service request, and minimal project settings. These need only small Mantle additions (reject transition, template marker).
+
+Deferred: Gantt/timeline with dependencies and baseline (needs precedes/follows with lag), allocations and staffing (new record), phases and gates, project health updates, milestone billing share and fixed-fee billing, project budget lines and cost posting, portfolio/program roll-ups, sprints and backlogs, versions/roadmap, per-project email aliases, customer portal.
+
+### Open questions
+
+- **Allocation record.** New `WorkEffortAllocation`-style entity, or extend `WorkEffortParty` with hours and accept a placeholder party for unnamed roles?
+- **Phases.** A `WorkEffort` type under the project (dates, status and Chatter come free) or a separate phase record with gate fields?
+- **Milestone billing share.** On `OrderItemWorkEffort` (the order line Sales owns) or on the milestone `WorkEffort`?
+- **Timesheet approval owner.** research-crosscut §4 gives entry and approval to Projects; research-people §7 says People owns the approval of pay-relevant hours. One approval on the `Timesheet` period with both faces, or two approvals?
+- **Project email alias.** Always create a Customer Service `Request` (crosscut: Customer Service owns intake), or allow a project alias to create work items directly for internal teams?
+- **Project budgets.** initial-design puts Budgets in Accounting; crosscut gives project costing to Projects. Should project budget lines live in `mantle.other.budget` with a work-effort link, or stay as project caps plus estimates?
+- **Rate cards.** The baseline edits `RateAmount` under HumanRes; client billing rates are a Projects concern and pay rates a People concern. One screen with purpose tabs, or split by purpose?
+
+### Checkout path quirks
+
+- OpenProject's version form is a Primer form class (`app/forms/versions/form.rb`), and the version page is a widget grid of components in `app/components/projects/settings/versions/`; there are no `_form` or `_issue_counts` partials.
+- Redmine's project menu is defined in `lib/redmine/preparation.rb`, not in a views folder; project settings tabs come from `project_settings_tabs` in `app/helpers/projects_helper.rb`.
+- ERPNext rows that cite Gantt or kanban views use Frappe framework paths (`frappe/public/js/frappe/views/…`).
+- Ever Gauzy's desktop apps are `apps/desktop/` and `apps/desktop-timer/`; there is no desktop-activity app.
+- Zimbra web-client paths start `zm-web-client/`; `zd-full/ZimbraWebClient/` holds a duplicate copy.
+- In the Moqui baseline the MyAccount screens are `component/MrSimpleScreens/screen/MyAccount/…`, beside (not under) `screen/SimpleScreens/`.
+
+**Bottom line.** IronStone Projects should be a **project-management-first app with ERP handoffs**, built on a Mantle model that already covers most of the records: OpenProject supplies the interaction model (work items, saved queries, boards, Gantt, team planner, allocations, budgets, phases), Redmine the compact query and email-intake discipline, and Odoo/ERPNext/Dolibarr the sales-order, milestone-billing and timesheet-invoicing links. The two surfaces that must not be compromised are **My week / timesheets** and **resource planning**, because that is where services staff and managers spend their day, and they are where the ERP references and the Moqui baseline are weakest.
