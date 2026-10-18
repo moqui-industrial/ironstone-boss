@@ -8,12 +8,13 @@ Deeper research pass on the **IronStone Marketing** app (campaigns; segments and
 email and newsletters; promotions and coupons; content — blogs and landing pages;
 surveys; campaign analytics), cataloguing every relevant screen/page found in the
 reference apps. Companion to [3p-app-reference.md](3p-app-reference.md); feeds the
-Marketing row in [initial-design.md](initial-design.md). Shared-screen faces it feeds
-(crosscut §3–§4): the **engagement** face of Customer 360 (owner Sales); the campaign
-sends and audiences face of Comms sending; registration and tickets on Commons events;
-lead sources and attribution on Sales leads and opportunities. Marketing owns the
-promotion/coupon program screens and the surveys and forms builder, whose faces appear
-in Commerce, Customer Service (CSAT) and People (scorecards, quizzes).
+Marketing row in [initial-design.md](initial-design.md). Reused screens it includes
+(crosscut §3–§4): **Customer 360**, where Marketing's version emphasizes engagement; the
+email/SMS sending, template, consent and unsubscribe screens of the Comms suite, here for
+campaign sends and audiences; events, with registration and tickets; leads and
+opportunities, with lead sources and attribution; the promotion, coupon and loyalty
+program screens (also included in Commerce and Sales); and the surveys and forms builder
+(also included in Customer Service for CSAT and People for scorecards and quizzes).
 
 **Organization.** Sorted by functional area (not by app): all campaign-planning screens
 together, all audience screens together, all email composition/tracking screens
@@ -144,8 +145,8 @@ marketing menu (§12).
 
 **BOSS implications.** No reference app has a marketing home that answers "what is
 running, what is next, what is performing". Odoo comes closest with the mailings
-calendar plus the campaign kanban, but they are separate menus. IronStone Marketing's
-landing page should combine a campaign calendar (`MarketingCampaign` from/thru dates,
+calendar plus the campaign kanban, but they are separate menus. One option for IronStone
+Marketing's landing page combines a campaign calendar (`MarketingCampaign` from/thru dates,
 scheduled sends, Commons events, blog publish dates), KPI tiles (audience growth, sends,
 open/click, attributed revenue) and shortcuts. The tiles are Insights widget types
 (crosscut §3, Dashboard widgets) placed on Marketing's own landing page.
@@ -224,20 +225,20 @@ the winner and can be sent to the rest of the audience.
 No material: Nextcloud, AureusERP, Moqui components. The Moqui baseline has a full
 `MarketingCampaign` record but no screen for it (§12).
 
-**BOSS implications.** A campaign must be a container, not a send: Odoo's separation of
-`utm.campaign` from `mailing.mailing` is the right model, and its CRM/Sales counters show
-what a campaign record is for. The UI references omit budgets (only Ever Gauzy's
-backend has a spend ceiling), but Mantle's `MarketingCampaign` already carries
-`budgetedCost`, `estimatedCost`, `actualCost`, `expectedRevenue`, `expectedResponsePercent`,
-`numSent`, a parent campaign and an approval status flow (Planned → Approved → In
-Progress → Completed, or Cancelled); BOSS should show planned vs actual on the campaign
-screen rather than add new fields. A/B testing needs explicit variant rows, a sample
-percentage, a winner criterion and a "send winner to remaining" action; nothing outside
-Odoo models this. Neither Frappe nor Twenty has marketing-specific automation — they
-expose generic workflow builders; BOSS should build drip steps on its own scheduled
-jobs rather than a second automation engine. Odoo's configurable campaign stages differ
-from Mantle's fixed status flow; tags and UTM vocabularies belong to shared
-configuration so Sales and Marketing see the same campaign list.
+**BOSS implications.** The references treat a campaign as a container, not a send: Odoo's
+separation of `utm.campaign` from `mailing.mailing` is the clearest model, and its
+CRM/Sales counters show what a campaign record is for. The UI references omit budgets
+(only Ever Gauzy's backend has a spend ceiling), but Mantle's `MarketingCampaign` already
+carries `budgetedCost`, `estimatedCost`, `actualCost`, `expectedRevenue`,
+`expectedResponsePercent`, `numSent`, a parent campaign and an approval status flow
+(Planned → Approved → In Progress → Completed, or Cancelled), so planned vs actual can be
+shown on the campaign screen without new fields. A/B testing needs explicit variant rows,
+a sample percentage, a winner criterion and a "send winner to remaining" action; nothing
+outside Odoo models this. Neither Frappe nor Twenty has marketing-specific automation —
+they expose generic workflow builders; one option for BOSS is drip steps on its own
+scheduled jobs rather than a second automation engine. Odoo's configurable campaign stages
+differ from Mantle's fixed status flow; tags and UTM vocabularies kept as shared
+configuration would let Sales and Marketing see the same campaign list.
 
 ---
 
@@ -277,7 +278,7 @@ configuration so Sales and Marketing see the same campaign list.
 | Audience preview | Returns total members and sendable count plus explicit exclusion buckets: missing email, duplicate emails, hard-suppressed, globally unsubscribed, topic-unsubscribed, tracking-refused | `packages/twenty-front/src/modules/activities/emails/hooks/useCampaignAudiencePreview.ts`; `packages/twenty-server/src/engine/core-modules/emailing-domain/dtos/campaign-audience-preview.dto.ts` (`CampaignAudiencePreviewDTO`) |
 | Unsubscribers / Unsubscribe Topics | Suppression list with reason badges/filters and topic management | `packages/twenty-front/src/modules/settings/unsubscribers/components/SettingsUnsubscribersList.tsx`; `packages/twenty-front/src/modules/settings/unsubscribe-topics/components/SettingsWorkspaceUnsubscribeTopicSection.tsx` |
 
-The preview contract is worth copying: before a send, the UI states how many recipients
+The preview contract stands out: before a send, the UI states how many recipients
 are sendable and why the rest are excluded, rather than silently dropping them.
 
 ### Dolibarr — criteria targeting and saved advanced filters
@@ -317,8 +318,9 @@ external provider, as in metasfresh's CleverReach sync.
 No material: Nextcloud (forms responses are not an audience list; Contacts has groups but
 no marketing screens).
 
-**BOSS implications.** Two audience kinds are needed: a static list (imported, merged,
-curated) and a dynamic segment (saved query over Party/ContactMech and business records).
+**BOSS implications.** The references show two audience kinds: a static list (imported,
+merged, curated) and a dynamic segment (saved query over Party/ContactMech and business
+records).
 Odoo is the only UI reference that has both as reusable objects (Dolibarr's advanced
 filters are named filter sets tied to an element such as an emailing, not curated
 lists). Mantle already has both records: `ContactList` + `ContactListParty` for static
@@ -329,9 +331,10 @@ lists (with double opt-in:
 segment rules yet. Consent is the differentiator: metasfresh keeps an explicit consent
 entity (declared/revoked dates), Odoo keeps opt-out reasons plus a global blacklist,
 Twenty keeps suppression reasons plus topics, Frappe keeps unsubscribe records. Per
-crosscut §4 the consent and suppression ledger belongs to **Comms**; Marketing reads it
-when building an audience and shows the same exclusion-bucket preview Twenty shows
-before a send.
+crosscut §4 the consent and suppression records are shared, kept with the **Comms**
+suite that every app uses; Marketing includes the consent and unsubscribe screens for its
+audience, reads the records when building an audience, and could show the same
+exclusion-bucket preview Twenty shows before a send.
 
 ---
 
@@ -413,21 +416,23 @@ No material: AureusERP; Moqui components have only transactional notification em
 (coarchy, resistmanagement) and ridgecrest's external-provider newsletters (§3). The
 Moqui baseline's email records are in §12.
 
-**BOSS implications.** Per crosscut §4, **Comms** owns email/SMS accounts, sending,
-tracking and unsubscribe; IronStone Marketing owns the campaign send: content,
-audience, schedule, A/B variants and the campaign's view of the traces. The minimum
-Marketing screen set is: campaign mailing template library, composer with variables
-and preview/test, send/schedule dialog with the audience preview, and the per-recipient
-trace list for that send (a filtered face of the Comms trace). Odoo's trace statuses
+**BOSS implications.** Per crosscut §4, email/SMS accounts, sending, tracking and
+unsubscribe are the **Comms** suite, used from every app; Marketing includes those screens
+with a campaign-send emphasis: content, audience, schedule, A/B variants and the
+campaign's view of the traces. The references suggest a minimum Marketing screen set of:
+campaign mailing template library, composer with variables and preview/test,
+send/schedule dialog with the audience preview, and the per-recipient trace list for that
+send (the reused Comms trace list filtered to the send). Odoo's trace statuses
 (outgoing, processing, sent, delivered, opened, replied, bounced, exception, cancelled)
 plus a separate click timestamp are a good fixed set; the Moqui baseline already has
 `ContactListCommStatus` (one row per list, `CommunicationEvent`, contact mech and
 `messageId`) and `EmailMessage` statuses Draft, Ready, Sent, Received, Viewed, Bounced,
-Cancelled. Two rules that Comms enforces for Marketing sends: consent is re-checked at
-dispatch (not only at audience selection), and every message carries an
-unsubscribe/preference link that resolves without login plus a `List-Unsubscribe`
-header (Dolibarr, Twenty). Twenty's open/click tracking switches and emailing-domain DNS
-verification are Comms settings that Marketing depends on.
+Cancelled. Two rules the references apply to bulk sends, which fit the shared Comms send
+path: consent is re-checked at dispatch (not only at audience selection), and every
+message carries an unsubscribe/preference link that resolves without login plus a
+`List-Unsubscribe` header (Dolibarr, Twenty). Twenty's open/click tracking switches and
+emailing-domain DNS verification are shared Comms settings that Marketing sends depend
+on.
 
 ---
 
@@ -490,24 +495,25 @@ No material: Twenty, Nextcloud, Moqui components. No coupons/gift cards/loyalty/
 in Dolibarr/AureusERP/metasfresh UIs. The Moqui baseline has store promotion and promo
 code screens (§12).
 
-**BOSS implications.** Per crosscut §4, Marketing owns the promotion, coupon and
-loyalty **program screens**; evaluation lives in the shared price resolver, Commerce
-binds programs to stores and checkout, and Sales applies manual discounts on quotes.
-That matches the references: Odoo keeps programs (rules + rewards + codes + validity) in
-a pricing app with no campaign link, and Frappe's promotional schemes and Dolibarr's
-price rules follow the same split, which keeps checkout, POS and quotes consistent. The
-Moqui baseline already has the program record: `ProductStorePromotion` (a registered
-promotion service — new-customer discount, buy X get Y, flat discount — plus parameters,
-products, date window, `requireCode` and use limits per order, customer and promotion),
-`ProductStorePromoCode` (+ `ProductStorePromoCodeParty`) and `OrderPromoCode`. It has
-no link from a promotion to a `MarketingCampaign`, which campaign attribution needs.
-Coupon codes need a lifecycle (issued, assigned, redeemed, expired) and an owner; Ever
-Gauzy's reserve-then-register usage ledger and its "every exclusion is reported" rule
-are the model for the resolver's explanation. Gift cards and eWallet are liabilities
-and post to Accounting (Mantle `FinancialAccount` types `GiftCard`, `GiftCertificate`).
-Referral programs are absent everywhere in the reference set; Mantle's partner-managed
-`TrackingCode` with billable lifetime is an affiliate-attribution basis, but a referral
-reward program is a later, separate program type.
+**BOSS implications.** Per crosscut §4, the promotion, coupon and loyalty **program
+screens** are reused (reused: Marketing, Commerce, Sales): Marketing's version emphasizes
+programs, Commerce's the store binding and checkout, and Sales' manual discounts on
+quotes, while evaluation lives in the shared price resolver. That matches the references:
+Odoo keeps programs (rules + rewards + codes + validity) in a pricing app with no campaign
+link, and Frappe's promotional schemes and Dolibarr's price rules follow the same split,
+which keeps checkout, POS and quotes consistent. The Moqui baseline already has the
+program record: `ProductStorePromotion` (a registered promotion service — new-customer
+discount, buy X get Y, flat discount — plus parameters, products, date window,
+`requireCode` and use limits per order, customer and promotion), `ProductStorePromoCode`
+(+ `ProductStorePromoCodeParty`) and `OrderPromoCode`. It has no link from a promotion to
+a `MarketingCampaign`, which campaign attribution needs. Coupon codes need a lifecycle
+(issued, assigned, redeemed, expired) and a holder; Ever Gauzy's reserve-then-register
+usage ledger and its "every exclusion is reported" rule are a model for the resolver's
+explanation. Gift cards and eWallet are liabilities and post to Accounting (Mantle
+`FinancialAccount` types `GiftCard`, `GiftCertificate`). Referral programs are absent
+everywhere in the reference set; Mantle's partner-managed `TrackingCode` with billable
+lifetime is an affiliate-attribution basis, but a referral reward program would be a
+separate program type.
 
 ---
 
@@ -583,15 +589,17 @@ No material: Twenty (no CMS), metasfresh. The Moqui baseline has wiki blog posts
 landing pages, forms), the blog (posts, taxonomy, authors, SEO), and internal knowledge
 (Commons wiki). Odoo is the only reference that joins the first two with campaign link
 tracking and email capture. The page list's SEO/tracking filters are a useful curation
-view. BOSS should define one page/route/block model shared with Commerce. Blog posts
+view. One option is one page/route/block model shared with Commerce. Blog posts
 already exist in the Moqui framework wiki: `moqui.resource.wiki.WikiBlog` (title,
 author, summary, `publishDate`, `metaKeywords`, `metaDescription`, small image) over a
 `WikiPage`, grouped by `WikiBlogCategory` (with a `sentDate` for when a post went out by
-email), with SimpleScreens Wiki Blogs and Edit Blog screens. Marketing should own blog
-post screens over those records while Commons keeps wiki authoring (crosscut §4,
-Knowledge base articles). Social publishing is absent from every open-source reference
-here — the only social surface is Odoo's share-card composer (outbound links and a
-LinkedIn post form), so do not plan a social scheduler from these sources.
+email), with SimpleScreens Wiki Blogs and Edit Blog screens. Crosscut §8 describes blogs
+as Marketing screens over Commons wiki pages: Marketing would include blog post screens
+over those records, while the wiki authoring screen is the one Commons and Customer
+Service include (crosscut §4, Knowledge base articles). Social publishing is absent from
+every open-source reference here — the only social surface is Odoo's share-card composer
+(outbound links and a LinkedIn post form), so these sources give no basis for a social
+scheduler.
 
 ---
 
@@ -635,17 +643,17 @@ No material: Frappe framework and ERPNext (no event marketing screen), Twenty, N
 (calendar is groupware, see research-drawers-commons.md), AureusERP, metasfresh, Moqui
 components.
 
-**BOSS implications.** Per crosscut §4 the event itself is a **Commons** calendar record
-(`WorkEffort` type `WetEvent`); Marketing owns registration, tickets and the event's
-communication schedule. Odoo binds those to the event lifecycle; Dolibarr and Frappe LMS
-show the smaller shape (registration price, seat cap, public sign-up, attendee list with
-invoice or payment, confirmation email). Mantle can carry this without a separate event
-store: registrants as `WorkEffortParty` rows (statuses Offered, Assigned, Arrived,
-Departed, Declined; `mustRsvp`), ticket products via `WorkEffortProduct` and orders via
-`OrderItemWorkEffort`, registration questions as a `DbForm` on the ticket product
-(`ProductDbForm` type Sales Required Info) answered in `OrderItemFormResponse`, and event
-emails as `WorkEffortCommEvent`. Odoo's lead generation rules and LMS's enrollment
-`source` are the attribution hook into Sales.
+**BOSS implications.** Per crosscut §4 events are included in **Commons** (calendar
+events) and Marketing (registration, tickets and the event's communication schedule), over
+one calendar record (`WorkEffort` type `WetEvent`). Odoo binds those to the event
+lifecycle; Dolibarr and Frappe LMS show the smaller shape (registration price, seat cap,
+public sign-up, attendee list with invoice or payment, confirmation email). Mantle can
+carry this without a separate event store: registrants as `WorkEffortParty` rows (statuses
+Offered, Assigned, Arrived, Departed, Declined; `mustRsvp`), ticket products via
+`WorkEffortProduct` and orders via `OrderItemWorkEffort`, registration questions as a
+`DbForm` on the ticket product (`ProductDbForm` type Sales Required Info) answered in
+`OrderItemFormResponse`, and event emails as `WorkEffortCommEvent`. Odoo's lead generation
+rules and LMS's enrollment `source` are the attribution hook into Sales.
 
 ---
 
@@ -672,7 +680,7 @@ emails as `WorkEffortCommEvent`. Odoo's lead generation rules and LMS's enrollme
 | Web Form | Field builder (table of `web_form_field`), route, gating (login, multiple, edit, delete, print, comments), success message/URL | `frappe/website/doctype/web_form/web_form.json`; `web_form_field/` |
 | Web Form Request | Submitted responses | `frappe/website/doctype/web_form_request/` |
 | CRM Forms | Lead-capture form list + builder | `crm/frontend/src/components/Settings/Forms/FormsList.vue`, `FormBuilderPanel.vue` |
-| Frappe LMS quizzes | Quiz list, form and submissions: max attempts, passing percentage, total marks, shuffle, question limit, duration, proctoring, negative marking, scheduling; question types Choices, User Input, Open Ended (a People training face, not a marketing survey) | `lms/frontend/src/pages/Quizzes.vue`, `QuizSubmissions.vue`, `Forms/QuizForm.vue`; `lms/lms/lms/doctype/lms_quiz/lms_quiz.json` |
+| Frappe LMS quizzes | Quiz list, form and submissions: max attempts, passing percentage, total marks, shuffle, question limit, duration, proctoring, negative marking, scheduling; question types Choices, User Input, Open Ended (a People training use, not a marketing survey) | `lms/frontend/src/pages/Quizzes.vue`, `QuizSubmissions.vue`, `Forms/QuizForm.vue`; `lms/lms/lms/doctype/lms_quiz/lms_quiz.json` |
 | Quiz/scoring/live sessions on Web Forms | Not present in the framework or ERPNext | — |
 
 ### Nextcloud — full forms app
@@ -700,16 +708,16 @@ working survey builder over framework `DbForm` (§12).
 **BOSS implications.** Surveys are forms with response aggregates, not a separate data
 model. Odoo adds scoring, certifications and live sessions; Nextcloud has the best
 general-purpose question palette and a clean results summary; Frappe has the strongest
-embedding/gating model (login, multiple responses, edit/print). Per crosscut §4 Marketing
-owns the one builder and its responses; Customer Service CSAT and People scorecards and
-quizzes are faces of it. The engine already exists: `moqui.screen.form.DbForm` (purpose
-Survey or Other), `DbFormField` (field type, required, a Groovy display `condition`,
-layout sequence, print page), `DbFormFieldOption`, `DbFormUserGroup`, and
-`FormResponse`/`FormResponseAnswer`, with SimpleScreens screens for fields, a preview,
-responses and per-option counts. BOSS adds the public link and gating (Frappe Web Form
-options), sections/pages, a response-to-party and response-to-campaign link (today
-`FormResponse` holds only `userId`), and scoring and certification on top; distribution
-goes through Comms sends.
+embedding/gating model (login, multiple responses, edit/print). Per crosscut §4 the
+builder and its responses are one reused screen set (reused: Marketing, Customer Service
+for CSAT, People for scorecards and quizzes). The engine already exists:
+`moqui.screen.form.DbForm` (purpose Survey or Other), `DbFormField` (field type, required,
+a Groovy display `condition`, layout sequence, print page), `DbFormFieldOption`,
+`DbFormUserGroup`, and `FormResponse`/`FormResponseAnswer`, with SimpleScreens screens for
+fields, a preview, responses and per-option counts. What it lacks is the public link and
+gating (Frappe Web Form options), sections/pages, a response-to-party and
+response-to-campaign link (today `FormResponse` holds only `userId`), and scoring and
+certification; distribution would go through Comms sends.
 
 ---
 
@@ -778,19 +786,20 @@ No material: Nextcloud (form results only), Moqui components. The Moqui baseline
 tracking records are in §12.
 
 **BOSS implications.** Odoo is the only reference that closes the loop from campaign →
-send → open/click → lead/opportunity → quotation → invoiced revenue. BOSS should carry
-one campaign identifier from Marketing through Sales, Commerce and Accounting (Odoo's
-`utm.campaign` is exactly that key). In Mantle that key is `MarketingCampaign`, already
-referenced by `ContactList`, `TrackingCode` and `SalesOpportunity`; `TrackingCode`
+send → open/click → lead/opportunity → quotation → invoiced revenue. The evidence favors
+one campaign identifier carried from Marketing through Sales, Commerce and Accounting
+(Odoo's `utm.campaign` is exactly that key). In Mantle that key is `MarketingCampaign`,
+already referenced by `ContactList`, `TrackingCode` and `SalesOpportunity`; `TrackingCode`
 (redirect URL, campaign, type Access/Internal/External/Partner Managed, trackable and
 billable lifetimes) links to web visits (`TrackingCodeVisit` over framework
 `moqui.server.Visit`), orders (`TrackingCodeOrder`), returns and opportunities
-(`SalesOpportunityTracking`). Per crosscut §4 Sales owns leads and opportunities;
-Marketing owns lead sources and campaign attribution. Build the dashboards in Insights
-rather than inside Marketing. The link tracker (a `TrackingCode` with a redirect) is the
-shared primitive for email, content, social posts and QR codes; UTM medium/source/tag
-vocabularies belong to shared configuration. Multi-touch attribution and funnels are
-absent from every reference — treat them as Insights work, not Marketing screens.
+(`SalesOpportunityTracking`). Per crosscut §4 leads and opportunities are included in
+Sales and Marketing, with Marketing's version emphasizing lead sources and campaign
+attribution. The cross-app dashboards fit Insights, with widgets placed on Marketing's
+landing page. The link tracker (a `TrackingCode` with a redirect) is the shared primitive
+for email, content, social posts and QR codes; UTM medium/source/tag vocabularies fit
+shared configuration. Multi-touch attribution and funnels are absent from every reference
+and look like Insights work rather than Marketing screens.
 
 ---
 
@@ -867,33 +876,34 @@ No material: Moqui components. Moqui baseline: store email templates per email t
 infrastructure (accounts, domains, DNS, dedicated server), consent/suppression (topics,
 reasons, blacklist), vocabularies (tags, UTM medium/source, contact list types, tracking
 code types), and channel templates (email, SMS, landing pages, forms). Per crosscut §4,
-the first two are **Comms** settings (accounts, sending, unsubscribe, consent); the
-Marketing settings section owns vocabularies and campaign templates and links to the
-Comms pages, with the Admin settings index linking to both. Sending-domain verification
-(Twenty) is a hard requirement for self-hosted installs and belongs to Comms.
+the first two are shared **Comms** settings (accounts, sending, unsubscribe, consent)
+used by every app that sends; a business running only Marketing needs them, so Marketing
+includes those settings screens beside its own vocabularies and campaign templates, and
+the Admin settings index links to every app's settings. Where the shared sending
+settings are edited is a crosscut §8 question. Sending-domain verification (Twenty) is a
+hard requirement for self-hosted installs and sits with the Comms sending settings.
 
 ---
 
 ## 11. Cross-app surfaces
 
-Faces as assigned in research-crosscut.md §3–§4. Marketing owns the promotion program
-screens and the surveys and forms builder; everything else here is a Marketing face on a
-screen another app owns.
+App lists follow research-crosscut.md §3–§4. Every row is a reused screen or shared
+record that Marketing includes for its audience; Comms is a suite used from every app.
 
-| Surface | Marketing face | Reference evidence |
-| --- | --- | --- |
-| **Customer 360** (owner Sales) | Engagement tab: campaigns touched, sends with opens/clicks, contact list memberships and segments, survey responses, event registrations, promo codes used, consent and opt-out state (read from Comms) | Odoo partner marketing fields (`odoo/addons/mass_mailing/views/res_partner_views.xml`); metasfresh consent tab; Twenty unsubscribers list |
-| **Contact / party record** (owner Commons) | "Add to list" and subscription state on the party | Twenty Add to Message List side panel (`packages/twenty-front/src/modules/side-panel/pages/add-to-message-list/`) |
-| **Email/SMS sending** (owner Comms: accounts, sending, tracking, unsubscribe, consent) | Campaign sends: content, audience and exclusion preview, schedule, A/B variants, the send's trace list | Odoo mailings and traces; Twenty composer and audience preview; Dolibarr emailing card |
-| **Promotions, coupons, loyalty** (owner Marketing: program screens) | Owner. Commerce face: store binding and checkout; Sales face: manual discounts on quotes; evaluation in the shared price resolver (Products) | Odoo `loyalty`; ERPNext Promotional Scheme and Coupon Code; SimpleScreens Promotion screens (§12) |
-| **Surveys & forms** (owner Marketing: builder, responses) | Owner. Customer Service face: CSAT; People face: interview scorecards, training quizzes | Odoo `survey`; Nextcloud Forms; Frappe Web Form; Frappe LMS quizzes; SimpleScreens Survey (§12) |
-| **Events & webinars** (owner Commons: calendar event) | Registration, tickets, attendee list, event communication schedule | Odoo `event`; Dolibarr event organization; Frappe LMS batches and live classes |
-| **Leads & opportunities** (owner Sales) | Lead sources, campaign attribution, lead-generation rules from events, surveys and web forms | Odoo `crm`/`sale` campaign counters, `event_crm`, `survey_crm`, `website_crm`; ERPNext Campaign Efficiency; Frappe CRM Forms |
-| **Knowledge base / wiki** (owner Commons: wiki authoring) | Blog posts (`WikiBlog`) and blog categories as a Marketing content screen over the same wiki pages | SimpleScreens Wiki Blogs (§12); Odoo `website_blog` |
-| **Calendar & schedules** (owner Commons) | Marketing calendar overlay: campaign windows, scheduled sends, events, blog publish dates | Odoo mailing calendar (`mailing_mailing_view_calendar`) |
-| **Chatter & activities** (owner Commons/Comms) | Chatter on the campaign record (Mantle has `MarketingCampaignNote`; no campaign comm-event join) | — |
-| **Dashboard widgets** (owner Insights) | Marketing landing KPI tiles; campaign performance and web traffic dashboards | Frappe Insights; Twenty dashboards; Odoo website dashboard |
-| **Per-app settings** | Marketing settings (vocabularies, campaign templates) linking to Comms sending and consent settings | Odoo Email Marketing settings; Twenty emailing domains and unsubscribe topics |
+| Reused screen or link | Use in Marketing | Other apps that include it | Reference evidence |
+| --- | --- | --- | --- |
+| **Customer 360** | Engagement tab: campaigns touched, sends with opens/clicks, contact list memberships and segments, survey responses, event registrations, promo codes used, consent and opt-out state (from the shared consent records) | Sales; Customer Service; Accounting; Commerce | Odoo partner marketing fields (`odoo/addons/mass_mailing/views/res_partner_views.xml`); metasfresh consent tab; Twenty unsubscribers list |
+| **Contact / party record** | "Add to list" and subscription state on the party | Commons; every app that shows a person or organization; Admin; People | Twenty Add to Message List side panel (`packages/twenty-front/src/modules/side-panel/pages/add-to-message-list/`) |
+| **Email/SMS sending, templates, tracking, unsubscribe and consent** (Comms suite) | Campaign sends: content, templates, audience and exclusion preview, schedule, A/B variants, the send's trace list; consent and suppression for the audience | Comms is used from every app; Customer Service (case email); Admin (relay, gateway trust, protocol servers and queues) | Odoo mailings and traces; Twenty composer and audience preview; Dolibarr emailing card |
+| **Promotions, coupons, loyalty** | Program screens: programs, rules, codes, redemption; evaluation in the shared price resolver (Products) | Commerce (store binding and checkout); Sales (manual discounts on quotes) | Odoo `loyalty`; ERPNext Promotional Scheme and Coupon Code; SimpleScreens Promotion screens (§12) |
+| **Surveys & forms** | Builder, responses, share and gating | Customer Service (CSAT); People (interview scorecards, training quizzes) | Odoo `survey`; Nextcloud Forms; Frappe Web Form; Frappe LMS quizzes; SimpleScreens Survey (§12) |
+| **Events & webinars** | Registration, tickets, attendee list, event communication schedule | Commons (calendar events) | Odoo `event`; Dolibarr event organization; Frappe LMS batches and live classes |
+| **Leads & opportunities** | Lead sources, campaign attribution, lead-generation rules from events, surveys and web forms | Sales | Odoo `crm`/`sale` campaign counters, `event_crm`, `survey_crm`, `website_crm`; ERPNext Campaign Efficiency; Frappe CRM Forms |
+| **Knowledge base / wiki** | Blog posts (`WikiBlog`) and blog categories as a Marketing content screen over the same wiki pages | Commons (wiki authoring); Customer Service (articles) | SimpleScreens Wiki Blogs (§12); Odoo `website_blog` |
+| **Calendar & schedules** | Marketing calendar overlay: campaign windows, scheduled sends, events, blog publish dates | Commons; Maintenance; Projects; People | Odoo mailing calendar (`mailing_mailing_view_calendar`) |
+| **Chatter & activities** | Chatter on the campaign record (Mantle has `MarketingCampaignNote`; no campaign comm-event join) | Every app's record screens | — |
+| **Dashboard widgets** | Marketing landing KPI tiles; campaign performance and web traffic dashboards | Insights; every app's landing page | Frappe Insights; Twenty dashboards; Odoo website dashboard |
+| **Per-app settings** | Marketing settings (vocabularies, campaign templates) plus the shared sending and consent settings | Every app (its own settings); Admin (settings index and system settings) | Odoo Email Marketing settings; Twenty emailing domains and unsubscribe topics |
 
 ---
 
@@ -939,7 +949,7 @@ product identifications and category identifications.
 | `ContactListCommStatus` | Per-recipient send record: list, `CommunicationEvent`, contact mech, party, unique `messageId`, status | same |
 | `MarketSegment` (+ `MarketSegmentClassification`, `MarketSegmentGeo`, `MarketSegmentDimension`, `MarketSegmentParty`, `MarketInterest`) | Segment tree (type Market or Sales Segment, intra-type sequence, parent, store, owner); rules by party classification, geo and party dimension min/max; explicit members by role; product-category interest. Segments also scope `ProductParameterValue`, `ProductDbForm`, `ProductOtherIdentification`, `ProductCategoryIdent` | same; `component/mr-mantle-udm/entity/ProductDefinitionEntities.xml` |
 | `TrackingCode`, `TrackingCodeVisit`, `TrackingCodeOrder`, `TrackingCodeOrderReturn` | Code with redirect URL, campaign, type (Access, Internal, External, Partner Managed), trackable and billable lifetimes, group/subgroup; visits by source (cookie, URL parameter) over `moqui.server.Visit`; orders and returns with billable flag and affiliate referred time | `component/mr-mantle-udm/entity/MarketingEntities.xml`; `base-component/framework/entity/ServerEntities.xml` (`Visit`, `Visitor`) |
-| `SalesOpportunity.marketingCampaignId`, `SalesOpportunityTracking` | Campaign and tracking code on opportunities (Sales-owned record) | `component/mr-mantle-udm/entity/SalesEntities.xml` |
+| `SalesOpportunity.marketingCampaignId`, `SalesOpportunityTracking` | Campaign and tracking code on opportunities (record included in Sales and Marketing) | `component/mr-mantle-udm/entity/SalesEntities.xml` |
 | `CommunicationEvent.contactListId`, `PartyContactMech.allowSolicitation` | List on a message; a per-contact-mech solicitation flag — the only consent data outside list membership | `component/mr-mantle-udm/entity/PartyEntities.xml` |
 | `ProductStorePromotion` (+ `ProductStorePromoParameter`, `ProductStorePromoProduct`), `ProductStorePromoCode` (+ `ProductStorePromoCodeParty`) | Store-scoped promotion implemented by a registered service, with parameters, products (include/exclude), window, require code, use limits, free ground shipping; codes with window, limits, user-entered and require-party flags; registered services New Customer Discount, Buy X Get Y, Flat Discount | `component/mr-mantle-udm/entity/ProductStoreEntities.xml`; `component/mr-mantle-usl/data/MantleSetupData.xml` |
 | `OrderPromoCode`; `OrderItem` promo fields; `OrderPart.disablePromotions` | Codes on an order; promo items carry `storePromotionId`, `promoCodeId`, `promoCodeText`, times used | `component/mr-mantle-udm/entity/OrderEntities.xml` |
@@ -1011,8 +1021,8 @@ promotion-to-campaign link; no public survey page or anonymous response.
 ### Notable gaps in the Moqui baseline
 
 - **No Marketing app or campaign screens.** `MarketingCampaign`, `ContactList`,
-  `MarketSegment` and `TrackingCode` have no screens and no services; BOSS builds the
-  campaign, list, segment and tracking-code screens and the services behind them.
+  `MarketSegment` and `TrackingCode` have no screens and no services; the campaign, list,
+  segment and tracking-code screens and the services behind them are all missing.
 - **No list subscription flow.** `ContactListParty` statuses, `optInVerifyCode` and the
   `ContactListEmail` templates (subscribe notification, unsubscribe verify) are modelled
   but nothing sends the verify email, accepts the code or processes an unsubscribe.
@@ -1020,7 +1030,7 @@ promotion-to-campaign link; no public survey page or anonymous response.
   `EmailMessage` rows with `ContactListCommStatus`; no A/B variants; no open/click
   capture beyond the `EmailMessage` Viewed status.
 - **No consent ledger.** Only `PartyContactMech.allowSolicitation` and list membership
-  status; a per-channel, per-purpose consent record (Comms) is new.
+  status; a per-channel, per-purpose consent record (shared, Comms suite) would be new.
 - **No segment evaluation.** `MarketSegment` rules exist but no service computes
   membership, and there is no saved-query segment kind (Odoo dynamic list).
 - **No tracking capture.** `TrackingCode` and `TrackingCodeVisit` exist but no request
@@ -1056,51 +1066,54 @@ promotion-to-campaign link; no public survey page or anonymous response.
 
 - **One campaign key across the suite.** Odoo's `utm.campaign` is referenced by mailings,
   SMS, link trackers, leads and sales orders. In BOSS that key is `MarketingCampaign`;
-  every touch (email, SMS, content, event, coupon) should carry it or a `TrackingCode`
+  every touch (email, SMS, content, event, coupon) could carry it or a `TrackingCode`
   that points to it.
 - **Send records are separate from campaign records.** Odoo models one campaign with many
   mailings; ERPNext one campaign with many campaign-email schedules; Twenty one campaign
-  with many messages/recipients. This is the right grain for A/B variants, retries and
-  per-touch analytics.
+  with many messages/recipients. The references agree on this grain for A/B variants,
+  retries and per-touch analytics.
 - **Audience preview before send.** Twenty's `CampaignAudiencePreviewDTO` returns
   sendable plus missing-email, duplicate, hard-suppressed, globally-unsubscribed,
   topic-unsubscribed and tracking-refused counts. No other reference exposes exclusions
-  this clearly; it is the best contract for BOSS's send confirmation.
-- **Receiver-side consent is not optional.** Odoo (opt-out reasons + feedback + portal),
+  this clearly; it is the strongest candidate contract for a send confirmation.
+- **Receiver-side consent is first-class.** Odoo (opt-out reasons + feedback + portal),
   Twenty (unsubscribe topics + suppression reasons) and metasfresh (consent records) all
-  treat unsubscribe/preference management as first-class; per crosscut §4 it belongs in
-  Comms, not in a marketing-only table.
+  treat unsubscribe/preference management as first-class; per crosscut §4 the consent
+  records are shared through the Comms suite, used from every app that sends, rather than
+  a marketing-only table.
 - **Promotions are pricing, not campaigns.** Odoo's loyalty program is independent of
   `utm.campaign`; Frappe's promotional schemes and Dolibarr's price rules likewise live
-  in pricing. Marketing owns the program screens; evaluation stays in the price resolver.
+  in pricing. In BOSS terms the program screens are reused (Marketing, Commerce, Sales)
+  and evaluation stays in the price resolver.
 - **Self-hosted sending needs domain verification.** Twenty is the only reference with a
-  first-class sending-domain/DNS verification UI; Comms needs it because many target
-  businesses self-host.
+  first-class sending-domain/DNS verification UI; it matters for Comms because many
+  target businesses self-host.
 - **No source builds "marketing" as one app.** Odoo splits it across several apps, Frappe
   across Desk/CRM/LMS, Dolibarr across independent modules, and metasfresh delegates
-  sending to CleverReach. IronStone Marketing should be a composition layer over shared
-  Commons, Comms and Sales records plus the Mantle marketing entities, not a new
-  monolith.
+  sending to CleverReach. This suggests IronStone Marketing as a stand-alone app composed
+  of reused screens over shared Commons, Comms and Sales records plus the Mantle
+  marketing entities, rather than a new monolith.
 
-### Recommended screen inventory (IronStone Marketing)
+### Candidate screen inventory (IronStone Marketing)
 
 | Area | Screens |
 | --- | --- |
-| Landing page | Marketing calendar (campaign windows, scheduled sends, events, blog publish dates); KPI tiles (list growth, sends, open/click, attributed opportunities and revenue) **(shared: Insights widgets)**; needs-attention list (campaigns awaiting approval, failed sends, A/B winners to review, promotions expiring) |
+| Landing page | Marketing calendar (campaign windows, scheduled sends, events, blog publish dates; **Calendar & schedules** (reused: Commons, Maintenance, Projects, People)); KPI tiles (list growth, sends, open/click, attributed opportunities and revenue) **(reused: Insights, every app's landing page)**; needs-attention list (campaigns awaiting approval, failed sends, A/B winners to review, promotions expiring) |
 | Campaigns | Campaign list (status, dates, budget vs actual); campaign detail with tabs: summary and budget, lists and segments, sends, tracking codes, promotions, events, results; approval actions on the `MKTG_CAMP_*` flow |
-| Audiences | Contact lists (members, status, import, merge); list member detail; segments (rule editor over classification, geo, dimension; explicit members; saved-query segments); audience preview with exclusion counts; consent and suppression **(shared: Comms)** |
-| Campaign sends | Template library; composer with variables, preview and test; send/schedule dialog with audience preview; A/B setup; send trace list **(shared: Comms tracking)** |
-| Promotions | Program list across stores; program detail (rules, parameters, products, limits, window); promo codes (single and batch, party-restricted); redemption history; store binding **(shared: Commerce)** |
-| Content | Blog posts and categories over `WikiBlog` **(shared: Commons wiki)**; landing pages and web forms **(shared: Commerce site)**; tracking links with QR |
-| Events | Registration setup on a Commons event **(shared: Commons calendar)**: ticket products, registration form, seats; attendee list with check-in; event email schedule |
-| Surveys & forms | Form/survey builder (fields, options, conditions, sections); share and gating; responses and summary; scoring (later) — faces in Customer Service (CSAT) and People (scorecards, quizzes) |
-| Analytics | Campaign performance; tracking-code clicks and visits; attributed opportunities, orders and revenue **(shared: Insights)** |
-| Customer 360 engagement tab | **(shared: Sales)** campaigns, sends, opens/clicks, lists, segments, responses, registrations, promo codes, consent |
-| Settings | Contact list types, tracking code types, UTM medium/source, tags, campaign templates; links to Comms sending and consent settings **(shared: Admin settings index)** |
+| Audiences | Contact lists (members, status, import, merge); list member detail; segments (rule editor over classification, geo, dimension; explicit members; saved-query segments); audience preview with exclusion counts; consent and suppression **(reused: Comms suite, Customer Service, Admin)** |
+| Campaign sends (reused: Comms suite, Customer Service, Admin) | Template library; composer with variables, preview and test; send/schedule dialog with audience preview; A/B setup; send trace list |
+| Promotions (reused: Commerce, Sales) | Program list across stores; program detail (rules, parameters, products, limits, window); promo codes (single and batch, party-restricted); redemption history; store binding (the Commerce version's emphasis) |
+| Content | Blog posts and categories over `WikiBlog` (over the wiki pages whose authoring screen Commons and Customer Service include); landing pages and web forms **(reused: Commerce)**; tracking links with QR |
+| Events (reused: Commons) | Registration setup on the calendar event: ticket products, registration form, seats; attendee list with check-in; event email schedule |
+| Leads (reused: Sales) | Lead list with source and campaign; lead-generation rules from events, surveys and web forms |
+| Surveys & forms (reused: Customer Service, People) | Form/survey builder (fields, options, conditions, sections); share and gating; responses and summary; scoring |
+| Analytics | Campaign performance; tracking-code clicks and visits; attributed opportunities, orders and revenue **(reused: Insights)** |
+| Customer 360 engagement tab | **(reused: Sales, Customer Service, Accounting, Commerce)** campaigns, sends, opens/clicks, lists, segments, responses, registrations, promo codes, consent |
+| Settings | Contact list types, tracking code types, UTM medium/source, tags, campaign templates; sending and consent settings **(reused: Comms suite, Admin)**; listed in the Admin settings index |
 
-### Data-model implications
+### Data-model findings
 
-- **Reuse as is:** `MarketingCampaign` (+ `MarketingCampaignNote`,
+- **Fit as is:** `MarketingCampaign` (+ `MarketingCampaignNote`,
   `MarketingCampaignParty`), `ContactList`, `ContactListParty`, `ContactListEmail`, `ContactListCommStatus`,
   `MarketSegment` and its rule entities, `TrackingCode`, `TrackingCodeVisit`,
   `TrackingCodeOrder`, `TrackingCodeOrderReturn`, `SalesOpportunityTracking`;
@@ -1109,59 +1122,70 @@ promotion-to-campaign link; no public survey page or anonymous response.
   `DbForm`/`FormResponse`, `WikiBlog`/`WikiBlogCategory`, `EmailTemplate`/`EmailMessage`;
   `CommunicationEvent`; `WorkEffort` (`WetEvent`) with `WorkEffortParty`,
   `WorkEffortProduct`, `OrderItemWorkEffort`; `ProductDbForm`, `OrderItemFormResponse`.
-- **Campaign on more records:** add a campaign link to `ProductStorePromotion` (or a
-  join entity), `CommunicationEvent` sends (today only via `ContactList`), events and
-  forms, so attribution does not depend on tracking codes alone.
-- **Send record:** a campaign send (one per mailing, with A/B variant, schedule, status
-  and counters) between `MarketingCampaign` and the per-recipient
-  `ContactListCommStatus`; click events per recipient and link.
-- **Consent (Comms):** a per-party, per-channel, per-purpose consent record with source,
-  declared and revoked dates, plus suppression reasons and topics; `allowSolicitation`
-  and `ContactListParty` status stay as inputs.
-- **Saved-query segments:** a segment kind that stores a find (entity, conditions) next
-  to the rule-based `MarketSegment` kind.
-- **Forms:** party, campaign and source on `FormResponse` (or a join), sections, a public
-  share token, and score fields later.
-- **Blog:** a status or scheduled-publish flag for `WikiBlog`.
-- **Loyalty:** points ledger is new (ERPNext Loyalty Point Entry, Ever Gauzy usage
-  ledger as models); gift cards reuse `FinancialAccount`.
+- **Campaign on more records:** no campaign link exists on `ProductStorePromotion`,
+  `CommunicationEvent` sends (today only via `ContactList`), events or forms; options
+  are a field or a join entity, so attribution would not depend on tracking codes alone.
+- **Send record:** nothing sits between `MarketingCampaign` and the per-recipient
+  `ContactListCommStatus`; a candidate is a campaign send (one per mailing, with A/B
+  variant, schedule, status and counters). Click events per recipient and link are also
+  missing.
+- **Consent (shared, Comms suite):** a candidate per-party, per-channel, per-purpose
+  consent record with source, declared and revoked dates, plus suppression reasons and
+  topics; `allowSolicitation` and `ContactListParty` status would remain inputs.
+- **Saved-query segments:** missing; one option is a segment kind that stores a find
+  (entity, conditions) next to the rule-based `MarketSegment` kind.
+- **Forms:** `FormResponse` lacks party, campaign and source (options: fields or a
+  join); sections, a public share token and score fields are also missing.
+- **Blog:** `WikiBlog` lacks a status or scheduled-publish flag.
+- **Loyalty:** a points ledger would be new (ERPNext Loyalty Point Entry, Ever Gauzy
+  usage ledger as models); gift cards fit `FinancialAccount`.
 
-### First-release cut
+### Sequencing notes
 
-**Ship first:** landing page with calendar and a few KPI tiles; campaigns (list,
-detail, budget vs actual, approval flow); contact lists with import, double opt-in and
-unsubscribe through Comms; campaign sends using `EmailTemplate` with test send,
-schedule, audience preview and trace list; tracking codes with redirect and visit
-capture, and campaign attribution on opportunities and orders; promotion program list
-and promo code screens lifted from SimpleScreens with a campaign link; survey builder
-lifted from SimpleScreens with a public link; blog posts over `WikiBlog`.
-
-**Defer:** A/B testing; rule-evaluated and saved-query segments; drip/automation steps;
-SMS campaigns; loyalty points and eWallet; survey scoring, certification and live
-sessions; event ticketing beyond registration and attendee list; landing-page builder;
-web analytics dashboards beyond tracking-code visits; referral programs; social
-publishing.
+- **Cheap from the baseline:** promotion program and promo code screens (SimpleScreens
+  Promotion), the survey builder (SimpleScreens Survey), blog posts over `WikiBlog`
+  (Wiki Blogs, Edit Blog), and template sends through `EmailTemplate` and
+  `send#EmailTemplate`. Campaigns (budget vs actual, approval flow) and contact lists
+  (double opt-in statuses) have complete Mantle records but no screens or services.
+- **Needs services first:** list subscribe, verify and unsubscribe (the `ContactListEmail`
+  templates are modelled, nothing sends them); a campaign send that writes
+  `ContactListCommStatus`; tracking capture (request filter, redirect endpoint), which
+  campaign attribution on opportunities and orders depends on; segment evaluation, which
+  rule-based segments depend on.
+- **Needs new records first:** A/B testing and per-send counters depend on the send
+  record; consent re-check at dispatch beyond list status depends on the consent record;
+  promotion attribution depends on a campaign link on promotions; public survey
+  attribution depends on the `FormResponse` links; scheduled blog publish depends on a
+  `WikiBlog` status; loyalty points depend on a points ledger.
+- **Depends on other suites or apps:** unsubscribe and consent depend on the Comms send
+  path; SMS campaigns on Comms SMS sending; event ticketing on Commons calendar events
+  plus ticket products and orders (`WorkEffortProduct`, `OrderItemWorkEffort`);
+  landing pages on a page model shared with Commerce; dashboards beyond tracking-code
+  visits on Insights; drip steps on scheduled jobs.
+- **No baseline or reference basis:** survey scoring, certification and live sessions
+  (Odoo only); referral programs and social publishing (absent everywhere).
 
 ### Open questions
 
-- **Template ownership.** Crosscut §4 gives Comms "accounts, sending, tracking,
-  unsubscribe" and Marketing "campaign sends". Who owns the email template library:
-  Marketing (campaign templates) with Comms owning transactional templates, or one
-  Comms-owned library with a Marketing face?
+- **Template library.** Crosscut §4 lists Comms (accounts, sending, tracking,
+  unsubscribe) and Marketing (campaign sends) for sending. Is there one reused template
+  library, with campaign and transactional templates as kinds, or are campaign templates
+  a separate set? Where are shared templates edited (crosscut §8, "Where reused
+  configuration is kept")?
 - **Campaign send record.** Is the send a new entity, or a `CommunicationEvent` with a
   parent/child structure (one parent per mailing, one child per recipient) plus
   `ContactListCommStatus`?
-- **Promotion scope.** Mantle promotions are per store (`productStoreId`). Should
-  Marketing programs span stores and sales channels (including quotes), with Commerce
-  binding each to stores, as crosscut §4 implies?
+- **Promotion scope.** Mantle promotions are per store (`productStoreId`). Do
+  Marketing programs need to span stores and sales channels (including quotes), with
+  Commerce binding each to stores, as crosscut §4 implies?
 - **Event registration record.** `WorkEffortParty` statuses (Offered/Assigned/Arrived)
   were designed for assignments; is that enough for registrations, or do events need a
   registration entity with ticket, answers and payment?
-- **Survey builder owner.** Crosscut §8 asks whether the builder stays in Marketing or
-  moves to Commons; this file follows crosscut §4 (Marketing).
-- **Blog owner.** Blog posts are wiki pages; this file puts blog screens in Marketing
-  and wiki authoring in Commons. Confirm, since initial-design lists blogs under
-  Marketing Content and crosscut §4 gives knowledge base articles to Commons.
+- **Blog screens.** Blog posts are wiki pages; this file has Marketing include blog
+  screens over them, with the wiki authoring screen included in Commons and Customer
+  Service (initial-design lists blogs under Marketing Content; crosscut §8 describes
+  Marketing screens over Commons wiki pages). Does the Marketing blog editor reuse the
+  wiki page editor, or is it a separate screen over the same records?
 
 ### Checkout path quirks
 
@@ -1178,7 +1202,8 @@ publishing.
 **Bottom line.** The Moqui baseline already has most of the marketing data model and
 three working screen groups (promotions, surveys, blog); what it lacks is the Marketing
 app itself — campaign, list, segment and tracking screens, the services that run
-subscriptions, sends and tracking, and the consent ledger in Comms. Build IronStone
-Marketing as screens and services over those Mantle records, lifting the SimpleScreens
-promotion, survey and blog screens, and keep sending, consent, events, leads and
-dashboards in their owning apps.
+subscriptions, sends and tracking, and the shared consent ledger (Comms suite). The
+evidence points to IronStone Marketing as screens and services over those Mantle
+records, with the SimpleScreens promotion, survey and blog screens as a starting point,
+and sending, consent, events, leads and dashboards as reused screens over shared records
+that Marketing includes for its audience.
