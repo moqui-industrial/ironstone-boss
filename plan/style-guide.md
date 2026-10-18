@@ -251,12 +251,14 @@ A find and list screen over one record type; the entry to every detail.
 └─────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-- Skeleton: `form-list` with `header-field`s for the three or four most-used filters inline and
-  the rest in `header-dialog="true"` (Find Options); `saved-finds="true"`, `select-columns="true"`,
-  `paginate`, `show-page-size`, the export buttons (one dropdown); `row-actions` for more than
-  two actions; `multi="true"` with a `row-selection` when bulk actions exist; a `container-dialog`
-  for New when creation is a short form, a link to a wizard or detail otherwise. The link in the
-  first column is a text link to the detail.
+- Skeleton: `form-list` with its `header-field`s in Find Options (`header-dialog="true"` moves
+  every header field there; a list cannot mix inline and dialog finds) and, when two or three
+  filters are used constantly, a small find `form-single` with `field-row-big` above the list
+  posting to `.`; `saved-finds="true"`, `select-columns="true"`, `paginate`, `show-page-size`, the
+  export buttons (one dropdown); per-row actions as text links in a field, two at most; bulk
+  actions as `multi="true"` with `row-selection` and its `action` children, which appear in the
+  header's Row Actions menu; a `container-dialog` for New when creation is a short form, a link
+  to a wizard or detail otherwise. The link in the first column is a text link to the detail.
 - Rules: the identifier column first, status as a colored chip, amounts right-aligned, dates in
   the user's format; at most two inline row actions; bulk actions appear in the nav row only when
   rows are selected; `views` (§8) names the alternative views, and the board's group field is a
@@ -371,12 +373,17 @@ A master list beside a detail pane: inbox, contacts, files, chat rooms, knowledg
 │ ● Beta Inc.             │ Chatter…                                                       │
 ```
 
-- Skeleton: `container-split` (§8) with a side of 320 px holding a `form-list` with
-  `skip-header` and a header find, and a main pane that is a `dynamic-container` loading the
-  selected record's detail or a reused record screen.
+- Skeleton: `container-split` (§8) with a side of 320 px holding a `form-list` with a header
+  find on the name (not `skip-header`, which removes the header fields too), and a main pane that
+  is a `dynamic-container` loading the selected record's detail or a reused record screen. Until
+  `container-split` exists, a `container-row` of two `row-col`s (3 and 9 columns from `lg`, 4 and
+  8 from `md`) stacks below 1024 px; `container-panel` keeps its fixed side width and overflows a
+  phone.
 - Rules: the side list keeps its position and selection while the detail changes; the URL holds
-  the selected id so the detail is bookmarkable; below 1024 px the panes stack and the detail
-  shows a back button.
+  the selected id so the detail is bookmarkable, and the side list's `search-form-inputs` names
+  that id in `skip-fields` so the selection does not filter the list; a paginated list does not
+  fit a 320 px pane (its nav row wraps), so the side list is limited and narrowed by its find;
+  below 1024 px the panes stack and the detail shows a back button.
 
 ### 3.9 Settings
 
@@ -405,8 +412,11 @@ onboarding.
 Create and edit forms opened from a list or a detail without leaving it.
 
 - Skeleton: `container-dialog` with a `form-single`; `width` 600 for a single-column form, 900 for
-  two columns; the form's `background-submit` with `submit-reload-id` so the list behind refreshes;
-  `dynamic-dialog` when the body is another screen.
+  two columns; the form's `background-submit="true"` with `background-reload-id` (the list behind
+  refreshes) or `background-hide-id` (the dialog closes), and `background-message` for the toast;
+  the transition answers `url="."`, which the client reads as JSON with the messages, or
+  `type="none"`, which carries no message; `dynamic-dialog` when the body is another screen. For a
+  screenshot or a test, `?_openDialog=<dialog id>` opens a dialog on load.
 - Rules: one primary and Cancel; a dialog never opens another dialog; a form longer than one
   screen height is a detail or a wizard, not a dialog; dialogs are maximized below 600 px.
 
@@ -463,12 +473,12 @@ wrappers are the `m-*` components of `webroot/screen/webroot/js/WebrootVue.qvt.j
 | `container` | `div` with the `style` classes | Grouping; Quasar flex rows and columns through classes (`row q-col-gutter-sm`, `col-12 col-md-6`) |
 | `container-row` + `row-col` | Quasar `row` and `col-*` | Responsive columns of boxes and forms |
 | `container-box` (+ `box-header`, `box-toolbar`, `box-body`, `box-body-nopad`) | `m-container-box`: `q-card flat bordered`, title `text-subtitle1 text-weight-medium`, toolbar slot, collapse toggle, `type` as a left accent border (`primary`, `info`, `warning`, `success`, `danger`) | The sections of a detail or settings page. Do not nest boxes |
-| `container-panel` (+ `panel-header`, `panel-left`, `panel-center`, `panel-right`, `panel-footer`) | Fixed-width side columns (`size`, default 180 px) around a center | A filter rail or a side list where `container-split` is more than needed; prefer rows and columns for responsive layouts |
+| `container-panel` (+ `panel-header`, `panel-left`, `panel-center`, `panel-right`, `panel-footer`) | Fixed-width side columns (`size`, default 180 px) around a center, as table cells; they do not stack below 600 px, the page overflows | A filter rail on a desktop-only screen; prefer rows and columns for anything a phone shows |
 | `container-dialog` | `m-container-dialog`: a tonal button (`button-text`, `icon`) opening `m-dialog` (`q-dialog` with a `q-card`, title row, close, scrolling body, `width`, `condition`; maximized below 600 px) | Create and edit forms off a list or detail (§3.11) |
-| `dynamic-container` / `dynamic-dialog` | `m-dynamic-container` / `m-dynamic-dialog`: loads a screen by its transition URL into a `div` or a dialog; reloaded or hidden by id from a form's `submit-reload-id` and `submit-hide-id` | Partial refresh after a dialog form; the main pane of a split |
+| `dynamic-container` / `dynamic-dialog` | `m-dynamic-container` / `m-dynamic-dialog`: loads a screen by its transition URL into a `div` or a dialog; reloaded or hidden by id from a form's `background-reload-id` and `background-hide-id` (the `submit-reload-id` and `submit-hide-id` props of `m-form`) | Partial refresh after a dialog form; the main pane of a split; a task step that reloads after each submit (the container's transition names `.` with a parameter the screen uses to render only the step) |
 | `section` / `section-iterate` / `section-include` | Conditional markup, a repeat, an include from another screen file | Shared fragments (an address block) and repeated groups |
 | `include-screen` | Another screen rendered inline | A reused screen inside an app's screen when a subscreen is not wanted |
-| `render-mode` with `text type="qvt"` | Raw template text | Charts (`m-chart`), diagrams (`m-mermaid`) and the allowed raw markup of §4.8 |
+| `render-mode` with `text type="qvt"` | Raw template text; `${}` in it is expanded without HTML encoding, so attribute JSON and user text go through `WebUtilities.encodeHtml` | Charts (`m-chart`), diagrams (`m-mermaid`) and the allowed raw markup of §4.8 |
 
 ### 4.2 Navigation
 
@@ -487,7 +497,7 @@ wrappers are the `m-*` components of `webroot/screen/webroot/js/WebrootVue.qvt.j
 | Element | Renders as | Use for |
 | --- | --- | --- |
 | `field` + `default-field` / `conditional-field` | One labeled field (`title`, `tooltip`); conditions pick the widget | Every field |
-| `field-layout` > `field-row` | Columns with `q-col-gutter-sm` | Two or three fields side by side |
+| `field-layout` > `field-row` | Columns with `q-col-gutter-sm`: `col-xs-12 col-sm-6` for two `field-ref`s, `col-sm-4` for three, `col-sm-3` for four; they stack below 600 px | Two to four fields side by side |
 | `field-row-big` | An inline row, `items-center`, wrapping | Find forms, action rows, the scan row of a task screen |
 | `field-group` (`box="true"`) | `m-container-box` with the group title | Grouping a long form |
 | `field-accordion` | `q-list bordered` of `q-expansion-item`s | Rarely used groups below the main ones |
@@ -509,8 +519,8 @@ q-table--horizontal-separator`, 28 px rows, 12 px medium headers.
 | Column picker | `select-columns="true"` | Columns dialog with drag ordering (`m-form-column-config`) |
 | Paging | `paginate`, `show-page-size`, `show-all-button` | `q-pagination`, a page-size dropdown and a range caption in the nav row |
 | Exports | `show-csv-button`, `show-xlsx-button`, `show-text-button` | One download dropdown; print is in it |
-| Selection and bulk | `multi="true"` with `row-selection` and bulk `link`s | `q-checkbox` per row with shift range; bulk actions in the nav row |
-| Row actions | `row-actions` | Actions per row; a header toggle shows or hides them |
+| Selection and bulk | `multi="true"` with `row-selection` and its `action` children (`button-text`, `button-icon`, `dialog`, `id-field`, `list-mode`) | `q-checkbox` per row with shift range; the actions in the header's Row Actions menu, each a form posting the selected ids |
+| Per-row actions | `link`s in a field of the row | Text links in the cell; two at most, more go in a `button-menu`. `row-actions` is not UI: it is the block of actions run for each row (derived fields) |
 | Create and totals rows | `first-row-field`, `second-row-field`, `last-row-field` with their transitions | A create row above the rows; totals below |
 | Column groups | `columns` > `form-list-column` > `field-ref` | Several fields stacked in one column |
 | Inline edit | `editable` on a field, `editable-load` | `m-editable`, a `q-popup-edit` on click |
@@ -549,21 +559,23 @@ One hierarchy, from the webroot js README and the style plan, applied by the mac
 
 | Role | Where | Quasar |
 | --- | --- | --- |
-| Primary | A form's `submit`; Sign in; the one main action of a title row | `unelevated no-caps color="primary"`; a form submit is `outline` until a field changed |
+| Primary | A form's `submit`; Sign in; the one main action of a title row as a `link` with `btn-type="primary"` | `unelevated no-caps color="primary"`; a form submit is `outline` until a field changed |
 | Secondary (tonal) | `link` outside a list cell; transition links; `button-menu`; dialog buttons; Find Options, Columns, Saved Finds | `unelevated no-caps dense class="m-btn-tonal"`, with `text-<color>` from `btn-type` (danger is `negative`, success `positive`, warning, info) |
-| Tertiary (flat) | `reset`; page size; the export menu; icon buttons; dialog close; row-action tools | `flat dense`, `round` when icon only, always with a `q-tooltip` |
+| Tertiary (flat) | `reset`; page size; the export menu; icon buttons; dialog close; row-action tools; a `container-dialog` or `dynamic-dialog` button inside a list cell | `flat dense`, `round` when icon only, always with a `q-tooltip` |
 | Text link | A `link` with the default `link-type` inside a list cell; `link-type="anchor"` anywhere | `m-link` with `m-link-text`; `anchor-button` keeps a button in a cell |
 
 Rules: one primary per form, dialog or title row; a destructive action is tonal with
 `btn-type="danger"` and a `confirmation`; `outline` is reserved for the unchanged submit; no
-caps; icons on buttons are `size="sm"`; a row has text links, not buttons.
+caps; icons on buttons are `size="sm"`; a row has text links, not buttons. The `icon` of a
+`link`, `submit`, `button-menu`, `container-dialog` or `dynamic-dialog` is a Material Icons
+name (`icon="add"`, later `sym_o_add`) or a Font Awesome class (`fa fa-plus`).
 
 ### 4.7 Text and labels
 
 | Element | Renders as | Use for |
 | --- | --- | --- |
 | `label` with `type` | `h1`–`h6`, `p`, `span`, `strong`, and `text-*` classes through `style` | Titles and captions; `h5` for a record title, `h6` for a section outside a box |
-| `image` | `img`, `invertible` class for dark mode | Logos, product images, avatars |
+| `image` | `img`; the `invertible` class inverts it in dark mode, which suits monochrome images only | Logos, product images, avatars |
 | `render-mode` `text type="qvt"` with `m-chart` | Chart.js 4, loaded on first use | Charts (§5.1 for colors) |
 | `render-mode` `text type="qvt"` with `m-mermaid` | Mermaid 11 | Flow maps and diagrams |
 
@@ -574,7 +586,7 @@ Inside `render-mode` `text type="qvt"` and in a `.qvue` screen:
 - **Allowed:** `q-card`, `q-card-section`, `q-list` and `q-item`, `q-chip`, `q-badge`, `q-avatar`,
   `q-banner`, `q-timeline`, `q-stepper`, `q-splitter`, `q-tabs` and `q-tab-panels`,
   `q-expansion-item`, `q-skeleton`, `q-separator`, `q-space`, `q-btn` in the roles of §4.6,
-  `q-btn-dropdown`, `q-menu`, `q-tooltip`, `q-icon`, `q-linear-progress` and `q-circular-progress`,
+  `q-btn-dropdown`, `q-btn-toggle`, `q-menu`, `q-tooltip`, `q-icon`, `q-linear-progress` and `q-circular-progress`,
   `q-inner-loading`, `q-scroll-area`, `q-virtual-scroll`, `q-table` for a client-side table in a
   `.qvue`, `q-dialog` through `m-dialog`, the flex, spacing, typography and color classes.
 - **Not allowed:** `q-input`, `q-select`, `q-date`, `q-time`, `q-field`, `q-file`, `q-form`,
@@ -584,6 +596,43 @@ Inside `render-mode` `text type="qvt"` and in a `.qvue` screen:
   screen; `q-layout`, `q-header`, `q-drawer`, `q-footer` (the shell's).
 - **A second use is a widget.** When two screens want the same raw markup, propose the XML element
   in the design's needs table (§8).
+
+**A `.qvue` screen** (the gallery's Board and Calendar are the examples): the screen XML says
+`render-modes="vue,qvue" server-static="vue,qvue"` and its widgets are one
+`<render-mode><text type="qvue" location="component://…/Name.qvue" template="false"/></render-mode>`;
+`template="false"` keeps the server from expanding `${}` inside the component's JavaScript. The
+file is `<template>…</template><script>module.exports = {…}</script>` with optional `<style>`. Data
+comes from the screen's own transitions (`ec.web.sendJsonResponse`), called with `moqui.request`
+at `this.$root.basePath + '/' + this.$root.currentPathList.join('/') + '/<transition>'`; answers
+go through `moqui.notifyMessages(json.messageInfos, json.errors)`. The caption box is
+`m-container-box`; forms are `m-form` with the `m-*` wrappers; a dialog that closes after its
+form submits uses `submit-hide-id` and registers itself with `this.$root.addContainer(id, this)`
+and a `hide()` method. The component is cached as server-static, so a screen whose state is in
+the URL watches `$root.currentParameters` (deep) and reloads its data; navigation is
+`this.$root.setUrl(path)`.
+
+### 4.9 Actions, scripts and transitions
+
+- Expressions and scripts are JavaScript: `a || b`, not Groovy's `?:`; the lint flags Groovy idioms.
+- A script writes to the screen context by bare assignment (`total = 3`) or through `context`
+  (`context.total = 3`, and `context.get`, `put`, `remove` as in Java); `var`, `let` and `const`
+  stay in the script.
+- Entity values in scripts: a number-decimal is a decimal object (`v.toNumber()`; `Number(v)`
+  throws), a date-time is a timestamp object whose `String()` is epoch milliseconds
+  (`ec.l10n.format(v, 'yyyy-MM-dd HH:mm')`), and an empty array stored in the context reads back
+  as null, so conditions over lists are null-safe.
+- `<message type="info">text with ${expansions}</message>`: the text is the element content.
+- A transition a form posts in the background answers `<default-response url="."/>` (the client
+  gets JSON with the messages and reloads or hides the container it was told to) or `type="none"`
+  with the message on the form's `background-message`; a `none` response carries no messages, as
+  in Java.
+- `entity-find limit` and `offset` take a literal or a `${}` expression; an empty or non-numeric
+  result applies no limit and is logged at debug.
+- A `tree-node`'s label or link needs an `id` (`id="${entry.enumTypeId}"`) or its sub-nodes get
+  an empty `treeNodeId`.
+- One broken screen under a root breaks every sibling today (the shell's menu data loads all of
+  them and the error is not logged), so check the server answer of a sibling when a whole app
+  stops rendering; the failure-tolerance fix is in §8.
 
 ## 5. Color, typography, density and icons
 
@@ -670,7 +719,8 @@ is a 3 px left border in its semantic color, never a colored header.
 BOSS uses **Material Symbols, outlined**, through Quasar's `material-symbols-outlined` icon set:
 icon names are written `sym_o_<name>` (`sym_o_receipt_long`), weight 400, no fill. The
 framework change that vendors the font and sets the icon set is in §8; until it lands the same
-names exist in Material Icons without the prefix. Font Awesome 4 stays loaded for the baseline's
+names exist in Material Icons without the prefix, and the `icon` attributes of links, buttons,
+menus and dialogs take them. Font Awesome 4 stays loaded for the baseline's
 `fa fa-*` menu images and is not used in new screens. Rules: an icon-only button has a tooltip;
 an icon beside a label is `size="sm"`; a status has a word, not only an icon; every app and
 every quick-create kind has one icon, used in the launcher, the drawer, the palette and the
@@ -766,8 +816,8 @@ crosscut design's roll-up is the work list.
 | Presence and status | Shell item + data | A user status (online, away, do not disturb, custom text) in the account menu and on avatars; a `UserStatus` record and a WebSocket topic | §2.2 | Comms chat, Commons contacts |
 | `number-card` | XML Screen element | `<number-card title value delta delta-good="up|down" icon link size>` as a `q-card flat bordered` with `text-overline` label and `text-h5` value; a `<dashboard>` container that lays cards and widgets in a responsive grid and later allows user arrangement | §3.1, §3.4, §3.12 | Landings, 360s, Insights |
 | `status-bar` | XML Screen element | `<status-bar status-id="${statusId}" status-type-id="…" transition="…"/>`: the status flow as a row of stage chips, current filled, next as the primary action calling the transition; colors from the status color map | §3.3, §5.2 | Every detail |
-| `m-tonal` status chip | Style | Generalize `.m-btn-tonal` to `.m-tonal` for `q-chip` and `q-badge`; a `display` field with `status="true"` renders the chip | §5.2 | Lists, details |
-| Muted text class | Style | `.m-muted` that is `grey-7` in light and `grey-5` in dark | §5.3 | Captions everywhere |
+| `m-tonal` status chip | Style | Built Oct 18, 2026: `class="m-tonal text-positive"` on a `q-chip` or `q-badge`. Still to do: a `display` field with `status="true"` that renders the chip from the status color map | §5.2 | Lists, details |
+| Muted text class | Style | Built Oct 18, 2026: `.m-muted` is `grey-7` in light and `grey-5` in dark | §5.3 | Captions everywhere |
 | `chatter` | XML Screen element + data | `<chatter record-entity record-id/>`: messages and notes, scheduled activities, attachments, followers, as a column or tab; needs a generic record link for `CommunicationEvent`, `WorkEffort` and content (crosscut §8, "Generic record links") or a join entity per record type | §3.3 | Every record screen |
 | List views | XML Form element | `form-list` `views="list,board,calendar"` with `<view-board group-field card-title-field card-fields badge-field transition>` and `<view-calendar start-field end-field title-field color-field transition>`; later `view-pivot`, `view-graph`, `view-timeline`; the view is a client switch over the same rows and filters | §3.2, §3.6, §3.7 | Pipeline, work items, cases, schedules |
 | `container-split` | XML Screen element | `<container-split side-width="320" min-main="480">` with `<split-side>` and `<split-main>`; `q-splitter` from `md`, stacked with a back button below; the selected id in the URL | §3.8 | Inbox, contacts, files, chat, knowledge |
@@ -821,14 +871,16 @@ the actual render mode in light and dark, at the breakpoints of §7, and so a ne
 has a screen that shows it. The component is off by default: run with
 `./moq run -D example_disabled=false` and open `/qapps/gallery`.
 
-Planned layout, to be built after this guide is reviewed:
+Built Oct 18, 2026 (the example component is on by default since then):
 
 | Screen | Shows |
 | --- | --- |
-| `example/screen/Gallery.xml` | The gallery root, mounted under the apps root by the example `MoquiConf.xml`; a landing listing the archetypes |
-| `Gallery/Landing.xml`, `List.xml`, `Detail.xml`, `Record360.xml`, `Task.xml`, `Split.xml`, `Settings.xml`, `Wizard.xml`, `Dialog.xml`, `Report.xml`, `Panel.xml` | One archetype each over framework data that always exists (`moqui.basic.Enumeration`, `moqui.basic.Geo`, `moqui.security.UserAccount`), with every widget of §4 appearing at least once |
-| `Gallery/Board.qvue`, `Gallery/Calendar.qvue` | The `.qvue` path of §4.8 and design-doc-guide §8 for the custom archetypes, with Quasar and `m-*` components used directly |
-| `Gallery/Widgets.xml` | Every field and button role side by side, light and dark, as the fixture for style changes |
+| `example/screen/Gallery.xml` | The gallery root, mounted under the apps root by the example `MoquiConf.xml`; ADMIN authorization in `example/data/ExampleSecurityData.xml` |
+| `Gallery/Landing.xml`, `List.xml`, `Detail.xml`, `Record360.xml`, `Task.xml`, `Split.xml`, `Settings.xml`, `Wizard.xml`, `Dialog.xml`, `Report.xml`, `Panel.xml` | One archetype each over framework data (`moqui.basic.Enumeration`, `Geo`, `StatusItem`, `moqui.security.UserAccount`, `moqui.server.ArtifactHitBin`) or inline lists built in the screen actions; every widget of §4 appears at least once |
+| `Gallery/Board.xml` + `Board.qvue`, `Gallery/Calendar.xml` + `Calendar.qvue` | The `.qvue` path of §4.8 for the custom archetypes: a drag-and-drop board and a month grid over the screen's own transitions |
+| `Gallery/Widgets.xml` | Every field widget, button role, label type, list feature, container type, tree, editable and image side by side, as the fixture for style changes |
+| `example/test/Gallery.spec.js` | Renders every gallery screen in its render mode through the screen test API (`./moq test example`) |
+| `example/test/gallery-shots.mjs` | Screenshots and page text of any `/qapps` screen through Chrome DevTools against a running server, light or dark, at a chosen width, with `?_openDialog=<id>` to open a dialog |
 
-Each gallery screen names the §3 section it renders and, when it uses an item of §8 that is
-not built yet, shows the fallback and says so.
+Each gallery screen starts with an info box naming the §3 section it renders and the §8 items it
+stands in for with a fallback. Dialogs open for a screenshot with `?_openDialog=<dialog id>`.
