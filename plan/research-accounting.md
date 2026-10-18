@@ -2,29 +2,33 @@
 
 Oct 18, 2026
 
-Deeper research pass on the **IronStone Accounting** app (receivables & collections, payables & payment runs, banking & reconciliation, general ledger & period close, tax, budgets, financial reports), cataloguing every relevant screen/page found in the reference apps. Companion to [3p-app-reference.md](3p-app-reference.md); feeds the design of the Accounting row in [initial-design.md](initial-design.md) plus the accounting face of the shared Customer 360 and Order detail screens.
+Reviewed against sources Oct 18, 2026; follows [research-crosscut.md](research-crosscut.md).
+
+Deeper research pass on the **IronStone Accounting** app (receivables & collections, payables & payment runs, banking & reconciliation, general ledger & period close, tax, budgets, financial reports), cataloguing every relevant screen/page found in the reference apps. Companion to [3p-app-reference.md](3p-app-reference.md); feeds the design of the Accounting row in [initial-design.md](initial-design.md) plus the accounting faces of the shared screens (crosscut §3–§4): balance, credit, aging and statements on **Customer 360**; AP balance, bills and payments on **Supplier 360**; invoices and payments on **Order detail**; cost and invoice links on **Shipment detail**; cost history on **Product 360**; fixed-asset books on the **Facility & equipment record**; bill approval in **Approvals waiting**. Accounting owns AP bills and 3-way match, depreciation and fixed-asset books, posting and payment of expense claims, recurring invoicing for subscriptions, and the credit/refund step of customer returns.
 
 **Organization.** Sorted by functional area (not by app): all invoicing screens together, all banking screens together, etc. Within each area, sub-tables per reference app. Style mirrors [research-drawers-commons.md](research-drawers-commons.md).
 
-**Scope.** Business UI only: screens, dialogs, lists, report pages and their components/engines — the invoice → payment → reconciliation chain a bookkeeper actually uses. Backend posting logic is noted only where it shapes a screen (post/draft states, locks, matching).
+**Scope.** Business UI only: screens, dialogs, lists, report pages and their components/engines — the invoice → payment → reconciliation chain a bookkeeper actually uses, plus fixed-asset books and period runs. Backend posting logic is noted only where it shapes a screen (post/draft states, locks, matching).
 
-**Path conventions.** Paths are relative to each repository's own root, as in 3p-app-reference.md. Checkout locations:
+**Path conventions.** Every backticked path resolves against the checkout for its prefix (crosscut §1); all checkouts are under `/home/jonesde/work/moquiwork/`. Inside a table row a path may be shortened to a tail only when the same cell or row already names the full directory.
 
-| Prefix in this doc | Checkout |
-| --- | --- |
-| **Akaunting** | `/home/jonesde/work/moquiwork/3p_other/akaunting` — Blade views in `resources/views/`, controllers in `app/Http/Controllers/`, report classes in `app/Reports/`, widgets in `app/Widgets/` |
-| **AureusERP** | `/home/jonesde/work/moquiwork/3p_other/aureuserp` — Filament resources/clusters under `plugins/webkul/<plugin>/src/Filament/` |
-| **Carbon** | `/home/jonesde/work/moquiwork/3p_other/carbon` — React Router modules under `apps/erp/app/modules/` |
-| **Dolibarr** | `/home/jonesde/work/moquiwork/3p_other/dolibarr` — module pages under `htdocs/<module>/`; print/document generators under `htdocs/core/modules/` |
-| **Dolibarr community modules** | `/home/jonesde/work/moquiwork/3p_other/dolibarr-community-modules` — notably `einvoicing/` |
-| **ERPNext** | `/home/jonesde/work/moquiwork/3p_other/frappe/erpnext` — accounting under `erpnext/accounts/` (doctype dirs with `<name>.js`/`<name>.py` + templates), reports under `erpnext/accounts/report/`, plus `erpnext/public/js/` |
-| **Ever Gauzy** | `/home/jonesde/work/moquiwork/3p_other/ever-co/ever-gauzy` — paths relative to the monorepo root (`apps/gauzy` + `packages/*`) |
-| **metasfresh** | `/home/jonesde/work/moquiwork/3p_other/metasfresh` — React WebUI in `frontend/src/` (business windows are metadata-defined in the backend `de.metas.*` modules) |
-| **Odoo** | `/home/jonesde/work/moquiwork/3p_other/odoo` — paths below use `odoo/addons/<addon>/…`; in this checkout that resolves to `3p_other/odoo/odoo/addons/<addon>/` (each addon's views in `<addon>/views/`, JS in `<addon>/static/src/`) |
+| Prefix | Checkout | Paths start with |
+| --- | --- | --- |
+| **Odoo** | `3p_other/odoo` | `odoo/addons/<addon>/…` (`account`, `account_*`, `analytic`, `payment`, `purchase`, `l10n_*`); views in `<addon>/views/`, wizards in `<addon>/wizard/`, OWL UI in `<addon>/static/src/components/` |
+| **ERPNext** | `3p_other/frappe/erpnext` | `erpnext/<module>/…` — accounting doctypes `erpnext/accounts/doctype/<name>/`, reports `erpnext/accounts/report/`, workspaces `erpnext/accounts/workspace/`, sidebar `erpnext/accounts/sidebar/`; fixed assets `erpnext/assets/`; credit limits `erpnext/selling/` |
+| **Frappe apps** (payments, lending) | `3p_other/frappe` | `payments/payments/…` (gateway settings and checkout pages), `lending/lending/…` (loan management, collections) |
+| **Carbon** | `3p_other/carbon` | `apps/erp/app/{modules,routes}/…` — modules `apps/erp/app/modules/{accounting,invoicing}/` (UI in `ui/`), routes `apps/erp/app/routes/x+/{accounting+,invoicing+,fixed-asset+,depreciation-run+,lease+,payments+}/` |
+| **AureusERP** | `3p_other/aureuserp` | `plugins/webkul/<plugin>/…` — base resources `plugins/webkul/accounts/src/Filament/Resources/` (hidden from navigation), user-facing clusters `plugins/webkul/accounting/src/Filament/Clusters/{Accounting,Customers,Vendors,Configuration,Reporting,Settings}/` and `plugins/webkul/invoices/src/Filament/Clusters/{Customers,Vendors,Configuration,Settings}/`, models-only `plugins/webkul/payments/` |
+| **Dolibarr** | `3p_other/dolibarr` | `htdocs/<module>/…` (`compta`, `fourn`, `accountancy`, `asset`, `loan`, `core`, `admin`) |
+| **Dolibarr community modules** | `3p_other/dolibarr-community-modules` | `<module>/…` (`einvoicing`, `stancer`, `helloasso`, `ksef`) |
+| **metasfresh** | `3p_other/metasfresh` | `frontend/src/…` (React WebUI shell), `backend/de.metas.<module>/…` (window owners; business windows are metadata-defined) |
+| **Akaunting** | `3p_other/akaunting` | `resources/views/…` (Blade), `app/…` (controllers `app/Http/Controllers/`, reports `app/Reports/`, widgets `app/Widgets/`) |
+| **Ever Gauzy** | `3p_other/ever-co/ever-gauzy` | `apps/gauzy/src/app/pages/…`, `packages/…` (shared UI `packages/ui-core/shared/src/lib/`) |
+| **Moqui baseline** | `mr-moqui-base/runtime` | `component/MrSimpleScreens/screen/SimpleScreens/{Accounting,Party,Asset}/…`, `component/MrSimpleScreens/screen/MyAccount/…`, `component/MrMarbleERP/screen/…`, `component/mr-mantle-udm/{entity,data}/…`, `component/mr-mantle-usl/{service/mantle,data}/…`; see also [ss-inventory.md](ss-inventory.md) and [usl-inventory.md](usl-inventory.md) |
 
-Not used here: Twenty, Zimbra, Nextcloud, Signal and the groupware sources from the drawers-commons pass ship no accounting functionality at all, so this pass draws only on the ERP/accounting systems listed above.
+Not used here: Twenty, Zimbra, Nextcloud, Signal, OpenProject, Redmine, Frappe CRM, Frappe Helpdesk, Frappe Insights and the other groupware sources ship no accounting screens. Frappe HR's Expense Claim (`hrms/hr/doctype/expense_claim/`) is the People capture/approval face and is catalogued in [research-people.md](research-people.md). The Moqui components in `3p_moqui/` have no accounting screens (ridgecrest only brands the past-due invoice email that `mantle.account.InvoiceServices.send#CustomerPastDueEmail` sends).
 
-Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2 chart of accounts, journals & fiscal years](#2-chart-of-accounts-journals--fiscal-years) · [3 journal entries & the general ledger](#3-journal-entries--the-general-ledger) · [4 invoices & receivables (AR)](#4-invoices--receivables-ar) · [5 collections & dunning](#5-collections--dunning) · [6 bills & payables (AP)](#6-bills--payables-ap) · [7 payments & payment runs](#7-payments--payment-runs) · [8 banking & reconciliation](#8-banking--reconciliation) · [9 period close & locks](#9-period-close--locks) · [10 tax & e-invoicing compliance](#10-tax--e-invoicing-compliance) · [11 budgets & forecasts](#11-budgets--forecasts) · [12 financial reports & the report engine](#12-financial-reports--the-report-engine) · [13 customer & vendor balance, credit & aging](#13-customer--vendor-balance-credit--aging) · [14 accounting settings & configuration](#14-accounting-settings--configuration) · [15 gaps & notables in the checkout](#15-gaps--notables-in-the-checkout)
+Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2 chart of accounts, journals & fiscal years](#2-chart-of-accounts-journals--fiscal-years) · [3 journal entries & the general ledger](#3-journal-entries--the-general-ledger) · [4 invoices & receivables (AR)](#4-invoices--receivables-ar) · [5 collections & dunning](#5-collections--dunning) · [6 bills & payables (AP)](#6-bills--payables-ap) · [7 payments & payment runs](#7-payments--payment-runs) · [8 banking & reconciliation](#8-banking--reconciliation) · [9 period close & locks](#9-period-close--locks) · [10 tax & e-invoicing compliance](#10-tax--e-invoicing-compliance) · [11 budgets & forecasts](#11-budgets--forecasts) · [12 financial reports & the report engine](#12-financial-reports--the-report-engine) · [13 customer & vendor balance, credit & aging](#13-customer--vendor-balance-credit--aging) · [14 accounting settings & configuration](#14-accounting-settings--configuration) · [15 fixed assets, depreciation & period runs](#15-fixed-assets-depreciation--period-runs) · [16 cross-app surfaces](#16-cross-app-surfaces) · [17 current Moqui baseline](#17-current-moqui-baseline-mrsimplescreens--marbleerp--mantle) · [18 gaps & BOSS implications](#18-gaps--boss-implications)
 
 ---
 
@@ -38,16 +42,19 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 | --- | --- | --- |
 | Dashboard CRUD & show | List/create/edit/delete, `show.blade.php` renders the widget grid with a SortableJS-style drag ordering and a widget-picker search box; header has dashboard switcher + "New dashboard" | `resources/views/common/dashboards/{index,create,edit,show}.blade.php`, `app/Http/Controllers/Common/Dashboards.php` |
 | Widget load & reorder API | `index()` lists widgets+dashboards, `show()` returns one widget's HTML async into a placeholder card, `update()` persists drag order, `getData()` refreshes charts | `app/Http/Controllers/Common/Widgets.php` |
-| Finance widget classes & views | 8 finance widgets (CashFlow income-vs-expense line chart, AccountBalance bar chart per bank/cash account, Currencies, Receivables & Payables invoice-status chips + totals, ProfitLoss, ExpensesByCategory, BankFeeds counts); shared chart templates (`line_chart`, `bar_chart`, `donut_chart`) with JS series building | `app/Widgets/{CashFlow,AccountBalance,Currencies,Receivables,Payables,ProfitLoss,ExpensesByCategory,BankFeeds}.php`, `resources/views/widgets/{line_chart,bar_chart,donut_chart,cash_flow,account_balance,currencies,receivables_payables,bank_feeds}.blade.php`, base object `app/Abstracts/Widget.php` |
+| Finance widget classes & views | 8 finance widgets (CashFlow income-vs-expense line chart, AccountBalance bar chart per bank/cash account, Currencies, Receivables & Payables invoice-status chips + totals, ProfitLoss, ExpensesByCategory, BankFeeds — a "learn more" card for the paid cloud bank-feeds app); shared chart templates (`line_chart`, `bar_chart`, `donut_chart`) with JS series building | `app/Widgets/{CashFlow,AccountBalance,Currencies,Receivables,Payables,ProfitLoss,ExpensesByCategory,BankFeeds}.php`, `resources/views/widgets/{line_chart,bar_chart,donut_chart,cash_flow,account_balance,currencies,receivables_payables,bank_feeds}.blade.php`, base object `app/Abstracts/Widget.php` |
 
-### AureusERP — Filament "Accounting overview" page
+### AureusERP — Filament "Accounting overview" page over six clusters
+
+- Three plugins share the work: `accounts` holds base resources that are hidden from navigation (`shouldRegisterNavigation = false`); `accounting` (full accounting) and `invoices` (invoicing only) subclass them into clusters (`use Webkul\Account\Filament\Resources\InvoiceResource as BaseInvoiceResource`).
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Accounting Overview | Filament custom page `accounting/overview` (group "Accounting"), permission-gated via `page_accounting_overview` (Filament Shield), header widgets only | `plugins/webkul/accounting/src/Filament/Pages/Overview.php` |
-| Journal charts | "Journal Charts" widget sets render per-journal trend charts; the module's only dashboard widget | `plugins/webkul/accounting/src/Filament/Widgets/JournalChartsWidget.php`, `JournalChartWidget.php` |
+| Accounting menu | Clusters **Customers** (Invoices, Credit Notes, Payments, Customers, Products), **Vendors** (Bills, Refunds, Payments, Vendors, Products), **Accounting** (Journal Entries, Journal Items), **Reporting** (seven statement pages, §12), **Configuration** (Accounts, Journals, Taxes, Tax Groups, Fiscal Positions, Payment Terms, Currencies, Cash Roundings, Incoterms, product categories/attributes), **Settings** | `plugins/webkul/accounting/src/Filament/Clusters/{Customers,Vendors,Accounting,Reporting,Configuration}.php` and the matching folders, plus `plugins/webkul/accounting/src/Filament/Clusters/Settings/` |
+| Accounting Overview | Filament custom page at slug `/accounting/overview` (group "Accounting"), permission-gated via `page_accounting_overview` (Filament Shield), header widgets only | `plugins/webkul/accounting/src/Filament/Pages/Overview.php` |
+| Journal charts | "Journal Charts" widget set renders per-journal trend charts; the module's only dashboard widget | `plugins/webkul/accounting/src/Filament/Widgets/{JournalChartsWidget,JournalChartWidget}.php` |
 | Overview page view | Blade shell that hosts the header widgets | `plugins/webkul/accounting/resources/views/filament/pages/overview.blade.php` |
-| Chart-of-accounts entries list | The de-facto landing list for bookkeepers lives under the `accounts` plugin's AccountResource (see §2) | `plugins/webkul/accounts/src/Filament/Resources/AccountResource.php` |
+| Setup gate | Trait that shows a "set up accounting" callout and action on pages until the company's accounting is set up | `plugins/webkul/accounting/src/Filament/Concerns/GatesAccountingSetup.php` |
 
 ### Carbon — invoicing dashboard + AR/AP "workbench"
 
@@ -55,7 +62,8 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 | --- | --- | --- |
 | Invoicing dashboard | As-of-date aging totals card (current + 4 buckets + unapplied), metric cards (overdue, received/paid), GL-vs-subledger reconciliation tie-out panel (variance flagged), recent payments table with Receipt/Disbursement status chips; depends on `accountingSetUp` gate | `apps/erp/app/modules/invoicing/ui/Dashboard/InvoicingDashboard.tsx` |
 | AR/AP workbench | Pick-based allocation workbench: customer/supplier sections with checkbox line selection, collapse/expand per party, as-of date + currency popover, bulk allocate action; links every line to its document | `apps/erp/app/modules/invoicing/ui/Workbench/ARAPWorkbench.tsx` |
-| Accounting submodule registry | The module surface is declared in code: submodule nav + beta feature gating for the whole accounting module (submodules listed in §2–§12) | `apps/erp/app/modules/accounting/ui/useAccountingSubmodules.tsx`, `apps/erp/app/modules/accounting/ui/AccountingBetaGate.tsx` |
+| Accounting and invoicing menus | Accounting: **Reports** (Reporting; Sync Tie-Out only with a Xero/QuickBooks/Rillet integration), **General Ledger** (Journal Entries; Intercompany only with several companies), **Closing** (Accounting Periods, Depreciation, Leases, Revenue Recognition), **Fixed Assets** (Assets, Fleet), **Configure** (Asset Classes, Chart of Accounts, Cost Centers, Default Accounts, Dimensions, Exchange Rates, Fiscal Year, Payment Terms, Projects). Invoicing: **Accounts Payable** (Payables workbench, Purchase Invoices, Supplier Credits, Charges, Reimbursements), **Accounts Receivable** (Receivables workbench, Sales Invoices, Credit Memos), **Payments** | `apps/erp/app/modules/accounting/ui/useAccountingSubmodules.tsx`, `apps/erp/app/modules/invoicing/ui/useInvoicingSubmodules.tsx` |
+| Cutover gate | Reports, Intercompany, Journal Entries, Accounting Periods and Depreciation sit behind a locked overlay until the company completes the Activation (cutover) wizard (§14) | `apps/erp/app/modules/accounting/ui/AccountingBetaGate.tsx` |
 
 ### Dolibarr — boxes-based home boards
 
@@ -75,19 +83,20 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Accounting workspace | Sidebar module page: shortcut grid (Sales Invoice, Purchase Invoice, Journal Entry, Payment Entry, Chart of Accounts…), glue links into detailed reports | `erpnext/accounts/workspace/accounting/accounting.json`, plus `financial_reports.json`, `invoicing.json`, `payments.json` in `erpnext/accounts/workspace/` |
-| Accounts & payments dashboards | Pre-canned "Account Split by..." dashboards (JSON canvas: number cards + charts) for accounts vs payments | `erpnext/accounts/accounts_dashboard/accounts/accounts.json`, `erpnext/accounts/accounts_dashboard/payments/payments.json` |
-| Standard dashboard charts | Data-driven chart sources: AR/AP ageing, bank balance, budget variance, incoming/outgoing bills, P&L | `erpnext/accounts/dashboard_chart/{accounts_receivable_ageing,accounts_payable_ageing,bank_balance,budget_variance,incoming_bills_(purchase_invoice),outgoing_bills_(sales_invoice),profit_and_loss}.json` |
-| Number cards | "Total incoming/outgoing bills" & "total incoming/outgoing payment" KPI cards used in workspaces/dashboards | `erpnext/accounts/number_card/{total_incoming_bills,total_incoming_payment,total_outgoing_bills,total_outgoing_payment}.json` |
+| Accounts sidebar | Module menu: Home, Dashboard, Chart of Accounts, Sales Invoice, Purchase Invoice, Payment Entry, Journal Entry; **Reports** (General Ledger, Trial Balance, Trial Balance for Party, Profit and Loss, Balance Sheet, Cash Flow, Consolidated Report, Profitability Analysis, Accounts Receivable, Accounts Payable); **Banking** (Banking, Bank Account, Bank Clearance); **Taxes** (sales/purchase/item tax templates, Tax Rule, Tax Withholding Category); **Budgeting** (Budget, Cost Center Allocation, Monthly Distribution, Budget Variance); **Setup** (Company, Fiscal Year, Cost Centers, Accounting Dimension, Account Category, Financial Report Template, Mode of Payment, Payment Terms Template, Currency Exchange, Accounts Settings) | `erpnext/accounts/sidebar/accounts/accounts.json` |
+| Accounting workspaces | Four workspace pages (Accounting, Financial Reports, Invoicing, Payments), each with three number cards and one chart; the Accounting workspace groups its links into Financial Statements, Receivables & Payables, Registers & Profitability, Tax & Compliance, Invoicing & Payments, Banking, Reconciliation, Opening & Closing, Ledger Tools, Share Management, Setup | `erpnext/accounts/workspace/{accounting,financial_reports,invoicing,payments}/` |
+| Accounts & payments dashboards | Pre-canned dashboards (JSON canvas: number cards + charts) for accounts vs payments | `erpnext/accounts/accounts_dashboard/accounts/accounts.json`, `erpnext/accounts/accounts_dashboard/payments/payments.json` |
+| Standard dashboard charts | Data-driven chart sources: AR/AP ageing, bank balance, budget variance, incoming/outgoing bills, P&L | `erpnext/accounts/dashboard_chart/{accounts_receivable_ageing,accounts_payable_ageing,bank_balance,budget_variance,incoming_bills_(purchase_invoice),outgoing_bills_(sales_invoice),profit_and_loss}/` |
+| Number cards | "Total Incoming/Outgoing Bills" and "Total Incoming/Outgoing Payment" KPI cards used in the workspaces | `erpnext/accounts/number_card/{total_incoming_bills,total_incoming_payment,total_outgoing_bills,total_outgoing_payment}/` |
 | Onboarding | Accounting module onboarding steps/checklist records | `erpnext/accounts/module_onboarding/`, `erpnext/accounts/onboarding_step/` |
 
 ### Ever Gauzy — org dashboard & custom dashboards (income/expense-centric)
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Org dashboard | Organization home: accounting tab + HR tab split; income/expense bar charts w/ selectable date ranges & org/team/project/employee selectors; KPI cards | `apps/gauzy/src/app/pages/dashboard/dashboard.component.ts` (+ `.html`), `pages/dashboard/accounting/accounting.component.ts` |
+| Org dashboard | Organization home: accounting tab + HR tab split; income/expense bar charts w/ selectable date ranges & org/team/project/employee selectors; KPI cards | `apps/gauzy/src/app/pages/dashboard/{dashboard.component.ts,dashboard.component.html,accounting/}` |
 | Dashboard switcher | Segmented switcher between Accounting / HR dashboards | `apps/gauzy/src/app/pages/dashboard/dashboard-switcher/` |
-| Custom dashboards | User-defined dashboards: canvas + tab strip + widget palette + widget-config dialog; widget catalog spans accounting/charts/projects/HR | `apps/gauzy/src/app/pages/dashboard/custom-dashboard/{dashboard-canvas,widget-palette,widget-config-dialog}.component.ts`, shared engine `packages/ui-core/shared/src/lib/dashboard/{widget,widget-host,window-layout}/` |
+| Custom dashboards | User-defined dashboards: canvas + tab strip + widget palette + widget-config dialog; widget catalog spans accounting/charts/projects/HR | `apps/gauzy/src/app/pages/dashboard/custom-dashboard/{dashboard-canvas,dashboard-tab-strip,widget-palette,widget-config-dialog}.component.ts`, shared engine `packages/ui-core/shared/src/lib/dashboard/{widget,widget-host,window-layout}/` |
 | Data-entry shortcuts | Quick-add income/expense tiles over the dashboard | `apps/gauzy/src/app/pages/dashboard/data-entry-shortcuts/` |
 
 ### metasfresh — generic window + a chart-widget dashboard shell
@@ -103,11 +112,12 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
+| Invoicing menu | **Dashboard**; **Customers** (Invoices, Credit Notes, Payments, Products, Customers); **Vendors** (Bills, Refunds, Payments, Products, Vendors); **Accounting** (Transactions: Journal Items, Analytic Items; Closing; Review; Control: Journal Entries, Audit Trail); **Reporting** (Invoice Analysis, Cashflow Analysis, Analytic Report; the Statement Reports and Partner Reports folders stay empty without Enterprise); **Configuration** (Settings, Chart of Accounts, Taxes, Journals, Currencies, Fiscal Positions, Multi-Ledger, Tax Groups, Cash Roundings, Payment Terms, Incoterms, Product Categories, Analytic Plans and Distribution Models) | `odoo/addons/account/views/account_menuitem.xml` |
 | Journals kanban dashboard | One card per journal (bank/cash/sale/purchase/general) with type-specific body (bank: to-reconcile/new statement buttons + liquidity graph; sale: to invoice/confirm buttons; general: misc links), KPI strip, sample data state, "fetch e-invoices" actions | `odoo/addons/account/views/account_journal_dashboard_view.xml` |
 | Dashboard KPI bar | `account_dashboard_kpis` OWL widget rendering A/R to collect, A/P to pay, customer+vendor totals, bank/cash balances above the kanban with quick-create links | `odoo/addons/account/static/src/components/account_dashboard_kpis/{account_dashboard_kpis.js,account_dashboard_kpis.xml,account_dashboard_kpi_card.xml}`, `odoo/addons/account/views/account_journal_dashboard_view.xml` |
 | Journal dashboard JS | OWL kanban controller `account_dashboard_kanban` + per-journal "New" menu logic & graph widget | `odoo/addons/account/static/src/components/account_dashboard_kpis/account_dashboard_kpis.js`, `odoo/addons/account/models/account_journal.py` (dashboard values builder) |
 
-**BOSS implications.** Every reference puts one action-first home in front of the bookkeeper: Akaunting's user-arranged widget board (drag-reorder persisted server-side, async fill-in of widget HTML) is the simplest model to copy on a Moqui XML screen with portlet records; the KPI strip should face money (AR ageing / bank balance / vendor payable) like Odoo's `account_dashboard_kpis` and Carbon's tie-out panel. Home tiles must deep-link straight into the working screens (Odoo journal-card buttons jump to statements/move lists; BOSS should likewise route tiles to the Journal, Invoice and Payment screens), and per-area gating (AureusERP's `page_accounting_overview` shield permission, Carbon's `AccountingBetaGate`) is the pattern for role-locked Accounting tiles inside the shared Customer 360 screens.
+**BOSS implications.** Every reference puts one action-first home in front of the bookkeeper: Akaunting's user-arranged widget board (drag-reorder persisted server-side, async fill-in of widget HTML) is the simplest model of an arrangeable landing page, and in BOSS the widget types and builder come from Insights (crosscut §3, Dashboard widgets) while Accounting owns its landing page; the KPI strip should face money (AR ageing / bank balance / vendor payable) like Odoo's `account_dashboard_kpis` and Carbon's GL-vs-subledger tie-out panel. Home tiles must deep-link straight into the working screens (Odoo journal-card buttons jump to statements/move lists; BOSS should likewise route tiles to the Journal, Invoice and Payment screens). The menus agree on one split — Customers / Vendors / Accounting (GL) / Reporting / Configuration in Odoo and AureusERP, AR / AP / Payments plus GL / Closing / Fixed Assets / Configure in Carbon — and two references (AureusERP's setup callout, Carbon's cutover gate) lock GL screens until accounting has been set up for the company. Per-area gating (AureusERP's `page_accounting_overview` shield permission) is the pattern for role-locked Accounting tabs inside the shared Customer 360 screen.
 
 ---
 
@@ -123,11 +133,11 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Chart of accounts | AccountResource list/detail/create/edit (Account model = Odoo `account.account` port: code, account type, group) | `plugins/webkul/accounts/src/Filament/Resources/AccountResource.php` (+ `AccountResource/Pages/`) |
-| Account tags | Tagging accounts for filtering/report grouping | `plugins/webkul/accounts/src/Filament/Resources/AccountTagResource.php` |
-| Journals | JournalResource CRUD (bank/cash/sale/purchase/general journal types per Odoo model) | `plugins/webkul/accounts/src/Filament/Resources/JournalResource.php` (+ `JournalResource/Pages/`) |
-| Fiscal positions | Tax/ledger mapping per country/locale (fiscal position + its tax/ledger mappings); the accounting plugin provides a Configuration-cluster twin | `plugins/webkul/accounts/src/Filament/Resources/FiscalPositionResource.php`, `plugins/webkul/accounting/src/Filament/Clusters/Configuration/Resources/FiscalPositionResource/` |
-| Fiscal years | **Absent** — no FiscalYearResource in either plugin (period discipline lives in settings; flag §15) | — |
+| Chart of accounts | Configuration → Accounts: list/detail/create/edit over the Odoo `account.account` port (code, account type, group); subclass of the hidden base resource | `plugins/webkul/accounting/src/Filament/Clusters/Configuration/Resources/AccountResource.php`, base `plugins/webkul/accounts/src/Filament/Resources/AccountResource.php` (+ `AccountResource/`) |
+| Account tags | Tag resource for filtering/report grouping; base resource only, not in any cluster menu | `plugins/webkul/accounts/src/Filament/Resources/AccountTagResource.php` |
+| Journals | Configuration → Journals CRUD (bank/cash/sale/purchase/general journal types per Odoo model) | `plugins/webkul/accounting/src/Filament/Clusters/Configuration/Resources/JournalResource.php`, base `plugins/webkul/accounts/src/Filament/Resources/JournalResource.php` (+ `JournalResource/`) |
+| Fiscal positions | Tax/account mapping per country/locale (fiscal position + its tax/account mappings) | `plugins/webkul/accounting/src/Filament/Clusters/Configuration/Resources/FiscalPositionResource.php`, base `plugins/webkul/accounts/src/Filament/Resources/FiscalPositionResource.php` |
+| Fiscal years | **Absent** — no fiscal-year resource in any of the three plugins (§18) | — |
 
 ### Carbon — first-class tree UI for COA + fiscal year & periods
 
@@ -135,9 +145,10 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 | --- | --- | --- |
 | Chart-of-accounts tree | Hierarchical tree table with expand/collapse groups, inline account rows, filters bar; named account/group forms and a "Move account" dialog for re-parenting | `apps/erp/app/modules/accounting/ui/ChartOfAccounts/{ChartOfAccountsTree.tsx,ChartOfAccountsTableFilters.tsx,GroupAccountForm.tsx,MoveAccountForm.tsx,ChartOfAccountForm.tsx}` |
 | COA CSV import | Upload → column-mapped import review screen → per-row error report | `apps/erp/app/modules/accounting/ui/ChartOfAccounts/{AccountImportReview.tsx,AccountImportCsvErrors.tsx}`, logic `apps/erp/app/modules/accounting/account-import-csv.ts` |
-| Fiscal year & bookkeeping setup | Fiscal-year settings form (year start/end, year-number bookkeeping switch) | `apps/erp/app/modules/accounting/ui/FiscalYear/FiscalYearSettingsForm.tsx`, defaults engine `apps/erp/app/modules/accounting/accounting.defaults.ts` |
-| Accounting defaults | Mapping table of posting defaults (receivable/payable inventory/suspense/cash-overage etc.) per company | `apps/erp/app/modules/accounting/ui/AccountDefaults/AccountDefaultsForm.tsx` |
-| Supporting masters | Exchange rates, payment terms, cost centers, tracking dimensions, project dimensions — separate submodule UIs under the module registry | `apps/erp/app/modules/accounting/ui/{ExchangeRates,PaymentTerms,CostCenters,Dimensions,Projects}/` |
+| Chart-of-accounts routes | Tree, new account/group, move, delete, CSV import, and a per-account ledger page | `apps/erp/app/routes/x+/accounting+/{charts,charts.new,charts.new-group,charts.move.$accountId,charts.ledger.$accountId,chart-import}.tsx` |
+| Fiscal year | Fiscal-year settings form | `apps/erp/app/modules/accounting/ui/FiscalYear/FiscalYearSettingsForm.tsx`, route `apps/erp/app/routes/x+/accounting+/years.tsx` |
+| Default accounts | One long form of posting defaults grouped by area (Cash & Banking; receivables incl. customer payment discounts and write-off/bad debt; payables; inventory and goods-received clearing; manufacturing absorption; fixed assets — acquisition cost, accumulated depreciation, disposal; leases — right-of-use assets and amortization; deferred revenue and contract assets; deferred tax; currency translation), with CSV export | `apps/erp/app/modules/accounting/ui/AccountDefaults/AccountDefaultsForm.tsx`, route `apps/erp/app/routes/x+/accounting+/defaults.tsx` |
+| Supporting masters | Exchange rates (with rate-source badge), payment terms, cost centers (tree and list views), dimensions, projects — separate submodule UIs under the module menu | `apps/erp/app/modules/accounting/ui/{ExchangeRates,PaymentTerms,CostCenters,Dimensions,Projects}/` |
 
 ### Dolibarr — accountancy admin + generated journal pages
 
@@ -152,7 +163,7 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Chart of accounts (Account doctype) | Tree-view master (`is_group`, root types: Assets/Liabilities/Income/Expense/Equity), account type & account number fields, per-company currency | `erpnext/accounts/doctype/account/account.{js,json,py}`, tree list `erpnext/accounts/doctype/account/account_list.js` |
+| Chart of accounts (Account doctype) | Tree-view master (`is_group`, root types: Assets/Liabilities/Income/Expense/Equity), account type & account number fields, per-company currency; bundled standard charts in `chart_of_accounts/` | `erpnext/accounts/doctype/account/account.{js,json,py}`, tree view `erpnext/accounts/doctype/account/account_tree.js`, charts `erpnext/accounts/doctype/account/chart_of_accounts/` |
 | COA importer/builder | Standard chart selection + CSV import + live tree re-parent tool | `erpnext/accounts/doctype/chart_of_accounts_importer/chart_of_accounts_importer.{js,json,py}` |
 | Fiscal year & books | Fiscal-year master (auto-year-start/company dates in `fiscal_year_company`), multi-currency finance books (per book GL isolation) | `erpnext/accounts/doctype/fiscal_year/fiscal_year.{js,json,py}`, `fiscal_year/fiscal_year_dashboard.py`, `erpnext/accounts/doctype/finance_book/finance_book.{js,json,py}` |
 | Accounting dimensions | Runtime-defined extra dimensions (branch/project/cost center/user-defined), filters + constraint UI | `erpnext/accounts/doctype/accounting_dimension/accounting_dimension.{js,py}`, helpers `accounting_dimension_filter/`, `allowed_dimension/` |
@@ -182,7 +193,7 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 | Fiscal years | **Absent** — no fiscal-year entity in community; discipline replaced by locking dates (tax/lock dates on company) + hard locks (§9) | lock dates: `odoo/addons/account/models/company.py` (`fiscalyear_lock_date` etc.), `odoo/addons/account/views/res_company_views.xml` |
 | Country chart templates (pattern) | Each l10n addon ships its COA + tax templates + accounts templates + report/declaration adapters (BE/DE/US verified) | `odoo/addons/l10n_be/data/account*.xml`, `odoo/addons/l10n_de/data/*.xml`, `odoo/addons/l10n_us/data/*.xml` |
 
-**BOSS implications.** Only Carbon and ERPNext treat the chart of accounts as a first-class screens surface (tree + drag re-parent + CSV-import review); that is the UI shape worth copying on a Moqui screen (`AccountChart` tree screen backed by `glAccount` rollups). Fiscal years in this sample are mostly config-ish single screens (Dolibarr fiscalyear card, Carbon one form, ERPNext doctype) — BOSS can do a single FiscalYears screen plus posting-period form (noted §9). Journal definitions dictionary (Dolibarr's `journals_list`/accountancy journal pages, Odoo journal form with statement source) should become BOSS `AcctgJournal` maintenance; the per-country bundled chart (Dolibarr SQL data, Odoo l10n_*) maps to seeding BOSS built-in charts, and account categories (Dolibarr) / account tags (AureusERP, Odoo) suggest a lightweight tag layer over accounts for report grouping. Akaunting and gauzy prove you can ship a finance app without exposing GL/COA at all — BOSS's Accounting app must expose it, and posting defaults (Carbon's AccountDefaults) are what keep bookkeepers from hand-picking accounts per entry.
+**BOSS implications.** Only Carbon and ERPNext treat the chart of accounts as a first-class screen surface (tree + move/re-parent + CSV-import review); that is the UI shape worth copying on the existing Moqui GL account tree (`GlAccountTree.xml` over `mantle.ledger.account.GlAccount` with `parentGlAccountId`, §17). Fiscal years in this sample are mostly config-ish single screens (Dolibarr fiscalyear card, Carbon one form, ERPNext doctype); Mantle already models them as `TimePeriod` rows of a fiscal type with `isClosed`, plus the fiscal-year start month and day on `PartyAcctgPreference`, so BOSS needs a period screen, not a new record (§9). Journal definitions (Dolibarr's `journals_list`, Odoo journal form with statement source) differ in kind from Mantle's `GlJournal`, which is a batch of transactions to post together, not a sale/purchase/bank book — see Open questions. The per-country bundled chart (Dolibarr SQL data, Odoo `l10n_*`, ERPNext `chart_of_accounts/`) maps to seed data for BOSS built-in charts, and account categories (Dolibarr) / account tags (Odoo, AureusERP base) match Mantle's existing `GlAccountCategory` and `GlAccountGroup` records for report grouping. Akaunting and Ever Gauzy prove you can ship a finance app without exposing GL/COA at all — BOSS's Accounting app must expose it, and posting defaults (Carbon's Default Accounts form, AureusERP's ManageDefaultAccounts) are what keep bookkeepers from hand-picking accounts per entry; Mantle has the same idea spread over `GlAccountTypeDefault`, `ItemTypeGlAccount`, `PaymentTypeGlAccount` and the other `mantle.ledger.config` mappings.
 
 ---
 
@@ -198,16 +209,16 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Journal entries | JournalEntryResource (list w/ status filter, create/edit wizard) + JournalItemResource (per-line list) | `plugins/webkul/accounting/src/Filament/Clusters/Accounting/Resources/JournalEntryResource/JournalEntryResource.php` (+ sub-pages), `…/JournalItemResource/` |
-| Ledger by account | "Journal Entries" per journal/account view (lines grouped, running totals) | `plugins/webkul/accounting/src/Filament/Clusters/Accounting/Resources/` (view pages), `plugins/webkul/accounts/src/Filament/Resources/AccountResource.php` (account → entries relation manager) |
+| Journal entries | Accounting → Journal Entries: list, create, edit, view pages with form/infolist schemas and a CSV exporter | `plugins/webkul/accounting/src/Filament/Clusters/Accounting/Resources/JournalEntryResource.php` (+ `JournalEntryResource/{Pages,Schemas,Tables}/`), `plugins/webkul/accounting/src/Filament/Exports/JournalEntryExporter.php` |
+| Journal items | Accounting → Journal Items: per-line list across entries, with exporter; per-account ledger browsing is the General Ledger report page (§12) | `plugins/webkul/accounting/src/Filament/Clusters/Accounting/Resources/JournalItemResource.php` (+ `JournalItemResource/`), `plugins/webkul/accounting/src/Filament/Exports/JournalItemExporter.php` |
 
 ### Carbon — draftable entry form + ledger browsing
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Journal entry form | Draft/Posted status model with journal-driven header (journal/date/currency/dimension), line rows with debit/credit cells and a running balance check, attachments; status chip component | `apps/erp/app/modules/accounting/ui/JournalEntries/{JournalEntryForm.tsx,JournalEntryHeader.tsx,JournalLineRow.tsx,JournalEntryStatus.tsx,JournalEntryDocuments.tsx}` |
+| Journal entry form | Draft/Posted status model with journal-driven header (journal/date/currency/dimension), line rows with debit/credit cells and a running balance check, per-line dimension selector, attachments; status chip component | `apps/erp/app/modules/accounting/ui/JournalEntries/{JournalEntryForm,JournalEntryHeader,JournalLineRow,DimensionSelector,JournalEntryStatus,JournalEntryDocuments}.tsx` |
 | Entries table | Filterable table (journal/status/date range) w/ table row expansion into document links | `apps/erp/app/modules/accounting/ui/JournalEntries/JournalEntriesTable.tsx` |
-| GL browsing / reports | Reports submodule: trial balance to CSV, per-account ledger, period summaries | `apps/erp/app/modules/accounting/ui/Reports/`, CSV builders `apps/erp/app/modules/accounting/trial-balance-csv.ts` |
+| GL browsing / reports | Reports submodule: trial balance to CSV, per-account ledger (also `charts.ledger.$accountId` from the chart of accounts), period summaries | `apps/erp/app/modules/accounting/ui/Reports/`, CSV builder `apps/erp/app/modules/accounting/trial-balance-csv.ts` |
 | Period discipline ties in | Periods table + "unposted documents in period" popover drives eligibility to post/close | `apps/erp/app/modules/accounting/ui/Periods/{PeriodsTable.tsx,PeriodCloseUnpostedDocumentsPopover.tsx}` |
 
 ### Dolibarr — MCAT bookkeeping ledger + manual-entry back doors
@@ -223,11 +234,11 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Journal Entry | Full-featured desk form: entry-type driven (OpenInvoice/Closing/Depreciation/Deferred...), multi-currency rows, `get_outstanding_invoices()` quick rows, submission posts GL at `posting_date` against `accounting_entries` table; list filters by entry type/voucher | `erpnext/accounts/doctype/journal_entry/journal_entry.{js,json,py}`, list js `journal_entry_list.js`, row doctype `erpnext/accounts/doctype/journal_entry_account/` |
-| JE templates | Reusable multi-row entry templates (auto-recurring entries) | `erpnext/accounts/doctype/journal_entry_template/journal_entry_template.{js,json,py}` (+ `_account`) |
-| GL & ledger entries | Server-side ledger entities shaping every list: gl_entry (value/time-stamped rows, is_cancelled flags), payment_ledger_entry, advance_payment_ledger_entry, ledger merge tool, repost stacks | `erpnext/accounts/doctype/gl_entry/gl_entry.py`, `payment_ledger_entry/`, `ledger_merge/`, `repost_accounting_ledger/`, `repost_payment_ledger/` |
+| Journal Entry | Full-featured desk form driven by voucher type (Journal Entry, Inter Company Journal Entry, Bank Entry, Cash Entry, Credit Card Entry, Debit Note, Credit Note, Contra Entry, Excise Entry, Write Off Entry, Opening Entry, Depreciation Entry, Asset Disposal, Periodic Accounting Entry, Exchange Rate Revaluation, Exchange Gain Or Loss, Deferred Revenue, Deferred Expense), multi-currency rows, submit posts GL at `posting_date` | `erpnext/accounts/doctype/journal_entry/journal_entry.{js,json,py}`, list js `journal_entry_list.js`, row doctype `erpnext/accounts/doctype/journal_entry_account/` |
+| JE templates | Reusable multi-row entry templates | `erpnext/accounts/doctype/journal_entry_template/journal_entry_template.{js,json,py}`, rows `erpnext/accounts/doctype/journal_entry_template_account/` |
+| GL & ledger entries | Server-side ledger records shaping every list: gl_entry (is_cancelled flags), payment_ledger_entry, advance_payment_ledger_entry, ledger merge tool, repost stacks | `erpnext/accounts/doctype/gl_entry/gl_entry.py`, `erpnext/accounts/doctype/{payment_ledger_entry,advance_payment_ledger_entry,ledger_merge,repost_accounting_ledger,repost_payment_ledger}/` |
 | Closing balances | Per-account-year closing balance snapshot (fast start-of-year totals) | `erpnext/accounts/doctype/account_closing_balance/account_closing_balance.json` |
-| Ledger surgery | Bisect ledger rebuild tool + transaction deletion record via Data Deletion | `erpnext/accounts/doctype/bisect_accounting_statements/…`, `transaction_deletion_record_details/` |
+| Ledger health and surgery | Ledger health monitor (scheduled checks per company), bisect statements tool, transaction deletion records | `erpnext/accounts/doctype/{ledger_health_monitor,ledger_health,bisect_accounting_statements,transaction_deletion_record_details}/` |
 
 ### Ever Gauzy — **absent**
 
@@ -248,11 +259,11 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 | Move views (monolith) | All move forms/list/kanban/pivot/graph: invoice form w/ notebook (Invoice Lines, Payment Terms, Other Info), status-wizard header (Draft→Posted→Cancelled), "Journal Items" list w/ `view_account_move_line_filter`, kanban w/ status chips, graph/pivot for invoices (~2.3k lines) | `odoo/addons/account/views/account_move_views.xml` |
 | Move form JS/OWL | `account_move_form` OWL form (dynamic notebook), tax autocomplete, `tax_totals` widget, `account_number_widget`, resequence dialog, review-state badge & `account_statusbar_secured` | `odoo/addons/account/static/src/components/account_move_form/`, `…/tax_autocomplete/`, `…/tax_totals/`, `…/account_resequence/`, `…/account_review_state_selection/`, `…/account_statusbar_secured/` |
 | Grouped-entries view | "Journal items" grouped list with a special grouped_view_widget rendering account-move sub-rows inside group headers | `odoo/addons/account/static/src/components/grouped_view_widget/{grouped_view_widget.js,grouped_view_widget.xml}` |
-| Automatic entries wizard | Change account/amortize/one-time expense (drafts reversed moves) on selected move lines | `odoo/addons/account/wizard/account_automatic_entry_wizard.py` + `_views.xml` |
+| Automatic entries wizard | **Change Period** (move amounts to other periods through accrual entries) or **Change Account** on selected journal items | `odoo/addons/account/wizard/{account_automatic_entry_wizard.py,account_automatic_entry_wizard_views.xml}` |
 | Merge & resequence | Merge moves wizard, renumbering (resequence) dialog | `odoo/addons/account/wizard/account_merge_wizard.py`, `odoo/addons/account/wizard/account_resequence.py` |
 | Validation & locking helpers | Bulk post/confirm wizard, secure-entries wizard (immutable-lock hash), unreconcile wizard | `odoo/addons/account/wizard/account_validate_account_move.py`, `odoo/addons/account/wizard/account_secure_entries_wizard.py`, `odoo/addons/account/wizard/account_unreconcile_view.xml`, deep-link widgets `odoo/addons/account/static/src/components/open_move_widget/`, `open_move_line_move_widget/` |
 
-**BOSS implications.** The GL in modern references is a *line/entry* surface, not a document list: Dolibarr's bookkeeping list + list-by-account and Odoo's grouped journal-items list are the mechanics a bookkeeper lives in — BOSS needs a Journal Entries table screen that can filter by journal/account/status and jump to lines. Draft→Posted→Locked posting state with a soft "under-locked" handler (Odoo's `account_statusbar_secured` + secure-entries wizard, ERPNext's `repost_*` stack) is the state model for BOSS `AcctgEntry`. Reusable templates (ERPNext JE templates, recurring bill payment wizards) are a big bookkeeping accelerator; and Carbon shows a compact single-screen form including document attachment + dimension selector that maps almost 1:1 onto a Moqui XML form screen.
+**BOSS implications.** The GL in modern references is a *line/entry* surface, not a document list: Dolibarr's bookkeeping list + list-by-account and Odoo's grouped journal-items list are the mechanics a bookkeeper lives in — BOSS needs a Journal Entries table screen that can filter by journal/account/status and jump to lines; the baseline already has both halves (`FindTransaction` and `FindTransactionEntry`, §17). Draft→Posted→Locked posting state with an immutability marker (Odoo's `account_statusbar_secured` + secure-entries wizard, ERPNext's `enable_immutable_ledger` setting and `repost_*` stack) maps onto Mantle `AcctgTrans.isPosted` plus `reverseOfAcctgTransId`/`reversedByAcctgTransId` and the existing post/unpost/reverse services; a lock flag is the missing piece (§9). Reusable templates (ERPNext JE templates) are a big bookkeeping accelerator with no Mantle record yet; and Carbon shows a compact single-screen form including document attachment + dimension selector that maps almost 1:1 onto a Moqui XML form screen.
 
 ---
 
@@ -260,23 +271,23 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 
 ### Akaunting — classic document flow + a full customer portal
 
-- One generic "Document" pipeline (invoice/estimate/bill): 3 document-style templates to pick per invoice (`print_default/classic/modern`), and the customer portal (guest, tokenized) for payment/sign.
+- One generic "Document" pipeline (invoice/bill): three document templates (default, classic, modern) to pick per invoice, and the customer portal (guest, signed URL) for viewing and paying.
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Invoice list | Search, tab filter chips (all/draft/sent/received/partial/paid/overdue), bulk actions, revenue charts sidebar | `resources/views/sales/invoices/index.blade.php`, controller `app/Http/Controllers/Sales/Invoices.php` |
-| Invoice create/edit | Uploads items table w/ tax & discount rows, currency, dates, attachments/recurring/connect knobs; template style selector & note block; same form parts power bills (componentized) | `resources/views/sales/invoices/{create,edit}.blade.php`, shared form components `resources/views/components/documents/{form,show}/` + `resources/views/common/items/` |
-| Invoice show & print | Document detail: activity timeline + received payments list, add-payment dialog, 3 print layouts, email/receipt/share modals | `resources/views/sales/invoices/{show,print_default,print_classic,print_modern}.blade.php`, modals `resources/views/modals/{documents,invoices}/` (e.g. `modals/invoices/{email,share}.blade.php`), shared form parts `resources/views/common/documents/` |
-| Recurring invoices | "Recurring documents" maintenance list (frequency/interval/limit fields + auto-sent schedule) | `resources/views/sales/recurring_invoices/`, controller `app/Http/Controllers/Sales/RecurringInvoices.php` |
-| Customer portal (AR face) | Tokenized guest portal: dashboard of paid/due invoices & totals, invoice preview/show/pay, pay finish page (payment processing), signature/sign page, own payment methods; controllers per page | `resources/views/portal/{dashboard,invoices,payments,profile}/`, `app/Http/Controllers/Portal/{Dashboard,Invoices,Payments}.php` |
+| Invoice list | Search with tabs **Unpaid** (status sent, viewed, partial), **Draft** and **All** (a user can pin the default tab); statuses draft, sent, viewed, partial, paid, cancelled; bulk actions | `resources/views/sales/invoices/index.blade.php`, tab params in `config/type.php`, controller `app/Http/Controllers/Sales/Invoices.php` |
+| Invoice create/edit | Items table with tax and discount rows, currency, dates, attachments, recurring settings; template selector and notes; the same form parts power bills | `resources/views/sales/invoices/{create,edit}.blade.php`, shared components `resources/views/components/documents/{form,show,template}/` + `resources/views/common/items/` |
+| Invoice show & print | Document detail: history + received payments list, add-payment dialog, three print layouts, email and share modals | `resources/views/sales/invoices/{show,print_default,print_classic,print_modern}.blade.php`, templates `resources/views/components/documents/template/{default,classic,modern}.blade.php`, modals `resources/views/modals/documents/` and `resources/views/modals/invoices/{email,share}.blade.php` |
+| Recurring invoices | Recurring-invoice list and create/edit/show (frequency, interval, limit, auto-send) | `resources/views/sales/recurring_invoices/{index,create,edit,show}.blade.php`, controller `app/Http/Controllers/Sales/RecurringInvoices.php` |
+| Customer portal (AR face) | Guest portal on signed URLs: dashboard of paid/due invoices and totals, invoice list/show/preview, pay and finish pages, payments list, profile | `resources/views/portal/{dashboard,invoices,payments,profile}/` (`invoices/{index,show,preview,signed,finish}.blade.php`), `app/Http/Controllers/Portal/{Dashboard,Invoices,Payments,Profile}.php` |
 
-### AureusERP — two parallel invoice UIs (classic plugin + Odoo-style accounting plugin)
+### AureusERP — one Odoo-ported invoice resource, mounted by two plugins
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| AR invoices (classic plugin) | InvoiceResource list/create/edit/view + embedded payments manager; customers cluster also has credit-note and payment resources | `plugins/webkul/invoices/src/Filament/Clusters/Customers/Resources/InvoiceResource/InvoiceResource.php` (+ `Pages/{ListInvoices,CreateInvoice,EditInvoice,ViewInvoice,ManagePayments}.php`), `CreditNoteResource/`, `PaymentResource/` |
-| AR invoices (accounts plugin) | Direct Odoo port: `account.move` invoice resources incl `RefundResource` and debit-note style flows (`CreditNoteResource`) | `plugins/webkul/accounts/src/Filament/Resources/{InvoiceResource,CreditNoteResource,RefundResource}.php` (+ `Pages/`) |
-| Invoice PDF/print | Blade print templates inside the invoices plugin `resources/views/` | `plugins/webkul/invoices/resources/views/` |
+| AR invoices | Customers → Invoices: list/create/edit/view + Manage Payments page; header actions Confirm, Pay, Preview, Print & Send, Reset to Draft, Reverse, Set as Checked, Cancel; the same cluster has Credit Notes and Payments. The `invoices` plugin mounts the same pages in its own Customers cluster | `plugins/webkul/accounting/src/Filament/Clusters/Customers/Resources/{InvoiceResource,CreditNoteResource,PaymentResource}.php` (+ `InvoiceResource/Pages/{ListInvoices,CreateInvoice,EditInvoice,ViewInvoice,ManagePayments}.php`), twin `plugins/webkul/invoices/src/Filament/Clusters/Customers/Resources/InvoiceResource.php` |
+| Base resources | Odoo `account.move` port that both clusters subclass: invoice, credit note, refund, bill, with the action classes | `plugins/webkul/accounts/src/Filament/Resources/{InvoiceResource,CreditNoteResource,RefundResource}.php` (+ `InvoiceResource/{Actions,Pages,Schemas,Tables}/`) |
+| Invoice preview and email | Blade preview per document kind and the invoice email body | `plugins/webkul/accounts/resources/views/{invoice,credit-note,bill,refund}/actions/preview/index.blade.php`, `plugins/webkul/accounts/resources/views/mail/invoice/actions/invoice.blade.php` |
 
 ### Carbon — poster-style invoice lifecycle with e-payment integration
 
@@ -286,36 +297,39 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 | Post/void modals | Posting modal (date, journal, fx-rate check → posts GL) and void modal; status chips Draft/Posted/Paid/Voided | `apps/erp/app/modules/invoicing/ui/SalesInvoice/{SalesInvoicePostModal.tsx,SalesInvoiceVoidModal.tsx,SalesInvoiceStatus.tsx}`, table `SalesInvoicesTable.tsx`, explorer `SalesInvoiceExplorer.tsx` |
 | Stripe customer panel | Per-invoice Stripe customer panel (id mapping/sync) | `apps/erp/app/modules/invoicing/ui/SalesInvoice/StripeCustomerPanel.tsx`, mapper `apps/erp/app/modules/invoicing/stripe-customer.mapper.ts` |
 | Credit memos / debits | Memo doc workbench: form/header/status + "Applications" panel allocating memo balance to invoices | `apps/erp/app/modules/invoicing/ui/Memo/{MemoForm,MemoHeader,MemoStatus,MemoDocuments,MemosTable,MemoApplicationsPanel}.tsx` |
-| Charges (re-billables) | Charge doc: status chips + table (re-bill costs to customers, creates AR memo) | `apps/erp/app/modules/invoicing/ui/Charge/{ChargesTable,ChargeStatus}.tsx`, service `apps/erp/app/modules/invoicing/invoicing.service.charge.test.ts` |
+| Invoice status rules | "Partially Paid" and "Overdue" are derived from settlements, not set by hand; there is no Mark as Paid — only a payment (or memo) settlement makes an invoice paid | `apps/erp/app/modules/invoicing/invoicing.service.ts`, notes `apps/erp/app/modules/invoicing/AGENTS.md` |
 
 ### Dolibarr — facture pages with fiche-recurring + generator engine
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
 | Customer invoices | List (`list.php`) w/ status filter chips & bulk PDF/email; card (`card.php`) full edit w/ approval buttons (validate/cancel/set paid), credit-note/replace-from, lines & payment records panel | `htdocs/compta/facture/{list,card}.php`, shared row/page components `htdocs/compta/facture/tpl/` |
-| Recurring invoices | "Template invoices" list + scheduled generation into drafts | `htdocs/compta/facture/invoicetemplate_list.php` |
-| Per-invoice extras | Documents & history pages: `document.php` (attachments), `contact.php`, `info.php` (lifecycle events), `messaging.php` (comment log), `agenda.php` (+ `card-rec.php`/`note-rec.php` for template recurring rec) | `htdocs/compta/facture/{document,contact,info,messaging,agenda,card-rec,note-rec}.php` |
-| Standalone credit notes | Direct "Avoir" factures (credit notes) created from invoice card (AVOIR type selects negative lines & credit-note numbering via mercure) | `htdocs/compta/facture/card.php` + numbering `htdocs/core/modules/facture/mod_facture_mercure.php` |
-| Document generators | PDF/doc generator classes (Crabe/Mercury etc. — `doc/` subclasses + num-ref mods Mars/Mercury/Terre) | `htdocs/core/modules/facture/mod_facture_{mars,mercure,terre}.php`, `htdocs/core/modules/facture/doc/` |
+| Recurring invoices | "Template invoices" list + card, scheduled generation into drafts | `htdocs/compta/facture/{invoicetemplate_list,card-rec,note-rec,agenda-rec}.php` |
+| Per-invoice extras | Tabs on the invoice: attachments, contacts, notes, messaging (comment log), agenda events, direct-debit request | `htdocs/compta/facture/{document,contact,note,messaging,agenda,prelevement}.php` |
+| Standalone credit notes | "Avoir" (credit note) and replacement invoices created from the invoice card; numbering comes from the selected numbering module | `htdocs/compta/facture/card.php`, numbering `htdocs/core/modules/facture/mod_facture_{mars,mercure,terre}.php` |
+| Document generators | PDF generators Sponge and Octopus plus a generic ODT template generator | `htdocs/core/modules/facture/doc/{pdf_sponge,pdf_octopus,doc_generic_invoice_odt}.modules.php` |
 
 ### ERPNext — Sales Invoice desk capsule with payment-request & e-tools
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Sales Invoice doctype | Giant client script: quick code paths for non-standard invoices (multi-currency, is_return/credit-note reversed qty), "update stock" toggle, partial payments (`set_total_advance_paid`), fetch-from-SO/purchase-order helpers; server-side ledger income_account/expense_account resolution, POS-flavored subtotal handling | `erpnext/accounts/doctype/sales_invoice/sales_invoice.{js,json,py}` (+ `regional/` overrides), items/payments/taxes child doctypes `sales_invoice_{item,payment,taxes}/` |
-| List & dashboard glue | List view script + dashboard charting hook (incoming bills per month) | `doctype/sales_invoice/sales_invoice_list.js` (+ `list_filter/`), `sales_invoice_dashboard.py` |
-| Payment request | Send-as-email "Payment Request" w/ payment-gateway link, auto draft PE (also makes `payment_request` QR/PDF inserts) | `erpnext/accounts/doctype/payment_request/payment_request.{js,json,py}` |
-| Invoice tooling | Opening-invoice creation tool (migration), merged/mb batch creation; package bulk serial | `erpnext/accounts/doctype/opening_invoice_creation_tool/opening_invoice_creation_tool.{js,py}` (+ `_item`) |
-| Dunning prep | Dunning linked from overdue invoices (see §5) | `erpnext/accounts/doctype/dunning/dunning.{js,py}` |
+| Sales Invoice doctype | Large desk form: multi-currency, `is_return` credit notes, "update stock" toggle, advances, fetch-from-order helpers, timesheet billing rows; statuses Draft, Return, Credit Note Issued, Submitted, Paid, Partly Paid, Unpaid, Unpaid and Discounted, Partly Paid and Discounted, Overdue and Discounted, Overdue, Cancelled, Internal Transfer | `erpnext/accounts/doctype/sales_invoice/sales_invoice.{js,json,py}` (+ `regional/`), child doctypes `erpnext/accounts/doctype/{sales_invoice_item,sales_invoice_payment,sales_invoice_advance,sales_invoice_timesheet,sales_taxes_and_charges}/` |
+| List & connections | List view script and filters; connections dashboard (linked payments, orders, returns) | `erpnext/accounts/doctype/sales_invoice/{sales_invoice_list.js,list_filter/,sales_invoice_dashboard.py}` |
+| Credit note | "Return / Credit Note" made from a submitted invoice | `erpnext/accounts/doctype/sales_invoice/mapper.py` (`make_sales_return`) |
+| Payment request | "Payment Request" (Outward/Inward) emailed with a payment-gateway link; statuses Draft, Requested, Initiated, Partially Paid, Payment Ordered, Paid, Failed, Cancelled | `erpnext/accounts/doctype/payment_request/payment_request.{js,json,py}` |
+| Subscriptions | Subscription (party, plans, trial, current/next billing period, days until due, cancel at period end, generate invoice at period start/end; statuses Trialing, Active, Grace Period, Cancelled, Unpaid, Completed, Refunded) and Subscription Plan (item, price determination, billing interval and count, payment gateway); a scheduled process generates the invoices | `erpnext/accounts/doctype/{subscription,subscription_plan,subscription_invoice,subscription_settings,process_subscription}/` |
+| Invoice tooling | Opening-invoice creation tool (migration of open items) | `erpnext/accounts/doctype/opening_invoice_creation_tool/opening_invoice_creation_tool.{js,json,py}` |
+| Dunning prep | Dunning created from overdue invoices (see §5) | `erpnext/accounts/doctype/dunning/dunning.{js,json,py}` |
 
 ### Ever Gauzy — invoice suite w/ e-payment & email surface
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Invoices module | Table + card/tabbed single-invoice views: add/edit, estimate-linked (`invoice-estimates`), view metadata, received invoices tab | `apps/gauzy/src/app/pages/invoices/{invoices.components.ts,table-components/}`, `pages/invoices/{invoice-add,invoice-edit,invoice-view,invoices-received}/` |
-| Send/download/email | Send-invoice dialog & email history step, public-link generator, PDF download flow | `pages/invoices/{invoice-send,invoice-email,invoice-download,public-link}/` |
-| Invoice PDF & templates | Invoice print/pdf preview driven by selectable HTML templates; org-level template management page ("accounting templates") | `apps/gauzy/src/app/pages/invoices/invoice-pdf/`, `apps/gauzy/src/app/pages/accounting-templates/accounting-templates.component.ts`, shared module `packages/ui-core/shared/src/lib/invoice/` |
-| Payments tab per invoice | Invoice-payments view listing received payments + add-payment dialog (also standalone Payments page) | `pages/invoices/invoice-payments/`, `pages/payments/` |
+| Invoices module | Invoice table with line selectors (tasks, products, projects, employees, expenses), apply tax/discount and paid toggles; add/edit/view pages; estimates (`invoice-estimates`) and received invoices; internal notes | `apps/gauzy/src/app/pages/invoices/{invoices.component.ts,table-components/,invoice-add/,invoice-edit/,invoice-view/,invoice-estimates/,invoices-received/,add-internal-note/}` |
+| Send/download/email | Send-invoice dialog & email history step, public-link generator, PDF download flow | `apps/gauzy/src/app/pages/invoices/{invoice-send,invoice-email,invoice-download,public-link}/` |
+| Invoice PDF & templates | Invoice print/pdf preview driven by selectable HTML templates; org-level template management page ("accounting templates") | `apps/gauzy/src/app/pages/invoices/invoice-pdf/`, `apps/gauzy/src/app/pages/accounting-templates/accounting-templates.component.ts`, PDF/CSV generators `packages/ui-core/shared/src/lib/invoice/` |
+| Payments tab per invoice | Invoice-payments view listing received payments + add-payment dialog (also standalone Payments page) | `apps/gauzy/src/app/pages/invoices/invoice-payments/`, `apps/gauzy/src/app/pages/payments/` |
+| Income | Income records list (client, amount, date, tags) feeding the accounting dashboard | `apps/gauzy/src/app/pages/income/income.component.ts` |
 
 ### metasfresh — AR invoices are backend windows
 
@@ -327,22 +341,24 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Invoice/bill views | Moves lists/kanban of type out_invoice/in_invoice in `account_move_views.xml` (§3) with special filters & batch actions; tax grid `account_document_tax_mode_selector` | `odoo/addons/account/views/account_move_views.xml`, `odoo/addons/account/static/src/components/account_document_tax_mode_selector/` |
-| Send by email | `account_move_send` wizard (single & batch; email template, attachments checklist) + `bill_guide` OWL helper for the "upload your supplier bills" onboarding | `odoo/addons/account/wizard/{account_move_send_wizard.py,account_move_send_batch_wizard.py}` (+ `_views.xml`), `odoo/addons/account/static/src/components/{bill_guide,invoice_guide}/` |
+| Invoice/bill views | Move lists/kanban of type out_invoice/in_invoice (§3) with special filters & batch actions; tax mode selector `account_document_tax_mode_selector` | `odoo/addons/account/views/account_move_views.xml`, `odoo/addons/account/static/src/components/account_document_tax_mode_selector/` |
+| Send by email | `account_move_send` wizard (single & batch; email template, attachments checklist) + `invoice_guide`/`bill_guide` OWL onboarding helpers | `odoo/addons/account/wizard/{account_move_send_wizard.py,account_move_send_wizard.xml,account_move_send_batch_wizard.py,account_move_send_batch_wizard.xml}`, `odoo/addons/account/static/src/components/{bill_guide,invoice_guide}/` |
+| Credit note | Reversal wizard: **Reverse** (credit note) or **Reverse and Create Invoice** (credit note plus a new draft) | `odoo/addons/account/wizard/{account_move_reversal.py,account_move_reversal_view.xml}` |
 | Print/report | Customer `report_invoice` QWeb (+ payment receipts) & portal `account_portal_templates` | `odoo/addons/account/views/report_invoice.xml`, `odoo/addons/account/views/report_payment_receipt_templates.xml`, `odoo/addons/account/views/account_portal_templates.xml` |
 | Down payments | Down-payment invoice creation is a sale-side wizard (`sale_make_invoice_advance`) that lands as an `account.move`; move side carries the down-payment flags | `odoo/addons/sale/wizard/sale_make_invoice_advance.py` (in this checkout's addons tree), move fields in `odoo/addons/account/views/account_move_views.xml` |
 
-**BOSS implications.** Four lifecycle states repeat everywhere (draft → sent/posted → part-paid → paid, plus credited/void), best modeled as BOSS status with explicit transitions in the Invoice screen header — including void/post modals requiring a reason (Carbon) and permission-gated posting (all references). Invoice lines need the standard unit/price/tax/discount columns; the MEMO/charge patterns for credits (Carbon's memo-applications panel, Dolibarr Avoir, ERPNext `is_return`) should be first-party screens with application-to-invoice logic, not separate hacks. The recurring/template-invoice maintenance list (Akaunting recurring invoices, Dolibarr `invoicetemplate_list`) is a cheap high-value screen. The customer portal is a proven differentiator: tokenized guest view + sign & pay happens off-session (Akaunting) — BOSS should ship it as an anonymous Moqui screen; payment-request emails with a gateway link (ERPNext) are its accelerator. Per-invoice PDF template selection (Akaunting's 3 styles, gauzy's accounting-templates, ERPNext print formats) argues for BOSS template records seeded in data, not hardcoded layouts.
+**BOSS implications.** Four lifecycle states repeat everywhere (draft → sent/posted → part-paid → paid, plus credited/void), shown as a status bar with explicit transitions in the Invoice screen header — including void/post modals (Carbon) and permission-gated posting. Mantle already has the states (`InvoiceInProcess` → `InvoiceFinalized` → `InvoiceSent` → `InvoiceAcked` → `InvoicePmtRecvd`, plus `InvoiceWriteOff` and `InvoiceCancelled`; payables `InvoiceIncoming` → `InvoiceReceived` → `InvoiceApproved` → `InvoicePmtSent`). Carbon and ERPNext derive "partly paid" and "overdue" from settlements and due date rather than storing them; BOSS should do the same over `Invoice.unpaidTotal` and `dueDate`. Invoice lines need the standard unit/price/tax/discount columns; credits (Carbon's memo-applications panel, Dolibarr Avoir, ERPNext `make_sales_return`, Odoo reversal wizard) map onto Mantle's `InvoiceCreditMemo` type with `create#InvoiceCreditMemo` and `apply#InvoiceToInvoice`. The recurring/template-invoice list (Akaunting recurring invoices, Dolibarr `invoicetemplate_list`) and ERPNext's Subscription → generated invoices are the recurring-invoicing face Accounting owns for subscriptions (Sales owns the subscription itself, crosscut §4); Mantle has `Subscription` and an unused `InvoiceTemplate` invoice type but no generator. The customer portal is a proven differentiator: a guest view on a signed URL with pay-online (Akaunting) — in BOSS it belongs with the Commerce/customer-account pages, reading the same invoices; payment-request emails with a gateway link (ERPNext) are its accelerator. Per-invoice PDF template selection (Akaunting's three templates, Ever Gauzy's accounting-templates, ERPNext print formats) argues for template records seeded in data, not hardcoded layouts.
 
 ---
 
 ## 5. Collections & dunning
 
-### Akaunting — **absent** (no dunning/follow-up workflow)
+### Akaunting — scheduled reminder emails only
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| **Absent** | `overdue` is only a list filter/tab and an invoice-status email snapshot in the portal; no match/reminder schedule or letter wizard | `resources/views/sales/invoices/index.blade.php` (overdue tab), `resources/views/portal/invoices/show.blade.php` (overdue badge) |
+| Schedule settings | **Send invoice reminder** with a comma list of days after the due date (and the same for bills), plus the run time; a daily command emails each unpaid invoice due that many days ago | `resources/views/settings/schedule/edit.blade.php`, `app/Http/Controllers/Settings/Schedule.php`, `app/Console/Commands/{InvoiceReminder,BillReminder}.php` |
+| No dunning levels | No letter levels, fees or interest, no collections workbench; overdue invoices are found through the Unpaid tab | `resources/views/sales/invoices/index.blade.php` |
 
 ### AureusERP — **absent**
 
@@ -357,22 +373,33 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 | Receivables workbench | The ARAP workbench filtered to receivables: per-customer open-invoice groups with checkboxes, as-of aging buckets, bulk allocate/apply credit memos; no dunning schedule | `apps/erp/app/modules/invoicing/ui/Workbench/ARAPWorkbench.tsx`, route registry `apps/erp/app/modules/invoicing/ui/useInvoicingSubmodules.tsx` (name "Receivables") |
 | Credit memos in collections | Credit-memo allocation panel as the informal "discount & forgive" tool | `apps/erp/app/modules/invoicing/ui/Memo/MemoApplicationsPanel.tsx` |
 
-### Dolibarr — direct-debit driving + per-invoice reminder
+### Dolibarr — direct-debit batches + scheduled due-date reminders
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
 | Direct debit (Prélèvement) | Bank-transfer pull collections: create-from-invoices batch (Sepa generation), pending demands, rejections list w/ card, per-line cards, statistics page | `htdocs/compta/prelevement/{create,demandes,factures,requests,rejets,fiche-rejet,line,list,orders_list,stats,index}.php`, admin `htdocs/admin/prelevement.php` |
-| Overdue reminder | "Send reminder email" action & template hooks on the invoice card (mass send runs via the generic mail-form engine) | `htdocs/compta/facture/card.php`, `htdocs/core/class/html.formmail.class.php` |
+| Overdue reminder | Scheduled job method that emails reminders for validated invoices N days before/after the due date with a chosen template, and records an agenda event per reminder so none is sent twice | `htdocs/compta/facture/class/facture.class.php` (`sendEmailsRemindersOnInvoiceDueDate`) |
 | Disputes box | Invoice-dispute widget surfaces stuck payments on the dashboard | `htdocs/core/boxes/box_invoices_dispute.php` |
 
 ### ERPNext — a proper Dunning doctype (+ auto overdue streams)
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Dunning | Dunning document: pick type & sales invoice → pulls `overdue_amount`/outstanding & interest auto-calc, statuses Draft/Resolved/Unresolved/Cancelled, generates letter PDF from `Dunning Letter Text` template, email send on print | `erpnext/accounts/doctype/dunning/dunning.{js,json,py}`, `dunning_list.js` |
-| Dunning masters | Dunning Type (levels, letter text, interest rates & dues term) + reusable letter texts | `erpnext/accounts/doctype/dunning_type/dunning_type.{js,json,py}`, `erpnext/accounts/doctype/dunning_letter_text/dunning_letter_text.{js,json,py}` |
-| Auto overdue flag | Invoice→dunning feeder: overdue payments records & payment-schedule overdue rows | `erpnext/accounts/doctype/overdue_payment/overdue_payment.{json,py}` |
-| Statement of accounts batch | Scheduled mass emails of the Statement of Accounts report (passive collections) | `erpnext/accounts/doctype/process_statement_of_accounts/process_statement_of_accounts.{js,py}` (+ `_cc` variant) |
+| Dunning | Dunning document made from overdue invoices: overdue payment rows, interest and dunning fee, statuses Draft / Resolved / Unresolved / Cancelled, letter printed from the Dunning Letter print format | `erpnext/accounts/doctype/dunning/dunning.{js,json,py}`, `erpnext/accounts/print_format/dunning_letter/` |
+| Dunning masters | Dunning Type (dunning fee, rate of interest, letter texts per language, income account, cost center) + letter texts | `erpnext/accounts/doctype/dunning_type/dunning_type.{js,json,py}`, `erpnext/accounts/doctype/dunning_letter_text/dunning_letter_text.{json,py}` |
+| Overdue rows | Overdue payment rows (per payment-schedule term) carried on the dunning | `erpnext/accounts/doctype/overdue_payment/overdue_payment.{json,py}` |
+| Statement of accounts batch | Scheduled mass emails of the Statement of Accounts per customer (passive collections) | `erpnext/accounts/doctype/process_statement_of_accounts/process_statement_of_accounts.{js,py}`, `erpnext/accounts/doctype/{process_statement_of_accounts_cc,process_statement_of_accounts_customer}/` |
+
+### Frappe Lending — a collections case with promise-to-pay
+
+- A lender's app (loans given out), but its collections records are the only case-style collections workflow in the checkouts.
+
+| Screen/page | What it is | Key files |
+| --- | --- | --- |
+| Collection case | Per overdue loan: applicant, bucket, days past due, outstanding amount, assigned agent, next action date, status **Open / In Progress / Promise to Pay / Broken PTP / Hardship Requested / Resolved / Closed**, resolution reason, child tables of promises and activities | `lending/lending/loan_management/doctype/collection_case/` |
+| Collection activity | Activity row: type (Call, SMS, Email, WhatsApp, Field Visit, Legal Notice, System Dunning), channel, agent, outcome (Answered, No Response, Promise to Pay, Dispute Raised, Paid, Refused, Number Unreachable), template, notes | `lending/lending/loan_management/doctype/collection_activity/` |
+| Promise to pay | Promised date and amount, status Open / Kept / Broken / Partial, actual paid amount | `lending/lending/loan_management/doctype/promise_to_pay/` |
+| Dunning rule and run | Rule per product/classification by days-past-due range with a cadence in days; scheduled dunning process | `lending/lending/loan_management/doctype/{dunning_rule,process_collection_dunning}/` |
 
 ### Ever Gauzy — **absent** (no credit-communication page in this checkout)
 
@@ -391,10 +418,10 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
 | **Absent** | `account_followup` not in this community tree (Enterprise line-history match reminders) | — |
-| Debit notes | Debit-note wizard creating corrective moves from an original (adjacent tool, §15) | `odoo/addons/account_debit_note/` (wizard + views) |
+| Debit notes | Debit-note wizard creating corrective moves from an original (§18) | `odoo/addons/account_debit_note/` (wizard + views) |
 | Activities-based chasing | Scheduled activities on overdue customers (mail module drives them) — no automatic matching | `odoo/addons/account/views/account_move_views.xml` (activity fields), `odoo/addons/account/models/account_move.py` (`activity_state`) |
 
-**BOSS implications.** Collections split into two tiers everywhere: the *workbench* (aging buckets + open items by customer + credit-memo application, Carbon/Dolibarr) and the *letter engine* (schedule levels with interest & letter templates, ERPNext dunning/dunning_type, Dolibarr prelevement for direct-debit). BOSS should ship the aging workbench inside Customer 360 (credit face) and a Dunning screen driven by a `DunningLevel`/letter-template pair; direct-debit-style mass collections (`prelevement`) are a later add gated on a gateway. The absences (Akaunting, AureusERP, gauzy, Odoo community) confirm dunning is Enterprise-tier functionality — it is a differentiator for BOSS, not table stakes.
+**BOSS implications.** Collections split into three tiers: the *workbench* (aging buckets + open items by customer + credit-memo application, Carbon), *reminders* (Akaunting's days-after-due list, Dolibarr's scheduled reminder, Mantle's existing `send#SalesInvoicePastDueEmails` job) and the *letter engine* (levels with fee, interest and letter templates, ERPNext dunning/dunning_type). Frappe Lending adds the piece none of the ERPs have: a collections case with agent, next action date, activities with outcomes and promises to pay. BOSS should ship the aging workbench on the Accounting face of Customer 360 and a collections list per customer whose activities are ordinary BOSS activities (`WorkEffort`, crosscut §6) and whose promises to pay are dated follow-ups; dunning levels and letter templates come after. Direct-debit mass collection (Dolibarr `prelevement`) waits on a gateway. Odoo's `account_followup` is Enterprise and AureusERP and Ever Gauzy have nothing, so anything past reminders is a differentiator, not table stakes.
 
 ---
 
@@ -412,8 +439,7 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Vendor bills (accounts plugin) | Odoo `in_invoice` port: BillResource CRUD + payments manager | `plugins/webkul/accounts/src/Filament/Resources/BillResource/BillResource.php` (+ `Pages/`) |
-| Bills (classic invoices plugin) | Second BillResource in the Vendors cluster (with its own Settings pages) + RefundResource for vendor credits | `plugins/webkul/invoices/src/Filament/Clusters/Vendors/Resources/{BillResource,RefundResource,PaymentResource}.php` |
+| Vendor bills | Vendors → Bills (Odoo `in_invoice` port) with Payments and Refunds (vendor credits); subclasses of the hidden base resources, mounted by both the `accounting` and `invoices` plugins | `plugins/webkul/accounting/src/Filament/Clusters/Vendors/Resources/{BillResource,RefundResource,PaymentResource}.php`, twin `plugins/webkul/invoices/src/Filament/Clusters/Vendors/Resources/{BillResource,RefundResource,PaymentResource}.php`, base `plugins/webkul/accounts/src/Filament/Resources/BillResource.php` (+ `BillResource/`) |
 
 ### Carbon — purchase invoices with OCR-style extraction & expense reimbursements
 
@@ -422,8 +448,9 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 | Purchase invoice form | Header/line/properties/summary/mirror of the AR form, plus delivery (receipt) linkage and autofill hook | `apps/erp/app/modules/invoicing/ui/PurchaseInvoice/{PurchaseInvoiceForm,PurchaseInvoiceHeader,PurchaseInvoiceLineForm,PurchaseInvoiceDeliveryForm,PurchaseInvoiceProperties,PurchaseInvoiceSummary}.tsx`, `usePurchaseInvoiceAutoFill.ts` |
 | Line extraction mapping | "Map extracted invoice lines" modal for mapping vendor-feature lines onto PO lines (auto-merge) | `apps/erp/app/modules/invoicing/ui/PurchaseInvoice/MapExtractedInvoiceLinesModal.tsx` |
 | Post/void/status | PurchaseInvoicePostModal (journal+date), VoidModal, status chips, table + explorer | `apps/erp/app/modules/invoicing/ui/PurchaseInvoice/{PurchaseInvoicePostModal,PurchaseInvoiceVoidModal,PurchaseInvoicingStatus,PurchaseInvoicesTable,PurchaseInvoiceExplorer}.tsx` |
-| Reimbursements | Employee-expense → payable doc: edit form, pay-expense modal, documents panel | `apps/erp/app/modules/invoicing/ui/Reimbursement/{ReimbursementEditForm,PayExpenseModal,ReimbursementDocuments,ReimbursementsTable}.tsx` |
-| Suppliers receivable link | Supplier credit memos in §4 Memo module (`table: memo`) | `apps/erp/app/modules/invoicing/ui/Memo/MemosTable.tsx` |
+| Reimbursements | Employee expense → payable document (Draft → Posted → Voided): edit form, pay-expense modal, documents panel; imported from a spend tool, never hand-created; paid by a payment whose payee is the employee | `apps/erp/app/modules/invoicing/ui/Reimbursement/{ReimbursementEditForm,ReimbursementHeader,ReimbursementSummary,PayExpenseModal,ReimbursementDocuments,ReimbursementsTable}.tsx` |
+| Charges | Company-card transactions (Charge, Credit, Payment, Cashback, Repayment) fed from the Ramp integration; read-only list and drawer with Void only | `apps/erp/app/modules/invoicing/ui/Charge/{ChargesTable,ChargeStatus}.tsx`, routes `apps/erp/app/routes/x+/invoicing+/{charges,charges.$id,charges.$id.void}.tsx` |
+| Supplier credits | The one `memo` table filtered to supplier parties (direction Credit/Debit is independent of party) | `apps/erp/app/modules/invoicing/ui/Memo/MemosTable.tsx`, route `apps/erp/app/routes/x+/invoicing+/supplier-credits.tsx` |
 
 ### Dolibarr — fourn/facture + supplier document portal
 
@@ -438,17 +465,18 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Purchase invoice form | Mirror of Sales Invoice with is_return (debit note), update-stock, "hold invoice"/partial payment hold (hold scheme with Fiscal Year hold), interchange `warehouse` post stock | `erpnext/accounts/doctype/purchase_invoice/purchase_invoice.{js,json,py}` (+ `regional/`), children `purchase_invoice_{item,payment,taxes,advance}/` |
-| List filters & glue | list js + dashboard chart | `purchase_invoice_list.js` (+ `list_filter/`), `purchase_invoice_dashboard.py` |
-| Debit notes | `is_return` flows on purchase invoice (via merge credit/debit note descend) | `erpnext/accounts/doctype/purchase_invoice/purchase_invoice.py` (`make_debit_note`) |
+| Purchase invoice form | Mirror of Sales Invoice with `is_return` (debit note), update-stock, and a payment hold (`on_hold`, `release_date`, `hold_comment`); statuses Draft, Return, Debit Note Issued, Submitted, Paid, Partly Paid, Unpaid, Overdue, Cancelled, Internal Transfer | `erpnext/accounts/doctype/purchase_invoice/purchase_invoice.{js,json,py}`, children `erpnext/accounts/doctype/{purchase_invoice_item,purchase_invoice_advance,purchase_taxes_and_charges}/` |
+| List filters & connections | List js, filters and connections dashboard | `erpnext/accounts/doctype/purchase_invoice/{purchase_invoice_list.js,list_filter/,purchase_invoice_dashboard.py}` |
+| Debit notes | Debit note made from a submitted purchase invoice | `erpnext/accounts/doctype/purchase_invoice/mapper.py` (`make_debit_note`) |
+| PO / receipt matching | Each bill line keeps its purchase order and receipt line (`purchase_order`, `po_detail`, `purchase_receipt`, `pr_detail`); Buying Settings can require a PO and/or a receipt before a bill; "Received Items To Be Billed" lists the gap | `erpnext/accounts/doctype/purchase_invoice_item/purchase_invoice_item.json`, `erpnext/buying/doctype/buying_settings/buying_settings.json` (`po_required`, `pr_required`), `erpnext/accounts/report/received_items_to_be_billed/` |
 
 ### Ever Gauzy — expense-centric AP
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Expenses | Expense add/list with vendor, category, employee/org/project selectors and receipts; feeds the income/expense dashboard pair (§1) | `apps/gauzy/src/app/pages/expenses/expense.component.ts`, expense grid in `packages/ui-core/shared/src/lib/` |
+| Expenses | Expense add/list with vendor, category, employee/org/project selectors and receipts; expense categories page; feeds the income/expense dashboard pair (§1) | `apps/gauzy/src/app/pages/expenses/{expenses.component.ts,expense-categories/}`, dialogs `packages/ui-core/shared/src/lib/expenses/` |
 | Vendor expense records | Expenses paid to vendor records flow as the AP-side entries (vendor picker on expense rows) | `apps/gauzy/src/app/pages/expenses/`, vendor selector `packages/ui-core/shared/src/lib/vendor-select/` |
-| Recurring expenses | Org-level & employee-level recurring expense maintenance | `apps/gauzy/src/app/pages/expense-recurring/{expense-recurring.component.ts,expense-recurring.component.html}`, `apps/gauzy/src/app/pages/recurring-expense-employee/expense-employee.component.ts` |
+| Recurring expenses | Org-level & employee-level recurring expense maintenance | `apps/gauzy/src/app/pages/expense-recurring/expense-recurring.component.ts`, `apps/gauzy/src/app/pages/recurring-expense-employee/recurring-expense-employee.component.ts` |
 | Vendor master | Vendor list page feeding picker | `apps/gauzy/src/app/pages/vendors/vendors.component.ts` |
 
 ### metasfresh — vendor invoice windows (backend shells)
@@ -462,10 +490,11 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
 | Bill views | in_invoice views inside the move monolith with `bill_guide` onboarding ("Upload your supplier bills") and the PDF/bill preview panel | `odoo/addons/account/views/account_move_views.xml`, `odoo/addons/account/static/src/components/bill_guide/`, `odoo/addons/account/views/bill_preview_template.xml` |
-| Autoposting bills | Autopost scheduled received bills w/ demo-based currency batches | `odoo/addons/account/wizard/account_autopost_bills_wizard.py` + `_views.xml` |
-| Accrued expenses / orders | `accrued_orders` wizard toggling accrued revenue/expense entries from external order docs | `odoo/addons/account/wizard/accrued_orders.py` |
+| Autoposting bills | After several unmodified bills from one vendor, a prompt asks whether to auto-post that vendor's bills (always / ask later / never) | `odoo/addons/account/wizard/{account_autopost_bills_wizard.py,account_autopost_bills_wizard.xml}` |
+| Accrued expenses / orders | "Make Accrual Entries" wizard creating accrued revenue/expense entries from sale or purchase orders | `odoo/addons/account/wizard/{accrued_orders.py,accrued_orders.xml}` |
+| Bill ↔ PO matching | "Purchase Bill Lines" list pairing bill lines with PO lines (Bill Qty, Qty to invoice, Billed vs Purchased) with **Match** and **Add to PO**; product Control Policy bills on ordered or received quantities; the 3-way-matching setting is an Enterprise upsell (`module_account_3way_match`) | `odoo/addons/purchase/views/purchase_bill_line_match_views.xml`, `odoo/addons/purchase/models/product.py` (`purchase_method`), `odoo/addons/purchase/views/res_config_settings_views.xml` |
 
-**BOSS implications.** The AP face is the AR face reversed: same state model (draft→posted→paid), same line editor, plus three AP-only features to buy first in BOSS: bill-line extraction/mapping (Carbon's MapExtractedInvoiceLinesModal + Odoo bill_guide), vendor-bill hold/half-payment controls (ERPNext hold-scheme), and employee reimbursements as a payable type (Carbon + gauzy recurring expenses). Akaunting gives the vendor symmetric CRUD but no vendor portal — the tokenized portal is customer-only in this version. The pay-run slice of AP belongs to §7 but the bill screen needs the "schedule for payment" action visible on Bill records as in all references.
+**BOSS implications.** The AP face is the AR face reversed: same state model (draft→posted→paid; Mantle `InvoiceIncoming` → `InvoiceReceived` → `InvoiceApproved` → `InvoicePmtSent`), same line editor, plus AP-only features: matching bill lines to PO and receipt lines (Odoo Purchase Bill Lines, ERPNext `po_detail`/`pr_detail` with PO/receipt-required settings, Carbon's MapExtractedInvoiceLinesModal) — Accounting owns this 3-way match and Purchasing sees only its exceptions (crosscut §4); a payment hold with release date (ERPNext); and employee reimbursements as a payable (Carbon). Expense claims are captured and approved in People; Accounting posts and pays them, which in Mantle is an expense `Invoice` from the employee (`MyAccount/Expense` screens, `create#ProjectExpenseInvoice`) paid like any bill. Akaunting gives the vendor symmetric CRUD but no vendor portal. The bill screen needs a visible "schedule for payment" step feeding the §7 payment run, and `InvoiceApproved` is the bill-approval item that appears in the header Approvals list.
 
 ---
 
@@ -484,17 +513,16 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Account payments | PaymentResource (Odoo `account.payment` port) attached to the accounting cluster (AR/AP register) | `plugins/webkul/accounts/src/Filament/Resources/PaymentResource/PaymentResource.php` (+ `Pages/`) |
-| Invoices-plugin payments | PaymentResources in both Customers & Vendors clusters of the invoices plugin | `plugins/webkul/invoices/src/Filament/Clusters/{Customers,Vendors}/Resources/PaymentResource/` |
-| Payments plugin | Models-only plugin (providers abstractions, `PaymentPlugin` service provider); no Filament screens in this checkout | `plugins/webkul/payments/src/{Models/PaymentPlugin.php,PaymentServiceProvider.php}` |
+| Account payments | Customers → Payments and Vendors → Payments (Odoo `account.payment` port), subclasses of one hidden base resource; the `invoices` plugin mounts the same pair | `plugins/webkul/accounting/src/Filament/Clusters/{Customers,Vendors}/Resources/PaymentResource.php`, `plugins/webkul/invoices/src/Filament/Clusters/{Customers,Vendors}/Resources/PaymentResource.php`, base `plugins/webkul/accounts/src/Filament/Resources/PaymentResource.php` |
+| Payments plugin | Models only (Payment, PaymentToken, PaymentTransaction, payment methods migration); no Filament screens in this checkout | `plugins/webkul/payments/src/{PaymentPlugin.php,PaymentServiceProvider.php,Models/}` |
 
 ### Carbon — payment as settlement document with an application workbench
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Payment doc | PaymentForm/Header/Status (Receipt vs Disbursement vs Internal), documents panel, per-invoice payments panel | `apps/erp/app/modules/invoicing/ui/Payment/{PaymentForm,PaymentHeader,PaymentStatus,PaymentDocuments,InvoicePaymentsPanel,PaymentsTable}.tsx` |
-| Application/applied credits | PaymentApplyTable + PaymentApplications: apply a payment across invoices w/ running "available credit" pool, settlement docs service hook, modal grids and tests | `apps/erp/app/modules/invoicing/ui/Payment/{PaymentApplyTable,PaymentApplications,AvailableCreditsTable,useSettlementDocuments}.tsx`, settlement logic `apps/erp/app/modules/invoicing/invoicing.settlements.ts` |
-| Payment runs | No scheduled payment-run engine; pay-run-like batches happen on workbench selection | `apps/erp/app/modules/invoicing/ui/Workbench/ARAPWorkbench.tsx` |
+| Payment doc | PaymentForm/Header/Status: direction Receipt or Disbursement; exactly one payee — customer, supplier or employee (a reimbursement payout); status Draft / Posted / Voided; documents panel, per-invoice payments panel; post and void routes | `apps/erp/app/modules/invoicing/ui/Payment/{PaymentForm,PaymentHeader,PaymentStatus,PaymentDocuments,InvoicePaymentsPanel,PaymentsTable}.tsx`, routes `apps/erp/app/routes/x+/payments+/{$paymentId,$paymentId.post,$paymentId.void,$paymentId.applications.set,$paymentId.credits.set}.tsx` |
+| Application/applied credits | PaymentApplyTable + PaymentApplications: apply a payment across invoices and memos with an "available credit" pool, per-application discount and write-off, generated FX gain/loss; a zero-amount payment can be a pure credit application | `apps/erp/app/modules/invoicing/ui/Payment/{PaymentApplyTable,PaymentApplications,AvailableCreditsTable,useSettlementDocuments}.tsx`, settlement logic `apps/erp/app/modules/invoicing/invoicing.service.ts` (`replaceInvoiceSettlements`) |
+| Payment runs | No scheduled payment-run engine; pay-run-like batches happen on workbench selection (Payables, with an adjust action) | `apps/erp/app/modules/invoicing/ui/Workbench/ARAPWorkbench.tsx`, routes `apps/erp/app/routes/x+/invoicing+/{payables,payables.adjust,receivables,receivables.adjust}.tsx` |
 
 ### Dolibarr — paiement CRUD + cheque deposits
 
@@ -503,16 +531,30 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 | Customer payments | paiement list/card (multi-invoice allocation grid: amount column per line), "to validate" queue (`tovalidate.php`), documents/infos, monthly report (`rapport.php` with print) | `htdocs/compta/paiement/{list,card,tovalidate,document,info,index,rapport}.php`, quick-create from doc `htdocs/compta/paiement.php` |
 | Supplier payments | fourn/paiement list/card (bill allocations) + docs | `htdocs/fourn/paiement/{list,card,document,info}.php` |
 | Cheque deposit | Deposit card building bank entries from batched cheque payments | `htdocs/compta/paiement/cheque/{card,list,index}.php`, classes `htdocs/compta/paiement/class/{paiement,cpaiement}.class.php` |
-| Payment order/callback utilities | to-validate queue & various payment types (`paiement_charge.php` for social contribution payments) | `htdocs/compta/paiement_charge.php`, `htdocs/compta/paiement_vat.php` |
+| Tax and charge payments | Payment pages for social contributions and VAT | `htdocs/compta/{paiement_charge,paiement_vat}.php` |
 
 ### ERPNext — Payment Entry + the reconciliation workhorse
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Payment Entry | Payment type Received/Paid/Internal Transfer: references tabs (invoices/orders/bills auto-pulled, `set_remaining_amount`), unallocated amount & write-off handling, taxes differential, exchange gain/loss rows per reference, bank charges | `erpnext/accounts/doctype/payment_entry/payment_entry.{js,json,py}` (+ `payment_entry_list.js`, children `payment_entry_reference`/`payment_entry_deduction`) |
-| Payment reconciliation | Allocate invoices ↔ payments/orders: party/account/currency filters, fetch outstanding, auto-allocate button + manual per-invoice allocation grid with over/under notes | `erpnext/accounts/doctype/payment_reconciliation/payment_reconciliation.{js,json,py}` |
-| Payment orders/schedule | Payment Order (schedule batch of outstanding invoices to pay) + its references | `erpnext/accounts/doctype/payment_order/payment_order.{js,json,py}` (+ `_reference`) |
-| Modes & gateways | Mode of Payment w/ accounts map; Payment Gateway Account; gateway implementations live in the separate `payments` app (checkout `3p_other/frappe/payments`) | `erpnext/accounts/doctype/mode_of_payment/mode_of_payment.{js,json,py}`, `erpnext/accounts/doctype/payment_gateway_account/payment_gateway_account.{js,json,py}`, gateways in `payments/payments/payment_gateways/` (stripe integration etc.) |
+| Payment Entry | Payment type Receive / Pay / Internal Transfer: references table (invoices/orders auto-pulled), unallocated amount and deductions/write-off rows, taxes, exchange gain/loss per reference, bank charges; status Draft / Submitted / Cancelled | `erpnext/accounts/doctype/payment_entry/payment_entry.{js,json,py}` (+ `payment_entry_list.js`), children `erpnext/accounts/doctype/{payment_entry_reference,payment_entry_deduction}/` |
+| Payment reconciliation | Allocate invoices ↔ payments for one party and receivable/payable account: date and amount filters, fetch outstanding, auto-allocate + manual allocation grid with difference amount | `erpnext/accounts/doctype/payment_reconciliation/payment_reconciliation.{js,json,py}` |
+| Payment orders/schedule | Payment Order (type Payment Request or Payment Entry: a batch of references to pay from one company bank account) | `erpnext/accounts/doctype/payment_order/payment_order.{js,json,py}`, `erpnext/accounts/doctype/payment_order_reference/` |
+| Modes & gateways | Mode of Payment with accounts per company; Payment Gateway Account; gateway implementations live in the separate Frappe `payments` app (below) | `erpnext/accounts/doctype/mode_of_payment/mode_of_payment.{js,json,py}`, `erpnext/accounts/doctype/payment_gateway_account/payment_gateway_account.{js,json,py}` |
+
+### Frappe payments — gateway settings and hosted checkout pages
+
+| Screen/page | What it is | Key files |
+| --- | --- | --- |
+| Gateway settings | One settings doctype per provider: Braintree, GoCardless (+ mandate), M-Pesa, Paymob, PayPal, Paytm, Razorpay, Stripe; a generic Payment Gateway record links them to ERPNext's Payment Gateway Account | `payments/payments/payment_gateways/doctype/`, `payments/payments/payments/doctype/payment_gateway/` |
+| Checkout pages | Hosted checkout pages per provider plus shared success / failed / cancel pages | `payments/payments/templates/pages/` (e.g. `stripe_checkout.html`, `gocardless_confirmation.html`, `payment-success.html`) |
+
+### Dolibarr community modules — card/SEPA gateway back offices
+
+| Screen/page | What it is | Key files |
+| --- | --- | --- |
+| Stancer back office | Payments, payouts, refunds and disputes lists, a bookkeeping page, payout-reversal import check, audit and repair pages; public card and SEPA-IBAN payment pages for invoices and proposals; admin for card, SEPA, mail, accounting accounts | `stancer/stancer_{payments_list,payouts_list,refunds_list,disputes_list,bookkeeping,import_check_reversements,audit}.php`, `stancer/public/{newpayment,newpayment_propal,sepa-iban,paymentback}.php`, `stancer/admin/{setup,cb,sepa,compta}.php` |
+| HelloAsso | Online checkout of membership dues, donations, customer invoices or orders through the HelloAsso API | `helloasso/helloassoindex.php`, `helloasso/admin/` |
 
 ### Ever Gauzy — payment capture on invoices (Stripe-side)
 
@@ -536,9 +578,9 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 | Register payment wizard | Bulk "Register Payment" wizard from selected move lines — flexible journal, payment difference handling (in/out), write-off dialog, multi term checks | `odoo/addons/account/wizard/account_payment_register.py` + `odoo/addons/account/wizard/account_payment_register_views.xml` |
 | Providers & tokens | payment provider list/form (states, token setup, journal mapping), saved tokens & transactions (all MVC views) + express checkout templates | `odoo/addons/payment/views/payment_provider_views.xml`, `odoo/addons/payment/views/payment_token_views.xml`, `odoo/addons/payment/views/payment_transaction_views.xml`, `odoo/addons/payment/views/express_checkout_templates.xml` |
 | Portal pay page | payment portal templates (pay-in link UI) & account_payment portal glue | `odoo/addons/payment/views/portal_templates.xml`, `odoo/addons/account_payment/views/` |
-| Check printing | Check print layouts & register (community addon) | `odoo/addons/account_check_printing/views/`, models |
+| Check printing | Check layout setting, check numbers on journals and payments, print checks from payments | `odoo/addons/account_check_printing/views/{account_payment_views,account_journal_views,res_config_settings_views}.xml` |
 
-**BOSS implications.** One mental model wins: a *Payment* document with a type (receipt / disbursement / internal transfer), an allocation table against open invoices/bills, and per-line write-off & FX rows — exactly Carbon's `PaymentApplyTable`/`useSettlementDocuments` and ERPNext Payment Entry references tabs; BOSS's Payment screen should make that allocation grid the main event. Dolibarr's `tovalidate` queue shows the bookkeeper-safe two-step payment flow (entered→validated→posted) worth copying as a permission divider. Payment-run/batch scheduling is rarer than expected (ERPNext Payment Order, metasfresh allocation runs) — ship a simple "Payment Run" generator on top of checked bills rather than a full scheduler. Gateway surface belongs at the provider-records level (Odoo `payment` addon views, ERPNext payments app) so BOSS can grow portals and online pay pages (Akaunting portal + Odoo portal templates) without rework.
+**BOSS implications.** One mental model wins: a *Payment* document with a direction (receipt / disbursement, plus internal transfer in ERPNext), an allocation table against open invoices/bills, and per-application discount, write-off & FX — Carbon's `PaymentApplyTable`/`useSettlementDocuments` and ERPNext Payment Entry references; BOSS's Payment screen should make that allocation grid the main event. Mantle already has this shape (`Payment` + `PaymentApplication`, `apply#InvoicePayment`, `apply#PaymentToPayment`, `autoApply#Payment`, `unapply#PaymentApplication`) and the baseline Edit Payment screen shows unpaid invoices and unapplied payments beside the applications (§17). Dolibarr's `tovalidate` queue shows a two-step payment flow (entered → validated → posted) worth copying as a permission divider. Payment-run/batch scheduling is rarer than expected (ERPNext Payment Order; Carbon only by workbench selection) — ship a simple "Payment Run" generator over approved bills that writes `Payment` rows and hands them to the existing Bulk Checks, NACHA and Positive Pay outputs. The gateway surface belongs at the provider-records level (Odoo `payment` addon, Frappe payments, Stancer) so online pay pages can grow without rework; Mantle has `PaymentGatewayConfig` and authorize/capture/refund services for this.
 
 ---
 
@@ -549,22 +591,23 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
 | Bank accounts | Account (bank/cash) CRUD with opening balance, currency, account number; show page lists the account's transactions | `resources/views/banking/accounts/{index,create,edit,show}.blade.php`, controller `app/Http/Controllers/Banking/Accounts.php` |
-| Reconciliations | Pick account + statement period → side-by-side statement amount vs ledger amounts, ending-balance difference, inline match-out lines against transactions; create/edit/index screens | `resources/views/banking/reconciliations/{index,create,edit}.blade.php`, controller `app/Http/Controllers/Banking/Reconciliations.php` |
-| Bank feeds context | "Bank feeds" widget + "new transaction" quick modal from the show page | `app/Widgets/BankFeeds.php`, `resources/views/widgets/bank_feeds.blade.php` |
+| Reconciliations | Pick account + start/end date and closing balance → list of transactions (deposits/withdrawals) with a clear checkbox each; running opening balance, cleared amount, closing balance and difference; Save Draft or Reconcile when the difference is zero; create/edit/index screens | `resources/views/banking/reconciliations/{index,create,edit}.blade.php`, controller `app/Http/Controllers/Banking/Reconciliations.php` |
+| Bank feeds | No feed in core: the Bank Feeds widget links to a paid cloud app | `app/Widgets/BankFeeds.php`, `resources/views/widgets/bank_feeds.blade.php` |
 
 ### AureusERP — bank accounts only, no reconciliation engine
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Bank accounts | BankAccountResource CRUD (journal-linked, account number, currency) | `plugins/webkul/accounts/src/Filament/Resources/BankAccountResource/BankAccountResource.php` |
+| Bank accounts | Bank account CRUD (journal-linked, account number, currency); in the `invoices` plugin's Configuration cluster, base resource in `accounts` | `plugins/webkul/invoices/src/Filament/Clusters/Configuration/Resources/BankAccountResource.php`, base `plugins/webkul/accounts/src/Filament/Resources/BankAccountResource.php` |
 | Reconciliation | **Absent** — no statement-matching screen in this version; reconciliation state rides on payments/journal-item fields only | — |
 
 ### Carbon — no banking module; reconciliation via tie-out panel only
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Sync tie-out | Table comparing subledger balances to GL balances per period with drift rules | `apps/erp/app/modules/accounting/ui/SyncTieOut/SyncTieOutTable.tsx` |
-| Dashboard tie-out | GL-vs-subledger variance panel from §1 | `apps/erp/app/modules/invoicing/ui/Dashboard/InvoicingDashboard.tsx` |
+| Sync tie-out | Per account and period, Carbon's balance against the connected external ledger (Xero, QuickBooks, Rillet); shown only when an accounting integration is active | `apps/erp/app/modules/accounting/ui/SyncTieOut/SyncTieOutTable.tsx`, routes `apps/erp/app/routes/x+/accounting+/{sync-tieout,sync-tieout.$cellId}.tsx` |
+| Dashboard tie-out | AR and AP subledger balance vs GL control-account balance, variance flagged (§1) | `apps/erp/app/modules/invoicing/ui/Dashboard/InvoicingDashboard.tsx` (`TieOut`) |
+| Bank accounts | Only customer and supplier bank details (for payments), no company bank-account register | `apps/erp/app/modules/sales/ui/Customer/CustomerBankAccounts.tsx`, `apps/erp/app/modules/purchasing/ui/Supplier/SupplierBankAccounts.tsx` |
 | Statement import/feeds | **Absent** in this checkout (no bank-statement screens) | — |
 
 ### Dolibarr — bank journal is a browsable ledger with per-line matching
@@ -597,21 +640,21 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 | --- | --- | --- |
 | Banking windows | Bank/statement/payment windows (statement line import feeding the payment-allocation flow) via generic shell | `frontend/src/components/window/`; owners `backend/de.metas.banking`, `backend/de.metas.payment.esr` (Swiss inbound matching) |
 
-### Odoo — bank statements & feeds (reconciliation widget reserved wiring on enterprise)
+### Odoo — bank statements and reconcile models; the matching widget is Enterprise
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Bank statement views | account.bank.statement/lines list+form (draft/open/validated states) with partial-reconcile flags via `account.partial.reconcile` model | `odoo/addons/account/views/account_bank_statement_views.xml`, `odoo/addons/account/views/account_full_reconcile_views.xml`, `odoo/addons/account/views/account_reconcile_model_views.xml` (reconcile model maintenance) |
+| Bank statement views | account.bank.statement list/form with starting and ending balance; rows flagged red when the statement is not complete (lines do not reach the real ending balance) or not valid; reconcile models maintained separately | `odoo/addons/account/views/account_bank_statement_views.xml`, `odoo/addons/account/views/account_full_reconcile_views.xml`, `odoo/addons/account/views/account_reconcile_model_views.xml` (reconcile model maintenance) |
 | Partner bank | `res.partner.bank` views + `many2many_tags_banks`/`manyone_banks`/`auto_save_res_partner_bank` OWL components (IBAN UX) | `odoo/addons/account/views/res_partner_bank_views.xml`, `odoo/addons/account/static/src/components/{many2many_tags_banks,manyone_banks,auto_save_res_partner_bank}/` |
-| Reconciliation widget | **Absent in community** — the bank-reconciliation matching widget ships with the Enterprise `account_accountant`; community keeps statements+models only | flag in §15 |
+| Reconciliation widget | **Absent in community** — the bank-reconciliation matching widget ships with the Enterprise `account_accountant`; community keeps statements+models only | §18 |
 
-**BOSS implications.** Banking splits into three building blocks everywhere: (1) bank-account master w/ opening balance & currency (Akaunting, Dolibarr, ERPNext, AureusERP), (2) a ledger-browsable statement surface — Dolibarr's `bankentries_list` with inline matching columns is the single best reference for a Moqui XML screen, (3) matching/reconciliation automation opener (ERPNext statement-import→rule-based auto-reconcile→manual tool; Akaunting's simple two-column statement screen). BOSS's Accounting app should ship 1+2 as first screens with a simple statement-import → matching-item queue; the reconcile widget (Odoo enterprise) is out of reach of community references — model matching as `PaymentApplication` candidates rather than a bespoke widget, feeding the §7 allocation screen. Dolibarr's suspense-account dashboard box (§1) is the mechanical stub: unmatched GL lines need a visible landing.
+**BOSS implications.** Banking splits into three building blocks everywhere: (1) bank-account master w/ opening balance & currency (Akaunting, Dolibarr, ERPNext, AureusERP), (2) a ledger-browsable statement surface — Dolibarr's `bankentries_list` with inline matching columns is the single best reference for a Moqui XML screen, (3) matching/reconciliation (ERPNext statement import → rule-based auto-match → manual tool; Akaunting's clear-checkbox screen with a zero-difference rule). The Moqui baseline is further along than any community reference except ERPNext: bank accounts are `PaymentMethod` + `BankAccount` with GL account and ledger balance, and the payment-method transactions screen imports BAI2 and OFX statements into `PaymentMethodTrans`, auto-matches them (**Match and Reconcile**), and offers manual reconcile, no-reconcile and unreconcile (§17). BOSS should keep that model, give it a real statement-session header (period, closing balance, difference — Akaunting), add matching rules (ERPNext Bank Transaction Rule), and send unmatched lines to a visible queue (Dolibarr's suspense-account box). The Odoo reconcile widget is Enterprise; nothing in the community set needs a bespoke widget beyond a two-sided match list.
 
 ---
 
 ## 9. Period close & locks
 
-### Akaunting / gauzy — **absent**
+### Akaunting / Ever Gauzy — **absent**
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
@@ -627,8 +670,9 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Periods table | Fiscal periods grid (open/closed per year & month), close-state toggles | `apps/erp/app/modules/accounting/ui/Periods/PeriodsTable.tsx` |
-| Pre-close checklist popover | "Unposted documents in period" popover listing blocking docs before closing | `apps/erp/app/modules/accounting/ui/Periods/PeriodCloseUnpostedDocumentsPopover.tsx`, service `apps/erp/app/modules/accounting/accounting.periods.ts` (logic + tests) |
+| Periods table | Fiscal periods grid (open/closed per year & month), generate periods, close and delete actions | `apps/erp/app/modules/accounting/ui/Periods/PeriodsTable.tsx`, routes `apps/erp/app/routes/x+/accounting+/{periods,periods.generate,periods.$periodId.close,periods.$periodId.delete}.tsx` |
+| Pre-close checklist popover | "Unposted documents in period" popover listing blocking docs before closing | `apps/erp/app/modules/accounting/ui/Periods/PeriodCloseUnpostedDocumentsPopover.tsx` (tests `apps/erp/app/modules/accounting/accounting.periods.test.ts`) |
+| Period runs | Depreciation, lease and revenue-recognition runs are listed under Closing beside the periods (§15) | `apps/erp/app/modules/accounting/ui/PeriodRunDocuments.tsx`, `apps/erp/app/routes/x+/accounting+/period-runs.server.ts` |
 
 ### Dolibarr — single closure screen + per-fiscalyear close
 
@@ -641,9 +685,9 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Accounting Periods | Period master: closed periods + which doc types (and which transaction types) are frozen | `erpnext/accounts/doctype/accounting_period/accounting_period.{js,json,py}` |
+| Accounting Periods | Period master (name, start/end, company, disabled) with a table of closed document types and an exempted role | `erpnext/accounts/doctype/accounting_period/accounting_period.{js,json,py}` |
 | Period closing voucher | Year-end closing: `account_closing_balance` snapshot generating journal entry; process helper queues the work in background | `erpnext/accounts/doctype/period_closing_voucher/period_closing_voucher.{js,json,py}`, `process_period_closing_voucher/`, closing balances `account_closing_balance/` |
-| Accounts settings (locks) | Global freeze controls: freeze up to date, frozen user-exceptions (role exempt list), credit-debit control dates (also `rep_m` related settings) | `erpnext/accounts/doctype/accounts_settings/accounts_settings.{js,json,py}` |
+| Freeze date and immutable ledger | Per company: accounts frozen till date and the role allowed to post frozen entries; Accounts Settings: **Enable Immutable Ledger** (cancellation entries post on the actual cancellation date and reports include cancelled entries) | `erpnext/setup/doctype/company/company.json` (`accounts_frozen_till_date`, `role_allowed_for_frozen_entries`), `erpnext/accounts/doctype/accounts_settings/accounts_settings.json` (`enable_immutable_ledger`) |
 | Repost hygiene | Repost queue doctypes monitoring day-end consistency repairs (see §3) | `erpnext/accounts/doctype/repost_accounting_ledger/` |
 
 ### metasfresh — period control in the core AD model
@@ -660,7 +704,7 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 | Lock exceptions | `ir.lock.exception` registry letting approved users post into locked windows until a date | `odoo/addons/account/views/account_lock_exception_views.xml`, models tie-in `odoo/addons/account/models/account_move.py` |
 | Entry immutability | Secure-entries wizard hashing posted entries (anti-tamper) | `odoo/addons/account/wizard/account_secure_entries_wizard.py` |
 
-**BOSS implications.** Close is a *period status + checklist + gate*, not one big screen: Carbon's periods table + unposted-documents popover models exactly what a Moqui screen needs (period grid with per-type lock checkboxes, pre-close validation list). Odoo's five lock-date axes (GL/tax/PO/SO/hard) plus lock-exception registry map onto BOSS `AcctgPeriod`/`AcctgPeriodStatus`-plus user-exception table; ERPNext's accounting-period-per-doctype freezing is a nice generic mechanism (close "outstanding POs" without closing GL). Post-closing immutability should be BE-structured: BOSS can reuse the posted-entry hash idea (Odoo secure entries) when a hard-close lands.
+**BOSS implications.** Close is a *period status + checklist + gate*, not one big screen: Carbon's periods table + unposted-documents popover models what a Moqui screen needs (period grid, pre-close validation list). Mantle already has the period and the close: fiscal `TimePeriod` rows with `isClosed`, and `close#FinancialTimePeriod`, `reopen#FinancialTimePeriod`, `create#PeriodCloseAcctgTrans` behind the baseline **Accounts** view of a time period (§17). Odoo's lock-date axes (all entries, tax, sales, purchases, hard lock) plus lock exceptions, and ERPNext's per-document-type closed periods with an exempt role, are what Mantle lacks: today a period is open or closed for everything. A per-type lock and an exception record are new; the posted-entry hash (Odoo secure entries) can follow once a hard lock exists.
 
 ---
 
@@ -679,14 +723,14 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Taxes | TaxResource (rate scopes, distribution for invoice/refund repartition lines) + TaxGroupResource | `plugins/webkul/accounts/src/Filament/Resources/{TaxResource,TaxGroupResource}.php` (+ `Pages/`) |
+| Taxes | Configuration → Taxes (rate scopes, distribution for invoice/refund repartition lines) and Tax Groups | `plugins/webkul/accounting/src/Filament/Clusters/Configuration/Resources/{TaxResource,TaxGroupResource}.php`, base `plugins/webkul/accounts/src/Filament/Resources/{TaxResource,TaxGroupResource}.php` |
 | Fiscal positions (tax switching) | Country/city mapping switching tax accounts & taxes per document (§2) | `plugins/webkul/accounts/src/Filament/Resources/FiscalPositionResource.php` |
 
 ### Carbon — no standalone tax screens; tax inside documents
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Tax handling | Tax grid on invoice/PO summaries, tax autocomplete inside JE lines; no tax master surface discovered | `apps/erp/app/modules/invoicing/ui/SalesInvoice/SalesInvoiceSummary.tsx`, `apps/erp/app/modules/accounting/ui/JournalEntries/JournalLineRow.tsx` |
+| Tax handling | Tax percent and amount per invoice line and a tax total in the invoice summary; journal-entry lines have no tax field; no tax-rate master screen or route | `apps/erp/app/modules/invoicing/ui/SalesInvoice/{SalesInvoiceLineForm,SalesInvoiceSummary}.tsx` |
 
 ### Dolibarr — the full declaration workspace
 
@@ -694,11 +738,16 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 | --- | --- | --- |
 | VAT declarations | Main VAT ledger (list/card with payment month deadlines), payments page, per-client turnover reports (`clients.php`), declarations detail/norms | `htdocs/compta/tva/{index,card,list,payments,clients,document,info}.php`, paid-through `htdocs/compta/payment_vat/` |
 | Quadri detail (declaration lines) | Detail per rate/product for periodic declaration printing (incl. `quadri` variants) | `htdocs/compta/tva/quadri_detail.php` (+ sibling `initdatesforvat.inc.php`) |
-| Local taxes | `localtax` pages (same pattern per local tax type) | `htdocs/compta/localtax/{index,card,list,...}.php` |
+| Local taxes | `localtax` pages (same pattern per local tax type) | `htdocs/compta/localtax/{index,card,list,clients,quadri_detail}.php` |
 | Social contributions | Sociales contributors (payroll-tax analog) with their own payment pages | `htdocs/compta/sociales/`, payments via `htdocs/compta/paiement_charge.php` |
 | Intrastat/report feeds | European tax report tooling | `htdocs/intracommreport/` |
-| E-invoicing community module | E-invoice document list/cards, e-invoice tracking statuses, XML preview & pending-sync queue, product mapping | `dolibarr-community-modules/einvoicing/{document_list,document_card,einvoice_tracking,xmlpreview,sync_pending_list,product_mapping}.php` |
-| KSeF (Poland) | **Metadata-only** in this checkout (README + index.yaml, no code) | `dolibarr-community-modules/ksef/{README.md,index.yaml}` |
+
+### Dolibarr community modules — French e-invoicing access point; KSeF stub
+
+| Screen/page | What it is | Key files |
+| --- | --- | --- |
+| E-invoicing module | Connects to a certified French access point ("Plateforme Agréée"): e-invoice document list/cards (with notes, contacts, agenda, files tabs), per-invoice tracking with the lifecycle statuses (local: not generated, generated, awaiting validation, awaiting acknowledgement, error; platform: deposited, issued, received, available, taken over, approved, partially approved, disputed, suspended, completed, refused, payment sent, paid, rejected), API call log, XML preview, pending-sync queue, product and vendor-reference mapping; refuses to generate a 0 % VAT line without an exemption reason (EN 16931 BT-121) | `einvoicing/{document_list,document_card,document_note,document_contact,document_agenda,document_document,einvoice_tracking,call_list,call_card,xmlpreview,sync_pending_list,product_mapping,vendorref_list}.php`, statuses `einvoicing/class/einvoicing.class.php` |
+| KSeF (Poland) | **Metadata only** in this checkout (README + index.yaml describing an external repository, no code) | `ksef/{README.md,index.yaml}` |
 
 ### ERPNext — tax templates/withholding + regional e-invoice modules
 
@@ -714,7 +763,7 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Org tax settings | VAT/taxId fields & rates under organizations (feeds invoice tax columns) | org settings pages under `apps/gauzy/src/app/pages/organizations/` (see §14), shared selectors in `packages/ui-core` |
+| Org tax settings | VAT/tax id fields and default tax rates in organization settings, feeding invoice tax columns *(unverified field list)* | `apps/gauzy/src/app/pages/organizations/edit-organization/edit-organization-settings/` (see §14) |
 
 ### metasfresh — e-invoice gateway modules, no tax screens
 
@@ -731,17 +780,23 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 | QR codes & country EDIs | Payment QR codes (SEPA & EMV) and per-country EDI bundles | `odoo/addons/account_qr_code_sepa/`, `odoo/addons/account_qr_code_emv/`, Italian EDI bundle `odoo/addons/l10n_it_edi` (+ `odoo/addons/l10n_it_edi_sale`, `odoo/addons/l10n_it_edi_doi`) |
 | Fetch external e-invoices | `fetch_einvoices`/`account_file_uploader` component pair (pull inbound e-invoices on dashboard) | `odoo/addons/account/static/src/components/{fetch_einvoices,account_file_uploader}/` |
 
-**BOSS implications.** Ship BOSS Tax as a flat master-plus-declaration split: tax-rate master with per-document tax grid (Akaunting/AureusERP style) and a declaration draft screen fed by tax-per-line tables — Dolibarr's `tva/quadri_detail` is the clearest reference for a Moqui XML declaration screen, and its to-validate tax payment queue is worth copying too. E-invoicing deserves an outbound document record (statuses: pending/sent/acked, like the einvoicing module's `einvoice_tracking`) and an EDI-format dispatch framework rather than country hardcoding — Odoo's layered `account_edi` stack is the architectural template; inbound e-invoice fetching is already a proven small screen (Odoo `fetch_einvoices`).
+**BOSS implications.** Ship BOSS Tax as a master-plus-declaration split: tax-rate master with per-document tax grid (Akaunting/AureusERP style) and a declaration draft screen fed by tax-per-line tables — Dolibarr's `htdocs/compta/tva/quadri_detail.php` is the clearest reference for a Moqui XML declaration screen, and its VAT payments page is worth copying too. Mantle has tax authorities (`TaxAuthority`, `TaxAuthorityCategory`, `TaxAuthorityParty`, `TaxAuthorityAssoc`, `TaxAuthorityGlAccount`) and tax statements (`TaxStatement`, 1099-MISC) but **no tax-rate record**: `TaxAuthorityRate` exists only inside an XML comment ("Using a Drools Decision Table instead of this"), and no decision table ships in the checkout. Rates come from a tax gateway: `ProductStore.taxGatewayConfigId` → `TaxGatewayConfig.calculateServiceName`, a service implementing the `calculate#SalesTax` interface that returns rate, amount and authority per item; `calculate#OrderSalesTax` writes them as `ItemSalesTax` order items with `sourcePercentage` and `taxAuthorityId`. The only gateway seeded, `LOCAL` (`calculate#SalesTaxLocal`), is a stub that logs "not yet implemented", and `calculate#InvoiceSalesTax` is an empty TODO. So out of the box Mantle computes no tax, and there are no tax screens (§17). The first BOSS tax work is a rate source — a local rate table behind the `LOCAL` gateway, or an external gateway (Open questions) — then authority maintenance and a tax-statement list. E-invoicing deserves an outbound document record with a lifecycle status (the einvoicing module's tracking statuses are a ready list) and a format dispatch layer rather than country hardcoding — Odoo's layered `account_edi` stack is the template; Mantle's `InvoiceSystemMessage` is the existing outbound link (the baseline Edit Invoice screen also calls `mantle.edi.account.X12InvoiceServices.produce#Invoice`, which is not in this checkout). Inbound e-invoice fetching is a proven small screen (Odoo `fetch_einvoices`).
 
 ---
 
 ## 11. Budgets & forecasts
 
-### Akaunting / AureusERP / Carbon / gauzy / metasfresh — **absent**
+### Akaunting / AureusERP / Carbon / metasfresh — **absent**
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| **Absent** | None of the five ships a budget/forecast screen in this checkout (AureusERP & Odoo community both lack a budget module) — compare Odoo Enterprise `account_budget`, not present here | — |
+| **Absent** | No budget/forecast screen in Akaunting, AureusERP or Carbon; metasfresh's React shell has none and its backend windows were not checked *(unverified)* | — |
+
+### Ever Gauzy — client and project budget reports
+
+| Screen/page | What it is | Key files |
+| --- | --- | --- |
+| Budget reports | Client budgets and project budgets reports (spend against the budget set on a client or project), not a GL budget | `apps/gauzy/src/app/pages/reports/{client-budgets-report,project-budgets-report}/` |
 
 ### Dolibarr — cash-flow forecast page only
 
@@ -754,8 +809,8 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Budget | Budget doc against account/cost center/finance-book per month/period via Monthly Distribution; `budget_account` child & action flags (stop/warn across companies); also `budget_distribution` group | `erpnext/accounts/doctype/budget/budget.{js,json,py}`, children `budget_account/`, `monthly_distribution/` (+ `_percentage`), `budget_distribution/` |
-| Variance reporting | Budget Variance report + the budget-variance dashboard chart source (§1) | `erpnext/accounts/report/budget_variance_report/`, `erpnext/accounts/dashboard_chart/budget_variance.json` |
+| Budget | Budget against a Cost Center or Project, one account and amount over a fiscal-year range, distributed equally or by a distribution; for each of material requests, purchase orders, actual expenses and cumulative expense, an annual and an accumulated-monthly action of Stop / Warn / Ignore; revisions (`revision_of`) | `erpnext/accounts/doctype/budget/budget.{js,json,py}`, `erpnext/accounts/doctype/{budget_account,budget_distribution,monthly_distribution,monthly_distribution_percentage}/` |
+| Variance reporting | Budget Variance report + the budget-variance dashboard chart source (§1) | `erpnext/accounts/report/budget_variance_report/`, `erpnext/accounts/dashboard_chart/budget_variance/` |
 
 ### Odoo — **absent in community**
 
@@ -763,7 +818,7 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 | --- | --- | --- |
 | **Absent** | No `budget`/`account_budget` addon in this tree (Enterprise-only flavor) — analytic plans carry the comparative-analysis burden | — |
 
-**BOSS implications.** Budgeting is the thinnest area across the whole reference set — one good implementation (ERPNext: budget doc + variance report + distribution calendar) covers the requirement. BOSS should model Budget as GL-account/period matrix with a variance report sharing the §12 report engine, and use it as a warning/stop gate utility (ERPNext's stop/warn actions) rather than a full planning suite. Forecasts beyond the bank cash view (Dolibarr `budget.php`) can wait.
+**BOSS implications.** Budgeting is the thinnest area across the reference set — one good implementation (ERPNext: budget doc + variance report + distribution) covers the requirement. The Moqui baseline is already ahead of everyone but ERPNext here: `mantle.other.budget.Budget`/`BudgetItem` with GL-account × sub-period entry (Accounts Entry screen), budget item details, and an Expense Report (`run#BudgetExpenseReport`) exist (§17), and Mantle also models revisions, reviews and scenarios with no screens. BOSS should keep that model, add the variance view to the shared report engine (§12), and add ERPNext's Stop/Warn check on purchase orders and expenses as the one control. Forecasts beyond the bank cash view (Dolibarr `budget.php`) can wait.
 
 ---
 
@@ -773,7 +828,7 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Profit & loss / tax summary pages | Category-comparison tables with period switcher; only two report views shipped (others are category-based analytics) | `resources/views/reports/{profit_loss,tax_summary}/` (`content/`, `table/` partials), controllers `app/Http/Controllers/Common/Reports.php` |
+| Profit & loss / tax summary pages | Category-comparison tables with period switcher; two dedicated report views (the other classes render through the shared report view); users create and edit report records from a report class | `resources/views/reports/{profit_loss,tax_summary}/`, `resources/views/common/reports/{create,edit}.blade.php`, controller `app/Http/Controllers/Common/Reports.php` |
 | Report classes | Server-side row builders: ProfitLoss, IncomeExpenseSummary, Income/ExpenseSummary, TaxSummary, DiscountSummary | `app/Reports/{ProfitLoss,IncomeExpenseSummary,IncomeSummary,ExpenseSummary,TaxSummary,DiscountSummary}.php` |
 | Export engine | Bulk XLSX/PDF exports per page area (Sales/Purchases/Banking/Common/Settings) | `app/Exports/{Sales,Purchases,Banking,Common,Settings}/`, base `app/Abstracts/Export.php` |
 
@@ -784,7 +839,7 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 | Trial balance & GL | TrialBalance, GeneralLedger (+ PartnerLedger per customer/vendor) pages with filters; per-row drill-in | `plugins/webkul/accounting/src/Filament/Clusters/Reporting/Pages/{TrialBalance,GeneralLedger,PartnerLedger}.php` |
 | Statements | ProfitLoss and BalanceSheet pages rendering standard statements from journal lines | `plugins/webkul/accounting/src/Filament/Clusters/Reporting/Pages/{ProfitLoss,BalanceSheet}.php` |
 | Ageing reports | AgedReceivable / AgedPayable pages bucketed per period | `plugins/webkul/accounting/src/Filament/Clusters/Reporting/Pages/{AgedReceivable,AgedPayable}.php` |
-| Report exports | Cluster-wide Exports folder + shared Concerns (column/config reuse) | `plugins/webkul/accounting/src/Filament/Clusters/Reporting/Exports/`, `Concerns/` |
+| Report exports | One export class per report page + shared concerns (date-filter normalizing, currency notice) | `plugins/webkul/accounting/src/Filament/Clusters/Reporting/Pages/Exports/`, `plugins/webkul/accounting/src/Filament/Clusters/Reporting/Pages/Concerns/{NormalizeDateFilter,ShowsCurrencyNotice}.php` |
 
 ### Carbon — an in-app pivot/reporting engine reading straight off the GL
 
@@ -792,8 +847,8 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 | --- | --- | --- |
 | Pivot engine | PivotTree (row/column grouping tree), ColumnStepper (define columns across comparison periods), PivotLinesDrawer & PivotControlBar, ReportFilters + CompanySelector, SaveViewModal (save views) | `apps/erp/app/modules/accounting/ui/Reports/{PivotTree,PivotControlBar,PivotLinesDrawer,ColumnStepper,ReportFilters,CompanySelector,SaveViewModal}.tsx`, data layer `apps/erp/app/modules/accounting/ui/Reports/executivePnl.ts` + `pivotData.test.ts` |
 | Statement renders | MultiPeriodStatementTree (balance-sheet-like trees), ExecutivePnlSummary | `apps/erp/app/modules/accounting/ui/Reports/{MultiPeriodStatementTree,ExecutivePnlSummary}.tsx` |
-| Trial balance & ledger | TrialBalanceTable/Tree + AccountLedgerDrawer per-account drill-in; export helper `exportReport.ts` | `apps/erp/app/modules/accounting/ui/Reports/{TrialBalanceTable,TrialBalanceTree,AccountLedgerDrawer,exportReport}.tsx` |
-| Invoicing analytics | Sales/purchase analysis + taxes computed for the dashboard & CFO quick numbers | `apps/erp/app/modules/invoicing/invoicing.reports.ts` (+ tests) |
+| Trial balance & ledger | TrialBalanceTable/Tree + AccountLedgerDrawer per-account drill-in; purchases lines drawer; export helper | `apps/erp/app/modules/accounting/ui/Reports/{TrialBalanceTable,TrialBalanceTree,AccountLedgerDrawer,PurchaseLinesDrawer,PurchasesControlBar}.tsx`, `apps/erp/app/modules/accounting/ui/Reports/exportReport.ts` |
+| Invoicing analytics | Calendar and spend-aggregation helpers with no route consumer yet | `apps/erp/app/modules/invoicing/invoicing.reports.ts` |
 
 ### Dolibarr — dozens of PHP result/stat pages
 
@@ -819,9 +874,9 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| All reports index | Grid of available reports (finance: expenses, payment, amounts owed, client/project budgets; plus time/HR reports) | `apps/gauzy/src/app/pages/reports/all-report/all-report.component.ts` |
+| All reports index | Grid of available reports (finance: expenses, payment, amounts owed, client/project budgets; plus time/HR reports) | `apps/gauzy/src/app/pages/reports/all-report/all-report/all-report.component.ts` |
 | Finance reports | Expenses report w/ chart+grid stack; Payment report; Amounts owed (customer/vendor outstanding); Client & Project budget reports | `apps/gauzy/src/app/pages/reports/{expenses-report,amounts-owed-report,payment-report,client-budgets-report,project-budgets-report}/` |
-| Report infra | Report service + shared chart/grid components (income statement pages?), org/employee/date selectors global | `apps/gauzy/src/app/pages/reports/all-report/report.service.ts`, chart primitives in `packages/ui-core`/`packages/ui-dashboard-charts` |
+| Report infra | Report service + shared chart/grid components, global org/employee/date selectors | `apps/gauzy/src/app/pages/reports/all-report/report.service.ts`, shared UI `packages/ui-core/` |
 
 ### metasfresh — AD reporting windows + SQL views
 
@@ -833,11 +888,12 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Invoice analysis (SQL view) | `account.invoice.report` pivot/graph configured as dashboard KPIs; registration by `account_report.xml` | `odoo/addons/account/report/account_invoice_report.py`, `odoo/addons/account/report/account_invoice_report_view.xml`, `odoo/addons/account/views/account_report.xml` |
-| Financial statements | **Absent** — the P&L/BS/aged-trial-balance pivot screen suite (`account_reports`) is Enterprise; community ships only the tax report engine hooks | `odoo/addons/account/views/account_report.xml` (custom report model bits), flag in §15 |
-| Hash integrity | CSV/GC-cryptographic integrity templates (fiscal tamper detection) | `odoo/addons/account/report/account_hash_integrity_templates.py` (+ `.xml`) |
+| Invoice analysis (SQL view) | `account.invoice.report` pivot/graph (Reporting → Invoice Analysis) | `odoo/addons/account/report/{account_invoice_report.py,account_invoice_report_view.xml}` |
+| Cashflow analysis | Reporting → Cashflow Analysis: pivot/graph action over bank statement lines | `odoo/addons/account/views/account_bank_statement_views.xml` (`action_account_cashflow_analysis`) |
+| Financial statements | **Absent** — the P&L/BS/aged/partner-ledger screens (`account_reports`) are Enterprise; community ships the `account.report` definition model and its views, which the Enterprise UI renders | `odoo/addons/account/models/account_report.py`, `odoo/addons/account/views/account_report.xml` |
+| Hash integrity | Integrity-check report for hashed (secured) entries | `odoo/addons/account/report/{account_hash_integrity_templates.py,account_hash_integrity_templates.xml}` |
 
-**BOSS implications.** Financial reporting is where the references divide: PHP file-per-report suites (Dolibarr, ERPNext) vs a document-engine (Odoo's report model + SQL-view report pages) vs in-app pivot builders (Carbon, AureusERP's Reporting cluster). For BOSS, implement standard statements (Trial Balance, GL, AR/AP ledger & aged, P&L, Balance Sheet, Cash Flow) as XML screens over the GL views — AureusERP's Reporting/Pages set is the shape and ERPNext's `financial_report_template` JSON trees the data model. A shared drill-down widget (click a report row → open account ledger filtered) is the single biggest UX win identified across Carbon (AccountLedgerDrawer) and ERPNext alike; saved views + export columns (Carbon SaveViewModal/ColumnStepper, Akaunting Exports) should be engine features, not per-report code.
+**BOSS implications.** Financial reporting is where the references divide: file-per-report suites (Dolibarr PHP pages, ERPNext script reports) vs a report-definition model (Odoo's `account.report`, ERPNext `financial_report_template`) vs in-app pivot builders (Carbon). AureusERP's seven Reporting pages (Trial Balance, General Ledger, Partner Ledger, Profit & Loss, Balance Sheet, Aged Receivable, Aged Payable) are the minimum set. The Moqui baseline already covers most of it in one Report List (Balance Sheet, Income Statement, Cash Flow, Retained Earnings, Financial Ratios, Account Ledger, Account Balance, Posted Amount/Balance Summary, AR aging summary and detail, Invoice Reconciliation) over `mantle.ledger.LedgerReportServices` (§17), plus a per-period trial balance (the time period **Accounts** view: beginning, debits, credits, ending per GL account) and Quick Aging for receivables or payables with a chosen bucket length; the gaps are a partner ledger, multi-period comparison columns and row drill-down. A shared drill-down (click a report row → open the account ledger filtered) is the single biggest UX win identified across Carbon (AccountLedgerDrawer) and ERPNext; saved views and export (Carbon SaveViewModal/ColumnStepper, AureusERP export classes, Akaunting Exports) should be report-engine features shared with Insights, not per-report code.
 
 ---
 
@@ -847,7 +903,7 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Customers | Contact CRUD list w/ due-balance column + documents/payments/transactions tabs on the show page; contacts widget on dashboard | `resources/views/sales/customers/show.blade.php` (+ `index/create/edit`), controller `app/Http/Controllers/Sales/Customers.php` (balance roll-up queries) |
+| Customers | Contact list and CRUD; the show page has Open / Overdue / Paid totals, documents and transactions tabs, and client-portal access status | `resources/views/sales/customers/{index,create,edit,show}.blade.php`, shared `resources/views/components/contacts/show/content.blade.php`, controller `app/Http/Controllers/Sales/Customers.php` |
 | Vendors | Same surface for purchase side | `resources/views/purchases/vendors/`, controller `app/Http/Controllers/Purchases/Vendors.php` |
 | Customer portal face | Guest sees own totals/paid/due on portal dashboard & invoice pages (§4) | `resources/views/portal/dashboard/`, controller `app/Http/Controllers/Portal/Dashboard.php` |
 
@@ -855,7 +911,7 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Customers & vendors | PartnerResource-style Customer/Vendor resources in both plugins w/ invoice/bill relation tabs (no credit field in this version) | `plugins/webkul/accounts/src/Filament/Resources/{CustomerResource,VendorResource}/`, twins in `plugins/webkul/invoices/src/Filament/Clusters/{Customers,Vendors}/Resources/{CustomerResource,VendorResource}.php` |
+| Customers & vendors | Customers → Customers and Vendors → Vendors partner resources with invoice/bill relations (no credit-limit field in this version) | `plugins/webkul/accounting/src/Filament/Clusters/Customers/Resources/CustomerResource.php`, `plugins/webkul/accounting/src/Filament/Clusters/Vendors/Resources/VendorResource.php`, twins `plugins/webkul/invoices/src/Filament/Clusters/Customers/Resources/CustomerResource.php` and `plugins/webkul/invoices/src/Filament/Clusters/Vendors/Resources/VendorResource.php`, base `plugins/webkul/accounts/src/Filament/Resources/{CustomerResource,VendorResource}.php` |
 
 ### Carbon — party-grouped aging workbench
 
@@ -863,7 +919,7 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 | --- | --- | --- |
 | Aging workbench | ARAP workbench groups open items per customer/supplier with expandable balance rows and cooperative allocation (§7) | `apps/erp/app/modules/invoicing/ui/Workbench/ARAPWorkbench.tsx` |
 | Aging totals on dashboard | Current/1-30/31-60/61-90/over-90 buckets + unapplied credit & tie-out | `apps/erp/app/modules/invoicing/ui/Dashboard/InvoicingDashboard.tsx` (`AgingTotals` type) |
-| Customer/supplier stores | `useCustomers`/`useSuppliers` currency-aware, backing the party pickers | `apps/erp/app/stores/` (imported from `~/stores` in InvoicingDashboard) |
+| Customer/supplier stores | Client-side customer and supplier stores backing the party pickers | `apps/erp/app/stores/{customers,suppliers}.ts` |
 
 ### Dolibarr — open-bill lists & third-party recaps (no formal aging engine)
 
@@ -880,7 +936,7 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 | Party utils | `party.py` — account resolution, balance & gl helpers (party-wise balances backend) | `erpnext/accounts/party.py` |
 | AR/AP ageing | Accounts Receivable/Payable reports (w/ ageing & range-based details) + consolidated summaries | `erpnext/accounts/report/{accounts_receivable,accounts_payable,accounts_receivable_summary,accounts_payable_summary,consolidated_accounts_receivable,consolidated_accounts_payable}/` |
 | Ledger summaries | Customer & supplier ledger summary (emailable/`process_statement_of_accounts`-ready) | `erpnext/accounts/report/{customer_ledger_summary,supplier_ledger_summary}/` |
-| Credit limits | Customer Credit Limit doctype (per company/currency, warnings or stops pending amount) + customer credit balance report | `erpnext/selling/doctype/customer_credit_limit/customer_credit_limit.{js,json,py}`, `erpnext/selling/report/customer_credit_balance/` |
+| Credit limits | Customer Credit Limit rows per company (credit limit, overdue billing threshold, bypass credit-limit check at sales order); Accounts Settings names the role allowed to bypass and can block new invoices for customers over their overdue threshold; customer credit balance report | `erpnext/selling/doctype/customer_credit_limit/customer_credit_limit.{json,py}`, `erpnext/accounts/doctype/accounts_settings/accounts_settings.json` (`credit_controller`, `enable_overdue_billing_threshold`), `erpnext/selling/report/customer_credit_balance/` |
 
 ### Ever Gauzy — amounts-owed & budgets reports
 
@@ -901,9 +957,9 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 | --- | --- | --- |
 | Partner accounting tabs | Fiscal position & partner-level accounting settings on partner forms (no follow-up fields in community); partner payments widget (`account_payment_field`) shows paid amounts on documents | `odoo/addons/account/views/partner_view.xml`, `odoo/addons/account/static/src/components/account_payment_field/` |
 | Open links | `open_move_widget`/`open_move_line_move_widget` badges deep-linking source docs from GL line views | `odoo/addons/account/static/src/components/{open_move_widget,open_move_line_move_widget}/` |
-| Followup/ledger reports | **Absent** (Enterprise `account_reports` + `account_followup` own them) | flag in §15 |
+| Followup/ledger reports | **Absent** (Enterprise `account_reports` + `account_followup` own them) | §18 |
 
-**BOSS implications.** The Customer 360 balance face should fuse what these references keep separate: a party header with due/current (Akaunting), bucket aging (Carbon/ERPNext both bucket), credit limit with stop/warn behavior (ERPNext customer_credit_limit) and a payments/open-items tab linking into allocation (§7). Vendor side needs the same minus credit (or with vendor contracts) — Carbon's single ARAP workbench proves one screen can carry both faces with a party-type switch. Deep-link badges from balances to source documents (Odoo `open_move_widget`) is the connecting tissue for the shared-screen values: BOSS Journal lines, invoices and payments must all be jump-reachable from the party card.
+**BOSS implications.** The Accounting face of Customer 360 (screen owned by Sales, crosscut §3) should fuse what these references keep separate: a party header with due/current (Akaunting), bucket aging (Carbon/ERPNext), credit limit with stop/warn behavior (ERPNext Customer Credit Limit plus overdue threshold) and a payments/open-items tab linking into allocation (§7). The baseline Party **Financial Info** tab already lists unpaid and recently paid receivables and payables, unapplied payments and current orders, with a customer statement PDF (§17); what it lacks is the aging strip and a credit limit — Mantle's `BillingAccount.accountLimit` is the only limit field and has no screen. The Supplier 360 AP face (owned by Purchasing) needs the same minus credit — Carbon's single AR/AP workbench proves one screen can carry both with a party-type switch. Deep-link badges from balances to source documents (Odoo `open_move_widget`) connect the faces: GL lines, invoices and payments must all be reachable from the party record.
 
 ---
 
@@ -921,7 +977,7 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Accounting settings | ManageCustomerInvoice (numbering & terminology), ManageDefaultAccounts, ManageProducts, ManageTaxes | `plugins/webkul/accounting/src/Filament/Pages/Settings/{ManageCustomerInvoice,ManageDefaultAccounts,ManageProducts,ManageTaxes}.php` |
+| Accounting settings | ManageCustomerInvoice, ManageDefaultAccounts, ManageProducts, ManageTaxes (the same four pages exist under the Settings cluster and under `Pages/Settings`) | `plugins/webkul/accounting/src/Filament/Clusters/Settings/Pages/{ManageCustomerInvoice,ManageDefaultAccounts,ManageProducts,ManageTaxes}.php`, `plugins/webkul/accounting/src/Filament/Pages/Settings/` |
 | Plugin settings shell | Cluster-level PluginSettings page per plugin | `plugins/webkul/accounting/src/Filament/Clusters/PluginSettings.php` (pattern shared by all webkul plugins) |
 
 ### Carbon — activation wizard + posting defaults + fintech knobs
@@ -944,16 +1000,16 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Accounts Settings | Single settings doctype: values & controls incl. freeze/lock dates (§9), default send remarks, warehouse flags | `erpnext/accounts/doctype/accounts_settings/accounts_settings.{js,json,py}` |
-| Currency/deferral automation | Currency exchange settings (auto-fetch), deferred-revenue process runner | `erpnext/accounts/doctype/currency_exchange_settings/…`, `erpnext/accounts/doctype/process_deferred_accounting/…` |
-| Numbering/sequencing | Document naming settings global (frappe `Document Naming Settings` consumed per doctype) | `erpnext/accounts/doctype/*` naming via `naming.py` patterns (e.g. `erpnext/accounts/doctype/sales_invoice/sales_invoice.py` naming hook) |
+| Accounts Settings | Single settings doctype: supplier-invoice uniqueness check, unlink payments on cancel, over-billing allowance, overdue-billing block, credit-limit bypass role, auto-reconcile payments and fuzzy party matching, deferred-accounting options, immutable ledger (§9), print options | `erpnext/accounts/doctype/accounts_settings/accounts_settings.{js,json,py}` |
+| Currency/deferral automation | Currency exchange settings (auto-fetch), exchange-rate revaluation, deferred-revenue process runner | `erpnext/accounts/doctype/{currency_exchange_settings,exchange_rate_revaluation,process_deferred_accounting}/` |
+| Numbering | Naming series per doctype (`naming_series` field, e.g. on Dunning and Payment Order) | `erpnext/accounts/doctype/payment_order/payment_order.json` |
 
 ### Ever Gauzy — org settings + accounting templates
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
 | Accounting templates | Manage invoice PDF templates at org level (see §4) | `apps/gauzy/src/app/pages/accounting-templates/` |
-| Org/general settings | Org settings sections (finance-relevant: taxes/VAT ids, expense categories, payment processing integrations) | settings pages `apps/gauzy/src/app/pages/settings/{general-setting,feature,file-storage,billing,...}/`, org sections in `packages/ui-core` organization settings component tree |
+| Org/general settings | Organization settings (finance-relevant: currency, tax ids, invoice defaults *(unverified field list)*) and app settings pages | `apps/gauzy/src/app/pages/organizations/edit-organization/edit-organization-settings/`, `apps/gauzy/src/app/pages/settings/{general-setting,feature,billing}/` |
 
 ### metasfresh — accounting setups as backend windows
 
@@ -967,22 +1023,239 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 | --- | --- | --- |
 | Accounting settings | `res.config.settings` subpage with groups leading the setup (COA picker, lock dates, currency, bank sync) | `odoo/addons/account/views/res_config_settings_views.xml`, `odoo/addons/account/wizard/setup_wizards.py` |
 | Company accounting fields | Default income/expense/deferred accounts, terms on company form | `odoo/addons/account/views/res_company_views.xml`, `odoo/addons/account/models/company.py` |
-| Sequences | Sequence.mixed for journal entries + numbering per journal (report print formats res_config) | `odoo/addons/account/models/sequence.py`, `odoo/addons/account/views/base_document_layout_views.xml` |
+| Sequences & layout | Sequence mixin numbering entries per journal (with the resequence wizard, §3); document layout settings for printed invoices | `odoo/addons/account/models/sequence_mixin.py`, `odoo/addons/account/views/base_document_layout_views.xml` |
 
-**BOSS implications.** Settings should be one Accounts/Configuration app section with per-area tabs mirroring the references: document defaults & numbering (Akaunting invoice settings, Dolibarr admin/invoice, Odoo sequences), payment terms & language/currency (every suite), first-run activation wizard with readiness checklist + opening balances (Carbon Activation is unmatched — the strongest guidance for onboarding a company into BOSS accounting), posting defaults (Carbon AccountDefaults, AureusERP ManageDefaultAccounts) to keep bookkeepers from picking accounts line-by-line, and module-gated add-ons (Akaunting Modules page vs its empty marketplace). Currency exchange automation (ERPNext currency_exchange_settings) is a lightweight high-value config screen for multi-company BOSS.
+**BOSS implications.** Settings should be one Accounting Configuration section with per-area tabs mirroring the references: document defaults & numbering (Akaunting invoice settings, Dolibarr admin/invoice, Odoo sequences), payment terms & currency (every suite), first-run activation wizard with readiness checklist + opening balances (Carbon Activation is unmatched — the strongest guidance for onboarding a company into BOSS accounting), posting defaults (Carbon Default Accounts, AureusERP ManageDefaultAccounts) to keep bookkeepers from picking accounts line-by-line. The baseline Org Settings already covers much of the posting-default half — Accounting Preferences (`PartyAcctgPreference`: fiscal year start, base currency, COGS method, invoice/order numbering, GL account code mask, error journal), GL Accounts per org, Account Types, Item Types, Invoice Types, Payment Types, Payment Instruments, Asset Types, Financial Account Types and Reasons, several with a "missing configuration" list — and an `init#PartyAccountingConfiguration` service, so the BOSS work is a guided wizard over it rather than new records. Currency exchange automation (ERPNext currency exchange settings) is a lightweight high-value config screen for multi-company BOSS.
 
 ---
 
-## 15. Gaps & notables in the checkout
+## 15. Fixed assets, depreciation & period runs
 
-- **Akaunting `modules/` is empty at runtime** (`.gitkeep` only): the payment-gateway/extension UI (`Settings/Modules.php`) surfaces a store that cannot ship anything here — gateways beyond manual payments are absent; the customer portal, however, is core code and fully working (token links in `resources/views/portal/`).
-- **AureusERP ships two parallel accounting plugin trees**: `invoices` (classic, Customers/Vendors clusters) extends the Odoo-style `accounts` resources (`use Webkul\Account\Filament\Resources\InvoiceResource as BaseInvoiceResource`) — a compose-over-base layering pattern interesting for BOSS modules; also worth noting: accounting Overview page (§1) has exactly one widget, and there are **no fiscal years, follow-ups or budgets** in either tree.
-- **Carbon's Accounting module is beta-gated** (`AccountingBetaGate.tsx`) and has **no banking, no tax-rate master, no invoicing taxes surface** — its value is the document model (settlement applications, credit-memo applications) and the strongest subledger↔GL *tie-out* panel anywhere (dashboard + `SyncTieOutTable`).
-- **Dolibarr's `htdocs/supplier_invoice/` is a stub** (only `admin/`); the real supplier screens live in `htdocs/fourn/facture/`. Dolibarr is file-per-screen PHP throughout (dozens of pages), the only suite here with a real mass direct-debit module (`htdocs/compta/prelevement/`), a one-page accountancy "Closure" action (`htdocs/accountancy/closure/index.php`) and one-click FEC-style bookkeeping exports (`htdocs/accountancy/bookkeeping/export.php`).
-- **ERPNext `accounts/` has ~192 doctype dirs** plus (behind them) `erpnext/assets/`, `erpnext/edi/`, `erpnext/portal/` modules — assets are a separate module (`erpnext/assets/`), so invoice-linked asset depreciation flows via doctypes. Banking reality in this version: statement import (`bank_statement_import{,_log}`) → `bank_transaction` + rule-based auto-match + the legacy `bank_reconciliation_tool` page; **no live bank feeds** and no plain `bank_statement` doctype dir. Ledger-surgery screens (`bisect_accounting_statements`, `ledger_merge`, `repost_*`, `transaction_deletion_record_details`) are unusual ops-surface finds worth noting for BOSS admin tooling.
-- **Odoo community in this checkout lacks the Enterprise-generation accounting extras**: no `account_reports`, `account_batch_payment`, `account_followup`, `account_fiscal_year`, `account_asset/account_asset_management`, `account_predictive_bills`, no `budget` addon — meaning no bank-reconciliation widget, no partner-ledger/aged-balance screens, no automated asset depreciation UI. Present instead: `account_debit_note`, `account_edi*` (+`account_peppol`), `account_check_printing`, `account_qr_code_{sepa,emv}`, `account_tax_python`, `analytic` — community's statement views + reconcile models are all a bookkeeper gets.
-- **metasfresh's React WebUI is a thin generic shell** over AD windows: only 2 React files in `paymentAllocation/`, a `OIViewHeader.js` for open items, and the dashboard/chart widgets — every accounting screen is a backend window definition in `de.metas.*` modules (notably `de.metas.banking`, `de.metas.payment.esr` Swiss ESR, `de.metas.einvoice.base`, `de.metas.dunning`, `de.metas.acct.{base,webui}`). Useful as a counter-example: BOSS's Moqui screen XML plays the same role the AD window definition plays here.
-- **Ever-gauzy is invoice/expense-centric with no GL/banking/dunning at all**; its relevance is the Accounting-templates gallery (org-level editable invoice templates), the amounts-owed/budgets report pages and the shared `packages/ui-core` component layer.
-- **Dolibarr community modules inventory**: `einvoicing/` is a complete multi-feature module (document list/cards, `einvoice_tracking`, XML preview, pending-sync queue, product mapping); `ksef/` (Poland) is **metadata-only** (README + index.yaml, no code); `stancer/` provides a full gateway back-office (payments/payouts/refunds/disputes/bookkeeping pages) — all three are the best "community add-on shape" references for BOSS plugins.
-- **Cross-cutting patterns**: multi-company everywhere (ERPNext per-company COA/lock dates, Odoo company-level defaults & tables, Akaunting company switcher), currency FX as a first-class screen (Dolibarr `multicurrency/`, ERPNext exchange-rate revaluation, Carbon ExchangeRates), document-numbering per sequence (Dolibarr `mod_facture_*`, Odoo `sequence.mixed`, ERPNext naming series), and the recurring-engine triplet (invoices, bills, transactions) reused across Akaunting.
-- **Checkout path quirks**: Akaunting has no `resources/views/common/documents` (document forms live in `resources/views/components/documents/{form,show}/`); ERPNext paths above are relative to `erpnext/` inside the `frappe/erpnext` checkout; Odoo paths are relative to `3p_other/odoo`, so `odoo/addons/<addon>/...` is `3p_other/odoo/odoo/addons/<addon>/...`.
+- Maintenance owns the asset register, lifecycle and custodian on the shared `Asset` (crosscut §4, [research-maintenance.md](research-maintenance.md) §8); Accounting owns the books on the same record: capitalization, depreciation, revaluation and disposal postings. This section also covers the other period-end runs the references group under "Closing" (leases, revenue recognition, revaluation, intercompany).
+
+### Carbon — fixed assets, depreciation runs, leases and revenue recognition under Accounting
+
+| Screen/page | What it is | Key files |
+| --- | --- | --- |
+| Fixed asset register | Assets list and record (statuses Draft, Under Construction, Active, Fully Depreciated, Disposed; fields class, location, work center, serial, lifetime usage, book and tax depreciation method, useful life in months, residual %, MACRS class and convention, bonus depreciation %) with actions Register, Capitalize, Capitalize CIP (with CIP cost lines), Adjust Cost, Attach Job, Take Out of Service, Dispose, Sell, Return to Inventory, Purchase; documents and notes | `apps/erp/app/modules/accounting/ui/FixedAssets/{FixedAssetsTable,FixedAssetForm,FixedAssetHeader,FixedAssetStatus,FixedAssetRegisterForm,FixedAssetCapitalizeForm,FixedAssetCapitalizeCipForm,FixedAssetCipCosts,FixedAssetAdjustCostForm,FixedAssetAttachJobForm,FixedAssetOutOfServiceForm,FixedAssetDisposalForm,FixedAssetReturnToInventoryForm,FixedAssetDocuments,FixedAssetNotes}.tsx`, routes `apps/erp/app/routes/x+/fixed-asset+/` |
+| Asset classes | Class defaults for book and tax depreciation (method, useful life, residual %, MACRS, bonus %) and the accounts: asset, accumulated depreciation, depreciation expense, gain and loss on disposal, write-down, write-off | `apps/erp/app/modules/accounting/ui/FixedAssets/{AssetClassForm,AssetClassesTable}.tsx`, route `apps/erp/app/routes/x+/accounting+/asset-classes.tsx` |
+| Depreciation runs | One run per period with header, status and documents; Post, Recalculate, Repeat, Reverse, Delete | `apps/erp/app/modules/accounting/ui/FixedAssets/{DepreciationRunTable,DepreciationRunHeader,DepreciationRunStatus,DepreciationRunDocuments}.tsx`, routes `apps/erp/app/routes/x+/depreciation-run+/{$depreciationRunId,$depreciationRunId.post,$depreciationRunId.recalculate,$depreciationRunId.repeat,$depreciationRunId.reverse}.tsx` |
+| Fleet | Rental-fleet view over fixed assets (Available, Reserved, On Rent, In Maintenance, Under Construction, Returned to Stock, Sold) | `apps/erp/app/modules/accounting/ui/FixedAssets/{FleetAssetsTable,FleetStatus}.tsx`, route `apps/erp/app/routes/x+/accounting+/fleet.tsx` |
+| Leases (lessee) | Lease record with a setup wizard (details, assets, payments, accounting, review), lines with classification, payment schedule with regenerate, modify, terminate, activate, invoice; lease runs per period post the right-of-use amortization | `apps/erp/app/routes/x+/lease+/{new,$id.setup.details,$id.setup.assets,$id.setup.payments,$id.setup.accounting,$id.setup.review,$id.modify,$id.activate,$id.payments.regenerate,$id.$lineId.terminate}.tsx`, `apps/erp/app/routes/x+/accounting+/lease-runs.tsx`, logic `apps/erp/app/modules/accounting/lease-liabilities.ts` |
+| Revenue recognition | Runs per period with Post, Recalculate, Repeat, Reverse | `apps/erp/app/modules/accounting/ui/RevenueRecognition/{RevenueRecognitionRunsTable,RevenueRecognitionRunHeader,RevenueRecognitionRunStatus,RevenueRecognitionRunDocuments}.tsx`, routes `apps/erp/app/routes/x+/revenue-recognition-run+/` |
+| Intercompany | Intercompany transactions with status, a balance matrix between companies, matching summary, Match and Eliminate actions; shown only with several companies | `apps/erp/app/modules/accounting/ui/Intercompany/{IntercompanyTransactionForm,IntercompanyTransactionTable,IntercompanyTransactionStatus,IntercompanyBalanceMatrix,IntercompanyMatchingSummary}.tsx`, routes `apps/erp/app/routes/x+/accounting+/{intercompany,intercompany.new,intercompany.match,intercompany.eliminate}.tsx` |
+| Opening fixed assets | Activation step that loads the existing asset register with accumulated depreciation | `apps/erp/app/modules/accounting/ui/Activation/FixedAssetDepreciationTable.tsx`, route `apps/erp/app/routes/x+/accounting+/activation.fixed-assets.tsx` |
+
+### ERPNext — Asset documents with depreciation schedules; deferred accounting and revaluation runs
+
+| Screen/page | What it is | Key files |
+| --- | --- | --- |
+| Asset | Fixed asset record (statuses Draft, Submitted, Cancelled, Partially Depreciated, Fully Depreciated, Sold, Scrapped, In Maintenance, Out of Order, Issue, Receipt, Capitalized, Work In Progress) with finance books and category accounts | `erpnext/assets/doctype/{asset,asset_category,asset_category_account,asset_finance_book}/` |
+| Depreciation schedule | Schedule per asset and finance book (Straight Line, Double Declining Balance, Written Down Value, Manual; statuses Draft / Active / Cancelled); Accounts Settings can book depreciation entries automatically | `erpnext/assets/doctype/{asset_depreciation_schedule,depreciation_schedule}/`, `erpnext/accounts/doctype/accounts_settings/accounts_settings.json` (`book_asset_depreciation_entry_automatically`) |
+| Value changes | Asset Value Adjustment (revaluation), Asset Capitalization (from stock, services and other assets), shift-based depreciation factors | `erpnext/assets/doctype/{asset_value_adjustment,asset_capitalization,asset_shift_allocation,asset_shift_factor}/` |
+| Register report | Fixed Asset Register | `erpnext/assets/report/fixed_asset_register/` |
+| Deferred revenue/expense | Process Deferred Accounting run that books deferred revenue and expense entries for a period | `erpnext/accounts/doctype/process_deferred_accounting/`, `erpnext/accounts/deferred_revenue.py` |
+| Exchange-rate revaluation | Period-end revaluation of foreign-currency balances into a journal entry | `erpnext/accounts/doctype/{exchange_rate_revaluation,exchange_rate_revaluation_account}/` |
+
+### Dolibarr — accounting-first Asset module
+
+| Screen/page | What it is | Key files |
+| --- | --- | --- |
+| Assets | Asset list/card with depreciation tab, depreciation options (economic and accelerated), accounting codes per asset, disposal; asset models act as templates with the same tabs | `htdocs/asset/{list,card,depreciation,depreciation_options,accountancy_codes,disposal}.php`, models `htdocs/asset/model/` |
+
+### Odoo / AureusERP / Akaunting / Ever Gauzy — **absent**
+
+| Screen/page | What it is | Key files |
+| --- | --- | --- |
+| **Absent** | Odoo's `account_asset` (assets and deferred revenue) is Enterprise and not in the checkout; AureusERP, Akaunting and Ever Gauzy have no fixed-asset books. Odoo community's nearest tool is the automatic-entries wizard (spread an expense over periods, §3) | — |
+
+**BOSS implications.** Carbon is the model for the Accounting face of the shared Equipment/Facility record: a book tab (class, book and tax method, useful life, residual, accumulated depreciation, net book value) plus capitalize / adjust / dispose / sell actions, and a **Depreciation run** per period with post / recalculate / reverse. Mantle already carries the book fields on `Asset` (acquire cost, salvage value, depreciation type and amount, year-begin depreciation, tax depreciation type and amount), per-period `AssetDepreciation` rows linked to their `AcctgTrans`, depreciation types (Straight Line, Double Declining, Sum of Years Digits, Units of Production; tax MACRS GDS 5/7) and `calculateAndPost#AllFixedAssetDepreciations` behind the time period's **Post Depreciation** button (§17). What it lacks are asset classes with default accounts (today `AssetTypeGlAccount` maps by asset type only), a run record with a reviewable preview, and disposal/revaluation postings. Leases, revenue recognition, revaluation and intercompany runs are later additions; they share one "period run" list screen pattern (Carbon's `PeriodRunDocuments`).
+
+---
+
+## 16. Cross-app surfaces
+
+| Surface | Accounting face | Reference evidence |
+| --- | --- | --- |
+| **Customer 360** (owner Sales) | Balance, credit limit and hold, aging strip, open items with allocation, statements, collections activity | Akaunting contact totals (Open / Overdue / Paid); ERPNext Customer Credit Limit, Accounts Receivable report, Process Statement of Accounts; Carbon Receivables workbench; Odoo `open_move_widget` deep links; baseline Party Financial Info tab and customer statement PDF |
+| **Supplier 360** (owner Purchasing) | AP balance, open bills, payments, debit notes | Carbon Payables workbench and supplier credits; AureusERP Vendors cluster; Dolibarr `htdocs/fourn/recap-fourn.php`; baseline Party Financial Info (payables side) |
+| **Order detail** (owners Sales, Purchasing) | Invoice from order (entire order part, partial, down payment), applied payments, promised payments | ERPNext invoice from sales order; Odoo `sale_make_invoice_advance`; Mantle `create#EntireOrderPartInvoice`, `apply#OrderPaymentsToInvoice`; baseline Edit Invoice **Orders** tab |
+| **Shipment detail** (owner Warehouse) | Invoice from shipment, invoice-item ↔ shipment links, landed cost later | Carbon `SalesInvoiceShipmentForm` / `PurchaseInvoiceDeliveryForm`; Mantle `create#SalesShipmentInvoices`, `create#PurchaseShipmentInvoices`; baseline Edit Invoice **Shipments** tab |
+| **Product 360** (owner Products) | Cost history and valuation, product GL accounts | Mantle `ProductGlAccount`, `ProductCategoryGlAccount`; baseline Inventory Valuation report; Odoo `account_stock_valuation_report` |
+| **Facility & equipment record** (owner Maintenance) | Fixed-asset books: class, depreciation, net book value, capitalize / dispose | Carbon fixed assets (§15); ERPNext Asset and schedules; Dolibarr asset depreciation tab; Mantle `AssetDepreciation` |
+| **Approvals waiting** (header) | Bill approval (`InvoiceIncoming`/`InvoiceReceived` → `InvoiceApproved`), payments to validate | ERPNext purchase invoice hold; Dolibarr payment `tovalidate.php`; Mantle invoice statuses |
+| **Supplier invoices & 3-way match** (owner Accounting) | Bill-line ↔ PO-line ↔ receipt matching; Purchasing sees match exceptions and holds | Odoo Purchase Bill Lines + Control Policy; ERPNext `po_detail`/`pr_detail`, `po_required`/`pr_required`, Received Items To Be Billed; Carbon extracted-line mapping |
+| **Customer returns** (owner Customer Service) | Credit memo or refund from the return (`ReturnItemBilling`) | ERPNext `make_sales_return`; Carbon credit memos; Mantle `process#ReturnItemResponses` creating the return invoice |
+| **Supplier returns** (owner Purchasing) | Debit note | ERPNext `make_debit_note`; Carbon memo direction Debit; Odoo `account_debit_note` |
+| **Subscriptions** (owner Sales) | Recurring invoicing: schedule, next invoice date, generated invoices | ERPNext Subscription + Process Subscription; Akaunting recurring invoices; Dolibarr template invoices |
+| **Customer agreements** (owner Sales) | Payment terms and settlement terms on invoices | Mantle `SettlementTerm`, `InvoiceTerm`, `AgreementTerm`; Carbon and Odoo payment terms |
+| **Expense claims** (owner People) | Posting, tax and reimbursement payment of approved claims | Carbon Reimbursements + employee payee on Payment; Frappe HR Expense Claim (People face); baseline My Account expense invoices |
+| **Time entry & timesheets** (owner Projects) | Billing approved time and expenses to customers | Mantle `create#TimeEntryInvoiceItems`, `create#ProjectInvoiceItems`; ERPNext `sales_invoice_timesheet`; Ever Gauzy invoice task selector |
+| **Payroll** (owner People) | Posting payroll invoices and paying them | Mantle `create#PayrollInvoice`, `InvoicePayroll` type |
+| **Commerce** | Store payments, gateway and tax bindings read the Accounting records; online invoice view/pay page on the store account | Commerce research §7 (store portal); Akaunting portal; Odoo `account_portal_templates.xml`; Frappe payments checkout pages |
+| **Insights** | Financial KPIs and charts on the Accounting landing page; financial statements as report-builder sources | ERPNext number cards and dashboard charts, `insights_workbook/`; Carbon pivot reports |
+
+**BOSS implications.** Accounting owns few shared screens but feeds almost all of them: the balance/credit face of Customer 360, the AP face of Supplier 360, invoice and payment tabs on Order detail, the book tab on the Equipment record and bill approval in the header. It owns AP bills with 3-way match, the credit/refund step of returns, recurring invoicing for subscriptions, posting and payment of expense claims, and depreciation.
+
+---
+
+## 17. Current Moqui baseline (MrSimpleScreens / MarbleERP / Mantle)
+
+The baseline is a working double-entry accounting system: invoices and payments with applications, auto-posting to the GL, bank statement import and reconciliation, financial accounts, budgets, time periods with close, and a report list with the main statements. MarbleERP mounts the SimpleScreens `Accounting` tree as-is (`component/MrMarbleERP/screen/marble.xml`); `component/ironstone-boss/screen/` has no accounting screens yet (only `Base`, sales `Reports` and `SimpleReport`). The SimpleScreens Accounting tree has 166 forms ([ss-inventory.md](ss-inventory.md)).
+
+### Screens
+
+| Screen/page | What it is | Key files |
+| --- | --- | --- |
+| Accounting dashboard | Link boxes **Invoices and Payments** (Invoices, Aging, Payments, Bulk Checks, Financial Accounts) and **General Ledger** (Reports, Transactions, Transaction Entries, GL Accounts, GL Journals, Time Periods, Budgets); per internal organization: receivable and payable summaries, bank accounts with ledger balance and date, Settings link | `component/MrSimpleScreens/screen/SimpleScreens/Accounting/{dashboard.xml,dashboard/OrgInternalSummary.xml}` |
+| Find Invoice | Create payable, receivable, customer credit, supplier credit; project and worker invoices; customer statement; invoice list with aging summary | `component/MrSimpleScreens/screen/SimpleScreens/Accounting/Invoice/FindInvoice.xml` |
+| Edit Invoice | Header with status transitions, update, close, adjust, reverse, cancel with payments, post/repost; create credit memo; record payment, apply payment, apply invoice to invoice, unapply; send store email and past-due email; content files, email messages, system messages, GL transactions, audit log; tabs Items, Budget Details, Orders, Shipments; PDF | `component/MrSimpleScreens/screen/SimpleScreens/Accounting/Invoice/{EditInvoice,EditInvoiceItems,EditInvoiceItemDetails,EditInvoiceItemOrders,EditInvoiceItemShipments,PrintInvoice}.xml` |
+| Aging & statements | Quick Aging for receivables or payables with bucket length and as-of date; receivable statement | `component/MrSimpleScreens/screen/SimpleScreens/Accounting/Invoice/{Aging,ReceivableStatement}.xml` |
+| Payments | Find Payment (new incoming / outgoing); Edit Payment (status, post/repost, refund, gateway authorize/capture/release/refund, set refund-for, apply to invoices or payments, unapply, unpaid invoices and unapplied payments side lists, content, gateway responses, GL); check and detail PDFs; Bulk Checks (create, assign check numbers) | `component/MrSimpleScreens/screen/SimpleScreens/Accounting/Payment/{FindPayment,EditPayment,PaymentCheck,PaymentDetail,BulkPaymentCheck}.xml` |
+| Bank accounts & reconciliation | On the party's payment method (bank account): transactions with Upload (BAI2, OFX), Add, Update, **Match and Reconcile**, manual Reconcile, No Reconcile, Unreconcile (FIT id, amount, matched payment and GL transaction); checks list; payment method files; gateway responses | `component/MrSimpleScreens/screen/SimpleScreens/Party/PaymentMethod/{EditPaymentMethod,PaymentMethodTrans,PaymentMethodChecks,PaymentMethodFiles,PaymentGatewayResponses}.xml` |
+| Financial accounts | Find/create, edit, transactions with adjust, statement print (customer deposits, gift cards, store credit) | `component/MrSimpleScreens/screen/SimpleScreens/Accounting/FinancialAccount/{FindFinancialAccount,EditFinancialAccount,FinancialAccountTrans,FinancialAccountStatement}.xml` |
+| GL accounts | Find/create, edit with organizations, account tree | `component/MrSimpleScreens/screen/SimpleScreens/Accounting/GlAccount/{FindGlAccount,EditGlAccount,GlAccountTree}.xml` |
+| Transactions & journals | Find Transaction (create), Edit Transaction (update, update posted, add/edit/move/delete entries, post, unpost, reverse, delete), Find Transaction Entry; GL Journals (create, post) | `component/MrSimpleScreens/screen/SimpleScreens/Accounting/Transaction/{FindTransaction,EditTransaction,EditTransaction/MoveEntry,FindTransactionEntry}.xml`, `component/MrSimpleScreens/screen/SimpleScreens/Accounting/FindJournal.xml` |
+| Time periods & close | Find/create periods; edit with create next / previous / child; **Accounts** view per period (beginning, debits, credits, ending per GL account; recalculate; **Post Depreciation**; close, reopen, closing transaction) | `component/MrSimpleScreens/screen/SimpleScreens/Accounting/TimePeriod/{FindTimePeriod,EditTimePeriod,ViewPeriodGlAccounts}.xml` |
+| Budgets | Find/create, edit, items, accounts entry by sub-period, expense report | `component/MrSimpleScreens/screen/SimpleScreens/Accounting/Budget/{FindBudget,EditBudget,EditBudgetItems,BudgetAccountsEntry,BudgetReport}.xml` |
+| Report List | **Financial Reports** (Balance Sheet, Income Statement, Cash Flow, Retained Earnings, Financial Ratios — each with organization and period form); **Sales and Invoice Reports** (Sales Summary, Sales Order Analysis, Sales Invoice Analysis, customer statement, Order Item Summary, Order Issued and Invoiced, Invoice Item Summary, Quick Aging, Invoice Aging Detail, AR Aging Summary, Invoice Reconciliation); **Transaction Reports** (Account Ledger, Account Balance, Posted Amount Summary, Posted Balance Summary); **Asset and Inventory Reports** (Inventory Valuation, Receipt Transactions, Status by Receipt, On Hand, On Hand Summary, Shipment Package Summary) | `component/MrSimpleScreens/screen/SimpleScreens/Accounting/Reports/ReportList.xml`, report screens `component/MrSimpleScreens/screen/SimpleScreens/Accounting/Reports/` |
+| Invoice Reconciliation | Integrity checks: invoices vs GL, payments vs GL, unposted transactions, transactions where credits ≠ debits, transactions with no invoice, applications to future invoices | `component/MrSimpleScreens/screen/SimpleScreens/Accounting/Reports/InvoiceReconciliation.xml` |
+| Org settings | Accounting Preferences, GL Accounts per org, Account Types, Item Types, Invoice Types, Payment Types, Payment Instruments, Asset Types, Financial Account Types and Reasons; several with a missing-configuration list | `component/MrSimpleScreens/screen/SimpleScreens/Accounting/OrgSettings/{AcctgPreference,GlAccounts,TypeDefaults,ItemTypes,InvoiceTypes,PaymentTypes,PaymentInstruments,AssetTypes,FinAcctTypes,FinAcctReasons}.xml`; accounting init also on `component/MrSimpleScreens/screen/SimpleScreens/Vendor/EditVendor.xml` |
+| Party financial info | Party tab: unpaid and recently paid receivables and payables, unapplied incoming/outgoing payments, current sales and purchase orders, counts with links, customer statement PDF | `component/MrSimpleScreens/screen/SimpleScreens/Party/FinancialInfo.xml` |
+| Expense invoices | Employee expense invoices with items (My Account) | `component/MrSimpleScreens/screen/MyAccount/Expense/{FindExpenseInvoice,EditExpenseInvoice,EditExpenseInvoiceItems}.xml` |
+| Asset book fields | Fixed-asset fields and depreciation list on the asset detail | `component/MrSimpleScreens/screen/SimpleScreens/Asset/Asset/AssetDetail.xml` |
+
+### Data model available
+
+| Record (entity file) | What it gives Accounting | Key files |
+| --- | --- | --- |
+| `Invoice`, `InvoiceItem`, `InvoiceItemDetail`, `InvoiceItemAssoc`, `InvoiceParty`, `InvoiceTerm`, `SettlementTerm`, `InvoiceContent`, `InvoiceEmailMessage`, `InvoiceSystemMessage` (`mantle.account.invoice`) | Types Sales/Purchase, Return, Payroll Employee, Payroll Other, Tax, Garnishment, Commission, Credit Memo, Template; receivable statuses In-Process, Finalized, Sent, Acknowledged, Payment Received, Write Off; payable statuses Incoming, Received, Approved, Payment Sent; Billed Through, Cancelled; totals `invoiceTotal`, `appliedPaymentsTotal`, `unpaidTotal`, `dueDate` | `component/mr-mantle-udm/entity/AccountingAccountEntities.xml` |
+| `Payment`, `PaymentApplication`, `PaymentBudgetAllocation`, `Deduction`, `PaymentContent` (`mantle.account.payment`) | Statuses Proposed, Promised, Authorized, Delivered, Confirmed Paid, Cancelled, Void, Declined; reconcile status Not / Partly / Reconciled; applications to invoices and to other payments | same |
+| `PaymentMethod`, `BankAccount`, `BankAccountCheck`, `PaymentMethodTrans`, `PaymentMethodFile`, `PaymentGatewayConfig`, `PaymentGatewayResponse` (`mantle.account.method`) | Bank account with `glAccountId`, `ledgerBalance`, `availableBalance`, `balanceDate`; statement lines with FIT id, amount, check number, matched payment and GL entry, `noReconcile` | same |
+| `FinancialAccount`, `FinancialAccountTrans`, `FinancialAccountAuth`, `FinancialAccountType` (`mantle.account.financial`); `BillingAccount` (`mantle.account.billing`) | Deposit / gift-card / store-credit accounts; billing account with `accountLimit` (the only credit-limit field) | same |
+| `GlAccount`, `GlAccountOrganization`, `GlAccountOrgTimePeriod`, `GlAccountCategory`, `GlAccountGroup`, `GlAccountParty`, `GlBudgetXref` (`mantle.ledger.account`) | Account tree (`parentGlAccountId`), type and class, `isDebit`, `disallowPosting`; per-org and per-period balances; categories and groups for reports | `component/mr-mantle-udm/entity/AccountingLedgerEntities.xml` |
+| `AcctgTrans`, `AcctgTransEntry`, `GlJournal` (`mantle.ledger.transaction`) | Transaction with `isPosted`, `scheduledPostingDate`, links to invoice, payment, application, asset, shipment, work effort, financial account transaction; reverse links; journal as a batch of transactions with `isPosted` | same |
+| `PartyAcctgPreference`, `GlAccountTypeDefault`, `ItemTypeGlAccount`, `InvoiceTypeTransType`, `PaymentTypeGlAccount`, `PaymentInstrumentGlAccount`, `AssetTypeGlAccount`, `ProductGlAccount`, `TaxAuthorityGlAccount`, … (`mantle.ledger.config`) | Fiscal year start month/day, base currency, COGS method, invoice and order numbering, GL code mask, error journal, default settlement term; posting defaults by type | same |
+| `GlReconciliation`, `GlReconciliationEntry` (`mantle.ledger.reconciliation`) | GL reconciliation header and entries (Created, Reconciled); no screen uses them | same |
+| `TimePeriod`, `TimePeriodType` (`mantle.party.time`) | Fiscal periods per organization with parent/previous and `isClosed` | `component/mr-mantle-udm/entity/PartyEntities.xml` |
+| `Budget`, `BudgetItem`, `BudgetItemDetail`, `BudgetRevision`, `BudgetRevisionImpact`, `BudgetReview`, `BudgetScenario`, `BudgetScenarioRule`, `BudgetScenarioApplication`, `BudgetParty` (`mantle.other.budget`) | Budgets by GL account and sub-period; revisions, reviews and scenarios (no screens) | `component/mr-mantle-udm/entity/AccountingOtherEntities.xml` |
+| `TaxAuthority`, `TaxAuthorityCategory`, `TaxAuthorityParty`, `TaxAuthorityAssoc`, `TaxGatewayConfig`, `TaxStatement` (`mantle.other.tax`) | Tax authorities (geo, authority party, include-tax-in-price, tax-id format), their product categories, party tax ids / exemption / nexus, authority associations; tax gateway config naming the calculate service (seed `LOCAL`), linked from `ProductStore.taxGatewayConfigId`; tax statements (e.g. 1099-MISC). **No rate record** — `TaxAuthorityRate` is commented out; no screens | same |
+| `Asset`, `AssetDepreciation` (`mantle.product.asset`) | Book fields on the asset (acquire cost, salvage value, depreciation and type, year-begin depreciation, tax depreciation and type); depreciation per period (monthly, annual, useful life years, years remaining, `acctgTransId`); types Straight Line, Double Declining Balance, Sum of Years Digits, Units of Production; tax MACRS GDS 5/7 year | `component/mr-mantle-udm/entity/ProductAssetEntities.xml` |
+| `ReturnItemBilling`; `Subscription` | Return item ↔ return invoice item; subscriptions (fulfilled through order invoicing, no recurring billing) | `component/mr-mantle-udm/entity/{OrderEntities,ProductDefinitionEntities}.xml` |
+
+### Services
+
+| Service | Purpose | Key files |
+| --- | --- | --- |
+| `create#Invoice`, `adjust#Invoice`, `create#EntireOrderPartInvoice`, `create#SalesShipmentInvoices`, `create#PurchaseShipmentInvoices`, `create#ProjectExpenseInvoice`, `create#ProjectInvoiceItems`, `create#TimeEntryInvoiceItems`, `create#InvoiceBillThroughItems`, `create#InvoiceCreditMemo`, `reverse#Invoice`, `cancel#InvoiceAndPayments`, `autoApplyTo#Invoice`, `send#SalesInvoicePastDueEmails`, `send#CustomerPastDueEmail`, `get#ReceivableStatementInfo` | Invoice creation from orders, shipments, projects and time; credits; past-due emails (weekly ServiceJob `send_SalesInvoicePastDueEmails`, paused by default in `component/mr-mantle-usl/data/MantleSetupData.xml`) | `component/mr-mantle-usl/service/mantle/account/InvoiceServices.xml` |
+| `create#Payment`, `create#InvoicePayment`, `create#RefundPayment`, `apply#InvoicePayment`, `apply#PaymentToPayment`, `apply#InvoiceToInvoice`, `autoApply#Payment`, `unapply#PaymentApplication`, `void#Payment`, `authorize#Payment`, `capture#Payment`, `refund#Payment`, `assign#BankAccountCheckNumber` | Payments, applications, gateway operations, checks | `component/mr-mantle-usl/service/mantle/account/PaymentServices.xml` |
+| `upload#BaiVersion2`, `upload#OfxVersion1`, `match#PaymentMethodTransUnmatched`, `reconcile#PaymentMethodTrans`, `unreconcile#PaymentMethodTrans`, `noReconcile#PaymentMethodTrans`; `generate#NachaFile`, `import#NachaReturn`; `generate#PositivePayFile` (bank-specific formats) | Statement import and bank reconciliation; ACH files and returns; positive pay | `component/mr-mantle-usl/service/mantle/account/{BaiServices,OfxServices,ReconciliationServices,NachaServices,PositivePayServices}.xml` |
+| `deposit#FinancialAccount`, `withdraw#FinancialAccount`, `transfer#FinancialAccount`, `adjust#FinancialAccount`, `get#StatementPrintInfo` | Financial accounts | `component/mr-mantle-usl/service/mantle/account/FinancialAccountServices.xml` |
+| `create#AcctgTrans`, `post#AcctgTrans`, `unpost#AcctgTrans`, `post#ReverseAcctgTrans`, `move#AcctgTransEntry`, `calculate#AcctgTransTrialBalance`, `close#FinancialTimePeriod`, `reopen#FinancialTimePeriod`, `create#PeriodCloseAcctgTrans`, `recalculate#GlAccountOrgSummaries`, `create#GlJournal`, `post#GlJournal`, `init#PartyAccountingConfiguration` | GL transactions, period close, journals, org setup | `component/mr-mantle-usl/service/mantle/ledger/LedgerServices.xml` |
+| `post#Invoice`, `post#Payment`, `post#PaymentApplication`, `post#AssetReceipt`, `post#AssetIssuance`, `calculateAndPost#AllFixedAssetDepreciations`, `post#PhysicalInventoryVariance`, `post#WorkEffortCost`, `post#FinancialAccountTrans` (+ repost/revert) | Auto-posting of business documents to the GL | `component/mr-mantle-usl/service/mantle/ledger/{InvoiceAutoPostServices,PaymentAutoPostServices,AssetAutoPostServices,OtherAutoPostServices}.xml` |
+| `run#BalanceSheet`, `run#IncomeStatement`, `run#CashFlowStatement`, `run#RetainedEarningsStatement`, `run#FinancialRatios`, `run#PostedAmountSummary`, `get#AccountLedgerInfo`, `get#PeriodSeriesSummary` | Financial statements | `component/mr-mantle-usl/service/mantle/ledger/LedgerReportServices.xml` |
+| `create#Budget`, `store#BudgetItemsSubPeriods`, `run#BudgetExpenseReport`, `run#BudgetExpenseDetailReport` | Budgets | `component/mr-mantle-usl/service/mantle/other/{BudgetServices,BudgetReportServices}.xml` |
+| `calculate#SalesTax`, `calculate#OrderSalesTax`, `calculate#InvoiceSalesTax`, `create#TaxStatement`, `create#AllVendor1099MiscStatements`, `get#UsaIrs1099MiscFormData` | Gateway interface for sales tax (only order tax is wired; the `LOCAL` gateway and invoice tax are stubs) and 1099 statements | `component/mr-mantle-usl/service/mantle/other/TaxServices.xml` |
+| `create#PayrollInvoice`, `approve#PeriodInvoices`; `process#ReturnItemResponses` | Payroll invoices; return credit/refund invoices with `ReturnItemBilling` | `component/mr-mantle-usl/service/mantle/humanres/PayrollServices.xml`, `component/mr-mantle-usl/service/mantle/order/ReturnServices.xml` |
+
+What is missing in the baseline: tax rates and a working tax calculation, and tax screens of any kind; a credit-limit screen and check; recurring invoices; dunning levels; a collections view; 3-way match; payment runs; a bank statement session (period, closing balance, difference); journal templates; per-type period locks; fixed-asset classes, depreciation-run review and disposal; partner ledger and period-comparison reports; a modern landing page with KPIs.
+
+---
+
+## 18. Gaps & BOSS implications
+
+### Gaps in the reference set
+
+- **Enterprise-only in Odoo, absent from the community checkout:** `account_reports` (financial statements, partner ledger, aged balances), `account_followup` (dunning), `account_asset` (fixed assets and deferred revenue), `account_accountant` (bank reconciliation widget), `account_batch_payment`, budgets, and `account_3way_match` (the Purchase setting is an upsell toggle). The `Statement Reports` and `Partner Reports` menu folders are empty without Enterprise. Present instead: `account_debit_note`, `account_edi*` (+ `account_peppol`), `account_check_printing`, `account_qr_code_{sepa,emv}`, `account_tax_python`, `analytic`, Purchase Bill Lines matching.
+- **No collections case in any ERP:** only Frappe Lending (a lender's app) has a case with agent, activities and promises to pay; ERPNext dunning and Dolibarr/Akaunting reminders are letter/email only.
+- **Bank feeds:** no live bank feed anywhere; ERPNext and the Moqui baseline import statement files (CSV/BAI2/OFX); Akaunting's Bank Feeds widget only advertises a paid cloud app. Carbon has no company bank register or reconciliation; AureusERP has bank accounts but no reconciliation.
+- **Budgets:** only ERPNext (and the Moqui baseline) have GL budgets; Ever Gauzy's budgets are client/project spend caps.
+- **Fixed assets:** only Carbon, ERPNext and Dolibarr have books; Carbon alone has lease accounting and revenue-recognition runs.
+- **Thin references:** Akaunting has no GL, journals or fiscal years (bank-account bookkeeping with categories); Ever Gauzy is income/expense-centric with no GL, banking or dunning; metasfresh's React UI is a thin shell over backend window definitions (`backend/de.metas.{acct.base,acct.webui,banking,dunning,einvoice.base,payment.esr}`), so its screens could not be read as UI. Dolibarr's `htdocs/supplier_invoice/` is only `admin/`; real supplier screens are `htdocs/fourn/facture/`. Akaunting's `modules/` is empty (`.gitkeep`), so its paid apps (including double-entry) are absent.
+- **KSeF** in the Dolibarr community modules is metadata only.
+
+### Notable gaps in the Moqui baseline
+
+- **No landing page with numbers.** The dashboard is two link boxes plus an org summary; no aging strip, cash position, bills due or unreconciled count (compare Odoo journal cards and KPI bar, Carbon invoicing dashboard).
+- **No tax rates and no tax screens.** `TaxAuthority`, `TaxStatement` and the `calculate#SalesTax` gateway interface exist, but there is no rate record (`TaxAuthorityRate` is only in an XML comment), the seeded `LOCAL` gateway `calculate#SalesTaxLocal` is an unimplemented stub, and `calculate#InvoiceSalesTax` is empty — so orders and invoices get no tax unless an external gateway component is installed.
+- **No credit control.** `BillingAccount.accountLimit` has no screen and nothing checks it on orders or invoices (compare ERPNext Customer Credit Limit and overdue threshold).
+- **Collections is one email.** `send#CustomerPastDueEmail` and a paused weekly job; no levels, fees, letters, activities or promises.
+- **No recurring invoicing** for subscriptions or templates; the `InvoiceTemplate` type is unused.
+- **No 3-way match or bill hold.** Purchase invoices link to orders and shipments (Orders and Shipments tabs) but nothing compares billed, ordered and received quantities.
+- **No payment run.** Bulk Checks creates and numbers checks; NACHA and Positive Pay generate files; nothing selects due bills into a batch.
+- **Reconciliation has no session.** Statement lines are matched one by one; there is no statement period, closing balance or difference, and `GlReconciliation` is unused.
+- **Period close is all-or-nothing.** `TimePeriod.isClosed` locks everything; no per-type lock dates, no exception list, no pre-close checklist (Carbon unposted-documents popover).
+- **Fixed-asset books are fields, not a workflow.** No asset class defaults, no depreciation-run preview, no disposal/revaluation posting.
+- **Reports lack drill-down and comparisons**; no partner ledger; no saved views.
+- **Journals are batches only.** No sale/purchase/bank books with their own numbering and defaults; no journal-entry templates.
+
+### What each reference contributes
+
+| Reference | Take |
+| --- | --- |
+| Odoo | Journal kanban + KPI bar as the home; Customers / Vendors / Accounting / Reporting / Configuration menu; lock dates on five axes + lock exceptions + secured (hashed) entries; register-payment wizard with write-off; Purchase Bill Lines matching and Control Policy; reversal wizard; EDI framework (`account_edi`, UBL/CII, Peppol); autopost-per-vendor prompt |
+| ERPNext | Widest coverage: Payment Entry + Payment Reconciliation; bank statement import → transactions → rules → reconciliation tool; Dunning + Dunning Type; Process Statement of Accounts; Customer Credit Limit with overdue threshold; Accounting Period per document type; Budget with Stop/Warn/Ignore per stage; Subscription → invoices; Asset + depreciation schedules; immutable ledger; ledger health monitor; sidebar/workspace layout |
+| Carbon | Settlement model (one table, discount/write-off/FX per application, derived paid/overdue); AR/AP workbenches; GL-vs-subledger tie-out on the dashboard; cutover/activation wizard with readiness checklist and opening balances; Default Accounts form; fixed assets with book/tax depreciation and run screens; leases, revenue recognition, intercompany |
+| AureusERP | Proof that an Odoo-shaped UI ports cleanly to a server-rendered framework; the minimum seven-report Reporting cluster; setup-gate callout; base-resources-plus-cluster layering |
+| Dolibarr | Bank entries list with inline reconcile columns; payments to-validate queue; cheque deposits; direct-debit (SEPA) batches and rejects; VAT declaration and `quadri_detail`; accountancy closure page; country chart data; asset module; scheduled due-date reminders |
+| Dolibarr community modules | French e-invoicing lifecycle statuses and access-point sync queue; Stancer gateway back office (payments, payouts, refunds, disputes, bookkeeping) |
+| Frappe payments / Lending | Gateway settings per provider with hosted checkout pages; collections case, activity outcomes, promise to pay, dunning rules by days past due |
+| Akaunting | Simplest usable bookkeeping: arrangeable widget dashboard, invoice tabs Unpaid/Draft/All, recurring invoices/bills/transactions, reconciliation with a zero-difference rule, signed-URL customer portal, days-after-due reminder list |
+| Ever Gauzy | Org-level editable invoice templates; invoice lines pulled from tasks, projects and expenses; amounts-owed report |
+| metasfresh | Payment allocation and open-items headers; backend module list (SEPA, ESR, PayPal, Revolut, SumUp, DATEV, dunning) as a checklist of integrations |
+
+### Recommended screen inventory (IronStone Accounting)
+
+| Area | Screens |
+| --- | --- |
+| Home | Accounting landing page: KPI strip (receivables due and overdue, payables due this week, cash by bank account, unreconciled lines, unposted documents), AR/AP aging bars, GL-vs-subledger tie-out, bills awaiting approval, quick links; widgets from Insights |
+| Receivables & collections | Invoice list (tabs Draft / Unpaid / Overdue / All, saved filters); invoice detail (status bar, lines, tax grid, payments and credits applied, orders and shipments, content, Chatter); credit memo; recurring invoice schedules (template or subscription driven); receivables workbench (open items by customer, aging, apply credits); collections list (overdue customers, last activity, next action date, promise to pay); dunning levels and letters (later); customer statements batch |
+| Payables & payment runs | Bill list and detail (Incoming → Received → Approved, hold with release date); bill-line match to PO and receipt with exceptions list **(Purchasing sees exceptions)**; debit notes; payment run (select due approved bills → payments → checks / NACHA / Positive Pay); expense-claim posting queue (claims approved in People) |
+| Payments | Payment list and detail with allocation grid (unpaid invoices, unapplied payments, discount, write-off); payments to validate; refunds; gateway transactions |
+| Banking & reconciliation | Bank accounts (from `PaymentMethod`/`BankAccount`) with balances; statement import (BAI2, OFX, CSV); reconciliation session (period, closing balance, difference, two-sided match list, rules); unmatched queue; financial accounts (deposits, gift cards, store credit) |
+| General ledger | Chart of accounts tree with import; journal entry list and form (lines, dimensions, attachments, reverse); journal entry templates; transaction entries (line search); account ledger |
+| Period close | Fiscal years and periods; close checklist (unposted documents, unreconciled lines, depreciation run, tie-out); per-type lock dates with exceptions; period runs list (depreciation now; revaluation, deferrals later) |
+| Fixed assets | Book tab on the Equipment/Facility record **(shared: Maintenance)**; asset classes with default accounts; depreciation run with preview, post, reverse; disposal and revaluation |
+| Tax | Tax authorities; tax rates (new record or gateway, see Open questions); tax-on-document grid; tax statements and returns (sales tax summary, 1099); e-invoice tracking (later) |
+| Budgets | Budget list, GL-account × period entry, budget vs actual, Stop/Warn rule on purchase orders and expenses |
+| Reports | Report list: Trial Balance, General Ledger, Partner Ledger, Balance Sheet, Income Statement, Cash Flow, Retained Earnings, Financial Ratios, AR/AP aging summary and detail, Invoice Reconciliation; row drill-down; period comparison; export |
+| Shared faces | Accounting tab on Customer 360 **(shared: Sales)**; AP tab on Supplier 360 **(shared: Purchasing)**; invoices and payments on Order detail **(shared: Sales, Purchasing)**; invoice links on Shipment detail **(shared: Warehouse)**; cost history on Product 360 **(shared: Products)**; bill approval in Approvals waiting **(shared: header Notifications)** |
+| Configuration | Accounting preferences per organization; setup wizard (readiness checklist, chart choice, opening balances, posting defaults); posting defaults by item/payment/invoice/asset type; payment terms and settlement terms; currencies and exchange rates; payment gateways; numbering |
+
+### Data-model implications
+
+- **Reuse as is:** `Invoice`/`InvoiceItem` and their status flows; `Payment`/`PaymentApplication`; `PaymentMethod`/`BankAccount`/`PaymentMethodTrans` for banking; `FinancialAccount`; `GlAccount`, `AcctgTrans`/`AcctgTransEntry`, `GlJournal`; `mantle.ledger.config` mappings; `TimePeriod`; `Budget`/`BudgetItem`; `TaxAuthority`/`TaxGatewayConfig`/`TaxStatement` and the `ItemSalesTax` item pattern; `Asset` book fields and `AssetDepreciation`; `ReturnItemBilling`; `SettlementTerm`.
+- **Derive, don't store:** "partly paid" and "overdue" from `unpaidTotal`, `appliedPaymentsTotal` and `dueDate` (Carbon, ERPNext).
+- **Activities for collections:** collection calls, emails and promises to pay as `WorkEffort` activities on the customer (purposes `WepPhoneCall`, `WepEmail`, `WepToDo`) with an Accounting purpose or category to filter them; a promise-to-pay amount needs a field or a small new record.
+- **New records needed:** a tax-rate source — either a new rate record (authority, category, rate type, rate, from/thru, store; the commented-out `TaxAuthorityRate` is a ready field list) read by a real `calculate#SalesTaxLocal`, or a decision-table resource, or only an external gateway (Open questions); an implementation of `calculate#InvoiceSalesTax`; credit limit per customer and organization with an overdue threshold (or decide that `BillingAccount.accountLimit` is the place); recurring invoice schedule (frequency, next date, template invoice or `Subscription`, last generated); dunning level and letter template; payment run header (date, bank account, selection, status) over `Payment`; bank statement session (bank account, period, opening and closing balance, status) over `PaymentMethodTrans` — or adopt `GlReconciliation`; per-type period lock (period or date, scope: all / sales / purchases / tax, exempt user group); journal-entry template; asset class with default accounts and depreciation defaults; depreciation run header over `AssetDepreciation`; bill-line match result (or computed view) for 3-way match exceptions; e-invoice document status (later).
+- **Check before adding:** `PartyAcctgPreference` may absorb lock dates and setup-wizard state; `AcctgTransTypeEnumId` plus `GlJournal` may cover what Odoo calls journals.
+
+### First-release cut
+
+Ship first: the landing page with KPIs; invoice and bill lists/detail on the existing Mantle flows (with derived overdue and a bill hold); payment detail with the allocation grid; the receivables workbench and Accounting face of Customer 360 (aging, open items, statement); bank accounts, statement import and a reconciliation session over the existing `PaymentMethodTrans` services; chart of accounts, journal entries and transaction search; periods with close/reopen and a pre-close checklist; the existing report list with drill-down; a working local tax calculation (rate table + `calculate#SalesTaxLocal` + `calculate#InvoiceSalesTax`) with authority and rate maintenance; accounting preferences and posting defaults; and the depreciation run over the existing service as the book tab on the Equipment record.
+
+Defer: dunning levels and letters, collections promises, recurring invoice schedules, payment runs, 3-way match exceptions, per-type lock dates, budgets beyond the existing screens, e-invoicing, journal templates, asset classes/disposal/revaluation, leases, revenue recognition, revaluation and intercompany runs, and multi-company consolidation.
+
+### Open questions
+
+- **Journals.** Odoo-style journals (sale, purchase, bank, cash books with numbering and default accounts) do not exist in Mantle, where `GlJournal` is a posting batch. Add a book record, or rely on `AcctgTransTypeEnumId`, invoice types and bank accounts for the same grouping?
+- **Customer invoice portal.** Commerce owns the store account and portal (research-commerce.md §7); Accounting supplies the invoices, statements and pay-online flow. Confirm that the online invoice view/pay page is a Commerce screen.
+- **Tax and gateway settings.** initial-design gives "Shipping, payment & tax settings" to Commerce, but tax authorities, rates and payment gateway configs also serve sales orders, purchase bills and POS outside any store. Proposal: Accounting owns the tax authority/rate and gateway records; Commerce binds them per store. Not covered by crosscut §4.
+- **Tax-rate source.** Mantle has no rate record (`TaxAuthorityRate` is commented out in favor of a Drools decision table that is not in the checkout) and the local gateway is a stub. Options: (a) enable a rate entity close to the commented-out `TaxAuthorityRate` and implement `calculate#SalesTaxLocal` over it, with a BOSS rate-maintenance screen; (b) a decision-table/rules resource edited outside screens; (c) external tax-service gateways only, each a `TaxGatewayConfig` naming its calculate service. (a) matches every reference (Akaunting, AureusERP/Odoo, ERPNext tax templates all keep rates as records); (a) plus (c) per store looks right.
+- **Credit limit.** Where is the limit edited — the Accounting face of Customer 360 (Sales owns the screen) or an Accounting-only screen — and is it `BillingAccount.accountLimit` or a new per-customer record? Who sees the order hold: Sales on Order detail, Accounting in Approvals?
+- **Collections case.** Plain activities on Customer 360, or a collections record like Frappe Lending's case (status, agent, next action date, promises)?
+- **Reconciliation model.** Keep reconciliation on `PaymentMethodTrans` (what the baseline uses) or move to the unused `GlReconciliation`, which can also reconcile non-bank GL accounts?
+- **Period locks.** Extend `TimePeriod` / `PartyAcctgPreference` with lock dates, or a new lock record with exceptions?
+- **Fixed-asset book tab.** How much of the book (net book value read-only vs capitalize/dispose actions) appears on the Maintenance-owned Equipment record, and how much stays in an Accounting asset list? (Same question appears in research-maintenance.md.)
+- **Advanced period runs.** Are leases, revenue recognition and intercompany in scope for IronStone Accounting at all, or left to an add-on?
+
+### Checkout path quirks
+
+- Odoo paths are written `odoo/addons/<addon>/…`, which is `3p_other/odoo/odoo/addons/<addon>/…` on disk.
+- ERPNext paths start inside the repo (`erpnext/accounts/…`); ERPNext dashboard charts and number cards are directories holding a same-named JSON file.
+- AureusERP's user-facing resources are in the `accounting` and `invoices` plugin clusters; the `accounts` plugin holds hidden base resources with the same names, so a resource name alone is ambiguous.
+- Carbon's accounting and invoicing modules have tests (`accounting.periods.test.ts`, `accounting.defaults.test.ts`, `invoicing.settlements.test.ts`) without same-named source files; the logic is in `apps/erp/app/modules/accounting/accounting.service.ts` and `apps/erp/app/modules/invoicing/invoicing.service.ts`.
+- Akaunting keeps document forms in `resources/views/components/documents/{form,show,template}/`, not under `resources/views/common/`.
+- Frappe payments and Lending paths repeat the app name (`payments/payments/…`, `lending/lending/…`).
+
+**Bottom line.** The Moqui baseline is already a fuller accounting engine than most references — invoices, payments with applications, auto-posting, bank statement import and matching, period close, budgets and statements all exist — so IronStone Accounting is mainly a new face over Mantle: a numbers-first landing page, workbenches for receivables and payables, a reconciliation session, a close checklist and drill-down reports, plus the missing controls (tax screens, credit limits, collections, 3-way match, payment runs, lock dates, depreciation runs). Carbon and ERPNext are the references to follow for the new pieces; Odoo community and AureusERP mostly confirm the menu shape.
