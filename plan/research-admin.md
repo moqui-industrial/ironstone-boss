@@ -10,9 +10,11 @@ cataloguing every relevant screen/page found in the reference apps. Companion to
 [3p-app-reference.md](3p-app-reference.md); feeds the Admin row in
 [initial-design.md](initial-design.md), the protocol-layer server settings (SMTP relay and
 gateway trust, CalDAV/WebDAV/SFTP, chat and WebRTC servers) that mr-moqui provides and
-Admin configures, and the shared-screen faces Admin adds: the **user-account face** on the
-Contact / party record (owner Commons) and on Employee 360 (owner People), and the
-**settings index** that links to each app's own settings section. Style mirrors
+Admin configures, and the reused screens Admin includes (crosscut §3–§4): the **user
+account** on the Contact / party record and on Employee 360 (also included in Commons and
+People), payment, shipping and tax **gateway configuration** (also in Commerce and
+Accounting), and the **settings index** that links to each app's own settings section.
+Style mirrors
 [research-maintenance.md](research-maintenance.md) and
 [research-insights.md](research-insights.md).
 
@@ -81,11 +83,11 @@ Sections: [1 admin home & health](#1-admin-home--system-health) · [2 users](#2-
 
 **BOSS implications.** The baseline already collects most health numbers (System
 dashboard, job runs, system-message errors); what is missing is a home organized by admin
-task. Build an Admin landing page with Zimbra's Monitor / Manage / Configure grouping, a
-setup checklist shaped like Nextcloud setup checks and the OpenProject / Redmine
-Information checklist (pass or warn per check, with a link to fix it), and failure counts
-shaped like Frappe's System Health Report. Carbon's Company / Modules / System grouping is
-the shape for the settings index.
+task. The references suggest an Admin landing page with Zimbra's Monitor / Manage /
+Configure grouping, a setup checklist shaped like Nextcloud setup checks and the
+OpenProject / Redmine Information checklist (pass or warn per check, with a link to fix
+it), and failure counts shaped like Frappe's System Health Report. Carbon's Company /
+Modules / System grouping is a candidate shape for the settings index.
 
 ---
 
@@ -108,10 +110,11 @@ the shape for the settings index.
 | Moqui baseline | User accounts | System → Security → Users: list, detail (account fields, update password, disable/enable, reset password, **login as** with `ADMIN_LOGIN_AS`, group memberships with from/thru, preferences, notification topic subscriptions, **authentication factors** TOTP / single-use codes / email / SMS, login history, audit log, visits, tarpit locks with release now); SimpleScreens Party detail creates the party's user account and group memberships | `base-component/tools/screen/System/Security/UserAccount/{UserAccountList,UserAccountDetail}.xml`, `UserAccountDetail/{VerifyEmail,VerifySms,VerifyTotp}.xml`, `component/MrSimpleScreens/screen/SimpleScreens/Party/EditParty.xml` (`createUserAccount`, `createUserGroupMember`, `resetPassword`) |
 
 **BOSS implications.** A BOSS user is a `UserAccount` on a `Party`, so the Admin user
-screen is the user-account face of the Contact / party record (owner Commons), not a
-second person record. The tools detail already has the actions (login as, factors, login
-history, tarpit release); BOSS adds a list with status filters, invitations, and the group
-and app summary that Odoo's access-rights page and OpenProject's global-roles tab show.
+screen is the user-account part of the reused Contact / party record (also included in
+Commons, People and every app that shows a person), not a second person record. The tools
+detail already has the actions (login as, factors, login history, tarpit release); what is
+missing is a list with status filters, invitations, and the group and app summary that
+Odoo's access-rights page and OpenProject's global-roles tab show.
 Carbon's split of employees, portal customers and suppliers, and shop-floor operators maps
 to party roles plus group membership, not to separate user types.
 
@@ -142,8 +145,9 @@ checkboxes), and most add a matrix (Frappe Role Permission Manager, OpenProject
 permissions report, Redmine permissions page). Moqui's `ArtifactGroup` + `ArtifactAuthz`
 is the same model one level lower, and Odoo's `ir.access` rows with a domain show model
 rights and row rules as one record, the shape of `ArtifactAuthz` + `ArtifactAuthzFilter` /
-`EntityFilterSet`. BOSS needs an app → capability editor that writes artifact authz, a
-groups × capabilities matrix, and an access inspector (Frappe Permission Inspector).
+`EntityFilterSet`. Over that model the references point to three candidate screens: an
+app → capability editor that writes artifact authz, a groups × capabilities matrix, and an
+access inspector (Frappe Permission Inspector).
 
 ---
 
@@ -168,9 +172,9 @@ groups × capabilities matrix, and an access inspector (Frappe Permission Inspec
 **BOSS implications.** Password, session, lockout and 2FA policy are one settings page in
 every reference (Frappe System Settings, OpenProject authentication tabs, Redmine
 authentication tab, Carbon Security). Moqui has the factors and tarpits but no policy
-page. mr-moqui's `AuthFlow` records (OAuth / OIDC / SAML with field and role maps) need a
-provider list and editor; Carbon's SAML form and Frappe's Social Login Key and LDAP
-Settings are the models. 2FA enforced per group (Nextcloud) fits Moqui's group model
+page. mr-moqui's `AuthFlow` records (OAuth / OIDC / SAML with field and role maps) have no
+provider list or editor; Carbon's SAML form and Frappe's Social Login Key and LDAP
+Settings are the closest models. 2FA enforced per group (Nextcloud) fits Moqui's group model
 directly.
 
 ---
@@ -191,10 +195,12 @@ directly.
 | AureusERP | Companies & settings | Company resource (list/create/view/edit), settings pages Manage Users, Manage Currency, Manage Activity | `plugins/webkul/security/src/Filament/Resources/CompanyResource/`, `plugins/webkul/security/src/Filament/Clusters/Settings/Pages/{ManageUsers,ManageCurrency,ManageActivity}.php` |
 | Moqui baseline | Org & preferences | SimpleScreens **Vendor** (internal organizations: org detail, contact info, roles, **init accounting configuration**, accounting preferences, users); **Accounting OrgSettings** (acctg preference, GL account defaults, invoice/item/payment/asset types, financial account types/reasons, payment instruments); ProductStore settings; Party detail edits per-party **PartySetting** values (`storePartySetting`, e.g. the `OrgTemplate*` print templates); System **Localization** (messages, entity field translations); status flows editable via Tools (enumerations only through Entity DataEdit) | `component/MrSimpleScreens/screen/SimpleScreens/Vendor/{FindVendor,EditVendor,EditUsers}.xml`, `component/MrSimpleScreens/screen/SimpleScreens/Accounting/OrgSettings/*.xml`, `component/MrSimpleScreens/screen/SimpleScreens/ProductStore/FindProductStoreSettings.xml`, `component/MrSimpleScreens/screen/SimpleScreens/Party/EditParty.xml`, `base-component/tools/screen/System/Localization/{Messages,EntityFields}.xml`, `base-component/tools/screen/Tools/StatusFlows.xml` |
 
-**BOSS implications.** Admin's own settings are the instance-wide ones (name, branding,
-localization, formats, working days). The organization profile is a face on the
-internal-organization party record, and accounting, store and gateway settings stay in
-their apps (Accounting OrgSettings, Commerce stores). Mantle already has a typed setting
+**BOSS implications.** The settings only Admin includes are the instance-wide ones (name,
+branding, localization, formats, working days). The organization profile is part of the
+reused Contact / party record for the internal organization, and accounting, store and
+gateway settings are in the apps whose audience uses them (Accounting OrgSettings, Commerce
+stores), with gateway configuration a reused screen that Admin also includes (crosscut
+§4). Mantle already has a typed setting
 definition for party-scoped settings (`PartySettingType` with regexp, enum type and
 default value).
 
@@ -215,8 +221,8 @@ default value).
 
 **BOSS implications.** BOSS apps are fixed screens gated by authz, not installable
 modules, so "app enablement" means which groups can open which IronStone app. Nextcloud's
-limit-to-groups dialog is the closest UI; in BOSS it is artifact authz on each app root,
-shown and edited on the group screen.
+limit-to-groups dialog is the closest UI; in BOSS terms it is artifact authz on each app
+root, which one option would show and edit on the group screen.
 
 ---
 
@@ -234,10 +240,11 @@ shown and edited on the group screen.
 | Redmine | Custom fields, enumerations, trackers | Custom fields per object type; **Enumerations** (priorities, activities, document categories); trackers and issue statuses | `app/views/custom_fields/`, `app/views/enumerations/`, `app/views/{trackers,issue_statuses}/` |
 | Moqui baseline | Status flows, auto screens, enumerations | Status flow editor; Auto Screens over any entity; Entity DataEdit (find/edit any record) | `base-component/tools/screen/Tools/{StatusFlows,AutoScreen,Entity/DataEdit}.xml` |
 
-**BOSS implications.** Custom fields are not first-release work; the baseline already has
-status flows, DB view entities and `DbForm`. OpenProject's split of custom fields by
-owning object (project, user and group attributes) suggests that, when BOSS adds them,
-each app's settings section owns the fields for its records.
+**BOSS implications.** Custom fields have no baseline screen, but the baseline already has
+status flows, DB view entities and `DbForm` covering part of what customization offers in
+the references. OpenProject's split of custom fields by the object they extend (project,
+user and group attributes) suggests one option: each app's settings section edits the
+fields for the records that app shows.
 
 ---
 
@@ -260,9 +267,9 @@ each app's settings section owns the fields for its records.
 **BOSS implications.** Outgoing webhooks have the same shape in Frappe, Twenty, Carbon,
 OpenProject and Redmine: URL, secret, events, scope, enabled, and a delivery log with
 responses. In Moqui that is a `SystemMessageType` + `SystemMessageRemote` pair with
-`SystemMessage` rows as the delivery log, so the work is a webhook-shaped screen over
-existing records. API keys can use `UserLoginKey` (hashed key, from/thru, description),
-which today has no screen.
+`SystemMessage` rows as the delivery log, so what is missing is a webhook-shaped screen
+over existing records. API keys could use `UserLoginKey` (hashed key, from/thru,
+description), which today has no screen.
 
 ---
 
@@ -285,15 +292,16 @@ which today has no screen.
 | Redmine | Email notifications, incoming emails | Settings tabs Email notifications and **Incoming emails** (mail handler API key for the receiving script, body delimiters, excluded attachment names, preferred body part) | `app/views/settings/{_notifications,_mail_handler}.html.erb` |
 | Moqui baseline | **System messages**, email, SSH/SFTP | SystemMessage list (send/consume all, new incoming) and detail (status, type, remote, direction, editable text, send, consume, queue ack, reset error, cancel, download text); `EmailServer` (SMTP host/port/TLS, store host/port/protocol/folder, delete/mark seen, credentials, allowed recipient domains) and `EmailTemplate` have no admin screens (SimpleScreens ProductStore Emails picks templates per store); seeded `poll_EmailServer_frequent` job (paused); NotificationTopic subscriptions per user; a `SystemMessageHook` entity (webhook trigger on message status) is only a commented-out sketch in `ServiceEntities.xml`, not a runtime entity; mr-moqui adds **conf properties** for the built-in SSH server (`ssh_port`, `ssh_sftp_root`, `ssh_max_sessions`), `email_allowed_hosts`, `user_privileged_groups`, `user_sealed_permissions` | `base-component/tools/screen/System/SystemMessage.xml`, `base-component/tools/screen/System/SystemMessage/Message/{SystemMessageList,SystemMessageDetail,SystemMessageDetail/EditMessageText}.xml`; entities `SystemMessage*` in `base-component/framework/entity/ServiceEntities.xml`, `EmailServer`, `EmailTemplate` in `base-component/framework/entity/BasicEntities.xml`, `NotificationTopic*` in `base-component/framework/entity/SecurityEntities.xml`; `base-component/framework/conf/MoquiDefaultConf.xml`, `base-component/framework/data/MoquiSetupData.xml`, `component/MrSimpleScreens/screen/SimpleScreens/ProductStore/FindProductStoreEmails.xml` |
 
-**BOSS implications.** initial-design puts protocols in mr-moqui and research-crosscut §4
-gives mail accounts, sending and tracking to Comms. Admin therefore holds the server
-settings: outgoing relay or smarthost (`EmailServer`), SMTP gateway trust (allowed gateway
+**BOSS implications.** initial-design puts protocols in mr-moqui, and research-crosscut §4
+lists email sending as reused by Comms (accounts, sending, tracking, unsubscribe and
+consent), Marketing, Customer Service and Admin, with Admin's version covering the
+servers: outgoing relay or smarthost (`EmailServer`), SMTP gateway trust (allowed gateway
 IPs, as `SystemMessageRemote.authorizedIpAddresses` already does for remotes), mail
 domains and their DNS checks, the built-in SSH/SFTP server (today conf properties),
 CalDAV/CardDAV server options (Nextcloud Groupware section), chat and WebRTC servers
 (Nextcloud Talk: signaling, STUN, TURN, recording), and queue views (Zimbra mail queues,
-system-message errors). Personal and shared mail accounts and email templates are Comms
-screens that Admin links to.
+system-message errors). Personal and shared mail accounts and email templates are reused
+screens over the same records, emphasized in Comms; Admin can include or link to them.
 
 ---
 
@@ -314,8 +322,9 @@ screens that Admin links to.
 **BOSS implications.** The job screens are complete for one job at a time; missing is
 health across jobs (failing, late, paused) and alert rules. ServiceJobMonitor already
 shows the Moqui-native shape: bounds on a value read from job-run results, and alerts with
-an assignee and an issue URL. Automation rules (Odoo, Frappe) overlap service ECAs and are
-not first-release work; approval rules (Carbon) belong to each owning app's settings.
+an assignee and an issue URL. Automation rules (Odoo, Frappe) overlap service ECAs, which
+the baseline already has; approval rules (Carbon) sit with the records they approve, which
+suggests each app's settings section that includes those records.
 
 ---
 
@@ -359,9 +368,9 @@ download is a fitting control for a self-hosted install.
 | Moqui baseline | Audit, visits, hits, logs | **Audit Log** (entity field changes), **Visits** (visit list/detail with requests), **Artifact Hit Summary/Bins** (screen/service/entity usage and timing), **Active Users**, **Log Viewer**, **Thread List** | `base-component/tools/screen/System/{AuditLog,Visit/{VisitList,VisitDetail},ArtifactHitSummary,ArtifactHitBins,Security/ActiveUsers,LogViewer,ThreadList}.xml` |
 
 **BOSS implications.** Moqui records audit, visits and artifact hits, and its cleanup jobs
-take `daysToKeep`; BOSS adds retention settings per log type (Frappe Log Settings) wired
-to those jobs, an error triage list, and an access log for sensitive exports (Frappe
-Access Log). Insights reads the same records for usage analytics.
+take `daysToKeep`; what is missing is retention settings per log type (Frappe Log
+Settings) wired to those jobs, an error triage list, and an access log for sensitive
+exports (Frappe Access Log). Insights reads the same records for usage analytics.
 
 ---
 
@@ -377,7 +386,7 @@ Access Log). Insights reads the same records for usage analytics.
 
 **BOSS implications.** Privacy lookup (Odoo) maps to a search over a `Party`'s links and
 its `CommunicationEvent` records; retention and anonymization rules (Dolibarr data policy)
-are later work.
+would need new records and rules beyond that search.
 
 ---
 
@@ -391,8 +400,8 @@ are later work.
 | Moqui baseline | Cache, instances, entity sync, printing | **Cache** list/elements (clear), **Instance** management (`AppInstance`, `InstanceHost`, images, env, volumes — Docker-style instances), **Entity Sync** (remote sync definitions, history), **Print** (network printers, print jobs), Resource Finder (elFinder over resource locations) | `base-component/tools/screen/System/{Cache/{CacheList,CacheElements},Instance/{InstanceList,InstanceDetail},EntitySync/{EntitySyncList,EntitySyncDetail,EntitySyncHistory},Print/{Printer,PrintJob},Resource/ElFinder}.xml`; entities in `base-component/framework/entity/ServerEntities.xml` |
 
 **BOSS implications.** Self-hosting first means one instance per business, so Moqui's
-Instance screens and Frappe Central matter only to a hosting provider and stay out of the
-Admin first release.
+Instance screens and Frappe Central matter mainly to a hosting provider rather than to a
+business administrator.
 
 ---
 
@@ -409,34 +418,37 @@ Admin first release.
 | OpenProject | **AI** admin: LLM connection (provider API key, connect/disconnect), LLM models, feature bindings (which feature uses which model), health status (run checks, download report), MCP configurations, text transform actions | `app/views/admin/{llm_connections,llm_models,llm_feature_bindings,llm_health_status,mcp_configurations,text_transform_actions}/` |
 | Moqui baseline | LLM and A2A records (`LlmConversation`, `LlmMessage`, `LlmCallLog`, `LlmSkill`, `LlmSkillUse`, `LlmLesson`; `A2AContext`, `A2ATask`, `A2AMessage`, `A2AArtifact`, `A2APushConfig`) with no admin screens; `LlmGateway` is a sealed permission in `user_sealed_permissions` | `base-component/framework/entity/{LlmEntities,A2AEntities}.xml`, `base-component/framework/conf/MoquiDefaultConf.xml` |
 
-**BOSS implications.** Keep the tools screens for a developer group, behind the sealed
-permissions that already gate them. For Assist, Twenty's AI tabs and OpenProject's AI
+**BOSS implications.** The tools screens already sit behind sealed permissions, which fits
+a developer group. For Assist, Twenty's AI tabs and OpenProject's AI
 admin show what an admin expects (provider connection, models, skills, tools, usage); BOSS
 has the records (`LlmSkill`, `LlmLesson`, `LlmCallLog`, A2A) but no screens. Assist writes
 stay governed by artifact authz (initial-design, Decided), so no separate write-policy
-editor is needed.
+editor appears necessary.
 
 ---
 
 ## 16. Cross-app surfaces
 
-Faces per research-crosscut.md §3–§4. Admin owns user accounts, groups and app access,
-and the settings index; each app owns its own settings section; Comms owns mail accounts
-and sending, while Admin hosts the protocol and server settings that mr-moqui provides.
+Reused screens per research-crosscut.md §3–§4. Admin includes the user-account part of the
+party record, groups and app access, gateway configuration and the settings index, each in
+the form an administrator needs; the same screens and records appear in the other apps
+listed. Every app also includes its own settings section, which the settings index links
+to. Protocol and server settings are what mr-moqui provides and Admin configures.
 
-| Surface | Admin face | Reference evidence |
-| --- | --- | --- |
-| **Contact / party record** (owner Commons) | User-account face: login, status, groups, apps the user can open, authentication factors, API and SSH keys, login history, login as; on internal-organization parties, the organization profile face | SimpleScreens Party detail creates the user account on the party (`create#PartyUserAccount`); Carbon users per party type; Nextcloud and Twenty user lists |
-| **Employee 360** (owner People) | User account tab: create or invite on hire, disable on leave | Carbon employees are users with permissions; OpenProject user edit tabs mix account and working-hours data |
-| User accounts, groups, app access (owner Admin) | Owner: user list and detail, invitations, groups, app access per group, capability editor; People and Commons get a read face on the party | Nextcloud limit-to-groups, Odoo role and privilege selects, Twenty roles, OpenProject global roles |
-| Per-app settings (each app owns its section) | **Settings index**: instance-wide pages in Admin plus a link to every app's settings section | Carbon Modules group, Odoo settings app tabs, Dolibarr per-module setup links, Nextcloud sections that apps register into |
-| Email / SMS sending (owner Comms) | Protocol and server settings: outgoing relay, SMTP gateway trust, mail domains, queues; links to Comms for accounts and templates | Nextcloud email server and Mail admin, Zimbra MTA and mail queues, Frappe suite mail admin, OpenProject email settings |
-| Calendar & schedules (owner Commons) | CalDAV / CardDAV server settings | Nextcloud Groupware section (`dav` app) |
-| Chatter & activities, chat (owner Commons / Comms) | Chat and WebRTC server settings (signaling, STUN/TURN, recording) | Nextcloud Talk admin; Odoo ICE servers |
-| Approvals waiting (header Notifications panel) | Notification topics and user subscriptions; approval rules stay with the owning app | Frappe Notification, Carbon approval rules |
-| Dashboard widgets (owner Insights) | Admin landing page places health widgets; audit, visits and hits feed Insights usage analytics; Admin owns their retention | Frappe System Health Report, Twenty admin panel |
-| Data import (Admin, initial-design "Data import and export") | One import wizard, opened from any app's find screen with the target preset | Odoo import from any list, Carbon shared `import/<table>` route, Twenty import from views |
-| Assist drawer | LLM providers, skills, lessons, call logs; Assist's access is artifact authz on its user or group | Twenty AI settings, OpenProject AI admin |
+| Reused screen or link | Use in Admin | Other apps that include it | Reference evidence |
+| --- | --- | --- | --- |
+| **Contact / party record** | User account: login, status, groups, apps the user can open, authentication factors, API and SSH keys, login history, login as; on internal-organization parties, the organization profile | Commons (contacts, address book); every app that shows a person or organization; People (employee data) | SimpleScreens Party detail creates the user account on the party (`create#PartyUserAccount`); Carbon users per party type; Nextcloud and Twenty user lists |
+| **Employee 360** | User account tab: create or invite on hire, disable on leave | People (employment, pay, leave, reviews); Projects (allocations, timesheets); Commons (directory card) | Carbon employees are users with permissions; OpenProject user edit tabs mix account and working-hours data |
+| User accounts, groups, app access | User list and detail, invitations, groups, app access per group, capability editor | People and Commons (account details on the party) | Nextcloud limit-to-groups, Odoo role and privilege selects, Twenty roles, OpenProject global roles |
+| Settings (every app's own section) | **Settings index**: instance-wide pages plus a link to every app's settings section | Every app (its own settings section) | Carbon Modules group, Odoo settings app tabs, Dolibarr per-module setup links, Nextcloud sections that apps register into |
+| Payment, shipping & tax settings | Gateway configuration in the integrations area (`PaymentGatewayConfig`, `ShippingGatewayConfig`, `TaxGatewayConfig`) | Commerce (per store); Accounting (tax authorities, payment methods); Warehouse (carriers and label gateways) | SimpleScreens Gateway screens (§17); Ever Gauzy SMS gateway selection (§9) |
+| Email / SMS sending | Protocol and server settings: outgoing relay, SMTP gateway trust, mail domains, queues; mail accounts and templates included or linked | Comms (accounts, sending, tracking, unsubscribe and consent); Marketing (campaign sends, audiences); Customer Service (case email) | Nextcloud email server and Mail admin, Zimbra MTA and mail queues, Frappe suite mail admin, OpenProject email settings |
+| Calendar & schedules (link) | CalDAV / CardDAV server settings | Commons, Maintenance, Projects, People (the calendars themselves) | Nextcloud Groupware section (`dav` app) |
+| Chatter & activities, chat (link) | Chat and WebRTC server settings (signaling, STUN/TURN, recording) | Every app's record screens; Comms and Commons (chat) | Nextcloud Talk admin; Odoo ICE servers |
+| Approvals waiting (header Notifications panel) | Notification topics and user subscriptions; approval rules are in the settings of the apps that include the approved records | People, Projects, Purchasing, Sales, Accounting (approval lists) | Frappe Notification, Carbon approval rules |
+| Dashboard widgets | Admin landing page places health widgets; audit, visits and hits feed Insights usage analytics; their retention is set in Admin | Insights (dashboards, widget builder); every app's landing page | Frappe System Health Report, Twenty admin panel |
+| Data import (initial-design "Data import and export") | One import wizard, opened from any app's find screen with the target preset | Every app with a find screen (import entry) | Odoo import from any list, Carbon shared `import/<table>` route, Twenty import from views |
+| Assist drawer | LLM providers, skills, lessons, call logs; Assist's access is artifact authz on its user or group | Every app (always-available header drawer) | Twenty AI settings, OpenProject AI admin |
 
 ---
 
@@ -589,20 +601,23 @@ service in the baseline.
 | ServiceJobMonitor | Moqui-native job monitors: bounds on job-run values, alerts with assignee and issue URL, charts |
 | Ever Gauzy | Tenant SMTP / SMS / file-storage overrides; feature toggles; org import / export zip |
 | Akaunting | Small-business settings set (company, localisation, defaults, invoice numbering, email templates, schedule) |
-| Frappe Central | Control plane for hosting many instances (servers, snapshots, team access, billing, SSO into sites) — not first-release Admin work |
+| Frappe Central | Control plane for hosting many instances (servers, snapshots, team access, billing, SSO into sites) — a hosting concern rather than business Admin |
 
-### Recommended screen inventory (IronStone Admin)
+### Candidate screen inventory (IronStone Admin)
+
+Screens the research points to for a system administrator, including the reused screens
+Admin includes. Input to design, not a design.
 
 | Area | Screens |
 | --- | --- |
-| Home | Admin landing page: setup checklist (pass / warn with a fix link: mail relay set, backups recent, SSH host key changed from the default, admins have 2FA, no failing jobs, search backend available), health (failed and late job runs, system messages in error, mail poll errors, worker pool, last backup), counts (users, active sessions, failed logins), links grouped Monitor / Manage / Configure |
-| Users | User list (status active / disabled / invited / locked, group, app, last login); invite users (single and CSV); **user account face of the Contact / party record (shared: Commons)** — groups, apps, factors, API keys (`UserLoginKey`), SSH keys, login history, login as, disable, reset, tarpit release; **user account tab on Employee 360 (shared: People)** |
+| Home | Admin landing page: setup checklist (pass / warn with a fix link: mail relay set, backups recent, SSH host key changed from the default, admins have 2FA, no failing jobs, search backend available), health (failed and late job runs, system messages in error, mail poll errors, worker pool, last backup), counts (users, active sessions, failed logins), links grouped Monitor / Manage / Configure; health widgets **(reused: Dashboard widgets, every app's landing page and Insights)** |
+| Users | User list (status active / disabled / invited / locked, group, app, last login); invite users (single and CSV); **user account on the Contact / party record (reused: Admin, Commons, People, every app that shows a person)** — groups, apps, factors, API keys (`UserLoginKey`), SSH keys, login history, login as, disable, reset, tarpit release; **user account tab on Employee 360 (reused: People, Admin, Projects, Commons)** |
 | Groups & permissions | Group list and detail (members with dates, apps the group opens, capabilities, require-factor and allowed-IP flags, preferences); capability editor (app → capability → view / create / update / delete, written as `ArtifactAuthz`); groups × capabilities matrix; row rules (`EntityFilterSet`); access inspector (user × screen / service / record → which authz allows or denies) |
 | Security & sign-in | Policy page (password rules, session, lockout via tarpits, groups that require 2FA); SSO providers over `AuthFlow` (OAuth / OIDC / SAML with field and role maps); per-group IP restrictions |
-| Settings & organizations | **Settings index** (Admin's instance pages plus a link to each app's own settings section); instance settings (name, branding / theme, default locale, time zone and currency, formats); internal organizations as the **organization face of the Contact / party record (shared: Commons)** with logos, addresses and `PartySetting` values; localization (messages, entity field translations); enumerations and status flows |
+| Settings & organizations | **Settings index** (Admin's instance pages plus a link to each app's own settings section) **(reused: every app's settings section)**; instance settings (name, branding / theme, default locale, time zone and currency, formats); internal organizations as the **organization profile on the Contact / party record (reused: Admin, Commons, every app that shows an organization)** with logos, addresses and `PartySetting` values; localization (messages, entity field translations); enumerations and status flows |
 | Apps | App access: each IronStone app root × the groups that can open it |
-| Integrations | Webhooks (event, condition, URL, secret, retries; deliveries = `SystemMessage` rows); message remotes and types; API keys; index of payment, shipping and tax gateways that links to their owning apps' settings |
-| Protocols & mail servers | Outgoing relay or smarthost (`EmailServer`) with test send; SMTP gateway trust (allowed gateway IPs, trusted headers); mail domains with DNS checks; SSH / SFTP server (read-only view of conf properties first); CalDAV / CardDAV server options; chat and WebRTC servers (signaling, STUN / TURN, recording); mail queue and system-message queue (errors, retry, cancel); links to **mail accounts and email templates (shared: Comms)** |
+| Integrations | Webhooks (event, condition, URL, secret, retries; deliveries = `SystemMessage` rows); message remotes and types; API keys; payment, shipping and tax gateway configuration **(reused: Admin, Commerce, Accounting; carrier gateways also Warehouse)** |
+| Protocols & mail servers | Outgoing relay or smarthost (`EmailServer`) with test send; SMTP gateway trust (allowed gateway IPs, trusted headers); mail domains with DNS checks; SSH / SFTP server (read-only view of conf properties is one option); CalDAV / CardDAV server options; chat and WebRTC servers (signaling, STUN / TURN, recording); mail queue and system-message queue (errors, retry, cancel); **mail accounts and email templates (reused: Comms, Marketing, Customer Service, Admin)** |
 | Notifications | Notification topics (alert, email template, persist) and user subscriptions, feeding the header Notifications panel |
 | Jobs & monitoring | Service jobs and runs; job health (failing, late, paused); job monitors and alerts in the ServiceJobMonitor shape |
 | Data | **Import wizard** (upload → map columns → test → import → error rows) opened from any app's find screen; export (fields, filters, format, saved profiles); data snapshots; backups (archives, status, download with confirmation) |
@@ -610,10 +625,10 @@ service in the baseline.
 | Assist & agents | LLM providers and models, skills and lessons, call logs and usage, A2A tasks; Assist's own group and its artifact authz |
 | Developer | Existing tools screens behind a developer group and the sealed permissions |
 
-### Data-model implications
+### Data-model findings
 
-- **Reuse as is:** `UserAccount`, `UserGroup` (use `groupTypeEnumId` to mark app groups;
-  `requireAuthcFactor` and `ipAllowed` drive the policy page), `UserGroupMember`,
+- **Fit as is:** `UserAccount`, `UserGroup` (`groupTypeEnumId` could mark app groups;
+  `requireAuthcFactor` and `ipAllowed` carry the policy-page flags), `UserGroupMember`,
   `ArtifactGroup` / `ArtifactAuthz` / `ArtifactAuthzFilter` / `EntityFilterSet`,
   `ArtifactTarpit`, `UserAuthcFactor`, `UserLoginKey` (API keys), `UserSshKey`,
   `UserLoginHistory`, `AuthFlow` and its flow and map records, `NotificationTopic`,
@@ -621,45 +636,56 @@ service in the baseline.
   `EntityAuditLog`, `ArtifactHit`, `Visit`; Mantle `Party` with `PartyRole` `OrgInternal`,
   `PartySettingType` / `PartySetting` for organization settings, and the
   `MANTLE_ACTIVE_ORG` filter set for multi-organization rows.
-- **Services to call:** `mantle.party.PartyServices.create#PartyUserAccount` and
+- **Existing services:** `mantle.party.PartyServices.create#PartyUserAccount` and
   `update#PartyUserAccount` for user accounts on parties; `org.moqui.impl.UserServices`
   for passwords, enable / disable and factors; `load#SpreadsheetEntity` for the import
   step; `send#SystemMessageRest` for webhook delivery; `clean#ArtifactData` (`daysToKeep`)
   for retention.
 - **App access:** one `ArtifactGroup` per IronStone app root (as `BOSS_APP` today) plus
-  `ArtifactAuthz` rows per group; no new entity.
-- **Log retention:** `ServiceJobParameter` values (`daysToKeep`) on the seeded cleanup jobs;
-  add cleanup jobs where a log has none (audit log, visits).
-- **New records:** user **invitation** (party, email, groups, token hash, expiry, status);
-  **import job** (file, target entity, column map, options, status, counts, error rows);
-  **webhook subscription** (entity, event, condition → `SystemMessageType` and remote;
-  a commented-out `SystemMessageHook` in `ServiceEntities.xml` sketches status-triggered
-  sends);
-  **job monitor** records ported from ServiceJobMonitor; an **instance-scope setting**
-  store (see Open questions).
+  `ArtifactAuthz` rows per group fits without a new entity.
+- **Log retention:** `ServiceJobParameter` values (`daysToKeep`) on the seeded cleanup jobs
+  cover most logs; some logs have no cleanup job (audit log, visits).
+- **Where new records look necessary:** user **invitation** (party, email, groups, token
+  hash, expiry, status); **import job** (file, target entity, column map, options, status,
+  counts, error rows); **webhook subscription** (entity, event, condition →
+  `SystemMessageType` and remote; a commented-out `SystemMessageHook` in
+  `ServiceEntities.xml` sketches status-triggered sends); **job monitor** records like
+  ServiceJobMonitor's; possibly an **instance-scope setting** store (see Open questions).
 - **Gateway trust:** `SystemMessageRemote.authorizedIpAddresses` is the existing pattern for
-  an IP allowlist; the SMTP receiver needs the same, as a remote record or a conf property.
+  an IP allowlist; the SMTP receiver has none, and one option is a remote record, another a
+  conf property.
 
-### First-release cut
+### Sequencing notes
 
-Admin home with the setup checklist, health and counts; user list, user-account face and
-invitations, with groups and app access; group detail with capability toggles over
-artifact authz; the security policy page over existing group flags and tarpits; SSO
-providers over `AuthFlow`; the settings index with instance and organization pages; mail
-relay (`EmailServer`) with test send, the system-message queue and notification topics;
-service jobs and runs with job health; the import wizard over `load#SpreadsheetEntity` for
-core entities; a backups page over the seeded backup job; audit, visit and error views; the
-tools screens kept for developers. Deferred: webhooks and the integration index, access
-inspector, LDAP (nothing in the baseline), privacy lookup, automation rules, instance
-management, custom fields, Assist / LLM admin, and the CalDAV, chat and WebRTC server
-pages until mr-moqui ships those protocols.
+- **Cheap because the baseline has the records and services:** the user list and user
+  account on the party (`create#PartyUserAccount`, `UserServices`); groups and app access
+  over artifact authz (`BOSS_APP` already gates the root); the security policy page over
+  existing group flags and tarpits; SSO providers over `AuthFlow`; mail relay
+  (`EmailServer`) with test send; the system-message queue; notification topics; service
+  jobs and runs; a backups page over the seeded backup job; audit, visit and error views
+  over existing log records; the tools screens as they are.
+- **Screen work plus a small new record:** invitations need the invitation record; the
+  import wizard needs the import-job record on top of `load#SpreadsheetEntity`; webhooks
+  need the webhook-subscription record on top of `SystemMessageRemote`; job health and
+  alerts need the job-monitor records.
+- **Depends on other decisions:** the settings index depends on each app's settings section
+  existing; instance settings depend on where instance-scope settings are stored (open
+  question); the capability editor and matrix depend on what a "capability" is (open
+  question); gateway configuration depends on where shared gateway records are edited
+  (crosscut §8).
+- **Larger or dependent work:** the access inspector (the baseline has no "why can this
+  user do this" view); LDAP (nothing in the baseline); privacy lookup (a search over
+  `Party` links) and retention rules (new records); automation rules (overlap service
+  ECAs); instance management (a hosting concern); custom fields (no baseline screen);
+  Assist / LLM admin screens (records exist, no screens); the CalDAV, chat and WebRTC
+  server pages depend on mr-moqui shipping those protocols.
 
 ### Open questions
 
 - Is a "capability" one `ArtifactGroup`, or a new bundle over several artifact groups and
   entity filter sets (like Odoo privileges or Twenty roles)?
-- Should People's hire flow create the user account directly on Employee 360, or hand off
-  to Admin's invitation?
+- On hire, does the reused user-account part of Employee 360 create the account directly,
+  or send an invitation (the same invitation flow Admin uses)?
 - Multi-organization: one BOSS instance with several internal organizations (Carbon and
   Odoo companies; Mantle's `MANTLE_ACTIVE_ORG` filter set already supports this) or one
   organization per instance with Frappe-Central-style hosting of many instances?
@@ -668,12 +694,13 @@ pages until mr-moqui ships those protocols.
   Admin (SMTP listener, gateway IPs, CalDAV, chat, WebRTC)?
 - Where do instance-scope settings live: `PartySetting` on the main internal organization,
   conf properties, or a new setting record?
-- Mail domains and deliverability reports (Frappe suite DMARC / TLS reports): Admin
-  protocol pages or Comms? research-crosscut.md §4 gives Comms accounts and sending but does
-  not name domains.
-- Payment, shipping and tax gateway configs: initial-design puts "Shipping, payment & tax
-  settings" in Commerce and research-crosscut.md §4 gives carriers to Warehouse; Admin keeps
-  only an index. Confirm.
+- Mail domains and deliverability reports (Frappe suite DMARC / TLS reports):
+  research-crosscut.md §4 lists Comms and Admin for mail settings but does not name
+  domains; are they part of Admin's protocol pages, the Comms mail-account screens, or a
+  screen both include?
+- Payment, shipping and tax gateway configs are shared records included in Commerce (per
+  store, per initial-design "Shipping, payment & tax settings"), Accounting, Admin and, for
+  carriers, Warehouse; where is each edited, and where is it only read (crosscut §8)?
 - Assist writes: initial-design (Decided) governs them with Moqui's existing policy model;
   once writes are allowed, is artifact authz fine-grained enough for tool kinds such as
   send-email or HTTP request (Twenty's AI permission flags), or does Admin need a tool
@@ -695,7 +722,8 @@ pages until mr-moqui ships those protocols.
   tabs in `lib/open_project/ui/extensible_tabs.rb`, not in the view folders.
 
 **Bottom line.** Most of what IronStone Admin needs already exists as Moqui records and
-services; the work is a task-organized UI over them (home, users as a party face, groups as
-app capabilities, policy, settings index, import, backups), plus a few new records
-(invitations, import jobs, webhook subscriptions, job monitors). Mail accounts stay in
-Comms; Admin configures the servers mr-moqui runs.
+services; what the research finds missing is a task-organized UI over them (home, users on
+the reused party record, groups as app capabilities, policy, settings index, import,
+backups), plus a few new records (invitations, import jobs, webhook subscriptions, job
+monitors). Mail accounts are reused screens emphasized in Comms; Admin's distinct part is
+configuring the servers mr-moqui runs.
