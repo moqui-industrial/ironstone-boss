@@ -16,6 +16,7 @@ Deeper research pass on the **Header tray**, the **drawers (Assist, Commons/Comm
 | **Frappe suite** | `/home/jonesde/work/moquiwork/3p_other/frappe` — `suite/frontend/src/apps/<app>/` (Vue 3 SPA, one app registry) |
 | **Ever Co (ever-gauzy)** | `/home/jonesde/work/moquiwork/3p_other/ever-co` — gauzy front end is its own Nx monorepo at `ever-gauzy/`; paths in gauzy tables are relative to `ever-gauzy/` (`apps/gauzy` + `packages/*`) |
 | **Twenty** | `/home/jonesde/work/moquiwork/3p_other/twenty` — paths relative to the repo root (`packages/twenty-front`, `packages/twenty-ui`) |
+| **Signal (signalapp)** | `/home/jonesde/work/moquiwork/3p_other/signalapp` — paths relative to each project repo (`Signal-Desktop/`, `Signal-Server/`, plus `libsignal/`, `ringrtc/`, `boring/`) |
 | **Nextcloud Assistant** | not in the checkout; catalogued from the published repo `github.com/nextcloud/assistant` (verified directory listings, src/ entry points and components) |
 
 Also relevant, without deeper research here: the Office/WOPI angle. `zm-onlyoffice` (WOPI-capable OnlyOffice server), and Nextcloud `office/` + `richdocuments/` checkout dirs hold the editor-host integration UI; that is the separate Office app pass, out of scope this round.
@@ -307,7 +308,30 @@ The whole logged-in shell is one PHP template with small Vue apps mounted into n
 | Roster & chats | Buddy list overview + one-click chat widget windows; group chats/conference rooms; IM taskbar | `im/view/{ZmImOverview,ZmChatWidget}.js`, `im/view/popup/*.js`, `im/controller/*`, `im/model/{ZmRoster,ZmChat,ZmConferenceRoom}.js` |
 | Presence & gateways | Presence model (§5), XMPP gateway controls, privacy list | `im/model/{ZmImService,ZmZimbraImService,ZmImGateway,ZmImPrivacyList,ZmRosterPresence}.js`, `im/view/prefs/ZmImGatewayControl.js` |
 
-**BOSS implications.** A synchronous header chat panel maps to Talk's LeftSidebar (rooms w/ unread + search) and Zimbra's chat-widget popup (1:1 rooms in own window). The *message→task/card conversion* and per-message actions bar are the "everything is a record" glue. Talk is also the presence reference: signaling session state, typing indicators, away/DND, live participants.
+### Signal-Desktop (Electron/React — pane-mode chat shell)
+
+- Paths relative to `Signal-Desktop/`. Renderer is React (`.dom.tsx` per component); main window = collapsible nav sidebar + left pane + conversation column; the whole left pane is a **mode-switch machine** (inbox/search/compose/archive/find-by-username/phone/choose-members/set-metadata) — the same pane doubles as the search overlay and the compose flow.
+- Group of extra chat mods: pinned chats, chat folders, pinned messages, polls, view-once media, disappearing timers, usernames, message requests, stories, stickers; no scheduled/snoozed messages found in this snapshot.
+
+| Screen/page | What it is | Key files |
+| --- | --- | --- |
+| Root shells | App-view switch (installer/standalone-registration/inbox); 3-column inbox with modal/toast layers over any screen | `ts/components/App.dom.tsx`, `ts/components/Inbox.dom.tsx`, `ts/types/app.std.ts`, `ts/components/{GlobalModalContainer,ToastManager}.dom.tsx` |
+| Nav sidebar | Collapsible tabs: chats / calls / stories / settings + profile avatar | `ts/components/{NavSidebar,NavTabs}.dom.tsx`, `ts/types/Nav.std.ts` |
+| Left pane modes | Mode-switched pane: inbox, search overlay (contacts+groups+messages), compose, archive, find-by-username/phone, choose-group-members, set-group-metadata | `ts/components/LeftPane.dom.tsx`, `ts/components/leftPane/*`, `ts/types/leftPane.std.ts` |
+| Global search overlay | Contacts + groups + messages results under the search input | `ts/components/leftPane/LeftPaneSearchHelper.dom.tsx`, `ts/components/conversationList/MessageSearchResult.dom.tsx`, `ts/state/ducks/search.preload.ts` |
+| Conversation list & folders | Rows with preview/unread/mention badges, pinned chats, chat-folder filter chips, row context menu, archive view, full-width banners | `ts/components/conversationList/{ConversationListItem,GroupListItem,ContactListItem}.dom.tsx`, `ts/components/LeftPaneChatFolders.dom.tsx`, `ts/components/leftPane/{LeftPaneConversationListItemContextMenu,LeftPaneArchiveHelper,LeftPaneBanner}.dom.tsx` |
+| Conversation view | Header + timeline column: date headers, last-seen marker, jump-down | `ts/components/conversation/{ConversationView,Timeline,TimelineItem,LastSeenIndicator,ScrollDownButton}.dom.tsx` |
+| Message bubbles & parts | Body renderer (@mentions, linkify, emoji); image grid/PDF/audio+waveform/lightbox; view-once + link previews + read-more | `ts/components/conversation/{Message,MessageBody,AtMention,Linkify}.dom.tsx`, `{Image,ImageGrid,GIF,Pdf,MessageAudio,Waveform,FileThumbnail,Lightbox}.dom.tsx`, `TapToViewNotAvailableModal.dom.tsx`, `MessageBodyReadMore.dom.tsx` |
+| Inline system notices | Timer, safety number, session-refresh (out-of-sync), call-start, profile-change rows in the timeline | `ts/components/conversation/{TimerNotification,SafetyNumberNotification,ChatSessionRefreshedNotification,CallingNotification,ProfileChangeNotification}.dom.tsx` |
+| Message interactions | Context menu (reply/react/edit/forward/delete/pin/detail), reaction picker/viewer, multi-select mode, message-detail pane, pinned-messages panel | `ts/components/conversation/{MessageContextMenu,ReactionPicker,ReactionViewer,SelectModeActions,MessageDetail,MessageMetadata}.dom.tsx`, `conversation/pinned-messages/*` |
+| Typing & message requests | Typing-bubble animation; accept/block/report-spam chips for unknown senders | `ts/components/conversation/{TypingBubble,TypingAnimation,MessageRequestActions,MessageRequestActionsConfirmation}.dom.tsx` |
+| Composer | Quill rich input (_mentions/emoji); unified emoji/GIF/sticker picker; staged attachments + pre-send image editor + quality; voice memo with waveform + speed; poll creation; disappearing-timer select in header | `ts/components/{CompositionArea,CompositionInput,FunPicker,CompositionUpload,MediaEditor,MediaQualitySelector,CompositionRecording,CompositionRecordingDraft,MiniPlayer,PollCreateModal,DisappearingTimerSelect}.dom.tsx` (only the needed flags enabled) |
+| Details pane & media tabs | Right-side details stack (profile header, actions, notification settings) + media gallery tabs (media/documents/voice/links) | `ts/types/Panels.std.ts` (typed push/pop panel stack), `ts/components/conversation/conversation-details/*`, `conversation/media-gallery/{MediaGallery,AttachmentSection}.dom.tsx` |
+| Group admin & contact screens | Group create/edit/permission/link-management/pending-invite screens; contact modal; safety-number viewer; nickname+note editor | `ts/components/conversation/conversation-details/{EditConversationAttributesModal,AddGroupMembersModal,GroupLinkManagement,GroupV2Permissions,PendingInvites}.dom.tsx`, `ts/components/conversation/{ContactModal}.dom.tsx`, `ts/components/{SafetyNumberViewer,EditNicknameAndNoteModal}.dom.tsx` |
+| New chat flows | Compose modes: find-by-username/phone, choose members, group title/description | `ts/components/leftPane/{LeftPaneComposeHelper,LeftPaneFindByUsernameHelper,LeftPaneFindByPhoneNumberHelper,LeftPaneChooseGroupMembersHelper,LeftPaneSetGroupMetadataHelper}.dom.tsx` |
+| Stories & stickers | Stories tab/viewer/creator/send modal; sticker-pack creator as its own window | `ts/components/{StoriesTab,StoryViewer,StoryCreator,SendStoryModal}.dom.tsx`, `ts/windows/sticker-creator/` |
+
+**BOSS implications.** A synchronous header chat panel maps to Talk's LeftSidebar (rooms w/ unread + search) and Zimbra's chat-widget popup (1:1 rooms in own window). The *message→task/card conversion* and per-message actions bar are the "everything is a record" glue. Talk is also the presence reference: signaling session state, typing indicators, away/DND, live participants. Signal adds the trade reference for pure-messaging polish: its left-pane-as-mode-machine means BOSS's chat drawer/search/compose can be one pane with modes (not separate screens), and its typed panel stack (`Panels.std.ts`) is the cleanest known UI contract for pushing contact/group/media drawers.
 
 ---
 
@@ -341,7 +365,20 @@ The whole logged-in shell is one PHP template with small Vue apps mounted into n
 | Meeting page | Pre-call preview, lobby, layout grid, toolbar; SFU client | `suite/frontend/src/apps/meet/pages/Meeting.vue`, `components/{MeetingLayout,ParticipantTile,MeetingToolbar,LobbyOverlay,JoinRequestNotifications,RecordingPreflightDialog}.vue`, `utils/SFUClient.ts` |
 | Side panels | Slide-in participant/chat panels from toolbar; polls and captions | `suite/frontend/src/apps/meet/components/{ChatPanel,PeoplePanel,FloatingReactions,CaptionOverlay}.vue`, `CreatePollModal.vue` |
 
-**BOSS implications.** Talk covers virtually every WebRTC call screen BOSS needs: grid views, tile chrome, media consent popup, breakouts, the headless recorder route, the floating mini-window. The header model in initial-design ("live call mini-window persists over navigation") is literally implemented by the floating-call overlay + its route interception. Talk's recording route is the runner for a server-side recorder; Frappe Meet shows the slide-in people/chat panel pattern for a smaller implementation.
+### Signal-Desktop — calls
+
+(paths relative to `Signal-Desktop/`)
+
+| Screen/page | What it is | Key files |
+| --- | --- | --- |
+| Calls tab & lobby | Call-history list + "New call" + call-link panel; per-call lobby (participant info, device/permission setup, join) | `ts/components/{CallsTab,CallsList,CallsNewCallButton}.dom.tsx`, `ts/components/{CallingLobby,CallingPreCallInfo,CallingDeviceSelection,MediaPermissionsModal,CallNeedPermissionScreen}.dom.tsx` |
+| Call screen & grid | Full-screen call: header, 1:1 + group participant grids, controls; group extras (overflow area, participant count, raised hands, participant menu, reaction burst) | `ts/components/{CallScreen,CallManager,CallingHeader,GroupCallRemoteParticipants,DirectCallRemoteParticipant}.dom.tsx`, `{GroupCallOverflowArea,CallParticipantCount,CallingRaisedHandsList,CallingParticipantMenu,CallReactionBurst}.dom.tsx` |
+| Incoming & floating surfaces | Global incoming-call bar; picture-in-picture window; screen-share picker; background blur | `ts/components/{IncomingCallBar,CallingPip,CallingSelectPresentingSourcesModal,CallBackgroundBlur}.dom.tsx` |
+| Call links (meetings) | Create/edit/name call links, details screen, pending participants, leave-confirm | `ts/components/{CallLinkDetails,CallLinkAddNameModal,CallLinkEditModal,CallLinkPendingParticipantModal}.dom.tsx`, `ts/types/CallLink.std.ts` |
+| Quality & diagnostics | Post-call quality survey + dedicated diagnostic window | `ts/components/{CallQualitySurveyDialog,CallDiagnosticWindow}.dom.tsx` |
+| RingRTC hooks | Calling glue isolated in `ts/calling/`; `CallManager` drives `CallScreen`; npm dep `@signalapp/ringrtc` | `package.json`, `ts/calling/`, `ts/components/CallManager.dom.tsx` |
+
+**BOSS implications.** Talk covers virtually every WebRTC call screen BOSS needs: grid views, tile chrome, media consent popup, breakouts, the headless recorder route, the floating mini-window. The header model in initial-design ("live call mini-window persists over navigation") is literally implemented by the floating-call overlay + its route interception. Talk's recording route is the runner for a server-side recorder; Frappe Meet shows the slide-in people/chat panel pattern for a smaller implementation. Signal-Desktop adds the consumer-grade completeness list (lobby → call screen → incoming bar → PiP → diagnostics) and the **call-link** concept as the "meeting front door"; if BOSS adopts `ringrtc`, its Desktop wiring (`ts/calling/` + `CallManager`) is the integration template.
 
 ---
 
@@ -692,6 +729,14 @@ The whole logged-in shell is one PHP template with small Vue apps mounted into n
 | Deck settings | App settings + board defaults; per-card sort persist | `deck/src/components/DeckAppSettings.vue`, `stores/board.js` |
 | Files global settings | (mostly absent beyond per-section settings; quota + shortcuts) | `server/apps/files/src/composables/useHotKeys.ts`, `components/NavigationQuota.vue` |
 
+### Signal-Desktop — settings dialog
+
+(paths relative to `Signal-Desktop/`)
+
+| Screen/page | What it is | Key files |
+| --- | --- | --- |
+| Settings tab-screen | Left category nav + `SettingsPage`-enum routing: Profile, Account (linked devices, PIN, registration lock, recovery key), General, Appearance (chat color), Chats (chat-folder editor), Calls, Notifications (incl. notification profiles, while-muted), Privacy (read receipts/typing), Data usage, Backups, Internal | `ts/components/Preferences.dom.tsx`, `ts/components/PreferencesUtil.dom.tsx`, `ts/components/preferences/*`, `ts/types/Nav.std.ts` |
+
 **BOSS implications.** Zimbra's model — *apps register their preference tabs into one settings screen* (`registerPrefSection`) — is exactly the BOSS Admin-app pattern to adopt per-app (Comms/Commons plug their own tabs into IronStone Admin). NC's per-app user settings dialogs (the `NcAppSettingsDialog` pattern) are the in-app alternative.
 
 ---
@@ -732,3 +777,4 @@ Verified extension points across the checkouts — the concrete analogues to BOS
 - Zimbra zm-web-client has no IM/notebook/slides/spreadsheets; those exist only in the older zd-full tree (and are listed in §6/§13).
 - NC Contacts has **no CSV import wizard** in this snapshot (vCard only) — if BOSS Commons needs CSV contact import, add a mapping-screen design (Zimbra's import/export page is a data-based reference).
 - NC Mail has **no JS dashboard widget** registered (PHP-only widgets) — the Today panel design should not expect mail's feed from a JS widget; use the server `IAPIWidget` pattern.
+- **Signal** (`signalapp/`): Signal-Desktop is the strongest pure-messaging UX reference (§6/§7) and is Electron/React — Signal ships **no web client/webapp at all** (Signal-Server verified as a JSON/WebSocket-only Dropwizard/Java backend, FoundationDB storage, zero HTML/static assets), so the "self-hosting first" Comms web UI is entirely BOSS-built. The two candidate Rust crates (no detail needed per plan): **`libsignal`** (Signal protocol: protocol/crypto/zkgroup/account-keys/net crates with C/JNI/Node FFI bridges) and **`ringrtc`** (WebRTC voice/video calling middleware; used by Signal-Android, Signal-iOS, and Signal-Desktop via the `@signalapp/ringrtc` npm package) — plus auxiliary **`boring`** (BoringSSL bindings for tokio/hyper, incl. FIPS/post-quantum builds).
