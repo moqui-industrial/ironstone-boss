@@ -1,13 +1,21 @@
-# IronStone BOSS — Research cross-cut: conventions, ownership & shared screens
+# IronStone BOSS — Research cross-cut: conventions, reused screens & shared facts
 
 Oct 18, 2026 (updated after the per-file source review)
 
 The research files (`research-*.md`) were first written independently, one per app or
 suite area. This file holds what they must agree on: how paths are written, how each file
-ends, which app owns each shared screen and each overlapping feature, which Mantle records
-back them, and the names used for references and BOSS concepts. When a research file and
-this file disagree, this file wins; when a research file argues for a different choice, it
-says so under its **Open questions** and the choice is recorded in §8 below.
+ends, which screens several IronStone apps reuse, the verified Mantle facts behind them, and
+the names used for references and BOSS concepts. Like the files it serves, this is research,
+not design: it records findings, reuse candidates and open questions for the design pass that
+follows, and decides nothing beyond initial-design's **Decided** table.
+
+**Stand-alone apps, reused screens.** Each IronStone app should stand on its own for its
+target audience: a business that runs only Commerce, or only Maintenance, still has every
+screen that audience needs. Where several apps need the same function (inventory
+availability, a customer record, shipping settings, inspection), the same screen is included
+in each of those apps, configured by the app's context (initial-design, "Shared business
+screens"). The research files therefore say which apps would include a reused screen and
+what each app's version emphasizes; they do not assign an owning app.
 
 Inputs: [initial-design.md](initial-design.md) (its **Decided** table is fixed),
 [3p-app-reference.md](3p-app-reference.md), [ss-inventory.md](ss-inventory.md),
@@ -15,7 +23,7 @@ Inputs: [initial-design.md](initial-design.md) (its **Decided** table is fixed),
 `runtime/component/mr-mantle-udm/entity/`.
 
 Sections: [1 paths](#1-path-conventions) · [2 file skeleton](#2-research-file-skeleton) ·
-[3 shared screens](#3-shared-screens) · [4 feature ownership](#4-feature-ownership-for-overlaps) ·
+[3 reused screens](#3-reused-screens) · [4 overlapping functions](#4-overlapping-functions) ·
 [5 Mantle basis](#5-mantle-basis-for-recurring-records) · [6 names](#6-names-and-terms) ·
 [7 reference coverage](#7-reference-coverage-by-app) · [8 open questions](#8-open-questions)
 
@@ -83,88 +91,97 @@ Notes that trip people up:
 ## 2. Research file skeleton
 
 Front matter (in this order): title `# IronStone BOSS — <App> app research`, date line, a
-paragraph naming the app sections from initial-design and the shared-screen faces it feeds,
+paragraph naming the app sections from initial-design and the reused screens it covers,
 **Organization**, **Scope**, **Path conventions** (table per §1), a **Not used here** line
 naming checked references that ship nothing relevant, and a section nav.
 
 Body: numbered `## N. <functional area>` sections, each with per-reference sub-tables
-(`| Screen/page | What it is | Key files |`) and a closing **BOSS implications** paragraph.
+(`| Screen/page | What it is | Key files |`) and a closing **BOSS implications** paragraph:
+what the evidence suggests for BOSS, written as findings and options ("the references
+suggest", "one option is"), not as design decisions ("BOSS must build").
 
 Closing sections (the last numbered sections, in this order, with these headings):
 
 | Heading | Contents |
 | --- | --- |
-| `## N. Cross-app surfaces` | Table `Surface \| <App> face \| Reference evidence`, faces as assigned in §3–§4 of this file |
+| `## N. Cross-app surfaces` | Table `Reused screen or link \| Use in <App> \| Other apps that include it \| Reference evidence`, per §3–§4 of this file |
 | `## N+1. Current Moqui baseline (MrSimpleScreens / MarbleERP / Mantle)` | `### Screens`, `### Data model available`, `### Services` tables with verified paths (relative to the Moqui baseline checkout); what exists, what is missing |
 | `## N+2. Gaps & BOSS implications` | The sub-sections below, in order |
 
 Sub-sections of **Gaps & BOSS implications**:
 
 1. `### Gaps in the reference set` — what no checkout covers, Enterprise-only or absent features.
-2. `### Notable gaps in the Moqui baseline` — what BOSS must add over the baseline.
+2. `### Notable gaps in the Moqui baseline` — what the baseline lacks for this app's audience.
 3. `### What each reference contributes` — table `Reference | Take`.
-4. `### Recommended screen inventory (IronStone <App>)` — table `Area | Screens`, marking shared screens as **(shared: owner)**.
-5. `### Data-model implications` — reuse of Mantle records (names verified against `mr-mantle-udm`), and new records needed.
-6. `### First-release cut` — what ships first, what is deferred.
-7. `### Open questions` — including disagreements with this file or initial-design.
+4. `### Candidate screen inventory (IronStone <App>)` — table `Area | Screens`: the screens the research points to for this app's audience, marking screens other apps would also include as **(reused: <apps>)**. Input to design, not a design.
+5. `### Data-model findings` — which Mantle records fit (names verified against `mr-mantle-udm`, not commented out), what they lack, and where new records look necessary; options rather than choices.
+6. `### Sequencing notes` — dependencies and what the baseline already makes cheap or expensive (for example "quotes need agreement pricing in `get#ProductPrice`"); no release decisions.
+7. `### Open questions` — questions for the design pass, including disagreements with this file or initial-design.
 
 `### Checkout path quirks` may follow as a last sub-section. A closing **Bottom line**
 paragraph is optional. `research-drawers-commons.md` applies the closing skeleton three
 times, once each for **Header & drawers**, **Commons** and **Comms**, as sub-sections of
 its Gaps & BOSS implications section.
 
-## 3. Shared screens
+## 3. Reused screens
 
-One owning app builds and maintains each shared screen; other apps open the same screen
-with an app/role context that selects tabs and the allowed action set (initial-design,
-"Shared business screens"). The screen identity is in the URL; the action set is in context.
+Screens that several IronStone apps would include. Each app includes the same screen with
+its own context (tabs, filters, allowed actions), so each app is complete for its audience
+and the screen is built once. The second column lists the apps found in the research to need
+it and what each app's version emphasizes; none is the owner.
 
-| Shared screen | Owner | Faces in other apps | Mantle basis |
-| --- | --- | --- | --- |
-| **Contact / party record** | Commons (Contacts) | Every app opens it; Admin adds the user-account face; People adds the employee face | `Party`, `Person`/`Organization`, `ContactMech`, `PartyRelationship`, `PartyRole` |
-| **Customer 360** | Sales (Accounts & contacts) | Customer Service: cases, returns, orders; Marketing: engagement, consent, campaigns; Accounting: balance, credit, aging, statements; Commerce: store account, carts, online orders | `Party` with customer role + `OrderHeader`, `Request`, `ReturnHeader`, `Invoice`, `CommunicationEvent` |
-| **Supplier 360** | Purchasing | Accounting: AP balance, bills, payments; Products: supplier prices; Warehouse: inbound receipts | `Party` with supplier role + `ProductPrice` rows with `vendorPartyId` (supplier price, lead time, supplier item id), `OrderHeader` (purchase), `Invoice` |
-| **Employee 360** | People | Admin: user account; Projects: allocations, timesheets; Commons: directory card | `Person` + `PartyRelationship` `PrtEmployee` + `Employment`, `EmplPositionParty` |
-| **Product 360** | Products (including the product's supplier list, per initial-design "Product suppliers") | Commerce: merchandising, store categories, SEO; Purchasing: sourcing actions on the supplier rows (preferred supplier, lead times, RFQs); Manufacturing: BOM, where-used; Warehouse: stock, lots, locations; Accounting: cost history; Sales: price and availability | `Product`, `ProductAssoc`, `ProductPrice`, `ProductParty`, `ProductFacility` |
-| **Order detail** (sales and purchase) | Sales (sales orders, quotes); Purchasing (purchase orders) — one screen, two owners of action sets | Customer Service: changes, returns, cases; Warehouse: fulfillment (shipments, pick, ship); Accounting: invoices, payments; Commerce: channel filters on the shared order list | `OrderHeader`, `OrderPart`, `OrderItem` (quotes are `OrderHeader` in `OrderOpen`/`OrderProposed`) |
-| **Inventory availability** | Warehouse | Customer Service: read-only availability and promise dates; Purchasing: shortfall and reorder; Sales: inline on quote/order lines; Manufacturing: component availability | `Asset`, `AssetReservation`, `ProductFacility`; one service family `mantle.product.AssetServices.get#AvailableInventory*` (available-to-promise totals); location/lot breakdown from `AssetSummaryView` / `AssetLocationSummary`; projected stock from `InventoryReportServices.get#InventoryProjectedInfo` |
-| **Shipment detail** | Warehouse | Customer Service and Sales: tracking, promise dates; Purchasing: inbound against PO; Accounting: cost and invoice links | `Shipment` (`ShpTp*`), `ShipmentItem`, `ShipmentItemSource`, `ShipmentPackage` |
-| **Facility & equipment record** | Maintenance | Warehouse: storage locations and setup; Manufacturing: production equipment and work centers; Commons: schedules and booking; Accounting: fixed-asset books | `Facility`, `FacilityLocation`, `Asset` (`AstTpEquipment`, fixed-asset types) |
-| **Request / case** | Shared record. Customer Service owns case intake, queues and SLA; Purchasing owns the purchase-request workflow (type `RqtPurchase`, per initial-design "Purchase requests") | Commons: requests assigned; Projects: converted work; Maintenance: maintenance intake; Sales: customer requests for quote (`RqtQuote`); Warehouse: internal stock requests (`RqtInventory`, owner open, §8) | `Request`, `RequestItem`, `RequestParty`, `RequestCommEvent`, `RequestWorkEffort` |
-| **Task / work item** | Projects | Commons: tasks assigned; Customer Service, Sales: follow-up tasks; People: onboarding checklists | `WorkEffort` (`WetTask`), `WorkEffortParty`, `WorkEffortAssoc` |
-| **Calendar & schedules** | Commons | Maintenance: scheduling admin (policies, approvals); Projects: plan views; People: leave and shift views | `WorkEffort` (`WetEvent`), `WorkEffortFacility`, `WorkEffortAssetAssign` |
-| **Chatter & activities** | Commons / Comms (one component on every record) | Every app's record screens; activities roll up into the header Today panel | Messages: `CommunicationEvent` with record joins (`OrderCommunicationEvent`, `RequestCommEvent`, `WikiPageCommunicationEvent`, …); activities: `WorkEffort` (`WetTask`, purposes `WepToDo`, `WepPhoneCall`, `WepMeeting`, `WepEmail`) |
-| **Approvals waiting** | Header Notifications panel (suite) | People (leave, expenses, pay hours), Projects (timesheets), Purchasing (PO and request approvals), Sales (quote and discount approvals, `OrderDecision`), Accounting (bill approval) are filtered faces | Status transitions on the source records; notification topics |
-| **Dashboard widgets** (number cards, charts) | Insights (widget types and builder) | Every app's landing page places widgets | New dashboard/widget records over `DataDocument` + saved finds |
+| Reused screen | Apps that include it, and their emphasis | Mantle basis |
+| --- | --- | --- |
+| **Contact / party record** | Commons (contacts, address book); every app that shows a person or organization; Admin (user account on the party); People (employee data) | `Party`, `Person`/`Organization`, `ContactMech`, `PartyRelationship`, `PartyRole` |
+| **Customer 360** | Sales (pipeline, quotes, orders, agreements); Customer Service (cases, returns, orders); Marketing (engagement, consent, campaigns); Accounting (balance, credit, aging, statements); Commerce (store account, carts, online orders) | `Party` with customer role + `OrderHeader`, `Request`, `ReturnHeader`, `Invoice`, `CommunicationEvent` |
+| **Supplier 360** | Purchasing (terms, sourcing, performance); Accounting (AP balance, bills, payments); Products (supplier prices); Warehouse (inbound receipts) | `Party` with supplier role + `ProductPrice` rows with `vendorPartyId` (supplier price, lead time, supplier item id), `OrderHeader` (purchase), `Invoice` |
+| **Employee 360** | People (employment, pay, leave, reviews); Admin (user account); Projects (allocations, timesheets); Commons (directory card) | `Person` + `PartyRelationship` `PrtEmployee` + `Employment`, `EmplPositionParty` |
+| **Product 360** | Products (master data, variants, prices, costs, supplier list per initial-design "Product suppliers"); Commerce (merchandising, store categories, SEO); Purchasing (supplier rows, lead times, sourcing); Manufacturing (BOM, where-used); Warehouse (stock, lots, locations); Accounting (cost history); Sales (price and availability) | `Product`, `ProductAssoc`, `ProductPrice`, `ProductParty`, `ProductFacility` |
+| **Order detail** (sales and purchase) | Sales (quotes, sales orders); Purchasing (purchase orders); Customer Service (changes, returns, cases); Warehouse (fulfillment: shipments, pick, ship); Accounting (invoices, payments); Commerce (online orders, channel filters on the order list) | `OrderHeader`, `OrderPart`, `OrderItem` (quotes are `OrderHeader` in `OrderOpen`/`OrderProposed`) |
+| **Inventory availability** | Warehouse (full stock by facility, location, lot, reservations); Customer Service (availability and promise dates); Purchasing (shortfall and reorder); Sales (inline on quote/order lines); Manufacturing (component availability); Commerce (store availability) | `Asset`, `AssetReservation`, `ProductFacility`; service family `mantle.product.AssetServices.get#AvailableInventory*` (available-to-promise totals); location/lot breakdown from `AssetSummaryView` / `AssetLocationSummary`; projected stock from `InventoryReportServices.get#InventoryProjectedInfo` |
+| **Shipment detail** | Warehouse (receive, pick, pack, ship, labels); Customer Service and Sales (tracking, promise dates); Purchasing (inbound against PO); Commerce (online order fulfillment); Accounting (cost and invoice links) | `Shipment` (`ShpTp*`), `ShipmentItem`, `ShipmentItemSource`, `ShipmentPackage` |
+| **Material issue / receipt** | Manufacturing (component issue, finished-goods receipt on the work order); Warehouse (issue and receipt postings, stock movement); Maintenance (spare parts issued to a work order) | `AssetIssuance`, `AssetReceipt`; `mantle.product.AssetServices.issue#AssetToWorkEffort`, `receive#Asset` |
+| **Facility & equipment record** | Maintenance (equipment register, maintenance history, facility tree); Warehouse (storage locations and setup); Manufacturing (production equipment, work centers); Commons (schedules and booking); Accounting (fixed-asset books) | `Facility`, `FacilityLocation`, `Asset` (`AstTpEquipment`, fixed-asset types) |
+| **Request / case** | Customer Service (case intake, queues, SLA); Purchasing (purchase requests, `RqtPurchase`); Maintenance (maintenance requests); Projects (converted work); Sales (customer requests for quote, `RqtQuote`); Warehouse (internal stock requests, `RqtInventory`); Commons (requests assigned to me) | `Request`, `RequestItem`, `RequestParty`, `RequestCommEvent`, `RequestWorkEffort` |
+| **Task / work item** | Projects (work items, boards, plans); Commons (my tasks); Customer Service and Sales (follow-up tasks); People (onboarding checklists) | `WorkEffort` (`WetTask`), `WorkEffortParty`, `WorkEffortAssoc` |
+| **Calendar & schedules** | Commons (calendars, booking rooms and equipment); Maintenance (scheduling policies, approvals, blackout windows); Projects (plan views); People (leave and shift views) | `WorkEffort` (`WetEvent`), `WorkEffortFacility`, `WorkEffortAssetAssign` |
+| **Chatter & activities** | One component on every app's record screens; activities roll up into the header Today panel | Messages: `CommunicationEvent` with record joins (`OrderCommunicationEvent`, `RequestCommEvent`, `WikiPageCommunicationEvent`, …); activities: `WorkEffort` (`WetTask`, purposes `WepToDo`, `WepPhoneCall`, `WepMeeting`, `WepEmail`) |
+| **Approvals waiting** | Header Notifications panel (all apps); per-app lists in People (leave, expenses, pay hours), Projects (timesheets), Purchasing (PO and request approvals), Sales (quote and discount approvals, `OrderDecision`), Accounting (bill approval) | Status transitions on the source records; notification topics |
+| **Dashboard widgets** (number cards, charts) | Insights (dashboards, widget builder); every app's landing page | New dashboard/widget records over `DataDocument` + saved finds |
 
-## 4. Feature ownership for overlaps
+## 4. Overlapping functions
 
-| Feature | Owner | Other faces | Notes |
-| --- | --- | --- | --- |
-| Customer returns / RMA | Customer Service (authorization, reasons, case link) | Warehouse: return receipt and disposition (`ShpTpSalesReturn`); Accounting: credit/refund (`ReturnItemBilling`) | Mantle already has the RMA record: `ReturnHeader`/`ReturnItem` with statuses Requested → Approved → Shipped → Received → Completed |
-| Purchase agreements & blanket orders | Purchasing | Accounting: terms | `Agreement`, `AgreementItem`; no purchase agreement type is seeded |
-| Supplier returns | Purchasing | Warehouse: outbound return shipment (`ShpTpPurchaseReturn`); Accounting: debit note | |
-| Price lists & base prices | Products (product prices, costs, price rules) | Sales: customer-specific price agreements; Commerce: per-store prices | `ProductPrice`, `ProductPriceModify`; one price resolver that explains its result |
-| Customer agreements & price agreements | Sales | Accounting: terms; Customer Service: read | `Agreement`, `AgreementItem` |
-| Subscriptions & recurring contracts | Sales | Accounting: recurring invoicing; Commerce: subscription products in the store | `Subscription`, `ProductSubscriptionResource`, `Agreement` |
-| Promotions, coupons, loyalty | Marketing (program screens) | Commerce: store binding and checkout; Sales: manual discounts on quotes | `ProductStorePromotion`, `ProductStorePromoCode`, `OrderPromoCode`; evaluation is in the shared price resolver, not in Marketing |
-| Fixed assets | Maintenance (register, lifecycle, custodian) | Accounting: depreciation, capitalization, disposal | Same `Asset` record; `AssetDepreciation` |
-| Expense claims | People (capture, approval) | Accounting: posting, tax, payment | Employee-from `Invoice` or payroll reimbursement (`PrphExpenses`) |
-| Time entry & timesheets | Projects (entry, approval) | People: attendance, pay hours; Accounting: billing | `TimeEntry`, `Timesheet`; attendance (clock in/out) is People |
-| Budgets | Accounting (GL budgets, `mantle.other.budget`, per initial-design) | Projects: project costing and cost caps (`WorkEffort.totalTimeAllowed`, `totalClientCostAllowed`) | `Budget` has no project link |
-| Booking rooms & equipment | Commons (book, availability) | Maintenance: policies, approvals, blackout windows | Decided in initial-design |
-| Knowledge base articles | Commons (wiki authoring) | Customer Service: search, suggest, link to case, suggest edit | `WikiPage`, `WikiPageRequest` |
-| Surveys & forms | Marketing (builder, responses) | Customer Service: CSAT; People: interview scorecards, training quizzes | Framework `DbForm` + `FormResponse` (SimpleScreens `Survey/`) |
-| Quality inspection | Warehouse (inspection record, templates, receiving and returns inspection) | Manufacturing: in-process and final inspection gates; Purchasing: supplier quality score | No Mantle entity yet |
-| Supplier invoices & 3-way match | Accounting (AP bills) | Purchasing: match exceptions and holds against PO/receipt | `Invoice` (purchase) |
-| Carriers, ship methods, labels | Warehouse | Commerce: checkout shipping options and rates per store | `CarrierShipmentMethod`, `ShippingGateway*`, `ProductStoreShipOption` |
-| Landing pages & KPIs | Each app owns its landing page | Insights: widget types, cross-app dashboards, management digest | |
-| Per-app settings | Each app owns its settings section | Admin: settings index linking to them | |
-| User accounts, groups, app access | Admin | People and Commons: read face on the party | `UserAccount`, `UserGroup`, `ArtifactGroup` |
-| Email/SMS sending, mail accounts | Comms (accounts, sending, tracking, unsubscribe and consent screens) | Marketing: campaign sends, audiences; Customer Service: case email; Admin: relay, gateway trust, protocol servers and queues | `CommunicationEvent`, `EmailMessage`, `EmailServer`; consent data today is Marketing's `ContactListParty` opt-in status |
-| Events & webinars | Commons (calendar event) | Marketing: registration, tickets, communication schedule | |
-| List pivot/graph view modes | mr-moqui framework form-list (initial-design "switchable views") | Insights: "add to dashboard" from any view; every find screen | |
-| Leads & opportunities | Sales | Marketing: lead sources, campaign attribution | `SalesOpportunity`, `MarketingCampaign`, `TrackingCode` |
+Functions more than one research file covers. Under the stand-alone rule each app listed
+includes the function (usually as the same reused screen) in the form its audience needs.
+The notes give the verified Mantle basis.
+
+| Function | Apps that include it, and their emphasis | Notes |
+| --- | --- | --- |
+| Customer returns / RMA | Customer Service (authorization, reasons, case link); Warehouse (return receipt and disposition, `ShpTpSalesReturn`); Accounting (credit/refund, `ReturnItemBilling`); Commerce (online returns) | Mantle has the RMA record: `ReturnHeader`/`ReturnItem` with statuses Created → Requested → Approved → Shipped → Received → Completed |
+| Purchase agreements & blanket orders | Purchasing; Accounting (terms) | `Agreement`, `AgreementItem`; no purchase agreement type is seeded |
+| Supplier returns | Purchasing; Warehouse (outbound return shipment, `ShpTpPurchaseReturn`); Accounting (debit note) | |
+| Prices & price rules | Products (base prices, costs, rules); Sales (customer and agreement prices); Commerce (store prices); Purchasing (supplier prices) | `ProductPrice`, `ProductPriceModify`; one price service (`get#ProductPrice`) serves all of them, and the references favor one that explains its result |
+| Customer agreements | Sales; Accounting (terms); Customer Service (read) | `Agreement`, `AgreementItem` |
+| Subscriptions & recurring contracts | Sales; Accounting (recurring invoicing); Commerce (subscription products in the store) | `Subscription`, `ProductSubscriptionResource`, `Agreement` |
+| Promotions, coupons, loyalty | Marketing (programs); Commerce (store promotions and checkout); Sales (manual discounts on quotes) | `ProductStorePromotion`, `ProductStorePromoCode`, `OrderPromoCode`; Mantle scopes promotions to one store, and applies them to orders in a separate service (`apply#OrderPromotions`), not in `get#ProductPrice` |
+| Fixed assets | Maintenance (register, lifecycle, custodian); Accounting (depreciation, capitalization, disposal) | Same `Asset` record; `AssetDepreciation` |
+| Expense claims | People (capture, approval); Accounting (posting, tax, payment) | Employee-from `Invoice` or payroll reimbursement (`PrphExpenses`) |
+| Time entry & timesheets | Projects (entry, approval); People (attendance, pay hours); Accounting (billing) | `TimeEntry`, `Timesheet`; attendance (clock in/out) also uses `TimeEntry` |
+| Budgets | Accounting (GL budgets, per initial-design); Projects (project costing and cost caps, `WorkEffort.totalTimeAllowed`, `totalClientCostAllowed`) | `Budget` (`mantle.other.budget`) has no project link |
+| Booking rooms & equipment | Commons (book, availability); Maintenance (policies, approvals, blackout windows) | Decided in initial-design |
+| Knowledge base articles | Commons (wiki authoring); Customer Service (search, suggest, link to case, suggest edit) | `WikiPage`, `WikiPageRequest` |
+| Surveys & forms | Marketing (surveys, per initial-design); Customer Service (CSAT); People (interview scorecards, training quizzes) | Framework `DbForm` + `FormResponse` (SimpleScreens `Survey/`); `FormResponse` links to no record |
+| Quality inspection | Warehouse (receiving and returns inspection); Manufacturing (in-process and final inspection); Purchasing (supplier quality score) | No Mantle entity yet |
+| Supplier invoices & 3-way match | Accounting (AP bills); Purchasing (match exceptions and holds against PO/receipt) | `Invoice` (purchase) |
+| Carriers, ship methods, labels | Warehouse (carriers, labels); Commerce (checkout shipping options and rates per store) | `CarrierShipmentMethod`, `ShippingGateway*`, `ProductStoreShipOption` |
+| Payment, shipping & tax settings | Commerce (per initial-design, per store); Accounting (tax authorities, payment methods); Admin (gateway configuration in the integrations area) | `PaymentGatewayConfig`, `ShippingGatewayConfig`, `TaxGatewayConfig`, `TaxAuthority`; the seeded local tax gateway is a stub |
+| Landing pages & KPIs | Every app (its own landing page); Insights (dashboards, cross-app KPIs, management digest) | |
+| Settings | Every app (its own settings section); Admin (settings index and system settings) | |
+| User accounts, groups, app access | Admin; People and Commons (account details on the party) | `UserAccount`, `UserGroup`, `ArtifactGroup` |
+| Email/SMS sending, mail accounts | Comms (accounts, sending, tracking, unsubscribe and consent); Marketing (campaign sends, audiences); Customer Service (case email); Admin (relay, gateway trust, protocol servers and queues) | `CommunicationEvent`, `EmailMessage`, `EmailServer`; consent data today is the `ContactListParty` opt-in status |
+| Events & webinars | Commons (calendar events); Marketing (registration, tickets, communication schedule) | |
+| List pivot/graph view modes | Every find screen, through the mr-moqui form-list (initial-design "switchable views"); Insights ("add to dashboard") | |
+| Leads & opportunities | Sales; Marketing (lead sources, campaign attribution) | `SalesOpportunity`, `MarketingCampaign`, `TrackingCode` |
 
 ## 5. Mantle basis for recurring records
 
@@ -256,47 +273,41 @@ and eight `website_sale_*` addons, `maintenance`, `repair`, `fleet`, `mass_maili
 
 ## 8. Open questions
 
-Cross-file questions that need a design decision. Per-file questions stay in each file.
+Cross-file questions for the design pass. Per-file questions stay in each file.
 
-- **Survey and form builder owner.** initial-design puts Surveys in Marketing, but People
-  (scorecards, quizzes) and Customer Service (CSAT) use the same builder. Keep Marketing as
-  owner, or move it to Commons beside notes and files?
-- **Quality inspection.** Assigned to Warehouse here so that a business without
-  Manufacturing still has it. Is a separate quality face (templates, non-conformance,
-  corrective action) needed once Manufacturing quality gates exist?
-- **Price ownership split.** initial-design gives "Agreements & price lists" to Sales and
-  "Pricing & costs" to Products. This file splits it as base prices and rules (Products) vs
-  customer agreements (Sales). Confirm, and decide whether customer-specific price lists
-  are agreements or price rules.
+- **Reused screen granularity.** For each screen in §3, is it one screen with per-app context
+  (tabs, filters, actions) or a set of sub-screens each app assembles? The Order detail
+  (sales and purchase orders) and Customer 360 are the largest cases.
+- **Where reused configuration is kept.** When several apps include the same settings (payment,
+  shipping and tax gateways in Commerce, Accounting and Admin; carriers in Warehouse and
+  Commerce; mail domains and templates in Comms, Marketing and Admin), the records are
+  shared; which app's screens edit them, and which only read?
+- **Survey and form builder.** Included in Marketing (initial-design), Customer Service and
+  People; should Commons also include it beside notes and files?
+- **Quality inspection.** Included in Warehouse and Manufacturing; is a further quality
+  function (templates, non-conformance, corrective action) needed?
+- **Prices.** Products, Sales, Commerce and Purchasing all include price screens over one
+  `ProductPrice` table; are customer-specific price lists agreements or price rules?
 - **Generic record links for Chatter and activities.** Mantle has per-record join entities
   (`OrderCommunicationEvent`, `RequestCommEvent`, …) but no generic "any record" link.
   Chatter on every record needs either more join entities or a generic link record. Orders
   have no activity link today (only `OrderItemWorkEffort`), and survey `FormResponse` rows
   link to no record (CSAT needs a case link).
-- **Approvals.** Is the suite-wide approvals list a header Notifications face only, or also
-  a standalone inbox screen (People research proposes one)?
-- **Gateway and tax settings owner.** initial-design gives "Shipping, payment & tax settings"
-  to Commerce; research-accounting proposes Accounting owns tax and payment-gateway records
-  with Commerce binding them per store; research-admin lists gateways in its integrations
-  catalog. Decide one owner of the records and the faces.
-- **Mail domains and templates.** Who owns sending domains and DMARC reports (Admin or Comms),
-  and the email template library (Comms, or Marketing for campaign templates)?
+- **Approvals.** Header Notifications panel only, or also per-app approval lists (People,
+  Purchasing, Sales and Accounting research each describe one)?
 - **Portals.** Customer portal (orders, invoices, cases, quote acceptance) and vendor portal
-  (RFQ responses, PO acknowledgement): one portal app or faces owned by Commerce, Customer
-  Service, Sales, Accounting and Purchasing?
-- **Careers page and other public pages.** People or Commerce (store/site layer)? Is a
-  customer-facing storefront in BOSS scope at all (ridgecrest shows Mantle can run one)?
+  (RFQ responses, PO acknowledgement): one portal reused by several apps, or a portal per app?
+- **Public pages.** Careers page (People) and storefront (Commerce): is a customer-facing site
+  in BOSS scope (ridgecrest shows Mantle can run one)?
 - **Promotions across stores.** Mantle scopes `ProductStorePromotion` to one store; is a
   promotion program that spans stores and channels needed?
-- **Customer-owned equipment repair and warranty.** Customer Service or Maintenance?
+- **Customer-owned equipment repair and warranty.** Researched in both Customer Service and
+  Maintenance; which records (case, repair order, maintenance work order) carry it?
 - **Commented-out Mantle entities.** Enable the "future reference" definitions (HR reviews,
   training and recruiting; cost components; product configuration; tax rates) in
   mr-mantle-udm, or define BOSS records?
-- **Smaller ownership gaps:** internal stock requests (`RqtInventory`); replenishment vs
-  Manufacturing MRP; non-equipment downtime; rate cards (`RateAmount`, edited under HumanRes
-  today); working-hours calendars shared by SLA, People and Commons; the personal "Me" page
-  (People or Commons); 3PL stock sync (Warehouse or Admin); blogs (Marketing screens over
-  Commons wiki pages).
-- **Order detail with two owners.** Sales and Purchasing both own action sets on one Order
-  detail screen. Keep one screen, or split sales and purchase order screens that share
-  sub-screens?
+- **Smaller cross-app questions:** internal stock requests (`RqtInventory`); replenishment and
+  Manufacturing MRP planning over the same requirements; non-equipment downtime; rate cards
+  (`RateAmount`, edited under HumanRes today); working-hours calendars used by SLA, People
+  and Commons; the personal "Me" page (People and Commons); 3PL stock sync (Warehouse and
+  Admin); blogs (Marketing screens over Commons wiki pages).
