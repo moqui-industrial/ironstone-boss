@@ -8,11 +8,13 @@ Deeper research pass on the **IronStone Customer Service** app (Cases (Requests)
 lookup & changes, returns/RMA, availability lookup, Customer 360, knowledge-base links),
 cataloguing every relevant screen/page found in the reference apps. Companion to
 [3p-app-reference.md](3p-app-reference.md); feeds the Customer Service row in
-[initial-design.md](initial-design.md). Customer Service owns the shared **Request /
-case** screen (intake form, queues, SLA) and RMA authorization; it supplies the service
-face of **Customer 360** and **Order detail** (both owned by Sales), the read-only face of
-**Inventory availability** and **Shipment detail** (Warehouse), the search/suggest/link
-face of knowledge-base articles (Commons wiki), and the CSAT face of surveys (Marketing).
+[initial-design.md](initial-design.md). Customer Service includes the reused **Request /
+case** screen (here: intake form, queues, SLA) and the reused return screens (here: RMA
+authorization, reasons, case link); its versions of the reused **Customer 360** and
+**Order detail** screens emphasize cases, returns and service actions, and its versions of
+**Inventory availability** and **Shipment detail** are read-only. It also includes
+knowledge-base articles (search, suggest, link to case; the authoring screen is reused
+from Commons) and survey forms for CSAT.
 
 **Organization.** Sorted by functional area (not by app): all case queues together, all
 case-detail surfaces together, etc. Within each area, sub-tables per reference app.
@@ -77,13 +79,13 @@ Sections: [1 service home & queues](#1-service-home--queues) · [2 case intake &
 | Call logs | `TP Call Log` list with caller/receiver avatars, incoming/outgoing type/status, new-call-log modal and detail modal. | `desk/src/pages/call-logs/{CallLogs,CallLogModal,CallLogDetailModal}.vue` |
 | Notifications | Mobile notification list; desktop uses the header notifications component. | `desk/src/pages/MobileNotifications.vue`, `desk/src/components/notifications/` |
 
-**BOSS implications.** The queue should be the app's default landing, not a dashboard:
-Frappe separates an agent's personal chart home from the manager's operational
-dashboard, and the queue is where work actually starts. BOSS can reuse the standard
-Moqui `form-list` + saved-find/column model for the case queue, and reserve a small KPI
-strip (open/overdue/unassigned, first-response, resolution, CSAT) for the Customer
-Service landing page. Adopt Frappe's KPI delta wording ("vs prev. N days") and its split
-between "My Stats" and "My Organization"; both map cleanly onto Moqui authz and the
+**BOSS implications.** The references suggest the queue, not a dashboard, as the app's
+default landing: Frappe separates an agent's personal chart home from the manager's
+operational dashboard, and the queue is where work actually starts. One option is the
+standard Moqui `form-list` + saved-find/column model for the case queue, with a small KPI
+strip (open/overdue/unassigned, first-response, resolution, CSAT) on the Customer Service
+landing page. Frappe's KPI delta wording ("vs prev. N days") and its split between "My
+Stats" and "My Organization" are candidates; both map cleanly onto Moqui authz and the
 shared Insights widgets.
 
 ### ERPNext — Support workspace + issue analytics
@@ -96,10 +98,10 @@ shared Insights widgets.
 | Support settings | Close issue after N days, SLA tracking toggle, allow resetting SLA, greeting title/subtitle, search sources, optional forum feed. | `erpnext/support/doctype/support_settings/support_settings.json`; `erpnext/templates/pages/help.py` |
 
 **BOSS implications.** ERPNext is the thinner, record-first alternative: a workspace of
-shortcuts and counters rather than a chart canvas. For BOSS, use the workspace pattern
-for the app landing page and Frappe Helpdesk's queue for the working screen. The
-"Overdue" and "Resolved" number cards are the minimum KPI set worth exposing without a
-full BI dependency.
+shortcuts and counters rather than a chart canvas. One option for BOSS pairs the
+workspace pattern for the app landing page with Frappe Helpdesk's queue for the working
+screen. The "Overdue" and "Resolved" number cards are the minimum KPI set worth exposing
+without a full BI dependency.
 
 ### Carbon — sales/inventory workbenches, no service desk
 
@@ -145,15 +147,15 @@ via-customer-portal flag, feedback option/rating/extra, merged/split links, last
 agent/customer response, raised-outside-working-hours, and failed-by durations.
 (`helpdesk/helpdesk/doctype/hd_ticket/hd_ticket.json`.)
 
-**BOSS implications.** IronStone cases are `Request` records, so the intake form should
-be a request-type-driven form, not a ticket-only form: the same screen must serve
-Customer Service, Projects request intake and Commons "requests assigned". Adopt
-Frappe's template + field-dependency model for request types, and its article
-suggestions shown while the customer types the subject. The most important gap
-to close in BOSS is channel capture: Frappe ties email accounts and telephony directly
-to the ticket, which is exactly what the Comms/SystemMessage layer should provide as a
-shared capability; `Request.salesChannelEnumId` (Web, Phone, E-Mail, …) can record the
-channel a case came in on.
+**BOSS implications.** IronStone cases are `Request` records, which points to a
+request-type-driven intake form rather than a ticket-only form: the same reused **Request
+/ case** screen is also included in Projects (request intake), Commons ("requests
+assigned") and the other apps in crosscut §3. Frappe's template + field-dependency model
+for request types, and its article suggestions shown while the customer types the
+subject, are candidates. The largest gap is channel capture: Frappe ties email accounts
+and telephony directly to the ticket, which in BOSS maps onto the Comms/SystemMessage
+layer, a suite used from every app; `Request.salesChannelEnumId` (Web, Phone, E-Mail, …)
+can record the channel a case came in on.
 
 ### ERPNext — Issue + warranty intake
 
@@ -166,10 +168,10 @@ channel a case came in on.
 | Maintenance Visit / Schedule | Field-service visits and schedules linked from the Support workspace; useful when a case needs an on-site step. | `erpnext/maintenance/doctype/{maintenance_visit,maintenance_schedule}/` |
 
 **BOSS implications.** ERPNext confirms that warranty/AMC is a separate record from the
-case. BOSS should model a case subtype or linked record for warranty claims rather than
-stuffing serial/warranty fields into every request (`Request` has no product, serial or
-asset field; `RequestItem.productId` is the nearest hook). The public help page is the
-right shape for a customer-facing support portal: search first, articles second, the
+case. The evidence favors a case subtype or linked record for warranty claims over adding
+serial/warranty fields to every request (`Request` has no product, serial or asset field;
+`RequestItem.productId` is the nearest hook). The public help page is a strong candidate
+shape for a customer-facing support portal: search first, articles second, the
 customer's own cases third, and a single "open a new case" action.
 
 ### Dolibarr — ticket form with knowledge suggestions
@@ -195,9 +197,9 @@ useful even when no free-text search service is configured.
 
 **BOSS implications.** This is a configurable inbound pipeline, not code: filters decide
 which mails apply, and an ordered list of operations turns a mail into a party, a
-contact, an event and a case. The receive side belongs to Comms (mr-moqui protocols,
-initial-design); Customer Service needs only the "create or append to a case" operation
-and the mailbox-to-queue mapping.
+contact, an event and a case. In BOSS the receive side is the Comms suite (mr-moqui
+protocols, initial-design), used from every app; what is specific to Customer Service is
+the "create or append to a case" operation and the mailbox-to-queue mapping.
 
 ### Redmine — mail handler (email to issue, replies threaded)
 
@@ -208,7 +210,7 @@ and the mailbox-to-queue mapping.
 
 **BOSS implications.** The threading order (message-ID headers, then subject tag, then
 new case) and the unknown-sender policy are the two rules case email intake needs. Both
-belong in the Comms receive path with the case as the target record.
+fit the Comms receive path with the case as the target record.
 
 ### Odoo — Live Chat channels, chatbots and session reporting
 
@@ -222,9 +224,10 @@ belong in the Comms receive path with the case as the target record.
 | Lead from chat | `crm_livechat` adds a "Create Lead" chatbot step that creates a CRM lead for a sales team. | `odoo/addons/crm_livechat/models/chatbot_script_step.py` |
 
 **BOSS implications.** Chat is a case channel like email: a chat session is a
-`CommunicationEvent` thread owned by Comms, and Customer Service needs "create case from
-chat" plus routing by channel rules and agent capacity. Session limits per agent and the
-"not answered / escalated" counters are the queue metrics worth keeping.
+`CommunicationEvent` thread handled by the Comms suite, and Customer Service would need
+"create case from chat" plus routing by channel rules and agent capacity. Session limits
+per agent and the "not answered / escalated" counters are the queue metrics worth
+keeping.
 
 ---
 
@@ -244,12 +247,12 @@ chat" plus routing by channel rules and agent capacity. Session limits per agent
 | Ticket analytics tab | Per-ticket analytics: metric cards, conversation summary, ticket timeline. | `desk/src/components/ticket-agent/analytics/{TicketAnalyticsTab,AnalyticsMetricCards,ConversationSummary,TicketTimeline}.vue` |
 
 **BOSS implications.** This is the strongest case-detail reference in the checkout.
-Copy the structure: one record header with status + owner, one activity timeline that
-can filter by channel, one fixed composer, and a right sidebar split into customer,
-SLA, fields, tags and related cases. Map the tabs directly onto CommunicationEvent
-types (email, comment/note, call, chat) rather than inventing case-only activity. The
-"Recent / Similar Tickets" block is cheap and valuable; similarity can start as
-same-customer + same-type + recent, without any ML.
+Its structure is the main candidate: one record header with status + assignee, one
+activity timeline that can filter by channel, one fixed composer, and a right sidebar
+split into customer, SLA, fields, tags and related cases. The tabs map directly onto
+CommunicationEvent types (email, comment/note, call, chat), so no case-only activity
+record looks necessary. The "Recent / Similar Tickets" block is cheap and valuable;
+similarity can start as same-customer + same-type + recent, without any ML.
 
 ### ERPNext — Issue conversation
 
@@ -260,8 +263,8 @@ same-customer + same-type + recent, without any ML.
 | Support reports | Issue Summary and Issue Analytics provide queue-level conversation/response analysis rather than per-case views. | `erpnext/support/report/issue_summary/`, `issue_analytics/` |
 
 **BOSS implications.** ERPNext's case detail is just the generic Frappe form + timeline;
-BOSS can do better by making the communication timeline the primary column and fields
-secondary, as Frappe Helpdesk does.
+Frappe Helpdesk's layout, with the communication timeline as the primary column and
+fields secondary, is the stronger option.
 
 ### Dolibarr — ticket card with message log
 
@@ -273,9 +276,9 @@ secondary, as Frappe Helpdesk does.
 
 **BOSS implications.** Dolibarr's status ladder is a good default for a small-business
 request workflow, and it separates "need more information" (waiting on customer) from
-"on hold" (waiting internally). BOSS should make both pauses explicit because they have
-different SLA semantics: customer-wait normally pauses the clock, internal hold may or
-may not.
+"on hold" (waiting internally). The evidence favors making both pauses explicit because
+they have different SLA semantics: customer-wait normally pauses the clock, internal hold
+may or may not.
 
 ### Odoo — chatter, activities and repair orders
 
@@ -286,9 +289,9 @@ may not.
 | Repair reports | Repair quotation/order report templates (no customer portal in this addon). | `odoo/addons/repair/report/repair_reports.xml`, `repair_templates_repair_order.xml` |
 
 **BOSS implications.** Repair is a different workflow from a case, but Customer Service
-often needs it. BOSS should keep "case" and "repair/return order" as linked records:
+often needs it. The references keep "case" and "repair/return order" as linked records:
 the case holds communication and SLA, the repair order holds parts, operations and
-stock. Do not merge them into one form. Mantle has no repair-order record; the nearest
+stock; none merges them into one form. Mantle has no repair-order record; the nearest
 are a `WorkEffort` with purpose `WepMaintenance` (Maintenance's work order) linked by
 `RequestWorkEffort`, and `ReturnHeader` for the goods (see Open questions).
 
@@ -313,14 +316,15 @@ visible in customers and orders and is a useful shell reference; see §5–§7.
 | SLA display | First Response and Resolution cards: fulfilled in X, due by, on-hold since, actual responded/resolved timestamps, delay in working hours and total delay; color shifts to danger on failure. | `desk/src/components/ticket-agent/TicketSLA.vue`, `desk/src/composables/useSLA.ts` |
 | Holidays | Holiday list with from/to date, total, weekly-off day, generate weekly-off dates, recurring holidays, holiday rows and color; calendar and table views. | `helpdesk/helpdesk/doctype/hd_service_holiday_list/`, `hd_holiday/`, `desk/src/components/Settings/Holiday/` |
 
-**BOSS implications.** Copy the data model, not just the UI: SLA = calendar (working
-hours + holidays) × per-priority response/resolution targets × statuses that pause or
-fulfil the clock. BOSS already has `Request` and party/role data, so the SLA record
-should attach to request type/customer/team and compute response/resolution due dates
-server-side; the case screen only displays the computed clocks. Assignment must be
-rule-based and auditable: priority-ordered conditions, explicit assign/unassign
-conditions, and one of round-robin / load-balancing / weighted distribution. Agent
-availability belongs in the header presence model, not a case-only table.
+**BOSS implications.** The data model matters as much as the UI: SLA = calendar
+(working hours + holidays) × per-priority response/resolution targets × statuses that
+pause or fulfil the clock. BOSS already has `Request` and party/role data, so one option
+is an SLA record attached to request type/customer/team that computes response/resolution
+due dates server-side, with the case screen only displaying the computed clocks. The
+references point to rule-based, auditable assignment: priority-ordered conditions,
+explicit assign/unassign conditions, and one of round-robin / load-balancing / weighted
+distribution. Agent availability fits the header presence model better than a case-only
+table.
 
 ### ERPNext — Service Level Agreement + pause/fulfil status lists
 
@@ -332,11 +336,12 @@ availability belongs in the header presence model, not a case-only table.
 | Support settings | `track_service_level_agreement`, `allow_resetting_service_level_agreement`, `close_issue_after_days`. | `erpnext/support/doctype/support_settings/support_settings.json` |
 
 **BOSS implications.** ERPNext's pause/fulfil status lists are the important detail:
-SLA behaviour is driven by request status, so statuses must be classified once
-(open/paused/resolved/closed) and reused by every SLA and dashboard. For BOSS, store the
-category with the status, as Frappe Helpdesk does (`HD Ticket Status.category`), and
-derive pause/fulfil behaviour from the category plus optional per-SLA overrides. Moqui's
-`StatusItem` has no category field, so this is a small new mapping (§13).
+SLA behaviour is driven by request status, which suggests classifying statuses once
+(open/paused/resolved/closed) for every SLA and dashboard to read. One option for BOSS is
+to store the category with the status, as Frappe Helpdesk does (`HD Ticket
+Status.category`), and derive pause/fulfil behaviour from the category plus optional
+per-SLA overrides. Moqui's `StatusItem` has no category field, so this would be a small
+new mapping (§13).
 
 ### Dolibarr / Odoo / Carbon
 
@@ -363,13 +368,14 @@ derive pause/fulfil behaviour from the category plus optional per-SLA overrides.
 | Customer/contact dialogs | New/edit customer, invite contact, revoke invite, new/edit contact; customer deletion explicitly removes references from related tickets. | `desk/src/components/customer/{NewCustomerDialog,EditCustomerDialog,InviteContactDialog,RevokeInviteButton}.vue`, `desk/src/components/DeleteWithTicketsDialog.vue`, `desk/src/components/contact/{NewContactDialog,EditContactDialog}.vue` |
 | ERPNext integration (Helpdesk side) | Union-merge HD Customers with ERPNext Customers, link both directions, mirror DocShares so portal users see the same customer in both apps; sync settings with in-sync gate and "Sync now". | `helpdesk/integrations/erpnext/{api,customer,doc_share}.py`, `desk/src/components/erpnext-integration/ERPNextIntegrationSettings.vue` |
 
-**BOSS implications.** This is almost exactly the service face of the shared Customer 360
-(owned by Sales), minus orders and money. Reuse one party record with tabs whose content is
-role-driven: Customer Service shows cases/contacts/feedback; Sales adds opportunities;
-Accounting adds invoices/credit; Commerce adds store orders. The stats strip should be
-permission-gated (a support agent sees service metrics, not receivables). The ERPNext
-integration is a warning as much as a reference: BOSS must not create a second customer
-master; Customer Service should read the same Party as Sales/Accounting.
+**BOSS implications.** This is almost exactly Customer Service's version of the reused
+**Customer 360** (reused: Sales, Customer Service, Marketing, Accounting, Commerce), minus
+orders and money. The evidence favors one party record with tabs that follow the app
+context: Customer Service shows cases/contacts/feedback; Sales adds opportunities;
+Accounting adds invoices/credit; Commerce adds store orders. Frappe's stats strip
+suggests permission gating (a support agent sees service metrics, not receivables). The
+ERPNext integration is a warning as much as a reference: a second customer master needs a
+sync layer, which one `Party` read by every app that includes Customer 360 avoids.
 
 ### ERPNext — customer overview + dashboard links
 
@@ -379,12 +385,12 @@ master; Customer Service should read the same Party as Sales/Accounting.
 | Customer dashboard links | Transaction groups: Pre Sales (Opportunity, Quotation), Orders (Sales Order, Delivery Note, Sales Invoice), Payments (Payment Entry, Bank Account, Dunning), Support (Issue, Maintenance Visit, Installation Note, Warranty Claim), Projects, Pricing, Subscriptions. | `erpnext/selling/doctype/customer/customer_dashboard.py` |
 | Customer portal | `/orders`, `/invoices`, `/shipments`, `/issues` website routes; document detail pages render the submitted document, attachments, payment button and print action. | `erpnext/hooks.py` portal route rules, `erpnext/templates/pages/order.{html,py}`, `erpnext/controllers/website_list_for_contact.py` |
 
-**BOSS implications.** ERPNext's Overview tab is the best evidence for how much should
-be visible on Customer 360 without leaving the page: commercial position, trend,
-receivables/ageing, pipeline and recent transactions. For BOSS, make each block a
-reusable screen/query with its own authz so the same Customer 360 can be embedded in
-Sales, Customer Service and Accounting with different blocks. The dashboard links are
-the navigation contract: every linked document type should open the shared record screen.
+**BOSS implications.** ERPNext's Overview tab is the best evidence for how much can be
+visible on Customer 360 without leaving the page: commercial position, trend,
+receivables/ageing, pipeline and recent transactions. One option for BOSS is to make each
+block a reusable screen/query with its own authz, so the same Customer 360 is included in
+Sales, Customer Service and Accounting with different blocks. The dashboard links act as
+the navigation contract: every linked document type opens the reused record screen.
 
 ### Dolibarr — third-party card as the 360 hub
 
@@ -395,12 +401,12 @@ the navigation contract: every linked document type should open the shared recor
 | Ticket tab | Direct link into the ticket list filtered by `socid`, with open-ticket count badge. | `htdocs/core/lib/company.lib.php`; `htdocs/ticket/list.php` |
 | Notes/documents/events | Notes, attached files, agenda/events and notifications tabs on the same card. | `htdocs/societe/{note,document,agenda}.php` |
 
-**BOSS implications.** Dolibarr proves the tabbed third-party hub works for small
-businesses and that tabs should be module-contributed with count badges. BOSS's version
-is the shared Customer 360 on `Party` (owned by Sales) with tab registration from each
-app: Service adds Cases, Returns and Feedback, Sales adds Opportunities/Orders,
-Accounting adds Invoices/Balance, Commons adds Files/Notes/Calendar. Keep the badge counts cheap; Dolibarr caches some counts
-because the card otherwise queries every module.
+**BOSS implications.** Dolibarr shows the tabbed third-party hub works for small
+businesses, with module-contributed tabs and count badges. The BOSS equivalent is the
+reused Customer 360 on `Party`, with tabs contributed by each app that includes it:
+Service adds Cases, Returns and Feedback, Sales adds Opportunities/Orders, Accounting adds
+Invoices/Balance, Commons adds Files/Notes/Calendar. Badge counts need to stay cheap;
+Dolibarr caches some counts because the card otherwise queries every module.
 
 ### Odoo — partner form, stat buttons and chatter
 
@@ -411,8 +417,8 @@ because the card otherwise queries every module.
 | Repair order partner link | Repairs are visible from the partner's repair orders; the repair form links sale order, invoice and product moves. | `odoo/addons/repair/views/{repair_views,res_partner_views}.xml` |
 
 **BOSS implications.** Odoo's stat-button pattern is the cleanest "one record, many
-apps" navigation: a count button in the header jumps to a filtered list. BOSS should
-adopt that for Customer 360 and for Order detail (cases, shipments, invoices, returns),
+apps" navigation: a count button in the header jumps to a filtered list. It is a
+candidate for Customer 360 and for Order detail (cases, shipments, invoices, returns),
 using the shared context plumbing so Assist and the header tray can see the current
 record.
 
@@ -424,10 +430,11 @@ record.
 | Customer forms | Details, contacts, locations, shipping, tax, payment, bank accounts, risk register. | `apps/erp/app/modules/sales/ui/Customer/{CustomerForm,CustomerContactForm,CustomerLocationForm,CustomerShippingForm,CustomerTaxForm,CustomerPaymentForm,CustomerBankAccountForm,CustomerRiskRegister}.tsx` |
 | Customer list | Searchable/filterable table with types/statuses; create/edit routes. | `apps/erp/app/modules/sales/ui/Customers/CustomersTable.tsx`, `apps/erp/app/routes/x+/sales+/customers.tsx` |
 
-**BOSS implications.** Carbon's sidebar is the right density for a 360 record: each tab
-is a focused form/list, not a dashboard. For Customer Service, the equivalent tabs are
-Cases, Contacts, Orders, Returns, Invoices (read-only), Files and Notes. Risk/credit
-tabs belong to Accounting but can be surfaced read-only when the viewer has permission.
+**BOSS implications.** Carbon's sidebar suggests a good density for a 360 record: each
+tab is a focused form/list, not a dashboard. For Customer Service, the equivalent tabs
+would be Cases, Contacts, Orders, Returns, Invoices (read-only), Files and Notes.
+Risk/credit tabs are the Accounting version's emphasis; the Customer Service version
+could show them read-only when the viewer has permission.
 
 ### Twenty — configurable record page
 
@@ -437,11 +444,11 @@ tabs belong to Accounting but can be surfaced read-only when the viewer has perm
 | Timeline widget | Aggregated activity history with type filters, month grouping, linked-record metadata and diff rendering. | `packages/twenty-front/src/modules/activities/timeline-activities/{components,hooks,utils}/` |
 | Company/People record pages | Standard objects use the same record shell; companies show people/opportunities, people show company/activities. | `packages/twenty-front/src/modules/{companies,people}/` |
 
-**BOSS implications.** Twenty is the reference for user-arrangeable record pages. For
-BOSS, do not build a service-only customer page; the shared Customer 360 is a Party
-record page whose widgets are registered by app, then arranged by users. The timeline
-widget is the same shared activity feed needed by cases and orders, so it should be one
-component, not three.
+**BOSS implications.** Twenty is the reference for user-arrangeable record pages. It
+points away from a service-only customer page and toward the reused Customer 360 as a
+Party record page whose widgets each including app registers and users then arrange. The
+timeline widget is the same activity feed cases and orders need, which favors one
+component over three.
 
 ### Akaunting / Moqui Sales — lighter customer surfaces
 
@@ -468,13 +475,13 @@ component, not three.
 | Portal invoices/shipments | `/invoices` and `/shipments` route to Sales Invoice / Delivery Note lists and detail pages with the same document shell. | `erpnext/hooks.py` portal route rules |
 | Credit note / return | Sales Invoice has `Is Return (Credit Note)`, `Return Against`, `Is Rate Adjustment Entry (Debit Note)`; a submitted invoice exposes "Return / Credit Note". Delivery Note exposes "Sales Return" and carries `Is Return` + `Return Against Delivery Note`. | `erpnext/accounts/doctype/sales_invoice/{sales_invoice.json,sales_invoice.js,mapper.py}`, `erpnext/stock/doctype/delivery_note/{delivery_note.json,delivery_note.js,mapper.py}`, `erpnext/controllers/sales_and_purchase_return.py` |
 
-**BOSS implications.** The order screen for Customer Service should be the shared
-Order detail with a service action set, exactly as ERPNext reuses one Sales Order form
-but shows different Create buttons by permission. The portal list must show delivery
-and invoice progress at a glance; the detail must show items, addresses, tracking,
-invoices and returns. Editing rules belong to the order status: draft can change,
-submitted can only be amended/cancelled per policy, and service staff should get an
-explicit "request change" action rather than silent edit rights.
+**BOSS implications.** This suggests that Customer Service include the reused Order
+detail with a service action set, as ERPNext reuses one Sales Order form but shows
+different Create buttons by permission. The portal list shows delivery and invoice
+progress at a glance; the detail shows items, addresses, tracking, invoices and returns.
+Editing rules follow the order status: draft can change, submitted can only be
+amended/cancelled per policy; an explicit "request change" action for service staff is
+an alternative to silent edit rights.
 
 ### Odoo — portal order page + back-office sale order
 
@@ -487,10 +494,11 @@ explicit "request change" action rather than silent edit rights.
 | Repair order | For service-repair cases: draft → confirmed → done, parts/services, reserve/unreserve, quote/invoice, forecasted availability. | `odoo/addons/repair/views/repair_views.xml`, `odoo/addons/repair/models/repair.py` |
 
 **BOSS implications.** Odoo's portal is the best customer-facing order reference:
-shipping status pills, invoice sidebar, reorder, payment and a return entry point. BOSS
-should expose the same read-only order view inside Customer Service and add the
-service actions (case link, return, address change request) without granting general
-sales edit rights. "Order Again" is a Sales/Commerce action, not a service action.
+shipping status pills, invoice sidebar, reorder, payment and a return entry point. One
+option is the same read-only order view in Customer Service's version of Order detail,
+with the service actions (case link, return, address change request) and without general
+sales edit rights. "Order Again" fits the Sales and Commerce versions rather than the
+service one.
 
 ### Dolibarr — order card and shipment tracking
 
@@ -504,9 +512,9 @@ sales edit rights. "Order Again" is a Sales/Commerce action, not a service actio
 
 **BOSS implications.** Dolibarr's order card is a good model for the service action set:
 Validate, Create Shipment, Create Bill, Classify Shipped, Close, Cancel and Reopen are
-explicit buttons rather than a free-form status dropdown. For Customer Service, surface
-only the read-only subset plus Cancel/Return/Address change requests. Tracking number
-and tracking URL belong on the shipment, not the order.
+explicit buttons rather than a free-form status dropdown. For Customer Service, one
+option is the read-only subset plus Cancel/Return/Address change requests. Tracking
+number and tracking URL sit on the shipment, not the order.
 
 ### Carbon — order table and route-level actions
 
@@ -517,11 +525,11 @@ and tracking URL belong on the shipment, not the order.
 | Order status | Draft, In Progress (jobs incomplete), Needs Approval, To Ship and Invoice, To Ship, To Invoice, Completed, Cancelled, Closed; status badge colors and job-derived "In Progress". | `apps/erp/app/modules/sales/sales.models.ts` (`salesOrderStatusType`), `ui/SalesOrder/SalesStatus.tsx` |
 | Customer portal | Portal configuration per customer (create/edit/delete) and portal line/operation progress UI; portal implementation is Enterprise (`ee`). | `apps/erp/app/routes/x+/sales+/customer-portals*.tsx`, `apps/erp/app/modules/sales/ui/CustomerPortals/*.ee.tsx`, `apps/erp/app/modules/sales/ui/CustomerPortal/` |
 
-**BOSS implications.** Carbon's route-per-action model is worth copying: confirm,
+**BOSS implications.** Carbon's route-per-action model is a candidate: confirm,
 cancel, shipment, payment and invoice are separate routes with their own permissions and
-validation, not one giant form. For Customer Service, order detail can reuse the shell
-but only mount the read-only tabs plus service actions; the route-level separation makes
-that authz easy.
+validation, not one giant form. Customer Service's version of order detail could use the
+same shell and mount only the read-only tabs plus service actions; the route-level
+separation makes that authz easy.
 
 ### Moqui Sales — Find/View Order (alpha)
 
@@ -533,8 +541,9 @@ that authz easy.
 
 **BOSS implications.** Moqui Sales proves the data path (Mantle order views, party
 contact info, shipping options) but not the finished UI: the order screen openly lacks
-status actions, shipments, invoices and returns. BOSS can reuse the Mantle lookups and
-build the missing action set; do not port the alpha screen as-is. The fuller baseline is
+status actions, shipments, invoices and returns. The Mantle lookups are reusable; the
+action set is missing, which makes the alpha screen a weak base to port as-is. The fuller
+baseline is
 SimpleScreens `OrderDetail.xml` (status actions, shipments, invoices, Create Return; §12).
 
 ### Akaunting — invoices, not orders
@@ -564,11 +573,11 @@ not for order lifecycle.
 | Data model | `salesReturnOrder` (status Draft / To Receive / Completed / Cancelled, customer, contact, location, customer reference, source and replacement sales order, order and **expiration** date, internal/external notes, **assignee**); `salesReturnOrderLine` (quantity, quantity received, unit price, **restock fee percent**, reason, source sales-order / shipment / **invoice** line, **disposition**, closed-complete); tracked-entity (serial/lot) lines; credit lines per memo with restock fee; link to non-conformance. | `packages/database/supabase/migrations/20260908142501_returns-module.sql` |
 
 **BOSS implications.** This is the reference for the RMA screens and invariants. Mantle
-already has the record: build on `ReturnHeader` / `ReturnItem` / `ReturnItemBilling`
-(see §12), and add what Carbon's model has that `ReturnHeader` lacks: an authorization
-expiration date, an assignee, a customer reference, internal/external notes, a
-per-line restock fee, a disposition (Mantle has only `ReturnItem.inventoryStatusId` for
-the status of received stock), and links to the source shipment and invoice lines
+already has the record (`ReturnHeader` / `ReturnItem` / `ReturnItemBilling`, see §12);
+what Carbon's model has that `ReturnHeader` lacks is an authorization expiration date,
+an assignee, a customer reference, internal/external notes, a per-line restock fee, a
+disposition (Mantle has only `ReturnItem.inventoryStatusId` for the status of received
+stock), and links to the source shipment and invoice lines
 (Mantle links `orderId`/`orderItemSeqId` only). Carbon's four-state flow maps onto
 Mantle's longer one (Created → Requested → Approved → Shipped → Received → Completed,
 plus Manual Response Required and Cancelled). Critical invariants: returnable quantity
@@ -587,11 +596,12 @@ cancellation releases the authorized quantities back to the source documents.
 | Repair order | Repair workflow for returned/defective goods: confirm, reserve parts, parts/services, end repair, quote/invoice, cancel/reopen. | `odoo/addons/repair/views/repair_views.xml`, `odoo/addons/repair/models/repair.py` |
 | Returns reporting | Graph/pivot over incoming pickings with `return_id`, grouped by return reason. | `odoo/addons/sale_stock/views/stock_picking_views.xml` (`action_stock_picking_return_report`) |
 
-**BOSS implications.** Odoo separates three things BOSS must keep separate: a
-customer-initiated return request (portal, reason, label), the physical return transfer
-(stock), and the repair/replacement/credit outcome. For Customer Service, the case
-should link to the return (`ReturnHeader`, in Requested/Approved status) and show its
-status; Warehouse owns the physical receipt; Accounting owns the credit. "Allow
+**BOSS implications.** Odoo separates three things: a customer-initiated return request
+(portal, reason, label), the physical return transfer (stock), and the
+repair/replacement/credit outcome. For Customer Service, the case would link to the
+return (`ReturnHeader`, in Requested/Approved status) and show its status; the physical
+receipt and the credit are the emphases of the Warehouse and Accounting versions of the
+reused return screens (reused: Customer Service, Warehouse, Accounting, Commerce). "Allow
 spontaneous returns" and a validity window are valuable policy switches; Mantle has
 neither as a setting.
 
@@ -609,8 +619,9 @@ and Credit Notes. That works for accounting but loses the authorization/reason/d
 story. Mantle already separates the two: the RMA is `ReturnHeader`/`ReturnItem`, and the
 stock and money documents hang off it (sales-return `Shipment` of type
 `ShpTpSalesReturn`, `AssetReceipt`, credit-memo `Invoice` through `ReturnItemBilling`,
-refund `Payment`, replacement `OrderHeader`). BOSS keeps that shape: Customer Service
-authorizes, Warehouse receives, Accounting credits.
+refund `Payment`, replacement `OrderHeader`). That shape fits the reused return screens:
+the Customer Service version emphasizes authorization, Warehouse's receipt and
+Accounting's credit.
 
 ### Dolibarr / metasfresh / others
 
@@ -638,10 +649,11 @@ authorizes, Warehouse receives, Accounting credits.
 | Stock move/picking lines | `forecast_availability` widget shows availability inline on operations. | `odoo/addons/stock/views/stock_picking_views.xml` |
 | Replenishment | Replenish wizard and replenishment info; used from forecast and reordering rules. | `odoo/addons/stock/wizard/{product_replenish.py,product_replenish_views.xml,stock_replenishment_info.py,stock_replenishment_info.xml}` |
 
-**BOSS implications.** This is the availability screen to emulate for Customer Service:
-one product/warehouse view with On Hand, Incoming, Outgoing, Forecasted and the list of
-documents consuming/producing stock, plus promise dates. Customer Service needs it
-read-only; Purchasing/Warehouse get the replenish actions. The "Forecasted with Pending"
+**BOSS implications.** This is the strongest availability reference for Customer
+Service: one product/warehouse view with On Hand, Incoming, Outgoing, Forecasted and the
+list of documents consuming/producing stock, plus promise dates. Customer Service's
+version of the reused Inventory availability screen would be read-only; the Purchasing
+and Warehouse versions add the replenish actions. The "Forecasted with Pending"
 row is important because it answers the customer's real question ("can you still ship
 it?") rather than only what is physically on the shelf.
 
@@ -655,10 +667,10 @@ it?") rather than only what is physically on the shelf.
 | Stock Balance report | Detailed balance report with opening/balance/value; supports dimensions and stock ageing. | `erpnext/stock/report/stock_balance/stock_balance.py` |
 
 **BOSS implications.** ERPNext exposes the full set of quantity buckets, which is more
-than a support agent needs. For Customer Service, show On Hand, Reserved, Incoming,
-Projected and the next expected receipt date; keep Ordered/Requested/Planned for
-Purchasing. The "projected" definition must match the rest of BOSS (Mantle inventory),
-not be recalculated in the service screen.
+than a support agent needs. For Customer Service, a candidate set is On Hand, Reserved,
+Incoming, Projected and the next expected receipt date; Ordered/Requested/Planned suit
+the Purchasing version. One reused screen over Mantle inventory keeps the "projected"
+definition the same everywhere instead of recalculating it in a service screen.
 
 ### Carbon — inventory quantities table + item details
 
@@ -670,8 +682,8 @@ not be recalculated in the service screen.
 | Replenishment | Reordering policies and replenishment system fields on the inventory table. | `apps/erp/app/modules/inventory/ui/Inventory/InventoryTable.tsx` |
 
 **BOSS implications.** Carbon's table is excellent for a warehouse/purchasing user but
-too dense for support. For Customer Service, reuse the same query with a fixed column
-set: On Hand, On Sales Order, On Purchase Order, On Jobs, Days, Lead time, Demand
+too dense for support. One option for Customer Service is the same query with a fixed
+column set: On Hand, On Sales Order, On Purchase Order, On Jobs, Days, Lead time, Demand
 forecast. The "Days" (supply remaining) and "Lead Time" pair is the fastest way to answer
 "when can I get more?".
 
@@ -685,8 +697,8 @@ forecast. The "Days" (supply remaining) and "Lead Time" pair is the fastest way 
 | Replenishment | Replenishment orders and replenishment planning pages. | `htdocs/product/stock/{replenish,replenishorders}.php` |
 
 **BOSS implications.** Dolibarr's stock-at-date is a cheap feature with high support
-value ("what did we have when the order was promised?"). Keep it read-only in Customer
-Service and link it from the order/availability view.
+value ("what did we have when the order was promised?"). In Customer Service it would
+be read-only, linked from the order/availability view.
 
 ### AureusERP / Moqui Sales / Akaunting
 
@@ -715,11 +727,11 @@ Service and link it from the order/availability view.
 | KB settings | Workflow/Knowledgebase settings (prefer knowledge base before ticket creation), branding, ticket settings. | `desk/src/components/Settings/General/components/{WorkflowKnowledgebaseSettings,Branding,TicketSettings}.vue`, `helpdesk/api/config.py` |
 | Article categories | Category name, published article count, General reserved category, merge/move actions, move guard (cannot leave a category empty). | `helpdesk/api/knowledge_base.py`, `helpdesk/helpdesk/doctype/hd_article_category/` |
 
-**BOSS implications.** This is the target shape for Customer Service KB links: a
+**BOSS implications.** This is the closest reference for Customer Service KB links: a
 category tree, full-text search, article view with helpful/not-helpful feedback, and an
-inline suggestion block on case intake. BOSS should store articles in Commons
-knowledge (Wiki/content) and expose a service-scoped read view rather than creating a
-parallel KB. The two features worth copying exactly are (1) suggestions after the
+inline suggestion block on case intake. The evidence favors articles stored once as wiki
+content (reused: Commons, Customer Service), with a service-scoped read view in Customer
+Service, over a parallel KB. The two features that stand out are (1) suggestions after the
 customer types a subject, not only after submit, and (2) "if this did not help, open a
 case" on every article. The `preferKnowledgeBase` switch is a useful policy knob.
 
@@ -736,8 +748,8 @@ case" on every article. The `preferKnowledgeBase` switch is a useful policy knob
 
 **BOSS implications.** ERPNext's external search sources are directly relevant to a
 business-in-a-box: the KB search can federate the wiki, product docs, forum and even an
-external knowledge API without copying content. Use one search interface with
-per-source route/preview mappings. The "most viewed articles" list is a cheap
+external knowledge API without copying content. One option is one search interface
+with per-source route/preview mappings. The "most viewed articles" list is a cheap
 self-service default when there is no query.
 
 ### Dolibarr — knowledge records tied to ticket categories
@@ -749,10 +761,10 @@ self-service default when there is no query.
 | Ticket form integration | On selecting a ticket category, AJAX loads matching knowledge records and lists them under "Knowledge found for ticket group"; can open the article in a dialog. | `htdocs/core/class/html.formticket.class.php` |
 | Knowledge dashboard | Module home with recent/draft records and quick links; no public customer portal in this checkout. | `htdocs/knowledgemanagement/knowledgemanagementindex.php` |
 
-**BOSS implications.** Dolibarr's category→article link is the low-cost integration to
-copy: each request type/category can list relevant KB articles even without full-text
-search. Its language field matters for BOSS's multilingual support; articles should be
-keyed by language and category, not just title.
+**BOSS implications.** Dolibarr's category→article link is the low-cost integration:
+each request type/category can list relevant KB articles even without full-text search.
+Its language field matters for BOSS's multilingual support; it suggests keying articles
+by language and category, not just title.
 
 ### Frappe Wiki — shared knowledge source with feedback
 
@@ -774,13 +786,13 @@ keyed by language and category, not just title.
 
 Collectives is also catalogued in [research-drawers-commons.md](research-drawers-commons.md).
 
-**BOSS implications.** Knowledge articles for Customer Service should be authored in
-the Commons wiki, not in a service-only editor. The service app needs a read/search
-surface plus "link this case to this article" and "suggest an article edit" actions.
-Frappe Wiki's contribution review is a good pattern if articles are editable by many
-staff, and its page feedback with Open/Closed triage is the "article did not help" loop
-Customer Service should feed. Collectives' backlinks tab is a cheap way to show which
-cases cite an article.
+**BOSS implications.** The references favor authoring knowledge articles in the wiki
+rather than a service-only editor; Customer Service can include the article authoring
+screen reused from Commons beside a read/search surface with "link this case to this
+article" and "suggest an article edit" actions. Frappe Wiki's contribution review is a
+good pattern if articles are editable by many staff, and its page feedback with
+Open/Closed triage is the "article did not help" loop Customer Service would feed.
+Collectives' backlinks tab is a cheap way to show which cases cite an article.
 
 ### Ever Gauzy — internal Help Center
 
@@ -799,10 +811,10 @@ Internal only: no public portal and no link to a case.
 | Task screen | QVue task workspace: saved finds by person/role/project/status, text search, assignee/project/status/priority editing, due date, mark complete, task comments. | `screen/wm/Task.xml`, `screen/wm/Task/Task.qvue` |
 
 **BOSS implications.** This is the Moqui-native proof that a wiki list/detail and a
-task workspace can be built with screens plus QVue. Reuse the saved-find pattern for
-service queues and the task screen for follow-up actions created from a case. The
-wiki screens are thin compared with Frappe Wiki, so BOSS's real KB authoring belongs
-in Commons.
+task workspace can be built with screens plus QVue. Its saved-find pattern suits service
+queues and its task screen suits follow-up actions created from a case. The wiki screens
+are thin compared with Frappe Wiki, so the fuller KB authoring screen is the one reused
+from Commons.
 
 ---
 
@@ -819,14 +831,14 @@ in Commons.
 | Ticket analytics tab | Per-ticket metric cards, conversation summary and timeline. | `desk/src/components/ticket-agent/analytics/` |
 | Export | Queue export modal (export selected vs all) and CSV/XLSX flows. | `desk/src/pages/ticket/Tickets.vue`, `desk/src/components/ticket/ExportModal.vue` |
 
-**BOSS implications.** CSAT should be first-class on the case, not an afterthought:
-rating + preset reason + free text, captured at close and visible on the case and
-Customer 360. Surveys are owned by Marketing (framework `DbForm` + `FormResponse`), so
-the CSAT form is a Marketing survey that Customer Service sends and reads; the case
-needs a link to the response and a stored rating for reporting (`FormResponse` has no
-record link today). Report CSAT by resolution date, not creation date. The minimum
-service dashboard is cases, SLA %, first response, resolution and CSAT; channel/team/
-type/tag breakdowns are the next layer.
+**BOSS implications.** The references treat CSAT as first-class on the case: rating +
+preset reason + free text, captured at close and visible on the case and Customer 360.
+Survey forms are reused (framework `DbForm` + `FormResponse`; reused: Marketing,
+Customer Service, People), so the CSAT form can be a survey form that Customer Service
+includes, sends and reads; the case would need a link to the response and a stored rating
+for reporting (`FormResponse` has no record link today). Frappe reports CSAT by
+resolution date, not creation date. Its minimum service dashboard is cases, SLA %, first
+response, resolution and CSAT; channel/team/type/tag breakdowns are the next layer.
 
 ### Odoo — rating mixin (CSAT on any record)
 
@@ -837,7 +849,7 @@ type/tag breakdowns are the next layer.
 | Rating mixin | Any model that inherits the mixin gets rating requests, rated-in-chatter messages and satisfaction percentages (used by Live Chat channels). | `odoo/addons/rating/models/{rating_mixin,rating_parent_mixin,rating}.py` |
 
 **BOSS implications.** A three-face rating sent as a token link is the lowest-friction
-CSAT; it fits the Marketing survey builder as a one-question form attached to the case.
+CSAT; it fits the reused survey builder as a one-question form attached to the case.
 
 ### ERPNext / Dolibarr — reporting and settings
 
@@ -868,32 +880,33 @@ for agents/teams, status/type masters for request classification, a calendar/hol
 record for SLA, saved finds for queues, content for KB, and settings records for
 branding/email. The only genuinely new service-specific masters are request templates
 with field dependencies, SLA policies, saved replies with actions, and assignment
-rules. Plan those as first-class records, not JSON blobs.
+rules. The evidence favors those as first-class records over JSON blobs.
 
 ---
 
 ## 11. Cross-app surfaces
 
-Owners and faces follow [research-crosscut.md](research-crosscut.md) §3–§4.
+App lists follow [research-crosscut.md](research-crosscut.md) §3–§4.
 
-| Surface | Customer Service face | Reference evidence |
-| --- | --- | --- |
-| **Request / case** (owner: Customer Service) | Owns the intake form, queues, SLA clocks and case detail. Commons shows "requests assigned"; Projects converts work to tasks (`RequestWorkEffort`); Purchasing (`RqtPurchase`) and Sales (`RqtQuote`) reuse the same screen with their own types | Frappe Helpdesk ticket model and agent/customer views; ERPNext Issue; Dolibarr tickets; Moqui Request screens (§12) |
-| **Customer 360** (shared: Sales) | Cases, returns and orders tabs; service stats strip (open cases, failed SLAs, first response, resolution, CSAT); contacts | Frappe Helpdesk customer/contact pages and ticket stats; Dolibarr third-party Tickets tab with count; ERPNext customer dashboard "Support" group; Carbon customer sidebar |
-| **Order detail** (shared: Sales) | Read-only order with a service action set: open case, create return, change or cancel request, resend confirmation | ERPNext Sales Order Create buttons; Odoo portal order with Return button; Dolibarr order card actions; Carbon route-per-action; Moqui Order detail **Create Return** |
-| **Returns / RMA** (owner: Customer Service for authorization, reasons, case link) | Authorize, approve or cancel, response (credit, refund, replace), customer messages; Warehouse receives and dispositions (`ShpTpSalesReturn`); Accounting credits and refunds (`ReturnItemBilling`) | Carbon RMA; Odoo portal return, stock return and return reasons; ERPNext return Delivery Note and Credit Note; Moqui Return screens |
-| **Inventory availability** (shared: Warehouse) | Read-only on hand, reserved, available to promise, incoming with dates, per facility; no adjust or replenish actions | Odoo forecasted report; ERPNext Stock Balance and projected qty; Carbon inventory table; Dolibarr stock at date |
-| **Shipment detail** (shared: Warehouse) | Tracking number and URL, ship and estimated delivery dates, return label | Dolibarr shipment card tracking; Odoo portal delivery tracking and return label; Moqui pack-time return labels |
-| **Knowledge base articles** (owner: Commons wiki) | Search, suggest on intake, link article to case (`WikiPageRequest`), suggest edit, "did not help" feedback | Frappe Helpdesk KB and intake article suggestions; Dolibarr category → knowledge records; Frappe Wiki feedback and contribution review; ERPNext search sources |
-| **Surveys / CSAT** (owner: Marketing) | Send CSAT at close; show rating on the case and Customer 360; CSAT KPIs | Frappe Helpdesk ticket feedback; Odoo rating mixin; Frappe Wiki page feedback |
-| **Chatter & activities** (owner: Commons / Comms) | Case timeline of emails, comments, calls and chat; follow-up activities and tasks (Task / work item, shared: Projects) | Frappe Helpdesk activity panel; Odoo chatter; Twenty timeline widget |
-| **Email, chat and phone channels** (owner: Comms) | Mailbox-to-queue mapping, create-or-append case from mail or chat, reply from the case | Frappe Helpdesk email accounts and telephony; Dolibarr email collector; Redmine mail handler; Odoo Live Chat |
-| **Customer agreements** (owner: Sales) | Read: warranty and service terms for the customer | crosscut §4 (Customer Service: read) |
-| **Dashboard widgets** (owner: Insights) | Landing-page KPIs: open, overdue, unassigned, SLA %, first response, resolution, CSAT | Frappe Helpdesk dashboard KPI cards; ERPNext issue number cards |
+| Reused screen or link | Use in Customer Service | Other apps that include it | Reference evidence |
+| --- | --- | --- | --- |
+| **Request / case** | Intake form, queues, SLA clocks and case detail | Purchasing (`RqtPurchase`); Maintenance (maintenance requests); Projects (converts work to tasks, `RequestWorkEffort`); Sales (`RqtQuote`); Warehouse (`RqtInventory`); Commons (requests assigned to me) | Frappe Helpdesk ticket model and agent/customer views; ERPNext Issue; Dolibarr tickets; Moqui Request screens (§12) |
+| **Customer 360** | Cases, returns and orders tabs; service stats strip (open cases, failed SLAs, first response, resolution, CSAT); contacts | Sales; Marketing; Accounting; Commerce | Frappe Helpdesk customer/contact pages and ticket stats; Dolibarr third-party Tickets tab with count; ERPNext customer dashboard "Support" group; Carbon customer sidebar |
+| **Order detail** | Read-only order with a service action set: open case, create return, change or cancel request, resend confirmation | Sales; Purchasing; Warehouse; Accounting; Commerce | ERPNext Sales Order Create buttons; Odoo portal order with Return button; Dolibarr order card actions; Carbon route-per-action; Moqui Order detail **Create Return** |
+| **Returns / RMA** | Authorize, approve or cancel, reasons, case link, response (credit, refund, replace), customer messages | Warehouse (return receipt and disposition, `ShpTpSalesReturn`); Accounting (credit and refund, `ReturnItemBilling`); Commerce (online returns) | Carbon RMA; Odoo portal return, stock return and return reasons; ERPNext return Delivery Note and Credit Note; Moqui Return screens |
+| **Inventory availability** | Read-only on hand, reserved, available to promise, incoming with dates, per facility; no adjust or replenish actions | Warehouse; Purchasing; Sales; Manufacturing; Commerce | Odoo forecasted report; ERPNext Stock Balance and projected qty; Carbon inventory table; Dolibarr stock at date |
+| **Shipment detail** | Tracking number and URL, ship and estimated delivery dates, return label | Warehouse; Sales; Purchasing; Commerce; Accounting | Dolibarr shipment card tracking; Odoo portal delivery tracking and return label; Moqui pack-time return labels |
+| **Knowledge base articles** | Search, suggest on intake, link article to case (`WikiPageRequest`), suggest edit, "did not help" feedback; article authoring | Commons (wiki authoring) | Frappe Helpdesk KB and intake article suggestions; Dolibarr category → knowledge records; Frappe Wiki feedback and contribution review; ERPNext search sources |
+| **Surveys / CSAT** | Send CSAT at close; show rating on the case and Customer 360; CSAT KPIs | Marketing (surveys); People (interview scorecards, training quizzes) | Frappe Helpdesk ticket feedback; Odoo rating mixin; Frappe Wiki page feedback |
+| **Chatter & activities** | Case timeline of emails, comments, calls and chat; follow-up activities and tasks (**Task / work item**) | Every app's record screens; Task / work item also in Projects, Commons, Sales and People | Frappe Helpdesk activity panel; Odoo chatter; Twenty timeline widget |
+| **Email, chat and phone channels** (Comms suite) | Mailbox-to-queue mapping, create-or-append case from mail or chat, reply from the case | Comms is used from every app; Marketing (campaign sends); Admin (relay, gateways) | Frappe Helpdesk email accounts and telephony; Dolibarr email collector; Redmine mail handler; Odoo Live Chat |
+| **Customer agreements** | Read: warranty and service terms for the customer | Sales; Accounting (terms) | crosscut §4 (Customer Service: read) |
+| **Dashboard widgets** | Landing-page KPIs: open, overdue, unassigned, SLA %, first response, resolution, CSAT | Insights; every app's landing page | Frappe Helpdesk dashboard KPI cards; ERPNext issue number cards |
 
-**BOSS implications.** Customer Service builds one shared screen family (the case) and
-one RMA authorization flow; everything else it shows is a face of a screen another app
-owns, opened with a service context that limits the action set.
+**BOSS implications.** The case and the return screens are the reused screens where the
+Customer Service version carries the most (intake, SLA, authorization); in the others the
+Customer Service version is the same screen opened with a service context that limits
+the action set.
 
 ---
 
@@ -932,7 +945,7 @@ Paths are under `component/MrSimpleScreens/screen/SimpleScreens/` unless they st
 | Return labels | Return labels can be requested with the outbound package label at pack time | `Shipping/PackShipment/PackPackages.xml` |
 | Quick lookup, search | Lookup by ID (order, return, shipment, invoice, payment, party, product, asset); full-text search over Mantle documents (Request, Wiki Page, Order, Party, …) | `QuickLookup.xml`, `Search.xml` |
 | Wiki | Spaces, page tree, pages with comments, attachments and categories, page history, **Page Requests** / Page Tasks lists, blog posts, compare | `Wiki/{WikiSpaces,EditWikiSpace,EditWikiPage,ViewWikiPage,WikiBlogs,WikiCompare}.xml`, `Wiki/wiki.xml` |
-| Surveys | Survey (DbForm) builder, fields, responses and response stats; Marketing owns it | `Survey/{FindSurvey,EditSurvey,Fields,Responses,ResponseDetails,ResponseStats}.xml` |
+| Surveys | Survey (DbForm) builder, fields, responses and response stats; reused by Marketing, Customer Service and People (crosscut §4) | `Survey/{FindSurvey,EditSurvey,Fields,Responses,ResponseDetails,ResponseStats}.xml` |
 
 ### Data model available
 
@@ -976,7 +989,7 @@ return side: authorization expiration, assignee, notes, restock fee, disposition
 | `get#RequestContentLocation`, `create#RequestContent`, `update#RequestContent`, `save#RequestContentFile` | Attachments | same |
 | `create#Return`, `create#ReturnFromOrder`, `find#OrderOpenReturns`, `find#ReturnableOrderItems`, `calculate#OrderItemReturnable`, `add#OrderItemToReturn` | Create returns and cap them by returnable quantity | `component/mr-mantle-usl/service/mantle/order/ReturnServices.xml` |
 | `request#Return`, `approve#Return`, `cancel#Return`, `cancel#ReturnItem`, `update#ReturnItem`, `delete#ReturnItem`, `update#ReturnStatus`, `checkUpdate#ReturnHeaderStatus` | Authorization flow | same |
-| `create#ReturnShipment`, `add#ReturnToShipment`, `receive#ReturnShipmentItems`, `receive#ReturnWithoutShipment`, `receive#ReturnItem`, `complete#ReturnItem`, `process#ReturnItemResponses` | Receipt and response (credit, refund, replacement); Warehouse and Accounting faces | same |
+| `create#ReturnShipment`, `add#ReturnToShipment`, `receive#ReturnShipmentItems`, `receive#ReturnWithoutShipment`, `receive#ReturnItem`, `complete#ReturnItem`, `process#ReturnItemResponses` | Receipt and response (credit, refund, replacement); also used by the Warehouse and Accounting versions of the return screens | same |
 | `get#AvailableInventory`, `get#AvailableForOrder`, `get#AvailableInventoryMulti` (available to promise by product, facility or store); `check#AvailableInventory` on order items | Availability lookup | `component/mr-mantle-usl/service/mantle/product/AssetServices.xml`, `component/mr-mantle-usl/service/mantle/order/OrderServices.xml` |
 | `get#InventoryProjectedInfo` | Projected inventory from asset, order item and production documents in the search index; no screen uses it yet | `component/mr-mantle-usl/service/mantle/product/InventoryReportServices.xml` |
 | `find#PartyCommunicationEvents`, `create#Message`, `reply#CommunicationEvent` | Party message history and replies | `component/mr-mantle-usl/service/mantle/party/CommunicationServices.xml` |
@@ -1001,7 +1014,7 @@ receive path (initial-design).
 - **No RMA in ERPNext or Dolibarr.** Carbon is the only complete RMA screen set;
   Odoo has portal-initiated returns and stock returns; metasfresh has a backend
   service/repair domain. Mantle already has the record (`ReturnHeader`/`ReturnItem`);
-  BOSS designs the screens and policies.
+  the screens and policies are open for the design pass.
 - **No shared Customer 360 across service + orders + accounting** in any single app
   except ERPNext's Customer Overview, which is sales/accounts-centric and has no cases.
 - **No order-change request flow.** References allow back-office edits/cancels or
@@ -1031,8 +1044,9 @@ receive path (initial-design).
   Order detail and Edit Return cannot show their cases.
 - **Returns lack authorization detail.** No expiration, assignee, notes, restock fee or
   disposition, and Edit Return has no case link or customer message.
-- **No availability face.** `FindSummary` is a warehouse list; nothing shows incoming
-  stock with dates or a promise date, and `get#InventoryProjectedInfo` has no screen.
+- **No service availability view.** `FindSummary` is a warehouse list; nothing shows
+  incoming stock with dates or a promise date, and `get#InventoryProjectedInfo` has no
+  screen.
 - **No CSAT.** Surveys exist, but a response cannot point at a case.
 - **No service landing page.** MarbleERP's flow map shows two request counts only.
 
@@ -1052,67 +1066,77 @@ receive path (initial-design).
 | metasfresh | Handling-unit-level customer returns, warranty cases and repair projects (model reference) |
 | Moqui Sales / WorkManagement | Moqui-native QVue account, order and task screens with saved finds |
 
-### Recommended screen inventory (IronStone Customer Service)
+### Candidate screen inventory (IronStone Customer Service)
 
 | Area | Screens |
 | --- | --- |
-| Home | Landing page: KPI strip (open, overdue, unassigned, SLA %, first response, resolution, CSAT; widgets from Insights), my cases, team queues with counts, returns awaiting approval |
-| Cases | Case queue (saved finds per team/queue, selectable columns, bulk assign/reply/status, list and board by status); **Request / case** detail (header with status, priority, assignee, SLA; timeline of `RequestCommEvent` with email/comment/call/chat filters; composer with saved replies; sidebar with customer card, SLA cards, linked orders/returns/articles, related cases, tasks); new case form (type/category-driven fields, KB suggestions); merge and split |
-| Customer 360 (shared: Sales) | Service face: cases, returns, orders, contacts, service stats, CSAT |
-| Orders (shared: Sales) | Order lookup (ID, customer, email, phone; Quick lookup); Order detail with the service action set (open case, create return, change or cancel request, resend confirmation); Shipment detail tracking (shared: Warehouse) |
-| Returns / RMA | Return list (status, customer, order, assignee, expiration); new return from order with returnable-lines picker; return detail (approve, cancel, reasons, response credit/refund/replace, customer messages, label, linked case); receipt and disposition (shared: Warehouse) and credit (shared: Accounting) shown read-only |
-| Availability (shared: Warehouse) | Product availability lookup: on hand, reserved, available to promise, incoming with dates, per facility; stock at date |
-| Knowledge (shared: Commons) | Article search and read view, link to case, suggest edit, "did not help" feedback |
-| Reports | SLA compliance, first response and resolution, volume by channel/type/category/team, CSAT results (shared: Marketing survey responses), per-case analytics |
-| Settings | Request types and categories (queues with responsible team), statuses with category, SLA policies with working hours and holidays, assignment rules, saved replies, case templates and fields, mailbox-to-queue mapping (shared: Comms), return reasons and return policy (validity window, self-service returns) |
+| Home | Landing page: KPI strip (open, overdue, unassigned, SLA %, first response, resolution, CSAT; **Dashboard widgets** (reused: Insights, every app)), my cases, team queues with counts, returns awaiting approval |
+| Cases | Case queue (saved finds per team/queue, selectable columns, bulk assign/reply/status, list and board by status); **Request / case** detail (reused: Purchasing, Maintenance, Projects, Sales, Warehouse, Commons) (header with status, priority, assignee, SLA; timeline of `RequestCommEvent` with email/comment/call/chat filters; composer with saved replies; sidebar with customer card, SLA cards, linked orders/returns/articles, related cases, tasks); new case form (type/category-driven fields, KB suggestions); merge and split |
+| Customer 360 (reused: Sales, Marketing, Accounting, Commerce) | Service version: cases, returns, orders, contacts, service stats, CSAT |
+| Orders | Order lookup (ID, customer, email, phone; Quick lookup); **Order detail** (reused: Sales, Purchasing, Warehouse, Accounting, Commerce) with the service action set (open case, create return, change or cancel request, resend confirmation); **Shipment detail** tracking (reused: Warehouse, Sales, Purchasing, Commerce, Accounting) |
+| Returns / RMA (reused: Warehouse, Accounting, Commerce) | Return list (status, customer, order, assignee, expiration); new return from order with returnable-lines picker; return detail (approve, cancel, reasons, response credit/refund/replace, customer messages, label, linked case); receipt without shipment and item responses for a business without Warehouse or Accounting; disposition and credit-memo detail (the Warehouse and Accounting emphases) shown read-only |
+| Availability (reused: Warehouse, Purchasing, Sales, Manufacturing, Commerce) | Product availability lookup: on hand, reserved, available to promise, incoming with dates, per facility; stock at date |
+| Knowledge (reused: Commons) | Article search and read view, article authoring, link to case, suggest edit, "did not help" feedback |
+| Reports | SLA compliance, first response and resolution, volume by channel/type/category/team, CSAT results (survey responses; survey forms reused: Marketing, People), per-case analytics |
+| Settings | Request types and categories (queues with responsible team), statuses with category, SLA policies with working hours and holidays, assignment rules, saved replies, case templates and fields, mailbox-to-queue mapping (over Comms mail accounts), return reasons and return policy (validity window, self-service returns) |
 
-### Data-model implications
+### Data-model findings
 
 - **Case = `Request`.** Conversation through `RequestCommEvent` / `RequestEmailMessage`,
   tasks through `RequestWorkEffort`, articles through `WikiPageRequest`, people through
   `RequestParty` (Customer, Assignee, Watcher), team through
   `RequestCategory.responsiblePartyId`, intake channel through `salesChannelEnumId`.
   Services: `mantle.request.RequestServices.create#Request` and siblings.
-- **Add SLA fields to the case** (on `Request` or a one-to-one extension): SLA policy,
-  first-response due (can reuse `responseRequiredDate`), resolution due, first responded
-  at, resolved at, on-hold since and total hold, agreement status, merged-into and
-  split-from. New records: SLA policy with per-priority targets, a working-hours
-  calendar that reuses `WepHoliday` events for holidays, assignment rule, saved reply
-  with actions, case template with fields and dependencies, case tags.
-- **Statuses.** Add waiting-on-customer and on-hold `Request` statuses and a status
-  category (Open / Paused / Resolved) that SLA and dashboards read; `StatusItem` has no
-  category field, so this needs a small mapping record.
+- **SLA fields on the case** are missing (options: on `Request` or a one-to-one
+  extension): SLA policy, first-response due (could reuse `responseRequiredDate`),
+  resolution due, first responded at, resolved at, on-hold since and total hold,
+  agreement status, merged-into and split-from. Candidate new records: SLA policy with
+  per-priority targets, a working-hours calendar that reuses `WepHoliday` events for
+  holidays, assignment rule, saved reply with actions, case template with fields and
+  dependencies, case tags.
+- **Statuses.** Waiting-on-customer and on-hold `Request` statuses and a status category
+  (Open / Paused / Resolved) for SLA and dashboards to read do not exist; `StatusItem` has
+  no category field, so one option is a small mapping record.
 - **Links.** No join exists between `Request` and `OrderHeader`, `ReturnHeader`,
-  `Shipment` or `Invoice`; add joins (e.g. request-order, request-return) or the
+  `Shipment` or `Invoice`; options are joins (e.g. request-order, request-return) or the
   generic record link in crosscut §8.
 - **RMA = `ReturnHeader` / `ReturnItem` / `ReturnItemBilling`** with
   `mantle.order.ReturnServices` (`create#ReturnFromOrder`, `find#ReturnableOrderItems`,
   `request#Return`, `approve#Return`, `cancel#Return`, `process#ReturnItemResponses`).
-  Add what Carbon has and Mantle lacks: authorization expiration date, assignee (no
-  return-party record exists), customer reference, notes, per-line restock fee,
-  disposition (owned by Warehouse; today only `inventoryStatusId`), source shipment and
-  invoice line links. Return reasons stay `ReturnReason` enumerations; a
+  Carbon has and Mantle lacks: authorization expiration date, assignee (no return-party
+  record exists), customer reference, notes, per-line restock fee, disposition (the
+  Warehouse version's emphasis; today only `inventoryStatusId`), source shipment and
+  invoice line links. Return reasons fit the `ReturnReason` enumerations; a
   zero-inventory-value flag would need an attribute.
-- **CSAT** reuses Marketing's `DbForm` / `FormResponse`; add a response-to-case link and
-  a stored rating on the case for reporting.
+- **CSAT** fits the reused survey forms (`DbForm` / `FormResponse`); it lacks a
+  response-to-case link and a stored rating on the case for reporting.
 - **Availability** reads `mantle.product.AssetServices.get#AvailableInventory*` and
   `InventoryReportServices.get#InventoryProjectedInfo`; no new records.
 
-### First-release cut
+### Sequencing notes
 
-Ships first: case queue with saved finds per category, case detail with the comment and
-email timeline, new case form, manual assignment with the category's responsible party
-as default, waiting/on-hold statuses, one SLA policy per category and priority with
-business hours and holidays (first-response and resolution due, breach flags), the
-service face of Customer 360, order lookup with Create Return, returns list and detail
-on `ReturnHeader` with the existing services plus a case link, read-only availability
-from `get#AvailableInventory`, article search and link through `MantleWikiPage` and
-`WikiPageRequest`, and landing KPIs (open, overdue, unassigned).
-
-Deferred: rule-based auto-assignment and agent availability, saved replies with
-actions, templates with field dependencies, chat and telephony, the customer portal,
-CSAT (needs the survey link), merge/split, case-to-article, restock fees and warranty
-claims, and analytics beyond the KPI strip.
+- **Cheap from the baseline:** a case queue (`FindRequest` saved finds per category), case
+  detail with the comment timeline (`RequestCommEvent`), the new case form
+  (`create#Request`), manual assignment defaulting to the category's responsible party
+  (`RequestCategory.responsiblePartyId`), order lookup with Create Return
+  (`OrderDetail.xml`, Quick lookup), returns list and detail on `ReturnHeader` with the
+  existing services, read-only availability from `get#AvailableInventory`, article search
+  and link through `MantleWikiPage` and `WikiPageRequest`, and landing counts (open,
+  overdue, unassigned) over `Request`.
+- **Needs new records first:** SLA pause depends on the waiting/on-hold statuses and the
+  status category; SLA due dates and breach flags depend on the SLA policy and a
+  working-hours calendar (holidays already exist as `WepHoliday` events); showing linked
+  orders and returns on the case, and cases on Order detail and Edit Return, depends on
+  the case ↔ order/return links.
+- **Depends on other suites or apps:** the email timeline and reply from the case depend
+  on the Comms receive path; chat and telephony are Comms channels; CSAT depends on a
+  survey-response-to-case link; rule-based auto-assignment depends on team membership and
+  agent availability (header presence); the customer portal depends on the portal
+  question in crosscut §8; analytics beyond the KPI strip depend on Insights widgets and
+  the SLA timestamps.
+- **No baseline support:** saved replies with actions, templates with field dependencies,
+  merge/split, case-to-article, restock fees and warranty claims are all new records or
+  flows.
 
 ### Open questions
 
@@ -1120,17 +1144,19 @@ claims, and analytics beyond the KPI strip.
   proposed in crosscut §8?
 - **Status categories:** a new mapping record, or new `Request` statuses only with the
   category hard-coded in SLA logic?
-- **Customer portal owner:** Customer Service (my cases, request a return) or Commerce
-  (store account, which crosscut §3 gives the Customer 360 Commerce face)?
+- **Customer portal:** are the portal's case and return pages (my cases, request a
+  return) part of one portal shared with Commerce's store account (crosscut §3 lists
+  Commerce among the apps that include Customer 360), or a separate service portal?
 - **Order change requests:** a case of a new type linked to the order (approved by
   service, applied with `OrderBeingChanged`), or direct edits under a service
   permission?
-- **Warranty and customer-owned equipment repair:** Customer Service or Maintenance
-  (research-maintenance.md asks the same)? Mantle has no warranty-claim record.
-- **Working-hours calendar owner:** SLA business hours, People shift schedules and
-  Commons calendars could share one record; which app owns it?
-- **CSAT ownership:** crosscut §8 asks whether surveys stay in Marketing; Customer
-  Service only needs a one-question form linked to the case.
+- **Warranty and customer-owned equipment repair:** which records carry it (case, repair
+  order, maintenance work order; research-maintenance.md asks the same)? Mantle has no
+  warranty-claim record.
+- **Working-hours calendar:** SLA business hours, People shift schedules and Commons
+  calendars could share one record; where is it edited?
+- **CSAT form:** does Customer Service include the full reused survey builder, or only a
+  one-question form linked to the case?
 
 ### Checkout path quirks
 
@@ -1153,7 +1179,7 @@ claims, and analytics beyond the KPI strip.
 - Dolibarr's ticket form is shared with the public portal through
   `FormTicket`; `htdocs/public/ticket/` is the customer-facing entry point.
 
-**Bottom line.** Build cases on `Request` and returns on `ReturnHeader`, copy Frappe
-Helpdesk's case page, SLA and status-category model and Carbon's RMA invariants, and
-add the missing links (case ↔ order/return, survey ↔ case) and SLA records rather than a
-parallel ticket or RMA table.
+**Bottom line.** The evidence favors cases on `Request` and returns on `ReturnHeader`,
+with Frappe Helpdesk's case page, SLA and status-category model and Carbon's RMA
+invariants as the main references; the gaps are the missing links (case ↔ order/return,
+survey ↔ case) and SLA records, not a missing ticket or RMA table.
