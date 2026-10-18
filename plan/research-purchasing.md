@@ -5,24 +5,27 @@ Oct 18, 2026
 Reviewed against sources Oct 18, 2026; follows [research-crosscut.md](research-crosscut.md).
 
 Deeper research pass on screens/pages relevant to **IronStone Purchasing** (buyers:
-Suppliers · Purchase requests · RFQs & supplier quotes · Purchase orders · Replenishment
-· Supplier returns · Supplier performance, per [initial-design.md](initial-design.md)),
+Suppliers · Purchase requests · RFQs & supplier quotes · Purchase orders · Replenishment ·
+Supplier returns · Supplier performance, per [initial-design.md](initial-design.md)),
 cataloguing every relevant screen found in the reference apps. Companion to
-[3p-app-reference.md](3p-app-reference.md). Purchasing owns **Supplier 360** and the
-purchase-order action set on the shared **Order detail**; it feeds the purchasing faces
-of **Product 360** (supplier prices), **Inventory availability** (shortfall and reorder),
-**Shipment detail** (inbound against PO), **Request / case** (purchase requests) and
-**Approvals waiting** (PO and request approvals), per crosscut §3–§4.
+[3p-app-reference.md](3p-app-reference.md). Purchasing is the fullest version of the
+reused **Supplier 360** and includes the purchase-order actions of the reused **Order
+detail**. It also includes, in a buyer's form, the reused **Product 360** (supplier
+prices), **Inventory availability** (shortfall and reorder), **Shipment detail**
+(receiving against PO, supplier-return shipments), **Request / case** (purchase requests),
+supplier returns, supplier invoice match exceptions and **Approvals waiting** (PO and
+request approvals), per crosscut §3–§4, so that a business running only Purchasing can
+source, order, receive, return and match.
 
 **Organization.** Sorted by functional area (not by app): all supplier master screens
 together, all RFQ screens together, etc. Within each area, sub-tables per reference app.
 Each area ends with **BOSS implications**.
 
-**Scope.** Screens a buyer uses from requisition through supplier invoice handoff, plus
-the purchasing-facing side of shared screens. Receiving execution and inspection are
-covered in depth by the Warehouse pass and payables/3-way match by the Accounting pass;
-this file records the buyer's view of those screens and the handoff points, not their
-full inventory.
+**Scope.** Screens a buyer uses from requisition through supplier invoice handoff,
+including the reused screens a buyer needs. Receiving execution and inspection are
+researched in depth in the Warehouse pass and payables/3-way match in the Accounting pass;
+this file records the buyer's version of those reused screens (receiving, supplier
+returns, match exceptions) and the evidence for them, not their full inventory.
 
 **Path conventions.** Every backticked path resolves against the checkout for its prefix
 (crosscut §1). Checkouts are under `/home/jonesde/work/moquiwork/`:
@@ -173,13 +176,13 @@ reports. Each is a metadata window plus Java processes.
 document lists, and the strongest landing pages are working dashboards, not menus:
 Carbon's count cards + KPI chart + assigned documents (with approvals folded in),
 ERPNext's number cards and charts, Odoo's RFQ KPI strip, and Dolibarr's draft-order and
-draft-bill boxes. IronStone Purchasing should make its
-root screen a buyer work queue (my RFQs, POs awaiting approval, late receipts, invoices
-on hold) with the document lists one click away. Odoo's "new RFQ first" lifecycle is the
-right default: the buyer starts a sourcing document, not a PO, and a PO is the accepted
-quote/requisition outcome. AureusERP's split of Orders / Configurations / Products is a good
-authz grouping; Dolibarr's split into five modules is the anti-pattern to avoid (one app,
-one nav).
+draft-bill boxes. One option for the IronStone Purchasing root screen is a buyer work
+queue (my RFQs, POs awaiting approval, late receipts, invoices on hold) with the document
+lists one click away. Odoo's "new RFQ first" lifecycle is a candidate default: the buyer
+starts a sourcing document, not a PO, and a PO is the accepted quote/requisition outcome.
+AureusERP's split of Orders / Configurations / Products is a workable authz grouping;
+Dolibarr's split into five modules fragments the navigation, where the other references
+keep one app and one nav.
 
 ---
 
@@ -313,17 +316,17 @@ documents.
 | Vendors grid | Organization vendors list, add/edit dialog, favorites | `apps/gauzy/src/app/pages/vendors/vendors.component.ts`, `vendors.component.html` |
 | Vendor record view | Full-width vendor record used by favorites/deep links | `apps/gauzy/src/app/pages/vendors/vendor-record-view.ts` |
 
-**BOSS implications.** The supplier record is really four records in one screen:
-**party** (name, addresses, contacts, tax IDs), **purchasing terms** (currency, payment
-terms, incoterm, shipping), **financial** (bank accounts, balance, bills), and
-**performance/risk** (scorecard, risk register, processes). Carbon's Supplier 360
-sidebar (with supplier approval) and ERPNext's scorecard (whose standings can block
-RFQs and POs) are the best structural references; Odoo's
-`product.supplierinfo` is the right model for per-product vendor price/lead-time rows
-surfaced in Product 360; in Mantle these are `ProductPrice` rows with `vendorPartyId`
-(see §12). Keep vendor prices editable from both supplier and product
-contexts (Carbon and AureusERP both do). Do not copy Dolibarr's five separate module menus;
-one supplier record should link to every purchasing document.
+**BOSS implications.** The supplier record is really four records in one screen: **party**
+(name, addresses, contacts, tax IDs), **purchasing terms** (currency, payment terms,
+incoterm, shipping), **financial** (bank accounts, balance, bills), and
+**performance/risk** (scorecard, risk register, processes). Carbon's Supplier 360 sidebar
+(with supplier approval) and ERPNext's scorecard (whose standings can block RFQs and POs)
+are the strongest structural references; Odoo's `product.supplierinfo` is the closest
+model for per-product vendor price/lead-time rows in the reused Product 360; in Mantle
+these are `ProductPrice` rows with `vendorPartyId` (see §12). Carbon and AureusERP both
+let vendor prices be edited from supplier and product contexts. Dolibarr spreads suppliers
+over five module menus; in the other references one supplier record links to every
+purchasing document.
 
 ---
 
@@ -422,18 +425,17 @@ procurement (PMM) variant manages weekly contract quantities and messages.
 | Procurement planning view | Aggregated sales-order demand with purchase rows; launch PO creation | `backend/de.metas.ui.web.base/src/main/java/de/metas/ui/web/order/sales/purchasePlanning/view/`, `backend/de.metas.ui.web.base/src/main/java/de/metas/ui/web/order/sales/purchasePlanning/process/WEBUI_PurchaseCandidates_PurchaseView_Launcher.java` |
 | Requisition (legacy) | ADempiere `M_Requisition` / `M_RequisitionLine` model and a Requisition → PO process; whether a WebUI window exposes it is *(unverified)* | `backend/de.metas.business/src/main/java-legacy/org/compiere/model/MRequisition.java`, `backend/de.metas.business/src/main/java-legacy/org/compiere/process/RequisitionPOCreate.java` |
 
-**BOSS implications.** IronStone Purchasing needs a genuine internal **purchase request**
-because that is the missing role in Odoo/AureusERP and the strongest part of ERPNext: any
-employee asks, a buyer sources. Model it as a request document with purpose, required-by,
-cost center/project and lines, then a single action to create RFQ(s) or PO(s) — ERPNext's
-button set is the reference. The Moqui baseline already has the shape: `Request` type
-`RqtPurchase` with `RequestItem` (product, quantity, required-by, maximum amount,
-supplier) and `create#PurchaseRequestOrder`, which splits the lines into one PO per
-supplier and links them with `RequestItemOrder` (§12). Keep *agreements* (blanket
-orders/templates) as a separate document, as Odoo and AureusERP do; do not conflate them
-with requisitions. Buyer work
-should start from a demand queue (ERPNext requested-items report, Carbon planning,
-metasfresh candidates), not from a blank PO.
+**BOSS implications.** A genuine internal **purchase request** is the missing role in
+Odoo/AureusERP and the strongest part of ERPNext: any employee asks, a buyer sources.
+ERPNext models it as a request document with purpose, required-by, cost center/project and
+lines, then a single action to create RFQ(s) or PO(s); its button set is the reference.
+The Moqui baseline already has the shape: `Request` type `RqtPurchase` with `RequestItem`
+(product, quantity, required-by, maximum amount, supplier) and
+`create#PurchaseRequestOrder`, which splits the lines into one PO per supplier and links
+them with `RequestItemOrder` (§12). Odoo and AureusERP keep *agreements* (blanket
+orders/templates) as a separate document from requisitions, despite the shared name. In
+ERPNext, Carbon and metasfresh, buyer work starts from a demand queue (ERPNext
+requested-items report, Carbon planning, metasfresh candidates), not from a blank PO.
 
 ---
 
@@ -535,15 +537,16 @@ vendor gateways (the MSV3 module is the reference implementation).
 | Remote purchase order gateway | Vendor-gateway API for sending orders/availability (Null + MSV3 implementations) | `backend/de.metas.vendor.gateway.api/`, `backend/de.metas.vertical.pharma.vendor.gateway.msv3/` |
 | MSV3 order/availability windows | Vendor gateway transaction, order and availability-response windows | `backend/de.metas.vertical.pharma.vendor.gateway.msv3/src/main/sql/postgresql/system/99-metasfresh-pharma.vendor.gateway.mvs3/5484240_sys_gh3411-app_add_window_for_verfuegbarkeit_and_bestellung.sql` |
 
-**BOSS implications.** Separate **RFQ** and **supplier quote** records, as ERPNext and
-Carbon do; Odoo keeps one record but recovers comparison through its Alternatives addon,
-which is a warning that the comparison UI matters more than the document count. The
-non-negotiable screen is a **quote comparison** (ERPNext report, Carbon compare drawer,
-Odoo Compare Product Lines): per line, vendor, unit price, lead time, shipping, tax and
-total landed cost, with a selection that becomes the PO. Carbon's digital quote share
-link is the best vendor-response pattern (no portal account required); ERPNext's "create
-quotation on behalf of supplier" is the necessary fallback for phone/email quotes. Model
-Odoo's "merge RFQs" and alternative cancellation warning as bulk actions on requests.
+**BOSS implications.** ERPNext and Carbon keep **RFQ** and **supplier quote** as separate
+records; Odoo keeps one record but recovers comparison through its Alternatives addon,
+which suggests the comparison UI matters more than the document count. Every reference
+with sourcing has a **quote comparison** (ERPNext report, Carbon compare drawer, Odoo
+Compare Product Lines): per line, vendor, unit price, lead time, shipping and tax, with a
+selection that becomes the PO; total landed cost is a candidate addition (none makes it
+first-class, §13). Carbon's digital quote share link is the strongest vendor-response
+pattern (no portal account required); ERPNext's "create quotation on behalf of supplier"
+covers phone/email quotes. Odoo's "merge RFQs" and alternative cancellation warning are
+candidate bulk actions on requests.
 
 ---
 
@@ -659,16 +662,17 @@ invoice candidates are separate windows.
 | Purchase order window | Generic document window for `C_Order` purchase orders | `frontend/src/containers/MasterWindowContainer.js`, `frontend/src/components/window/`; window definitions under `backend/de.metas.business/src/main/sql/` |
 | Order lines/quick input | Line entry and quick-input descriptors | `backend/de.metas.ui.web.base/src/main/java/de/metas/ui/web/quickinput/orderline/OrderLineQuickInputDescriptorFactory.java` |
 
-**BOSS implications.** The PO screen should be the richest shared document in the app:
-header facts (supplier, buyer, currency, incoterm, payment terms, dates), line grid with
-per-line receipt/invoice progress, a right-side activity/attachment panel, and a status
-bar whose actions change by state. In the Moqui baseline this is the existing
-`OrderDetail` screen, which already serves sales and purchase parts; Purchasing owns the
-purchase action set on it (crosscut §3). Take Carbon's revision support (create a revision
-instead of editing a sent PO) and ERPNext's create-menu (receipt, invoice, payment,
-subcontract) as requirements. Approval must be amount-threshold based (Odoo/Dolibarr),
-and lock/unlock must be explicit (Odoo/Carbon/AureusERP). Blanket agreements belong beside
-POs but must not be the same record.
+**BOSS implications.** In the references the PO screen is the richest document in the
+purchasing app: header facts (supplier, buyer, currency, incoterm, payment terms, dates),
+line grid with per-line receipt/invoice progress, a right-side activity/attachment panel,
+and a status bar whose actions change by state. In the Moqui baseline this is the existing
+`OrderDetail` screen, which already serves sales and purchase parts; it is the reused
+Order detail (crosscut §3), and Purchasing's version emphasizes the purchase action set.
+Candidates from the references: Carbon's revision support (create a revision instead of
+editing a sent PO) and ERPNext's create-menu (receipt, invoice, payment, subcontract).
+Approval is amount-threshold based in Odoo and Dolibarr, and lock/unlock is explicit in
+Odoo, Carbon and AureusERP. Blanket agreements sit beside POs in the references but are a
+different record.
 
 ---
 
@@ -765,25 +769,27 @@ procurement planning window. There is no separate min/max reorder-rule page.
 | Procurement planning | Candidate → order worklist | `backend/de.metas.purchasecandidate.base/src/main/sql/postgresql/system/45-de.metas.purchasecandidate/5478250_sys_gh3037-purchase-order-candidates-window-webui.sql` |
 | Product planning settings | Product planning policy/lead time used by disposition | `backend/de.metas.material/planning/` |
 
-**BOSS implications.** The best buyer experience combines Odoo's editable min/max list,
-ERPNext's scheduled auto-reorder and Carbon's time-phased planning grid. For BOSS, a
-single **Replenishment** screen should switch views (list, forecast, time-phased) over
-the same data, show on-hand/forecast/incoming/outgoing/qty-to-order, and offer
-Order / Automate / Snooze per row. Keep the rule editor inline (Odoo) and put the
-forecast drill-down one click away. Supply warnings ("no vendor/route") must be visible
-before the buyer clicks Order, not after. The Moqui baseline has the inputs —
-`ProductFacility.minimumStock` / `reorderQuantity`, projected inventory from
-`get#InventoryProjectedInfo`, main/alternate supplier on `ProductPrice` — and
-`Requirement` as the natural "suggested order" record, but no reorder service and no
-screen (§12). The stock side is the Warehouse-owned Inventory availability screen;
-Replenishment is Purchasing's shortfall-and-reorder face of it (crosscut §3).
+**BOSS implications.** The evidence favors combining Odoo's editable min/max list,
+ERPNext's scheduled auto-reorder and Carbon's time-phased planning grid. One option is a
+single **Replenishment** screen that switches views (list, forecast, time-phased) over the
+same data, shows on-hand/forecast/incoming/outgoing/qty-to-order, and offers Order /
+Automate / Snooze per row. Odoo keeps the rule editor inline, puts the forecast drill-down
+one click away, and shows supply warnings ("no vendor/route") before the buyer clicks
+Order. The Moqui baseline has the inputs — `ProductFacility.minimumStock` /
+`reorderQuantity`, projected inventory from `get#InventoryProjectedInfo`, main/alternate
+supplier on `ProductPrice` — and `Requirement` as the natural "suggested order" record,
+but no reorder service and no screen (§12). Replenishment is the buyer's version of the
+reused Inventory availability screen (also included in Warehouse, Customer Service, Sales,
+Manufacturing and Commerce), emphasizing shortfall and reorder (crosscut §3).
 
 ---
 
 ## 7. Receiving & supplier returns
 
-Receiving is a Warehouse-owned execution screen; purchasing needs the PO-linked view,
-the receipt progress on lines, and the return-authorization flow.
+Receiving and supplier returns are reused screens (Shipment detail and the return record,
+also included in Warehouse and Accounting). Purchasing includes them so that a business
+without the Warehouse app can still receive and return; the buyer's version centers on the
+PO-linked view, receipt progress on lines and the return-authorization flow.
 
 ### Odoo — receipts and returns from the PO
 
@@ -883,16 +889,18 @@ reference for "return against receipt" semantics.
 Akaunting has no receipt or PO-linked return; bills are the only purchasing document.
 Gauzy has no receiving or returns at all.
 
-**BOSS implications.** Keep receiving execution in Warehouse but expose it from the PO
-with per-line received/remaining quantities and a Receive action, as Odoo, ERPNext and
-Carbon do. Supplier returns need their own purchasing document (Carbon's Return Order is
-the best reference: RMA number, return location, returnable receipt lines, credit vs
-replacement). Do not bury returns in a credit note only (Dolibarr) — buyers need the
-physical return flow and the financial credit linked to the same record. Mantle already
-has that record: `ReturnHeader` with `vendorPartyId` and `supplierRmaId`, `ReturnItem`
-responses (credit, refund, replace) and an outbound `ShpTpPurchaseReturn` shipment;
-Purchasing owns the return, Warehouse ships it and Accounting issues the debit note
-(crosscut §4).
+**BOSS implications.** Odoo, ERPNext and Carbon expose receiving from the PO with per-line
+received/remaining quantities and a Receive action. Receiving is a reused screen:
+Purchasing would include it with a PO context, for buyers in businesses without a separate
+warehouse team, and Warehouse includes the same screen with its execution emphasis
+(receive, pick, pack, ship, labels). Supplier returns have their own purchasing document in
+Carbon, the strongest reference (RMA number, return location, returnable receipt lines,
+credit vs replacement). Dolibarr has only a credit note; the other references link the
+physical return flow and the financial credit to the same record. Mantle already has that
+record: `ReturnHeader` with `vendorPartyId` and `supplierRmaId`, `ReturnItem` responses
+(credit, refund, replace) and an outbound `ShpTpPurchaseReturn` shipment. Supplier returns
+are reused (crosscut §4): Purchasing includes the return document, Warehouse the outbound
+return shipment and Accounting the debit note, over the same record.
 
 ---
 
@@ -1004,16 +1012,20 @@ includes purchaser, grand total, invoicing status and delivery status columns.
 | Purchaser/invoice status columns | Purchaser, grand total, status color fields | `backend/de.metas.fresh/de.metas.fresh.base/src/main/sql/postgresql/system/70-de.metas.fresh/5767780_sys_gh24241_Purchaser_User_Field.sql`, `5750740_sys_gh20510_Invoice_Candidate_InvoicingStatusColor.sql` |
 | Payment allocation | Allocate vendor payments/invoices | `backend/de.metas.banking/de.metas.banking.base/src/main/java/de/metas/banking/payment/paymentallocation/`, `backend/de.metas.ui.web.base/src/main/java/de/metas/ui/web/payment_allocation/` |
 
-**BOSS implications.** The purchasing app should show invoice status and *matching
-exceptions* on the PO, not own the bill form: received-not-invoiced, invoiced-not-received,
-price/quantity variance (bill entry and the match itself belong to Accounting, crosscut
-§4). Mantle can compute all three: `OrderItemBilling` links an order item to an invoice
-item and optionally to the `AssetReceipt` that received it, and the SimpleScreens invoice
-already has Orders and Shipments tabs that apply invoice items to them (§12). Odoo's
-line-match list and Carbon's extracted-line mapping are
-the two strongest additions: a match/unmatch screen with variance highlighting, and an
-import path that maps supplier PDF/OCR lines onto PO/receipt lines. Bill entry and payment
-belong to Accounting; Purchasing needs a deep link plus a "on hold / blocked" reason.
+**BOSS implications.** What buyers need in the references is invoice status and *matching
+exceptions* on the PO: received-not-invoiced, invoiced-not-received, price/quantity
+variance. Supplier invoices and 3-way match are reused across Purchasing and Accounting
+(crosscut §4): Purchasing would include the match-exceptions screen and holds against PO
+and receipt, plus the same supplier-invoice screen Accounting includes, so a buyer can
+open and resolve a bill without leaving the app. Bill entry, posting and payment are
+Accounting's emphasis; Purchasing's version centers on the match and an "on hold /
+blocked" reason (ERPNext Hold/Block Invoice). Mantle can compute all three exceptions:
+`OrderItemBilling` links an order item to an invoice item and optionally to the
+`AssetReceipt` that received it, and the SimpleScreens invoice already has Orders and
+Shipments tabs that apply invoice items to them (§12). Odoo's line-match list and Carbon's
+extracted-line mapping are the two strongest additions: a match/unmatch screen with
+variance highlighting, and an import path that maps supplier PDF/OCR lines onto PO/receipt
+lines.
 
 ---
 
@@ -1122,18 +1134,19 @@ cockpit.
 | Purchase price/availability trends | Price and availability trend reports/menus | `backend/de.metas.ui.web.base/src/main/sql/postgresql/system/41-de.metas.ui.web.base/5459622_sys_gh1277_WEBUI_AD_Menu_dump.sql` |
 | Material cockpit | Demand/supply analysis grid | `backend/de.metas.ui.web.base/src/main/java/de/metas/ui/web/material/cockpit/` |
 
-**BOSS implications.** Split the area in two: a **supplier scorecard** (quality, OTD,
-price variance, responsiveness, risk) and **operational reports** (spend by
+**BOSS implications.** The references divide the area in two: a **supplier scorecard**
+(quality, OTD, price variance, responsiveness, risk) and **operational reports** (spend by
 supplier/product/category/period, open commitments, late receipts, invoice variances).
-ERPNext's scorecard is the only full model and should be the starting point; Odoo's OTD
-and purchase analysis are the minimum metrics. Do not build a separate reporting app
-inside Purchasing — surface the same pivot/list views as Insights, with saved views per
-buyer. Carbon's purchase pivot (grouping, CSV, drill-down) is the right interaction
-pattern. The quality input comes from Warehouse inspection (crosscut §4); in Mantle the
-receipt-level signal is `AssetReceipt.quantityRejected` + `rejectionReasonEnumId`, OTD
-can be computed from `OrderItem.requiredByDate` / `OrderPart.estimatedDeliveryDate`
-against `AssetReceipt.receivedDate`, and `ProductPrice.supplierRatingTypeEnumId` is an
-unused per-product supplier rating slot (no enum values seeded).
+ERPNext's scorecard is the only full model; Odoo's OTD and purchase analysis are the
+minimum metrics. One option is the same pivot/list views Insights uses, with saved views
+per buyer, rather than a separate reporting module inside Purchasing. Carbon's purchase
+pivot (grouping, CSV, drill-down) is the strongest interaction pattern found. The quality
+input is quality inspection, a function included in Warehouse and Manufacturing (crosscut
+§4); in Mantle the receipt-level signal is `AssetReceipt.quantityRejected` +
+`rejectionReasonEnumId`, OTD can be computed from `OrderItem.requiredByDate` /
+`OrderPart.estimatedDeliveryDate` against `AssetReceipt.receivedDate`, and
+`ProductPrice.supplierRatingTypeEnumId` is an unused per-product supplier rating slot (no
+enum values seeded).
 
 ---
 
@@ -1237,34 +1250,39 @@ vendor product records. Windows/menus are metadata.
 | Product planning data | Planning policy/lead time per product | `backend/de.metas.material/planning/` |
 | Vendor product/schedule | Vendor product info and purchase schedule | `backend/de.metas.purchasecandidate.base/src/main/java/de/metas/purchasecandidate/VendorProductInfo.java`, `backend/de.metas.purchasecandidate.base/src/main/sql/postgresql/system/45-de.metas.purchasecandidate/5493100_sys_gh4002_C_BP_PurchaseSchedule_window_tab.sql` |
 
-**BOSS implications.** Settings must cover the process rules that change behavior, not
-just labels: PO approval threshold, whether receipt is required before bill, whether
-same-rate is enforced, default buying price list/currency, over-receipt allowance,
-auto-reorder on/off, and the RFQ response window. ERPNext's Buying Settings is the best
-checklist. Keep supplier types/groups, incoterms, payment terms and units in shared
-Admin/Accounting configuration rather than duplicating them in Purchasing.
+**BOSS implications.** The settings that matter in the references are process rules that
+change behavior, not just labels: PO approval threshold, whether receipt is required
+before bill, whether same-rate is enforced, default buying price list/currency,
+over-receipt allowance, auto-reorder on/off, and the RFQ response window. ERPNext's Buying
+Settings is the most complete checklist. Supplier types/groups, incoterms, payment terms
+and units are configuration records shared with Admin and Accounting; one option is a
+reused settings screen over the same records, included where each app's audience needs it
+(where shared configuration is edited is a crosscut §8 question).
 
 ---
 
 ## 11. Cross-app surfaces
 
-Faces as assigned in crosscut §3 (shared screens) and §4 (feature ownership).
+Reused screens as listed in crosscut §3 (reused screens) and §4 (overlapping functions).
+Purchasing includes each in the form a buyer needs, so a business running only Purchasing
+can source, order, receive, return and match in one app; the other apps include the same
+screens with their own context.
 
-| Surface | Purchasing face | Reference evidence |
-| --- | --- | --- |
-| **Supplier 360** (owner: Purchasing) | The full record: party, contacts and addresses, purchasing terms, supplier prices, open RFQs/quotes/POs, receipts, returns, scorecard and risk, approval status; Accounting adds AP balance, bills and payments, Products the supplier-price rows, Warehouse inbound receipts | Carbon supplier sidebar (Quotes, Orders, Invoices, Risks, Parts) and supplier approval; ERPNext Supplier + Scorecard standings; Odoo vendor Purchase tab, smart buttons and On-time Rate; AureusERP vendor sub-pages; Dolibarr supplier card tabs |
-| **Order detail** (purchase action set owned by Purchasing) | Send RFQ/PO, confirm, approve (amount threshold), hold, revise, lock, cancel, close; per-line received/billed progress; links to receipts, bills, returns; Warehouse adds receiving, Accounting invoices and payments | Odoo PO status bar and Lock/Unlock; ERPNext Hold/Close/Update Items and create menu; Carbon PO header, revisions, approval modal; Dolibarr Validate/Approve/Approve 2/Refuse |
-| **Product 360** (owner: Products) | Supplier-price face: supplier, supplier item id/name, price breaks, currency, lead time, main/alternate supplier, drop-ship; purchase history | Odoo `product.supplierinfo` on the product Purchase tab; Carbon item supplier parts; AureusERP product Vendors tab; ERPNext Item Supplier + Item Lead Time; Dolibarr supplier products |
-| **Inventory availability** (owner: Warehouse) | Shortfall and reorder face: Replenishment screen with on hand, projected, incoming, min/reorder, suggested quantity, preferred supplier | Odoo replenishment report; ERPNext projected qty / items to be requested; Carbon Material Planning; Dolibarr Replenishment; metasfresh material cockpit |
-| **Shipment detail** (owner: Warehouse) | Inbound against PO: expected receipts, late receipts, received/remaining per PO line; outbound supplier-return shipments | Odoo Receive / Receipt smart button; ERPNext Purchase Receipt from PO; Carbon PO line receiving; Dolibarr receptions from the order; AureusERP Manage Receipts |
-| **Request / case** (owner: Customer Service) | Purchase requests: `Request` type `RqtPurchase` with items, required-by, suggested supplier; Purchasing owns the list, approval and "create RFQ/PO" actions | ERPNext Material Request and its create buttons; metasfresh legacy requisition; (Odoo, AureusERP, Carbon, Dolibarr lack it) |
-| **Supplier invoices & 3-way match** (owner: Accounting) | Match exceptions and holds on the PO: received-not-billed, billed-not-received, price and quantity variance, bill on hold with reason; deep link to the bill | Odoo bill-line matching and Bill Matching smart button; ERPNext Hold/Block Invoice; Carbon invoice line → order line and extracted-line mapping; metasfresh purchase invoice candidates |
-| **Supplier returns** (owner: Purchasing) | Return document with supplier RMA, lines from receipts, credit vs replacement; Warehouse ships it (`ShpTpPurchaseReturn`), Accounting books the debit note | Carbon Purchase Return Order (and quality-issue bridge); ERPNext Debit Note from receipt; Odoo receipt Return; metasfresh vendor return from receipt |
-| **Quality inspection** (owner: Warehouse) | Supplier quality score: rejected quantity and reasons per supplier feed the scorecard | ERPNext scorecard criteria; Carbon supplier risk register and quality issues |
-| **Approvals waiting** (header Notifications) | PO approvals (amount threshold) and purchase-request approvals as a filtered face | Carbon Assigned to Me with pending approvals; Odoo To Approve state; Dolibarr two-level approval; AureusERP approval threshold setting |
-| **Chatter & activities** (owner: Commons / Comms) | Timeline on supplier, request, RFQ, PO and return: sent RFQs/POs, supplier replies, attachments, follow-ups | Odoo chatter on PO and RFQ (not re-researched here); Carbon supplier documents; ERPNext RFQ email to suppliers |
-| **Dashboard widgets** (owner: Insights) | Landing-page cards and charts: open POs, to receive, to bill, late receipts, spend by supplier, OTD | ERPNext Buying number cards and charts; Carbon purchasing KPIs; Odoo RFQ KPI strip and Purchase Analysis |
-| **Per-app settings** (each app) | Purchasing settings: approval threshold, lock confirmed POs, receipt-before-bill rule, same-rate rule, RFQ defaults, auto-reorder | Odoo Purchase Settings; ERPNext Buying Settings; AureusERP Manage Orders; Dolibarr module setup pages |
+| Reused screen or link | Use in Purchasing | Other apps that include it | Reference evidence |
+| --- | --- | --- | --- |
+| **Supplier 360** | The fullest version: party, contacts and addresses, purchasing terms, supplier prices, open RFQs/quotes/POs, receipts, returns, scorecard and risk, approval status | Accounting (AP balance, bills, payments), Products (supplier-price rows), Warehouse (inbound receipts) | Carbon supplier sidebar (Quotes, Orders, Invoices, Risks, Parts) and supplier approval; ERPNext Supplier + Scorecard standings; Odoo vendor Purchase tab, smart buttons and On-time Rate; AureusERP vendor sub-pages; Dolibarr supplier card tabs |
+| **Order detail** (purchase orders) | Purchase action set: send RFQ/PO, confirm, approve (amount threshold), hold, revise, lock, cancel, close; per-line received/billed progress; links to receipts, bills, returns | Sales, Customer Service, Warehouse (receiving and fulfillment), Accounting (invoices and payments), Commerce | Odoo PO status bar and Lock/Unlock; ERPNext Hold/Close/Update Items and create menu; Carbon PO header, revisions, approval modal; Dolibarr Validate/Approve/Approve 2/Refuse |
+| **Product 360** | Supplier prices: supplier, supplier item id/name, price breaks, currency, lead time, main/alternate supplier, drop-ship; purchase history | Products (master data), Commerce, Manufacturing, Warehouse, Accounting, Sales | Odoo `product.supplierinfo` on the product Purchase tab; Carbon item supplier parts; AureusERP product Vendors tab; ERPNext Item Supplier + Item Lead Time; Dolibarr supplier products |
+| **Inventory availability** | Replenishment: on hand, projected, incoming, min/reorder, suggested quantity, preferred supplier | Warehouse (full stock), Customer Service, Sales, Manufacturing, Commerce | Odoo replenishment report; ERPNext projected qty / items to be requested; Carbon Material Planning; Dolibarr Replenishment; metasfresh material cockpit |
+| **Shipment detail** (receiving) | Receiving against PO: expected and late receipts, Receive action, received/remaining per PO line; outbound supplier-return shipments | Warehouse (receive, pick, pack, ship), Customer Service and Sales (tracking), Commerce, Accounting | Odoo Receive / Receipt smart button; ERPNext Purchase Receipt from PO; Carbon PO line receiving; Dolibarr receptions from the order; AureusERP Manage Receipts |
+| **Request / case** | Purchase requests: `Request` type `RqtPurchase` with items, required-by, suggested supplier; Purchasing's version adds the request list, approval and "create RFQ/PO" actions | Customer Service, Maintenance, Projects, Sales, Warehouse, Commons | ERPNext Material Request and its create buttons; metasfresh legacy requisition; (Odoo, AureusERP, Carbon, Dolibarr lack it) |
+| **Supplier invoices & 3-way match** | Match exceptions and holds on the PO: received-not-billed, billed-not-received, price and quantity variance, bill on hold with reason; the supplier invoice itself to review and resolve | Accounting (AP bills, posting, payment) | Odoo bill-line matching and Bill Matching smart button; ERPNext Hold/Block Invoice; Carbon invoice line → order line and extracted-line mapping; metasfresh purchase invoice candidates |
+| **Supplier returns** | Return document with supplier RMA, lines from receipts, credit vs replacement, and its return shipment | Warehouse (outbound return shipment, `ShpTpPurchaseReturn`), Accounting (debit note) | Carbon Purchase Return Order (and quality-issue bridge); ERPNext Debit Note from receipt; Odoo receipt Return; metasfresh vendor return from receipt |
+| **Quality inspection** | Supplier quality score: rejected quantity and reasons per supplier feed the scorecard | Warehouse (receiving and returns inspection), Manufacturing (in-process and final) | ERPNext scorecard criteria; Carbon supplier risk register and quality issues |
+| **Approvals waiting** | PO approvals (amount threshold) and purchase-request approvals, as a filtered list and in the header Notifications panel | Header (all apps); People, Projects, Sales, Accounting approval lists | Carbon Assigned to Me with pending approvals; Odoo To Approve state; Dolibarr two-level approval; AureusERP approval threshold setting |
+| **Chatter & activities** | Timeline on supplier, request, RFQ, PO and return: sent RFQs/POs, supplier replies, attachments, follow-ups | Every app's record screens | Odoo chatter on PO and RFQ (not re-researched here); Carbon supplier documents; ERPNext RFQ email to suppliers |
+| **Dashboard widgets** | Landing-page cards and charts: open POs, to receive, to bill, late receipts, spend by supplier, OTD | Insights, every app's landing page | ERPNext Buying number cards and charts; Carbon purchasing KPIs; Odoo RFQ KPI strip and Purchase Analysis |
+| **Per-app settings** | Purchasing settings: approval threshold, lock confirmed POs, receipt-before-bill rule, same-rate rule, RFQ defaults, auto-reorder | Every app (its own settings section); Admin (settings index) | Odoo Purchase Settings; ERPNext Buying Settings; AureusERP Manage Orders; Dolibarr module setup pages |
 
 ---
 
@@ -1343,9 +1361,9 @@ quote comparison, scorecard or match-exception services.
   agreements; Carbon, Dolibarr and Akaunting have none.
 - **3-way match enforcement is Enterprise in Odoo** (`account_3way_match`, an upgrade
   toggle, not in the checkout); community has 2-way bill↔PO line matching only.
-- **No reference implements a buyer work queue across all document types** except
-  Carbon's landing dashboard (with approvals in Assigned to Me); Dolibarr's supplier area
-  shows only drafts and counts. That is a BOSS opportunity.
+- **No reference implements a buyer work queue across all document types** except Carbon's
+  landing dashboard (with approvals in Assigned to Me); Dolibarr's supplier area shows
+  only drafts and counts. That is an open area for BOSS.
 - **Quote comparison** is a report (ERPNext) or drawer (Carbon, Odoo alternatives); none
   makes landed cost (freight, duty, tax) first-class in the compare view.
 - **AureusERP replenishment** is a stub (order-point resource with no columns); its
@@ -1353,8 +1371,8 @@ quote comparison, scorecard or match-exception services.
 - **Akaunting** has no requisition, RFQ, PO, receipt or return; it is a bills/vendors
   reference only. **Ever Gauzy** has only a vendor register.
 - **metasfresh** has strong planning/candidate and invoice-disposition concepts, but its
-  UI is generic windows; use it for the demand → candidate → PO model and vendor
-  evaluation, not for page design.
+  UI is generic windows; it is a reference for the demand → candidate → PO model and
+  vendor evaluation, not for page design.
 
 ### Notable gaps in the Moqui baseline
 
@@ -1407,87 +1425,103 @@ quote comparison, scorecard or match-exception services.
 | Ever Gauzy | Vendor register | No | No | No | No | No | No | No |
 | Moqui baseline | Party form | `RqtPurchase` request → PO | No | Shared order screen | Data only | Incoming shipments; supplier returns | Invoice ↔ order/shipment tabs | No |
 
-### Recommended screen inventory (IronStone Purchasing)
+### Candidate screen inventory (IronStone Purchasing)
+
+Candidate screens for buyers, from the findings above. Screens other apps would also
+include are marked **(reused: …)**.
 
 | Area | Screens |
 | --- | --- |
-| Home | Buyer work queue: my requests to source, RFQs awaiting replies, quotes expiring, POs to approve **(shared: header Notifications)**, POs not acknowledged, late receipts, bills on hold, replenishment suggestions; number cards and spend chart **(shared: Insights widgets)** |
-| Suppliers | Supplier list (status, category, buyer, open PO value); **Supplier 360** (owner): summary, contacts and addresses **(shared: Commons Contacts)**, purchasing terms, supplier prices, documents (RFQs, quotes, POs, receipts, returns, bills), scorecard and risk, approval status, Chatter **(shared: Commons/Comms)** |
-| Purchase requests | My requests (any employee), request form (purpose, required-by, cost center/project, lines with suggested supplier), approval, buyer queue with "create RFQ" / "create PO"; the request record itself is **(shared: Customer Service Request / case)** with type `RqtPurchase` |
+| Home | Buyer work queue: my requests to source, RFQs awaiting replies, quotes expiring, POs to approve **(reused: Approvals waiting, header Notifications)**, POs not acknowledged, late receipts, bills on hold, replenishment suggestions; number cards and spend chart **(reused: Insights widgets)** |
+| Suppliers | Supplier list (status, category, buyer, open PO value); **Supplier 360** in its fullest version **(reused: Accounting, Products, Warehouse)**: summary, contacts and addresses **(reused: Contact / party record, Commons and every app)**, purchasing terms, supplier prices, documents (RFQs, quotes, POs, receipts, returns, bills), scorecard and risk, approval status, Chatter **(reused: all apps)** |
+| Purchase requests | My requests (any employee), request form (purpose, required-by, cost center/project, lines with suggested supplier), approval, buyer queue with "create RFQ" / "create PO"; the request record and screen are **(reused: Request / case; Customer Service, Maintenance, Projects, Sales, Warehouse, Commons)** with type `RqtPurchase` |
 | Sourcing | RFQ list/form with recipients, send and share link, supplier quote entry (by buyer or supplier link), quote comparison (price, lead time, landed cost) with per-line award → PO |
-| Purchase orders | PO list (saved views by status); **Order detail (shared: Sales/Purchasing)** with the purchase action set: send, confirm, approve, hold, revise, lock, cancel, close; receipt and bill progress per line |
-| Agreements | Blanket orders / price agreements with validity, committed and released quantities (deferred, see Open questions) |
-| Replenishment | Shortfall list from **Inventory availability (shared: Warehouse)**: on hand, projected, min, reorder qty, suggested qty, preferred supplier, lead time; Order / Snooze; reorder-level editing inline |
-| Receiving & returns | Expected and late receipts by PO, opening **Shipment detail (shared: Warehouse)**; supplier return list and form (RMA, lines from receipts, credit vs replacement) |
-| Invoice matching | Match exceptions on POs: received-not-billed, billed-not-received, price/qty variance, bills on hold, each linking to the bill in **Accounting (shared: Accounting AP)** |
-| Performance | Supplier scorecard (OTD, quality from **Warehouse inspection**, price variance, response time), spend by supplier/product/period, open commitments |
+| Purchase orders | PO list (saved views by status); **Order detail (reused: Sales, Customer Service, Warehouse, Accounting, Commerce)** with the purchase action set: send, confirm, approve, hold, revise, lock, cancel, close; receipt and bill progress per line |
+| Agreements | Blanket orders / price agreements with validity, committed and released quantities (record open, see Open questions) |
+| Replenishment | Shortfall list on **Inventory availability (reused: Warehouse, Customer Service, Sales, Manufacturing, Commerce)**: on hand, projected, min, reorder qty, suggested qty, preferred supplier, lead time; Order / Snooze; reorder-level editing inline |
+| Receiving & returns | Expected and late receipts by PO and a **Receive** action on **Shipment detail (reused: Warehouse, Customer Service, Sales, Commerce, Accounting)**; supplier return list and form (RMA, lines from receipts, credit vs replacement) with its return shipment **(reused: Warehouse, Accounting)** |
+| Invoice matching | Match exceptions on POs: received-not-billed, billed-not-received, price/qty variance, bills on hold with reason; each opens the supplier invoice in the same screen Accounting includes **(reused: Accounting)** |
+| Performance | Supplier scorecard (OTD, quality from **quality inspection (reused: Warehouse, Manufacturing)**, price variance, response time), spend by supplier/product/period, open commitments |
 | Settings | Approval threshold, lock confirmed POs, receipt-before-bill and same-rate rules, RFQ defaults, request purposes, supplier categories; Admin settings index links here |
 
-### Data-model implications
+### Data-model findings
 
-- **Purchase order:** keep `OrderHeader` / `OrderPart` (vendor = supplier, customer =
-  internal org) / `OrderItem`; use `otherPartyOrderId` for the supplier's order number,
-  `tradeTermEnumId` for incoterms, `orderRevision` + `increment#OrderRevision` for
-  revisions. Lock and acknowledgement need a field or status (none today).
+- **Purchase order:** `OrderHeader` / `OrderPart` (vendor = supplier, customer =
+  internal org) / `OrderItem` fit; `otherPartyOrderId` holds the supplier's order number,
+  `tradeTermEnumId` the incoterm, and `orderRevision` + `increment#OrderRevision` give
+  revisions. Lock and acknowledgement have no field or status today.
 - **Purchase request:** `Request` type `RqtPurchase` + `RequestItem` + `RequestItemOrder`,
-  converted by `create#PurchaseRequestOrder`; add an approval step (a status flow with an
-  Approved status for `RqtPurchase`, or `RequestParty` approver rows) and budget via
-  `RequirementBudgetAllocation` or a new request-item budget link.
-- **Replenishment:** generate `Requirement` (type `RqTpInventory`, status Proposed) from
-  `ProductFacility.minimumStock` / `reorderQuantity` against `get#InventoryProjectedInfo`;
-  convert with `RequirementOrderItem`. A new reorder service is needed.
-- **Supplier prices:** `ProductPrice` rows with `vendorPartyId`, surfacing
-  `standardLeadTimeDays`, `preferredOrderEnumId`, `otherPartyItemId`, `minQuantity`,
-  `canDropShip`; no new entity.
+  converted by `create#PurchaseRequestOrder`. An approval step is missing; options are a
+  status flow with an Approved status for `RqtPurchase`, or `RequestParty` approver rows.
+  A budget check could use `RequirementBudgetAllocation` or a new request-item budget link.
+- **Replenishment:** `Requirement` (type `RqTpInventory`, status Proposed) fits as the
+  suggested order, generated from `ProductFacility.minimumStock` / `reorderQuantity`
+  against `get#InventoryProjectedInfo` and converted with `RequirementOrderItem`. No
+  reorder service exists.
+- **Supplier prices:** `ProductPrice` rows with `vendorPartyId` fit; the screens would
+  surface `standardLeadTimeDays`, `preferredOrderEnumId`, `otherPartyItemId`,
+  `minQuantity`, `canDropShip`. No new entity appears necessary.
 - **RFQ and supplier quote:** no Mantle record. Options: an RFQ as `Request` type
-  `RqtQuote` (crosscut lists it as Sales' request for quote) with one `RequestParty` per
-  invited supplier, and each supplier quote as an `OrderHeader` in `OrderProposed` with
-  the supplier as vendor, linked back by a new request/order join — or new
-  `PurchaseRfq` / `SupplierQuote` entities. Decide before building (Open questions).
+  `RqtQuote` (crosscut lists it under Sales for customer requests for quote) with one
+  `RequestParty` per invited supplier, and each supplier quote as an `OrderHeader` in
+  `OrderProposed` with the supplier as vendor, linked back by a new request/order join —
+  or new `PurchaseRfq` / `SupplierQuote` entities. The sourcing screens depend on this
+  choice (Open questions).
 - **Supplier returns:** `ReturnHeader` (`vendorPartyId`, `supplierRmaId`) + `ReturnItem`
-  responses + `ShpTpPurchaseReturn` shipment; a return-against-receipt link needs
-  `ReturnItem` → `AssetReceipt` (today it points at the order item).
-- **Match exceptions:** compute from `OrderItem`, `AssetReceipt` and `OrderItemBilling`;
-  a hold reason on the purchase `Invoice` is an Accounting field to add.
-- **Supplier terms and scorecard:** default payment terms, incoterm, currency, buyer per
-  supplier have no fields (use `PartySetting` or add a supplier-terms entity); scorecard
-  periods, criteria and scores are new records.
+  responses + `ShpTpPurchaseReturn` shipment fit; a return-against-receipt link would
+  need `ReturnItem` → `AssetReceipt` (today it points at the order item).
+- **Match exceptions:** computable from `OrderItem`, `AssetReceipt` and
+  `OrderItemBilling`; a hold reason on the purchase `Invoice` has no field today (it
+  would serve the Accounting version of the screen too).
+- **Supplier terms and scorecard:** default payment terms, incoterm, currency and buyer
+  per supplier have no fields (options: `PartySetting` or a supplier-terms entity);
+  scorecard periods, criteria and scores would be new records.
 
-### First-release cut
+### Sequencing notes
 
-Ship: landing work queue (counts and lists, no builder), supplier list + Supplier 360
-(summary, contacts, supplier prices with lead time and main/alternate, documents, open
-POs), purchase requests on `RqtPurchase` with a simple approve step and Create PO, PO
-list + the purchase action set on Order detail (send with PDF, approve by threshold,
-hold, cancel, revision), expected/late receipts list, supplier returns on `ReturnHeader`,
-a replenishment shortfall list (below minimum stock, suggested qty, preferred supplier,
-Order button), and Purchasing settings for the approval threshold. Defer: RFQs and quote
-comparison (needs the data-model decision), blanket agreements, supplier portal and
-share links, scorecards beyond OTD and rejected-quantity counts, match-exception screen
-beyond a "received not billed / billed not received" list, time-phased planning,
-landed-cost compare.
+- **Cheap on the baseline.** Supplier list and a Supplier 360 summary over the party
+  record and `ProductPrice` supplier rows (surfacing the hidden lead-time and
+  main/alternate fields); purchase requests on `RqtPurchase` with Create PO
+  (`create#PurchaseRequestOrder`); the PO list and purchase actions on the existing
+  `OrderDetail`; expected/late receipts and receiving over existing incoming shipments
+  and `AssetReceipt`; supplier returns on `ReturnHeader`; a "received not billed /
+  billed not received" list from `OrderItemBilling` and `AssetReceipt`; a landing work
+  queue of counts and lists.
+- **Small additions.** Request approval needs an Approved status or approver rows;
+  amount-threshold PO approval and lock need a rule and a field or status; PO send needs a
+  PDF and supplier email; per-line received/billed progress is computed; a replenishment
+  shortfall list needs a reorder service over `ProductFacility` and
+  `get#InventoryProjectedInfo`.
+- **Depends on a data-model choice.** RFQs and quote comparison depend on the RFQ record;
+  blanket agreements on a purchase agreement type; supplier terms on `PartySetting` or a
+  new record; scorecards beyond OTD and rejected-quantity counts on scorecard records; a
+  bill hold reason on a new `Invoice` field.
+- **More expensive.** Supplier portal and share links (the cross-app portal question,
+  crosscut §8), time-phased planning (overlaps Manufacturing MRP), landed-cost compare,
+  and a full match/unmatch screen with PDF/OCR line mapping.
 
 ### Open questions
 
-- **RFQ record.** Reuse `Request` type `RqtQuote` (crosscut §3 gives `RqtQuote` to Sales
-  as "requests for quote" from customers) plus `OrderHeader` in `OrderProposed` per
+- **RFQ record.** Reuse `Request` type `RqtQuote` (crosscut §3 lists `RqtQuote` under
+  Sales as customer "requests for quote") plus `OrderHeader` in `OrderProposed` per
   supplier quote, or add purchase-specific RFQ and quote entities? Reusing `RqtQuote`
-  would put a Purchasing record in the Customer Service-owned Request screen.
-- **Purchase request ownership.** Crosscut §3 makes the Request / case screen a Customer
-  Service screen with Purchasing as a face, while initial-design gives "Purchase
-  requests" to Purchasing. This file keeps the record on the shared Request screen and
-  gives Purchasing the list, approval and conversion; confirm that split.
+  would put purchase RFQs and customer requests for quote on the same reused Request
+  screen; how would each app's context keep them apart?
+- **Purchase request screen.** One Request / case screen with a purchase context
+  (approval, create RFQ/PO actions), or a purchase-request sub-screen Purchasing
+  assembles from parts of it (the crosscut §8 granularity question)?
 - **Vendor portal.** Supplier quote submission, PO acknowledgement and invoice upload
-  appear in Odoo, ERPNext, Carbon and AureusERP. Crosscut assigns no owner (Commerce owns
-  the customer storefront). Purchasing, Commerce, or a shared portal?
-- **Blanket orders and purchase agreements.** Crosscut §4 gives customer agreements to
-  Sales; supplier agreements are unassigned. Should Purchasing own them on `Agreement`
-  (needs a purchase agreement type) or on `ProductPrice.agreementId` alone?
+  appear in Odoo, ERPNext, Carbon and AureusERP. One portal reused by several apps
+  (Purchasing for quotes and acknowledgements, Accounting for invoice upload), or a
+  portal per app (crosscut §8)?
+- **Blanket orders and purchase agreements.** Crosscut §4 lists purchase agreements under
+  Purchasing and Accounting (terms), with no purchase agreement type seeded. On
+  `Agreement` (needs a purchase agreement type) or on `ProductPrice.agreementId` alone?
 - **Approval threshold.** Model as an order status step (`OrderRequested` → approve) with
   an amount rule, or as a generic approval record usable by requests, POs and bills?
-- **Replenishment vs Manufacturing MRP.** `Requirement` serves both; who owns the
-  planning run when Manufacturing is installed (Carbon puts Material Planning in
-  Purchasing)?
+- **Replenishment vs Manufacturing MRP.** `Requirement` serves both; when Manufacturing is
+  installed, is there one planning run included in both apps, or one per app (Carbon puts
+  Material Planning in Purchasing)?
 
 ### Checkout path quirks
 
@@ -1506,7 +1540,8 @@ landed-cost compare.
   `purchase_requisition`.
 
 **Bottom line.** Mantle already holds every procure-to-pay record IronStone Purchasing
-needs except RFQs, supplier quotes, scorecards and supplier terms; the work is mostly
-screens and a few services (reorder suggestions, approvals, match exceptions). Build
-Supplier 360, purchase requests, the PO action set and a replenishment list first, on the
-existing records, and settle the RFQ data model before sourcing screens.
+needs except RFQs, supplier quotes, scorecards and supplier terms; the remaining work
+found is mostly screens and a few services (reorder suggestions, approvals, match
+exceptions). Supplier 360, purchase requests, the PO action set, receiving and supplier
+returns, match exceptions and a replenishment list all sit on existing records, while the
+sourcing screens depend on the RFQ data-model choice.
