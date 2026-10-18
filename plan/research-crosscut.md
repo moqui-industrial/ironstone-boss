@@ -1,6 +1,6 @@
 # IronStone BOSS — Research cross-cut: conventions, ownership & shared screens
 
-Oct 18, 2026
+Oct 18, 2026 (updated after the per-file source review)
 
 The research files (`research-*.md`) were first written independently, one per app or
 suite area. This file holds what they must agree on: how paths are written, how each file
@@ -41,7 +41,7 @@ and `mr-moqui-base/…` below).
 | **ERPNext** | `3p_other/frappe/erpnext` | `erpnext/<module>/…` (e.g. `erpnext/stock/doctype/item/`) |
 | **Frappe framework** (desk) | `3p_other/frappe/frappe` | `frappe/<area>/…` (e.g. `frappe/desk/`, `frappe/public/js/`) |
 | **Frappe CRM** | `3p_other/frappe/crm` | `frontend/src/…`, backend `crm/fcrm/doctype/…` |
-| **Frappe Helpdesk** | `3p_other/frappe/helpdesk` | `desk/src/…`, backend `helpdesk/helpdesk/doctype/…` |
+| **Frappe Helpdesk** | `3p_other/frappe/helpdesk` | `desk/src/…`, backend `helpdesk/helpdesk/doctype/…`, `helpdesk/api/…`, `helpdesk/{templates,www}/…` |
 | **Frappe HR** (hrms) | `3p_other/frappe/hrms` | `hrms/<area>/doctype/…`, PWA `frontend/src/…`, roster `roster/src/…` |
 | **Frappe Insights** | `3p_other/frappe/insights` | `frontend/src2/…`, backend `insights/insights/…` |
 | **Frappe LMS / Wiki / Gameplan** | `3p_other/frappe/{lms,wiki,gameplan}` | `frontend/src/…`, backend `<app>/<app>/…` |
@@ -51,7 +51,7 @@ and `mr-moqui-base/…` below).
 | **AureusERP** | `3p_other/aureuserp` | `plugins/webkul/<plugin>/src/Filament/…` |
 | **Dolibarr** | `3p_other/dolibarr` | `htdocs/<module>/…` |
 | **Dolibarr community modules** | `3p_other/dolibarr-community-modules` | `<module>/…` |
-| **metasfresh** | `3p_other/metasfresh` | `frontend/src/…`, `backend/de.metas.<module>/…` |
+| **metasfresh** | `3p_other/metasfresh` | `frontend/src/…`, `backend/de.metas.<module>/…`, mobile web UI `misc/services/mobile-webui/mobile-webui-frontend/src/…` |
 | **Akaunting** | `3p_other/akaunting` | `resources/views/…`, `app/…` |
 | **Ever Gauzy** | `3p_other/ever-co/ever-gauzy` | `apps/gauzy/src/app/pages/…`, `packages/…` |
 | **Ever Teams** / **Ever Rec** | `3p_other/ever-co/{ever-teams,ever-rec}` | repo root |
@@ -61,7 +61,7 @@ and `mr-moqui-base/…` below).
 | **OpenProject** | `3p_other/openproject` | `app/…`, `modules/<module>/…`, `frontend/src/app/features/…` |
 | **Redmine** | `3p_other/redmine` | `app/{views,controllers,models}/…` |
 | **Moqui components** (Sales, WorkManagement, WeCreate, coarchy, resistmanagement, ServiceJobMonitor, ridgecrest) | `3p_moqui/<component>` | `screen/…`, `service/…`, `entity/…` |
-| **Moqui baseline** | `mr-moqui-base/runtime` | `component/MrSimpleScreens/screen/SimpleScreens/…`, `component/MrMarbleERP/screen/…`, `component/mr-mantle-udm/entity/…`, `component/mr-mantle-usl/service/mantle/…`, `base-component/tools/screen/…`, `base-component/framework/entity/…`, `component/ironstone-boss/screen/…` |
+| **Moqui baseline** | `mr-moqui-base/runtime` | `component/MrSimpleScreens/screen/SimpleScreens/…`, `component/MrSimpleScreens/screen/{MyAccount,BasicHandheld}/…` (siblings of `SimpleScreens/`, not under it), `component/MrMarbleERP/screen/…`, `component/mr-mantle-udm/entity/…`, `component/mr-mantle-usl/{service/mantle,entity}/…` (`entity/` holds view entities and EECAs), `base-component/tools/screen/…`, `base-component/framework/entity/…`, `component/ironstone-boss/screen/…` |
 
 Notes that trip people up:
 
@@ -125,16 +125,16 @@ with an app/role context that selects tabs and the allowed action set (initial-d
 | **Customer 360** | Sales (Accounts & contacts) | Customer Service: cases, returns, orders; Marketing: engagement, consent, campaigns; Accounting: balance, credit, aging, statements; Commerce: store account, carts, online orders | `Party` with customer role + `OrderHeader`, `Request`, `ReturnHeader`, `Invoice`, `CommunicationEvent` |
 | **Supplier 360** | Purchasing | Accounting: AP balance, bills, payments; Products: supplier prices; Warehouse: inbound receipts | `Party` with supplier role + `ProductPrice` rows with `vendorPartyId` (supplier price, lead time, supplier item id), `OrderHeader` (purchase), `Invoice` |
 | **Employee 360** | People | Admin: user account; Projects: allocations, timesheets; Commons: directory card | `Person` + `PartyRelationship` `PrtEmployee` + `Employment`, `EmplPositionParty` |
-| **Product 360** | Products | Commerce: merchandising, store categories, SEO; Purchasing: supplier prices, lead times; Manufacturing: BOM, where-used; Warehouse: stock, lots, locations; Accounting: cost history; Sales: price and availability | `Product`, `ProductAssoc`, `ProductPrice`, `ProductParty`, `ProductFacility` |
+| **Product 360** | Products (including the product's supplier list, per initial-design "Product suppliers") | Commerce: merchandising, store categories, SEO; Purchasing: sourcing actions on the supplier rows (preferred supplier, lead times, RFQs); Manufacturing: BOM, where-used; Warehouse: stock, lots, locations; Accounting: cost history; Sales: price and availability | `Product`, `ProductAssoc`, `ProductPrice`, `ProductParty`, `ProductFacility` |
 | **Order detail** (sales and purchase) | Sales (sales orders, quotes); Purchasing (purchase orders) — one screen, two owners of action sets | Customer Service: changes, returns, cases; Warehouse: fulfillment (shipments, pick, ship); Accounting: invoices, payments; Commerce: channel filters on the shared order list | `OrderHeader`, `OrderPart`, `OrderItem` (quotes are `OrderHeader` in `OrderOpen`/`OrderProposed`) |
-| **Inventory availability** | Warehouse | Customer Service: read-only availability and promise dates; Purchasing: shortfall and reorder; Sales: inline on quote/order lines; Manufacturing: component availability | `Asset`, `AssetReservation`, `ProductFacility`; one service family `mantle.product.AssetServices.get#AvailableInventory*` |
+| **Inventory availability** | Warehouse | Customer Service: read-only availability and promise dates; Purchasing: shortfall and reorder; Sales: inline on quote/order lines; Manufacturing: component availability | `Asset`, `AssetReservation`, `ProductFacility`; one service family `mantle.product.AssetServices.get#AvailableInventory*` (available-to-promise totals); location/lot breakdown from `AssetSummaryView` / `AssetLocationSummary`; projected stock from `InventoryReportServices.get#InventoryProjectedInfo` |
 | **Shipment detail** | Warehouse | Customer Service and Sales: tracking, promise dates; Purchasing: inbound against PO; Accounting: cost and invoice links | `Shipment` (`ShpTp*`), `ShipmentItem`, `ShipmentItemSource`, `ShipmentPackage` |
 | **Facility & equipment record** | Maintenance | Warehouse: storage locations and setup; Manufacturing: production equipment and work centers; Commons: schedules and booking; Accounting: fixed-asset books | `Facility`, `FacilityLocation`, `Asset` (`AstTpEquipment`, fixed-asset types) |
-| **Request / case** | Customer Service (intake form, queues, SLA) | Commons: requests assigned; Projects: converted work; Purchasing: purchase requests (type `RqtPurchase`); Sales: requests for quote (`RqtQuote`) | `Request`, `RequestItem`, `RequestParty`, `RequestCommEvent`, `RequestWorkEffort` |
+| **Request / case** | Shared record. Customer Service owns case intake, queues and SLA; Purchasing owns the purchase-request workflow (type `RqtPurchase`, per initial-design "Purchase requests") | Commons: requests assigned; Projects: converted work; Maintenance: maintenance intake; Sales: customer requests for quote (`RqtQuote`); Warehouse: internal stock requests (`RqtInventory`, owner open, §8) | `Request`, `RequestItem`, `RequestParty`, `RequestCommEvent`, `RequestWorkEffort` |
 | **Task / work item** | Projects | Commons: tasks assigned; Customer Service, Sales: follow-up tasks; People: onboarding checklists | `WorkEffort` (`WetTask`), `WorkEffortParty`, `WorkEffortAssoc` |
 | **Calendar & schedules** | Commons | Maintenance: scheduling admin (policies, approvals); Projects: plan views; People: leave and shift views | `WorkEffort` (`WetEvent`), `WorkEffortFacility`, `WorkEffortAssetAssign` |
 | **Chatter & activities** | Commons / Comms (one component on every record) | Every app's record screens; activities roll up into the header Today panel | Messages: `CommunicationEvent` with record joins (`OrderCommunicationEvent`, `RequestCommEvent`, `WikiPageCommunicationEvent`, …); activities: `WorkEffort` (`WetTask`, purposes `WepToDo`, `WepPhoneCall`, `WepMeeting`, `WepEmail`) |
-| **Approvals waiting** | Header Notifications panel (suite) | People inbox (leave, expenses, timesheets), Purchasing (PO and request approvals), Accounting (bill approval) are filtered faces | Status transitions on the source records; notification topics |
+| **Approvals waiting** | Header Notifications panel (suite) | People (leave, expenses, pay hours), Projects (timesheets), Purchasing (PO and request approvals), Sales (quote and discount approvals, `OrderDecision`), Accounting (bill approval) are filtered faces | Status transitions on the source records; notification topics |
 | **Dashboard widgets** (number cards, charts) | Insights (widget types and builder) | Every app's landing page places widgets | New dashboard/widget records over `DataDocument` + saved finds |
 
 ## 4. Feature ownership for overlaps
@@ -142,6 +142,7 @@ with an app/role context that selects tabs and the allowed action set (initial-d
 | Feature | Owner | Other faces | Notes |
 | --- | --- | --- | --- |
 | Customer returns / RMA | Customer Service (authorization, reasons, case link) | Warehouse: return receipt and disposition (`ShpTpSalesReturn`); Accounting: credit/refund (`ReturnItemBilling`) | Mantle already has the RMA record: `ReturnHeader`/`ReturnItem` with statuses Requested → Approved → Shipped → Received → Completed |
+| Purchase agreements & blanket orders | Purchasing | Accounting: terms | `Agreement`, `AgreementItem`; no purchase agreement type is seeded |
 | Supplier returns | Purchasing | Warehouse: outbound return shipment (`ShpTpPurchaseReturn`); Accounting: debit note | |
 | Price lists & base prices | Products (product prices, costs, price rules) | Sales: customer-specific price agreements; Commerce: per-store prices | `ProductPrice`, `ProductPriceModify`; one price resolver that explains its result |
 | Customer agreements & price agreements | Sales | Accounting: terms; Customer Service: read | `Agreement`, `AgreementItem` |
@@ -149,7 +150,8 @@ with an app/role context that selects tabs and the allowed action set (initial-d
 | Promotions, coupons, loyalty | Marketing (program screens) | Commerce: store binding and checkout; Sales: manual discounts on quotes | `ProductStorePromotion`, `ProductStorePromoCode`, `OrderPromoCode`; evaluation is in the shared price resolver, not in Marketing |
 | Fixed assets | Maintenance (register, lifecycle, custodian) | Accounting: depreciation, capitalization, disposal | Same `Asset` record; `AssetDepreciation` |
 | Expense claims | People (capture, approval) | Accounting: posting, tax, payment | Employee-from `Invoice` or payroll reimbursement (`PrphExpenses`) |
-| Time entry & timesheets | Projects (entry, approval) | People: attendance, pay; Accounting: billing | `TimeEntry`, `Timesheet`; attendance (clock in/out) is People |
+| Time entry & timesheets | Projects (entry, approval) | People: attendance, pay hours; Accounting: billing | `TimeEntry`, `Timesheet`; attendance (clock in/out) is People |
+| Budgets | Accounting (GL budgets, `mantle.other.budget`, per initial-design) | Projects: project costing and cost caps (`WorkEffort.totalTimeAllowed`, `totalClientCostAllowed`) | `Budget` has no project link |
 | Booking rooms & equipment | Commons (book, availability) | Maintenance: policies, approvals, blackout windows | Decided in initial-design |
 | Knowledge base articles | Commons (wiki authoring) | Customer Service: search, suggest, link to case, suggest edit | `WikiPage`, `WikiPageRequest` |
 | Surveys & forms | Marketing (builder, responses) | Customer Service: CSAT; People: interview scorecards, training quizzes | Framework `DbForm` + `FormResponse` (SimpleScreens `Survey/`) |
@@ -159,38 +161,43 @@ with an app/role context that selects tabs and the allowed action set (initial-d
 | Landing pages & KPIs | Each app owns its landing page | Insights: widget types, cross-app dashboards, management digest | |
 | Per-app settings | Each app owns its settings section | Admin: settings index linking to them | |
 | User accounts, groups, app access | Admin | People and Commons: read face on the party | `UserAccount`, `UserGroup`, `ArtifactGroup` |
-| Email/SMS sending | Comms (accounts, sending, tracking, unsubscribe) | Marketing: campaign sends, audiences; Customer Service: case email | `CommunicationEvent`, `EmailMessage`; consent belongs with Comms, not Marketing alone |
+| Email/SMS sending, mail accounts | Comms (accounts, sending, tracking, unsubscribe and consent screens) | Marketing: campaign sends, audiences; Customer Service: case email; Admin: relay, gateway trust, protocol servers and queues | `CommunicationEvent`, `EmailMessage`, `EmailServer`; consent data today is Marketing's `ContactListParty` opt-in status |
 | Events & webinars | Commons (calendar event) | Marketing: registration, tickets, communication schedule | |
+| List pivot/graph view modes | mr-moqui framework form-list (initial-design "switchable views") | Insights: "add to dashboard" from any view; every find screen | |
 | Leads & opportunities | Sales | Marketing: lead sources, campaign attribution | `SalesOpportunity`, `MarketingCampaign`, `TrackingCode` |
 
 ## 5. Mantle basis for recurring records
 
 Verified against `runtime/component/mr-mantle-udm/entity/` on Oct 18, 2026. Research files
 cite these names exactly; a claim that "Mantle has no X" must be checked against this list
-and the entity files.
+and the entity files. Several entity definitions in those files are inside XML comments and
+do not exist at runtime: check that an entity is not commented out before citing it.
 
 | Concept | Mantle record (entity file) | Notes |
 | --- | --- | --- |
-| Quote | `OrderHeader` in `OrderOpen` / `OrderProposed` (OrderEntities) | No separate quote entity; `Request` type `RqtQuote` is a request for quote |
+| Quote | `OrderHeader` in `OrderOpen` / `OrderProposed` (OrderEntities) | No separate quote entity; `Request` type `RqtQuote` is a customer's request for quote, not a purchase RFQ (purchase RFQ model is open) |
 | Sales / purchase order | `OrderHeader`, `OrderPart`, `OrderItem` (OrderEntities) | Purchase vs sales is per `OrderPart` (vendor/customer) |
-| Return / RMA | `ReturnHeader`, `ReturnItem`, `ReturnItemBilling` (OrderEntities) | Statuses `ReturnRequested`, `ReturnApproved`, `ReturnShipped`, `ReturnReceived`, `ReturnCompleted`, `ReturnManResp`, `ReturnCancelled` |
+| Return / RMA | `ReturnHeader`, `ReturnItem`, `ReturnItemBilling` (OrderEntities) | Statuses `ReturnCreated`, `ReturnRequested`, `ReturnApproved`, `ReturnShipped`, `ReturnReceived`, `ReturnCompleted`, `ReturnManResp`, `ReturnCancelled` |
 | Case / request | `Request`, `RequestItem`, `RequestParty`, `RequestCommEvent`, `RequestWorkEffort`, `RequestCategory` (RequestEntities) | Types `RqtSupport`, `RqtInformation`, `RqtBugFix`, `RqtNewFeature`, `RqtPurchase`, `RqtQuote`, `RqtProposal`, `RqtInventory`, `RqtContact` |
 | Purchase requirement | `Requirement`, `RequirementOrderItem`, `RequirementRequestItem` (RequestEntities) | Planning output that becomes a PO |
-| Task, project, milestone, event | `WorkEffort` with `WetTask`, `WetProject`, `WetMilestone`, `WetEvent`, `WetRelease`, `WetTimeOff` (WorkEffortEntities) | Milestones already exist as a WorkEffort type |
-| Work effort purposes | `WepMaintenance`, `WepProductionRun`, `WepRouting`, `WepRoutingTask`, `WepSubcontracting`, `WepAssetUsage`, `WepToDo`, `WepPhoneCall`, `WepMeeting`, `WepEmail`, `WepTraining`, `WepTimesheet`, … | Routing purposes exist in the data model even though no screens use them |
-| Assignments and relations | `WorkEffortParty`, `WorkEffortAssoc`, `WorkEffortFacility`, `WorkEffortAssetAssign` | Not `WorkEffortPartyAssignment` |
+| Task, project, milestone, event | `WorkEffort` with `WetTask`, `WetProject`, `WetMilestone`, `WetEvent`, `WetRelease`, `WetTimeOff` (WorkEffortEntities) | Milestones already exist as a WorkEffort type (linked to tasks by `WorkEffortAssoc` `WeatMilestone`) |
+| Work effort purposes | `WepMaintenance`, `WepProductionRun`, `WepAssembling`, `WepPickAssembly`, `WepRouting`, `WepRoutingTask`, `WepSubcontracting`, `WepShipmentShip`, `WepAssetUsage`, `WepToDo`, `WepPhoneCall`, `WepMeeting`, `WepEmail`, `WepTraining`, `WepTimesheet`, … | Routings exist in the data model (`WepRouting`/`WepRoutingTask`, `WeatRoutingComp`, `WeptRouting`, `ProductAssoc.routingWorkEffortId`) but no screen or service uses them; `WepSubcontracting` is a top-level purpose, not under Manufacturing; picklists are `WepShipmentShip` work efforts (`Shipment.shipWorkEffortId`); kits are `PtPickAssembly` products |
+| Assignments and relations | `WorkEffortParty`, `WorkEffortAssoc`, `WorkEffortFacility`, `WorkEffortAssetAssign`, `OrderItemWorkEffort` | Not `WorkEffortPartyAssignment`; there is no resource-allocation record (`WorkEffortParty` has no hours) |
 | Time | `TimeEntry`, `Timesheet`, `TimesheetParty` (WorkEffortEntities) | |
-| Budgets | `Budget`, `BudgetItem`, `BudgetRevision`, `BudgetScenario`, … (`mantle.other.budget`, AccountingOtherEntities) | |
+| Budgets | `Budget`, `BudgetItem`, `BudgetRevision`, `BudgetScenario`, … (`mantle.other.budget`, AccountingOtherEntities) | Period/GL budgets; no project link |
 | Subscriptions | `Subscription`, `SubscriptionDelivery`, `ProductSubscriptionResource` (ProductDefinitionEntities) | |
 | Pricing | `ProductPrice`, `ProductPriceModify`, `ProductStorePromotion`, `ProductStorePromoCode`, `OrderPromoCode` | One `ProductPrice` table carries list, store (`productStoreId`), customer (`customerPartyId`), agreement (`agreementId`) and supplier (`vendorPartyId`, `standardLeadTimeDays`, `otherPartyItemId`) prices; there is no separate supplier-product entity |
 | Agreements | `Agreement`, `AgreementItem`, `AgreementTerm`, `AgreementParty`, … (PartyEntities) | |
 | Messages | `CommunicationEvent` (+ `Party`, `Content`, `Product`, `Purpose`) (PartyEntities) | Record joins exist per record type (orders, requests, wiki pages) |
-| Marketing | `MarketingCampaign`, `ContactList`, `MarketSegment`, `TrackingCode` (MarketingEntities) | |
+| Marketing | `MarketingCampaign` (budget, costs, expected revenue, approval status), `ContactList`, `ContactListParty` (opt-in status), `ContactListCommStatus`, `MarketSegment`, `TrackingCode`, `TrackingCodeVisit`, `TrackingCodeOrder` (MarketingEntities) | No screen or service in the baseline uses these entities |
 | Equipment & maintenance | `Asset`, `AssetMaintenance`, `ProductMaintenance`, `AssetMeter` (ProductAssetEntities) | |
-| Facilities | `Facility`, `FacilityLocation`, `FacilityParty`, … (FacilityEntities) | |
-| HR | `Employment`, `EmplPosition`, `EmplPositionClass`, `EmploymentLeave`, `PerformanceReview`, … (HumanResourcesEntities) | |
+| Facilities | `Facility`, `FacilityLocation`, `FacilityParty`, … (FacilityEntities) | `FacilityLocation` is flat (area/aisle/section/level/position, capacity, location type); production lines are `FcTpLine` facilities |
+| Shipping | `Shipment`, `ShipmentItem`, `ShipmentItemSource`, `ShipmentPackage`, `Delivery` (ShipmentEntities) | Type field is `shipmentTypeEnumId` |
+| HR | `Employee` (payroll tax data), `Employment`, `EmplPosition`, `EmplPositionClass`, `EmploymentLeave`, `EmploymentApplication`, `PartySkill`, `PayrollAdjustment`, `RateAmount`, … (HumanResourcesEntities) | **Commented out** (not usable without enabling): `PerformanceReview`, `PerformanceReviewItem`, `PerformanceNote`, `PartyQualification`, `PartyResume`, `PersonTraining`, `TrainingClass`, `JobRequisition`, `JobInterview` |
 | Surveys & forms | `moqui.screen.form.DbForm`, `FormResponse` (framework ScreenEntities) | Not a Mantle entity |
 | Wiki & blog | `moqui.resource.wiki.WikiSpace`, `WikiPage`, `WikiBlog` (framework ResourceEntities) | Blog posts exist in the framework wiki |
+| Analytics dimensions | `moqui.olap.DateDayDimension`, `CurrencyDimension` (framework) | Nothing fills or reads them; Mantle `*Dimension` entities are measurement values, not analytics dimensions |
+| **Commented out elsewhere** | — | Not usable without enabling: `CostComponent`, `CostComponentCalc`, `ProductCostComponentCalc`, `ProductAverageCost`, `ProductConfig*` (ProductDefinitionEntities); `TaxAuthorityRate` (AccountingOtherEntities); `AssetProduct`, `ShipmentInsuredRefunded`, `PartyClassificationSingle`, `PartyClassDimension`, `PartySettingTypeClass`; framework `SystemMessageHook`, `SystemMessageHookStatus`, `DynamicScreen*` |
 
 ## 6. Names and terms
 
@@ -216,6 +223,7 @@ WorkManagement, WeCreate, coarchy, resistmanagement, ServiceJobMonitor, ridgecre
 | Work order / production run | A Manufacturing production order, a `WorkEffort` with purpose `WepProductionRun` |
 | Work item | A Projects task (`WetTask`); Projects uses "work item", Commons uses "task" for the same record |
 | Landing page | An app's home screen; "dashboard" means an Insights dashboard |
+| Vendor (SimpleScreens) | SimpleScreens `Vendor/` screens are internal organizations (the company's own orgs), not suppliers; supplier screens are `Supplier/` |
 
 ## 7. Reference coverage by app
 
@@ -228,7 +236,7 @@ under-used. A file's **Not used here** line must name the ones it checked and fo
 | admin | Zimbra admin, Nextcloud server settings, Odoo, Frappe framework, Twenty, Carbon, Dolibarr | Frappe Central, ServiceJobMonitor, OpenProject and Redmine admin |
 | commerce | Odoo website/website_sale, Dolibarr, ERPNext portal, Ever Gauzy plugins | ridgecrest (Moqui storefront on PopRestStore), Frappe `payments` |
 | customer-service | Frappe Helpdesk, ERPNext support, Dolibarr tickets, Carbon RMA, Odoo | Redmine mail handler, Nextcloud Collectives, Frappe Wiki |
-| drawers-commons | Nextcloud apps, Zimbra, Frappe suite, Twenty, Ever Gauzy, Signal | Frappe Wiki, Gameplan, OpenProject/Redmine wiki and news |
+| drawers-commons | Nextcloud apps, Zimbra, Frappe suite, Twenty, Ever Gauzy, Signal, Odoo mail/Discuss/activities, OpenProject notifications | Frappe Wiki, Gameplan, OpenProject/Redmine wiki and news |
 | insights | Frappe Insights, ERPNext/Frappe workspaces, Odoo, Twenty, Carbon | OpenProject reporting and grids |
 | maintenance | Odoo, ERPNext, Carbon, AureusERP, Dolibarr, Ever Gauzy | Nextcloud Calendar resources, Zimbra resources |
 | manufacturing | Odoo, ERPNext, Carbon (ERP and MES), AureusERP, Dolibarr, metasfresh | — |
@@ -238,7 +246,7 @@ under-used. A file's **Not used here** line must name the ones it checked and fo
 | projects | OpenProject, Redmine, Odoo, ERPNext, AureusERP, Dolibarr, Ever Gauzy | Moqui WorkManagement, WeCreate, Gameplan |
 | purchasing | Odoo, ERPNext, Carbon, AureusERP, Dolibarr, metasfresh | Akaunting (bills only) |
 | sales | Odoo, Frappe CRM, ERPNext, Twenty, Carbon, Moqui Sales | Dolibarr, Ever Gauzy pipeline |
-| warehouse | Odoo, ERPNext, Carbon (ERP and MES), AureusERP, Dolibarr, metasfresh | ridgecrest (fulfillment screens) |
+| warehouse | Odoo, ERPNext, Carbon (ERP and MES), AureusERP, Dolibarr, metasfresh | ridgecrest (marketplace and fulfillment-center import only; no pick/pack screens) |
 
 **Odoo Enterprise-only, verified absent from the community checkout:** `account_asset`,
 `account_reports`, `quality_control`, `stock_barcode`, `helpdesk`, `hr_payroll`,
@@ -262,9 +270,33 @@ Cross-file questions that need a design decision. Per-file questions stay in eac
   are agreements or price rules.
 - **Generic record links for Chatter and activities.** Mantle has per-record join entities
   (`OrderCommunicationEvent`, `RequestCommEvent`, …) but no generic "any record" link.
-  Chatter on every record needs either more join entities or a generic link record.
+  Chatter on every record needs either more join entities or a generic link record. Orders
+  have no activity link today (only `OrderItemWorkEffort`), and survey `FormResponse` rows
+  link to no record (CSAT needs a case link).
 - **Approvals.** Is the suite-wide approvals list a header Notifications face only, or also
   a standalone inbox screen (People research proposes one)?
+- **Gateway and tax settings owner.** initial-design gives "Shipping, payment & tax settings"
+  to Commerce; research-accounting proposes Accounting owns tax and payment-gateway records
+  with Commerce binding them per store; research-admin lists gateways in its integrations
+  catalog. Decide one owner of the records and the faces.
+- **Mail domains and templates.** Who owns sending domains and DMARC reports (Admin or Comms),
+  and the email template library (Comms, or Marketing for campaign templates)?
+- **Portals.** Customer portal (orders, invoices, cases, quote acceptance) and vendor portal
+  (RFQ responses, PO acknowledgement): one portal app or faces owned by Commerce, Customer
+  Service, Sales, Accounting and Purchasing?
+- **Careers page and other public pages.** People or Commerce (store/site layer)? Is a
+  customer-facing storefront in BOSS scope at all (ridgecrest shows Mantle can run one)?
+- **Promotions across stores.** Mantle scopes `ProductStorePromotion` to one store; is a
+  promotion program that spans stores and channels needed?
+- **Customer-owned equipment repair and warranty.** Customer Service or Maintenance?
+- **Commented-out Mantle entities.** Enable the "future reference" definitions (HR reviews,
+  training and recruiting; cost components; product configuration; tax rates) in
+  mr-mantle-udm, or define BOSS records?
+- **Smaller ownership gaps:** internal stock requests (`RqtInventory`); replenishment vs
+  Manufacturing MRP; non-equipment downtime; rate cards (`RateAmount`, edited under HumanRes
+  today); working-hours calendars shared by SLA, People and Commons; the personal "Me" page
+  (People or Commons); 3PL stock sync (Warehouse or Admin); blogs (Marketing screens over
+  Commons wiki pages).
 - **Order detail with two owners.** Sales and Purchasing both own action sets on one Order
   detail screen. Keep one screen, or split sales and purchase order screens that share
   sub-screens?

@@ -554,7 +554,7 @@ IronStone Sales.
 | Workflows / automation | `packages/twenty-front/src/modules/workflow/` |
 | AI agent chat | `packages/twenty-front/src/modules/ai/` |
 | Settings / admin | `packages/twenty-front/src/pages/settings/`, `packages/twenty-front/src/modules/settings/` |
-| Email / calendar sync | `packages/twenty-front/src/modules/message-campaign/`, standard objects `message`, `calendarEvent` |
+| Email / calendar sync | `packages/twenty-front/src/modules/activities/{emails,calendar}/`, account settings `packages/twenty-front/src/modules/settings/accounts/`, server `packages/twenty-server/src/modules/{messaging,calendar}/`; standard objects `message`, `calendarEvent` |
 | Apps / extensions | `packages/twenty-apps/public/`, `packages/twenty-apps/examples/` |
 | Shared UI | `packages/twenty-ui/`, `packages/twenty-front-component-renderer/` |
 
