@@ -2,28 +2,31 @@
 
 Oct 18, 2026
 
-Deeper research pass on the **IronStone Products** app (products & variants, categories, features & attributes, pricing & costs, product suppliers, product documents), cataloguing every relevant screen/page found in the reference apps. Companion to [3p-app-reference.md](3p-app-reference.md) and the sibling passes [research-drawers-commons.md](research-drawers-commons.md) / [research-accounting.md](research-accounting.md); feeds the design of the Products row in [initial-design.md](initial-design.md) plus the product face of the shared Product 360 screen (Supplier view in Purchasing, BOM view in Manufacturing, merchandising in Commerce).
+Reviewed against sources Oct 18, 2026; follows [research-crosscut.md](research-crosscut.md).
+
+Deeper research pass on the **IronStone Products** app, covering the six sections initial-design gives it: **Products & variants**, **Categories**, **Features & attributes**, **Pricing & costs**, **Product suppliers** and **Product documents**. It catalogues every relevant screen/page found in the reference apps. Companion to [3p-app-reference.md](3p-app-reference.md); feeds the Products row in [initial-design.md](initial-design.md) and the shared **Product 360** screen, which Products owns (crosscut §3): Commerce adds merchandising, store categories and SEO; Purchasing supplier prices and lead times; Manufacturing BOM and where-used; Warehouse stock, lots and locations; Accounting cost history; Sales price and availability. Products also owns base prices, costs, price rules and the one price resolver (crosscut §4).
 
 **Organization.** Sorted by functional area (not by app): all variant screens together, all pricing screens together, etc. Within each area, sub-tables per reference app. Style mirrors [research-drawers-commons.md](research-drawers-commons.md).
 
-**Scope.** Catalog management UI only: product master, variants/attributes, categories, pricing & costs, supplier catalogs, media/documents, units/barcodes — the screens a catalog manager lives in. Stock movements are Warehouse; bills and purchase orders are Purchasing; BOMs/routings are Manufacturing — those surfaces appear here only as links the product screen exposes (the Product 360 border).
+**Scope.** Catalog management UI only: product master, variants/attributes, categories, pricing & costs, supplier catalogs, media/documents, units/barcodes — the screens a catalog manager lives in. Stock movements are Warehouse; bills and purchase orders are Purchasing; BOMs/routings are Manufacturing; storefront merchandising is Commerce — those surfaces appear here only as faces on the Product 360 (§10, §12).
 
-**Path conventions.** Paths are relative to each repository's own root, as in 3p-app-reference.md. Checkout locations:
+**Path conventions.** Every backticked path resolves against the checkout for its prefix (per [research-crosscut.md](research-crosscut.md) §1; checkouts under `/home/jonesde/work/moquiwork/`). A tail such as `ui/Consumables/` or `…/Schemas/ProductForm.php` is relative to the directory named earlier in the same cell or row; `…` stands for that directory. `$itemId`-style route parameters and `x+/` folders are literal parts of Carbon file names.
 
-| Prefix in this doc | Checkout |
-| --- | --- |
-| **Akaunting** | `/home/jonesde/work/moquiwork/3p_other/akaunting` — Blade views in `resources/views/`, controllers in `app/Http/Controllers/`, widgets in `app/Widgets/` |
-| **AureusERP** | `/home/jonesde/work/moquiwork/3p_other/aureuserp` — Filament resources/clusters under `plugins/webkul/<plugin>/src/Filament/` |
-| **Carbon** | `/home/jonesde/work/moquiwork/3p_other/carbon` — React Router modules under `apps/erp/app/modules/` |
-| **Dolibarr** | `/home/jonesde/work/moquiwork/3p_other/dolibarr` — module pages under `htdocs/<module>/`; document/numbering generators under `htdocs/core/modules/` |
-| **ERPNext** | `/home/jonesde/work/moquiwork/3p_other/frappe/erpnext` — Item-family doctypes **including Price List & Item Price** under `erpnext/stock/`; `uom`/`item_group` masters under `erpnext/setup/`; only `product_bundle` (+ selling-facing reports) in `erpnext/selling/` |
-| **Ever Gauzy** | `/home/jonesde/work/moquiwork/3p_other/ever-co/ever-gauzy` — paths relative to the monorepo root (`apps/gauzy` + `packages/*`) |
-| **metasfresh** | `/home/jonesde/work/moquiwork/3p_other/metasfresh` — React WebUI in `frontend/src/` is a thin generic shell; business windows are metadata-defined in the backend `de.metas.*` modules |
-| **Odoo** | `/home/jonesde/work/moquiwork/3p_other/odoo` — paths below use `odoo/addons/<addon>/…`; in this checkout that resolves to `3p_other/odoo/odoo/addons/<addon>/` (each addon's views in `<addon>/views/`, JS in `<addon>/static/src/`) |
+| Prefix | Checkout | Paths start with |
+| --- | --- | --- |
+| **Odoo** | `3p_other/odoo` | `odoo/addons/<addon>/…` (`product`, `uom`, `barcodes`, `stock`, `stock_account`, `purchase`, `sale`, `mrp`); views in `views/`, OWL in `static/src/` |
+| **ERPNext** | `3p_other/frappe/erpnext` | `erpnext/<module>/…`: Item family, Price List and Item Price under `erpnext/stock/`; `item_group`, `brand`, `uom`, `uom_conversion_factor` under `erpnext/setup/`; Pricing Rule and Promotional Scheme under `erpnext/accounts/`; `product_bundle` and selling reports under `erpnext/selling/`; Item Variant creation in `erpnext/controllers/` |
+| **Carbon** | `3p_other/carbon` | `apps/erp/app/{modules,routes}/…` (items module `apps/erp/app/modules/items/`, part routes `apps/erp/app/routes/x+/part+/`), `packages/…` |
+| **AureusERP** | `3p_other/aureuserp` | `plugins/webkul/<plugin>/src/…` (`products`, `purchases`, `inventories`, `sales`, `manufacturing`, `barcode`) |
+| **Dolibarr** | `3p_other/dolibarr` | `htdocs/<module>/…` (`product`, `variants`, `categories`, `barcode`, `fourn`, `margin`, `core`) |
+| **metasfresh** | `3p_other/metasfresh` | `frontend/src/…`, `backend/de.metas.<module>/…` (product, pricing, UOM engines inside `backend/de.metas.business/`) |
+| **Akaunting** | `3p_other/akaunting` | `resources/views/…`, `app/…` |
+| **Ever Gauzy** | `3p_other/ever-co/ever-gauzy` | `apps/gauzy/src/app/pages/…`, `packages/…` (domain in `packages/core/src/lib/`, catalog plugin `packages/plugins/catalog/`) |
+| **Moqui baseline** | `mr-moqui-base/runtime` | `component/MrSimpleScreens/screen/SimpleScreens/…`, `component/MrMarbleERP/screen/…`, `component/mr-mantle-udm/entity/…`, `component/mr-mantle-usl/service/mantle/…`, `base-component/framework/entity/…` |
 
-Not used here: Twenty, Zimbra, Nextcloud and the groupware sources from the earlier passes ship no product-catalog functionality.
+**Not used here:** checked and found no product-catalog UI in Twenty, Zimbra, Nextcloud, Signal, OpenProject, Redmine, Ever Teams, and the Frappe apps other than ERPNext (CRM, Helpdesk, HR, Insights, LMS, Wiki, Gameplan, suite, Central). Dolibarr community modules only map incoming e-invoice vendor references onto products (`einvoicing/product_mapping.php`, stored as supplier prices), which is a Purchasing/Accounting face. Of the Moqui components, ridgecrest has storefront product pages only (Commerce); resistmanagement only mounts the SimpleScreens `Catalog.xml` tree (`3p_moqui/resistmanagement/screen/resistadmin.xml`), the same screens as the Moqui baseline; Sales, WorkManagement, WeCreate, coarchy and ServiceJobMonitor have no product screens.
 
-Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 product lists & find views](#2-product-lists--find-views) · [3 product forms & master data](#3-product-forms--master-data) · [4 variants & attributes](#4-variants--attributes) · [5 categories & taxonomy](#5-categories--taxonomy) · [6 pricing & costs](#6-pricing--costs) · [7 product suppliers & purchasing references](#7-product-suppliers--purchasing-references) · [8 media, documents & attachments](#8-media-documents--attachments) · [9 UOM, packaging & barcodes](#9-uom-packaging--barcodes) · [10 product 360 & shared faces](#10-product-360--shared-faces) · [11 catalog settings & configuration](#11-catalog-settings--configuration) · [12 gaps & notables in the checkout](#12-gaps--notables-in-the-checkout)
+Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 product lists & find views](#2-product-lists--find-views) · [3 product forms & master data](#3-product-forms--master-data) · [4 variants & attributes](#4-variants--attributes) · [5 categories & taxonomy](#5-categories--taxonomy) · [6 pricing & costs](#6-pricing--costs) · [7 product suppliers & purchasing references](#7-product-suppliers--purchasing-references) · [8 media, documents & attachments](#8-media-documents--attachments) · [9 UOM, packaging & barcodes](#9-uom-packaging--barcodes) · [10 product 360 & shared faces](#10-product-360--shared-faces) · [11 catalog settings & configuration](#11-catalog-settings--configuration) · [12 cross-app surfaces](#12-cross-app-surfaces) · [13 current Moqui baseline](#13-current-moqui-baseline-mrsimplescreens--marbleerp--mantle) · [14 gaps & BOSS implications](#14-gaps--boss-implications)
 
 ---
 
@@ -35,8 +38,8 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Dashboard grid (shared) | Same draggable widget board as accounting; products appear only inside `ExpensesByCategory` income-vs-expense grouping and item-based defaults screens — no product widget exists in `app/Widgets/` | `resources/views/common/dashboards/show.blade.php`, `app/Widgets/ExpensesByCategory.php` |
-| Items module home | Flat item list (`Common/Items`) — see §2; no overview page, no KPIs | `app/Http/Controllers/Common/Items.php` |
+| Dashboard grid (shared) | Same draggable widget board as accounting; its widget classes (account balance, bank feeds, cash flow, currencies, expenses by category, payables, profit & loss, receivables) include none for products | `resources/views/common/dashboards/show.blade.php`, `app/Widgets/` |
+| Items module home | Flat item list (the `Items` controller) — see §2; no overview page, no KPIs | `app/Http/Controllers/Common/Items.php` |
 
 ### AureusERP — Filament resource lists are the home
 
@@ -49,8 +52,8 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Items submodule registry | The module surface is declared in code: `Items` route group with Parts, Consumables, Services, Tools, Methods, Materials (+ Material ×Type/Grade/Shape/Substance/Dimensions/Finishes masters), Item posting groups, UOM — each a saved-view-enabled list, permission-gated; icons per route | `apps/erp/app/modules/items/ui/useItemsSubmodules.tsx` |
-| Module notes | `AGENTS.md` at module root states the domain split: one shared `item` table + per-type extension tables (`part`, `material`, `tool`, `consumable`, `service`), make-method versioning (Draft/Active/Archived), item tracking types (Inventory/Serial/Batch/Non-Inventory), replenishment systems (Buy/Make) | `apps/erp/app/modules/items/AGENTS.md` |
+| Items submodule registry | The module surface is declared in code: **Items** (Parts, Materials, Tools, Consumables, Services), **Change Notices** (+ Change Notice Types, Change Notice Actions), **Material Properties** (Dimensions, Finishes, Grades, Shapes, Substances, Types) and **Configure** (Item Groups, Units); routes are permission-gated and get saved views appended (`useSavedViews`) | `apps/erp/app/modules/items/ui/useItemsSubmodules.tsx` |
+| Module notes | `AGENTS.md` at module root states the domain split: one shared `item` table + per-type extension tables (`part`, `material`, `tool`, `consumable`, `service`), make-method versioning (Draft/Active/Archived), item tracking types (Inventory/Serial/Batch/Non-Inventory), replenishment systems (Buy, Make, Buy and Make) | `apps/erp/app/modules/items/AGENTS.md` |
 
 ### Dolibarr — "Products & services area": a boxes page per type
 
@@ -63,8 +66,8 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Inventory workspace | Sidebar page with shortcuts to Item, Item Group, Item Attribute, Brand, Item Prices, plus stock reports; the closest thing to a catalog home | `erpnext/stock/workspace/stock/stock.json` |
-| Catalog dashboards & number cards | Pre-canned dashboards/charts + KPI cards: Stock Value by Item Group, Item Shortage, Oldest items, Total active items | `erpnext/stock/dashboard_chart/{stock_value_by_item_group,item_shortage_summary,oldest_items}.json`, `erpnext/stock/number_card/{total_active_items,total_stock_value}.json` |
+| Stock workspace | Desk workspace titled **Stock**: onboarding block, links to Item, Item Group, Item Attribute, Brand, Item Prices, Item Variant Settings, plus Item Reports (Item Variant Details, Item Where Used, Item-wise Price List Rate…); the closest thing to a catalog home | `erpnext/stock/workspace/stock/stock.json` |
+| Charts & number cards | Workspace chart **Stock Value by Item Group** and number cards **Total Stock Value**, **Total Warehouses**, **Total Active Items**; further stock charts (Item Shortage Summary, Oldest Items) exist as records | `erpnext/stock/dashboard_chart/{stock_value_by_item_group,item_shortage_summary,oldest_items}/`, `erpnext/stock/number_card/{total_active_items,total_stock_value,total_warehouses}/` |
 | Item onboarding | Desk onboarding step guiding item creation | `erpnext/stock/onboarding_step/create_item/` |
 
 ### Ever Gauzy — Angular inventory module as its own page group
@@ -78,7 +81,7 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Dashboard shell | Chart-widget host (antd `ChartWidget`/`ChartOptions`, drag-and-drop wrapper, sidenav) — the generic dashboard that any product window can host | `frontend/src/components/dashboard/{ChartWidget.js,ChartOptions.js,DndWidget.js,Sidenav.js}` |
+| Dashboard shell | Chart-widget host (`ChartWidget`/`ChartOptions`, drag-and-drop wrapper, sidenav) — the generic dashboard, not product-specific | `frontend/src/components/dashboard/{ChartWidget.js,ChartOptions.js,DndWidget.js,Sidenav.js}` |
 | Generic document window | Every product/pricing screen renders through the one shell (list container + master window) — see §2 note | `frontend/src/containers/{DocumentListContainer,MasterWindowContainer}.js` |
 | Product/pricing web-UI hooks | Backend Java "processes" (web-UI actions) for the product/pricing windows, e.g. discount-schema-break copy-to-otherSchema | `backend/de.metas.ui.web.base/src/main/java/de/metas/ui/web/{product,pricing}/process/` |
 
@@ -86,9 +89,9 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Products kanban | Card view per product template: favorite-ordered, sample-data seeded (`sample="1"`), inline hover actions + on-hand qty chip for storable items; `view_mode kanban,list,form` for the products root menu | `odoo/addons/product/views/product_views.xml` (`product_kanban_view`, `product_template_action_product`) |
+| Products kanban | Card view per product template (`product_template_kanban_view`, `sample="1"`) behind the **Products** action (`product_template_action`, `view_mode` kanban,list,form); the variant kanban (`product_kanban_view`) orders favorites first; Inventory re-declares the action as `product_template_action_product` | `odoo/addons/product/views/product_template_views.xml`, `odoo/addons/product/views/product_views.xml`, `odoo/addons/stock/views/product_views.xml` |
 
-**BOSS implications.** No reference builds a standalone "products dashboard": the home is either a taxonomic workspace (ERPNext) or a nav registry (Carbon) or the product list itself (everyone else). For BOSS's catalog-manager home, copy the ERPNext workspace pattern — shortcut tiles into Product list, Categories, Attributes, Price lists, Brands — plus 2–4 KPI cards (active products, variants count, price-list coverage) rendered from Moqui screen portlets; keep Akaunting's lesson that widget plumbing is expensive, and fold any product stats into the list screen's KPI strip instead of a separate dashboard app.
+**BOSS implications.** No reference builds a standalone "products dashboard": the home is either a taxonomic workspace (ERPNext) or a nav registry (Carbon) or the product list itself (everyone else). For BOSS's catalog-manager home, copy the ERPNext workspace pattern — shortcut tiles into Product list, Categories, Attributes, Price lists, Brands — plus 2–4 KPI cards (active products, variants count, price-list coverage) placed as Insights widgets (crosscut §3: Insights owns widget types, Products owns its landing page); keep Akaunting's lesson that widget plumbing is expensive, and fold any product stats into the list screen's KPI strip instead of a separate dashboard app.
 
 ---
 
@@ -98,31 +101,31 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Items list | Paged/grid item list with per-row dropdowns, grouped bulk actions (enable/disable/delete, category assign), the list layout block reused across masters; a "favorite" slot pins Items to the home rail | `resources/views/common/items/index.blade.php`, controller `app/Http/Controllers/Common/Items.php` (`index()` eager-loads `category, media, taxes`, sortable via `->collect()`) |
+| Items list | Paged item table with per-row dropdowns and bulk actions (edit, enable, disable, delete, export), the list layout block reused across masters; a "favorite" slot lets the user pin the page | `resources/views/common/items/index.blade.php`, bulk actions `app/BulkActions/Common/Items.php`, controller `app/Http/Controllers/Common/Items.php` (`index()` eager-loads `category, media, taxes`, sortable via `->collect()`) |
 | Item create/edit | Create/edit share one page layout: sections split into info + billing + description tiles (§3) | `resources/views/common/items/{create,edit}.blade.php` |
-| Import (mapping-review) | One generic import page for every type: upload sheet → column mapping/sample preview (with embedded how-to video and sample file link) → error report; items import goes through the same pipeline | `resources/views/common/import/create.blade.php`, `app/Http/Controllers/Common/Import.php`, `Items.php@import` (Excel import class `app/Imports/`) |
+| Import | One generic import page for every type: upload a sheet in the sample-file layout (sample file link and embedded how-to video; no column mapping step) → per-row validation failures reported back; items import goes through the same pipeline | `resources/views/common/import/create.blade.php`, `app/Http/Controllers/Common/Import.php`, `app/Utilities/Import.php`, `Items.php@import` (Excel import classes `app/Imports/`) |
 | Export & bulk | Excel export of the filtered list; shared bulk-action controller across modules | `app/Http/Controllers/Common/{BulkActions,Items}.php` (`export`/`destroy`), `resources/views/components/index/` layout parts |
 
-### AureusERP — Filament grid with Bagisto-style type dimension
+### AureusERP — Filament grid with type, category and date groupings
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Product list table | `ProductsTable.php` behind `ListProducts.php`: columns incl. bagisto `type`, **grouping by type** (`Tables\Grouping\Group::make('type')`), a `type` select constraint (filter state saved in the browser) | `plugins/webkul/products/src/Filament/Resources/ProductResource/{Tables/ProductsTable,Pages/ListProducts}.php` |
-| Type vocabulary | Product types and their labels come from the plugin Enums/Settings | `plugins/webkul/products/src/Enums/`, `plugins/webkul/products/src/Settings/ProductSettings.php` |
+| Product list table | `ProductsTable.php` behind `ListProducts.php`: `type` column, **groupings** by type, category and created date (`Tables\Grouping\Group::make('type')`), a `type` select constraint in the query-builder filter | `plugins/webkul/products/src/Filament/Resources/ProductResource/{Tables/ProductsTable,Pages/ListProducts}.php` |
+| Type vocabulary | Product type enum has just two cases, goods and service; feature switches come from `ProductSettings` (§11) | `plugins/webkul/products/src/Enums/ProductType.php`, `plugins/webkul/products/src/Settings/ProductSettings.php` |
 
 ### Carbon — one table component per item subtype
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Subtype tables | Each item subtype (parts, consumables, services, tools) has its own table + header/properties components and a `use*Navigation` hook wiring deep links (edit route, detail tabs) | `apps/erp/app/modules/items/ui/Parts/{PartsTable,PartHeader,PartProperties}.tsx` + `ui/Parts/usePartNavigation.tsx`, `ui/Consumables/ConsumablesTable.tsx` (+ `ConsumableHeader/Properties`), `ui/Services/`, `ui/Tools/` |
+| Subtype tables | Each item subtype (parts, consumables, services, tools) has its own table + header/properties components and a `use*Navigation` hook wiring deep links (edit route, detail tabs) | `apps/erp/app/modules/items/ui/Parts/{PartsTable,PartHeader,PartProperties}.tsx` + `ui/Parts/usePartNavigation.tsx`, `ui/Consumables/{ConsumablesTable,ConsumableHeader,ConsumableProperties}.tsx`, `ui/Services/`, `ui/Tools/` |
 | Saved views & flags | List screens integrate the global saved-views system (`useSavedViews`) and file-badge flags for attachment state on rows | `apps/erp/app/modules/items/ui/useItemsSubmodules.tsx`, `ui/Item/FileBadge.tsx` |
 
 ### Dolibarr — one mega search-form list + task list
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Product/service list | Single `list.php` page per type: full GET-form find view searching reference, external ref (supplier ref), **barcode**, label, VAT rate, note-public/note-private, plus a distinctive **category filter** with an OR/AND operator toggle (`search_category_product_operator`), mass action bar at bottom | `htdocs/product/list.php` (search fields `$search_{ref,ref_ext,ref_supplier,barcode,label,vatrate,…}`, categories class include) |
-| Top search box | Top-bar quick-search handlers hit products from any screen (registered search providers) | `htdocs/core/lib/functions.lib.php` (search box), product searchable in `htdocs/product/class/product.class.php` |
+| Product/service list | Single `list.php` page per type: full GET-form find view searching reference, supplier ref, **barcode**, label, VAT rate, note-public/note-private, to-sell/to-buy/lot-tracked flags, country, accounting codes, plus a distinctive **category filter** with an OR/AND operator toggle (`search_category_product_operator`), mass action bar at bottom | `htdocs/product/list.php` (search fields `$search_{ref,ref_supplier,barcode,label,vatrate,tosell,tobuy,tobatch,…}`) |
+| Top search box | Top-bar search offers "Search into products or services" (shortcut P), which opens `product/list.php?search_all=…` | `htdocs/core/ajax/selectsearchbox.php` |
 
 ### ERPNext — Desk list with curated one-click list filters + item search service
 
@@ -130,15 +133,15 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 | --- | --- | --- |
 | Item list view | Standard desk list tuned by `listview_settings`: extra fetched columns (uom, group, image, variant flags, sales/purchase flags), defaults to `disabled=0`, formatters for image chips | `erpnext/stock/doctype/item/{item_list.js,item.json}` |
 | Curated list filters | JSON-defined one-click filters surfaced in the list side panel: Batch-tracked, Disabled, Fixed assets, Serialized, Services, Stock items, Templates | `erpnext/stock/doctype/item/list_filter/{item_batch_tracked,item_disabled,item_fixed_assets,item_serialized,item_services,item_stock_items,item_templates}.json` |
-| Item quick search | Item-search selector service for nested pickers (search dialog used by docs/pickers) with HTML templates for result rendering | `erpnext/stock/doctype/item/item_search.py`, `erpnext/stock/doctype/item/templates/{item,item_row}.html` |
-| Item dashboard | Dashboard link counts (per linked doc type) rendered on the Item form (§10) | `erpnext/stock/doctype/item/item_dashboard.py` |
+| Item quick search | `ItemSearch`: an SQLite FTS5 trigram index over Item that backs substring search on large catalogues in the item link query; the `templates/` pair are sample web-view templates | `erpnext/stock/doctype/item/item_search.py`, `erpnext/stock/doctype/item/templates/{item,item_row}.html` |
+| Item dashboard | Connections panel with per-doctype link counts on the Item form (§10) | `erpnext/stock/doctype/item/item_dashboard.py` |
 
 ### Ever Gauzy — the inventory list + its neighbor masters
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Inventory items table | The list landing page of the Inventory module: searchable grid of products/variants with FSM-ish selectors strip (org/version), column settings, add/edit routing into the form | `apps/gauzy/src/app/pages/inventory/components/table-inventory-items/table-inventory.component.ts` (+ `.html`) |
-| Option masters as lists | Product types/categories/warehouse/merchant tables share the same table sub-components | `…/components/{manage-product-types,manage-product-categories,manage-warehouses,manage-merchants}/` |
+| Inventory items table | The list landing page of the Inventory module: paged table or card grid of products with a favorite toggle and view/edit/add buttons routing into the form | `apps/gauzy/src/app/pages/inventory/components/table-inventory-items/table-inventory.component.{ts,html}` |
+| Option masters as lists | Product types/categories/warehouse/merchant tables share the same table sub-components | `apps/gauzy/src/app/pages/inventory/components/{manage-product-types,manage-product-categories,manage-warehouses,manage-merchants}/` |
 
 ### metasfresh — everything through the one generic grid
 
@@ -151,11 +154,11 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Product template list/search | Search view with filters & groupings (type, category tree; sold/purchased/storable toggles driven by flags), tags, variant-agnostic searches; the list "expo" columns config; kanban renderer already seen (§1) | `odoo/addons/product/views/product_views.xml`, `odoo/addons/product/views/product_template_views.xml` |
+| Product template list/search | Search view (`product_template_search_view`) with filters Goods, Services, Combo, Favorites, Sales, Purchase, activities, Warnings, Archived; group by product type, product category and **product properties**; search by tags and attributes; kanban already seen (§1) | `odoo/addons/product/views/product_views.xml`, `odoo/addons/product/views/product_template_views.xml` |
 | Product-catalog picker | OWL kanban controller/renderer/search-panel reusable as an embedded product picker (used by sale order lines via `order_line/`), with favorite toggle & quantity stepper on cards | `odoo/addons/product/static/src/product_catalog/{kanban_controller,kanban_renderer,kanban_record,kanban_model,product_catalog_search_panel}.*` |
 | Pricelist report panel | Editable pricelist breakdown panel drawn from the product list (§6) | `odoo/addons/product/static/src/js/pricelist_report/` |
 
-**BOSS implications.** The catalog list is the workhorse: BOSS should make the Product list a saved-view-first screen (Carbon + metasfresh) with per-column filters incl. reference/external-supplier-ref/barcode (Dolibarr), one-click curated facets (batch-tracked/serialized/services — ERPNext's `list_filter/*.json` is a cheap high-value pattern), and category multi-select with OR/AND operator (Dolibarr). Excel import with a mapping-review step and error report (Akaunting) belongs in BOSS's product import; a type/grouping dimension (simple/service/storable, AureusERP) should be a saved-view filter, not a separate app.
+**BOSS implications.** The catalog list is the workhorse: BOSS should make the Product list a saved-view-first screen (Carbon + metasfresh) with per-column filters incl. reference, supplier ref and barcode (Dolibarr), one-click curated facets (batch-tracked/serialized/services — ERPNext's `list_filter/*.json` is a cheap high-value pattern), and category multi-select with OR/AND operator (Dolibarr). Spreadsheet import with a sample file and per-row errors (Akaunting) belongs in BOSS's product import, plus a column-mapping review step that no reference here has; a type/grouping dimension (goods/service grouping in AureusERP; in Moqui `productTypeEnumId`) should be a saved-view filter and group-by, not a separate app. The baseline Find Product already has saved finds, column selection and CSV export (§13), so BOSS adds facets and bulk actions rather than a new list.
 
 ---
 
@@ -165,30 +168,30 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Item create/edit | Sections stacked on one page: **General** (name, category, description textareas, radio/checkbox toggles + tax select) and **Billing** (price, cost, tax select) + right rail with enabled toggle and more-actions (duplicate etc.); one record = flat item master, no variants at all, and notably **no picture field on the item form in this checkout** | `resources/views/common/items/{create,edit}.blade.php`, shared form widgets `resources/views/components/form/`, controller `app/Http/Controllers/Common/Items.php` |
-| Item tax select helper | Tax-select popovers reuse the shared tax select component rather than a sub-screen | `resources/views/components/form/tax.blade.php` |
+| Item create/edit | Sections stacked on one page: **General** (type radio product/service, name, category, description) and **Billing** (sale-information and purchase-information toggles, sale price, purchase price, taxes multi-select); duplicate/enable/disable are controller actions; one record = flat item master, no variants at all, and **no picture field on the item form** although the `Item` model handles a `picture` media | `resources/views/common/items/{create,edit}.blade.php`, shared form widgets `resources/views/components/form/group/`, model `app/Models/Common/Item.php`, controller `app/Http/Controllers/Common/Items.php` |
+| Item tax select helper | Tax select reuses the shared form-group component rather than a sub-screen | `resources/views/components/form/group/tax.blade.php` |
 
 ### AureusERP — sectioned Filament form with an injection registry
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Product form | 3-column schema built from named **sections**: left = General (name/description/tags/category), Media (gallery), Inventory (fallback); right = Settings (UOM, brand, etc.) + Pricing — crucially a `ProductSchemaRegistry` lets every other plugin inject blocks at slots (`left.general.after`, `left.inventory`, `left.append`, `right.*`, `hidden`) | `plugins/webkul/products/src/Filament/Resources/ProductResource/Schemas/ProductForm.php`, `…/Schemas/ProductInfolist.php`, registry `…/ProductResource/Support/ProductSchemaRegistry.php` |
+| Product form | Two-column schema built from named **sections**: left = General, Images, Inventory (replaced when a plugin fills the `left.inventory` slot); right = Settings + Pricing — crucially a `ProductSchemaRegistry` lets other plugins inject blocks at slots (`left.general.after`, `left.inventory`, `left.append`, `right.settings.after`, `right.pricing.fields`, `right.append`); accounts, inventories, manufacturing and point-of-sale register into it | `plugins/webkul/products/src/Filament/Resources/ProductResource/Schemas/ProductForm.php`, `…/Schemas/ProductInfolist.php`, registry `…/ProductResource/Support/ProductSchemaRegistry.php` |
 | View/Create/Edit pages | Filament resource pages incl. a `ViewProduct` infolist page (read-only detail face) and `ManageAttributes`/`ManageVariants` sub-pages (§4) | `plugins/webkul/products/src/Filament/Resources/ProductResource/Pages/{CreateProduct,EditProduct,ViewProduct}.php` |
 
 ### Carbon — one master form with expert sub-forms per concern
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Item form + record header | `ItemForm`/`SelectedItemProperties` feed per-subtype forms (`PartForm`, `ConsumableForm`, …); header shows record info + revision state + supersession notice; sub-forms: Costing, SalePrice, Planning, Purchasing, Manufacturing, Reorder policy, Supersession, Risk register — the master-data surface is really a tabbed stack | `apps/erp/app/modules/items/ui/Item/{ItemForm,ItemRecordHeader,SelectedItemProperties,ItemCostingForm,ItemSalePriceForm,ItemPlanningForm,ItemPurchasingForm,ItemManufacturingForm,ItemReorderPolicy,ItemSupersessionForm,ItemRiskRegister}.tsx` |
-| Revisions & change notices | Engineering-change flow: revision rows with form + change notice actions/types, change-notice approval surfaces | `apps/erp/app/modules/items/ui/{RevisionForm,ChangeNotice,ChangeNoticeActions,ChangeNoticeTypes}/` (under `ui/Item/RevisionForm.tsx` + `ui/ChangeNotice*/`) |
-| Storage & physicality | Storage fields + material-dimension/finish/grade/shape/substance masters feeding item classification fields | `apps/erp/app/modules/items/ui/{Item/ItemStorageFields,MaterialDimensions,MaterialFinishes,MaterialGrades,MaterialShapes,MaterialSubstances,MaterialTypes}/` |
+| Item form + record header | `ItemForm`/`SelectedItemProperties` feed per-subtype forms (`PartForm`, `ConsumableForm`, …); header shows record info + revision state + supersession notice; sub-forms: Costing, SalePrice, Planning, Purchasing, Manufacturing, Reorder policy, Supersession, Risk register — the master-data surface is really a tabbed stack; a part's tabs are **Details, Purchasing, Accounting** (costing), **Planning, Inventory, Sales** (customer part numbers, rental rates), **Quality**, plus make-method pages when replenishment is Make | `apps/erp/app/modules/items/ui/Item/{ItemForm,ItemRecordHeader,SelectedItemProperties,ItemCostingForm,ItemSalePriceForm,ItemPlanningForm,ItemPurchasingForm,ItemManufacturingForm,ItemReorderPolicy,ItemSupersessionForm,ItemRiskRegister}.tsx`, tabs `apps/erp/app/modules/items/ui/Parts/usePartNavigation.tsx`, routes `apps/erp/app/routes/x+/part+/` |
+| Revisions & change notices | Engineering-change flow: revision form on the item, change notices with status flow, affected items, diff viewer, impact panel, release/merge and item lock; change-notice types and actions are masters | `apps/erp/app/modules/items/ui/Item/RevisionForm.tsx`, `apps/erp/app/modules/items/ui/{ChangeNotice,ChangeNoticeActions,ChangeNoticeTypes}/` |
+| Storage & physicality | Storage fields + material-dimension/finish/grade/shape/substance/type masters feeding material classification fields | `apps/erp/app/modules/items/ui/Item/ItemStorageFields.tsx`, `apps/erp/app/modules/items/ui/{MaterialDimensions,MaterialFinishes,MaterialGrades,MaterialShapes,MaterialSubstances,MaterialTypes}/` |
 
 ### Dolibarr — tabbed card.php, tab set assembled at runtime
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Product card | One `card.php` GET page, tab content switched by `tab` param: General (the real master data: ref, label, type, category, VAT, barcode fields, extrafields with per-field permission), Price tab (§6), Stock (§10), Lifecycle (end-of-life, replacement), Attachments (§8), Note, Contacts, Agenda, Translations (§9), Messaging; hooks extend tabs (`tabContentCreateProduct`) | `htdocs/product/card.php`, tab builder `htdocs/core/lib/product.lib.php` |
-| Notable behaviors | Ref regeneration logic (renaming cleans orphaned index rows), optional mass-barcode/define-composed-product actions in card actions | `htdocs/product/card.php` (action handlers), mixin `htdocs/core/class/extrafields.class.php` |
+| Product card + tab pages | `card.php` holds the master data (ref, label, type, status to sell/buy, category, VAT, barcode, weight/size, lifetime, extrafields); the other tabs are separate pages built by `product_prepare_head()`: Prices (`price.php`, §6), Buying prices (`price_suppliers.php`, §7), Translation (`traduction.php`), Kit (`composition/card.php`), Variants (`variants/combinations.php`, §4), Stock (`stock/product.php`), Resources, Contacts, Referring objects and Statistics (`stats/`, §10), Notes, Documents (§8), Agenda; hooks `tabContentCreateProduct`/`tabContentEditProduct`/`tabContentViewProduct` and `formObjectOptions` extend the card | `htdocs/product/card.php`, tab builder `htdocs/core/lib/product.lib.php` |
+| Notable behaviors | Duplicate-ref hook (`onProductAlreadyExists`), more-actions hook (`addMoreActionsButtons`); extrafields engine shared with every object | `htdocs/product/card.php` (action handlers), `htdocs/core/class/extrafields.class.php` |
 
 ### ERPNext — the desk Item form (the largest in the repo)
 
@@ -196,14 +199,14 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 | --- | --- | --- |
 | Item form | One desk form whose sections show/hide by flags: naming series & item_code (auto), group/UOM/disabled, **is_stock_item/is_fixed_asset/is_sales_item/is_purchase_item** switches, opening stock + valuation_rate + standard_rate, brand/description, barcodes child, inventory section (shelf life, end-of-life, default material request type, valuation method, warranty, weight), reorder levels child (§10), UOM conversions child, serial & batch section, variants section (§4), defaults + taxes children (§11/§10) | `erpnext/stock/doctype/item/{item.json,item.js,item.py}` |
 | Naming & validations | `item.py` naming hooks (set item_code from series/item_name rules), duplicate-barcode validation, item-group mandatory/leaf validation | `erpnext/stock/doctype/item/{item.py,item.js}` |
-| Item defaults | Per-company child defaults: default warehouse, default price list, default discount/inventory accounts (+ `vf_*` fallback fields) — keeps postings/fulfillment automatic | `erpnext/stock/doctype/item_default/item_default.json` |
+| Item defaults | Per-company child defaults: default warehouse, default price list, **default supplier**, cost centers, income/expense/inventory/COGS accounts (+ `vf_*` fallback fields) — keeps postings/fulfillment automatic | `erpnext/stock/doctype/item_default/item_default.json` |
 
 ### Ever Gauzy — the multi-tab product wizard
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
 | Product form | Photo gallery on the left rail + `nb-tabset` with **Main** (language-aware name/desc — store multiple translations inline via language selector), **Tags & Options** (tag chips + variant-option toggles) and **Variants** tabs; save/next with redirected-to-variant flow | `apps/gauzy/src/app/pages/inventory/components/edit-inventory-item/{product-form.component.ts,product-form.component.html}`, gallery sub-component `…/edit-inventory-item/product-gallery/` |
-| Options & variant mgmt | `options-form` and `variant-form`/`variant-table` components mounted by the same page (§4) | `…/edit-inventory-item/options-form/`, `…/edit-inventory-item-variant/` |
+| Options & variant mgmt | `options-form` and `variant-form`/`variant-table` components mounted by the same page (§4) | `apps/gauzy/src/app/pages/inventory/components/edit-inventory-item/options-form/`, `apps/gauzy/src/app/pages/inventory/components/edit-inventory-item-variant/` |
 | Domain model | Product = master + variants: gauzy core libs define product (name/description translation entities), option-chain categories and option groups; plugin carry-over seen in the `catalog` plugin | `packages/core/src/lib/product/`, `packages/core/src/lib/{product-option,product-variant,product-variant-price}/` |
 
 ### metasfresh — metadata-defined product window, business code in `de.metas.*`
@@ -220,7 +223,7 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 | Product template form | Tabbed form: **General Information** (name/SKU/category, tags, description), **Sales** (upsell/cross-sell groups, description surfaces, packaging barcodes + extra barcodes group), **Prices** — an inline embedded price-list tree with `add_product_price` for the current customer context, **Purchase** (Vendor Bills group), **Inventory** (logistics: traceability/lots, weight & volume), + Documents stat/button, internal-notes page; "template-only" copy strips variant bits | `odoo/addons/product/views/product_views.xml` (`product_template_form_view`), lighter face in `odoo/addons/product/views/product_template_views.xml` (`product_template_only_form_view`) |
 | Template-only lists | Contextual list variants "sellable" or "purchasable" (columns complete accordingly) | `odoo/addons/product/views/product_template_views.xml` ({`product_template_list_view_sellable`,`…_purchasable`}) |
 | Update Quantities grid | Editable inline quantity grid over variants (list with on-hand/forecasted sums) — quick bulk edit of stock quantities from the product screen | `odoo/addons/product/views/product_views.xml` (`product_view_list_qty`, action `product_variant_edit_qty_action`) |
-| Attribute-value wizard | Mass-update product attribute values from the template list | `odoo/addons/product/wizard/update_product_attribute_value{,_views}.py` |
+| Attribute-value wizard | Update product attribute values across the products that use them | `odoo/addons/product/wizard/{update_product_attribute_value.py,update_product_attribute_value_views.xml}` |
 
 **BOSS implications.** Item master forms divide cleanly: a compact "general" core (Akaunting), a registry-injectable sectioned form (AureusERP's ProductSchemaRegistry slot pattern is exactly how BOSS modules should extend the product form without forking it), and a tabbed expert stack (Dolibarr, ERPNext, Odoo). Bought-master fields worth copying: ERPNext's flag-driven sections (stock/fixed-asset/sales/purchase toggles reshape the form), per-company defaults child table, inline translated names/descriptions (Odoo translations + gauzy language selector), and Odoo's trick of embedding price-list editing inside the product form (see §6). Revisions/supersession (Carbon) matter only where the BOSS tenant does engineer-style change control — gate it rather than adding it to the core form.
 
@@ -234,19 +237,19 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 | --- | --- | --- |
 | **Absent** | Items are a flat list master — no variant machinery, no attribute/feature engine (categories are the only dimension) | — |
 
-### AureusERP — Bagisto-derived variant management inside the product resource
+### AureusERP — Odoo-shaped variant management inside the product resource
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Attribute master | `AttributeResource` CRUD (Bagisto product attribute port: code/label/type per attribute incl. selects) with Schemas/Tables split | `plugins/webkul/products/src/Filament/Resources/AttributeResource/` (+ `AttributeResource.php`) |
-| Manage Attributes (per product) | Sub-page `ManageAttributes` inside the product form: pick attribute families/lines for this product (Bagisto "attributes per product" shapes) | `plugins/webkul/products/src/Filament/Resources/ProductResource/Pages/ManageAttributes.php` |
-| Generate variants & Manage Variants | `GenerateVariantsAction` (action inside ManageAttributes page that creates variant records from attribute-value combinations) + `ManageVariants` (`ManageRelatedRecords` tab: variant table with values/price, PDF export via DomPDF) | `…/ProductResource/Actions/GenerateVariantsAction.php`, `…/ProductResource/Pages/ManageVariants.php` |
+| Attribute master | `AttributeResource` CRUD: attribute name, type (radio, select, color) and options — the Odoo `product.attribute` shape | `plugins/webkul/products/src/Filament/Resources/AttributeResource/` (+ `AttributeResource.php`), types `plugins/webkul/products/src/Enums/AttributeType.php` |
+| Manage Attributes (per product) | Sub-page `ManageAttributes` inside the product resource: attribute lines with their values for this product | `plugins/webkul/products/src/Filament/Resources/ProductResource/Pages/ManageAttributes.php` |
+| Generate variants & Manage Variants | `GenerateVariantsAction` (action inside ManageAttributes page that creates variant records from attribute-value combinations) + `ManageVariants` (`ManageRelatedRecords` tab: variant table with values/price, PDF export via DomPDF) | `plugins/webkul/products/src/Filament/Resources/ProductResource/Actions/GenerateVariantsAction.php`, `plugins/webkul/products/src/Filament/Resources/ProductResource/Pages/ManageVariants.php` |
 
-### Carbon — **absent**: characteristics instead of variants
+### Carbon — no variant matrix; configurable parts instead
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| **Absent** | No variant matrix; the nearest analogues are (a) the materials-properties taxonomy (type/grade/shape/substance/finish as FK masters) and (b) `Item Tracking Type` (Inventory/Serial/Batch/Non-Inventory) which segments items behaviorally the way variants would | `apps/erp/app/modules/items/AGENTS.md` (domain notes), `apps/erp/app/modules/items/ui/Material*/` |
+| **No variant matrix** | No attribute-combination variants; the nearest analogues are (a) the material-properties taxonomy (type/grade/shape/substance/finish/dimension as FK masters) and (b) **configurable parts**: a part flagged `requiresConfiguration` gets **Configuration Parameters** (grouped, typed parameters) on its details page and make method, answered per quote or job line | `apps/erp/app/modules/items/AGENTS.md`, `apps/erp/app/modules/items/ui/Material*/`, `apps/erp/app/modules/items/ui/Parts/ConfigurationParameters.tsx`, `apps/erp/app/routes/x+/part+/$itemId.details.tsx` |
 
 ### Dolibarr — a dedicated `variants` module generating combinations
 
@@ -261,36 +264,36 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Variant settings on Item | `has_variants` tick converts the Item into a template (blocked from transactions); `variant_based_on` = Item Attribute (or "Manufacturer"/"Serial No"); info banner explains Copy-Fields-to-Variant from settings | `erpnext/stock/doctype/item/item.js` (lines ~240–300), settings `erpnext/stock/doctype/item_variant_settings/item_variant_settings.{js,json}` |
-| Single/multiple variant dialogs | Two built client-side dialogs: one-attribute quick dialog, and a **matrix dialog** with per-value cells, committed-pill validation and "Create Variants" that calls server `item_variant.get_variant` to materialize child Items | `erpnext/stock/doctype/item/item.js` (`erpnext.item.show_{single,multiple}_variants_dialog`), server `erpnext/stock/doctype/item/item_variant.py` |
-| Attribute master | `Item Attribute` (HTML-type values, numeric-range support) + `Item Attribute Value` child rows with **HTML color swatches**; `item_attribute` doctype UI | `erpnext/stock/doctype/item_attribute/{item_attribute.js,item_attribute.json}`, `erpnext/stock/doctype/item_attribute_value/` |
+| Variant settings on Item | `has_variants` tick converts the Item into a template (blocked from transactions); `variant_based_on` = Item Attribute or Manufacturer; Item Variant Settings lists the fields copied to variants, plus do-not-update-variants, allow-rename-attribute-value and allow-different-UOM switches | `erpnext/stock/doctype/item/item.js` (lines ~240–300), settings `erpnext/stock/doctype/item_variant_settings/item_variant_settings.{js,json}` |
+| Single/multiple variant dialogs | Two client-side dialogs: one-attribute quick dialog, and a **matrix dialog** with per-value checkboxes and "Create Variants" that calls `enqueue_multiple_variant_creation` to materialize child Items | `erpnext/stock/doctype/item/item.js` (`erpnext.item.show_{single_variant,multiple_variants}_dialog`), server `erpnext/controllers/item_variant.py` |
+| Attribute master | `Item Attribute` with value rows (value + abbreviation used in the variant code) or a **numeric range** (from, to, increment) | `erpnext/stock/doctype/item_attribute/{item_attribute.js,item_attribute.json}`, `erpnext/stock/doctype/item_attribute_value/` |
 | Variant records | A variant is itself an Item row (`variant_of`, `item_variant` + `item_variant_attribute` child tables); variant details report exists | `erpnext/stock/doctype/{item_variant,item_variant_attribute}/`, report `erpnext/stock/report/item_variant_details/` |
 
 ### Ever Gauzy — options tab + variant grid/graph
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Variant wizard | The product form's Variants tab opens the variant approach at `edit/:id` child route (variant request through option chain); automatic generation + variant-slotting UI | `apps/gauzy/src/app/pages/inventory/components/edit-inventory-item/variant-table/`, nav route `apps/gauzy/src/app/pages/inventory/inventory-routing.module.ts` (`:itemId/variants/:itemVariantId`) |
-| Option-form & variant-form | `option-form` rows (option group checkboxes built from defined list) + variant form's sku/price/discount/quantity/taxed entry, feature selects | `apps/gauzy/src/app/pages/inventory/components/edit-inventory-item/options-form/{options-form.component.ts,.html}`, variant form `apps/gauzy/src/app/pages/inventory/components/edit-inventory-item-variant/variant-form.component.ts` |
-| Variant domain | ProductVariant entity in core (`product-variant` lib) + variant price (`product-variant-price`) — the "same product, per-tenant price" trick; catalog plugin links variants to channels/collections/media | `packages/core/src/lib/product-variant/`, `packages/core/src/lib/product-variant-price/`, `packages/plugins/catalog/src/lib/product-variant-*` |
+| Variant wizard | The product form's Variants tab opens the variant approach at `edit/:id` child route (variant request through option chain); automatic generation + variant-slotting UI | `apps/gauzy/src/app/pages/inventory/components/edit-inventory-item/variant-table/`, nav route `apps/gauzy/src/app/pages/inventory/inventory-routing.module.ts` (route `:itemId/variants/:itemVariantId`) |
+| Option-form & variant-form | `options-form` rows (option groups with options) + variant form's SKU/price/quantity/tax entry | `apps/gauzy/src/app/pages/inventory/components/edit-inventory-item/options-form/options-form.component.{ts,html}`, variant form `apps/gauzy/src/app/pages/inventory/components/edit-inventory-item-variant/variant-form.component.ts` |
+| Variant domain | ProductVariant entity in core (`product-variant` lib) + variant price (`product-variant-price`: unit cost and retail price with currencies); catalog plugin links variants to channels and media | `packages/core/src/lib/product-variant/`, `packages/core/src/lib/product-variant-price/`, `packages/plugins/catalog/src/lib/{product-variant-channel,product-variant-media,product-variant-sale}/` |
 
-### metasfresh — product-attribute decoding instead of variant SKUs
+### metasfresh — attribute set instances instead of variant SKUs
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| pattribute (product attributes) | Web-UI attribute value model: **one product row per attribute combo** — products get extra "included attributes" columns through the attribute-code naming convention (e.g. `P0001_A_B`), with decoding/search in the list | `backend/de.metas.ui.web.base/src/main/java/de/metas/ui/web/pattribute/`, business `backend/de.metas.business/src/main/java/de/metas/product/` |
+| pattribute (attribute set instances) | Web-UI editor for **attribute set instances** (ASI): one product, with attribute values (lot, best-before, quality…) captured per document line or stock unit instead of separate variant SKUs | `backend/de.metas.ui.web.base/src/main/java/de/metas/ui/web/pattribute/` (`ASIDescriptorFactory`, `ASIRepository`), business `backend/de.metas.business/src/main/java/de/metas/product/` |
 | Attributes-included tab | Window tab machinery appending attribute data to a document/product grid | `backend/de.metas.business/src/main/java/de/metas/attributes_included_tab/` |
 
 ### Odoo — attribute lines on templates + 3 creation modes
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Attribute & value masters | `product.attribute` + `product.attribute.value` forms/lists; attribute has `create_variant` selection: `always/no_variant/dynamic/single` — covering classic variant generation, informational-only attributes, and on-demand creation | `odoo/addons/product/views/product_attribute_views.xml`, model `odoo/addons/product/models/product_attribute{,_value}.py` |
-| Attribute lines on product | `product.template.attribute.line` embedded tree on the template form: choose attribute + values; multi-variant SQL check `CHECK(display_type != 'multi' OR create_variant = 'no_variant')` keeps model sane | `odoo/addons/product/views/product_template_attribute_line_views.xml`, model `odoo/addons/product/models/product_template_attribute_line.py` |
+| Attribute & value masters | `product.attribute` + `product.attribute.value` forms/lists; attribute `create_variant` selection is `always` (Instantly), `dynamic` (when ordered) or `no_variant` (Never), and `display_type` radio/pills/select/color/multi/image/range; a model constraint `CHECK(display_type != 'multi' OR create_variant = 'no_variant')` keeps multi-checkbox attributes informational | `odoo/addons/product/views/{product_attribute_views.xml,product_attribute_value_views.xml}`, models `odoo/addons/product/models/{product_attribute.py,product_attribute_value.py}` |
+| Attribute lines on product | `product.template.attribute.line` embedded list on the template form: choose attribute + values | `odoo/addons/product/views/product_template_attribute_line_views.xml`, model `odoo/addons/product/models/product_template_attribute_line.py` |
 | Variant matrix on template | The template form's variant matrix (auto-created `product.product`s), variant list view + per-combination "Update Quantities" grid (§3) | `odoo/addons/product/views/product_views.xml` (variant list + qty grid views) |
-| Mass attribute update | List-level action to update attribute values across selected templates | `odoo/addons/product/wizard/update_product_attribute_value{,_views}.py` |
+| Mass attribute update | Wizard to update attribute values across the products that use them | `odoo/addons/product/wizard/{update_product_attribute_value.py,update_product_attribute_value_views.xml}` |
 
-**BOSS implications.** BOSS needs one variant model with three flavors visible in the UI: (1) **matrix preview + generate** — a builder that computes combinations client-side and posts one request (ERPNext's matrix dialog + Dolibarr's combination generator is the UX to copy), (2) **dynamic/no-variant informative attributes** — Odoo's `create_variant` spectrum avoids hundreds of useless SKUs, (3) **variant = row, attribute values = child** — all the suites store variants as full product rows (ERPNext Item, Odoo product.product), which is what BOSS's Moqui entity model should do too (keeps pricing/inventory/documents uniform). Keep a copy-fields-to-variant config (ERPNext item_variant_settings) so catalog managers never hand-edit variant descriptions; and don't follow metasfresh/Carbon here — attribute-encoded product codes blur the line between physical SKUs and descriptive attributes (worth noting only as a legacy pattern).
+**BOSS implications.** BOSS needs one variant model with three flavors visible in the UI: (1) **matrix preview + generate** — a builder that shows the combinations, lets the manager untick some, and posts one request (ERPNext's matrix dialog + Dolibarr's combination generator is the UX to copy); (2) **dynamic/informational attributes** — Odoo's `create_variant` choice (instantly / when ordered / never) avoids hundreds of useless SKUs; (3) **variant = row** — ERPNext Item and Odoo `product.product` store variants as full product rows, which is what Mantle already does: a `PtVirtual` product with Selectable features (`ProductFeatureAppl` `PfatSelectable`, grouped by `ProductFeatureGroup`) and variant products linked by `ProductAssoc` `PatVariant` carrying Distinguishing features, created by `mantle.product.ProductServices.create#VariantProducts` (all combinations, no preview today). Keep a copy-fields-to-variant config (ERPNext Item Variant Settings) so catalog managers never hand-edit variant descriptions. Carbon's configurable parts and metasfresh's attribute set instances are the other end of the spectrum: one product, values captured per order line or stock unit; Mantle has only the `PtConfigurable` product type live; the `ProductConfig*` entities are commented out in `ProductDefinitionEntities.xml` (not usable without enabling), so BOSS must either enable those definitions or add new records (§14 Open questions).
 
 ---
 
@@ -300,20 +303,20 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Categories list & editor | Single `settings/categories` page family used for item/income/expense/other categories: inline **parent/child nesting** rendered as collapsible child rows (`data-collapse="child-<id>"`), per-type tabs above; item category select on the item form reads from it | `resources/views/settings/categories/{index,create,edit,sub_category}.blade.php`, controller `app/Http/Controllers/Settings/Categories.php` |
+| Categories list & editor | Single `settings/categories` page family used for item/income/expense/other categories: inline **parent/child nesting** rendered as collapsible child rows (`data-collapse="child-<id>"`), code/name/type columns; item category select on the item form reads from it | `resources/views/settings/categories/{index,create,edit,sub_category}.blade.php`, controller `app/Http/Controllers/Settings/Categories.php` |
 | Shared select component | Categories attach through a generic modal-based category select on documents too | `resources/views/components/form/group/category.blade.php` |
 
-### AureusERP — Bagisto-style category resource with stats
+### AureusERP — plain category tree with a products sub-page
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Category CRUD | `CategoryResource` (create/edit/pages) with form + infolist slots: parent category folder paths, meta SEO fields, position drag; category card button-box shows product count that links to the product list | `plugins/webkul/products/src/Filament/Resources/CategoryResource/` (+ `Schemas/{CategoryForm,CategoryInfolist}.php`) |
+| Category CRUD | `CategoryResource`: form with just name and parent category, a view page, and a **Manage Products** sub-page listing the category's products | `plugins/webkul/products/src/Filament/Resources/CategoryResource/` (`Schemas/{CategoryForm,CategoryInfolist}.php`, `Pages/ManageProducts.php`) |
 
 ### Carbon — **absent** as commerce taxonomy; posting groups instead
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| **Absent** | No category/tag tree for items; nearest analogues are item posting groups (accounting classification) and the material-properties taxonomy (§3) | `apps/erp/app/modules/items/ui/ItemPostingGroups/` |
+| **Absent** | No category/tag tree for items; the nearest analogues are **Item Groups** (item posting groups, an accounting classification) and the material-properties taxonomy (§3) | `apps/erp/app/modules/items/ui/ItemPostingGroups/` |
 
 ### Dolibarr — generic tree-based categories for every type
 
@@ -327,14 +330,14 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Item Group tree | Desk doctype with `is_tree=1`, default view Tree, "Item Group Tree" route + custom button; leaf-node enforcement (mandatory `is_group=0` for sellable); website item tree gate | `erpnext/setup/doctype/item_group/{item_group.js,item_group.json}`, tree master `erpnext/setup/doctype/item_group/` |
+| Item Group tree | Desk doctype with `is_tree=1`, default view Tree: parent group, `is_group`, image, per-company **Item Group Defaults** child and an item-tax child that items in the group inherit | `erpnext/setup/doctype/item_group/{item_group.js,item_group.json}` |
 | Brand & catalogue tags | Brand separate doctype parallel to groups; customer/supplier "groups" also exist but live outside products; `POS Item Group` (retail) groups POS tiles | `erpnext/setup/doctype/brand/` (beside item_group), `erpnext/accounts/doctype/pos_item_group/` |
 
 ### Ever Gauzy — category manager inline in the Inventory module
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Product categories | Sub-route `product-categories` in the inventory module: the category manager assembles category CRUD, image/color/icon fields and parent selection inline; categories are org-scoped, attach on the product form's Tabs & Options region | `apps/gauzy/src/app/pages/inventory/components/manage-product-categories/`, route `apps/gauzy/src/app/pages/inventory/inventory-routing.module.ts` |
+| Product categories | Sub-route `product-categories` in the inventory module: category CRUD with image and parent; the core entity also carries slug, sort order, featured flag and status (`packages/core/src/lib/product-category/product-category.entity.ts`); categories are org-scoped and picked on the product form | `apps/gauzy/src/app/pages/inventory/components/manage-product-categories/`, route `apps/gauzy/src/app/pages/inventory/inventory-routing.module.ts` |
 | Category selector | Shared `product-category-selector` component reused wherever products are picked (including purchase/sales screens) | `packages/ui-core/shared/src/lib/product/product-category-selector/` |
 
 ### metasfresh — taxonomy via the generic shell
@@ -347,11 +350,11 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Product categories | Tree/form with parent field, company split, and an embedded "children" detail plus **"View Products" smart button** (product_count stat) linking to the filtered product list | `odoo/addons/product/views/product_category_views.xml`, model `odoo/addons/product/models/product_category.py` |
+| Product categories | Tree/form with parent field, optional company, child categories, a **product count smart button** linking to the filtered product list, and `product_properties_definition` — custom **Product Properties** defined on the category and filled on each product in it | `odoo/addons/product/views/product_category_views.xml`, model `odoo/addons/product/models/product_category.py` |
 | Tags | Lightweight `product.tag` many-to-many chips with kanban/tag widget colors (searchable in every product list view) | `odoo/addons/product/views/product_tag_views.xml`, model `odoo/addons/product/models/product_tag.py` |
 | Country groups | `res.country.group` for regional price computation (§6) | `odoo/addons/product/views/res_country_group_views.xml` |
 
-**BOSS implications.** Two usable taxonomies, not one: category tree (structural, drives navigation, lookups and reports — copy Dolibarr's generic all-types design so BOSS can reuse the same tree for products and vendors) and tags (Odoo's free-label chips). Item groups/categories must support parent/child with a single "view products in this branch" deep link (Odoo's category smart-button), keep translations per node (Dolibarr `traduction.php` / Odoo), and avoid Carbon's approach of category-as-posting-group — keep classification for accounting separate from catalog taxonomy. Multi-type flexibility (product/supplier/customer in one table) is cheap and future-proof in a Moqui entity.
+**BOSS implications.** Two usable taxonomies, not one: category tree (structural, drives navigation, lookups and reports — Dolibarr's generic all-types design shows the same tree can classify products and vendors) and tags (Odoo's free-label chips). Categories must support parent/child with a single "view products in this branch" deep link (Odoo's category smart button), keep translations per node (Dolibarr `traduction.php` / Odoo), and stay separate from accounting classification (Carbon's only grouping is the posting group). Mantle already has this shape: `ProductCategory` typed by `productCategoryTypeEnumId` (Catalog, Industry, Internal, Search, Tax, Inventory Group…), many-to-many `ProductCategoryMember` with from/thru dates, `ProductCategoryRollup` for multiple parents, `ProductCategoryContent` for localized names, images and SEO text, and `ProductCategoryParty` for category-to-party links; tags can be a category type rather than a new record. Odoo's per-category product properties map to Mantle feature groups applied to a category (`ProductCategoryFeatGrpAppl`). Store-facing categories (`ProductStoreCategory`) are Commerce's face (crosscut §3).
 
 ---
 
@@ -367,15 +370,15 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Price list CRUD | `PriceListResource`: header (name, currency, company, active) + **item lines** with product/category/customer scope, min quantity, price type (fixed/discount?), price, validity period, apply-to selector | `plugins/webkul/products/src/Filament/Resources/PriceListResource/` (+ `Schemas/PriceListForm.php`), engine models `plugins/webkul/products/src/Models/` |
-| Pricing rules engine | The pricelist resolution/filter logic sits in plugin Services | `plugins/webkul/products/src/Services/` |
+| Price list CRUD | `PriceListResource`: header (name, currency, company, active) + **rule items**: apply to global / category / product / variant, min quantity, type fixed / percentage / formula, formula base (list price, cost or another price list) with discount, markup, rounding, surcharge and min/max margin, validity dates — the Odoo pricelist shape; no customer field on the rule | `plugins/webkul/products/src/Filament/Resources/PriceListResource/` (`Schemas/PriceListForm.php`), enums `plugins/webkul/products/src/Enums/{PriceRuleApplyTo,PriceRuleType,PriceRuleBase}.php`, models `plugins/webkul/products/src/Models/{PriceList,PriceRuleItem}.php` |
+| Pricing rules engine | One resolver class picks the applicable rule and computes the price | `plugins/webkul/products/src/Services/PriceListResolver.php` |
 
 ### Carbon — separate price & costing forms + cost history chart
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
 | Sale price form | Per-item: currency select, priceIncludingTax toggle (VAT-inclusive storage) | `apps/erp/app/modules/items/ui/Item/ItemSalePriceForm.tsx` |
-| Costing form | `costingMethod` select (FIFO/Average/etc.; **Standard costing option explicitly hidden** in code with a "not implemented yet" comment), make-method-dependent costing; demand projection helpers live module-side | `apps/erp/app/modules/items/ui/Item/ItemCostingForm.tsx`, `apps/erp/app/modules/items/demand-projection.ts` |
+| Costing form | Item posting group, `costingMethod` select (**Standard costing option explicitly filtered out** with a "not implemented yet" comment), unit cost, cost-is-adjusted flag | `apps/erp/app/modules/items/ui/Item/ItemCostingForm.tsx` |
 | Cost history | Chart component plotting item cost over time (price-change visualization) | `apps/erp/app/modules/items/ui/Item/ItemCostHistoryChart.tsx` |
 
 ### Dolibarr — price page with history, multi-level prices & dynamic expressions
@@ -386,21 +389,22 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 | Dynamic price engine | Formula-based price evaluation: price expressions/variables parsed per product (price_parser) — rules can drive prices from cost/markup, dimensions etc. | `htdocs/product/dynamic_price/` (admin pages + `class/price_parser.class.php`) |
 | Cost fields | Purchase cost & efficiency margin on product card; margin module ties cost→price visibility | `htdocs/product/class/product.class.php` (cost fields), margin module `htdocs/margin/` |
 
-### ERPNext — price lists + item prices (note: both under `stock/`)
+### ERPNext — price lists and item prices (in `stock/`) plus pricing rules (in `accounts/`)
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
 | Price list master | Header w/ currency + buying/selling applicability flags + `price_not_uom_dependent` + countries child list | `erpnext/stock/doctype/price_list/{price_list.js,price_list.json}` (also `price_list_country/` child) |
 | Item Price | Per item row: item_code, price list, customer/supplier, buying/selling flag, currency, **price_list_rate**, uom & packing_unit, valid_from (plus validity window) — the ledger of every price ever quoted | `erpnext/stock/doctype/item_price/{item_price.js,item_price.json,item_price.py}` |
 | Price reports | "Item Prices" list report + item-wise price-list-rate report powering price maintenance screens | `erpnext/stock/report/{item_prices,item_wise_price_list_rate}/`, customer-side `erpnext/selling/report/customer_wise_item_price/` |
-| Cost handling on Item | `standard_rate` & `valuation_rate` fields on the Item itself; item taxpayer logic on posting lives in stock/valuation (§10 pointer) | `erpnext/stock/doctype/item/item.json` |
+| Pricing Rule & Promotional Scheme | **Pricing Rule** (in Accounts): apply on item / item group / brand, selling or buying, applicable for customer / customer group / territory / sales partner / campaign / supplier / supplier group, min/max quantity and amount, validity, rate or discount or margin, free item, priority, coupon; the rules applied are recorded on each document line (`Pricing Rule Detail`); **Promotional Scheme** generates pricing rules from slabs | `erpnext/accounts/doctype/{pricing_rule,pricing_rule_detail,promotional_scheme}/` |
+| Cost handling on Item | `standard_rate` & `valuation_rate` fields on the Item itself; **Item Standard Cost** is a separate submittable record per item and company (standard rate, effective date, revaluation entry) listed in the Item connections | `erpnext/stock/doctype/item/item.json`, `erpnext/stock/doctype/item_standard_cost/` |
 
-### Ever Gauzy — per-variant retail price rows
+### Ever Gauzy — per-variant cost and retail price
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Variant price entity/graphql | `ProductVariantPrice` per variant with `retailPrice` + `retailPriceCurrency` (+ standard base-entity audit fields); variant form's retailPrice/offer fields populate it | `packages/core/src/lib/product-variant-price/{product-variant-price.entity.ts,product-variant-price.service.ts}`, UI `packages/plugins/catalog/src/lib/product-variant-sale/` (variant sale/cost dedup) |
-| Variant sale pricing set | Variants exposed through the catalog plugin with per-channel sale price rows (variant/price-by-channel) | `packages/plugins/catalog/src/lib/{product-variant-sale,product-channel}/` |
+| Variant price entity | `ProductVariantPrice` one-to-one with a variant: `unitCost` + `unitCostCurrency`, `retailPrice` + `retailPriceCurrency`; the variant form's price fields populate it | `packages/core/src/lib/product-variant-price/{product-variant-price.entity.ts,product-variant-price.service.ts}` |
+| Channel publication & sale terms | The catalog plugin publishes a product per sales channel (`product-channel`, status per channel) and answers whether a variant is sold on recurring terms and which variant is the default (`product-variant-sale`); prices are not per channel | `packages/plugins/catalog/src/lib/{product-channel,product-variant-sale}/` |
 
 ### metasfresh — the deepest pricing engine (all metadata/UI driven)
 
@@ -409,16 +413,16 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 | Pricing engine | Rule-tree pricing: price systems → price lists → discount schema breaks with margin/currency/attribute-based conditions; copy-schema-break processes added to the window UI | `backend/de.metas.business/src/main/java/de/metas/pricing/`, legacy `backend/de.metas.business/src/main/java/org/adempiere/pricing/`, web-UI processes `backend/de.metas.ui.web.base/src/main/java/de/metas/ui/web/pricing/process/` |
 | Costing engines | FIFO/standard/average costing with batches & movement costing; cost-revaluation + customs-tariff cost rates for imports | `backend/de.metas.business/src/main/java/de/metas/{costing,costrevaluation,customstariff,quantity}/` |
 
-### Odoo — pricelist rules with formulas + an embedded report
+### Odoo — pricelist rules with a base and adjustments + an embedded report
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Pricelist & rules | `product.pricelist` form + `product.pricelist.item` rule grid: compute_price = fixed / **formula (markup/discount)** / percentage, min_quantity, date ranges, scope = product/category/product-category/customer; XML formula-only pricelists for technical users | `odoo/addons/product/views/{product_pricelist_views,product_pricelist_item_views}.xml`, compute engine `odoo/addons/product/models/product_pricelist{_item}.py` |
+| Pricelist & rules | `product.pricelist` form (currency, company, **country groups**) + `product.pricelist.item` rule grid: applied on variant / product / product category / all products, `compute_price` = fixed / discount / surcharge (markup) on a base (sales price, cost or another pricelist) with rounding and margins, min quantity, date range; customers get a pricelist through the partner field `property_product_pricelist` rather than through the rule | `odoo/addons/product/views/{product_pricelist_views,product_pricelist_item_views}.xml`, models `odoo/addons/product/models/{product_pricelist,product_pricelist_item,res_partner}.py` |
 | Pricelist report | Server action + editor: printable multi-currency pricelist report; JS panel can render the breakdown inside product context | `odoo/addons/product/report/{product_pricelist_report.py,product_pricelist_report_templates.xml}`, UI `odoo/addons/product/static/src/js/pricelist_report/` |
 | Cost side | Cost is a field per variant (`standard_price` visible in the template form's variant tab); revaluation views come from stock_account | `odoo/addons/product/views/product_views.xml` (cost group), `odoo/addons/stock_account/views/{product_views,product_value_views}.xml` |
-| Daily-rates calendar | Pricelist-adjacent currency rate calendar widget in product static JS | `odoo/addons/product/static/src/js/daily_rates_calendar/` |
+| Daily-rates calendar | Calendar view over pricelist items for per-day rates (each entry an all-day date range), used by the pricelist item views | `odoo/addons/product/static/src/js/daily_rates_calendar/`, `odoo/addons/product/views/product_pricelist_item_views.xml` |
 
-**BOSS implications.** Pricing needs both a **rule list UI** (price list header + scoped rules with product/category/customer, min qty, validity dates, currency — AureusERP/ERPNext/Odoo converge on this shape) and a **price-action history log** (Dolibarr, which stores every change with old/new values — perfect for a BOSS audit trail). Keep effective-dated rules rather than edited historical rows when querying (ERPNext Item Price is both), support VAT-inclusive storage (Carbon `priceIncludesTax`, Dolibarr HT/TTC) and min-quantity tiers. Costs deserve their own engine independent of price: item standard cost + valuation method + cost-history chart (Carbon), but keep stock valuation mechanics in Warehouse like every reference does (ERPNext item_price vs stock valuation, Odoo stock_account screens).
+**BOSS implications.** Pricing needs both a **rule list UI** (price list header + scoped rules by product/category/variant, min qty, validity dates, currency — AureusERP, ERPNext Pricing Rule and Odoo converge on this shape; customer scope sits on the rule in ERPNext and on the customer in Odoo) and a **price-change history log** (Dolibarr stores every change with old/new values — a natural BOSS audit trail; `ProductPrice.price` already has `enable-audit-log="true"`, so the Moqui entity audit log holds the history and BOSS needs only a screen over it). Keep effective-dated rows rather than edited history (ERPNext Item Price, Mantle `ProductPrice.fromDate`/`thruDate`), support tax-inclusive prices (Carbon `priceIncludesTax`, Dolibarr HT/TTC; Mantle `ProductPrice.taxInPrice`) and min-quantity tiers (`ProductPrice.minQuantity`). ERPNext's `Pricing Rule Detail` — which rules applied on each document line — is the model for the **explain** output the one BOSS price resolver must give (crosscut §4); Mantle's `get#ProductPrice` today returns only price, list price and the chosen `productPriceId`. Costs deserve their own screens independent of price: item standard cost with effective date (ERPNext Item Standard Cost), valuation method and a cost-history chart (Carbon), while stock valuation mechanics stay with Warehouse/Accounting as in every reference (Odoo `stock_account`). Promotions and coupons are Marketing programs (crosscut §4) evaluated inside the same resolver.
 
 ---
 
@@ -430,37 +434,37 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 | --- | --- | --- |
 | **Absent** | Items carry no supplier linkage at all; purchasing references are only COGS on the item form | — |
 
-### AureusERP — supplier data lives in Purchasing (pointer), products has the model only
+### AureusERP — vendor prices live in the Purchases plugin
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| **No supplier UI in products** | The products plugin has a `ProductSupplier` model (`Product hasMany ProductSupplier`) but **no Filament resource or form renders it** — supplier faces belong to the `purchases` plugin's clusters | `plugins/webkul/products/src/Models/ProductSupplier.php`, `plugins/webkul/purchases/src/Filament/{Admin,Customer}/` |
+| Vendor prices | The products plugin defines the `ProductSupplier` model (vendor, vendor product name/code, min qty, price, discount, delay, validity) but renders no UI for it; the **purchases** plugin does: a **Vendor Prices** resource under Configurations and a **Vendors** sub-page (`ManageVendors`) on its product resource | `plugins/webkul/products/src/Models/ProductSupplier.php`, `plugins/webkul/purchases/src/Filament/Admin/Clusters/Configurations/Resources/VendorPriceResource.php`, `plugins/webkul/purchases/src/Filament/Admin/Clusters/Products/Resources/ProductResource/Pages/ManageVendors.php` |
 
 ### Carbon — supplier part records drive the item's purchasing defaults
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Supplier parts on item | `SupplierParts` list + `SupplierPartPrice` rows under the item's Purchasing tab: per-supplier part numbers and prices; the item purchasing form auto-pulls distributor price/preferred supplier from the **preferred supplier's supplier-part record** | `apps/erp/app/modules/items/ui/Item/SupplierParts/{SupplierParts,SupplierPartPrice}.tsx`, `apps/erp/app/modules/items/ui/Item/{SupplierPartForm,ItemPurchasingForm}.tsx` |
+| Supplier parts on item | Purchasing tab of the part: **Supplier Parts** list (supplier, supplier part id, currency, unit price, supplier UOM + conversion factor, minimum order quantity, order multiple) with **price breaks** per supplier part; the item purchasing form holds purchasing UOM, conversion factor, **preferred supplier**, lead time and purchasing-blocked | `apps/erp/app/modules/items/ui/Item/SupplierParts/{SupplierParts,SupplierPartPrice}.tsx`, `apps/erp/app/modules/items/ui/Item/{SupplierPartForm,ItemPurchasingForm}.tsx`, routes `apps/erp/app/routes/x+/part+/$itemId.purchasing.tsx` |
 
 ### Dolibarr — supplier prices tab on the product
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Supplier prices page/tab | `price_suppliers.php`: per-supplier price rows on the product (ref & supplier price list via `fournisseur.product.class`), validity, quantity breaks; **advanced permission** `product_advance.write_supplier_prices` gates writing supplier prices separately from product edit | `htdocs/product/price_suppliers.php`, class `htdocs/fourn/class/fournisseur.product.class.php` |
-| On orderlines | PO line supplier-ref sync writes back `search_ref_supplier`-searchable data; supplier ref appears in product list filters (§2) | `htdocs/fourn/class/fournisseur.product.class.php`, `htdocs/product/list.php` |
+| Supplier prices page/tab | `price_suppliers.php` ("Buying prices" tab): per-supplier price rows on the product — supplier ref, min quantity, price (net or gross base), VAT, discount, delivery delay in days, packaging, supplier reputation, multicurrency price; **advanced permission** `product_advance.write_supplier_prices` gates writing supplier prices separately from product edit | `htdocs/product/price_suppliers.php`, class `htdocs/fourn/class/fournisseur.product.class.php`, permission in `htdocs/core/modules/modProduct.class.php` |
+| Supplier ref in search | The supplier ref stored on those rows is a search field of the product list (§2) | `htdocs/product/list.php` (`search_ref_supplier`) |
 
 ### ERPNext — supplier children on the Item
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Item supplier child | Simple child table: `supplier` + `supplier_part_no` (the SKU as the vendor knows it); note the per-company `item_default` child does **not** carry a default supplier — only warehouse/price-list/accounts | `erpnext/stock/doctype/item_supplier/{item_supplier.json,*.py}`, `erpnext/stock/doctype/item_default/item_default.json` |
-| Supplier lead time child | Per supplier: purchase_time + buffer_time + is_default flag — drives purchasing MRP | `erpnext/stock/doctype/item_lead_time_supplier/` |
+| Item supplier child | Simple child table on Item: `supplier` + `supplier_part_no` (the SKU as the vendor knows it); the per-company `item_default` child carries `default_supplier` among its purchase defaults, and supplier prices are Item Price rows with `supplier` + `buying` | `erpnext/stock/doctype/item_supplier/item_supplier.json`, `erpnext/stock/doctype/item_default/item_default.json`, `erpnext/stock/doctype/item_price/item_price.json` |
+| Item Lead Time | Separate doctype per item (linked from the Item connections): manufacturing time, shifts, capacity, purchase and buffer time, with a child **Item Lead Time Supplier** (supplier, purchase time, buffer time, is default) | `erpnext/stock/doctype/{item_lead_time,item_lead_time_supplier}/` |
 
 ### Ever Gauzy — **absent** vendor catalogs in product UI
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| **Absent** | Inventory/product module has no supplier mapping (vendors are CRM records elsewhere in gauzy; product-variant prices are channel-scoped instead) | — |
+| **Absent** | Inventory/product pages have no supplier mapping; variant prices are a single cost/retail pair (§6) | — |
 
 ### metasfresh — BPartner product records as a first-class engine
 
@@ -476,7 +480,7 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 | Supplierinfo CRUD | Standalone searchable list ("Vendor") + per-vendor price rows: vendor, product (tmpl or variant), unit price, min quantity, currency, **validity dates**, plus delivery lead time & company; server-side "warnings on purchase orders" group extends the product form | `odoo/addons/product/views/product_supplierinfo_views.xml`, model `odoo/addons/product/models/product_supplierinfo.py` |
 | Purchase-side product views | Purchase module patches the product form (vendor field `seller_ids`, purchase description, PO warning group) and adds forecasted columns in picking-views | `odoo/addons/purchase/views/product_views.xml` |
 
-**BOSS implications.** Supplier product references want to be their own entity, not item fields: vendor + vendor's part number + unit price + min qty + validity + lead time (Odoo/Carbon/ERPNext agree). BOSS should keep it in the Purchasing app but render it as a Product-360 tab (dolibarr-style "suppliers tab on product"), gate price writing behind a dedicated permission (Dolibarr's `write_supplier_prices` split is a good security pattern), and let a preferred/primary vendor flag feed default costing/purchasing defaults (Carbon preferred-supplier, ERPNext `is_default` lead-time row).
+**BOSS implications.** Supplier product references are rows of their own, not item fields: vendor + vendor's part number + unit price + min qty + validity + lead time (Odoo supplierinfo, Carbon supplier parts, AureusERP `ProductSupplier`, Dolibarr buying prices agree; ERPNext splits them across Item Supplier, Item Price and Item Lead Time). Mantle has **no separate supplier-product entity**: a supplier price is a `ProductPrice` row with `vendorPartyId`, carrying `otherPartyItemId`/`otherPartyItemName` (vendor part number), `minQuantity`, `fromDate`/`thruDate`, `standardLeadTimeDays`, `preferredOrderEnumId` (`SpoMain` main / `SpoAlternate` alternate supplier), `supplierRatingTypeEnumId`, `quantityIncrement` and `canDropShip` — the Odoo/Carbon field set already. The Product 360 **Suppliers** tab is the Purchasing face (crosscut §3), editing the same rows that Supplier 360 shows; AureusERP shows exactly this split (vendor prices rendered by the purchases plugin on a shared product resource). Gate supplier-price writing behind its own permission (Dolibarr `write_supplier_prices`) and let the main-supplier row feed purchasing defaults and cost estimates (Carbon preferred supplier, ERPNext default supplier and `is_default` lead time).
 
 ---
 
@@ -486,7 +490,7 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Uploads controller | Every module's attachments route through one `Common/Uploads` controller (file route/delete via signed URLs) — used for invoice/bill files as much as anything on items; the item form itself has no media/picture widget in this checkout | `app/Http/Controllers/Common/Uploads.php`, shared file group `resources/views/components/form/group/file.blade.php` |
+| Uploads controller | Every module's attachments route through one `Uploads` controller (file route/delete via signed URLs) — used for invoice/bill files as much as anything on items; the item form itself has no media/picture widget in this checkout | `app/Http/Controllers/Common/Uploads.php`, shared file group `resources/views/components/form/group/file.blade.php` |
 
 ### AureusERP — gallery FileUpload on the form section
 
@@ -498,7 +502,7 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| ItemDocuments | Panel inside the item detail rendering `ItemFile` rows with optimistic-upload merge (`attachmentsByName` map joins pending + saved files), delete/preview, and files-module integration | `apps/erp/app/modules/items/ui/Item/ItemDocuments.tsx`, files module `packages/files/` (imported via `@carbon/files`) |
+| ItemDocuments | Panel inside the item detail rendering `ItemFile` rows from object storage with optimistic-upload merge (`attachmentsByName` map joins pending + saved files), download/delete, and a separate **3D model** upload for CAD files (`ModelUpload`) | `apps/erp/app/modules/items/ui/Item/ItemDocuments.tsx` |
 
 ### Dolibarr — per-object document page with PDF merge
 
@@ -524,16 +528,16 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Attachments module | AD attachment/archive machinery renders in the generic window attachment tab | `backend/de.metas.document.archive/`, `backend/de.metas.dlm/` + shell `frontend/src/components/window/` |
+| Attachments | Generic attachment entries on any record, opened from the window header (attach file or URL); document archive for generated PDFs | `backend/de.metas.adempiere.adempiere/base/src/main/java/de/metas/attachments/`, `backend/de.metas.ui.web.base/src/main/java/de/metas/ui/web/attachments/`, `frontend/src/components/header/{Attachments,AttachUrl}.js`, archive `backend/de.metas.document.archive/` |
 
 ### Odoo — product documents kanban with upload button
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Product documents | Dedicated `product.document` model rendered as a **kanban of files per product/variant** (cards preview images/PDFs) with an upload button; the product form's Documents smart button opens it; `res_model` can be template or variant, so docs attach per-variant | `odoo/addons/product/views/product_document_views.xml`, OWL panel `odoo/addons/product/static/src/js/product_document_kanban/{product_document_kanban_view,product_document_kanban_controller,product_document_kanban_record,upload_button}.*` |
-| Product images | `image_1920/image_256` fields on template & variants (Image widget resize tooling), reused wherever product images are shown | `odoo/addons/product/views/product_template_views.xml`, image tooling `odoo/addons/product/static/src/` |
+| Product documents | Dedicated `product.document` model rendered as a **kanban of files per product/variant** (cards preview images/PDFs) with an upload button; the product form's Documents smart button opens it; `res_model` can be template or variant, so docs attach per-variant | `odoo/addons/product/views/product_document_views.xml`, OWL panel `odoo/addons/product/static/src/js/product_document_kanban/` (`product_document_kanban_{view,controller,record,renderer}.js`, `upload_button/`), model `odoo/addons/product/models/product_document.py` |
+| Product images | Template image (`image_1920` with resized copies) and an optional per-variant image (`image_variant_1920`) that overrides it, reused wherever product images are shown | `odoo/addons/product/views/product_template_views.xml`, `odoo/addons/product/models/product_product.py` |
 
-**BOSS implications.** Attachments should be one central entity reused per module (Akaunting's single Uploads controller, Dolibarr's shared document tab tpl, Carbon's files module) with product documents getting a **variant-scopeable** attachment (Odoo's `res_model` template vs variant split is exactly the right seam), kanban-style file cards with preview for images/PDFs (Odoo product_documents_kanban is the best UX reference), and an optimistic-upload merge so re-uploads don't flash empty states (Carbon ItemDocuments). Gauzy's `featuredImage` + org-level featured flags show how commerce merchandising wants to sit on top of the same media rows.
+**BOSS implications.** Attachments should be one central mechanism reused per module (Akaunting's single Uploads controller, Dolibarr's shared document tab template, metasfresh's generic attachments) with product documents **variant-scopeable** (Odoo `product.document` on template or variant is the right seam), shown as kanban-style file cards with preview for images/PDFs (Odoo product document kanban is the best UX reference) and with optimistic upload so re-uploads don't flash empty states (Carbon ItemDocuments). Mantle already has the record: `ProductContent` (location, `productContentTypeEnumId` with image sizes, specification, warranty, instructions, label text, meta keywords…, `locale`, optional `productFeatureId` and `productStoreId`, from/thru dates) — the variant/feature scope and per-store scope are fields, not new entities. Image-plus-merchandising flags (Ever Gauzy `featuredImage`, `isFeatured`, `sortOrder`) and storefront content per store are the Commerce face (crosscut §3); Products owns the document library.
 
 ---
 
@@ -549,8 +553,8 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Packaging resource | `PackagingResource` (name, product, qty, barcode, company): Bagisto-style sellable packages of a product (box/unit multiples) with own barcode | `plugins/webkul/products/src/Filament/Resources/PackagingResource/` (+ `Schemas/PackagingForm.php`) |
-| Barcode scanning UI | Separate `barcode` plugin with Livewire components (scan-driven tooling added via Filament) | `plugins/webkul/barcode/src/{BarcodePlugin,Filament,Livewire,Support}` |
+| Packaging resource | `PackagingResource` (name, barcode, product, qty, company): sellable packages of a product (box/unit multiples) with their own barcode; Purchases repeats it under Configurations | `plugins/webkul/products/src/Filament/Resources/PackagingResource/` (+ `Schemas/PackagingForm.php`) |
+| Barcode scanning UI | Separate `barcode` plugin with Livewire components (scan-driven tooling added via Filament) | `plugins/webkul/barcode/src/{BarcodePlugin.php,Filament,Livewire,Support}` |
 
 ### Carbon — UOM form/table in the items module
 
@@ -562,7 +566,7 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Barcode engine/masks | `htdocs/admin/barcode.php` config (encoders + numbering masks), gen/init pages assign codes and print sheets using printsheet module templates in `htdocs/core/modules/printsheets/` | `htdocs/barcode/{codeinit.php,printsheet.php}`, `htdocs/admin/barcode.php` |
+| Barcode engine/masks | `htdocs/admin/barcode.php` config (encoders + numbering masks), gen/init pages assign codes and print sheets using the printsheet templates in `htdocs/core/modules/printsheet/` | `htdocs/barcode/{codeinit.php,printsheet.php}`, `htdocs/admin/barcode.php` |
 | Product-side barcode | Barcode + barcode-type (EAN/UPC/other) fields on the product card, creation gated by `BARCODE_USE_ON_PRODUCT` + advanced permission (`barcode.creer_advance`); barcode is a search token in product list (§2) | `htdocs/product/card.php` (lines ~238–340), lookup `htdocs/core/class/html.formbarcode.class.php` |
 | Units | Product card carries weight / net-weight / volume (+ their unit selectors); UOM conversion is not modeled (quantity stays a bare numeric) | `htdocs/product/class/product.class.php` |
 
@@ -578,27 +582,27 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Units & sizes | Product entity carries `unitCode` (uom by class) etc.; no standalone UOM/app screen — fields inline in product/variant forms | `packages/core/src/lib/product/product.entity.ts` |
+| Units on the variant | Each variant references a **stock unit** (must be the reference unit of its category), optional **sales** and **purchase** units (same category) and a **weight unit**; no standalone UOM screen in the inventory pages | `packages/core/src/lib/product-variant/product-variant.entity.ts` |
 
 ### metasfresh — dedicated UOM engines + handling units for packaging
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
 | UOM | UOM conversion engine (business-side services under `de/metas/uom`: uom, conversions, standard/base UOM resolution) consumed by every pricing/inventory window | `backend/de.metas.business/src/main/java/de/metas/uom/` |
-| Handling units | Packaging as first-class entities (HU packing instructions, TUs/LUs, per-storage per warehouse) — the packaging/goods-units engine BOSS packaging history should look at | `backend/de.metas.handlingunits.*` (`de.metas.handlingunits.base/webui/mobileui`) |
-| Barcode/scan | GS1 decoder + scanned product-code resolution feeding barcode-driven picking and receipt applets | `backend/de.metas.business/src/main/java/de/metas/gs1/`, `backend/de.metas.business/src/main/java/de/metas/product/ResolvedScannedProductCode{,s}.java` |
+| Handling units | Packaging as first-class entities (HU packing instructions, TUs/LUs) — the packaging/goods-units engine, mostly Warehouse's concern | `backend/de.metas.handlingunits.{base,webui,mobileui}/` |
+| Barcode/scan | GS1 decoder + scanned product-code resolution feeding barcode-driven picking and receipt applets | `backend/de.metas.business/src/main/java/de/metas/gs1/`, `backend/de.metas.adempiere.adempiere/base/src/main/java/de/metas/product/{ResolvedScannedProductCode,ResolvedScannedProductCodes}.java` |
 
 ### Odoo — uom addon, packaging in stock, barcode nomenclatures
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Units & packagings page | `uom_uom_views.xml`: the "Units & Packagings" master (uom + uom.category with type incl. displayed factor `relative_factor` + `relative_uom_id` precision digits [12,3]); archived flags | `odoo/addons/uom/views/uom_uom_views.xml`, models `odoo/addons/uom/models/` |
-| Base units per company | `product.base.unit` (company-level base UOM for specific units like "e.g. m2"), rendered near company settings | `odoo/addons/product/views/product_base_unit_views.xml` |
-| Packaging (stock pointer) | Product packaging lines (barcode + qty per packaging) live in the stock addon's window, surfaced on the product card's Sales tab "Packaging barcodes" group | `odoo/addons/stock/views/stock_package_views.xml`, product surface `odoo/addons/product/views/product_views.xml` (Packaging barcodes group) |
-| Barcode nomenclatures | Scanner naming font config: `barcode.nomenclature` with rules/taxonomies parsed by the barcode_parser OWL lib (decode/encode boundaries incl. GS1 hints); also res_partner uses barcode | `odoo/addons/barcodes/views/barcodes_view.xml`, `odoo/addons/barcodes/static/src/js/barcode_parser.js` |
-| Label printing | Product label report launcher + print sheets; barcode/serial QR labels in the webui wizard `product.label.layout` | `odoo/addons/product/report/{product_product_templates.xml,product_reports.xml}`, wizard `odoo/addons/product/wizard/product_label_layout{,_views}.py` |
+| Units & packagings page | "Units & Packagings" list/form: **no UOM categories in this version** — each unit names a reference unit (`relative_uom_id`) and a quantity (`relative_factor`), forming a tree with a computed absolute `factor`; archive flag | `odoo/addons/uom/views/uom_uom_views.xml`, model `odoo/addons/uom/models/uom_uom.py` |
+| Base units | `product.base.unit` (units such as m² used to show a price per base unit) | `odoo/addons/product/views/product_base_unit_views.xml` |
+| Packaging barcodes | Packaging is now a unit: `product.uom` links a product to a pack unit with its own **barcode** ("Packaging Barcodes" editable list), opened from the product form button `action_open_packaging_barcodes` | `odoo/addons/product/views/uom_views.xml`, model `odoo/addons/product/models/product_uom.py`, button in `odoo/addons/product/views/product_views.xml` |
+| Barcode nomenclatures | Scanner configuration: `barcode.nomenclature` with rules parsed by the `barcode_parser` JS lib (GS1 support); partners carry barcodes too | `odoo/addons/barcodes/views/barcodes_view.xml`, `odoo/addons/barcodes/static/src/js/barcode_parser.js` |
+| Label printing | Product label report launcher + print sheets; barcode/serial QR labels in the webui wizard `product.label.layout` | `odoo/addons/product/report/{product_product_templates.xml,product_reports.xml}`, wizard `odoo/addons/product/wizard/{product_label_layout.py,product_label_layout_views.xml}` |
 
-**BOSS implications.** UOM belongs at the entity-model level: a category-driven UOM table with typed conversions (Odoo uom.category + relative_factor, ERPNext UOM Conversion Factor), plus per-item conversion overrides in a child grid (ERPNext Item "uoms"). Packaging beats both bagisto master tables and Odoo's variant-observed packaging — model sellable packaging as (product, qty, barcode, label) with a pack-size picker on document lines (AureusERP Packaging + Odoo packaging lines). Barcodes need a nomenclature/parser config record + typed code child on the item (ERPNext barcode_type, Odoo barcode.nomenclature + GS1 in metasfresh) — same entity then feeds printing (Odoo label layout wizard, Dolibarr printsheet) and POS scanning.
+**BOSS implications.** UOM belongs at the data-model level: a typed unit table with conversions (ERPNext UOM Category + UOM Conversion Factor; Odoo now uses a reference-unit tree instead of categories), plus per-item conversions in a child grid (ERPNext Item `uoms`, Ever Gauzy stock/sales/purchase units per variant, Carbon supplier UOM + conversion factor). The Moqui framework already has `moqui.basic.Uom` (typed by `uomTypeEnumId`) and `UomConversion` (factor, offset, from/thru dates); Mantle adds per-product `ProductDimension` (weight, length… with a unit) and `ProductUomDimension`, and `Product.amountUomId`/`amountFixed` for the sold quantity. Packaging should be modeled as (product, pack quantity, barcode, label) with a pack-size picker on document lines (AureusERP Packaging, Odoo `product.uom`); in Mantle that is a pack product linked by `ProductAssoc` (`PatAlternativePkg` / `PatPackagingFor`) or a `ProductUomDimension` — decide before building (§14 Open questions). Barcodes need typed codes on the item (ERPNext `barcode_type`, Dolibarr barcode type; Mantle `ProductIdentification` with UPC-A, UPC-E, EAN, GTIN, ISBN, SKU, HTS types) and a nomenclature/parser config for scanners (Odoo `barcode.nomenclature`, metasfresh GS1) — the same codes then feed label printing (Odoo label layout wizard, Dolibarr printsheet) and scanning in Warehouse.
 
 ---
 
@@ -610,44 +614,44 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 | --- | --- | --- |
 | **Absent / list-only** | No reverse-link surfaces; item detail shows attachments + documents where it appears, but there's no per-product workbench aggregating orders/purchases | — |
 
-### AureusERP — cross-app faces via the inventories plugin (pointer)
+### AureusERP — one product resource re-exposed by each app with its own tabs
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Inventories Clusters around product | `inventories` plugin clusters: **Products** (variant/serials/lot faces), Operations, Reporting, Settings, plus header Widgets (e.g. product-valuation numbers) | `plugins/webkul/inventories/src/Filament/Clusters/`, `plugins/webkul/inventories/src/Filament/Widgets/` |
-| Purchases plugin | Product vendors + PO lines referencing products live here (§7 pointer) | `plugins/webkul/purchases/src/Filament/{Admin,Customer}/` |
+| Per-app product resource | Purchases, Inventories, Sales and Manufacturing each have a **Products** cluster whose `ProductResource` extends a base resource (Purchases from Accounts, Manufacturing from Inventories) and adds the same sub-pages: **Attributes, Variants, Vendors, Quantities, Moves, Bills of Materials** — the closest reference to a shared Product 360 with per-app faces; other plugins inject form blocks through `ProductSchemaRegistry` (§3) | `plugins/webkul/purchases/src/Filament/Admin/Clusters/Products/Resources/ProductResource.php` (+ `ProductResource/Pages/{ManageVendors,ManageQuantities,ManageMoves,ManageBillsOfMaterials}.php`), `plugins/webkul/inventories/src/Filament/Clusters/Products/Resources/ProductResource.php`, `plugins/webkul/sales/src/Filament/Clusters/Products/Resources/ProductResource.php`, `plugins/webkul/manufacturing/src/Filament/Clusters/Products/Resources/ProductResource.php` |
+| Inventories clusters | `inventories` plugin clusters: Products, Operations, Reporting, Configurations, Settings; its widgets are operation-type cards, not product KPIs | `plugins/webkul/inventories/src/Filament/Clusters/`, `plugins/webkul/inventories/src/Filament/Widgets/` |
 
 ### Carbon — one item record with cross-module sub-forms and exploration
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Manufacturing face | BOM/BOP/BoM-explorer components on the item (recipe sheets, method operations/materials tables) | `apps/erp/app/modules/items/ui/Item/{BillOfMaterial,BillOfProcess,BoMExplorer,MethodRow,MakeMethodTools,MakeMethodVersionStatus}.tsx`, manufacturing side `apps/erp/app/modules/manufacturing/` |
+| Manufacturing face | BOM/BOP/BoM-explorer components on the item (recipe sheets, method operations/materials tables) | `apps/erp/app/modules/items/ui/Item/{BillOfMaterial,BillOfProcess,BoMExplorer,MethodRow,MakeMethodTools,MakeMethodVersionStatus}.tsx`, `apps/erp/app/modules/items/ui/Methods/`, production side `apps/erp/app/modules/production/` |
 | Reverse links | `UsedIn.tsx` enumerates wherever the item is consumed (BOMs/methods/order templates), with `PlannedOrderDetailsPopover` and a planning chart | `apps/erp/app/modules/items/ui/Item/{UsedIn,PlannedOrderDetailsPopover,ItemPlanningChart,ItemPlanningForm}.tsx` |
-| Risk & revisions 360 | Risk register + revision/change-notice stack inside the same record header | `apps/erp/app/modules/items/ui/Item/{ItemRiskRegister,RevisionForm}.tsx`, `apps/erp/app/modules/items/ui/ChangeNotice*/` |
+| Risk & revisions 360 | Risk register + revision/change-notice stack inside the same record header | `apps/erp/app/modules/items/ui/Item/{ItemRiskRegister,RevisionForm}.tsx`, `apps/erp/app/modules/items/ui/ChangeNotice/` |
 
 ### Dolibarr — per-tab stats pages around the product
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Per-document-type stats | `htdocs/product/stats/` pages each enumerate linked docs of one type from the product record: customer orders/quotes/proposals, supplier orders/receptions, invoices (customer/supplier/recurring), contracts, shipments, MOs, BOMs — each with drill-in list and per-period numbers | `htdocs/product/stats/{commande,propal,facture,commande_fournisseur,reception,contrat,expedition,bom}.php` |
-| Composition (kits) | Sub-product composition card for parent/child kits (list of sub-products with exchangeable quantity multipliers) | `htdocs/product/composition/card.php` |
-| Stock views on product | stock card/movements lists for the product | `htdocs/product/stock/{card.php,movement_list.php}`, stock module dir `htdocs/product/stock/` |
+| Referring objects & statistics | **Referring objects** tab: `htdocs/product/stats/` pages each list linked documents of one type for the product — proposals, customer orders, invoices (customer, supplier, recurring), supplier proposals and orders, receptions, contracts, shipments, MOs, BOMs; a **Statistics** tab (`stats/index.php`) charts quantities and amounts per period | `htdocs/product/stats/{propal,commande,facture,facture_fournisseur,facturerec,supplier_proposal,commande_fournisseur,reception,contrat,expedition,mo,bom,index}.php` |
+| Composition (kits) | Kit tab: sub-products with quantity and an inc/dec flag saying whether component stock moves with the kit | `htdocs/product/composition/card.php` |
+| Stock views on product | Stock tab per warehouse and movements list for the product | `htdocs/product/stock/{product.php,movement_list.php}` |
 
 ### ERPNext — Item "connections" heatmap + doctype dashboards
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Item connections panel | Desk dashboard data mechanically lists reverse links with a Stock-Ledger heatmap below: Groups (BOM/Product Bundle/Item Alternative), then quoting/orders invoices + serial batches, work orders, projects | `erpnext/stock/doctype/item/item_dashboard.py`, renderer `erpnext/stock/doctype/item/item.js` |
-| Stock summary dashboard | Another dashboard box with "Stock Analytics" links (shortage/balance/valuation...) | `erpnext/stock/doctype/item/item_dashboard.py`, charts `erpnext/stock/dashboard_chart/{item_shortage_summary,oldest_items}.json` |
-| Sales-side face | `item_wise_annual_sales` selling chart orchestrates sales from the item workspace, `selling/report/item_wise_sales_history` tracks history | `erpnext/selling/dashboard_chart/item_wise_annual_sales/`, `erpnext/selling/report/item_wise_sales_history/` |
-| Ecommerce-ish leftovers | `www/all-products` static catalog listing page + `website_item_group` setup doctype (Website Item doctype skeleton not in this checkout) | `erpnext/www/all-products/`, `erpnext/setup/doctype/website_item_group/` |
+| Item connections panel | Reverse links with counts, grouped **Groups** (BOM, Product Bundle, Item Alternative), **Pricing** (Item Price, Pricing Rule), **Sell** (Quotation → Sales Invoice), **Buy** (Material Request → Purchase Invoice), **Manufacture** (Production Plan, Work Order, Item Manufacturer), **Traceability** (Serial No, Batch), **Stock Movement**, **Lead Time**, **Standard Cost**; plus a stock-movement heatmap | `erpnext/stock/doctype/item/item_dashboard.py` |
+| Stock levels section | Warehouse-wise stock levels (actual, reserved, ordered, projected) rendered inside the Item form | `erpnext/stock/dashboard/{item_dashboard.py,item_dashboard.js,item_dashboard_list.html}`, mounted from `erpnext/stock/doctype/item/item.js` |
+| Sales-side face | Selling chart **Item-wise Annual Sales** and report **Item-wise Sales History** | `erpnext/selling/dashboard_chart/item_wise_annual_sales/`, `erpnext/selling/report/item_wise_sales_history/` |
+| Ecommerce-ish leftovers | `www/all-products` is an empty shell (only an empty `__init__.py`; the webshop moved to the separate `webshop` app, not in this checkout) + `website_item_group` setup doctype (no Website Item doctype in this checkout) | `erpnext/www/all-products/`, `erpnext/setup/doctype/website_item_group/` |
 
 ### Ever Gauzy — variants/warehouse tabs as the product 360
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| View item page | `view-inventory-item` component (per-route `view/:id` read-only page) then jump-links for the variant/price combo rows; same record both list/detail faces | `apps/gauzy/src/app/pages/inventory/components/view-inventory-item/` |
-| Warehouse & merchant widgets | `manage-warehouses` + `manage-merchants` layouts attach to the same item pages (goods-in faces of products) | `…/inventory/components/{manage-warehouses,manage-merchants}/` |
+| View item page | `view-inventory-item` component (per-route `view/:id` read-only page) showing the product with its variants | `apps/gauzy/src/app/pages/inventory/components/view-inventory-item/` |
+| Warehouses & merchants | Sibling sub-routes of the inventory module (`warehouses`, `merchants`) with their own tables; warehouse stock per product is kept there, not on the product page | `apps/gauzy/src/app/pages/inventory/components/{manage-warehouses,manage-merchants}/` |
 | Shared mutation helper | `product-mutation` helper provides create/update/duplicate shorthands reused by the wizard and is org-scoped | `packages/ui-core/shared/src/lib/product/product-mutation/` |
 
 ### metasfresh — windows + processes compose the product face
@@ -655,17 +659,17 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
 | Product-related processes | Product window processes like `WEBUI_M_Product_LotNumber_Quarantine` (quarantine lot handler surfaced as button) inside the generic window | `backend/de.metas.ui.web.base/src/main/java/de/metas/ui/web/product/process/` |
-| Stock faces | Receipts/picking candidates per product are separate windows (warehouse) but reached from the product via quick actions | `backend/de.metas.ui.web.base/src/main/java/de/metas/ui/web/{receiptSchedule,picking,inoutcandidate}/` |
+| Stock faces | Receipts/picking candidates per product are separate windows (warehouse) *(reached from the product via quick actions — unverified)* | `backend/de.metas.ui.web.base/src/main/java/de/metas/ui/web/{receiptSchedule,picking,inoutcandidate}/` |
 
 ### Odoo — one product template button-box shared across modules
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Smart buttons in the same product form | Stock addon patches the product/category forms: category button-box "Putaway Rules" + Logistics page; per-product on-hand/forecasted/reserved wizards and stock-moves actions hang off the same `<button name="action_open_documents" ...>` box | `odoo/addons/stock/views/product_views.xml`, `odoo/addons/product/views/product_views.xml` (`product_template_form_view` button_box) |
-| BOM & MO faces | MRP patches the product form: "Bill of Materials" + "Used in BOM" + "Manufacturing Orders" stat buttons (template & variant level) | `odoo/addons/mrp/views/product_views.xml` |
-| Sales face + ecommerce note | `sale/views/product_views.xml` patches the product form with sales-related stat surfaces; the customer-facing storefront lives in `website_sale` (+ eight `website_sale_*` addons, all in this community checkout; see research-commerce.md) | `odoo/addons/sale/views/product_views.xml` |
+| Smart buttons in the same product form | Stock addon patches the product/category forms: category button-box "Putaway Rules" + Logistics page; on the product it adds stat buttons to the same button box as **Documents** (`action_open_documents`): On Hand (`action_open_quants`), Forecasted, Lots/Serial numbers, Reordering rules (`action_view_orderpoints`), Putaway rules | `odoo/addons/stock/views/product_views.xml`, `odoo/addons/product/views/product_views.xml` (`product_template_form_view` button_box) |
+| BOM & MO faces | MRP patches the product form: **Bill of Materials**, **Used In** and manufactured-quantity stat buttons (template & variant level) | `odoo/addons/mrp/views/product_views.xml` |
+| Sales and purchase faces | Sale adds a **Sold** stat button (`sales_count`) and a sales-order warning; Purchase adds **Purchased** (`purchased_product_qty`), purchase description and a PO warning (`odoo/addons/purchase/views/product_views.xml`); the customer-facing storefront lives in `website_sale` (+ eight `website_sale_*` addons, all in this community checkout; see research-commerce.md) | `odoo/addons/sale/views/product_views.xml` |
 
-**BOSS implications.** The Product 360 is really a **button-box pattern**: one product record that every module progressively patches with reverse-linked stat buttons (stock qty, BOMs, open MOs, sales/purchases history) — BOSS should render the shared Product 360 screen with per-app panels (Inventory stock summary, Manufacturing BOM/work orders, Purchasing supplier rows, Accounting price/cost history) that are toggled in and enabled per role, exactly like module-patched Odoo groups and Carbon's per-concern sub-forms/UsedIn. Always keep a "documents" panel (Odoo product documents + Dolibarr stats pages) and a reverse-link "connections" listing (ERPNext item_dashboard) — both proved highest-value in the references. Gate manufacturing/purchasing panels behind module flags like AureusERP's inventories cluster separation.
+**BOSS implications.** The Product 360 is a **button-box pattern** over one record: every app adds reverse-linked counts and tabs (Odoo stat buttons patched in by stock, mrp, sale and purchase; ERPNext connections; Dolibarr referring objects; AureusERP's per-app product resources with Vendors/Quantities/Moves/BOM sub-pages; Carbon's per-concern tabs and Used In). BOSS builds one shared **Product 360** screen owned by Products (crosscut §3) with the app/role context selecting tabs: the Products face holds the master data, variants and features, categories, identifications, dimensions, content/documents, prices, costs and price rules; **Purchasing** adds supplier prices and lead times; **Manufacturing** BOM and where-used; **Warehouse** stock, lots and locations (through the shared Inventory availability screen it owns); **Accounting** cost history; **Sales** price and availability; **Commerce** merchandising, store categories and SEO. Always keep a documents tab (Odoo product documents) and a connections/referring-documents list with counts (ERPNext item dashboard, Dolibarr `product/stats/`) — the two features every reference converged on. Tabs whose app is not enabled or not permitted are hidden, as AureusERP does by plugin.
 
 ---
 
@@ -675,7 +679,7 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Settings relevant to items | Generic settings: categories (§5), item defaults inside Settings→Defaults (default category/tax), currency tax settings; no product feature toggles — item handling is fixed by code | `app/Http/Controllers/Settings/{Defaults,Categories}.php`, views `resources/views/settings/{default,categories}/` |
+| Settings relevant to items | Generic settings: categories (§5) and Settings → Defaults (default account, currency, income and expense category, tax, list limit); no product feature toggles — item handling is fixed by code | `app/Http/Controllers/Settings/{Defaults,Categories}.php`, views `resources/views/settings/{default,categories}/` |
 
 ### AureusERP — one settings class with 4 capability toggles
 
@@ -693,9 +697,9 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Product module admin | Product options incl. barcode search toggles, multiprices usage flags, lot/serialization settings, per-feature permissions | `htdocs/product/admin/product.php`, `htdocs/product/admin/product_lot.php` |
-| Dynamic prices & price rules admin | Turn on/structure the price-expression engine and price rules | `htdocs/product/admin/{dynamic_prices.php,price_rules.php}` |
-| Product tools | Recurring/mass tools config | `htdocs/product/admin/product_tools.php` |
+| Product module admin | Price model choice (one price, multiprice levels with `PRODUIT_MULTIPRICES_LIMIT`, customer prices, prices by quantity), product code numbering and PDF models, kits (`PRODUIT_SOUSPRODUITS`), customer/supplier packaging, description autofill; lot/serial settings on their own page | `htdocs/product/admin/product.php`, `htdocs/product/admin/product_lot.php` |
+| Dynamic prices & price rules admin | Price expressions and variables for formula prices; **multiprice rules** deriving each price level from another level with a percentage | `htdocs/product/admin/{dynamic_prices.php,price_rules.php}` |
+| Product tools | Mass change of the VAT rate on all products | `htdocs/product/admin/product_tools.php` |
 
 ### ERPNext — settings doctypes scattered as capability toggles
 
@@ -705,11 +709,11 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 | Feature toggles family | Separate settings doctypes per feature: item variant settings (§4), delivery settings, stock reposting settings — each own dir with `*_settings.{js,json,py}` | `erpnext/stock/doctype/{item_variant_settings,delivery_settings,stock_reposting_settings}/` |
 | Item taxonomy defaults | Default item group hierarchy feeds the workspace tree and Stock Settings's `item_group` default | `erpnext/setup/doctype/item_group/`, `erpnext/stock/doctype/stock_settings/stock_settings.json` |
 
-### Ever Gauzy — per-variant capability row concept
+### Ever Gauzy — per-variant capability flags
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Product variant settings entity | `ProductVariantSetting` — **a capability row per variant** (flags the platform asks "may it be sold/purchased/charged/rented/stocked/subscribed?" before a variant is read) with GraphQL CRUD served at route `/product-variant-settings`; directory comment explains why flags are rows not columns | `packages/core/src/lib/product-setting/{schema,type.gql,product-setting.resolver.ts}` |
+| Product variant settings entity | `ProductVariantSetting` — one settings row per variant with boolean columns **isSubscription, isPurchaseAutomatically, canBeSold, canBePurchased, canBeCharged, canBeRented, isEquipment, trackInventory**; REST at `/product-variant-settings` and a GraphQL resolver | `packages/core/src/lib/product-setting/{product-setting.entity.ts,product-setting.controller.ts,product-setting.resolver.ts}`, schema `packages/core/src/lib/product-setting/schema/product-setting.type.gql` |
 | UI setting widgets | Org-level product type/category/merchant management tables are the pickers' configured sources | `apps/gauzy/src/app/pages/inventory/components/manage-product-types/` |
 
 ### metasfresh — product config is backend windows/params
@@ -725,19 +729,180 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 | Product settings page | Weight/volume UOM choice (`product_weight_in_lbs`), volume units, and upgrade-boolean entries to install barcode-lookup module etc. | `odoo/addons/product/views/res_config_settings_views.xml`, `odoo/addons/product/models/res_config_settings.py` |
 | Variant/packaging groups | Feature enablement is via security groups: `group_product_variant` gates the whole variant machinery inline in views | `odoo/addons/product/security/product_security.xml`, `odoo/addons/product/models/res_groups.py` |
 
-**BOSS implications.** Configuration is a set of tiny capability toggles, not a screen: AureusERP's four booleans (variants/UOM/packaging/price-lists) are the whole products-plugin surface — BOSS should do the same with Moqui app-support records so catalog features can be switched per org. Beyond that, configuration should live as doctype-style settings entities with their own JSON-driven desk UI (ERPNext) rather than scattered admin pages, and security groups should be the second axis (Odoo) since variant editing rights differ from view rights. gauzy's per-variant capability rows are a prize pattern exactly for BOSS's "Products & variants" record: ask once, aggregate everywhere, extend flags without schema churn.
+**BOSS implications.** Catalog configuration is mostly a few capability toggles: AureusERP's four booleans (variants, UOM, packaging, price lists) reshape the whole products plugin, Odoo does the same with security groups (`group_product_variant`, `group_product_pricelist`), and ERPNext gathers defaults in Stock Settings (naming, default item group and UOM, valuation method, barcode field, auto-insert price list rate). BOSS Products should have one settings section (crosscut §4: each app owns its settings; Admin links to it) holding these switches as Moqui preferences or settings records per organization, with permissions as the second axis (viewing vs editing variants and prices). Ever Gauzy's per-variant flags (can be sold, purchased, rented, subscribed, stocked) are the same idea at product level; Mantle covers most of them with `productTypeEnumId`, `assetTypeEnumId`, `requireInventory`, `returnable`, `taxable` and the sales intro/discontinue dates, so BOSS needs few new fields.
 
 ---
 
-## 12. Gaps & notables in the checkout
+## 12. Cross-app surfaces
 
-- **Akaunting items are the flattest of all**: one price pair (sale/purchase), no UOM, no barcode, no variants, no supplier refs, no price lists — every "catalog feature" in the plan above has to be greenfield here. Its import page (`resources/views/common/import/create.blade.php`) is the only common-import surface (fields+sample-file+YouTube embed) shared by *all* types, so it ships even with the hand-rolled column mapper; there is no `resources/views/common/documents` (document forms live in `resources/views/components/documents/{form,show}` as in the accounting pass note). The Items module also exposes reorder/restore through one umbrella `Common/Items.php` — no per-type controllers.
-- **AureusERP products plugin inventory**: exactly five Filament resources (Product, Category, Attribute, Packaging, PriceList), zero custom Pages/Widgets — no dashboard or overview in the products plugin, so the home is the product list. Its two notable patterns: the `ProductSchemaRegistry` slot-injection contract for composing one product form from many plugins, and `ProductSettings` with only 4 booleans (variants/UOM/packaging/pricelists). Attribute families/groups live only inside `Aggregates/` and `AttributeResource` (no separate family resource as an Odoo-alike would have) — the Bagisto lineage shows up in `Enums/ProductType` grouping the list.
-- **Carbon items is deliberately not a commerce catalog**: a materials/parts/services/tools model with engineering-change and risk machinery instead of variants, tags or categories; its costing surface even hides **Standard costing** behind a code comment ("not implemented yet" at `ItemCostingForm.tsx`), and "method-material storage units" tests guard unit semantics in `apps/erp/app/modules/items/`. Strong for its cross-references (UsedIn, BoM explorer, change-notice diff UI) that a BOSS Product 360 for industrial tenants can borrow wholesale.
-- **Dolibarr remains file-per-screen** (each product tab its own `.php` — `card.php`, `price.php`, `price_suppliers.php`, `traduction.php`, `document.php`...) with a rich default-price model: multiprices levels + per-level HT/TTC base + min-price/NPR + a full change log; supplier-price writing sits behind an advanced permission (`product_advance.write_supplier_prices`) and barcode creation behind one too. The variants module lives outside `htdocs/product/`, in `htdocs/variants/`, with its own admin page and tpl-based attribute-value widget.
-- **ERPNext paths differ from the pre-write row of the path table**: Price List and Item Price are **`erpnext/stock/doctype/{price_list,item_price}/`**, not `erpnext/accounts/` nor `erpnext/selling/` (the only account-side artifact is `accounts/doctype/promotional_scheme_price_discount`); the core Item family lives under `erpnext/stock/` (incl. `uom_category`), `item_group`/`uom`/`uom_conversion_factor` sit in `erpnext/setup/`, and `product_bundle` (+ selling-facing reports) in `erpnext/selling/`. `website_item` doctype is **not in this checkout** (website-only surfaces: `erpnext/www/all-products/` static catalog and `erpnext/setup/doctype/website_item_group`) — the e-commerce face here is minimal, good reason to treat Products and Commerce as separate BOSS apps.
-- **gauzy's structural surprise**: no `packages/ui-core/shared/src/lib/inventory/` — the inventory UI is app-side (`apps/gauzy/src/app/pages/inventory/`), the domain libs are core-side (`packages/core/src/lib/product*/` incl. the per-variant capability `product-setting` rows), and the shop-ish machinery is a workspace **plugin** (`packages/plugins/catalog` with product/variant channels, collections, media, tags). For BOSS that's an argument for the Product domain being a center package + thin per-app renderers.
-- **metasfresh**: no `de.metas.product`/`de.metas.pricing` top-level backend modules in this checkout — the pricing/UOM/product engines sit inside `de.metas.business` (`de/metas/pricing`, `de/metas/uom`, `de/metas/product`, `de/metas/bpartner_product`) with web-UI hooks in `de.metas.ui.web.base` (`ui/web/{product,pricing,pattribute}`: e.g. discount-schema-break copy processes, lot-number quarantine). For BOSS: treat the AD window definition the way one treats the Moqui screen XML, and expect every product screen's richness to come from metadata not bespoke React.
-- **Odoo community carries the full product stack in one addon**: `product/` has the template/variant/category/tag/pricelist/supplierinfo/UOM/combo/document views and the product-catalog kanban picker; supplierinfo is **in `product`** (purchase only patches views, contrary to what the older addons layout would suggest); product **label printing** is also in `product/wizard/product_label_layout*` + `product/report/` (with the stock-facing counterpart at `stock/report/product_templates.xml`), and dynamic attribute update is a product addon wizard. Combos (`product.combo`) are new in this checkout and relevant to bundle/kits design; `barcodes/` ships only the nomenclature parser + scanner infra (no product views).
-- **Cross-cutting patterns**: capability toggles reshape UIs (AureusERP 4 booleans, Odoo security groups vs settings, ERPNext flags on Item showing/hiding whole sections); embedded child-list editing everywhere (price rules inside product form, barcodes/UOM lines inside Item, attribute lines on template, supplier prices rows in Dolibarr tabs) — the Product record is the host screen for many small ledgers; reverse-link "connections" dashboards (ERPNext item_dashboard with heatmap, Dolibarr `product/stats/*`, Carbon UsedIn) are the shared companion to the button-box Product 360; per-variant/per-supplier distinctions are drawn in child tables while the parent stays conceptually one master.
-- **Checkout path quirks**: AureusERP `products` has no Widgets → any product KPI tile BOSS invents must come from list-export side-channels; metasfresh `backend` listing has **119 modules** with none named `product*`/`pricing*` — grep inside `de.metas.business` to find them; gauzy inventory shared components are `packages/ui-core/shared/src/lib/product/` even though the module folder is `pages/inventory/`; ERPNext `item_barcode` is just 3 files (JSON/py) joined onto Item (`barcodes` child), while heavy barcode screens (masks/printsheets) stay Dolibarr-only in this set. Akaunting `app/Widgets/` has no product widget (top-items widget absent in this version), so §1 product-land KPIs can't be sourced there.
+| Surface | Products face | Reference evidence |
+| --- | --- | --- |
+| **Product 360** (owner Products) | Full editor: master data, type and class, identifications and barcodes, variants and features, categories, dimensions and units, content/documents, list and base prices, costs, price rules, associations; the other apps' tabs are hidden unless their app is enabled and the user may see it | Odoo product form patched by stock, mrp, sale, purchase (`odoo/addons/{stock,mrp,sale,purchase}/views/product_views.xml`); AureusERP per-app `ProductResource` with Vendors/Quantities/Moves/BOM sub-pages; ERPNext item connections; Carbon part tabs; Dolibarr product tabs |
+| **Supplier 360** (owner Purchasing) | Products face: supplier prices; on Product 360 the **Suppliers** tab is the Purchasing face — the same `ProductPrice` rows with `vendorPartyId` (part number, lead time, main/alternate supplier) | Odoo supplierinfo (in `product`, patched by `purchase`); Carbon supplier parts with price breaks; AureusERP Vendor Prices + product Vendors page; Dolibarr Buying prices tab with its own write permission |
+| **Price lists & base prices** (owner Products) | Price lists, base prices, costs, price rules and the **one price resolver** that explains its result; Sales adds customer agreement prices, Commerce store prices, Marketing promotion programs evaluated by the same resolver | Odoo pricelist rules; ERPNext Price List, Item Price, Pricing Rule (+ Pricing Rule Detail on lines); AureusERP price list rules; Dolibarr multiprice levels, customer prices, price log |
+| **Manufacturing** | BOM and where-used tab on Product 360 (Manufacturing face); Products shows the product's make/buy flag and standard cost | Odoo **Bill of Materials** / **Used In** stat buttons; Carbon BoM explorer and Used In; ERPNext connections **Groups** (BOM, Product Bundle, Item Alternative); Dolibarr BOM referring objects |
+| **Warehouse** | Stock, lots and locations tab (Warehouse face, through the shared Inventory availability screen); Products keeps per-facility reorder settings visible but Warehouse edits them | ERPNext stock-levels section on Item; Odoo on-hand/forecast buttons; AureusERP Quantities and Moves pages; Dolibarr Stock tab; Mantle `ProductFacility` (minimum stock, reorder quantity, days to ship) |
+| **Accounting** | Cost history tab; product GL account overrides | Carbon cost-history chart and Accounting tab; ERPNext Item Standard Cost; Odoo `stock_account` valuation views; Mantle `ProductGlAppl` (cost entities `CostComponent`, `ProductAverageCost` are commented out) |
+| **Sales** | Price and availability read face; customer agreements and agreement prices are Sales records (`Agreement`, `AgreementItem`, `ProductPrice.agreementId`) | Odoo Sold button and partner pricelist; ERPNext Pricing Rule for customer/customer group; Carbon customer part numbers |
+| **Commerce** | Merchandising, store categories, SEO and store-specific content on Product 360 (Commerce face); Products owns the internal taxonomy and the document library | Odoo `website_sale` (see research-commerce.md); Ever Gauzy catalog plugin channel publication; Mantle `ProductStoreCategory`, `ProductContent.productStoreId`, `ProductOtherIdentification` URL slugs |
+| **Marketing** | Promotions and coupons are Marketing program screens; Products' resolver applies them | ERPNext Promotional Scheme → Pricing Rules; Mantle `ProductStorePromotion`, `PromotionServices.xml` |
+| **Insights** | Landing-page KPI cards (active products, products without price, variants) placed as Insights widgets | ERPNext Stock workspace chart and number cards; Akaunting's widget board has no product widget |
+
+**BOSS implications.** Products owns the Product 360 record and the pricing engine; every other app contributes a tab or an action set, not a copy of the product screen.
+
+---
+
+## 13. Current Moqui baseline (MrSimpleScreens / MarbleERP / Mantle)
+
+The baseline has a broad product data model and a working SimpleScreens **Catalog** app, but no product home, no price-list or price-rule screen, no supplier-price list, no cost screen and no Product 360 tabs from other apps. MarbleERP (`component/MrMarbleERP/screen/marble.xml`) only mounts the SimpleScreens `Catalog.xml` tree; it has no product screens of its own. IronStone BOSS has no product screens yet (`component/ironstone-boss/screen/boss.xml` mounts search and reports only).
+
+### Screens
+
+| Screen/page | What it is | Key files |
+| --- | --- | --- |
+| Catalog dashboard | Five plain links: Products, Search Products, Categories, Features, Feature Groups | `component/MrSimpleScreens/screen/SimpleScreens/Catalog/dashboard.xml` |
+| Find Product | Create dialog (name, type, owner); list with saved finds, column selection, CSV export, page size; filters ID, name, type, class, asset type/class, owner, other ID, assoc-from (virtual, BOM), feature, category | `component/MrSimpleScreens/screen/SimpleScreens/Catalog/Product/FindProduct.xml` (`mantle.product.ProductFindView`) |
+| Edit Product | Product form (ID, name, description, internal comments, type, class, asset type/class, owner, amount + UOM, sales intro/discontinue, signature required, ship insurance, country of origin); **Clone Product** (copy categories, features, dimensions, assocs, prices, content, identifications); boxes for **Identification** (UPC/EAN/GTIN/SKU…), **Other Identification** (per store or market segment, URL slug generator), **Features** (apply new or existing, appl type, amount), **Dimensions**, **UOM Dimensions**, **Facility Locations** (inventory products), **Meters** and **Scheduled Maintenance** (equipment); Find Assets link | `component/MrSimpleScreens/screen/SimpleScreens/Catalog/Product/EditProduct.xml` (`clone#Product`, `create#ProductFeature`, `apply#ProductFeatures`) |
+| Prices tab | New/edit `ProductPrice` rows: type, purpose, vendor, customer, other party product ID, from/thru, store, min quantity, price, currency, term UOM; list with find header — no agreement, lead time, preferred-supplier or tax-in-price fields | `component/MrSimpleScreens/screen/SimpleScreens/Catalog/Product/EditPrices.xml` |
+| Associated tab | Assocs to and from the product (type, to-product, dates, quantity, sequence); **Create All Variants** from feature groups (variant type, copy category members); list of selectable features | `component/MrSimpleScreens/screen/SimpleScreens/Catalog/Product/EditAssocs.xml` (`create#VariantProducts`) |
+| Categories tab | Category memberships with from/thru and sequence | `component/MrSimpleScreens/screen/SimpleScreens/Catalog/Product/EditCategories.xml` |
+| Content tab | Content list (type, locale, feature, store, dates) with upload, location and text forms; content detail and **version compare** | `component/MrSimpleScreens/screen/SimpleScreens/Catalog/Product/Content/{ContentList,ContentDetail,ContentCompare}.xml` |
+| Categories | Find/create category; edit category with child categories (rollup), parent categories, identifications (URL slug), feature groups; products in category; category content | `component/MrSimpleScreens/screen/SimpleScreens/Catalog/Category/{FindCategory,EditCategory,EditProducts}.xml`, `Catalog/Category/Content/` |
+| Features & feature groups | Find/edit features (type, abbreviation, description, default amount and sequence, owner), their groups and products; feature groups with categories and features | `component/MrSimpleScreens/screen/SimpleScreens/Catalog/{Feature,FeatureGroup}/` |
+| Search Products | Full-text search over the product data document, with bulk **add/remove category** and **add/remove feature** on the selection | `component/MrSimpleScreens/screen/SimpleScreens/Catalog/Search.xml` (`add#ProductsToCategory`, `add#FeatureToProducts`) |
+| Facility products | Per-facility product settings (minimum stock, reorder quantity, days to ship) — Warehouse face | `component/MrSimpleScreens/screen/SimpleScreens/Facility/EditFacilityProducts.xml` |
+| Update product cost | Re-cost all assets of a product (optionally per facility and receive-date range) and re-post GL | `component/MrSimpleScreens/screen/SimpleScreens/Asset/Asset/FindAsset.xml` (`UpdateProductCost`, `update#ProductAcquireCost`) |
+| Store categories | Store-to-category links by type — Commerce face | `component/MrSimpleScreens/screen/SimpleScreens/ProductStore/FindProductStoreCategory.xml` |
+
+Not present: supplier price list per supplier (Supplier screens `Supplier/{FindSupplier,EditSupplier}.xml` have no product or price section), price lists or price rules (`ProductPriceModify` has no screen), costs and configurable products (their entities are commented out, see below), product parties, product geos, reviews, subscriptions resources.
+
+### Data model available (mr-mantle-udm)
+
+| Entity / enum | What it gives Products | Key files |
+| --- | --- | --- |
+| `Product` | `pseudoId`, `productTypeEnumId`, `productClassEnumId`, asset type/class, `statusId` (no product status items defined), `ownerPartyId` (brand/IP owner), name, description, comments, sales intro/discontinuation, `salesDiscWhenNotAvail`, support discontinuation, `requireInventory`, `chargeShipping`, signature, insurance, box type, `taxable`, `taxCode`, `returnable`, amount UOM/fixed/require, `originGeoId`, `billOfMaterialLevel` | `component/mr-mantle-udm/entity/ProductDefinitionEntities.xml` |
+| `ProductType` enum | Asset (Good), Digital and Asset, Digital, Asset Use, Facility Use, Service, **Virtual (with variants)**, Pick Assembly, **Configurable Good** (`Pt*`) | same |
+| `ProductAssoc` + `ProductAssocType` | Typed product-to-product links with dates, quantity, scrap factor, instruction, routing: Up-Sell, Down-Sell, Replacement, Equivalent, Accessory, Add On, Cross-Sell, Also Bought, Alternative Packaging, Refurbished, **Variant**, Requires, Incompatible, Revision, **Manufacturing/Engineering BOM**, Manufactured As, Configurable Instance, Component, **Packaging For** (`Pat*`) | same |
+| `ProductFeature`, `ProductFeatureAppl`, `ProductFeatureGroup`, `ProductFeatureGroupAppl`, `ProductCategoryFeatGrpAppl`, `ProductFeatureIactn` | Typed features (Color, Size, Brand, Style, Material…, `Pft*`) applied as Standard, Selectable, Distinguishing or Optional with amount; groups per category; feature dependency/compatibility rules | same |
+| `ProductCategory`, `ProductCategoryMember`, `ProductCategoryRollup`, `ProductCategoryContent`, `ProductCategoryIdent`, `ProductCategoryParty` | Typed categories (Catalog, Industry, Internal, Materials, Search, Usage, Cross Sell, Tax, Best Selling, Inventory Group…), dated membership, multiple parents, localized content and SEO, URL slugs, party links | same |
+| `ProductPrice` | One table for list, current, average cost, min/max, promotional, wholesale prices (`PptList`…`PptMinimumOrder`) and purposes (purchase, recurring, usage, component), scoped by `productStoreId`, `customerPartyId`, `agreementId`/`agreementItemSeqId`, **`vendorPartyId`** with `standardLeadTimeDays`, `otherPartyItemId`/`Name`, `preferredOrderEnumId` (`SpoMain`, `SpoAlternate`), `supplierRatingTypeEnumId`, `canDropShip`; min quantity, quantity increment/included, `taxInPrice`, tax amount/percentage, dates; `price` is audit-logged. **No separate supplier-product entity.** | same |
+| `ProductPriceModify`, `ProductPriceModifyParameter` | Registry of price-modifier services (implementing `mantle.product.PriceServices.modify#ProductPrice`) run in sequence after the base price | same |
+| `ProductIdentification`, `ProductOtherIdentification` | Typed codes: ISBN, Mfg Model Number, SKU, UPC-A, UPC-E, EAN, GTIN, LoC, URL Slug, HTS; other IDs per store or market segment | same |
+| `ProductContent` | Typed content (names, descriptions, specs, warranty, instructions, image sizes, meta keywords/description…) with `locale`, `productFeatureId`, `productStoreId`, dates | same |
+| `ProductDimension`, `ProductDimensionType`, `ProductUomDimension`, `ProductGeo` | Physical dimensions with units; UOM dimensions per market segment; purchase/shipment geo include/exclude | same |
+| `ProductParty` | Product-to-party links by role with dates and the party's item ID/name | same |
+| `ProductConfigItem`, `ProductConfigItemAppl`, `ProductConfigOption`, `ProductConfigOptionProduct`, `ProductConfigOptionIactn`, `ProductConfigSaved*` | **Commented out** (inside the "For future reference when configurable product support is implemented" comment): questions, options, option products, option rules, saved configurations — not usable without enabling; only the `PtConfigurable` product type and `PatConfigInstance` assoc type are live | same |
+| `CostComponent`, `CostComponentCalc`, `ProductCostComponentCalc`, `ProductAverageCost` | **Commented out** (inside the "For reference in future support…" comment, with their `CostComponentType` enums): cost components by type (material, labor, route, overhead; estimated standard vs actual), cost formulas, average cost per organization and facility — not usable without enabling; the live cost fields are `Asset.acquireCost` and `ProductPrice` type `PptAverage` | same |
+| `ProductGlAppl`, `ProductCalculatedInfo`, `ProductReview`, `ProductParameter*`, `ProductSubscriptionResource` | GL overrides; ordered/viewed/rating counters; reviews (Pending/Approved/Deleted); order-time personalization parameters; subscription resources | same |
+| `ProductFacility`, `ProductFacilityLocation` | Per-facility minimum stock, reorder quantity, days to ship; preferred locations | `component/mr-mantle-udm/entity/FacilityEntities.xml` |
+| `ProductStoreCategory`, `ProductStoreProduct`, `ProductStorePromotion`, `ProductStorePromoCode` | Store faces (Commerce) and promotions (Marketing) | `component/mr-mantle-udm/entity/ProductStoreEntities.xml` |
+| `moqui.basic.Uom`, `UomConversion`, `UomDimensionType` | Typed units with dated conversions (factor, offset) | `base-component/framework/entity/BasicEntities.xml` |
+
+### Services (mr-mantle-usl)
+
+| Service | Purpose | Key files |
+| --- | --- | --- |
+| `get#ProductPrice`, `get#ProductPriceByType`, `get#OrderProductPrice`, `modify#ProductPrice` | The price resolver: current price (falling back to the virtual product), list price, then registered `ProductPriceModify` services; matches store, vendor and customer rows or null rows; **agreement prices are a TODO** and the result does not say why a price was chosen | `component/mr-mantle-usl/service/mantle/product/PriceServices.xml` |
+| `clone#Product`, `delete#Product`, `find#ProductByIdValue` | Copy with selected parts; delete; lookup by any identification | `component/mr-mantle-usl/service/mantle/product/ProductServices.xml` |
+| `create#VariantProducts`, `create#VariantProduct`, `find#VariantProduct`, `get#VariantProductsInfo`, `delete#VariantProducts` | Variant generation from selectable feature groups and lookup by features | same |
+| `create#ProductFeature`, `apply#ProductFeatures`, `find#ProductFeatures`, `find#ProductFeatureGroups`, `find#ProductCategoryFeatures`, `get#FeatureByIactnOrAll`, `add/remove#FeatureToProducts` | Features and bulk feature edits | same |
+| `add#ProductsToCategory`, `remove#ProductsFromCategory`, `create/update#ProductContent`, `save#ProductContentFile`, `create/update#ProductCategoryContent`, `get#ProductManualDocumentData` | Category bulk edits, content and files, product manual document | same |
+| `generate#UrlSlugFromProductName`, `generate#UrlSlugFromCategoryName` | URL slugs (Commerce) | `component/mr-mantle-usl/service/mantle/product/StoreServices.xml` |
+| `update#ProductAcquireCost`, `get#PriceHistoryInfo` | Re-cost assets of a product and re-post; order price statistics per product (min, max, weighted average) | `component/mr-mantle-usl/service/mantle/product/{AssetServices,InventoryReportServices}.xml` |
+| `get#ProductBomDetail` | BOM detail for Manufacturing's face | `component/mr-mantle-usl/service/mantle/work/ManufacturingServices.xml` |
+| `apply#Promotion`, `apply#OrderPromotions` | Promotion evaluation on orders (Marketing programs) | `component/mr-mantle-usl/service/mantle/product/PromotionServices.xml` |
+
+---
+
+## 14. Gaps & BOSS implications
+
+### Gaps in the reference set
+
+- **No standalone product dashboard anywhere.** The home is a workspace (ERPNext Stock), a nav registry (Carbon) or the product list (Odoo, AureusERP, Dolibarr, Akaunting, Ever Gauzy). AureusERP's products plugin has no Pages or Widgets at all; Akaunting's widgets (`app/Widgets/`) include none for products.
+- **No reference explains a resolved price.** Odoo, AureusERP and ERPNext compute prices from rules; only ERPNext records which rules applied on each document line (`Pricing Rule Detail`). None shows a "why this price" breakdown on the product screen.
+- **Standard costing is thin.** Carbon hides the Standard method ("not implemented yet"); Odoo community keeps costing in `stock_account`; ERPNext has Item Standard Cost records but valuation lives in stock. Cost history as a chart exists only in Carbon.
+- **Akaunting is the flattest catalog**: one sale and one purchase price, product/service type, category, taxes; no UOM, barcode, variants, supplier refs or price lists. Its only reusable product piece is the generic import page with sample file and per-row errors (`resources/views/common/import/create.blade.php`).
+- **Ever Gauzy and Carbon have no category tree** for products in the item pages (Ever Gauzy has categories in core and channel collections in the catalog plugin; Carbon only Item Groups = posting groups).
+- **ERPNext's e-commerce face is minimal in this checkout**: no `website_item` doctype; only `erpnext/www/all-products/` and `erpnext/setup/doctype/website_item_group/` — a reason to keep Products and Commerce as separate BOSS apps.
+- **Odoo Enterprise-only pieces** do not affect this file: the product, pricelist, supplierinfo, document, combo, UOM and barcode-nomenclature screens are all in the community checkout (crosscut §7).
+
+### Notable gaps in the Moqui baseline
+
+- **No product home or KPIs**: the Catalog dashboard is five links.
+- **No price-list or price-rule UI.** Prices are flat `ProductPrice` rows edited per product; there is no price list header, no category- or customer-group-scoped rule, no formula (base + discount/markup/rounding), and `ProductPriceModify` services are configured only in data.
+- **The resolver does not explain itself and ignores agreements.** `get#ProductPrice` returns price, list price and the chosen row; `agreementId` matching is a TODO; there is no simulator ("price for customer X, qty Y, store Z on date D").
+- **No supplier-price list.** Supplier prices are `ProductPrice` rows with `vendorPartyId`, but the Prices tab hides lead time, main/alternate supplier and rating, and Supplier screens show no products.
+- **No cost screens.** Cost lives on `Asset.acquireCost`; the cost entities (`CostComponent`, `ProductAverageCost`) are commented out in Mantle; there is no standard cost, cost roll-up or cost history.
+- **Variant generation has no preview.** "Create All Variants" builds every combination of the chosen feature groups; there is no matrix to untick combinations and no copy-fields-to-variant setting.
+- **No product lifecycle status.** `Product.statusId` exists but no status items are defined; only sales intro/discontinue dates.
+- **No tags, translations UI or document library view**: content rows carry `locale` but there is no side-by-side translation screen and no file-card view of product documents.
+- **No Product 360 tabs from other apps**: stock, BOM/where-used, orders, purchases and cost appear only as links (Find Assets) or not at all.
+- **Configurable products, product parties, geos and reviews** have entities but no screens.
+
+### What each reference contributes
+
+| Reference | Take |
+| --- | --- |
+| Odoo | Product form tabs with embedded price rows; `create_variant` instantly / when ordered / never; product documents kanban per template or variant; product properties defined per category; pricelist rules on a base with discount/surcharge/rounding and country groups; packaging as a product unit with its own barcode; label layout wizard; stat buttons patched in by each app |
+| ERPNext | Stock workspace as catalog home with number cards; curated one-click list filters (`list_filter/*.json`); Item form sections driven by flags; per-company Item Defaults; variant matrix dialog + Item Variant Settings; Item Group tree with defaults and taxes; Item Price + **Pricing Rule** with applied-rule detail per line; Item Standard Cost; item connections with counts and a stock heatmap |
+| Carbon | Item types on one table with extensions; part tabs (Details, Purchasing, Accounting, Planning, Inventory, Sales, Quality); configurable parts with typed parameters; supplier parts with price breaks and preferred supplier; customer part numbers; cost-history chart; change notices with diff and release; Used In and BoM explorer; saved views on every list |
+| AureusERP | `ProductSchemaRegistry` slots for other plugins' form blocks; one product resource re-exposed by each app with Vendors/Quantities/Moves/BOM pages; four product feature switches; Odoo-shaped price rules; packaging with barcode |
+| Dolibarr | Product tabs as separate pages; multiprice levels with HT/TTC base and min price; price-change log; formula prices; buying prices with a separate write permission; category filter with AND/OR; referring-objects and statistics tabs; kits; barcode masks and print sheets |
+| metasfresh | Attribute set instances instead of variant SKUs; partner-specific product codes (`bpartner_product`); GS1 scanned-code resolution; product windows as metadata, the way Moqui screens are XML |
+| Ever Gauzy | Per-variant capability flags (sold, purchased, rented, subscribed, stocked); stock/sales/purchase units per variant with a same-category rule; per-channel publication rather than a product flag |
+| Akaunting | Generic import with sample file, how-to and per-row validation errors (no column mapping); one uploads pipeline for every module |
+| Moqui baseline | The data model for nearly everything above (`ProductPrice` with store/customer/agreement/vendor scope, features and variants, typed categories with rollups, identifications, content with locale and store; configuration and cost entities exist only as commented-out definitions) and working Catalog screens to reshape rather than replace |
+
+### Recommended screen inventory (IronStone Products)
+
+| Area | Screens |
+| --- | --- |
+| Home | Products landing page: shortcut tiles (Products, Categories, Features, Price lists, Suppliers, Import), KPI cards as Insights widgets (active products, products without a list price, variants, discontinuing soon), recently changed products |
+| Products & variants | Product list (saved views, facets for type/class/category/feature/owner/has price/discontinued, curated one-click filters, bulk category/feature/price actions, CSV import with mapping review and error report, export); **Product 360** with tabs Summary, Variants & features, Categories, Identifications & barcodes, Dimensions & units, Content & documents, Prices, Costs, Associations, History; Suppliers tab **(shared: Purchasing face)**, Stock tab **(shared: Warehouse — Inventory availability)**, BOM & where-used tab **(shared: Manufacturing face)**, Merchandising/SEO tab **(shared: Commerce face)**, Cost history read in Accounting; variant matrix builder (preview, untick, generate); configurable product setup (questions, options, rules; needs enabled or new records) |
+| Categories | Category tree (drag to reparent, multiple parents), category detail (content and translations, feature groups, products in branch with deep link, URL slug); tags as a category type |
+| Features & attributes | Feature list by type, feature groups, feature interactions (requires/incompatible) |
+| Pricing & costs | Price lists (header + scoped rules by product/category/feature/customer group/store, min qty, dates, base + adjustment), price list rows per product in Product 360, **price explain/simulator** for the one resolver, price-change history (from the audit log), standard cost per product, cost roll-up from BOM (with Manufacturing; needs enabled or new cost records) |
+| Product suppliers | Cross-supplier price list (all `ProductPrice` rows with `vendorPartyId`: supplier, part number, price, min qty, lead time, main/alternate) with bulk update and import — the same rows as the Suppliers tab **(shared: Purchasing face)** and Supplier 360 **(shared: Purchasing)** |
+| Product documents | Document library across products (file cards with preview, filter by type/locale/variant), upload into `ProductContent` |
+| Units & barcodes | Units and conversions (framework `Uom`/`UomConversion`), identification types, label printing |
+| Settings | Products settings section (variants on/off, price lists on/off, packaging, default currency and price type, ID generation, required fields); linked from the Admin settings index |
+
+### Data-model implications
+
+- **Reuse** `Product`, `ProductAssoc`, `ProductFeature*`, `ProductCategory*`, `ProductContent`, `ProductIdentification`, `ProductOtherIdentification`, `ProductDimension`, `ProductUomDimension`, `ProductParty` and framework `Uom`/`UomConversion` as they are.
+- **Prices stay in `ProductPrice`.** Supplier prices are `ProductPrice` rows with `vendorPartyId` (no new supplier-product entity); customer, store and agreement prices are rows with `customerPartyId`, `productStoreId`, `agreementId`. Customer agreements themselves are Sales records (`Agreement`, `AgreementItem`).
+- **New: price list and price rule records.** A price list header (name, currency, purpose, active, priority) and rules (scope by product, category, feature, customer, party classification or store; min qty; dates; base price type or another list; discount/markup/rounding; result as fixed price) — implemented as a `ProductPriceModify` service so `get#ProductPrice` stays the one resolver. Alternatively rules could generate plain `ProductPrice` rows; decide (Open questions).
+- **Extend the resolver output** with an explanation list (rows considered, row chosen, modifiers and promotions applied with their effect), and implement the `agreementId` TODO.
+- **Product lifecycle status**: define status items for `Product.statusId` (for example Draft, Active, Discontinued, Obsolete) or keep dates only.
+- **Tags**: a `ProductCategory` type (new `productCategoryTypeEnumId` value) rather than a new entity.
+- **Standard and average cost**: Mantle's `CostComponent`/`CostComponentCalc`/`ProductCostComponentCalc`/`ProductAverageCost` are commented out. Either enable those definitions (estimated-standard cost types per product and date range, average cost per organization and facility) or add new cost records; either way a roll-up service from the BOM is new (Open questions).
+- **Configurable products**: the `ProductConfig*` entities are commented out; enable them or design new records before building the configurator (Open questions).
+- **Packaging**: pack products linked by `ProductAssoc` `PatPackagingFor`, with their own `ProductIdentification` barcode — no new entity needed if this shape is accepted.
+- **Variant copy settings**: a small settings record (fields copied from virtual to variants) or a product-store/organization preference.
+
+### First-release cut
+
+Ship first: Products landing page; product list with saved views, facets and bulk category/feature actions; Product 360 with the Products-owned tabs (Summary, Variants & features, Categories, Identifications, Dimensions, Content & documents, Prices, Associations) and the Purchasing Suppliers tab and Warehouse Stock tab as read faces; variant matrix builder over `create#VariantProducts`; category tree; features and feature groups; cross-supplier price list; import with mapping review; Products settings. Defer: price lists and rules with the explain/simulator (needs the resolver extension), standard cost and roll-up, configurable products, document library view, label printing, packaging, translation workspace, lifecycle statuses.
+
+### Open questions
+
+- **Price rules as records or as generated rows?** A rule engine behind `ProductPriceModify` keeps `ProductPrice` small but needs the explain output; generating `ProductPrice` rows from rules keeps the resolver unchanged but multiplies rows. Which?
+- **Customer-specific price lists** (crosscut §8): are they Sales agreements (`AgreementItem` + `ProductPrice.agreementId`) or Products price rules scoped by customer or customer group? This file follows crosscut: base prices and rules in Products, agreements in Sales.
+- **"Product suppliers" section vs Purchasing face.** initial-design gives Products a **Product suppliers** section, while crosscut §3 makes the supplier-price tab on Product 360 a Purchasing face. This file reads it as: the cross-supplier price list screen lives in the Products menu, edits the same rows, and the Product 360 tab is Purchasing's. Confirm, or move the list to Purchasing.
+- **Enable commented-out Mantle definitions or add new records?** Standard/average cost (`CostComponent`, `CostComponentCalc`, `ProductCostComponentCalc`, `ProductAverageCost`) and configurable products (`ProductConfig*`) exist only inside XML comments in `ProductDefinitionEntities.xml`. Enabling them reuses a reviewed design but commits to its shape; new records can fit the BOSS cost roll-up and Carbon-style typed parameters better.
+- **Variant model for apparel-scale catalogs**: keep full variant products (`PtVirtual` + `PatVariant`) for everything, or add an Odoo-style "create when ordered" mode using configurable products for large matrices?
+- **Packaging shape**: pack products via `ProductAssoc` vs a quantity-and-barcode row per product (`ProductUomDimension` or a new record)?
+- **Lifecycle**: does BOSS need a product status workflow, or are sales intro/discontinue dates enough?
+
+### Checkout path quirks
+
+- Odoo product addon paths are `3p_other/odoo/odoo/addons/product/…`; supplierinfo, documents, combos, pricelists and label printing are all in `product`, not `purchase` or `stock`; there is no `uom.category` model in this version (units form a tree through `relative_uom_id`), and packaging is `product.uom` in `product/models/product_uom.py`.
+- ERPNext: Price List and Item Price are `erpnext/stock/doctype/{price_list,item_price}/`, but Pricing Rule and Promotional Scheme are `erpnext/accounts/doctype/`; `item_group`, `brand`, `uom`, `uom_conversion_factor` are in `erpnext/setup/`, `uom_category` in `erpnext/stock/`; variant creation is `erpnext/controllers/item_variant.py`; stock charts and number cards are directories (`dashboard_chart/<name>/<name>.json`).
+- Carbon has no manufacturing module folder; production is `apps/erp/app/modules/production/`; part tab routes are `apps/erp/app/routes/x+/part+/$itemId.<tab>.tsx`.
+- AureusERP vendor prices are rendered by `plugins/webkul/purchases/`, not `products/`; the products plugin has five resources and no Pages or Widgets.
+- metasfresh `backend/` has 115 modules and none named `product*` or `pricing*`; the engines are inside `de.metas.business` (`de/metas/{product,pricing,uom,gs1,bpartner_product}`), and scanned-code resolution is in `de.metas.adempiere.adempiere/base`.
+- Ever Gauzy has no inventory folder under `packages/ui-core/shared/src/lib/`; inventory pages are app-side (`apps/gauzy/src/app/pages/inventory/`), shared product pickers are in `packages/ui-core/shared/src/lib/product/`, domain in `packages/core/src/lib/product*/`, channel publication in `packages/plugins/catalog/`.
+- Dolibarr product tabs are separate PHP files (`htdocs/product/{card,price,price_suppliers,traduction,document,note,contact,agenda}.php`, `stock/product.php`, `stats/`), variants live in `htdocs/variants/`, barcode print sheets in `htdocs/core/modules/printsheet/`.
+- Akaunting has no documents folder under the common views; document forms are `resources/views/components/documents/{form,show}/`.
+
+**Bottom line.** The Moqui data model already covers most catalog features the references show, including supplier prices on `ProductPrice` (cost and configurable-product entities exist only as commented-out definitions); what BOSS must add is screens — a real product home, a Product 360 with other apps' faces, a variant matrix with preview, price lists and rules behind the one resolver with an explanation of each price, and cost screens.
