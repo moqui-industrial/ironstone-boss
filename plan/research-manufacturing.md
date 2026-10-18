@@ -9,11 +9,12 @@ initial-design gives it: **Work orders and production runs**, **BOMs & routings*
 **Planning (MRP)** and **Shop floor (material issue, time)**. It catalogues every relevant
 screen/page found in the reference apps. Companion to
 [3p-app-reference.md](3p-app-reference.md); feeds the Manufacturing row in
-[initial-design.md](initial-design.md) and the Manufacturing faces of the shared
-screens: **Product 360** (BOM, where-used; owner Products), **Inventory availability**
-(component availability; owner Warehouse), **Facility & equipment record** (production
-equipment and work centers; owner Maintenance) and the in-process and final **quality
-inspection** gates (inspection record owned by Warehouse).
+[initial-design.md](initial-design.md) and the Manufacturing versions of the reused
+screens (crosscut §3–§4) that Manufacturing includes: **Product 360** (BOM tab,
+where-used), **Inventory availability** (component availability), **Material issue /
+receipt** (issue to and receipt from a run), **Facility & equipment record** (work
+centers, production equipment, downtime) and **Quality inspection** (in-process and final
+inspection gates).
 
 **Organization.** Sorted by functional area (not by app): all BOM screens together, all
 shop-floor screens together, etc. Within each area, sub-tables per reference app. Style
@@ -25,7 +26,7 @@ scan flows and report pages a production planner or shop-floor user actually tou
 Scheduling algorithms, MRP netting logic and costing math are noted only where they shape
 a screen (statuses, quantity fields, exceptions, validation gates). Purchasing,
 warehouse receiving/picking and accounting valuation screens are covered only where
-Manufacturing links into them.
+Manufacturing includes or links into them.
 
 **Path conventions.** Every backticked path resolves against the checkout for its prefix
 (per [research-crosscut.md](research-crosscut.md) §1; checkouts under
@@ -144,12 +145,12 @@ selected rows.
 
 **BOSS implications.** No reference lands on a chart wall: Odoo and Dolibarr land on the
 MO list, ERPNext on a KPI/report workspace, metasfresh on the planning-candidate window.
-IronStone Manufacturing should do both in one root: a queue board (work orders by
-status / work center, with ready, late, blocked, pending counts) plus a small KPI strip
-(open, WIP, completed this month, component shortages). The queue must deep-link into
-pre-filtered lists using screen parameters, mirroring Odoo's action contexts and
-AureusERP's grouped tables; the landing page itself should not be a separate aggregation
-table.
+One option for IronStone Manufacturing combines the two in one root: a queue board (work
+orders by status / work center, with ready, late, blocked, pending counts) plus a small
+KPI strip (open, WIP, completed this month, component shortages). Odoo's action contexts
+and AureusERP's grouped tables show the queue deep-linking into pre-filtered lists through
+screen parameters; none of the references builds the landing page as a separate
+aggregation table.
 
 ---
 
@@ -239,12 +240,14 @@ explosion. Treat metasfresh as a planning reference only.
 Odoo and AureusERP prove the form layout; ERPNext proves the fields that make it usable
 (operation binding per component, phantom/kit, lead times, inspection requirement,
 exploded-items table); Dolibarr's net-needs tree is the cheapest usable MRP view and maps
-directly onto a Moqui screen with a recursive service call. IronStone Manufacturing
-should add BOM version/status (none of Odoo community or AureusERP exposes a clean
-version lifecycle; ERPNext uses active/default + amendment) because production orders
-must pin the BOM revision they were created from. In BOSS the editor is Manufacturing's
-tab on the Product 360 (shared: Products), as Odoo's product stat buttons and AureusERP's
-product **Bills of Materials** tab already place it; the Mantle line record is
+directly onto a Moqui screen with a recursive service call. BOM version/status is a gap
+in the references (none of Odoo community or AureusERP exposes a clean version lifecycle;
+ERPNext uses active/default + amendment), and it matters because a production order needs
+the BOM revision it was created from. Odoo's product stat buttons and AureusERP's product
+**Bills of Materials** tab place the BOM editor on the product; in BOSS terms that is the
+BOM tab of the **Product 360** that Manufacturing includes **(reused: Products, Commerce,
+Purchasing, Warehouse, Accounting, Sales)**, where the Manufacturing version shows BOM and
+where-used. The Mantle line record is
 `ProductAssoc` type `PatMfgBom`, which already has quantity, scrap factor, instruction,
 consuming operation and effective dates.
 
@@ -314,7 +317,7 @@ Processing), optional procedure/assembly/inspection pointer, and step/parameter 
 Dolibarr has no routing entity. The nearest thing to operations is the BOM's **Services**
 list: service lines ordered by position, each with a default workstation whose hourly
 rates feed cost. On the MO the workstation is an attribute of a production line. That is
-the minimum viable model and a useful fallback if routings are deferred.
+the minimum viable model and a possible fallback where no routing is defined.
 
 ### metasfresh
 
@@ -328,17 +331,18 @@ its data model, unused by any screen: a routing is a `WorkEffort` with purpose
 `WepRouting`, its operations are `WepRoutingTask` WorkEfforts joined by `WorkEffortAssoc`
 type `WeatRoutingComp` (with `sequenceNum`), the product points at its routing through
 `WorkEffortProduct` type `WeptRouting`, and a BOM line can name the operation that
-consumes it (`ProductAssoc.routingWorkEffortId`). BOSS should edit that routing from the
-product (one routing per product feels like Odoo's operations-on-the-BoM) and allow the
-same routing to be shared by several products when a business needs it; a "copy
-operations from another product" action covers the common case, as Odoo and AureusERP
-both offer. The operation catalogue needs name, default work center, work instruction,
+consumes it (`ProductAssoc.routingWorkEffortId`). One option is to edit that routing from
+the product (one routing per product feels like Odoo's operations-on-the-BoM) while still
+allowing several products to share a routing when a business needs it; Odoo and AureusERP
+both cover the common case with a "copy operations from another product" action. The
+references' operation catalogues carry name, default work center, work instruction,
 standard setup and run time (`estimatedSetupTime`, `estimatedWorkTime`) and
-setup/cleanup. Work centers need calendar, capacity, efficiency and cost/hour because
-scheduling, OEE and costing all read them; in BOSS the work center is the Manufacturing
-face of the shared **Facility & equipment record** (shared: Maintenance), a `Facility`
-of type `FcTpLine` (Production Line) with its equipment `Asset`s, not a separate
-Manufacturing master.
+setup/cleanup. Work centers carry calendar, capacity, efficiency and cost/hour because
+scheduling, OEE and costing all read them. In Mantle a work center is a `Facility` of
+type `FcTpLine` (Production Line) with its equipment `Asset`s, so the evidence favors the
+work center being the **Facility & equipment record (reused: Maintenance, Warehouse,
+Commons, Accounting)** as Manufacturing includes it (capacity, calendar, cost rates,
+equipment, load) rather than a separate Manufacturing master.
 
 ---
 
@@ -422,11 +426,12 @@ collections (components, work orders, by-products, misc), a status bar, and smar
 for every linked document. ERPNext is the strongest process gate: material transfer and
 manufacture are explicit stock postings, and the UI tells the user which one is next.
 Carbon's execution tabs (`materials`, `operations`, `quantities`, `events`, `dag`) are the
-best decomposition for a work-order detail page and should be copied as sub-screens rather
-than tabs that fetch everything at once. The minimum BOSS workflow is Confirm → Plan →
-Start → Issue/Consume → Produce → Close, with backorder/split and scrap as wizards; the
-order must record the BOM and routing revision it was created from, and every quantity
-field needs a pending/remaining companion so partial production is first-class.
+best decomposition seen for a work-order detail page, and they map onto sub-screens rather
+than tabs that fetch everything at once. The minimum workflow the references share is
+Confirm → Plan → Start → Issue/Consume → Produce → Close, with backorder/split and scrap as
+wizards. Two further needs follow from the evidence: the order recording the BOM and
+routing revision it was created from, and every quantity field having a pending/remaining
+companion so partial production is first-class.
 
 ---
 
@@ -523,22 +528,23 @@ commands live under
 | Material receipt screens | Line shows **qty to receive target / to receive / received**; **Receive target** picks an existing LU or a **new HU**; scan screen; pick-quantity button | `misc/services/mobile-webui/mobile-webui-frontend/src/containers/activities/manufacturing/receipt/{MaterialReceiptLineScreen,ReceiptReceiveTargetScreen,ReceiptNewHUScreen,ManufacturingReceiptScanScreen}.jsx` |
 | Workstation / workplace assignment | Operator scans a workstation QR code (or picks a workplace) to bind the device session to it | `misc/services/mobile-webui/mobile-webui-frontend/src/apps/{workstationManager,workplaceManager}/` |
 
-**BOSS implications.** Shop floor is a different product surface from the planner's
-screens and must not be a tab on the work-order form. ERPNext proves the minimum: queue
-board + operator card with Start/Pause/End, live timer, material panel with a transfer
+**BOSS implications.** In every reference with one, the shop floor is a different surface
+from the planner's screens, not a tab on the work-order form. ERPNext shows the minimum:
+queue board + operator card with Start/Pause/End, live timer, material panel with a transfer
 action, instructions, quantity reconciliation (completed + pending + process loss), and a
-scanner. Carbon proves the next tier: operation DAG, per-unit tracking, assembly and
+scanner. Carbon shows the next tier: operation DAG, per-unit tracking, assembly and
 inspection execution, material-issue modal, wall displays, and a keyboard-wedge that
-accepts scanned URLs. For BOSS, build the ERPNext-shaped kiosk first (one screen, two
-views, keyboard + scanner, large touch targets), then add Carbon's operation-DAG and
-issue-modal patterns. metasfresh shows the same issue and receipt steps can run on a
-phone as scan-per-line screens with target / remaining / issued quantities. Quantity
-reconciliation and material availability must be visible before the operator can start,
-and every action must post through a service call that returns the updated state, never
-mutate rows client-side. The issue and receipt dialogs are Warehouse's shared material
-issue/receipt screens opened in a Manufacturing context (posting through
+accepts scanned URLs. The ERPNext-shaped kiosk (one screen, two views, keyboard + scanner,
+large touch targets) is the smaller of the two, and Carbon's operation-DAG and issue-modal
+patterns layer onto it. metasfresh shows the same issue and receipt steps can run on a
+phone as scan-per-line screens with target / remaining / issued quantities. In ERPNext and
+Carbon, quantity reconciliation and material availability are visible before the operator
+starts, and each action posts on the server and returns the updated state rather than
+changing rows client-side. The issue and receipt dialogs are the **Material issue /
+receipt** screens (reused: Warehouse) as Manufacturing includes them, opened from the
+work order and the kiosk with the run as context and posting through
 `mantle.product.AssetServices.issue#AssetToWorkEffort` and `receive#Asset`, as the
-baseline run screens already do), not a second inventory form.
+baseline run screens already do; the same screen and services serve both apps.
 
 ---
 
@@ -618,15 +624,16 @@ aggregates selected candidates (resource count, qty to process, qty processed).
 | PP Order Candidate window | Candidate list with aggregated selection header; process actions **Set Start Date**, **Set Workstation** | `frontend/src/components/ppOrderCandidate/PPOrderCandidateViewHeader.js`, `backend/de.metas.manufacturing.webui/src/main/java/de/metas/manufacturing/webui/process/PP_Order_Candidate_SetStartDate.java`, `backend/de.metas.manufacturing.webui/src/main/java/de/metas/manufacturing/webui/process/PP_Order_Candidate_SetWorkstation.java` |
 | Manufacturing mobile/workflow | Job creation/issue/receive commands used by the mobile workflows | `backend/de.metas.manufacturing.rest-api/src/main/java/de/metas/manufacturing/job/service/commands/{create_job,issue,issue_what_was_received,receive}/` |
 
-**BOSS implications.** Do not conflate two different screens: **MRP** answers "what do we
+**BOSS implications.** The references separate two screens: **MRP** answers "what do we
 need, and by when" (Carbon's planning grid, ERPNext's Production Plan/MPS, metasfresh's
 candidate list), while **scheduling** answers "which work center and when" (Carbon's
-Gantt/kanban and Odoo's work-order board). For BOSS, start with the ERPNext/metasfresh
-shape: a planning worklist of suggested make/buy actions with a time fence, age, required
-date and a single **Create work order** action; then add a work-center timeline. A full
-finite scheduler is a later, server-side concern. Dolibarr's net-needs explosion is the
-minimum first release and is cheap to implement on Moqui; avoid Odoo's gap where
-community users have no MRP screen at all.
+Gantt/kanban and Odoo's work-order board). The ERPNext/metasfresh shape is the simpler
+planning candidate: a worklist of suggested make/buy actions with a time fence, age,
+required date and a single **Create work order** action, with a work-center timeline as a
+separate screen. A full finite scheduler is server-side work in every reference that has
+one (Carbon). Dolibarr's net-needs explosion is the smallest useful planning view and is
+cheap on Moqui; Odoo Community shows the cost of having none, since its users get no MRP
+screen at all.
 
 ---
 
@@ -670,12 +677,13 @@ routing, scheduling and costing.
 | --- | --- | --- |
 | Bill of Process — Outside Processing | Operation type `Outside Processing`; supplier + minimum/unit cost + lead time fields; switching an operation in/out of outside processing changes the form | `apps/erp/app/modules/items/ui/Item/BillOfProcess.tsx`, `apps/erp/app/modules/shared/shared.models.ts` (operation type enum) |
 
-**BOSS implications.** Model subcontracting as an operation with a supplier (Carbon) or a
-BoM type (Odoo), not as a separate order app. The required screens are: supplier-assigned
-operation on the routing, a component-transfer document to the supplier, and a
-finished-goods receipt with accepted/rejected quantities. ERPNext's inward order is a
-different business (customer-owned material) and can wait; do not fold it into the same
-document. Subcontracting should be deferred until the in-house order lifecycle is stable.
+**BOSS implications.** The references model subcontracting as an operation with a
+supplier (Carbon) or a BoM type (Odoo), not as a separate order app. The screens they need
+are a supplier-assigned operation on the routing, a component-transfer document to the
+supplier, and a finished-goods receipt with accepted/rejected quantities. ERPNext's inward
+order is a different business (customer-owned material) and a separate document there.
+Subcontracting depends on the in-house order lifecycle (routing operations, issue and
+receipt) being in place.
 
 ---
 
@@ -728,21 +736,22 @@ manufacturing mobile workflows have no inspection activity in this checkout.
 **BOSS implications.** Both full references keep the inspection record outside
 production: ERPNext's Quality Inspection is a Stock document referenced from receipts,
 deliveries, stock entries and Job Cards; Carbon's inspections and inspection plans live
-in its Quality module and are reached from the operation. Per the cross-cut, BOSS does
-the same: Warehouse owns the inspection record and its templates; Manufacturing owns the
-**in-process and final inspection gates**. That means an operation (or the BOM/routing)
-can be marked "inspection required" with a template, the shop floor shows the QC state
-on the job (ERPNext's QC Required / QC Available / QC Passed / QC Rejected pills), the
-operator opens the shared inspection screen from the operation, and the operation or the
-finished-goods receipt cannot complete until the required inspection is accepted.
-Non-conformance and corrective action are a later quality face; who owns them is an open
-question (cross-cut §8). Scrap and process loss belong on the quantity dialog, not a
-separate app: scrap quantity, reason, disposition (scrap/rework), and a backflush-aware
-stock posting. Downtime needs a reason code and from/to interval because it feeds OEE;
-Odoo's productivity-loss model is the minimum. Equipment downtime is Maintenance's
-record (Facility & equipment record); Manufacturing raises it from the floor and reads it
-for scheduling and OEE. Full gauge calibration and risk registers are Carbon-only and out
-of first-release scope.
+in its Quality module and are reached from the operation. In BOSS terms (crosscut §4) the
+inspection is one **Quality inspection** screen and record (reused: Warehouse,
+Purchasing), and the Manufacturing version is the **in-process and final inspection
+gates**: an operation (or the BOM/routing) marked "inspection required" with a template,
+the QC state shown on the job on the shop floor (ERPNext's QC Required / QC Available / QC
+Passed / QC Rejected pills), the inspection screen opened from the operation, and the
+operation or the finished-goods receipt held until the required inspection is accepted.
+Non-conformance and corrective action are a further quality function (crosscut §8). In
+ERPNext and Carbon, scrap and process loss sit on the quantity dialog, not a separate app:
+scrap quantity, reason, disposition (scrap/rework), and a backflush-aware stock posting.
+Downtime carries a reason code and from/to interval because it feeds OEE; Odoo's
+productivity-loss model is the minimum seen. Equipment downtime is a record on the
+**Facility & equipment record** (reused: Maintenance, Warehouse, Commons, Accounting);
+the Manufacturing version lets shop-floor users report downtime and request maintenance
+from the operation and shows offline windows to scheduling and OEE. Full gauge
+calibration and risk registers are Carbon-only.
 
 ---
 
@@ -763,11 +772,12 @@ of first-release scope.
 | AureusERP | MO Overview | Component unit/total/real cost and work-order unit cost | `.../Pages/OverviewManufacturingOrder.php` |
 | metasfresh | No cost UI in this checkout | Costing is backend/accounting; not a planning screen | — |
 
-**BOSS implications.** Cost must be visible where decisions happen: a BOM cost roll-up on
-the BOM overview, and a work-order cost panel split into material vs operation. Odoo's
-two-report split (BOM structure cost vs MO overview) is the clearest. Keep valuation
-posting in Accounting and expose only estimates/actuals in Manufacturing; a variance
-column is enough for the first release.
+**BOSS implications.** The references show cost where decisions happen: a BOM cost
+roll-up on the BOM overview, and a work-order cost panel split into material vs operation.
+Odoo's two-report split (BOM structure cost vs MO overview) is the clearest. Odoo keeps
+valuation posting in `mrp_account` and metasfresh in its accounting backend; one option is
+valuation posting in Accounting with only estimates and actuals in Manufacturing, where a
+variance column is the smallest useful view.
 
 ---
 
@@ -782,12 +792,12 @@ column is enough for the first release.
 | Dolibarr | No manufacturing report pages; list exports, status filters, BOM net needs and cost cards | `htdocs/mrp/mo_list.php`, `htdocs/bom/bom_net_needs.php` |
 | metasfresh | Candidate header aggregates only (resources, qty to process, qty processed); reporting is generic/backend | `frontend/src/components/ppOrderCandidate/PPOrderCandidateViewHeader.js` |
 
-**BOSS implications.** Copy ERPNext's report taxonomy rather than inventing names; most
-of those are saved finds over the same entities. Start with five: open/late work orders,
-work-order material status, operation load by work center, OEE/lost time, and
-scrap/process loss. Carbon's dashboard KPIs belong on the Manufacturing landing page.
-Reports should be normal Moqui find screens with saved parameters, not a separate report
-engine.
+**BOSS implications.** ERPNext's report taxonomy is a ready naming scheme, and most of
+its reports are saved finds over the same entities. Five recur across the references:
+open/late work orders, work-order material status, operation load by work center, OEE/lost
+time, and scrap/process loss. Carbon's dashboard KPIs are landing-page material. Since
+these are finds over the same records, one option is normal Moqui find screens with saved
+parameters rather than a separate report engine.
 
 ---
 
@@ -804,40 +814,44 @@ engine.
 | Dolibarr | Module setup | Enable MRP/BOM/Workstation modules, numbering models, extrafields, default warehouses | `htdocs/core/modules/{mrp,bom,workstation}/`, `htdocs/admin/` |
 | metasfresh | Metadata windows | Work centers/resources, BOM/order windows, planning candidate processes | `backend/de.metas.manufacturing*`, `frontend/src/components/window/` |
 
-**BOSS implications.** Settings should be small and explicit: enable operations/work
-centers, default backflush/consumption policy, overproduction tolerance, auto-update BOM
-cost, capacity planning horizon, and time-log enforcement. Put Manufacturing master data
-(operation catalogue, scrap reasons) in the app's Configuration section, not in Admin;
-they are operational, not system, settings. Work centers are listed there too, but the
-record is the Manufacturing face of the Facility & equipment record (shared:
-Maintenance).
+**BOSS implications.** The settings the references share are few and explicit: enable
+operations/work centers, default backflush/consumption policy, overproduction tolerance,
+auto-update BOM cost, capacity planning horizon, and time-log enforcement. Odoo, ERPNext,
+Carbon and AureusERP keep manufacturing master data (operation catalogue, scrap reasons)
+in the app's own configuration area, not in system administration; they are operational
+settings, which suggests the same for the Manufacturing settings section. Work
+centers can be listed there too, with the record itself being the **Facility & equipment
+record** (reused: Maintenance, Warehouse, Commons, Accounting) as Manufacturing includes
+it.
 
 ---
 
 ## 12. Cross-app surfaces
 
-| Surface | Manufacturing face | Reference evidence |
-| --- | --- | --- |
-| **Product 360** (owner Products) | BOM tab: components with quantity, scrap factor and consuming operation; routing/operations; by-products; exploded view and cost roll-up; **where-used**; open work orders for the product. Products owns the product record; Manufacturing owns this face | Odoo product stat buttons **Bill of Materials**, **Used In** and manufactured quantity over 365 days (`odoo/addons/mrp/views/product_views.xml`); AureusERP Product → **Bills of Materials** tab (`.../ProductResource/Pages/ManageBillsOfMaterials.php`); Carbon item make-method page (`apps/erp/app/routes/x+/part+/$itemId.make.$makeMethodId.tsx`) |
-| **Inventory availability** (owner Warehouse) | Component availability on the work order, the kiosk materials panel and the planning worklist; shortfall per component; reservation for a released work order | Odoo MO **components availability** column; Carbon job `/materials` shortfall (`apps/erp/app/routes/x+/job+/$jobId.materials.tsx`); ERPNext Shop Floor materials dots; Dolibarr production screen stock warning |
-| **Material issue / receipt** (Warehouse owns the screens) | Issue components to the run, return unused, receive finished goods and by-products, move to and from WIP, opened in a Manufacturing context from the work order and kiosk | Carbon MES material issue (`apps/mes/app/routes/x+/issue.tsx`); ERPNext Material Transfer for Manufacture / Manufacture stock entries (`work_order.js`); metasfresh mobile issue/receipt screens; Dolibarr consumption/production tables (`mo_production.php`) |
-| **Quality inspection** (owner Warehouse) | In-process and final inspection gates: operation or BOM marked inspection-required with a template; QC state on the job; operation or finished-goods receipt blocked until accepted | ERPNext Job Card `quality_inspection` + Shop Floor QC pills; Carbon MES inspection execution (`apps/mes/app/routes/x+/inspection.$operationId.tsx`) |
-| **Facility & equipment record** (owner Maintenance) | Work centers (Production Line facilities) with capacity, calendar and cost rates; production equipment on runs; offline windows read by scheduling; downtime and maintenance requests raised from the floor | Carbon work-center master + MES maintenance + `takesWorkCenterOffline` in scheduled maintenance (`apps/erp/app/routes/x+/resources+/scheduled-maintenance.new.tsx`); ERPNext Workstation status and Downtime Entry; Odoo work-center productivity loss |
-| **Order detail** (owners Sales / Purchasing) | Sales order line creates or links a work order (make to order) and its promise date drives priority; subcontract purchase order from an outside-processing operation | ERPNext Work Order `sales_order` and **Make Subcontracting PO**; Carbon jobs list customer / sales order and **Outbound** screen; Odoo MO `origin` |
-| **Purchase requirement** (Purchasing) | MRP worklist "buy" suggestions become `Requirement` rows that Purchasing turns into POs | ERPNext Production Plan **Get Items for Purchase Only** / Material Request; Carbon planning actions; Odoo orderpoints |
-| **Supplier 360** (owner Purchasing) | Subcontractors and outside-processing suppliers with cost and lead time | Carbon Outside Processing operation (supplier, minimum/unit cost, lead time); Odoo `subcontractor_ids` on the BoM |
-| **Time entry & timesheets** (owner Projects; attendance People) | Operator time per operation (start/pause/end), piece counts, labour cost; read face in timesheets | ERPNext Job Card Time Logs (employee); Carbon MES timecard and Setup/Labor/Machine events; Odoo work-order time tracking |
-| **Accounting** | WIP and finished-goods valuation from issue and receipt postings; estimate vs actual and variance read-only in Manufacturing | Odoo `mrp_account`; ERPNext stock entries and BOM Variance report; Carbon Estimates vs Actuals |
-| **Chatter & activities** (owner Commons / Comms) | Notes, files and activities on work orders, BOMs and work centers | Odoo chatter on BoM/MO/work center; Carbon job notes/documents; baseline run notes (`WorkEffortNote`) |
-| **Dashboard widgets** (owner Insights) | OEE, utilization, completion time, scrap rate, on-time completion, WIP value as widgets on the Manufacturing landing page | Carbon production dashboard KPIs; Odoo OEE / work-center load; ERPNext workspace chart and number cards |
+| Reused screen or link | Use in Manufacturing | Other apps that include it | Reference evidence |
+| --- | --- | --- | --- |
+| **Product 360** | BOM tab: components with quantity, scrap factor and consuming operation; routing/operations; by-products; exploded view and cost roll-up; **where-used**; open work orders for the product | Products (master data, variants, prices, costs); Commerce; Purchasing; Warehouse; Accounting; Sales | Odoo product stat buttons **Bill of Materials**, **Used In** and manufactured quantity over 365 days (`odoo/addons/mrp/views/product_views.xml`); AureusERP Product → **Bills of Materials** tab (`.../ProductResource/Pages/ManageBillsOfMaterials.php`); Carbon item make-method page (`apps/erp/app/routes/x+/part+/$itemId.make.$makeMethodId.tsx`) |
+| **Inventory availability** | Component availability on the work order, the kiosk materials panel and the planning worklist; shortfall per component; reservation for a released work order | Warehouse (full stock by facility, location, lot); Customer Service; Purchasing; Sales; Commerce | Odoo MO **components availability** column; Carbon job `/materials` shortfall (`apps/erp/app/routes/x+/job+/$jobId.materials.tsx`); ERPNext Shop Floor materials dots; Dolibarr production screen stock warning |
+| **Material issue / receipt** | Issue components to the run, return unused, receive finished goods and by-products, move to and from WIP; opened from the work order and the kiosk with the run as context, posting through `issue#AssetToWorkEffort` / `receive#Asset` | Warehouse (receiving, issue and stock moves) | Carbon MES material issue (`apps/mes/app/routes/x+/issue.tsx`); ERPNext Material Transfer for Manufacture / Manufacture stock entries (`work_order.js`); metasfresh mobile issue/receipt screens; Dolibarr consumption/production tables (`mo_production.php`) |
+| **Quality inspection** | In-process and final inspection gates: operation or BOM marked inspection-required with a template; QC state on the job; inspection opened from the operation; operation or finished-goods receipt held until accepted | Warehouse (receiving and returns inspection, templates); Purchasing (supplier quality score) | ERPNext Job Card `quality_inspection` + Shop Floor QC pills; Carbon MES inspection execution (`apps/mes/app/routes/x+/inspection.$operationId.tsx`) |
+| **Facility & equipment record** | Work centers (Production Line facilities) with capacity, calendar and cost rates; production equipment on runs; offline windows read by scheduling; downtime reports and maintenance requests raised from the floor | Maintenance (equipment register, maintenance history, downtime); Warehouse (storage locations); Commons (booking); Accounting (fixed-asset books) | Carbon work-center master + MES maintenance + `takesWorkCenterOffline` in scheduled maintenance (`apps/erp/app/routes/x+/resources+/scheduled-maintenance.new.tsx`); ERPNext Workstation status and Downtime Entry; Odoo work-center productivity loss |
+| **Order detail** | Sales order line creates or links a work order (make to order) and its promise date drives priority; subcontract purchase order from an outside-processing operation | Sales; Purchasing; Customer Service; Warehouse; Accounting; Commerce | ERPNext Work Order `sales_order` and **Make Subcontracting PO**; Carbon jobs list customer / sales order and **Outbound** screen; Odoo MO `origin` |
+| **Purchase requirement** (link) | MRP worklist "buy" suggestions become `Requirement` rows that Purchasing turns into POs | Purchasing (requirements to POs) | ERPNext Production Plan **Get Items for Purchase Only** / Material Request; Carbon planning actions; Odoo orderpoints |
+| **Supplier 360** | Subcontractors and outside-processing suppliers with cost and lead time | Purchasing; Accounting; Products; Warehouse | Carbon Outside Processing operation (supplier, minimum/unit cost, lead time); Odoo `subcontractor_ids` on the BoM |
+| **Time entry & timesheets** | Operator time per operation (start/pause/end), piece counts, labour cost; the same entries appear in timesheets | Projects (entry, approval); People (attendance, pay hours); Accounting (billing) | ERPNext Job Card Time Logs (employee); Carbon MES timecard and Setup/Labor/Machine events; Odoo work-order time tracking |
+| **Accounting** (link) | WIP and finished-goods valuation from issue and receipt postings; estimate vs actual and variance shown read-only in Manufacturing | Accounting (valuation and posting) | Odoo `mrp_account`; ERPNext stock entries and BOM Variance report; Carbon Estimates vs Actuals |
+| **Chatter & activities** | Notes, files and activities on work orders, BOMs and work centers | Every app (one component on record screens; Commons and Comms) | Odoo chatter on BoM/MO/work center; Carbon job notes/documents; baseline run notes (`WorkEffortNote`) |
+| **Dashboard widgets** | OEE, utilization, completion time, scrap rate, on-time completion, WIP value as widgets on the Manufacturing landing page | Insights (dashboards, cross-app KPIs); every app's landing page | Carbon production dashboard KPIs; Odoo OEE / work-center load; ERPNext workspace chart and number cards |
 
-**BOSS implications.** Manufacturing builds work orders, the shop floor, planning and the
-BOM/routing editor face; it reuses Warehouse's material issue/receipt and availability
-screens, opens the Product 360 for the BOM tab, the Facility & equipment record for work
-centers and equipment, and Warehouse's inspection record for quality gates. Maintenance
-owns equipment downtime; Manufacturing raises it and reads it for scheduling. Insights
-owns cross-app KPIs; Manufacturing supplies counts, not charts of its own beyond the
-landing strip.
+**BOSS implications.** The screens particular to Manufacturing in the references are work
+orders, the shop floor and planning. The rest of what a production user touches is reused
+screens that Manufacturing includes with a production context: the Product 360 BOM tab,
+Inventory availability, Material issue / receipt, Quality inspection, and the Facility &
+equipment record for work centers, equipment and downtime. Shop-floor users report
+downtime and request maintenance from the operation, and scheduling reads the same
+offline windows that Maintenance plans; the records and services are shared, so stock,
+value and equipment state agree across apps. Cross-app KPIs are Insights widgets, which
+suggests Manufacturing supplying counts rather than charts beyond its landing strip.
 
 ---
 
@@ -967,109 +981,130 @@ lookup, run creation, quantity change, issue/receive, break-down, unissue and ca
 | Dolibarr | BOM net-needs tree (by product or tree, physical vs virtual stock) as the cheapest MRP view; side-by-side consume/produce screen; service lines with workstation rates as minimal operations |
 | metasfresh | Planning candidate worklist with Set Start Date / Set Workstation and a selection-summing header; scan-per-line mobile issue and receipt with target / remaining / issued quantities; operator binds the device to a workstation by QR code |
 
-### Recommended screen inventory (IronStone Manufacturing)
+### Candidate screen inventory (IronStone Manufacturing)
+
+The screens the research points to for a production planner and shop-floor user. Reused
+screens are those crosscut §3–§4 lists for other apps too; the Manufacturing version is
+described here.
 
 | Area | Screens |
 | --- | --- |
-| Landing | Manufacturing home: KPI strip (open, WIP, late, component-short, completed this month), work-order queue grouped by status or work center, **Component shortages** list; every count deep-links into a pre-filtered Work Orders find |
-| Work orders | Work Orders find (list, board by status / work center, calendar; saved filters ready, late, blocked, mine, by product); Work Order detail with sub-screens Overview, Components (required / issued / remaining / availability **(shared: Warehouse)**), Operations (sequence, work center, status, expected vs actual), Quantities (completed, scrap, rework), Time, By-products, Quality gates, Notes and files (Chatter **(shared: Commons / Comms)**); wizards for change quantity, split, backorder |
-| Shop floor | Kiosk with manager board (pending / in progress / completed) and operator view (start / pause / end, timer, materials, instructions, QC state, quantity reconciliation), scanner and keyboard input, large touch targets; material issue and finished-goods receipt dialogs **(shared: Warehouse)**; inspection screen opened from the operation **(shared: Warehouse)**; report downtime / request maintenance **(shared: Maintenance)** |
-| BOMs & routings | BOM find (products with `PatMfgBom` lines); BOM and routing editor as the Manufacturing tab of **Product 360 (shared: Products)**: components with scrap factor and consuming operation, operations, by-products, exploded view, cost roll-up, where-used, copy operations from another product |
-| Work centers | Work center list and Manufacturing face of the **Facility & equipment record (shared: Maintenance)**: Production Line facility with capacity, calendar, efficiency, cost/hour, alternatives, equipment, offline windows, load |
-| Planning | Net-needs / MRP worklist (item, required date, on hand, incoming, shortfall, suggested make/buy quantity, time fence; **Create work order**, **Create purchase requirement**); demand/supply per item by week; work-center load / timeline (later) |
-| Configuration | Operation catalogue, scrap reasons, inspection-required defaults, settings (backflush / consumption policy, overproduction tolerance, auto-update BOM cost, planning horizon, time-log enforcement) |
-| Later | Subcontracting operation with component transfer and receipt; batches; non-conformance and corrective action (owner open, cross-cut §8); finite scheduling |
+| Landing | Manufacturing home: KPI strip (open, WIP, late, component-short, completed this month), work-order queue grouped by status or work center, **Component shortages** list; counts deep-linking into a pre-filtered Work Orders find |
+| Work orders | Work Orders find (list, board by status / work center, calendar; saved filters ready, late, blocked, mine, by product); Work Order detail with sub-screens Overview, Components (required / issued / remaining / availability from **Inventory availability (reused: Warehouse, Customer Service, Purchasing, Sales, Commerce)**), Materials (issued, returned and received assets for the run through **Material issue / receipt (reused: Warehouse)**), Operations (sequence, work center, status, expected vs actual), Quantities (completed, scrap, rework), Time (**Time entry (reused: Projects, People, Accounting)**), By-products, Quality gates, Notes and files (**Chatter & activities (reused: every app)**); wizards for change quantity, split, backorder |
+| Shop floor | Kiosk with manager board (pending / in progress / completed) and operator view (start / pause / end, timer, materials, instructions, QC state, quantity reconciliation), scanner and keyboard input, large touch targets; material issue, return and finished-goods receipt dialogs **(Material issue / receipt, reused: Warehouse)**; inspection screen opened from the operation **(Quality inspection, reused: Warehouse, Purchasing)**; report downtime and request maintenance on the line's equipment **(Facility & equipment record, reused: Maintenance, Warehouse, Commons, Accounting)** |
+| BOMs & routings | BOM find (products with `PatMfgBom` lines); BOM and routing editor as the BOM tab of the **Product 360 (reused: Products, Commerce, Purchasing, Warehouse, Accounting, Sales)**: components with scrap factor and consuming operation, operations, by-products, exploded view, cost roll-up, where-used, copy operations from another product |
+| Work centers & equipment | Work center list; work center detail as the **Facility & equipment record (reused: Maintenance, Warehouse, Commons, Accounting)** with production emphasis: Production Line facility with capacity, calendar, efficiency, cost/hour, alternatives, equipment, offline windows, load, and the line's downtime and maintenance history |
+| Quality | In-process and final inspection list for runs and operations, and inspection templates attached to operations or BOMs **(Quality inspection, reused: Warehouse, Purchasing)**; scrap and process-loss list by reason |
+| Planning | Net-needs / MRP worklist (item, required date, on hand, incoming, shortfall, suggested make/buy quantity, time fence; **Create work order**, **Create purchase requirement**); demand/supply per item by week; work-center load / timeline (needs work-center capacity and calendar) |
+| Configuration | Operation catalogue, scrap reasons, downtime reasons, inspection-required defaults, settings (backflush / consumption policy, overproduction tolerance, auto-update BOM cost, planning horizon, time-log enforcement) |
+| Further candidates | Subcontracting operation with component transfer and receipt; batches; non-conformance and corrective action (crosscut §8); finite scheduling |
 
-### Data-model implications
+### Data-model findings
 
-- Keep `WorkEffort` with purpose `WepProductionRun` as the work-order header; it already
+- `WorkEffort` with purpose `WepProductionRun` fits as the work-order header; it already
   carries facility, dates, status, parties, equipment, notes and produce/consume lines.
-  Map BOSS states onto the generic WorkEffort flow (Draft = `WeInPlanning`, Released =
-  `WeApproved`, In Progress / Paused = `WeInProgress` / `WeOnHold`, Done = `WeComplete`,
-  Closed = `WeClosed`) before adding any new status.
-- Use Mantle's routing model rather than inventing one: routing template `WorkEffort`
+  The work-order states seen in the references map onto the generic WorkEffort flow
+  (Draft = `WeInPlanning`, Released = `WeApproved`, In Progress / Paused = `WeInProgress`
+  / `WeOnHold`, Done = `WeComplete`, Closed = `WeClosed`), so new statuses may not be
+  needed.
+- Mantle's routing model fits without inventing one: routing template `WorkEffort`
   (`WepRouting`) with `WepRoutingTask` children joined by `WorkEffortAssoc`
   `WeatRoutingComp` (`sequenceNum`), linked to the product by `WorkEffortProduct`
-  `WeptRouting`. Standard times go in `estimatedSetupTime` / `estimatedWorkTime`, the work
-  center in the task's `facilityId`, equipment in `WorkEffortAssetNeeded`, skills in
+  `WeptRouting`. Standard times fit `estimatedSetupTime` / `estimatedWorkTime`, the work
+  center the task's `facilityId`, equipment `WorkEffortAssetNeeded`, skills
   `WorkEffortSkillStandard`.
-- On release, copy the routing tasks into child WorkEfforts of the run
-  (`parentWorkEffortId`, precedence by `WeatDependsOn`), using `clone#WorkEffort` with
-  `deepClone`; record time per operation in `TimeEntry` (`workEffortId`, `partyId`,
+- One option on release is copying the routing tasks into child WorkEfforts of the run
+  (`parentWorkEffortId`, precedence by `WeatDependsOn`) with `clone#WorkEffort` and
+  `deepClone`, and recording time per operation in `TimeEntry` (`workEffortId`, `partyId`,
   from/thru, `pieceCount`).
-- BOM: keep `ProductAssoc` `PatMfgBom` as the line, and expose `scrapFactor`,
-  `instruction`, `routingWorkEffortId` and from/thru dates in the editor. A BOM header for
-  revision and status (product, quantity, revision, status, effective dates) is new, as
-  are by-product lines. The run must pin the BOM revision and routing it was released from
-  and show an "outdated BOM" warning like Odoo.
-- Kits: decide whether `PtPickAssembly` (assembled at pick) also serves as the phantom
-  BOM inside production, or whether a phantom flag on the BOM is needed.
-- Work centers: a `FcTpLine` `Facility` needs capacity, calendar, efficiency, cost/hour and
-  OEE target; whether those are new Facility fields or a work-center extension is
-  Maintenance's call as owner of the record.
-- Keep produce/consume lines as `WorkEffortProduct` (`WeptProduce` / `WeptConsume`) and
-  post movements through `issue#AssetToWorkEffort` / `receive#Asset`, so Warehouse and
-  Accounting (`GatWipInventory`) see the same stock and value.
-- Quantity companions everywhere: estimated, issued/consumed, completed, pending,
-  scrapped, reworked; partial completion must not require closing the run.
-- Scrap and process loss need their own record (run, operation, product, lot asset,
-  quantity, reason, disposition), not only negative quantities. Inspection results belong
-  to Warehouse's inspection record (no Mantle entity yet; `Measurement` is a candidate for
-  readings). Downtime is Maintenance's record.
+- BOM: `ProductAssoc` `PatMfgBom` fits as the line, and already has `scrapFactor`,
+  `instruction`, `routingWorkEffortId` and from/thru dates for an editor to expose. A BOM
+  header for revision and status (product, quantity, revision, status, effective dates)
+  looks necessary, as do by-product lines; a header is what would let a run pin the BOM
+  revision and routing it was released from and show an "outdated BOM" warning like Odoo.
+- Kits: either `PtPickAssembly` (assembled at pick) also serves as the phantom BOM inside
+  production, or a phantom flag on the BOM is needed.
+- Work centers: a `FcTpLine` `Facility` lacks capacity, calendar, efficiency, cost/hour and
+  OEE target. The options are new Facility fields or a work-center extension record; since
+  the Facility & equipment record is reused by Maintenance, Warehouse, Commons and
+  Accounting, either choice touches those apps' versions too (Open questions).
+- Produce/consume lines as `WorkEffortProduct` (`WeptProduce` / `WeptConsume`) posted
+  through `issue#AssetToWorkEffort` / `receive#Asset` are what keep Warehouse and
+  Accounting (`GatWipInventory`) on the same stock and value.
+- Quantity companions recur in the references: estimated, issued/consumed, completed,
+  pending, scrapped, reworked, with partial completion possible without closing the run.
+- Scrap and process loss have no Mantle record; a new record (run, operation, product, lot
+  asset, quantity, reason, disposition) looks necessary rather than only negative
+  quantities. Inspection results have no Mantle entity yet (crosscut §4); the record would
+  serve the Quality inspection screen in Manufacturing, Warehouse and Purchasing alike,
+  and `Measurement` is a candidate for readings. Equipment downtime has no record either;
+  it would sit with the Facility & equipment record that Manufacturing and Maintenance
+  both include.
 - Planning: suggested makes can use `ProductionEstimate` or a new suggestion record;
-  suggested buys become `Requirement` rows.
+  suggested buys fit `Requirement` rows.
 
-### First-release cut
+### Sequencing notes
 
-1. Work-order lifecycle on `WepProductionRun` (release, start, issue, produce, complete,
-   close) with change quantity, split and backorder.
-2. Work-order detail with components, operations, quantities and time.
-3. BOM and routing tab on Product 360 over `ProductAssoc` + Mantle routings, with
-   exploded view, cost roll-up and where-used.
-4. Work-center face on Production Line facilities (capacity, calendar, cost/hour).
-5. Shop-floor kiosk: start/pause/end, quantity reconciliation, material issue via the
-   Warehouse dialog, instructions, QC state on the job.
-6. Net-needs worklist with **Create work order** and **Create purchase requirement**.
-7. Scrap and process loss on the quantity dialog, with scrap reasons.
-
-Defer: finite scheduling and timeline, OEE dashboards, non-conformance and corrective
-action, subcontracting, batches, 3D assembly instructions, gauge calibration, multi-level
-planning beyond net needs, BOM revision lifecycle beyond a single active revision.
+- The work-order lifecycle on `WepProductionRun` (release, start, issue, produce,
+  complete, close) is cheap: `create#ProductionRun`, `set#ProducedProductQuantity`, the
+  issue and receive services, the WorkEffort status flow and the baseline run screens
+  already exist. Split and backorder are new.
+- Operations on the work order depend on routings. Mantle defines `WepRouting` /
+  `WepRoutingTask` but no screen or service creates them, so per-operation detail, time per
+  operation and the shop-floor operator view all depend on the routing editor.
+- The BOM tab depends on the Product 360 screen (research-products.md). Exposing the
+  existing `ProductAssoc` fields is cheap; exploded view and where-used extend
+  `get#ProductBomDetail`, which today is single-level and ignores scrap and dates; BOM
+  revision depends on the new BOM header; cost roll-up depends on where product costs are
+  kept (the Mantle cost entities are commented out, research-products.md).
+- Scheduling, work-center load, OEE and operation costing all depend on the work-center
+  attributes (capacity, calendar, cost/hour), and so on the Facility extension question.
+- In the shop-floor kiosk, material issue and receipt are cheap (the services and baseline
+  dialogs exist) and time entry against a WorkEffort exists (`store#TimeEntryWorkEffort`);
+  QC state depends on the inspection record, and downtime reporting on a downtime record,
+  neither of which Mantle has.
+- A net-needs worklist is cheap on Moqui (a recursive BOM explosion over
+  `get#AvailableInventory`, with `Requirement` for buys); MPS, forecasting and finite
+  scheduling have nothing in the baseline to build on.
+- Scrap and process loss on the quantity dialog depend on the new scrap record and scrap
+  reasons.
+- Subcontracting depends on routing operations with a supplier and on purchase orders;
+  batches, non-conformance and corrective action, 3D assembly instructions, gauge
+  calibration and multi-level planning beyond net needs have no baseline support.
 
 ### Open questions
 
 - Does a work order always have operations, or is a no-routing "simple production run"
   still first-class? Dolibarr and the current Mantle model say yes; Odoo hides work orders
-  unless routings are enabled. BOSS should support both and let the product's routing
-  decide.
+  unless routings are enabled. One option is supporting both and letting the product's
+  routing decide.
 - Is a "production run" one work order, or a batch of work orders sharing a setup? Carbon
-  makes batches first-class; Odoo/ERPNext do not. Start with one run = one work order and
-  add batching only when a real setup-saving case appears.
-- Where does scheduling live: Manufacturing or a shared planning screen used by
-  Purchasing/Warehouse? The references keep it in Manufacturing; a
-  `/Manufacturing/Schedule` subscreen that other apps link to read-only fits the
-  shared-screens rule.
+  makes batches first-class; Odoo/ERPNext do not, which suggests one run = one work order
+  as the common case, with batching where a setup-saving case appears.
+- Is scheduling a Manufacturing screen, or a reused planning screen that Purchasing and
+  Warehouse also include? The references keep it in Manufacturing; crosscut §8 lists
+  replenishment and MRP planning over the same requirements as a cross-app question.
 - Which quantity is authoritative for completion: produced good quantity, or issued
-  material? Adopt ERPNext's reconciliation (completed + pending + process loss) and never
-  let one silently overwrite the other.
-- The first pass recommended quality as Manufacturing's own screen set (inspection,
-  non-conformance, corrective action). The cross-cut gives the inspection record and
-  templates to Warehouse and only the gates to Manufacturing. Is a Warehouse-owned
-  inspection screen enough for in-process inspection with measured characteristics and
-  sampling (Carbon's MES inspection), or does Manufacturing need its own execution view of
-  the same record?
+  material? ERPNext's reconciliation (completed + pending + process loss) is one answer,
+  and it never lets one silently overwrite the other.
+- Quality inspection is one reused screen (Manufacturing, Warehouse, Purchasing). Does one
+  screen with per-app context cover in-process inspection with measured characteristics
+  and sampling (Carbon's MES inspection), or does the Manufacturing version need an
+  operator execution view of the same record?
 - Operator-reported downtime that is not an equipment fault (no material, no operator,
-  waiting on QC) feeds OEE but is not maintenance. Is it a Maintenance record with a
-  non-equipment reason, or a Manufacturing productivity-loss record that Maintenance
-  reads?
-- Should the work-center fields (capacity, calendar, efficiency, cost/hour) live on
-  `Facility` for all users, or in a Manufacturing-owned extension of the Facility &
-  equipment record?
-- Phantom/kit BOMs in the first release: reuse `PtPickAssembly`, or add a phantom flag?
-  They are cheap to implement and prevent fake assemblies.
+  waiting on QC) feeds OEE but is not maintenance. Is it the same downtime record with a
+  non-equipment reason, or a separate productivity-loss record (crosscut §8)?
+- Do the work-center fields (capacity, calendar, efficiency, cost/hour) go on `Facility`
+  for every app that includes the Facility & equipment record, or in an extension record
+  shown only in the Manufacturing version?
+- Phantom/kit BOMs: reuse `PtPickAssembly`, or add a phantom flag? Either is cheap and
+  prevents fake assemblies.
 
-**Bottom line.** Mantle already has most of what a first release needs (production runs,
-BOM lines with scrap and operation links, routing purposes and assocs, time entries,
-WIP posting); the work is screens, a BOM header, work-center attributes and an
-operation-level shop floor, built on Warehouse, Products and Maintenance shared screens
-rather than beside them.
+**Bottom line.** Mantle already has much of what work orders need (production runs, BOM
+lines with scrap and operation links, routing purposes and assocs, time entries, WIP
+posting); what the research finds missing is screens, a BOM header, work-center
+attributes, scrap, downtime and inspection records, and an operation-level shop floor.
+Beyond work orders, the shop floor and planning, most of what a production user touches
+is reused screens (Product 360, Inventory availability, Material issue / receipt, Quality
+inspection, Facility & equipment record) that Manufacturing would include with its own
+context.
