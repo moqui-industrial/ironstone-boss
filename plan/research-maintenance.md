@@ -9,11 +9,15 @@ maintenance work orders, and facility and equipment scheduling admin), catalogui
 relevant screen/page found in the reference apps. Companion to
 [3p-app-reference.md](3p-app-reference.md); feeds the Maintenance row in
 [initial-design.md](initial-design.md) (Facilities · Equipment & assets · Maintenance work
-orders · Facility and equipment scheduling admin). Maintenance owns the shared **Facility &
-equipment record** and the fixed-asset register (crosscut §3–§4); its faces elsewhere are
-storage locations and setup in Warehouse, production equipment and work centers in
-Manufacturing, schedules and booking in Commons (Maintenance keeps policies, approvals and
-blackout windows), and fixed-asset books and depreciation in Accounting.
+orders · Facility and equipment scheduling admin). Reused screens it covers (crosscut
+§3–§4): the **Facility & equipment record**, which Maintenance includes as the equipment
+register, maintenance history and facility tree, and which Warehouse (storage locations
+and setup), Manufacturing (production equipment, work centers), Commons (schedules and
+booking) and Accounting (fixed-asset books) also include; **Calendar & schedules**, where
+Maintenance's version holds the booking policies, approvals and blackout windows (decided
+in initial-design: schedules in Commons, their administration in Maintenance); and fixed
+assets on the same `Asset`, included in Maintenance (register, lifecycle, custodian) and
+Accounting (depreciation, capitalization, disposal).
 
 **Organization.** Sorted by functional area (not by app): all equipment registers
 together, all maintenance-request screens together, etc. Within each area, sub-tables per
@@ -109,10 +113,10 @@ training. Its landing page is a maintenance dashboard; the dispatch table is the
 | Resources dashboard | Count tiles **Open Dispatches**, **Open Scheduled**, **Open Reactive** (each with a View link); KPI card with selectable metric (**Mean Time To Repair**, **Mean Time Between Failures**, **Spare Part Cost**, **Worst Performing Machines**, **Spare Part Consumption**), work-center filter, bar chart, **Export CSV**; lists **Recently Created** and **Assigned to Me** | `apps/erp/app/routes/x+/resources+/_index.tsx`; `MaintenanceKPIs` in `apps/erp/app/modules/resources/resources.models.ts` |
 | Dispatches table | Columns Dispatch ID, Work Center, Source, Status, Priority, OEE Impact, Planned Start, Assignee, Actual and Suspected Failure Mode, Created/Updated By and At; filters on status and priority | `apps/erp/app/modules/resources/ui/Maintenance/MaintenanceDispatchesTable.tsx`; route `apps/erp/app/routes/x+/resources+/maintenance.tsx` |
 
-**BOSS implications.** The landing page needs team or queue cards with counters that open
-a filtered work order list (Odoo), plus Carbon's open/scheduled/reactive tiles and a KPI
-strip. The list and board are the real work queue; "my work" and unscheduled filters are
-the most used.
+**BOSS implications.** The references point to a landing page with team or queue cards
+with counters that open a filtered work order list (Odoo), plus Carbon's
+open/scheduled/reactive tiles and a KPI strip. The list and board are the real work queue;
+"my work" and unscheduled filters are the most used.
 
 ---
 
@@ -135,7 +139,7 @@ the Enterprise-dependent `property_assets_distribution` industry package models 
 ### ERPNext — `Location` tree for assets (geo + area)
 
 `Location` is a nested-set tree used only by assets (warehouses are separate). It is the
-closest reference for a facility/site/building/room hierarchy owned by Maintenance.
+closest reference for a facility/site/building/room hierarchy in Maintenance.
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
@@ -160,9 +164,10 @@ Both describe a bookable room by flat attributes rather than a hierarchy: Zimbra
 name/address/story, room number, room type, seating capacity and features. Useful as the
 attribute set for a Room-type facility (details in section 7).
 
-**BOSS implications.** Use the Mantle `Facility` tree (`parentFacilityId`, types Building /
-Floor / Room / Plant …) as the facility register, with ERPNext's tree view and geo/area as
-the model. Storage locations inside a facility stay the Warehouse face; Maintenance adds
+**BOSS implications.** The Mantle `Facility` tree (`parentFacilityId`, types Building /
+Floor / Room / Plant …) fits as the facility register, with ERPNext's tree view and
+geo/area as the closest model. Storage locations inside a facility are part of the same
+reused facility record, the part Warehouse emphasizes; Maintenance's version would add
 room attributes (capacity, features) taken from Zimbra and Nextcloud.
 
 ---
@@ -232,10 +237,11 @@ Maintenance targets **work centers**; the work-center form lists linked **fixed 
 Equipment list with type, serial, manufactured year, initial cost, max share period and
 auto-approve; no maintenance fields (section 7).
 
-**BOSS implications.** The Equipment 360 is the Mantle `Asset` (type `AstTpEquipment`) with
-Odoo's people fields (owner, team, technician, assigned to employee/department), vendor and
-warranty, MTBF/MTTR, and ERPNext's insurance and lifecycle actions. Customer-owned serials
-(ERPNext Serial No + Warranty Claim) are a separate track.
+**BOSS implications.** A candidate Equipment 360 is the Mantle `Asset` (type
+`AstTpEquipment`) with Odoo's people fields (owner, team, technician, assigned to
+employee/department), vendor and warranty, MTBF/MTTR, and ERPNext's insurance and
+lifecycle actions. Customer-owned serials (ERPNext Serial No + Warranty Claim) are a
+separate track.
 
 ---
 
@@ -298,11 +304,12 @@ maintenance module exists (generic WebUI windows only).
 | Cost collectors | Spare Parts To Be Invoiced, Spare Parts Owned By Customer, Repaired Product To Return, Repairing Consumption | `backend/de.metas.servicerepair.base/src/main/java/de/metas/servicerepair/project/model/ServiceRepairProjectCostCollectorType.java` |
 | Customer returns / warranty | Add spare parts to a customer return, select/return HUs, warranty case | `backend/de.metas.servicerepair.webui/src/main/java/de/metas/servicerepair/customerreturns/process/`; `backend/de.metas.servicerepair.base/src/main/java/de/metas/servicerepair/customerreturns/{RepairCustomerReturnsService,WarrantyCase}.java` |
 
-**BOSS implications.** One work order record covers corrective and preventive work (Odoo,
-Carbon); Carbon adds the fields that matter to production (severity, source, OEE impact,
-offline flag, failure modes) and ERPNext the repair cost and downtime. Parts and time are
-recorded on the work order, not on a separate repair document. Customer repair (Odoo
-Repairs, metasfresh) is a different flow; its owner is an open question.
+**BOSS implications.** In Odoo and Carbon one work order record covers corrective and
+preventive work; Carbon adds the fields that matter to production (severity, source, OEE
+impact, offline flag, failure modes) and ERPNext the repair cost and downtime. As in
+Carbon, parts and time can be recorded on the work order rather than on a separate repair
+document. Customer repair (Odoo Repairs, metasfresh) is a different flow; which records
+and apps carry it is an open question.
 
 ---
 
@@ -346,10 +353,11 @@ each due date; completing a log advances Next Due Date.
 | Scheduled maintenances | List and form: Schedule Name, work center, **Frequency** (Daily/Weekly/Monthly/Quarterly/Annual), day-of-week checkboxes for daily, **Skip Holidays**, priority, **Estimated Duration (minutes)**, **Takes Work Center Offline** (reserves capacity; requires duration), **Next Due Date**, active, **Procedure**, planned spare-part items (`maintenanceScheduleItem` table, validator and service, but no form or route edits them) | `apps/erp/app/modules/resources/ui/MaintenanceSchedule/{MaintenanceSchedulesTable,MaintenanceScheduleForm}.tsx`; `maintenanceScheduleValidator`, `maintenanceFrequency` in `resources.models.ts`; routes `apps/erp/app/routes/x+/resources+/scheduled-maintenance*.tsx` |
 | Capacity reservation | Offline PMs subtract their window from work-center capacity in the scheduler | `packages/database/supabase/migrations/20260817041453_scheduled-maintenance-offline.sql`, `20260720121629_capacity-planning.sql` |
 
-**BOSS implications.** PM plans need both calendar (Odoo, ERPNext, Carbon) and meter
-intervals (Moqui baseline `ProductMaintenance`), per-asset overrides, skip-holiday and
-day-of-week rules (Carbon), and a calendar that shows future occurrences (Odoo). Completing
-a PM work order generates the next one.
+**BOSS implications.** Taken together, the references suggest PM plans with both calendar
+(Odoo, ERPNext, Carbon) and meter intervals (Moqui baseline `ProductMaintenance`),
+per-asset overrides, skip-holiday and day-of-week rules (Carbon), and a calendar that
+shows future occurrences (Odoo). One option is that completing a PM work order generates
+the next one.
 
 ---
 
@@ -398,8 +406,9 @@ service visits, not for in-house equipment.
 | Recurring interventions | Template interventions generating new ones on a frequency | `htdocs/fichinter/card-rec.php`, `htdocs/fichinter/class/fichinterrec.class.php` |
 | List, index, stats, tabs | List with filters; module index with latest/drafts; statistics; contacts, documents, notes, agenda tabs | `htdocs/fichinter/{list.php,index.php,contact.php,document.php,note.php,agenda.php}`, `htdocs/fichinter/stats/` |
 
-**BOSS implications.** Technicians need a phone-friendly "my work" board and a work order
-execution view with start/stop time, parts issue, procedure and complete (Carbon MES). A
+**BOSS implications.** Carbon MES is the evidence for a phone-friendly "my work" board for
+technicians and a work order execution view with start/stop time, parts issue, procedure
+and complete. A
 printable, signable work report (Dolibarr) is useful for outside service.
 
 ---
@@ -460,7 +469,7 @@ equipment, the requesting employees or teams, a policy and a date window.
 ### Nextcloud — room/resource booking inside the event editor
 
 Rooms and resources are CalDAV principals supplied by backends (admin-managed, often via
-an external app or LDAP). The everyone-facing face is the event editor's **Resources**
+an external app or LDAP). The screen everyone uses is the event editor's **Resources**
 section: search rooms, filter, check availability, add to the event.
 
 | Screen/page | What it is | Key files |
@@ -479,9 +488,10 @@ conflict tolerance per resource.
 | --- | --- | --- |
 | New resource wizard / resource form | Name, display name, **Type** Location / Equipment, **schedule policy** (auto accept + auto decline on conflict combinations), **max conflicts allowed** (count and percent for recurring), auto-decline recurring, always free, forward invites to, **Site / Building / Floor / Room**, **Capacity**, contact name/email/phone, account status (active / maintenance / locked / closed), auto-reply signatures | `zm-admin-console/WebRoot/js/zimbraAdmin/resource/view/{ZaNewResourceXWizard.js,ZaResourceXFormView.js}`; model `resource/model/ZaResource.js` (`RESOURCE_TYPE_LOCATION`, `RESOURCE_TYPE_EQUIPMENT`, `SCHEDULE_POLICY_*`, `A_zimbraCalResMaxNumConflictsAllowed`, `A_zimbraCalResSite`, `A_zimbraCalResBuilding`, `A_zimbraCalResFloor`, `A_zimbraCalResRoom`, `A_zimbraCalResCapacity`); controller `resource/controller/ZaResourceController.js` |
 
-**BOSS implications.** Booking itself is the Commons calendar face. Maintenance's
-scheduling admin needs per-resource policy (approval required, auto-approve, max period,
-conflicts allowed: Gauzy, Zimbra), a request queue with approve/refuse (Gauzy), an overlap
+**BOSS implications.** Booking itself is in the reused Calendar & schedules screen that
+Commons includes for everyone. Maintenance's version, the scheduling admin, would need
+per-resource policy (approval required, auto-approve, max period, conflicts allowed: Gauzy,
+Zimbra), a request queue with approve/refuse (Gauzy), an overlap
 check (Dolibarr), and blackout windows. No single reference has all four.
 
 ---
@@ -522,9 +532,10 @@ only Cost, Effective Date and Scrap Date. `account_fleet` adds **Bills** on vehi
 | Asset models | Template card/list with depreciation options and accountancy codes | `htdocs/asset/model/{card.php,list.php,depreciation_options.php,accountancy_codes.php}`, `class/assetmodel.class.php` |
 | Tabs | Documents, notes, agenda | `htdocs/asset/{document.php,note.php,agenda.php}` |
 
-**BOSS implications.** Maintenance owns the register and lifecycle actions on the same
-`Asset` (acquire, transfer, out of service, dispose); depreciation, capitalization and
-disposal postings are the Accounting face (ERPNext, Carbon, Dolibarr show the full set).
+**BOSS implications.** Fixed assets are one `Asset` record included in two apps:
+Maintenance's version emphasizes the register and lifecycle actions (acquire, transfer,
+out of service, dispose), Accounting's the depreciation, capitalization and disposal
+postings (ERPNext, Carbon, Dolibarr show the full set).
 
 ---
 
@@ -551,7 +562,7 @@ disposal postings are the Accounting face (ERPNext, Carbon, Dolibarr show the fu
 **BOSS implications.** Vehicles fit as an asset class (`AsClsPassengerVeh`,
 `AsClsCargoVehicle` and its children) with the odometer meters, registrations and
 identifiers that Mantle already has; contracts and fuel/service cost logs would be new.
-Rental fleet statuses (Carbon) belong to whoever owns rental.
+Rental fleet statuses (Carbon) go with rental, which is outside this file's scope.
 
 ---
 
@@ -581,7 +592,8 @@ Rental fleet statuses (Carbon) belong to whoever owns rental.
 
 **BOSS implications.** A failure-mode catalog, suspected vs actual failure mode and an
 OEE-impact field (Carbon), downtime with stop reasons (ERPNext) and computed MTBF/MTTR
-(Odoo) are all needed for reliability reporting; Mantle has none of them.
+(Odoo) together make up reliability reporting in the references; Mantle has none of
+them.
 
 ---
 
@@ -597,9 +609,9 @@ OEE-impact field (Carbon), downtime with stop reasons (ERPNext) and computed MTB
 | ERPNext | Asset value charts and cards | `erpnext/assets/dashboard_chart/`, `erpnext/assets/number_card/` |
 | Carbon | Maintenance KPI chart with CSV export | `apps/erp/app/routes/x+/resources+/_index.tsx` |
 
-**BOSS implications.** First reports: open/overdue work orders, PM compliance, MTBF/MTTR
-and worst assets, maintenance cost by asset and facility, and a fixed asset register view
-for the Accounting face.
+**BOSS implications.** Candidate reports: open/overdue work orders, PM compliance,
+MTBF/MTTR and worst assets, maintenance cost by asset and facility, and a fixed asset
+register view (also included in Accounting).
 
 ---
 
@@ -617,36 +629,38 @@ for the Accounting face.
 | Carbon | Failure Modes, Locations, Work Centers (in Resources); asset classes (in Accounting) | `apps/erp/app/modules/resources/ui/{FailureModes,Locations,WorkCenters}/`; `apps/erp/app/modules/accounting/ui/FixedAssets/AssetClassForm.tsx` |
 | Carbon | **Procedures** (Production module): versioned procedures with ordered **steps** and **parameters**, picked as the procedure on dispatches and scheduled maintenance and shown to the technician in MES | `apps/erp/app/modules/production/ui/Procedures/{ProceduresTable,ProcedureForm,ProcedureExplorer}.tsx`; `apps/erp/app/routes/x+/procedure+/{$id.tsx,$id.steps.new.tsx,$id.parameters.new.tsx}` |
 
-**BOSS implications.** Configuration needs teams with members (and an email alias for
-intake, as in Odoo), stages or status labels, equipment categories/classes, maintenance
-types, failure modes and procedures with steps (Carbon).
+**BOSS implications.** The configuration found across the references: teams with members
+(and an email alias for intake, as in Odoo), stages or status labels, equipment
+categories/classes, maintenance types, failure modes and procedures with steps (Carbon).
 
 ---
 
 ## 13. Cross-app surfaces
 
-Faces follow [research-crosscut.md](research-crosscut.md) §3–§4: Maintenance owns the
-**Facility & equipment record** and the fixed-asset register; the other apps open the same
-record with their own tabs and actions.
+Reused screens and links as listed in [research-crosscut.md](research-crosscut.md) §3–§4.
+Each app includes the same screen with its own tabs and actions; the **Facility &
+equipment record** is the reused screen where Maintenance's version carries the most.
 
-| Surface | Maintenance face | Reference evidence |
-| --- | --- | --- |
-| **Manufacturing** (production equipment and work centers face of the Facility & equipment record) | Maintenance publishes which equipment is down or reserved for planned work; Manufacturing reads that for scheduling and lets operators report a breakdown from the floor; downtime and OEE feed both apps; a repair can spawn a production order | Carbon `takesWorkCenterOffline` on dispatches and schedules, MES maintenance board, job-operation dispatch dialog and work-center display tile (`apps/mes/app/routes/`); ERPNext Downtime Entry and Downtime Analysis; Odoo OEE/Losses menu slots (Enterprise `mrp_maintenance`) and `mrp_repair` smart buttons; Moqui baseline equipment assignments on production runs |
-| **Warehouse** (storage locations and setup face) | Warehouse owns storage locations and location setup inside a facility; Maintenance shows equipment located at a facility/location and issues spare parts to a work order through the shared issuance and **Inventory availability** screens (owner Warehouse) | Carbon dispatch **Add and issue**; ERPNext Asset Repair consumed stock items; Odoo `stock_maintenance` location field and location smart button; Odoo repair Parts tab with reserve; Moqui `issue#AssetToWorkEffort` |
-| **Purchasing** | Buying parts or outside service for a work order; vendor and warranty on equipment | Odoo `purchase_repair` smart buttons; ERPNext Asset Repair purchase invoices; Odoo/AureusERP equipment vendor + vendor ref + warranty date; Mantle `AssetMaintenance.purchaseOrderId`, `AssetMaintenanceOrderItem` |
-| **Accounting** (fixed-asset books face) | Maintenance owns the register, lifecycle and custodian; Accounting owns depreciation, capitalization (including capitalized repair cost), disposal postings, and the labor and parts cost of work orders | ERPNext Asset + Value Adjustment + Capitalization + **Capitalize Repair Cost**; Carbon Fixed Assets in Accounting linked to work centers, and dispatch time expensed at the work center's labor rate (`packages/database/supabase/migrations/20260929181534_maintenance-labor-journal.sql`); Dolibarr asset module; Mantle `calculateAndPost#AllFixedAssetDepreciations` |
-| **People** | Equipment assigned to employees/departments; return on departure; equipment count on the **Employee 360** (owner People) | Odoo `hr_maintenance` (employee/department assignment, departure unassign, **Equipment** smart button); Odoo `hr_fleet` **Cars History**; ERPNext Asset Custodian + Asset Movement from/to employee; Frappe HR Full and Final Asset; Mantle `AssetPartyAssignment` |
-| **Commons** (Calendar & schedules, booking) | Commons owns booking and availability for everyone; Maintenance owns the scheduling admin: bookable-resource policies, approvals, blackout and maintenance windows | Nextcloud room search and availability in the event editor; Ever Gauzy equipment sharing requests with approve/refuse; Dolibarr resources on agenda events with busy check; Zimbra resource scheduling policy; Moqui `FacilityCalendar`, `AssetCalendar`, event **Equipment** assignments |
-| **Customer Service** (open question) | Repairs and warranty for customer-owned items, service visits, field-service reports; crosscut assigns no owner yet (see Open questions) | Odoo Repairs (customer, under warranty, quote, invoice); ERPNext Warranty Claim + Maintenance Schedule/Visit; metasfresh service/repair projects; Dolibarr interventions |
-| **Projects** | Repair cost charged to a project; work orders are `WorkEffort` records like Projects tasks but with purpose `WepMaintenance` | ERPNext Asset Repair `project`; metasfresh `C_Project` service/repair; Dolibarr intervention project |
-| **Insights** | Maintenance owns its landing page; KPI widgets (MTBF, MTTR, worst assets, spare-part cost, asset value by category/location) use the Insights widget types | Carbon Resources dashboard KPIs; Odoo equipment MTBF/MTTR + request analysis; ERPNext asset dashboard charts and number cards |
-| **Commons / Comms** (Chatter) | Messages, activities and attachments on work orders, equipment and facilities | Odoo chatter on requests and equipment; Carbon dispatch comments; Moqui `AssetMaintenanceContent` |
+| Reused screen or link | Use in Maintenance | Other apps that include it | Reference evidence |
+| --- | --- | --- | --- |
+| **Facility & equipment record**: production equipment and work centers | Publishes which equipment is down or reserved for planned work; downtime and OEE feed Maintenance and Manufacturing; a repair can spawn a production order | Manufacturing (production equipment, work centers): reads equipment availability for scheduling and lets operators report a breakdown from the floor | Carbon `takesWorkCenterOffline` on dispatches and schedules, MES maintenance board, job-operation dispatch dialog and work-center display tile (`apps/mes/app/routes/`); ERPNext Downtime Entry and Downtime Analysis; Odoo OEE/Losses menu slots (Enterprise `mrp_maintenance`) and `mrp_repair` smart buttons; Moqui baseline equipment assignments on production runs |
+| **Facility & equipment record**: storage locations and setup | Equipment located at a facility/location; storage locations and location setup inside a facility | Warehouse (storage locations and setup) | Odoo `stock_maintenance` location field and location smart button |
+| **Inventory availability** and parts issuance | Spare parts issued to a work order | Warehouse (full stock by facility, location, lot, reservations); Customer Service; Purchasing; Sales; Manufacturing; Commerce | Carbon dispatch **Add and issue**; ERPNext Asset Repair consumed stock items; Odoo repair Parts tab with reserve; Moqui `issue#AssetToWorkEffort` |
+| **Order detail** (purchase) and supplier links | Buying parts or outside service for a work order; vendor and warranty on equipment | Purchasing (purchase orders, supplier terms) | Odoo `purchase_repair` smart buttons; ERPNext Asset Repair purchase invoices; Odoo/AureusERP equipment vendor + vendor ref + warranty date; Mantle `AssetMaintenance.purchaseOrderId`, `AssetMaintenanceOrderItem` |
+| **Fixed assets** (the same `Asset`; Facility & equipment record, fixed-asset books) | Register, lifecycle and custodian | Accounting: depreciation, capitalization (including capitalized repair cost), disposal postings, and the labor and parts cost of work orders | ERPNext Asset + Value Adjustment + Capitalization + **Capitalize Repair Cost**; Carbon Fixed Assets in Accounting linked to work centers, and dispatch time expensed at the work center's labor rate (`packages/database/supabase/migrations/20260929181534_maintenance-labor-journal.sql`); Dolibarr asset module; Mantle `calculateAndPost#AllFixedAssetDepreciations` |
+| **Employee 360** | Equipment assigned to employees/departments; return on departure; equipment count on the employee record | People (employment, pay, leave, reviews); Admin; Projects; Commons | Odoo `hr_maintenance` (employee/department assignment, departure unassign, **Equipment** smart button); Odoo `hr_fleet` **Cars History**; ERPNext Asset Custodian + Asset Movement from/to employee; Frappe HR Full and Final Asset; Mantle `AssetPartyAssignment` |
+| **Calendar & schedules** (booking) | Scheduling admin: bookable-resource policies, approvals, blackout and maintenance windows (decided in initial-design) | Commons: booking and availability for everyone (decided in initial-design); Projects: plan views; People: leave and shift views | Nextcloud room search and availability in the event editor; Ever Gauzy equipment sharing requests with approve/refuse; Dolibarr resources on agenda events with busy check; Zimbra resource scheduling policy; Moqui `FacilityCalendar`, `AssetCalendar`, event **Equipment** assignments |
+| **Customer-owned equipment repair and warranty** (open question) | Repairs and warranty for customer-owned items, service visits, field-service reports | Customer Service (researched in both files); crosscut §8 leaves the records open (see Open questions) | Odoo Repairs (customer, under warranty, quote, invoice); ERPNext Warranty Claim + Maintenance Schedule/Visit; metasfresh service/repair projects; Dolibarr interventions |
+| **Task / work item** and project costing | Work orders are `WorkEffort` records like Projects tasks but with purpose `WepMaintenance`; repair cost charged to a project | Projects (work items, costing) | ERPNext Asset Repair `project`; metasfresh `C_Project` service/repair; Dolibarr intervention project |
+| **Dashboard widgets** | Maintenance's landing page; KPI widgets (MTBF, MTTR, worst assets, spare-part cost, asset value by category/location) use the Insights widget types | Insights (dashboards, widget builder); every app's landing page | Carbon Resources dashboard KPIs; Odoo equipment MTBF/MTTR + request analysis; ERPNext asset dashboard charts and number cards |
+| **Chatter & activities** | Messages, activities and attachments on work orders, equipment and facilities | Every app's record screens (one component from Commons and Comms) | Odoo chatter on requests and equipment; Carbon dispatch comments; Moqui `AssetMaintenanceContent` |
 
-**BOSS implications.** Maintenance owns the equipment/facility master and the maintenance
-work order. Manufacturing reads offline windows for scheduling, Warehouse supplies parts
-issuance and owns storage locations, Accounting owns depreciation and postings on the same
-`Asset`, Commons shows the read/book face of facility and equipment schedules, and People
-shows assignments on the Employee 360.
+**BOSS implications.** The equipment/facility master and the maintenance work order are
+where Maintenance's versions of the reused screens carry the most. The other apps include
+the same records with their own emphasis: Manufacturing reads offline windows for
+scheduling, Warehouse issues parts and sets up storage locations, Accounting posts
+depreciation on the same `Asset`, Commons books facility and equipment schedules, and
+People shows assignments on the Employee 360.
 
 ---
 
@@ -714,7 +728,7 @@ and the WorkEffort purpose `WepMaintenance`.
 | `mantle.work.WorkEffortServices.clone#WorkEffort`; `mantle.work.TaskServices.create#Task`, `add#TaskTime`; `mantle.work.TimeServices.store#TimeEntry` | Copy a template work effort; tasks and time entry | `component/mr-mantle-usl/service/mantle/work/{WorkEffortServices,TaskServices,TimeServices}.xml` |
 | `mantle.request.RequestServices.create#Request` | Request intake | `component/mr-mantle-usl/service/mantle/request/RequestServices.xml` |
 | `mantle.facility.FacilityServices`: `create#Facility`, `update#Facility`, `create#FacilityLocation`, `update#FacilityCertification`, `create#FacilityNote` | Facility master | `component/mr-mantle-usl/service/mantle/facility/FacilityServices.xml` |
-| `mantle.ledger.AssetAutoPostServices`: `calculate#FixedAssetDepreciation`, `post#FixedAssetDepreciation`, `calculateAndPost#AllFixedAssetDepreciations` | Depreciation (Accounting face) | `component/mr-mantle-usl/service/mantle/ledger/AssetAutoPostServices.xml` |
+| `mantle.ledger.AssetAutoPostServices`: `calculate#FixedAssetDepreciation`, `post#FixedAssetDepreciation`, `calculateAndPost#AllFixedAssetDepreciations` | Depreciation (also included in Accounting) | `component/mr-mantle-usl/service/mantle/ledger/AssetAutoPostServices.xml` |
 
 Missing: any service that lists due or overdue PM across assets, creates the next work
 order from a plan (`templateWorkEffortId` + `clone#WorkEffort` are the obvious parts),
@@ -795,75 +809,93 @@ checks booking conflicts, or computes MTBF/MTTR or downtime.
 | metasfresh | Customer repair as project with spare-parts vs repair-order tasks and ownership-aware cost collectors; meter-or-date maintenance hints on the legacy asset |
 | Moqui baseline | Meter-based PM plans per product with next/remaining interval, meter readings, registrations, custodian assignments, equipment on events and production runs, facility hierarchy and types, depreciation services |
 
-### Recommended screen inventory (IronStone Maintenance)
+### Candidate screen inventory (IronStone Maintenance)
 
 | Area | Screens |
 | --- | --- |
-| Home | Maintenance landing page: tiles (open, overdue PM, high priority, unassigned, assets down), my work, team cards with counters, MTTR/MTBF strip (widgets from **(shared: Insights)** widget types) |
-| Work orders | Work order list (saved filters, group by team/status/asset/facility), board by status, calendar; work order detail (asset or facility, type, priority, severity, source, team, assignees, planned window, offline flag, failure mode suspected/actual, procedure/instructions, time entries, parts used with issue through **Inventory availability (shared: Warehouse)**, purchase links, Chatter **(shared: Commons/Comms)**, history); quick "report a problem" dialog for anyone; phone-friendly detail for technicians |
+| Home | Maintenance landing page: tiles (open, overdue PM, high priority, unassigned, assets down), my work, team cards with counters, MTTR/MTBF strip (widgets on the Insights widget types, **(reused: Insights, every app's landing page)**) |
+| Work orders | Work order list (saved filters, group by team/status/asset/facility), board by status, calendar; work order detail (asset or facility, type, priority, severity, source, team, assignees, planned window, offline flag, failure mode suspected/actual, procedure/instructions, time entries, parts used with issue through **Inventory availability** **(reused: Warehouse, Customer Service, Purchasing, Sales, Manufacturing, Commerce)**, purchase links, Chatter **(reused: every app's record screens)**, history); quick "report a problem" dialog for anyone (a **Request / case** if intake uses `Request`, see Open questions); phone-friendly detail for technicians |
 | Preventive | PM plans (product-level `ProductMaintenance` + per-asset overrides), due/overdue PM list with meter status, PM calendar, generate-next action |
-| Equipment & assets | Equipment find (type/class/status/facility/team/custodian/warranty/due); **Equipment 360** = the Facility & equipment record (owner Maintenance): summary, hierarchy children, meters, maintenance history, plans, assignments (links to **Employee 360 (shared: People)**), registrations, documents, calendar, and the books tab that is the Accounting face (depreciation actions stay in Accounting) |
-| Facilities | Facility tree (site → building → floor → room), facility record (owner Maintenance): attributes, rooms, equipment in facility, work orders, calendar, parties, certifications; storage locations tab is the Warehouse face (location setup stays in Warehouse) |
-| Scheduling admin | Bookable resources (facilities/equipment) with policy (approval required, auto-approve, max period, conflicts allowed, capacity, features); booking requests queue (approve/refuse); blackout and maintenance windows; the booking calendar itself is **(shared: Commons)** |
+| Equipment & assets | Equipment find (type/class/status/facility/team/custodian/warranty/due); **Equipment 360** = the **Facility & equipment record** **(reused: Warehouse, Manufacturing, Commons, Accounting)**: summary, hierarchy children, meters, maintenance history, plans, assignments (links to **Employee 360** **(reused: People, Admin, Projects, Commons)**), registrations, documents, calendar, and a books tab over the fixed-asset records **(reused: Accounting, where depreciation, capitalization and disposal actions are emphasized)** |
+| Facilities | Facility tree (site → building → floor → room), facility record **(reused: Warehouse, Manufacturing, Commons, Accounting)**: attributes, rooms, equipment in facility, work orders, calendar, parties, certifications; storage locations tab with location setup **(reused: Warehouse)** |
+| Scheduling admin | Bookable resources (facilities/equipment) with policy (approval required, auto-approve, max period, conflicts allowed, capacity, features); booking requests queue (approve/refuse); blackout and maintenance windows; the booking calendar itself, the **Calendar & schedules** screen **(reused: Commons, Projects, People)** |
 | Reliability | Downtime log, failure modes, MTBF/MTTR/worst assets report, PM compliance, maintenance cost by asset/facility |
 | Configuration | Teams and members, maintenance types, failure modes, status labels, meter types, asset classes, procedures/checklists; Maintenance settings section (linked from the Admin settings index) |
 
-### Data-model implications
+### Data-model findings
 
-- **Work order = `WorkEffort` with purpose `WepMaintenance`** (crosscut §6), using its
+- **Work order as `WorkEffort` with purpose `WepMaintenance`** (crosscut §6) fits: it has
   status, priority, estimated/actual dates, `facilityId`, `WorkEffortParty` assignees,
-  `TimeEntry` and recurrence fields. Keep `AssetMaintenance` as the asset-side record and
-  set `taskWorkEffortId` from the work order; generate work orders from
-  `ProductMaintenance.templateWorkEffortId` with `clone#WorkEffort`.
-- **New fields or records:** severity, source, OEE impact, takes-offline flag, suspected and
-  actual failure mode, downtime (on the WorkEffort or a maintenance extension entity);
-  failure mode catalog; maintenance team (a Party group with members via
+  `TimeEntry` and recurrence fields. One option keeps `AssetMaintenance` as the asset-side
+  record with `taskWorkEffortId` set from the work order, and generates work orders from
+  `ProductMaintenance.templateWorkEffortId` with `clone#WorkEffort` (see Open questions).
+- **Missing fields or records:** severity, source, OEE impact, takes-offline flag,
+  suspected and actual failure mode, downtime (on the WorkEffort or a maintenance extension
+  entity); failure mode catalog; maintenance team (a Party group with members via
   `PartyRelationship`, or a new entity); procedures/checklists. None exist today.
-- **Facility work orders** use `WorkEffort.facilityId` or `WorkEffortFacility`; equipment
-  work orders use `WorkEffortAssetAssign` or `AssetMaintenance`.
-- **"Down" status:** add asset statuses such as In Maintenance and Out of Service (or a
-  separate availability record) so Manufacturing and booking can read it.
-- **Bookings:** `WorkEffortAssetAssign` (Requested / Assigned / Request Denied) for
-  equipment; rooms need a status on `WorkEffortFacility` or a booking record; policies per
-  Asset/Facility (approval required, auto-approve, max period, conflicts allowed, blackout
-  windows) need a new entity or attributes.
-- **Room attributes** (capacity, features, floor) need fields or a facility feature
+- **Facility work orders** could use `WorkEffort.facilityId` or `WorkEffortFacility`;
+  equipment work orders `WorkEffortAssetAssign` or `AssetMaintenance`.
+- **"Down" status:** options are new asset statuses such as In Maintenance and Out of
+  Service, or a separate availability record, either readable by Manufacturing and booking.
+- **Bookings:** `WorkEffortAssetAssign` (Requested / Assigned / Request Denied) fits
+  equipment; rooms would need a status on `WorkEffortFacility` or a booking record; policies
+  per Asset/Facility (approval required, auto-approve, max period, conflicts allowed,
+  blackout windows) would need a new entity or attributes.
+- **Room attributes** (capacity, features, floor) would need fields or a facility feature
   record; `Asset.capacity` exists only for assets.
 - **Meter readings:** `AssetMeter` is what the screens and `get#AssetMaintenanceNeeded`
   use today; it carries a TODO to move to `Measurement`.
-- **Calibration/inspection** maintenance types and certificate attachments
-  (`AssetMaintenanceContent` can hold the file).
+- **Calibration/inspection** maintenance types are not seeded; certificate attachments fit
+  `AssetMaintenanceContent`, which can hold the file.
 
-### First-release cut
+### Sequencing notes
 
-Ship: landing page with counts, work order list/board/detail with the quick request
-dialog, Equipment 360 (meters, maintenance, assignments, registrations), PM due list with
-generate-next, facility tree + facility record, teams and maintenance types config, and
-the asset "down" status. Defer the booking approval workflow and policies (Commons
-booking can start with direct assignment), reliability analytics beyond counts, failure
-mode catalog beyond a simple list, fleet specifics, calibration certificates and a
-technician kiosk (the work order detail must still work on a phone).
+- The work queue depends on the work order record choice (Open questions). `WorkEffort`
+  already has status, priority, assignees, time entries and recurrence, but
+  `taskWorkEffortId` and `WepMaintenance` are unused today.
+- The Equipment 360 is cheap to start: the per-asset tabs exist (meters, maintenance,
+  assignments, registrations, calendar).
+- The PM due list builds on `get#AssetMaintenanceNeeded`, which computes due per asset and
+  plan but has no cross-asset list; generate-next depends on `templateWorkEffortId` and
+  `clone#WorkEffort`, neither used for maintenance today.
+- The facility tree builds on `parentFacilityId` and the Facility services; room
+  attributes depend on new fields.
+- Teams depend on the team record choice; maintenance types are an enum with no
+  inspection or calibration type.
+- The asset "down" status depends on the status choice, and Manufacturing and booking
+  depend on it.
+- The booking approval workflow and policies depend on new records (policy, room booking
+  status) and on a conflict check that no service has; until then booking works by direct
+  assignment (`create#Event` assigns equipment as **Assigned**).
+- Reliability analytics beyond counts depend on the failure mode, downtime and OEE
+  fields; fleet specifics on new contract and cost log records; calibration certificates
+  on the new maintenance types.
+- A technician kiosk has only Carbon MES as a reference; a work order detail that works on
+  a phone is part of the work order screen itself.
 
 ### Open questions
 
-- Is the work order a WorkEffort with an `AssetMaintenance` child (recommended above), or
-  `AssetMaintenance` with a WorkEffort child (today's shape)? Facility work orders push
-  toward WorkEffort-first.
+- Is the work order a WorkEffort with an `AssetMaintenance` child (the option in
+  Data-model findings), or `AssetMaintenance` with a WorkEffort child (today's shape)?
+  Facility work orders push toward WorkEffort-first.
 - **Customer-owned equipment repair and warranty** (Odoo Repairs, ERPNext Warranty Claim
-  and Maintenance Visit, metasfresh service/repair, Dolibarr interventions): Customer
-  Service or Maintenance? Crosscut §3–§4 assign no owner.
-- **Maintenance request intake:** a `Request` (whose shared screen Customer Service owns)
-  with a new maintenance type, or a `WorkEffort` created in In Planning directly? Crosscut
-  lists no Maintenance face on Request / case.
-- Booking approvals are Maintenance's (crosscut §4); may facility owners approve their own
-  rooms from Commons, as a delegated face?
+  and Maintenance Visit, metasfresh service/repair, Dolibarr interventions): which records
+  carry it (case, repair order, maintenance work order), and which repair screens do
+  Customer Service and Maintenance each include (crosscut §8)?
+- **Maintenance request intake:** a `Request` with a new maintenance type, through the
+  reused Request / case screen (crosscut §3 lists maintenance requests among its uses), or
+  a `WorkEffort` created in In Planning directly?
+- Booking approval is part of the scheduling admin, decided for Maintenance in
+  initial-design; could the same approvals also be included in Commons or the header
+  approvals waiting list, so facility managers approve their own rooms there?
 - How far into fixed-asset accounting does the Equipment 360 go (read-only NBV vs
-  actions)? Crosscut gives depreciation, capitalization and disposal to Accounting.
+  actions)? Crosscut §4 lists depreciation, capitalization and disposal as Accounting's
+  emphasis on the same `Asset`.
 - "Down" as new `Asset` statuses or as a separate availability record, given that asset
   status today also carries inventory meaning?
 - Maintenance teams as Party groups or a new entity?
 - Meter readings: keep `AssetMeter` or move to `Measurement` as its TODO says?
-- Fleet: a vehicle asset class inside Maintenance, or a separate face later?
+- Fleet: a vehicle asset class inside Maintenance, or separate fleet screens later?
 
 ### Checkout path quirks
 
