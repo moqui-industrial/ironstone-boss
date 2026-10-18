@@ -9,23 +9,25 @@ Deeper research pass on the **IronStone Insights** app (initial-design sections:
 cataloguing every relevant screen/page found in the reference apps. Companion to
 [3p-app-reference.md](3p-app-reference.md); feeds the Insights row in
 [initial-design.md](initial-design.md) and the decision that Marble's flow map becomes
-clickable documentation in Insights. Insights owns the shared **Dashboard widgets** (number
-cards, charts) that every app's landing page places (crosscut §3), and cross-app dashboards
-and the management digest (crosscut §4); each app keeps its own landing page, and drill rows
-open the shared record screens of their owners. Style mirrors
+clickable documentation in Insights. The **Dashboard widgets** (number cards, charts) are a
+reused component: Insights includes them with the dashboards and widget builder, and every
+app's landing page includes them too (crosscut §3); Insights adds cross-app dashboards and
+the management digest (crosscut §4). Each app has its own landing page, and drill rows open
+the reused record screens in an Insights context. Style mirrors
 [research-maintenance.md](research-maintenance.md) and
 [research-people.md](research-people.md).
 
 **Organization.** Sorted by functional area (not by app): all dashboard viewers together,
 all report builders together, etc. Within each area, sub-tables per reference app.
 
-**Scope.** Owner/management-facing analytics UI: dashboard lists and canvases, KPI tiles,
-chart and query builders, pivot/graph views, canned report catalogs, saved reports and
-views, scheduled delivery and alerts, sharing/embedding, analytics data sources and
-permissions, and process/flow documentation. Per-app reports are covered only as the
-shape of a report page or catalog; each business app's research file covers its own
-report list. Module landing pages (workspaces) are covered where the same widgets
-(number cards, charts) are reused, since Insights should own those widgets.
+**Scope.** Business-owner/management-facing analytics UI: dashboard lists and canvases, KPI
+tiles, chart and query builders, pivot/graph views, canned report catalogs, saved reports
+and views, scheduled delivery and alerts, sharing/embedding, analytics data sources and
+permissions, and process/flow documentation. Per-app reports are covered only as the shape
+of a report page or catalog; each business app's research file covers its own report list.
+Module landing pages (workspaces) are covered where the same widgets (number cards, charts)
+are reused, since the widgets are one component that Insights and every app's landing page
+include.
 
 **Path conventions.** Every backticked path resolves against the checkout of its row's
 reference (crosscut §1). Checkouts are under `/home/jonesde/work/moquiwork/`. A tail in a
@@ -222,8 +224,8 @@ screen without the sidebar.
 
 The design already calls for switchable views on every find screen (list, kanban,
 calendar, pivot, graph), generalized in mr-moqui forms and lists (initial-design). Insights
-reuses the same pivot/graph renderer for its widgets and adds "add to dashboard"; who owns
-the renderer is an open question (§17).
+reuses the same pivot/graph renderer for its widgets and adds "add to dashboard"; whether
+the renderer is framework code or an Insights component is an open question (§17).
 
 | App | Screen/page | What it is | Key files |
 | --- | --- | --- | --- |
@@ -349,23 +351,24 @@ data.
 
 ## 15. Cross-app surfaces
 
-| Surface | Insights face | Reference evidence |
-| --- | --- | --- |
-| **Dashboard widgets** (Insights owns; crosscut §3) | Insights defines the number card, chart, table, text and link-list widget types and their builder; every app's landing page places them, and the same definition renders on an Insights dashboard | Frappe framework Number Card and Dashboard Chart reused on workspaces and desk dashboards; Insights islands render Insights charts inside desk dashboards; OpenProject one grid/widget model for My page and project Overview; Twenty widgets shared by dashboards and record pages |
-| **Landing pages & KPIs** (each app owns its landing page; crosscut §4) | Insights supplies widget types, cross-app dashboards and the management digest; it does not build the apps' landing pages | ERPNext module workspaces and Home workspace; Carbon module homes with a KPI selector; Dolibarr home work board |
-| **Drill to records** | Drill rows and table cells open the owner's shared record screen with an Insights context: Order detail (shared: Sales / Purchasing), Customer 360 (shared: Sales), Supplier 360 (shared: Purchasing), Product 360 (shared: Products), Request / case (shared: Customer Service), Task / work item (shared: Projects), Shipment detail (shared: Warehouse), Employee 360 (shared: People), Facility & equipment record (shared: Maintenance) | Insights `charts.drill-record-link` and `charts.table-record-link` open desk documents; Odoo pivot header click opens the list; metasfresh KPI zoom-into-details window |
-| **Per-app reports** | Each app owns its report pages (Accounting financial reports, Sales reports, …); Insights lists them in one catalog with pins and saved views, and schedules them | Carbon reports hub with pins inside Accounting; ERPNext workspace report card breaks; Odoo per-app Reporting menus |
-| **Switchable views on find screens** | Pivot and graph view modes are a framework form-list feature (initial-design "Switchable views"); Insights reuses the same chart renderer and adds **Add to dashboard** | Odoo pivot/graph on every action plus board **Add to my dashboard**; Frappe query report Create Card / Add Chart to Dashboard; Twenty views feed dashboard widgets |
-| **Header Notifications & Today panel** | KPI alerts post to the header Notifications panel; header counts (tasks due, overdue) are readings the same widget definition can feed | Insights alerts; Mantle `get#UserNoticeCounts`; framework `NotificationMessage` |
-| **Email delivery** (Comms owns sending) | Scheduled reports, alerts and the digest send through Comms accounts and templates | Frappe Auto Email Report sender account; Odoo digest; Moqui `ScreenScheduled` with `EmailTemplate` |
-| **Admin** | Dataset and dashboard access by user group (Admin owns groups); Admin owns log retention (query run logs, `ArtifactHit`); the Admin settings index links to the Insights settings section | Insights teams and table restrictions; Insights execution-log retention through Log Settings (`data-store.execution-log-retention`); tools ArtifactHit and Visit screens |
-| **Projects** | Projects owns the time and cost report; Insights can reuse its pivot | OpenProject time and costs report |
-| **Assist** | Assist answers analytics questions over the same datasets and reads dashboards through `screen_use` | Insights agent APIs (profile, verify, lineage); Twenty AI chat; Carbon agent module |
+| Reused screen or link | Use in Insights | Other apps that include it | Reference evidence |
+| --- | --- | --- | --- |
+| **Dashboard widgets** (crosscut §3) | The number card, chart, table, text and link-list widget types and their builder; Insights dashboards are built from them, and the same definition renders on an Insights dashboard and on a landing page | Every app's landing page | Frappe framework Number Card and Dashboard Chart reused on workspaces and desk dashboards; Insights islands render Insights charts inside desk dashboards; OpenProject one grid/widget model for My page and project Overview; Twenty widgets shared by dashboards and record pages |
+| **Landing pages & KPIs** (crosscut §4) | Cross-app dashboards and the management digest, over the same widget types the landing pages use | Every app (its own landing page) | ERPNext module workspaces and Home workspace; Carbon module homes with a KPI selector; Dolibarr home work board |
+| **Drill to records** | Drill rows and table cells open the reused record screen with an Insights context: Order detail, Customer 360, Supplier 360, Product 360, Request / case, Task / work item, Shipment detail, Employee 360, Facility & equipment record | The apps crosscut §3 lists for each screen (for example Order detail: Sales, Purchasing, Customer Service, Warehouse, Accounting, Commerce; Customer 360: Sales, Customer Service, Marketing, Accounting, Commerce) | Insights `charts.drill-record-link` and `charts.table-record-link` open desk documents; Odoo pivot header click opens the list; metasfresh KPI zoom-into-details window |
+| **Per-app reports** | One report catalog listing every app's report pages with pins and saved views, and scheduling them | Each app (its own report pages: Accounting financial reports, Sales reports, …) | Carbon reports hub with pins inside Accounting; ERPNext workspace report card breaks; Odoo per-app Reporting menus |
+| **Switchable views on find screens** | The same chart renderer for widgets, plus **Add to dashboard** | Every find screen, through the mr-moqui form-list (initial-design "Switchable views") | Odoo pivot/graph on every action plus board **Add to my dashboard**; Frappe query report Create Card / Add Chart to Dashboard; Twenty views feed dashboard widgets |
+| **Header Notifications & Today panel** | KPI alerts post to the header Notifications panel; header counts (tasks due, overdue) are readings the same widget definition can feed | The header in every app | Insights alerts; Mantle `get#UserNoticeCounts`; framework `NotificationMessage` |
+| **Email sending** (crosscut §4) | Scheduled reports, alerts and the digest send through Comms accounts and templates | Comms (accounts, sending, tracking); Marketing; Customer Service; Admin (relay) | Frappe Auto Email Report sender account; Odoo digest; Moqui `ScreenScheduled` with `EmailTemplate` |
+| **User groups, log retention, settings index** | Dataset and dashboard access by user group; retention of query run logs and `ArtifactHit`; the Insights settings section, linked from the settings index | Admin (groups, log settings, settings index) | Insights teams and table restrictions; Insights execution-log retention through Log Settings (`data-store.execution-log-retention`); tools ArtifactHit and Visit screens |
+| **Time and cost report** | A pivot Insights could reuse | Projects | OpenProject time and costs report |
+| **Assist** | Assist answers analytics questions over the same datasets and reads dashboards through `screen_use` | Assist in every app | Insights agent APIs (profile, verify, lineage); Twenty AI chat; Carbon agent module |
 
-**BOSS implications.** Insights is a provider more than a destination: its widget types live
-on every landing page, its catalog fronts reports the apps own, and its drill rows hand off
-to the shared record screens. The Insights app itself holds the dashboards, the builders, the
-catalog, delivery and alerts, datasets, and the flow map.
+**BOSS implications.** The evidence casts Insights as a provider more than a destination: the
+widget component it includes is also on every landing page, its catalog fronts reports the
+apps include, and its drill rows hand off to the reused record screens. What the references
+put in the analytics app itself is the dashboards, the builders, the catalog, delivery and
+alerts, datasets, and (for BOSS) the flow map.
 
 ---
 
@@ -389,7 +392,7 @@ paths are relative to `mr-moqui-base/runtime`.
 | **SimpleReport** (Edit and Report Builder) | Find/create a report = `DataDocument` (name, primary entity, user group); edit field paths with optional function (min, max, sum, avg, count, count-distinct, upper, lower) and conditions; view as a dynamic form-list over the `DataDocument.<id>` view with CSV/XLSX export and saved finds; quick view | `component/MrSimpleScreens/screen/SimpleScreens/SimpleReport/{FindReport,EditReport,EditReport/FieldList,ViewReport,QuickViewReport}.xml` |
 | Tools Data Views | Build a `DbViewEntity` (member entities, aliases with functions, key maps) and view results | `base-component/tools/screen/Tools/DataView/{FindDbView,EditDbView,ViewDbView}.xml` |
 | System Data Documents | Edit/search/export data documents; feed index | `base-component/tools/screen/System/DataDocument/{Edit,Search,Export,Index,ViewDocument}.xml` |
-| System usage stats | Artifact hit summary and bins, visits (Admin's screens) | `base-component/tools/screen/System/{ArtifactHitSummary,ArtifactHitBins,Visit}.xml` |
+| System usage stats | Artifact hit summary and bins, visits (tools screens, also in Admin) | `base-component/tools/screen/System/{ArtifactHitSummary,ArtifactHitBins,Visit}.xml` |
 | Scheduled finds (My Account) | The user's scheduled report renders: screen path + saved find, cron (with picker and description), render mode, email template/subject, save-to location, no-results skip, from/thru | `component/MrSimpleScreens/screen/MyAccount/User/{ScheduledFinds.xml,ScheduledFinds/EditScheduledFind.xml}` (copied to `component/ironstone-boss/screen/Base/User/ScheduledFinds/`) |
 | IronStone BOSS today | The BOSS root screen mounts QuickSearch, Search, QuickLookup and **SalesSummary**; copies of SalesAnalysis and SimpleReport are in the component but not mounted yet | `component/ironstone-boss/screen/boss.xml`, `component/ironstone-boss/screen/{Reports,SimpleReport}/` |
 
@@ -406,7 +409,7 @@ paths are relative to `mr-moqui-base/runtime`.
 | `moqui.security.EntityFilterSet`, `EntityFilter` | Row-level filters that apply to a viewer's queries | same |
 | `moqui.basic.email.EmailTemplate` | Email layout for scheduled reports and digests | `base-component/framework/entity/BasicEntities.xml` |
 | `moqui.olap.DateDayDimension`, `CurrencyDimension` | Date and currency dimension tables; defined, never populated or read | `base-component/framework/entity/OlapEntities.xml` |
-| `moqui.server.ArtifactHit`, `ArtifactHitBin`, `Visit` | Usage stats (Admin owns retention) | `base-component/framework/entity/ServerEntities.xml` |
+| `moqui.server.ArtifactHit`, `ArtifactHitBin`, `Visit` | Usage stats (retention settings are in Admin) | `base-component/framework/entity/ServerEntities.xml` |
 | Mantle flow-map counts: `OrderPart` (`statusId`), `Request` (and view `RequestAndParty`), `Shipment`, `Invoice`, `Payment`, `ReturnHeader` | The records whose status counts a live flow map shows per step | `component/mr-mantle-udm/entity/{OrderEntities,RequestEntities,ShipmentEntities,AccountingAccountEntities}.xml`, `component/mr-mantle-usl/entity/RequestViewEntities.xml` |
 
 Missing: any dashboard, widget, widget placement, KPI/number-card definition, alert or flow-map
@@ -421,7 +424,7 @@ record. The Mantle `*Dimension` entities are measurements, not analytics dimensi
 | `org.moqui.search.SearchServices.{index,search}#DataDocuments` | Index and search documents | `base-component/framework/service/org/moqui/search/SearchServices.xml` |
 | `org.moqui.impl.ScreenServices.render#ScheduledScreens`, `render#ScheduledScreen` | Run due `ScreenScheduled` rows (CSV, xlsx, PDF) and email or save them; ServiceJob `render_ScheduledScreens_frequent` every 15 minutes | `base-component/framework/service/org/moqui/impl/ScreenServices.xml`, `base-component/framework/data/MoquiSetupData.xml` |
 | `mantle.sales.SalesReportServices.get#SalesOrderSummary`, `get#SalesInvoiceSummary`, `get#SalesTopProduct`, `get#InvoicesByCustomerClass` | Sales KPIs and chart data | `component/mr-mantle-usl/service/mantle/sales/SalesReportServices.xml` |
-| `mantle.ledger.LedgerReportServices.run#{IncomeStatement,BalanceSheet,CashFlowStatement,RetainedEarningsStatement,FinancialRatios,PostedAmountSummary}`, `get#PeriodSeriesSummary`, `get#AccountLedgerInfo` | Financial statements and period series (Accounting owns the report pages) | `component/mr-mantle-usl/service/mantle/ledger/LedgerReportServices.xml` |
+| `mantle.ledger.LedgerReportServices.run#{IncomeStatement,BalanceSheet,CashFlowStatement,RetainedEarningsStatement,FinancialRatios,PostedAmountSummary}`, `get#PeriodSeriesSummary`, `get#AccountLedgerInfo` | Financial statements and period series (the report pages are in Accounting) | `component/mr-mantle-usl/service/mantle/ledger/LedgerReportServices.xml` |
 | `mantle.other.BudgetReportServices.run#BudgetExpenseReport`, `run#BudgetExpenseDetailReport` | Budget vs actual | `component/mr-mantle-usl/service/mantle/other/BudgetReportServices.xml` |
 | `mantle.work.ProjectServices.get#ProjectStats`, `get#ProjectMilestoneSummary`, `get#WorkEffortChildStats` | Project progress figures | `component/mr-mantle-usl/service/mantle/work/ProjectServices.xml` |
 | `mantle.party.PartyServices.get#UserNoticeCounts` | Notification, message, event and task counts for the header | `component/mr-mantle-usl/service/mantle/party/PartyServices.xml` |
@@ -442,7 +445,7 @@ comparison), to check alert conditions, and to count flow-map steps.
   every step and counts only in the header; Frappe shortcuts show count badges on plain links.
 - **No alert on the same KPI definition a landing page shows.** Insights alerts sit on a
   query, Frappe Number Cards have no threshold or alert fields, and Odoo digest KPIs are fields
-  computed in code. BOSS has to join these itself.
+  computed in code. BOSS would have to join these itself.
 - **Narrow pivots.** Carbon's analytics pivots run only over GL accounts (`accountScope`), and
   OpenProject's pivot only over time and cost entries; only Odoo pivots any model, and only
   Insights has a general query builder.
@@ -489,63 +492,70 @@ comparison), to check alert conditions, and to count flow-map steps.
 | coarchy | Process stories with actors and substories as editable process documentation |
 | ServiceJobMonitor | Moqui-native bounds and alert records with notified parties |
 
-### Recommended screen inventory (IronStone Insights)
+### Candidate screen inventory (IronStone Insights)
 
 | Area | Screens |
 | --- | --- |
 | Home | Insights home: favorite and recent dashboards, pinned reports, cross-app "needs attention" board (counts to process / late per app, Dolibarr-style), digest preview |
 | Dashboards | Dashboard list (sections, favorites, search); dashboard viewer (filters, number cards with period/comparison/target/sparkline, charts, tables, text, drill); dashboard editor (grid, breakpoints, add widget from registry, link filters) |
-| Widgets (Insights owns the shared Dashboard widgets) | Number card editor and chart editor over a dataset (entity, DataDocument or report service); chart types Number, Bar, Line, Row, Donut, Funnel, Table/pivot, Heatmap, Map later; **Add to dashboard** from any find screen; the same widgets are placed on each app's landing page by that app |
-| Drill | Drill dialog (rows, breakdown, breadcrumbs); rows open Order detail (shared: Sales / Purchasing), Customer 360 (shared: Sales), Supplier 360 (shared: Purchasing), Product 360 (shared: Products), Request / case (shared: Customer Service), Task (shared: Projects), Shipment detail (shared: Warehouse), Employee 360 (shared: People), Facility & equipment record (shared: Maintenance) |
-| Report builder | Dataset editor (primary entity + related fields, functions, conditions, calculated fields, date grain); analysis view (group-by, measures, pivot, totals, chart); SQL/script mode for admins only, later |
-| Saved reports | Report catalog by app with pins; saved views (private / group / everyone); each app's canned reports registered into the catalog (the report pages stay with their apps) |
-| Delivery & alerts | Scheduled report (promote Scheduled Finds: cron, format, recipients incl. groups, send only if data, sent through Comms); KPI alert (condition on a reading → header notification, email, chat, webhook); management digest (periodic KPI email) |
-| Sharing | Share dialog (users, groups, embed; public link with token later) and a read-only shared dashboard page |
+| Widgets | **Dashboard widgets** **(reused: every app's landing page)**: number card editor and chart editor over a dataset (entity, DataDocument or report service); chart types Number, Bar, Line, Row, Donut, Funnel, Table/pivot, Heatmap, Map as a later candidate; **Add to dashboard** from any find screen; each app's landing page includes the same widgets with its own context |
+| Drill | Drill dialog (rows, breakdown, breadcrumbs); rows open the reused record screens: Order detail **(reused: Sales, Purchasing, Customer Service, Warehouse, Accounting, Commerce)**, Customer 360 **(reused: Sales, Customer Service, Marketing, Accounting, Commerce)**, Supplier 360 **(reused: Purchasing, Accounting, Products, Warehouse)**, Product 360 **(reused: Products, Commerce, Purchasing, Manufacturing, Warehouse, Accounting, Sales)**, Request / case **(reused: Customer Service, Purchasing, Maintenance, Projects, Sales, Warehouse, Commons)**, Task **(reused: Projects, Commons, Customer Service, Sales, People)**, Shipment detail **(reused: Warehouse, Customer Service, Sales, Purchasing, Commerce, Accounting)**, Employee 360 **(reused: People, Admin, Projects, Commons)**, Facility & equipment record **(reused: Maintenance, Warehouse, Manufacturing, Commons, Accounting)** |
+| Report builder | Dataset editor (primary entity + related fields, functions, conditions, calculated fields, date grain); analysis view (group-by, measures, pivot, totals, chart); SQL/script mode for admins only, a later candidate |
+| Saved reports | Report catalog by app with pins; saved views (private / group / everyone); each app's canned reports registered into the catalog (each app includes its own report pages) |
+| Delivery & alerts | Scheduled report (a promoted Scheduled Finds: cron, format, recipients incl. groups, send only if data, sent through Comms); KPI alert (condition on a reading → header notification, email, chat, webhook); management digest (periodic KPI email) |
+| Sharing | Share dialog (users, groups, embed; public link with token as a later candidate) and a read-only shared dashboard page |
 | Flow map | Business flow map viewer (actors, steps, live counts, links into apps) and editor (steps as data, linked to find screens and saved views); process story pages linked from steps |
 | Data | Datasets admin (DataDocuments, view entities, user groups); data refresh jobs |
 | Settings | Insights settings section (week start, export limits, public links on/off), linked from the Admin settings index |
 
-### Data-model implications
+### Data-model findings
 
-- **Reuse** `DataDocument` (with `DataDocumentField.functionName`, `DataDocumentCondition`,
-  `DataDocumentLink`, `DataDocumentUserGroup`) and `FormListFind` as the dataset and saved-view
-  basis instead of a new query store; extend with date grain, calculated fields and pivot
-  settings. Reuse `ScreenScheduled` + `EmailTemplate` for scheduled reports,
-  `NotificationTopic` / `NotificationMessage` for alert delivery, `EntityFilterSet` for row
-  rules (run as the viewer by default), and `UserGroup` for access.
-- **New records** (proposed, none exist in the framework or Mantle): dashboard (title,
-  section, visibility, owner); dashboard widget placement (dashboard, widget, start/end row and
-  column per breakpoint, options; OpenProject's grid widget is the model); widget definition
-  (type, dataset, measures, dimension and grain, period, comparison, target, format) shared by
-  dashboards and landing pages; dashboard filter and filter-to-column links; KPI alert
-  (widget or dataset, condition, frequency, channel, recipients, run-as user, last/next run);
-  report catalog entry and pin (screen path, app, user pins); flow map → lane (actor) → step
-  (label, target screen + parameter map or saved find, count definition, sequence).
-- **Flow-map counts** read Mantle status fields: `OrderPart.statusId`, `Request.statusId`
+- **Records that fit:** `DataDocument` (with `DataDocumentField.functionName`,
+  `DataDocumentCondition`, `DataDocumentLink`, `DataDocumentUserGroup`) and `FormListFind`
+  could be the dataset and saved-view basis instead of a new query store; they lack date
+  grain, calculated fields and pivot settings. `ScreenScheduled` + `EmailTemplate` fit
+  scheduled reports, `NotificationTopic` / `NotificationMessage` alert delivery,
+  `EntityFilterSet` row rules (run as the viewer by default), and `UserGroup` access.
+- **Where new records look necessary** (none exist in the framework or Mantle): dashboard
+  (title, section, visibility, owner); dashboard widget placement (dashboard, widget,
+  start/end row and column per breakpoint, options; OpenProject's grid widget is the closest
+  model); widget definition (type, dataset, measures, dimension and grain, period,
+  comparison, target, format), one option being a single definition used by dashboards and
+  landing pages; dashboard filter and filter-to-column links; KPI alert (widget or dataset,
+  condition, frequency, channel, recipients, run-as user, last/next run); report catalog
+  entry and pin (screen path, app, user pins); flow map → lane (actor) → step (label, target
+  screen + parameter map or saved find, count definition, sequence).
+- **Flow-map counts** can read Mantle status fields: `OrderPart.statusId`, `Request.statusId`
   (`RequestAndParty` for the customer role), `Shipment`, `Invoice`, `Payment`, `ReturnHeader`.
-  Marble's three lanes are the seed data.
-- `moqui.olap` dimension tables stay unused unless the report builder needs a date dimension;
-  date grain can be computed in the query instead.
+  Marble's three lanes are candidate seed data.
+- `moqui.olap` dimension tables are needed only if the report builder needs a date
+  dimension; date grain can be computed in the query instead.
 
-### First-release cut
+### Sequencing notes
 
-Dashboard list + viewer + editor with number cards (period and comparison), bar/line/donut/
-table charts over DataDocuments; the same widgets placeable on app landing pages; "add
-chart/card to dashboard" from find screens; drill rows into the shared record screens; report
-catalog with pins seeded from the SimpleScreens accounting reports; saved views; scheduled
-reports (the existing Scheduled Finds, reachable from each report); the Marble flow map
-converted to data with live counts. Defer SQL/script queries, external data sources and data
-store, map/sankey/bubble charts, public links, alert conditions beyond thresholds, the
-management digest, and the agent APIs to a second pass.
+- **Cheap on the baseline:** datasets and saved views (DataDocument with functions and
+  `FormListFind` exist); scheduled reports (Scheduled Finds already render on cron, though
+  per user and buried in My Account); report catalog entries for the SimpleScreens
+  accounting reports (the report screens exist); flow-map counts (status fields exist; the
+  Marble map gives the steps).
+- **Dependencies:** dashboards, the widget component on landing pages and "add chart/card to
+  dashboard" from find screens all depend on the new dashboard and widget records; the
+  find-screen entry point also depends on the framework form-list's switchable views; drill
+  rows depend on the reused record screens accepting an Insights context; KPI alerts depend
+  on widget definitions and on notification topics; the management digest depends on
+  scheduled delivery and widget readings.
+- **Expensive:** SQL/script queries, external data sources and a data store, map, sankey and
+  bubble charts, public links, alert conditions beyond thresholds, and agent APIs have no
+  baseline support.
 
 ### Open questions
 
 - Is the Insights widget the same object as each app's landing-page tile (one registry), or
-  do apps keep hand-built landing screens that embed Insights widgets? Crosscut gives Insights
-  the widget types and each app its landing page; this file assumes one registry.
+  do apps have hand-built landing screens that embed widgets? This file assumes one
+  registry.
 - Pivot and graph view modes on find screens: initial-design puts switchable views in the
   framework form-list; should the pivot/graph renderer be framework code that Insights reuses,
-  or an Insights component the framework loads? (Not assigned in crosscut §3–§4.)
+  or an Insights component the framework loads? (Not settled in crosscut §3–§4.)
 - How far does the report builder go: DataDocument + functions + grain, or a pipeline model
   like Insights operations?
 - Do we need a site-local analytics store (DuckDB-like) for heavy reports, or are view
@@ -554,7 +564,7 @@ management digest, and the agent APIs to a second pass.
 - Should the flow map be one fixed suite map, or editable per business (coarchy-style
   process stories) with the suite map as the default?
 - Does the cross-app "needs attention" board on the Insights home duplicate the header Today
-  panel and each app's landing page, or is it the owner's view across them?
+  panel and each app's landing page, or is it the business owner's view across them?
 - Public/anonymous dashboard links: allowed at all given the self-hosting audience?
 
 ### Checkout path quirks
@@ -571,5 +581,5 @@ management digest, and the agent APIs to a second pass.
 **Bottom line.** The references agree on the shape: number cards and charts as stored
 definitions placed on many pages, a query or dataset under them, drill to rows, saved views,
 and scheduled delivery. Moqui already has the dataset (DataDocument with functions), saved
-finds and scheduled renders, so the first release is mostly new dashboard and widget records
-plus their screens, with drill handing off to the shared record screens.
+finds and scheduled renders, so the gap the research finds is mostly new dashboard and widget
+records plus their screens, with drill handing off to the reused record screens.
