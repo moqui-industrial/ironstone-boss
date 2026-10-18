@@ -13,15 +13,15 @@ Deeper research pass on the **Header tray**, the **drawers (Assist, Commons/Comm
 | **Nextcloud** | `/home/jonesde/work/moquiwork/3p_other/nextcloud` — UI is `app/src` (Vue 3) + `app/templates` (PHP page shells); bundled apps under `server/apps/` |
 | **Zimbra (zm-web-client)** | `/home/jonesde/work/moquiwork/3p_other/Zimbra/zm-web-client` — UI is `WebRoot/js/zimbraMail/<area>/` (JS-DWT/Ajax client) + `WebRoot/templates/<area>/` |
 | **Zimbra (zd-full)** | `/home/jonesde/work/moquiwork/3p_other/Zimbra/zd-full` — older desktop-lineage tree under `ZimbraWebClient/…`; read for IM / notebook / slides / spreadsheets which zm-web-client does not ship |
-| **Frappe suite** | `/home/jonesde/work/moquiwork/3p_other/frappe` — `suite/frontend/src/apps/<app>/` (Vue 3 SPA, one app registry) |
-| **Ever Co (ever-gauzy)** | `/home/jonesde/work/moquiwork/3p_other/ever-co` — gauzy front end is its own Nx monorepo at `ever-gauzy/`; paths in gauzy tables are relative to `ever-gauzy/` (`apps/gauzy` + `packages/*`) |
+| **Frappe apps** (suite, Gameplan, Wiki) | `/home/jonesde/work/moquiwork/3p_other/frappe` — paths start with the app: `suite/frontend/src/apps/<app>/` (Vue 3 SPA, one app registry), `gameplan/frontend/src/`, `wiki/frontend/src/` |
+| **Ever Gauzy** | `/home/jonesde/work/moquiwork/3p_other/ever-co/ever-gauzy` — gauzy is its own Nx monorepo; paths in gauzy tables are relative to it (`apps/gauzy` + `packages/*`) |
 | **Twenty** | `/home/jonesde/work/moquiwork/3p_other/twenty` — paths relative to the repo root (`packages/twenty-front`, `packages/twenty-ui`) |
 | **Signal (signalapp)** | `/home/jonesde/work/moquiwork/3p_other/signalapp` — paths relative to each project repo (`Signal-Desktop/`, `Signal-Server/`, plus `libsignal/`, `ringrtc/`, `boring/`) |
 | **Nextcloud Assistant** | not in the checkout; catalogued from the published repo `github.com/nextcloud/assistant` (verified directory listings, src/ entry points and components) |
 
 Also relevant, without deeper research here: the Office/WOPI angle. `zm-onlyoffice` (WOPI-capable OnlyOffice server), and Nextcloud `office/` + `richdocuments/` checkout dirs hold the editor-host integration UI; that is the separate Office app pass, out of scope this round.
 
-Sections: [1 shell/header drawers](#1-app-shell-header--drawers) · [2 search/palette](#2-search--command-palette) · [3 quick create](#3-quick-create) · [4 today](#4-today-panel--dashboard-widgets) · [5 notifications/activity/presence](#5-notifications-activity--presence) · [6 chat](#6-chat--presence) · [7 calls](#7-calls--video-meetings) · [8 email](#8-email) · [9 calendar](#9-calendar) · [10 contacts](#10-contacts) · [11 tasks/boards](#11-tasks--boards) · [12 files/drive](#12-files--drive) · [13 notes/knowledge](#13-notes-wiki-knowledge--discussions) · [14 preferences](#14-preferences--per-app-settings) · [15 plugin-surface inventory](#15-cross-app-plugin-surface-inventory) · [16 gaps](#16-gaps--notables-in-the-checkout)
+Sections: [1 shell/header drawers](#1-app-shell-header--drawers) · [2 search/palette](#2-search--command-palette) · [3 quick create](#3-quick-create) · [4 today](#4-today-panel--dashboard-widgets) · [5 notifications/activity/presence](#5-notifications-activity--presence) · [6 chat](#6-chat--presence-comms) · [7 calls](#7-calls--video-meetings) · [8 email](#8-email-comms) · [9 calendar](#9-calendar-commons) · [10 contacts](#10-contacts-commons) · [11 tasks/boards](#11-tasks--boards-commons) · [12 files/drive](#12-files--drive-commons) · [13 notes/knowledge](#13-notes-wiki-knowledge--discussions-commons) · [14 preferences](#14-preferences--per-app-settings) · [15 plugin-surface inventory](#15-cross-app-plugin-surface-inventory) · [16 gaps](#16-gaps--notables-in-the-checkout)
 
 ---
 

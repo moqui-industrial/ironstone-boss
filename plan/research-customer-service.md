@@ -26,7 +26,7 @@ returnable-quantity caps, allocation of stock).
 | --- | --- |
 | **Frappe Helpdesk** | `/home/jonesde/work/moquiwork/3p_other/frappe/helpdesk` — agent/customer SPA in `desk/src/` (Vue 3 + frappe-ui), backend doctypes in `helpdesk/helpdesk/doctype/`, portal pages in `helpdesk/helpdesk/www/`, templates in `helpdesk/helpdesk/templates/` |
 | **ERPNext** | `/home/jonesde/work/moquiwork/3p_other/frappe/erpnext` — support under `erpnext/support/`, portal pages under `erpnext/templates/pages/`, sales/stock/account doctypes under `erpnext/{selling,stock,accounts}/doctype/` |
-| **Frappe framework** | `/home/jonesde/work/moquiwork/3p_other/frappe/frappe` — Help Article/Category live under `frappe/frappe/website/doctype/` |
+| **Frappe framework** | `/home/jonesde/work/moquiwork/3p_other/frappe/frappe` — Help Article/Category live under `frappe/website/doctype/` |
 | **Odoo** | `/home/jonesde/work/moquiwork/3p_other/odoo` — paths below use `odoo/addons/<addon>/…`; each addon's views in `<addon>/views/`, JS in `<addon>/static/src/` |
 | **Dolibarr** | `/home/jonesde/work/moquiwork/3p_other/dolibarr` — module pages under `htdocs/<module>/`, shared ticket form in `htdocs/core/class/html.formticket.class.php`, customer tabs in `htdocs/core/lib/company.lib.php` |
 | **Carbon** | `/home/jonesde/work/moquiwork/3p_other/carbon` — React Router modules under `apps/erp/app/modules/` and route files under `apps/erp/app/routes/x+/` |
@@ -647,8 +647,8 @@ ticket" on every article. The `preferKnowledgeBase` switch is a useful policy kn
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Help Article | Title, category, published flag, author, level (Beginner/Intermediate/Expert), rich content, likes, route, helpful/not-helpful counts; web-viewable. | `frappe/frappe/website/doctype/help_article/help_article.json`, `templates/{help_article,help_article_list,help_article_row}.html` |
-| Help Category | Category tree/master for articles. | `frappe/frappe/website/doctype/help_category/` |
+| Help Article | Title, category, published flag, author, level (Beginner/Intermediate/Expert), rich content, likes, route, helpful/not-helpful counts; web-viewable. | `frappe/website/doctype/help_article/help_article.json`, `templates/{help_article,help_article_list,help_article_row}.html` |
+| Help Category | Category tree/master for articles. | `frappe/website/doctype/help_category/` |
 | Support portal | Greeting title/subtitle, "Get Started" sections, favorite/most-viewed articles, help article list, latest forum posts, user's recent issues, create-ticket CTA. | `erpnext/templates/pages/help.{html,py}`, `erpnext/www/support/index.py` |
 | Help search | `/search_help` search page over articles and optional external sources. | `erpnext/templates/pages/search_help.html`, `support_search_source` child table |
 | Search sources | Each source has name/type (API or Link), base URL, query route, search-term parameter, response result key path, post route/keys, or a source DocType with title/preview/route fields. | `erpnext/support/doctype/support_search_source/support_search_source.json` |
@@ -769,7 +769,8 @@ rules. Plan those as first-class records, not JSON blobs.
   Odoo's service-relevant screens are CRM activities, Repair and stock returns.
 - **No RMA in ERPNext or Dolibarr.** Carbon is the only complete RMA screen set;
   Odoo has portal-initiated returns and stock returns; metasfresh has a backend
-  service/repair domain. BOSS must design the RMA record itself.
+  service/repair domain. No reference RMA maps directly onto Mantle, but Mantle already
+  has the record (`ReturnHeader`/`ReturnItem`, see [research-crosscut.md](research-crosscut.md) §5); BOSS designs the screens and policies.
 - **No shared Customer 360 across service + orders + accounting** in any single app
   except ERPNext's Customer Overview, which is sales/accounts-centric and has no cases.
   BOSS's shared Party 360 is still a new design.
@@ -815,7 +816,7 @@ rules. Plan those as first-class records, not JSON blobs.
 - ERPNext paths above are relative to the `erpnext/` app inside the
   `3p_other/frappe/erpnext` checkout; Frappe framework paths are relative to
   `3p_other/frappe/frappe`.
-- Odoo paths resolve via `odoo/addons/<addon>/...` inside `3p_other/odoo/odoo`.
+- Odoo paths are relative to `3p_other/odoo`: `odoo/addons/<addon>/...` is `3p_other/odoo/odoo/addons/<addon>/`.
 - Carbon route paths use React Router's `x+/` convention; `$id`/`$lineId` are route
   params, not literal directories.
 - Moqui Sales `FindAccount.xml` is absent in this checkout; the account find screen is

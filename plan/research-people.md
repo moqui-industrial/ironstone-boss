@@ -11,10 +11,10 @@ Deeper research pass on every screen/page relevant to **IronStone People** (HR, 
 | Prefix in this doc | Checkout |
 | --- | --- |
 | **Frappe HR (hrms)** | `/home/jonesde/work/moquiwork/3p_other/frappe/hrms` — backend doctypes under `hrms/hr/doctype/` (HR, recruitment, leave, attendance, performance, expenses all live here) and `hrms/payroll/doctype/`; per-area workspaces in `hrms/<area>/workspace/` and `hrms/workspace_sidebar/`; employee PWA in `frontend/src/`; roster app in `roster/src/` |
-| **ERPNext** | `/home/jonesde/work/moquiwork/3p_other/frappe` — paths start `erpnext/erpnext/` (Employee, Department, Designation, Branch, Company, Holiday List under `setup/doctype/`) |
+| **ERPNext** | `/home/jonesde/work/moquiwork/3p_other/frappe/erpnext` — paths start `erpnext/` (Employee, Department, Designation, Branch, Company, Holiday List under `setup/doctype/`) |
 | **Odoo** | `/home/jonesde/work/moquiwork/3p_other/odoo` — modules under `odoo/addons/` (`hr`, `hr_holidays`, `hr_attendance`, `hr_recruitment`, `hr_skills*`, `hr_expense`, `hr_work_entry`, `hr_presence`, `hr_gamification`, `hr_timesheet`, `website_hr_recruitment`, `resource`); views in `<module>/views/`, OWL UI in `<module>/static/src/` |
 | **AureusERP** | `/home/jonesde/work/moquiwork/3p_other/aureuserp` — `plugins/webkul/{employees,time-off,recruitments,timesheets}/src/Filament/` (Filament PHP UI) |
-| **Ever Co (ever-gauzy)** | `/home/jonesde/work/moquiwork/3p_other/ever-co` — paths relative to `ever-gauzy/` (`apps/gauzy/src/app/pages/…`, shared UI in `packages/ui-core/`, backend in `packages/core/src/lib/`) |
+| **Ever Gauzy** | `/home/jonesde/work/moquiwork/3p_other/ever-co/ever-gauzy` — (`apps/gauzy/src/app/pages/…`, shared UI in `packages/ui-core/`, backend in `packages/core/src/lib/`) |
 | **Dolibarr** | `/home/jonesde/work/moquiwork/3p_other/dolibarr` — `htdocs/{hrm,holiday,recruitment,salaries,expensereport,user}/`, public job pages in `htdocs/public/recruitment/` |
 | **Carbon** | `/home/jonesde/work/moquiwork/3p_other/carbon` — `apps/erp/app/modules/{people,resources}/` and routes under `apps/erp/app/routes/x+/{people+,person+,resources+,training+,users+}/` |
 | **OpenProject** | `/home/jonesde/work/moquiwork/3p_other/openproject` — `app/` (user working hours, non-working times, departments admin) |
@@ -96,12 +96,12 @@ The employee record is the hub of People. Every reference uses the same two-leve
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Employee form | Tabs: Overview (company, department, designation, grade, branch, reports-to), Joining (offer/confirmation/contract-end dates, notice), Address & Contacts (+ emergency contact), Attendance & Leaves (holiday list, approvers, default shift), Salary (CTC, payroll cost center, bank details), Personal (passport, marital status, health), Profile (education, previous work experience, history in company), Exit (relieving date, reason, exit interview, feedback), Connections. | `erpnext/erpnext/setup/doctype/employee/employee.json`, `employee.js`, `employee.py` |
-| Employee list / tree | List view with status indicators and a tree view by reports-to. | `erpnext/erpnext/setup/doctype/employee/employee_list.js`, `employee_tree.js` |
+| Employee form | Tabs: Overview (company, department, designation, grade, branch, reports-to), Joining (offer/confirmation/contract-end dates, notice), Address & Contacts (+ emergency contact), Attendance & Leaves (holiday list, approvers, default shift), Salary (CTC, payroll cost center, bank details), Personal (passport, marital status, health), Profile (education, previous work experience, history in company), Exit (relieving date, reason, exit interview, feedback), Connections. | `erpnext/setup/doctype/employee/employee.json`, `employee.js`, `employee.py` |
+| Employee list / tree | List view with status indicators and a tree view by reports-to. | `erpnext/setup/doctype/employee/employee_list.js`, `employee_tree.js` |
 | Connections dashboard | Linked-document panel grouped as Attendance, Leave, Lifecycle (onboarding/transfer/promotion/grievance), Exit, Shift, Expense, Benefit, Payroll, Training, Evaluation, Contract. | `hrms/overrides/dashboard_overrides.py` (`get_dashboard_for_employee`) |
-| Employment history tables | Education, external work history and internal work history (department/designation/branch over time) as child tables. | `erpnext/erpnext/setup/doctype/{employee_education,employee_external_work_history,employee_internal_work_history}/` |
+| Employment history tables | Education, external work history and internal work history (department/designation/branch over time) as child tables. | `erpnext/setup/doctype/{employee_education,employee_external_work_history,employee_internal_work_history}/` |
 | Property history | Field-level change log written by promotions/transfers (`employee_property_history`). | `hrms/hr/doctype/employee_property_history/`, `hrms/hr/employee_property_update.js` |
-| Employee groups | Ad-hoc groups of employees (for notifications, shift assignment, etc.). | `erpnext/erpnext/setup/doctype/{employee_group,employee_group_table}/` |
+| Employee groups | Ad-hoc groups of employees (for notifications, shift assignment, etc.). | `erpnext/setup/doctype/{employee_group,employee_group_table}/` |
 
 ### AureusERP / Gauzy / Dolibarr / Carbon / Moqui — directory and profile
 
@@ -141,9 +141,9 @@ Org structure is three overlapping trees that the references keep separate: **le
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
 | Setup sidebar | HR Setup workspace: Employee, Organizational Chart, Company, Branch, Department, Designation, Employee Group, Employee Grade. | `hrms/workspace_sidebar/hr_setup.json` |
-| Company / branch | Company is the legal employer (tree, with default payroll accounts); branch is a flat location label on employees. | `erpnext/erpnext/setup/doctype/company/`, `erpnext/erpnext/setup/doctype/branch/` |
-| Department tree | Nested-set department tree per company (`parent_department`, `is_group`); HR adds leave / expense / shift-request approver tables as custom fields. | `erpnext/erpnext/setup/doctype/department/`, `hrms/hr/doctype/department_approver/`, `hrms/setup.py` |
-| Designation | Flat job-title list; designation skills attach expected skills. | `erpnext/erpnext/setup/doctype/designation/`, `hrms/hr/doctype/designation_skill/` |
+| Company / branch | Company is the legal employer (tree, with default payroll accounts); branch is a flat location label on employees. | `erpnext/setup/doctype/company/`, `erpnext/setup/doctype/branch/` |
+| Department tree | Nested-set department tree per company (`parent_department`, `is_group`); HR adds leave / expense / shift-request approver tables as custom fields. | `erpnext/setup/doctype/department/`, `hrms/hr/doctype/department_approver/`, `hrms/setup.py` |
+| Designation | Flat job-title list; designation skills attach expected skills. | `erpnext/setup/doctype/designation/`, `hrms/hr/doctype/designation_skill/` |
 | Organizational chart | Desk page drawing the reports-to tree per company with expand/collapse, separate desktop and mobile renderers. | `hrms/hr/page/organizational_chart/organizational_chart.{js,py}`, `hrms/public/js/hierarchy_chart/hierarchy_chart_desktop.js`, `hierarchy_chart_mobile.js` |
 
 ### AureusERP / Gauzy / Dolibarr / Carbon / OpenProject — org structure
@@ -181,7 +181,7 @@ Most references conflate three things that Mantle keeps apart: a **job class** (
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Designation | Job title + expected skills. | `erpnext/erpnext/setup/doctype/designation/`, `hrms/hr/doctype/designation_skill/` |
+| Designation | Job title + expected skills. | `erpnext/setup/doctype/designation/`, `hrms/hr/doctype/designation_skill/` |
 | Employee grade | Grade with default salary structure and default base pay (pay band used by payroll assignment). | `hrms/hr/doctype/employee_grade/employee_grade.json` |
 | Employment type | Full-time, part-time, intern, contract, etc. | `hrms/hr/doctype/employment_type/` |
 | Staffing plan | Headcount plan per company/department and period: per designation the number of positions, estimated cost per position, current count, current openings, vacancies, total estimated cost; job openings are validated against it. | `hrms/hr/doctype/staffing_plan/`, `hrms/hr/doctype/staffing_plan_detail/staffing_plan_detail.json` |
@@ -367,7 +367,7 @@ Leave is the highest-traffic HR flow after the directory: every employee request
 | Allocation / adjustment / encashment / compensatory | Allocation documents, manual adjustments, encashment to pay, compensatory leave requests for working on holidays. | `hrms/hr/doctype/{leave_allocation,leave_adjustment,leave_encashment,compensatory_leave_request}/` |
 | Leave ledger | Every allocation, application, expiry and encashment posts a ledger entry; balances are sums. | `hrms/hr/doctype/leave_ledger_entry/`, `hrms/hr/report/leave_ledger/` |
 | Leave application | Request with half-day, approver, status workflow; validates against balance, block lists and holidays. | `hrms/hr/doctype/leave_application/`, `hrms/hr/doctype/{leave_block_list,leave_block_list_date,leave_block_list_allow}/` |
-| Holiday list | Named holiday calendar (weekly offs + dated holidays), assigned per company/employee. | `erpnext/erpnext/setup/doctype/holiday_list/`, `erpnext/erpnext/setup/doctype/holiday/`, `hrms/hr/doctype/holiday_list_assignment/` |
+| Holiday list | Named holiday calendar (weekly offs + dated holidays), assigned per company/employee. | `erpnext/setup/doctype/holiday_list/`, `erpnext/setup/doctype/holiday/`, `hrms/hr/doctype/holiday_list_assignment/` |
 | PWA leave | Leave dashboard (balance semicircles, upcoming holidays), list with my/team tabs, request form. | `frontend/src/views/leave/{Dashboard,List,Form}.vue`, `frontend/src/components/{LeaveBalance,Holidays,LeaveRequestItem,SemicircleChart}.vue` |
 | Reports | Employee leave balance, balance summary, employees working on a holiday. | `hrms/hr/report/{employee_leave_balance,employee_leave_balance_summary,employees_working_on_a_holiday}/` |
 

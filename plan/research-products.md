@@ -17,7 +17,7 @@ Deeper research pass on the **IronStone Products** app (products & variants, cat
 | **Carbon** | `/home/jonesde/work/moquiwork/3p_other/carbon` — React Router modules under `apps/erp/app/modules/` |
 | **Dolibarr** | `/home/jonesde/work/moquiwork/3p_other/dolibarr` — module pages under `htdocs/<module>/`; document/numbering generators under `htdocs/core/modules/` |
 | **ERPNext** | `/home/jonesde/work/moquiwork/3p_other/frappe/erpnext` — Item-family doctypes **including Price List & Item Price** under `erpnext/stock/`; `uom`/`item_group` masters under `erpnext/setup/`; only `product_bundle` (+ selling-facing reports) in `erpnext/selling/` |
-| **Ever Co (gauzy)** | `/home/jonesde/work/moquiwork/3p_other/ever-co` — paths relative to the `ever-gauzy/` monorepo root (`apps/gauzy` + `packages/*`) |
+| **Ever Gauzy** | `/home/jonesde/work/moquiwork/3p_other/ever-co/ever-gauzy` — paths relative to the monorepo root (`apps/gauzy` + `packages/*`) |
 | **metasfresh** | `/home/jonesde/work/moquiwork/3p_other/metasfresh` — React WebUI in `frontend/src/` is a thin generic shell; business windows are metadata-defined in the backend `de.metas.*` modules |
 | **Odoo** | `/home/jonesde/work/moquiwork/3p_other/odoo` — paths below use `odoo/addons/<addon>/…`; in this checkout that resolves to `3p_other/odoo/odoo/addons/<addon>/` (each addon's views in `<addon>/views/`, JS in `<addon>/static/src/`) |
 
@@ -67,7 +67,7 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 | Catalog dashboards & number cards | Pre-canned dashboards/charts + KPI cards: Stock Value by Item Group, Item Shortage, Oldest items, Total active items | `erpnext/stock/dashboard_chart/{stock_value_by_item_group,item_shortage_summary,oldest_items}.json`, `erpnext/stock/number_card/{total_active_items,total_stock_value}.json` |
 | Item onboarding | Desk onboarding step guiding item creation | `erpnext/stock/onboarding_step/create_item/` |
 
-### Ever Co (gauzy) — Angular inventory module as its own page group
+### Ever Gauzy — Angular inventory module as its own page group
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
@@ -133,7 +133,7 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 | Item quick search | Item-search selector service for nested pickers (search dialog used by docs/pickers) with HTML templates for result rendering | `erpnext/stock/doctype/item/item_search.py`, `erpnext/stock/doctype/item/templates/{item,item_row}.html` |
 | Item dashboard | Dashboard link counts (per linked doc type) rendered on the Item form (§10) | `erpnext/stock/doctype/item/item_dashboard.py` |
 
-### Ever Co (gauzy) — the inventory list + its neighbor masters
+### Ever Gauzy — the inventory list + its neighbor masters
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
@@ -198,7 +198,7 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 | Naming & validations | `item.py` naming hooks (set item_code from series/item_name rules), duplicate-barcode validation, item-group mandatory/leaf validation | `erpnext/stock/doctype/item/{item.py,item.js}` |
 | Item defaults | Per-company child defaults: default warehouse, default price list, default discount/inventory accounts (+ `vf_*` fallback fields) — keeps postings/fulfillment automatic | `erpnext/stock/doctype/item_default/item_default.json` |
 
-### Ever Co (gauzy) — the multi-tab product wizard
+### Ever Gauzy — the multi-tab product wizard
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
@@ -266,7 +266,7 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 | Attribute master | `Item Attribute` (HTML-type values, numeric-range support) + `Item Attribute Value` child rows with **HTML color swatches**; `item_attribute` doctype UI | `erpnext/stock/doctype/item_attribute/{item_attribute.js,item_attribute.json}`, `erpnext/stock/doctype/item_attribute_value/` |
 | Variant records | A variant is itself an Item row (`variant_of`, `item_variant` + `item_variant_attribute` child tables); variant details report exists | `erpnext/stock/doctype/{item_variant,item_variant_attribute}/`, report `erpnext/stock/report/item_variant_details/` |
 
-### Ever Co (gauzy) — options tab + variant grid/graph
+### Ever Gauzy — options tab + variant grid/graph
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
@@ -330,7 +330,7 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 | Item Group tree | Desk doctype with `is_tree=1`, default view Tree, "Item Group Tree" route + custom button; leaf-node enforcement (mandatory `is_group=0` for sellable); website item tree gate | `erpnext/setup/doctype/item_group/{item_group.js,item_group.json}`, tree master `erpnext/setup/doctype/item_group/` |
 | Brand & catalogue tags | Brand separate doctype parallel to groups; customer/supplier "groups" also exist but live outside products; `POS Item Group` (retail) groups POS tiles | `erpnext/setup/doctype/brand/` (beside item_group), `erpnext/accounts/doctype/pos_item_group/` |
 
-### Ever Co (gauzy) — category manager inline in the Inventory module
+### Ever Gauzy — category manager inline in the Inventory module
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
@@ -395,7 +395,7 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 | Price reports | "Item Prices" list report + item-wise price-list-rate report powering price maintenance screens | `erpnext/stock/report/{item_prices,item_wise_price_list_rate}/`, customer-side `erpnext/selling/report/customer_wise_item_price/` |
 | Cost handling on Item | `standard_rate` & `valuation_rate` fields on the Item itself; item taxpayer logic on posting lives in stock/valuation (§10 pointer) | `erpnext/stock/doctype/item/item.json` |
 
-### Ever Co (gauzy) — per-variant retail price rows
+### Ever Gauzy — per-variant retail price rows
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
@@ -456,7 +456,7 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 | Item supplier child | Simple child table: `supplier` + `supplier_part_no` (the SKU as the vendor knows it); note the per-company `item_default` child does **not** carry a default supplier — only warehouse/price-list/accounts | `erpnext/stock/doctype/item_supplier/{item_supplier.json,*.py}`, `erpnext/stock/doctype/item_default/item_default.json` |
 | Supplier lead time child | Per supplier: purchase_time + buffer_time + is_default flag — drives purchasing MRP | `erpnext/stock/doctype/item_lead_time_supplier/` |
 
-### Ever Co (gauzy) — **absent** vendor catalogs in product UI
+### Ever Gauzy — **absent** vendor catalogs in product UI
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
@@ -513,7 +513,7 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 | --- | --- | --- |
 | Desk attachments | Item form image/attachments are the Framework's standard: `image` field + attachments sidebar (files framework-wide); nothing product-specific beyond `item_website_specification` child for ecommerce specs | `erpnext/stock/doctype/item/{item.json,item.js}`, `erpnext/stock/doctype/item_website_specification/` |
 
-### Ever Co (gauzy) — gallery + merchandising image assets
+### Ever Gauzy — gallery + merchandising image assets
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
@@ -574,7 +574,7 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 | UOM categories & conversions | `UOM Category` groups (which in this checkout is itself under stock) + `UOM Conversion Factor` (to_uom/from_uom/factor) reconciling conversions; Item carries a `uoms` child (conversion per UOM + price factor) and `unit_of_measure_conversion` field | `erpnext/stock/doctype/uom_category/`, `erpnext/setup/doctype/uom_conversion_factor/` |
 | Item barcodes | `barcodes` child on Item: `barcode` value + `barcode_type` (type sequence: EAN/Code/GS1/QR...) + per-line uom | `erpnext/stock/doctype/item_barcode/item_barcode.json` |
 
-### Ever Co (gauzy) — product units inline
+### Ever Gauzy — product units inline
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
@@ -642,7 +642,7 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 | Sales-side face | `item_wise_annual_sales` selling chart orchestrates sales from the item workspace, `selling/report/item_wise_sales_history` tracks history | `erpnext/selling/dashboard_chart/item_wise_annual_sales/`, `erpnext/selling/report/item_wise_sales_history/` |
 | Ecommerce-ish leftovers | `www/all-products` static catalog listing page + `website_item_group` setup doctype (Website Item doctype skeleton not in this checkout) | `erpnext/www/all-products/`, `erpnext/setup/doctype/website_item_group/` |
 
-### Ever Co (gauzy) — variants/warehouse tabs as the product 360
+### Ever Gauzy — variants/warehouse tabs as the product 360
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
@@ -663,7 +663,7 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 | --- | --- | --- |
 | Smart buttons in the same product form | Stock addon patches the product/category forms: category button-box "Putaway Rules" + Logistics page; per-product on-hand/forecasted/reserved wizards and stock-moves actions hang off the same `<button name="action_open_documents" ...>` box | `odoo/addons/stock/views/product_views.xml`, `odoo/addons/product/views/product_views.xml` (`product_template_form_view` button_box) |
 | BOM & MO faces | MRP patches the product form: "Bill of Materials" + "Used in BOM" + "Manufacturing Orders" stat buttons (template & variant level) | `odoo/addons/mrp/views/product_views.xml` |
-| Sales face + ecommerce note | `sale/views/product_views.xml` patches the product form with sales-related stat surfaces; the customer-facing storefront lives in `website_sale` which is only partially present in community core | `odoo/addons/sale/views/product_views.xml` |
+| Sales face + ecommerce note | `sale/views/product_views.xml` patches the product form with sales-related stat surfaces; the customer-facing storefront lives in `website_sale` (+ eight `website_sale_*` addons, all in this community checkout; see research-commerce.md) | `odoo/addons/sale/views/product_views.xml` |
 
 **BOSS implications.** The Product 360 is really a **button-box pattern**: one product record that every module progressively patches with reverse-linked stat buttons (stock qty, BOMs, open MOs, sales/purchases history) — BOSS should render the shared Product 360 screen with per-app panels (Inventory stock summary, Manufacturing BOM/work orders, Purchasing supplier rows, Accounting price/cost history) that are toggled in and enabled per role, exactly like module-patched Odoo groups and Carbon's per-concern sub-forms/UsedIn. Always keep a "documents" panel (Odoo product documents + Dolibarr stats pages) and a reverse-link "connections" listing (ERPNext item_dashboard) — both proved highest-value in the references. Gate manufacturing/purchasing panels behind module flags like AureusERP's inventories cluster separation.
 
@@ -705,7 +705,7 @@ Sections: [1 products home & dashboards](#1-products-home--dashboards) · [2 pro
 | Feature toggles family | Separate settings doctypes per feature: item variant settings (§4), delivery settings, stock reposting settings — each own dir with `*_settings.{js,json,py}` | `erpnext/stock/doctype/{item_variant_settings,delivery_settings,stock_reposting_settings}/` |
 | Item taxonomy defaults | Default item group hierarchy feeds the workspace tree and Stock Settings's `item_group` default | `erpnext/setup/doctype/item_group/`, `erpnext/stock/doctype/stock_settings/stock_settings.json` |
 
-### Ever Co (gauzy) — per-variant capability row concept
+### Ever Gauzy — per-variant capability row concept
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |

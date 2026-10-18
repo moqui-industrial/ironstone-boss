@@ -27,7 +27,7 @@ credit limits, approval gates).
 | **Frappe CRM** | `/home/jonesde/work/moquiwork/3p_other/frappe/crm` — Vue 3 SPA in `frontend/src/` (pages, components, router), backend in `crm/` |
 | **ERPNext** | `/home/jonesde/work/moquiwork/3p_other/frappe/erpnext` — selling under `erpnext/selling/`, CRM under `erpnext/crm/`, accounts/stock doctypes used by sales under `erpnext/{accounts,stock}/` |
 | **Frappe framework** | `/home/jonesde/work/moquiwork/3p_other/frappe/frappe` — Desk list/form/report shell in `frappe/desk/` and `frappe/public/js/` |
-| **Odoo** | `/home/jonesde/work/moquiwork/3p_other/odoo` — addons under `odoo/odoo/addons/<addon>/`, views in `views/`, JS/OWL in `static/src/` |
+| **Odoo** | `/home/jonesde/work/moquiwork/3p_other/odoo` — paths below use `odoo/addons/<addon>/…` (that is `3p_other/odoo/odoo/addons/<addon>/`); views in `views/`, JS/OWL in `static/src/`; a bare `<addon>/views/…` tail means `odoo/addons/<addon>/views/…` |
 | **Twenty** | `/home/jonesde/work/moquiwork/3p_other/twenty` — paths relative to the repo root (`packages/twenty-front`) |
 | **Carbon** | `/home/jonesde/work/moquiwork/3p_other/carbon` — React Router app under `apps/erp/app/`; sales module in `modules/sales/` |
 | **Dolibarr** | `/home/jonesde/work/moquiwork/3p_other/dolibarr` — module pages under `htdocs/<module>/`, shared classes/forms in `htdocs/core/` |
@@ -1130,7 +1130,7 @@ the quote form.
 - **ERPNext:** selling doctypes live under `erpnext/selling/`, but the Contract and lead
   reports live under `erpnext/crm/`, and Subscription/Pricing Rule under
   `erpnext/accounts/`. Quote-to-order-to-invoice spans three modules.
-- **Odoo:** addons are under `odoo/odoo/addons/` (not `odoo/addons/`). CRM and Sales are
+- **Odoo:** app addons are at `3p_other/odoo/odoo/addons/`, written `odoo/addons/` here. CRM and Sales are
   separate app roots; `sale_crm` supplies the cross-links (opportunity field on orders,
   quotation/order counts on opportunities).
 - **Twenty:** standard object definitions are in `packages/twenty-server/.../*.workspace-entity.ts`;

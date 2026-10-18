@@ -18,7 +18,7 @@ Deeper research pass on the **IronStone Accounting** app (receivables & collecti
 | **Dolibarr** | `/home/jonesde/work/moquiwork/3p_other/dolibarr` — module pages under `htdocs/<module>/`; print/document generators under `htdocs/core/modules/` |
 | **Dolibarr community modules** | `/home/jonesde/work/moquiwork/3p_other/dolibarr-community-modules` — notably `einvoicing/` |
 | **ERPNext** | `/home/jonesde/work/moquiwork/3p_other/frappe/erpnext` — accounting under `erpnext/accounts/` (doctype dirs with `<name>.js`/`<name>.py` + templates), reports under `erpnext/accounts/report/`, plus `erpnext/public/js/` |
-| **Ever Co (gauzy)** | `/home/jonesde/work/moquiwork/3p_other/ever-co` — paths relative to the `ever-gauzy/` monorepo root (`apps/gauzy` + `packages/*`) |
+| **Ever Gauzy** | `/home/jonesde/work/moquiwork/3p_other/ever-co/ever-gauzy` — paths relative to the monorepo root (`apps/gauzy` + `packages/*`) |
 | **metasfresh** | `/home/jonesde/work/moquiwork/3p_other/metasfresh` — React WebUI in `frontend/src/` (business windows are metadata-defined in the backend `de.metas.*` modules) |
 | **Odoo** | `/home/jonesde/work/moquiwork/3p_other/odoo` — paths below use `odoo/addons/<addon>/…`; in this checkout that resolves to `3p_other/odoo/odoo/addons/<addon>/` (each addon's views in `<addon>/views/`, JS in `<addon>/static/src/`) |
 
@@ -81,7 +81,7 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 | Number cards | "Total incoming/outgoing bills" & "total incoming/outgoing payment" KPI cards used in workspaces/dashboards | `erpnext/accounts/number_card/{total_incoming_bills,total_incoming_payment,total_outgoing_bills,total_outgoing_payment}.json` |
 | Onboarding | Accounting module onboarding steps/checklist records | `erpnext/accounts/module_onboarding/`, `erpnext/accounts/onboarding_step/` |
 
-### Ever Co (gauzy) — org dashboard & custom dashboards (income/expense-centric)
+### Ever Gauzy — org dashboard & custom dashboards (income/expense-centric)
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
@@ -159,7 +159,7 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 | Cost centers & categories | Cost-center tree with allocation percentages; account_category layer | `erpnext/accounts/doctype/cost_center/cost_center.{js,py}`, `erpnext/accounts/doctype/cost_center_allocation/…`, `erpnext/accounts/doctype/account_category/account_category.{js,json,py}` |
 | Period closing prep | Accounting period (posting permissions per doctype) + period closing voucher (§9) | `erpnext/accounts/doctype/accounting_period/accounting_period.{js,py}` |
 
-### Ever Co (gauzy) — **absent** (no GL/COA anywhere)
+### Ever Gauzy — **absent** (no GL/COA anywhere)
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
@@ -229,7 +229,7 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 | Closing balances | Per-account-year closing balance snapshot (fast start-of-year totals) | `erpnext/accounts/doctype/account_closing_balance/account_closing_balance.json` |
 | Ledger surgery | Bisect ledger rebuild tool + transaction deletion record via Data Deletion | `erpnext/accounts/doctype/bisect_accounting_statements/…`, `transaction_deletion_record_details/` |
 
-### Ever Co (gauzy) — **absent**
+### Ever Gauzy — **absent**
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
@@ -308,7 +308,7 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 | Invoice tooling | Opening-invoice creation tool (migration), merged/mb batch creation; package bulk serial | `erpnext/accounts/doctype/opening_invoice_creation_tool/opening_invoice_creation_tool.{js,py}` (+ `_item`) |
 | Dunning prep | Dunning linked from overdue invoices (see §5) | `erpnext/accounts/doctype/dunning/dunning.{js,py}` |
 
-### Ever Co (gauzy) — invoice suite w/ e-payment & email surface
+### Ever Gauzy — invoice suite w/ e-payment & email surface
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
@@ -374,7 +374,7 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 | Auto overdue flag | Invoice→dunning feeder: overdue payments records & payment-schedule overdue rows | `erpnext/accounts/doctype/overdue_payment/overdue_payment.{json,py}` |
 | Statement of accounts batch | Scheduled mass emails of the Statement of Accounts report (passive collections) | `erpnext/accounts/doctype/process_statement_of_accounts/process_statement_of_accounts.{js,py}` (+ `_cc` variant) |
 
-### Ever Co (gauzy) — **absent** (no credit-communication page in this checkout)
+### Ever Gauzy — **absent** (no credit-communication page in this checkout)
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
@@ -442,7 +442,7 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 | List filters & glue | list js + dashboard chart | `purchase_invoice_list.js` (+ `list_filter/`), `purchase_invoice_dashboard.py` |
 | Debit notes | `is_return` flows on purchase invoice (via merge credit/debit note descend) | `erpnext/accounts/doctype/purchase_invoice/purchase_invoice.py` (`make_debit_note`) |
 
-### Ever Co (gauzy) — expense-centric AP
+### Ever Gauzy — expense-centric AP
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
@@ -514,7 +514,7 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 | Payment orders/schedule | Payment Order (schedule batch of outstanding invoices to pay) + its references | `erpnext/accounts/doctype/payment_order/payment_order.{js,json,py}` (+ `_reference`) |
 | Modes & gateways | Mode of Payment w/ accounts map; Payment Gateway Account; gateway implementations live in the separate `payments` app (checkout `3p_other/frappe/payments`) | `erpnext/accounts/doctype/mode_of_payment/mode_of_payment.{js,json,py}`, `erpnext/accounts/doctype/payment_gateway_account/payment_gateway_account.{js,json,py}`, gateways in `payments/payments/payment_gateways/` (stripe integration etc.) |
 
-### Ever Co (gauzy) — payment capture on invoices (Stripe-side)
+### Ever Gauzy — payment capture on invoices (Stripe-side)
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
@@ -585,7 +585,7 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 | Bank reconciliation tool | Legacy/manual reconciliation page matching unmatched transactions to payments & entries (whole-transaction matching UI) | `erpnext/accounts/doctype/bank_reconciliation_tool/bank_reconciliation_tool.{js,json,py}` |
 | Cash side | Bank Clearance (sequence of entries with running balance) + cashier closing drawer | `erpnext/accounts/doctype/bank_clearance/bank_clearance.{js,json,py}`, `erpnext/accounts/doctype/cashier_closing/…` |
 
-### Ever Co (gauzy) — **absent**
+### Ever Gauzy — **absent**
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
@@ -710,7 +710,7 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 | Italy e-invoice | E-invoice XML payload builders + setup hooks (regional package activated per company country) | `erpnext/regional/italy/{setup.py,utils.py,e-invoice.xml}` |
 | Other regions | Regional overrides load: australia, south_africa, turkey, uae, us | `erpnext/regional/{australia,south_africa,turkey,united_arab_emirates,united_states}/` |
 
-### Ever Co (gauzy) — tax rates are org settings
+### Ever Gauzy — tax rates are org settings
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
@@ -815,7 +815,7 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 | Report framework | Shared scripted-report UI (filters, save/print variants) from the Frappe core report engine; accounting pinch-point glue in `utils.py` | `erpnext/accounts/report/utils.py` |
 | Insights workbook | External BI seeding for accounting dashboards | `erpnext/accounts/insights_workbook/{accounts,payments}/` |
 
-### Ever Co (gauzy) — report gallery page + reusable report components
+### Ever Gauzy — report gallery page + reusable report components
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
@@ -882,7 +882,7 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 | Ledger summaries | Customer & supplier ledger summary (emailable/`process_statement_of_accounts`-ready) | `erpnext/accounts/report/{customer_ledger_summary,supplier_ledger_summary}/` |
 | Credit limits | Customer Credit Limit doctype (per company/currency, warnings or stops pending amount) + customer credit balance report | `erpnext/selling/doctype/customer_credit_limit/customer_credit_limit.{js,json,py}`, `erpnext/selling/report/customer_credit_balance/` |
 
-### Ever Co (gauzy) — amounts-owed & budgets reports
+### Ever Gauzy — amounts-owed & budgets reports
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
@@ -948,7 +948,7 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 | Currency/deferral automation | Currency exchange settings (auto-fetch), deferred-revenue process runner | `erpnext/accounts/doctype/currency_exchange_settings/…`, `erpnext/accounts/doctype/process_deferred_accounting/…` |
 | Numbering/sequencing | Document naming settings global (frappe `Document Naming Settings` consumed per doctype) | `erpnext/accounts/doctype/*` naming via `naming.py` patterns (e.g. `erpnext/accounts/doctype/sales_invoice/sales_invoice.py` naming hook) |
 
-### Ever Co (gauzy) — org settings + accounting templates
+### Ever Gauzy — org settings + accounting templates
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
@@ -985,4 +985,4 @@ Sections: [1 accounting home & dashboards](#1-accounting-home--dashboards) · [2
 - **Ever-gauzy is invoice/expense-centric with no GL/banking/dunning at all**; its relevance is the Accounting-templates gallery (org-level editable invoice templates), the amounts-owed/budgets report pages and the shared `packages/ui-core` component layer.
 - **Dolibarr community modules inventory**: `einvoicing/` is a complete multi-feature module (document list/cards, `einvoice_tracking`, XML preview, pending-sync queue, product mapping); `ksef/` (Poland) is **metadata-only** (README + index.yaml, no code); `stancer/` provides a full gateway back-office (payments/payouts/refunds/disputes/bookkeeping pages) — all three are the best "community add-on shape" references for BOSS plugins.
 - **Cross-cutting patterns**: multi-company everywhere (ERPNext per-company COA/lock dates, Odoo company-level defaults & tables, Akaunting company switcher), currency FX as a first-class screen (Dolibarr `multicurrency/`, ERPNext exchange-rate revaluation, Carbon ExchangeRates), document-numbering per sequence (Dolibarr `mod_facture_*`, Odoo `sequence.mixed`, ERPNext naming series), and the recurring-engine triplet (invoices, bills, transactions) reused across Akaunting.
-- **Checkout path quirks**: Akaunting has no `resources/views/common/documents` (document forms live in `resources/views/components/documents/{form,show}/`); ERPNext paths above are relative to `erpnext/` inside the `frappe/erpnext` checkout; Odoo paths resolve via `odoo/addons/<addon>/...` inside the `odoo/odoo` checkout.
+- **Checkout path quirks**: Akaunting has no `resources/views/common/documents` (document forms live in `resources/views/components/documents/{form,show}/`); ERPNext paths above are relative to `erpnext/` inside the `frappe/erpnext` checkout; Odoo paths are relative to `3p_other/odoo`, so `odoo/addons/<addon>/...` is `3p_other/odoo/odoo/addons/<addon>/...`.

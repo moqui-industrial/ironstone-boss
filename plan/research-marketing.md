@@ -30,7 +30,9 @@ keeps only the marketing management side of those shared records.
 | Prefix in this doc | Checkout |
 | --- | --- |
 | **Odoo** | `/home/jonesde/work/moquiwork/3p_other/odoo` — community addons under `odoo/addons/<addon>/`; views in `views/`, JS/OWL in `static/src/` |
-| **Frappe (framework, ERPNext, CRM, Insights)** | `/home/jonesde/work/moquiwork/3p_other/frappe` — framework at `frappe/frappe/` (doctypes under `frappe/frappe/<area>/doctype/`, website under `frappe/frappe/website/`), ERPNext at `erpnext/erpnext/`, CRM SPA at `crm/frontend/src/`, Insights SPA at `insights/frontend/src2/` |
+| **ERPNext** | `/home/jonesde/work/moquiwork/3p_other/frappe/erpnext` — paths start `erpnext/<module>/` |
+| **Frappe framework** | `/home/jonesde/work/moquiwork/3p_other/frappe/frappe` — doctypes under `frappe/<area>/doctype/`, website under `frappe/website/` |
+| **Frappe apps** (CRM, Insights) | `/home/jonesde/work/moquiwork/3p_other/frappe` — paths start with the app: CRM SPA at `crm/frontend/src/`, Insights SPA at `insights/frontend/src2/` |
 | **Twenty** | `/home/jonesde/work/moquiwork/3p_other/twenty` — paths relative to the repo root (`packages/twenty-front/src`, `packages/twenty-server/src`) |
 | **Nextcloud** | `/home/jonesde/work/moquiwork/3p_other/nextcloud` — apps in `<app>/src/` (Vue 3) with PHP templates alongside; bundled apps under `server/apps/` |
 | **Dolibarr** | `/home/jonesde/work/moquiwork/3p_other/dolibarr` — module pages under `htdocs/<module>/`, admin/setup under `htdocs/admin/` |
@@ -38,7 +40,7 @@ keeps only the marketing management side of those shared records.
 | **metasfresh** | `/home/jonesde/work/moquiwork/3p_other/metasfresh` — business windows defined in `backend/de.metas.*` SQL migrations, React WebUI in `frontend/src/` |
 | **Moqui components** | `/home/jonesde/work/moquiwork/3p_moqui/<component>` — XML screens in `screen/` |
 
-**Not used here.** Zimbra, Carbon, Ever Co (Gauzy) and Akaunting ship no
+**Not used here.** Zimbra, Carbon, Ever Gauzy and Akaunting ship no
 marketing/campaign/newsletter screens in this checkout; the absence is recorded in
 [§11](#11-gaps--notables). No source other than Odoo covers more than a slice of the
 marketing surface, so the Odoo tables are deliberately the deepest.
@@ -81,7 +83,7 @@ Odoo has no single "Marketing" app. The marketing surface is a set of separate a
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| CRM workspace sidebar | "Campaign" section linking Campaign, Email Campaign, SMS Center, SMS Log and Email Group, plus a Campaign Efficiency report link | `erpnext/erpnext/crm/workspace/crm/crm.json` |
+| CRM workspace sidebar | "Campaign" section linking Campaign, Email Campaign, SMS Center, SMS Log and Email Group, plus a Campaign Efficiency report link | `erpnext/crm/workspace/crm/crm.json` |
 | CRM dashboard | Generic leads/deals dashboard, not marketing-specific | `crm/frontend/src/pages/Dashboard.vue` |
 | Insights dashboard | Configurable dashboard page that can host campaign charts | `insights/frontend/src2/dashboard/DashboardPage.vue`, `DashboardBuilder.vue` |
 
@@ -157,10 +159,10 @@ the winner and can be sent to the rest of the audience.
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Campaign (Desk form) | Campaign name, naming series, `campaign_schedules` child rows, description; "View Leads" jumps to the mirrored UTM campaign | `erpnext/erpnext/crm/doctype/campaign/campaign.json`, `campaign.js` |
-| Campaign Email Schedule | Child row: `send_after_days`, `email_template` — a simple drip sequence | `erpnext/erpnext/crm/doctype/campaign_email_schedule/campaign_email_schedule.json` |
-| Email Campaign | Binds a Campaign to a recipient type (Lead / Contact / Email Group), a concrete recipient, a sender, start/end dates and status `Scheduled / In Progress / Completed / Unsubscribed` | `erpnext/erpnext/crm/doctype/email_campaign/email_campaign.json` |
-| Campaign Efficiency report | Report over campaign-driven leads/opportunities | `erpnext/erpnext/crm/report/campaign_efficiency/` |
+| Campaign (Desk form) | Campaign name, naming series, `campaign_schedules` child rows, description; "View Leads" jumps to the mirrored UTM campaign | `erpnext/crm/doctype/campaign/campaign.json`, `campaign.js` |
+| Campaign Email Schedule | Child row: `send_after_days`, `email_template` — a simple drip sequence | `erpnext/crm/doctype/campaign_email_schedule/campaign_email_schedule.json` |
+| Email Campaign | Binds a Campaign to a recipient type (Lead / Contact / Email Group), a concrete recipient, a sender, start/end dates and status `Scheduled / In Progress / Completed / Unsubscribed` | `erpnext/crm/doctype/email_campaign/email_campaign.json` |
+| Campaign Efficiency report | Report over campaign-driven leads/opportunities | `erpnext/crm/report/campaign_efficiency/` |
 | Workflow Automations | Generic trigger → condition → step builder with trial run and run history, usable for drip/nurture | `crm/frontend/src/components/Settings/WorkflowAutomations/WorkflowAutomationBuilder.vue`, `WorkflowAutomationPage.vue`, `WorkflowAutomationRuns.vue` |
 | Stages / A/B / budgets | Not present | — |
 
@@ -228,9 +230,9 @@ Sales and Marketing see the same campaign pipeline.
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Email Group | Subscriber list (title, subscriber count, welcome and confirmation email templates, welcome URL) | `frappe/frappe/email/doctype/email_group/email_group.json` |
-| Email Group Member | Member rows with email and subscription status | `frappe/frappe/email/doctype/email_group_member/email_group_member.json` |
-| Email Unsubscribe | Unsubscribe records used by the mailer | `frappe/frappe/email/doctype/email_unsubscribe/` |
+| Email Group | Subscriber list (title, subscriber count, welcome and confirmation email templates, welcome URL) | `frappe/email/doctype/email_group/email_group.json` |
+| Email Group Member | Member rows with email and subscription status | `frappe/email/doctype/email_group_member/email_group_member.json` |
+| Email Unsubscribe | Unsubscribe records used by the mailer | `frappe/email/doctype/email_unsubscribe/` |
 | Lead/contact filters | CRM SPA filters and group-by controls, not reusable saved segments | `crm/frontend/src/components/Filter.vue`, `GroupBy.vue` |
 | Segment builder | Not present | — |
 
@@ -311,14 +313,14 @@ dedicated outgoing mail server (`mass_mailing_outgoing_mail_server` +
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Email Template (Desk) | Subject/response templates with Jinja context; list/form | `frappe/frappe/email/doctype/email_template/` |
-| Email Campaign | Scheduled series of emails to Leads/Contacts/Email Groups with start/end and status | `erpnext/erpnext/crm/doctype/email_campaign/email_campaign.json` |
-| Campaign Email Schedule | Per-campaign delay + template rows | `erpnext/erpnext/crm/doctype/campaign_email_schedule/campaign_email_schedule.json` |
-| Email Queue | Outbound queue with recipient rows and newsletter-aware flags | `frappe/frappe/email/doctype/email_queue/`; `email_queue_recipient/` |
-| Email Account / Email Domain | Sender accounts and domains | `frappe/frappe/email/doctype/email_account/`; `email_domain/` |
+| Email Template (Desk) | Subject/response templates with Jinja context; list/form | `frappe/email/doctype/email_template/` |
+| Email Campaign | Scheduled series of emails to Leads/Contacts/Email Groups with start/end and status | `erpnext/crm/doctype/email_campaign/email_campaign.json` |
+| Campaign Email Schedule | Per-campaign delay + template rows | `erpnext/crm/doctype/campaign_email_schedule/campaign_email_schedule.json` |
+| Email Queue | Outbound queue with recipient rows and newsletter-aware flags | `frappe/email/doctype/email_queue/`; `email_queue_recipient/` |
+| Email Account / Email Domain | Sender accounts and domains | `frappe/email/doctype/email_account/`; `email_domain/` |
 | CRM composer + template picker | Rich composer with a template selector modal | `crm/frontend/src/components/EmailEditor.vue`; `components/Modals/EmailTemplateSelectorModal.vue` |
 | CRM Email Templates | List, new, edit pages | `crm/frontend/src/components/Settings/EmailTemplate/EmailTemplates.vue`, `NewEmailTemplate.vue`, `EditEmailTemplate.vue` |
-| Newsletter doctype/screens | **Absent from this checkout** (docs/role/queue flag only) | `frappe/frappe/email/`; `crm/frontend/src/pages/` |
+| Newsletter doctype/screens | **Absent from this checkout** (docs/role/queue flag only) | `frappe/email/`; `crm/frontend/src/pages/` |
 
 ### Twenty — composer, variables, scheduling and delivery stats
 
@@ -390,11 +392,11 @@ right privacy/deliverability controls.
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Loyalty Program | Program form + dashboard (rules, collection rules, redemption, conversion factor, expiry) | `erpnext/erpnext/accounts/doctype/loyalty_program/loyalty_program.json`, `loyalty_program_dashboard.py` |
-| Loyalty Point Entry | Point ledger | `erpnext/erpnext/accounts/doctype/loyalty_point_entry/loyalty_point_entry.json` |
-| Coupon Code | Coupon records | `erpnext/erpnext/accounts/doctype/coupon_code/coupon_code.json` |
-| Promotional Scheme | Promotional price/discount rules | `erpnext/erpnext/accounts/doctype/promotional_scheme/`; `promotional_scheme_price_discount/`; `promotional_scheme_product_discount/` |
-| Customer Acquisition and Loyalty report | Acquisition/loyalty reporting | `erpnext/erpnext/selling/report/customer_acquisition_and_loyalty/` |
+| Loyalty Program | Program form + dashboard (rules, collection rules, redemption, conversion factor, expiry) | `erpnext/accounts/doctype/loyalty_program/loyalty_program.json`, `loyalty_program_dashboard.py` |
+| Loyalty Point Entry | Point ledger | `erpnext/accounts/doctype/loyalty_point_entry/loyalty_point_entry.json` |
+| Coupon Code | Coupon records | `erpnext/accounts/doctype/coupon_code/coupon_code.json` |
+| Promotional Scheme | Promotional price/discount rules | `erpnext/accounts/doctype/promotional_scheme/`; `promotional_scheme_price_discount/`; `promotional_scheme_product_discount/` |
+| Customer Acquisition and Loyalty report | Acquisition/loyalty reporting | `erpnext/selling/report/customer_acquisition_and_loyalty/` |
 
 ### Dolibarr — price rules, not promotions
 
@@ -451,10 +453,10 @@ program type rather than inventing one from a screen catalog.
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Web Page | CMS page record with route, published flag, blocks; rendered by the website renderer | `frappe/frappe/website/doctype/web_page/`; `web_page_block/` |
-| Web Form | Form builder record: route, document type, fields, login requirement, allow multiple/edit/delete/print/comments, introduction, success message/URL | `frappe/frappe/website/doctype/web_form/web_form.json`; `web_form_field/` |
-| Web Form Request | Submitted responses | `frappe/frappe/website/doctype/web_form_request/` |
-| Website Settings / Theme / Sidebar / Slideshow | Site configuration, theme, sidebar and slideshow content | `frappe/frappe/website/doctype/website_settings/`, `website_theme/`, `website_sidebar/`, `website_slideshow/` |
+| Web Page | CMS page record with route, published flag, blocks; rendered by the website renderer | `frappe/website/doctype/web_page/`; `web_page_block/` |
+| Web Form | Form builder record: route, document type, fields, login requirement, allow multiple/edit/delete/print/comments, introduction, success message/URL | `frappe/website/doctype/web_form/web_form.json`; `web_form_field/` |
+| Web Form Request | Submitted responses | `frappe/website/doctype/web_form_request/` |
+| Website Settings / Theme / Sidebar / Slideshow | Site configuration, theme, sidebar and slideshow content | `frappe/website/doctype/website_settings/`, `website_theme/`, `website_sidebar/`, `website_slideshow/` |
 | CRM Forms | "Capture leads and deals from public forms": form list + builder with publish/preview/edit tabs | `crm/frontend/src/components/Settings/Forms/FormsList.vue`, `FormBuilderPanel.vue` |
 | Blog Post | **No blog doctype in this checkout** | — |
 
@@ -560,8 +562,8 @@ event-email schedule rather than a separate event store.
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Web Form | Field builder (table of `web_form_field`), route, gating (login, multiple, edit, delete, print, comments), success message/URL | `frappe/frappe/website/doctype/web_form/web_form.json`; `web_form_field/` |
-| Web Form Request | Submitted responses | `frappe/frappe/website/doctype/web_form_request/` |
+| Web Form | Field builder (table of `web_form_field`), route, gating (login, multiple, edit, delete, print, comments), success message/URL | `frappe/website/doctype/web_form/web_form.json`; `web_form_field/` |
+| Web Form Request | Submitted responses | `frappe/website/doctype/web_form_request/` |
 | CRM Forms | Lead-capture form list + builder | `crm/frontend/src/components/Settings/Forms/FormsList.vue`, `FormBuilderPanel.vue` |
 | Quiz/scoring/live sessions | Not present | — |
 
@@ -617,9 +619,9 @@ certification on top, reusing Commons/Comms for distribution.
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Campaign Efficiency report | Campaign-driven leads/opportunities | `erpnext/erpnext/crm/report/campaign_efficiency/` |
-| Opportunities via Campaigns chart | Dashboard chart | `erpnext/erpnext/crm/dashboard_chart/opportunities_via_campaigns/opportunities_via_campaigns.json` |
-| UTM Campaign / Medium / Source | UTM records | `frappe/frappe/website/doctype/utm_campaign/`, `utm_medium/`, `utm_source/` |
+| Campaign Efficiency report | Campaign-driven leads/opportunities | `erpnext/crm/report/campaign_efficiency/` |
+| Opportunities via Campaigns chart | Dashboard chart | `erpnext/crm/dashboard_chart/opportunities_via_campaigns/opportunities_via_campaigns.json` |
+| UTM Campaign / Medium / Source | UTM records | `frappe/website/doctype/utm_campaign/`, `utm_medium/`, `utm_source/` |
 | Insights workbook/dashboard | Query → chart → dashboard builder | `insights/frontend/src2/workbook/Workbook.vue`, `WorkbookQuery.vue`, `WorkbookDashboard.vue`; `src2/dashboard/DashboardPage.vue`, `DashboardBuilder.vue` |
 
 ### Twenty — generic analytics only
@@ -684,9 +686,9 @@ reference — treat them as Insights work, not Marketing screens.
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Website Settings | Home page, theme/brand, top bar, banner/footer, integrations, route redirects, indexing/view-tracking switches | `frappe/frappe/website/doctype/website_settings/` |
-| Email Account / Email Domain / Email Template / Email Group | Sender and audience configuration | `frappe/frappe/email/doctype/email_account/`, `email_domain/`, `email_template/`, `email_group/` |
-| UTM Campaign / Medium / Source | UTM configuration records | `frappe/frappe/website/doctype/utm_campaign/`, `utm_medium/`, `utm_source/` |
+| Website Settings | Home page, theme/brand, top bar, banner/footer, integrations, route redirects, indexing/view-tracking switches | `frappe/website/doctype/website_settings/` |
+| Email Account / Email Domain / Email Template / Email Group | Sender and audience configuration | `frappe/email/doctype/email_account/`, `email_domain/`, `email_template/`, `email_group/` |
+| UTM Campaign / Medium / Source | UTM configuration records | `frappe/website/doctype/utm_campaign/`, `utm_medium/`, `utm_source/` |
 | CRM email settings | Email account list/config/add/edit | `crm/frontend/src/components/Settings/EmailAccountList.vue`, `EmailConfig.vue`, `EmailAdd.vue`, `EmailEdit.vue` |
 
 ### Twenty — sending domains, suppression and tracking
@@ -761,7 +763,7 @@ verification (Twenty) is a hard requirement for self-hosted installs.
 | Event marketing | Only Odoo (tickets, questions, communication schedules, registration desk) | `event/` |
 | SMS marketing | Only Odoo (full) and Dolibarr (`smsing` target in mailing) | `mass_mailing_sms/`; `comm/mailing/index.php` |
 | Email templates | Twenty has no template library; Dolibarr/Frappe/Odoo do | §4 |
-| Blog/CMS | Frappe checkout has web pages and web forms but **no blog doctype**; Twenty/metasfresh have no CMS | `frappe/frappe/website/doctype/` |
+| Blog/CMS | Frappe checkout has web pages and web forms but **no blog doctype**; Twenty/metasfresh have no CMS | `frappe/website/doctype/` |
 | Survey scoring/certification | Only Odoo; Nextcloud/Frappe/Dolibarr are forms only | `survey/` |
 | Campaign stages | Only Odoo has configurable campaign stages (UTM stages); Frappe uses fixed Email Campaign statuses, others use per-record status | `utm_stage_views.xml`; `email_campaign.json` |
 
@@ -826,13 +828,13 @@ verification (Twenty) is a hard requirement for self-hosted installs.
 | --- | --- | --- |
 | **Zimbra** | No marketing/campaign/newsletter screens; mail, calendar, admin console only | `Zimbra/zm-web-client/`; `zm-admin-console/` |
 | **Carbon** | No marketing/campaign/newsletter screens | grep in `carbon/apps/erp` |
-| **Ever Co (Gauzy)** | No marketing/campaign/newsletter screens | grep in `ever-co/ever-gauzy/apps/gauzy/src` |
+| **Ever Gauzy** | No marketing/campaign/newsletter screens | grep in `ever-co/ever-gauzy/apps/gauzy/src` |
 | **Akaunting** | No marketing modules | `akaunting/modules/` |
 | **Moqui** | No marketing screens; public sites are content surfaces only | `coarchy/screen/`, `resistmanagement/screen/`, `WeCreate/screen/` |
 | **Nextcloud** | No campaigns/newsletters/automation; Mail is a client; Forms/Collectives only | `mail/src/`, `forms/src/`, `collectives/src/` |
 | **AureusERP** | No campaigns, email/newsletter, loyalty, coupons or surveys; analytics plugin has no UI | `plugins/webkul/` |
 | **metasfresh** | No in-app email designer/newsletter workspace or attribution UI | `backend/de.metas.marketing/`; `frontend/src/components/` |
 | **Odoo** | No marketing automation module, no social publishing, no campaign budgets, no referrals | addon listing; `social_media/`; grep in marketing models |
-| **Frappe** | No Newsletter doctype, no blog doctype, no campaign UI in the CRM SPA | `frappe/frappe/email/doctype/`; `frappe/frappe/website/doctype/`; `crm/frontend/src/pages/` |
+| **Frappe** | No Newsletter doctype, no blog doctype, no campaign UI in the CRM SPA | `frappe/email/doctype/`; `frappe/website/doctype/`; `crm/frontend/src/pages/` |
 | **Twenty** | No bespoke marketing home, no segment builder, no template library, no UTM/attribution | `packages/twenty-front/src/modules/side-panel/pages/send-campaign/`; `packages/twenty-front/src/modules/` (no marketing module) |
 | **Dolibarr** | No campaign stages/automation/A-B, no coupons/gift cards/loyalty, no click tracking | `htdocs/comm/mailing/`; `htdocs/core/modules/` |

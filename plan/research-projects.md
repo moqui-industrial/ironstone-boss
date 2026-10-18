@@ -20,10 +20,11 @@ Deeper research pass on every screen/page relevant to **IronStone Projects** (Pr
 | **OpenProject** | `/home/jonesde/work/moquiwork/3p_other/openproject` — Rails backend (`app/`, `modules/`), Angular front end (`frontend/src/app/features/`), ERB/Primer views (`app/views/`, `app/components/`) |
 | **Redmine** | `/home/jonesde/work/moquiwork/3p_other/redmine` — Rails + ERB; `app/views/`, `app/controllers/`, `app/models/` |
 | **Odoo** | `/home/jonesde/work/moquiwork/3p_other/odoo` — modules under `odoo/addons/`; views in `<module>/views/`, OWL UI in `<module>/static/src/` |
-| **Frappe (ERPNext)** | `/home/jonesde/work/moquiwork/3p_other/frappe` — `erpnext/erpnext/projects/` |
+| **ERPNext** | `/home/jonesde/work/moquiwork/3p_other/frappe/erpnext` — `erpnext/projects/` |
+| **Frappe framework** | `/home/jonesde/work/moquiwork/3p_other/frappe/frappe` — paths start `frappe/<area>/` |
 | **AureusERP** | `/home/jonesde/work/moquiwork/3p_other/aureuserp` — `plugins/webkul/projects/`, `plugins/webkul/timesheets/` (Filament PHP UI) |
 | **Dolibarr** | `/home/jonesde/work/moquiwork/3p_other/dolibarr` — `htdocs/projet/` + shared `htdocs/core/lib/project.lib.php` |
-| **Ever Co (ever-gauzy)** | `/home/jonesde/work/moquiwork/3p_other/ever-co` — paths relative to `ever-gauzy/` (`apps/gauzy/src/app/pages/…`) |
+| **Ever Gauzy** | `/home/jonesde/work/moquiwork/3p_other/ever-co/ever-gauzy` — (`apps/gauzy/src/app/pages/…`) |
 | **Moqui WorkManagement** | `/home/jonesde/work/moquiwork/3p_moqui/WorkManagement` — `screen/wm/` |
 | **Moqui Sales** | `/home/jonesde/work/moquiwork/3p_moqui/Sales` — `screen/Sales/` |
 | **Moqui WeCreate** | `/home/jonesde/work/moquiwork/3p_moqui/WeCreate` — `screen/wcinternal/Project/` |
@@ -84,8 +85,8 @@ IronStone Projects needs three different landing surfaces: an app home for manag
 | App | Screen/page | What it is | Key files |
 | --- | --- | --- | --- |
 | Odoo | To-do | Personal task list over `project.task` with kanban/list/form views, done checkbox, priority, deadline, tags and personal stage; separate top-level menu. | `odoo/addons/project_todo/views/project_task_views.xml`, `odoo/addons/project_todo/views/project_todo_menus.xml` |
-| ERPNext | Projects workspace | Desk module page: onboarding, Project Summary chart, Open Projects / Non-completed Tasks / Timesheet Working Hours number cards, Project Reports card, links to Project/Task/Timesheet. | `erpnext/erpnext/projects/workspace/projects/projects.json`, `erpnext/erpnext/projects/sidebar/projects/projects.json` |
-| ERPNext | Project dashboard | Connections dashboard (Tasks, Timesheets, Issues, Project Updates; material/sales/purchase/manufacture transactions) plus a timesheet heatmap. | `erpnext/erpnext/projects/doctype/project/project_dashboard.py` |
+| ERPNext | Projects workspace | Desk module page: onboarding, Project Summary chart, Open Projects / Non-completed Tasks / Timesheet Working Hours number cards, Project Reports card, links to Project/Task/Timesheet. | `erpnext/projects/workspace/projects/projects.json`, `erpnext/projects/sidebar/projects/projects.json` |
+| ERPNext | Project dashboard | Connections dashboard (Tasks, Timesheets, Issues, Project Updates; material/sales/purchase/manufacture transactions) plus a timesheet heatmap. | `erpnext/projects/doctype/project/project_dashboard.py` |
 | AureusERP | Projects dashboard | Filament dashboard widgets: stats overview, tasks by state, tasks by stage, top assignees, top projects. | `plugins/webkul/projects/src/Filament/Widgets/`, `plugins/webkul/projects/src/Filament/Pages/Dashboard.php` |
 | Gauzy | Projects list | Table and card-grid layouts, pagination, permissions, favorite toggle, add/edit/delete, "add module" action. | `apps/gauzy/src/app/pages/projects/components/project-list/list.component.html` |
 | Gauzy | Project layout | Detail/edit routes and project manager/guard wiring. | `apps/gauzy/src/app/pages/projects/layout/`, `projects-routing.module.ts` |
@@ -139,8 +140,8 @@ IronStone Projects needs three different landing surfaces: an app home for manag
 
 | App | Screen/page | What it is | Key files |
 | --- | --- | --- | --- |
-| ERPNext | Project form | Series, name, status (Open/On hold/Completed/Cancelled), type, % complete method (manual/task completion/task progress/task weight), template, priority, department, active flag, timeline (expected/actual dates + actual time), customer + sales order, notes, accounting/costing/billing, progress-update collection, users. | `erpnext/erpnext/projects/doctype/project/project.json` |
-| ERPNext | Project template | Project type + child task templates; used when creating/copying projects. | `erpnext/erpnext/projects/doctype/project_template/`, `project_template_task` |
+| ERPNext | Project form | Series, name, status (Open/On hold/Completed/Cancelled), type, % complete method (manual/task completion/task progress/task weight), template, priority, department, active flag, timeline (expected/actual dates + actual time), customer + sales order, notes, accounting/costing/billing, progress-update collection, users. | `erpnext/projects/doctype/project/project.json` |
+| ERPNext | Project template | Project type + child task templates; used when creating/copying projects. | `erpnext/projects/doctype/project_template/`, `project_template_task` |
 | AureusERP | Project form | Progress stepper (stage), name/description, manager, customer, start/end dates, allocated hours, tags, company, visibility (private/internal/public), allow-timesheets, allow-milestones. | `plugins/webkul/projects/src/Filament/Resources/ProjectResource/Schemas/ProjectForm.php` |
 | AureusERP | Projects table | Rich project card stack (name/customer/date/remaining hours/manager/tags), group by stage/manager/customer/created, reorderable, query-builder filters. | `plugins/webkul/projects/src/Filament/Resources/ProjectResource/Tables/ProjectsTable.php` |
 | AureusERP | Project pages | List/create/view/edit; relation managers for milestones/tasks; manage milestones/tasks pages. | `plugins/webkul/projects/src/Filament/Resources/ProjectResource/Pages/` |
@@ -191,8 +192,8 @@ IronStone Projects needs three different landing surfaces: an app home for manag
 
 | App | Screen/page | What it is | Key files |
 | --- | --- | --- | --- |
-| ERPNext | Project form tabs | Tasks, Customer, Notes, Costing (accounting, costing/billing, margin), Progress updates, More Info, Connections. | `erpnext/erpnext/projects/doctype/project/project.json` |
-| ERPNext | Project dashboard | Connections to Task/Timesheet/Issue/Project Update, material requests/BOM/stock, sales, purchase, manufacture; timesheet heatmap. | `erpnext/erpnext/projects/doctype/project/project_dashboard.py`, `project_dashboard.html` |
+| ERPNext | Project form tabs | Tasks, Customer, Notes, Costing (accounting, costing/billing, margin), Progress updates, More Info, Connections. | `erpnext/projects/doctype/project/project.json` |
+| ERPNext | Project dashboard | Connections to Task/Timesheet/Issue/Project Update, material requests/BOM/stock, sales, purchase, manufacture; timesheet heatmap. | `erpnext/projects/doctype/project/project_dashboard.py`, `project_dashboard.html` |
 | AureusERP | Project view | Infolist + relation managers (milestones, tasks), timesheets relation on tasks. | `plugins/webkul/projects/src/Filament/Resources/ProjectResource/Schemas/ProjectInfolist.php`, `RelationManagers/` |
 | Dolibarr | Project card tabs | Project, Contacts, Tasks (with badge), Time spent, Project overview/elements (proposals, orders, invoices, contracts, interventions, shipments, MOs, trips…), Tickets, Event organization, Emailings, Notes, Documents, Agenda. | `htdocs/core/lib/project.lib.php` (`project_prepare_head`), `htdocs/projet/card.php`, `htdocs/projet/element.php` |
 | Dolibarr | Project statistics | Statistics mode over the project list. | `htdocs/projet/stats/index.php` |
@@ -257,9 +258,9 @@ IronStone Projects needs three different landing surfaces: an app home for manag
 
 | App | Screen/page | What it is | Key files |
 | --- | --- | --- | --- |
-| ERPNext | Task form | Subject, project, issue, type, group flag, status (Open/Working/Pending Review/Overdue/Template/Completed/Cancelled), priority, weight, parent task, completed by/on, template flags, begin/duration, expected dates/time, progress, milestone flag, description, dependencies, actual dates/time, costing/billing, review/closing dates, department/company. | `erpnext/erpnext/projects/doctype/task/task.json` |
-| ERPNext | Task list/Gantt/calendar | Standard list with Gantt view (Frappe Gantt) and calendar; task dashboard connections. | `erpnext/erpnext/projects/doctype/task/task_list.js`, `erpnext/erpnext/projects/doctype/task/task_calendar.js`, `frappe/frappe/public/js/frappe/views/gantt/gantt_view.js`, `erpnext/erpnext/projects/doctype/task/task_dashboard.py` |
-| ERPNext | Task dependencies | `Task Depends On` / `Dependent Task` child tables. | `erpnext/erpnext/projects/doctype/task_depends_on/`, `erpnext/erpnext/projects/doctype/dependent_task/` |
+| ERPNext | Task form | Subject, project, issue, type, group flag, status (Open/Working/Pending Review/Overdue/Template/Completed/Cancelled), priority, weight, parent task, completed by/on, template flags, begin/duration, expected dates/time, progress, milestone flag, description, dependencies, actual dates/time, costing/billing, review/closing dates, department/company. | `erpnext/projects/doctype/task/task.json` |
+| ERPNext | Task list/Gantt/calendar | Standard list with Gantt view (Frappe Gantt) and calendar; task dashboard connections. | `erpnext/projects/doctype/task/task_list.js`, `erpnext/projects/doctype/task/task_calendar.js`, `frappe/public/js/frappe/views/gantt/gantt_view.js`, `erpnext/projects/doctype/task/task_dashboard.py` |
+| ERPNext | Task dependencies | `Task Depends On` / `Dependent Task` child tables. | `erpnext/projects/doctype/task_depends_on/`, `erpnext/projects/doctype/dependent_task/` |
 | AureusERP | Task table | Priority toggle, state icon/modal, title, project, milestone, customer, assignees, allocated hours, time spent, remaining, progress, deadline, tags. | `plugins/webkul/projects/src/Filament/Resources/TaskResource/Tables/TasksTable.php` |
 | AureusERP | Task form | Progress stepper per project stage, title, state, tags, description, project, milestone, customer, assignees, deadline, allocated hours. | `plugins/webkul/projects/src/Filament/Resources/TaskResource/Schemas/TaskForm.php` |
 | AureusERP | Task relations | Sub-tasks and timesheets relation managers; manage-tasks/manage-subtasks/manage-timesheets pages. | `plugins/webkul/projects/src/Filament/Resources/TaskResource/RelationManagers/`, `plugins/webkul/projects/src/Filament/Resources/TaskResource/Pages/` |
@@ -300,7 +301,7 @@ IronStone Projects needs three different landing surfaces: an app home for manag
 | Odoo | Task kanban | Kanban grouped by stage (default) or project; quick create; drag changes stage. | `odoo/addons/project/views/project_task_views.xml` (`view_task_kanban*`) |
 | Gauzy | Sprint view | Task board organized by sprint; task/task-view components shared with list pages. | `apps/gauzy/src/app/pages/tasks/components/task/tasks-layouts/tasks-sprint-view/` |
 | Redmine | Boards | **Not kanban** — project forums with topics/messages. Worth keeping as a discussion surface, not a work board. | `app/views/boards/`, `app/views/messages/` |
-| ERPNext | Kanban | Generic Frappe kanban on Task/Project; no sprint/backlog module in this checkout. | `frappe/frappe/public/js/frappe/views/kanban/` (framework), `erpnext/erpnext/projects/` |
+| ERPNext | Kanban | Generic Frappe kanban on Task/Project; no sprint/backlog module in this checkout. | `frappe/public/js/frappe/views/kanban/` (framework), `erpnext/projects/` |
 | WorkManagement / WeCreate | none | Table/detail only. | — |
 
 **BOSS implications.** Implement boards as **views over the work-item query with a column action**, matching OpenProject: columns can be status, assignee, milestone, project, or parent task. That keeps one board implementation instead of separate "status board / team board / milestone board" screens. Backlogs/sprints are only worth building if IronStone targets agile teams; the data model can support them as a work-item field (sprint/backlog bucket) without a separate backlog UI at first. Redmine's "board = forum" is a reminder that project discussion is a different feature; put discussions in Commons/Comms rather than overloading the board.
@@ -320,7 +321,7 @@ IronStone Projects needs three different landing surfaces: an app home for manag
 | Redmine | Gantt | Query-driven Gantt chart with relations and progress line. | `app/views/gantts/show.html.erb`, `_chart.html.erb`, `app/controllers/gantts_controller.rb` |
 | Redmine | Calendar | Issue calendar by start/due date, with project/user filters. | `app/views/calendars/show.html.erb`, `app/controllers/calendars_controller.rb` |
 | Dolibarr | Gantt | Project Gantt view (jsGantt) and per-project Gantt include. | `htdocs/projet/ganttview.php`, `ganttchart.inc.php`, `jsgantt_language.js.php` |
-| ERPNext | Gantt/calendar | Frappe Gantt view and task calendar. | `frappe/frappe/public/js/frappe/views/gantt/gantt_view.js`, `erpnext/erpnext/projects/doctype/task/task_calendar.js` |
+| ERPNext | Gantt/calendar | Frappe Gantt view and task calendar. | `frappe/public/js/frappe/views/gantt/gantt_view.js`, `erpnext/projects/doctype/task/task_calendar.js` |
 | Odoo | Calendar | Task calendar and project calendar by planned dates. | `odoo/addons/project/views/project_task_views.xml` (`view_task_calendar`), `project_project_views.xml` (`view_project_calendar`) |
 | AureusERP | Full calendar | Generic full-calendar plugin used by project/task resources. | `plugins/webkul/full-calendar/` (listed in 3p-app-reference.md) |
 | Gauzy | Calendar | Time-log/timesheet calendar plus task dates. | `apps/gauzy/src/app/pages/employees/timesheet/calendar/` |
@@ -362,8 +363,8 @@ IronStone Projects needs **milestones** (client-visible dates/deliverables), **v
 | Odoo | Milestones | Name, sequence, project, deadline, reached flag/date, task count/done count, deadline exceeded/future flags; list/kanban/form; project shows reached count/progress and next milestone. | `odoo/addons/project/views/project_milestone_views.xml`, `odoo/addons/project/models/project_milestone.py` |
 | Odoo | Milestone billing | Milestones can carry a sales-order line and quantity percentage; reaching milestones drives delivered quantity/invoicing. | `odoo/addons/sale_project/models/project_milestone.py`, `sale_order_line.py` |
 | Odoo | Project stages | Life-cycle-ish stage list with fold/rotting, separate from milestones. | `odoo/addons/project/models/project_project_stage.py` |
-| ERPNext | Milestone | `Task.is_milestone` + milestone flag in task list/Gantt; project % complete can use task completion/progress/weight. No separate milestone record. | `erpnext/erpnext/projects/doctype/task/task.json` |
-| ERPNext | Project template | Template project type + template tasks; copied into new projects. | `erpnext/erpnext/projects/doctype/project_template/` |
+| ERPNext | Milestone | `Task.is_milestone` + milestone flag in task list/Gantt; project % complete can use task completion/progress/weight. No separate milestone record. | `erpnext/projects/doctype/task/task.json` |
+| ERPNext | Project template | Template project type + template tasks; copied into new projects. | `erpnext/projects/doctype/project_template/` |
 | AureusERP | Milestones | Configurable milestone records (name, deadline, completed) attached to projects/tasks. | `plugins/webkul/projects/src/Filament/Clusters/Configurations/Resources/MilestoneResource/` |
 | Dolibarr | none | No milestone/version object; use task dates and project start/end. | `htdocs/projet/` |
 | Gauzy | Goals/OKRs | Goals/key results are a separate management layer, not project milestones. | `apps/gauzy/src/app/pages/goals/` |
@@ -416,9 +417,9 @@ IronStone Projects needs **milestones** (client-visible dates/deliverables), **v
 
 | App | Screen/page | What it is | Key files |
 | --- | --- | --- | --- |
-| ERPNext | Timesheet form | Title, company, customer, currency, sales invoice, status (Draft/Submitted/Partially Billed/Billed/Payslip/Completed/Cancelled), project, user, start/end date, employee/department, `time_logs` grid, totals, billing details, note. | `erpnext/erpnext/projects/doctype/timesheet/timesheet.json` |
-| ERPNext | Time log row | Activity type, from/to time, expected hours, hours, completed, project, task, billing hours/rate/amount, costing rate/amount, sales invoice, billable flag, description. | `erpnext/erpnext/projects/doctype/timesheet_detail/timesheet_detail.json` |
-| ERPNext | Timer | In-form timer starts/stops a row and creates new rows; `timer.js` loaded by the Timesheet form. | `erpnext/erpnext/projects/doctype/timesheet/timesheet.js`, `erpnext/erpnext/public/js/projects/timer.js` |
+| ERPNext | Timesheet form | Title, company, customer, currency, sales invoice, status (Draft/Submitted/Partially Billed/Billed/Payslip/Completed/Cancelled), project, user, start/end date, employee/department, `time_logs` grid, totals, billing details, note. | `erpnext/projects/doctype/timesheet/timesheet.json` |
+| ERPNext | Time log row | Activity type, from/to time, expected hours, hours, completed, project, task, billing hours/rate/amount, costing rate/amount, sales invoice, billable flag, description. | `erpnext/projects/doctype/timesheet_detail/timesheet_detail.json` |
+| ERPNext | Timer | In-form timer starts/stops a row and creates new rows; `timer.js` loaded by the Timesheet form. | `erpnext/projects/doctype/timesheet/timesheet.js`, `erpnext/public/js/projects/timer.js` |
 | ERPNext | Timesheet calendar/list | Calendar and list views, dashboard connections. | `timesheet_calendar.js`, `timesheet_list.js`, `timesheet_dashboard.py` |
 | AureusERP | Timesheet resource | Date, employee, project, task, description, time spent (unit amount); list/manage pages. | `plugins/webkul/timesheets/src/Filament/Resources/TimesheetResource/Schemas/TimesheetForm.php`, `Pages/ManageTimesheets.php` |
 | Gauzy | Weekly timesheet | Project/task rows × weekday columns, per-cell duration with popover detail, add-time button, filters. | `apps/gauzy/src/app/pages/employees/timesheet/weekly/weekly/weekly.component.html` |
@@ -453,7 +454,7 @@ IronStone Projects needs **milestones** (client-visible dates/deliverables), **v
 | App | Screen/page | What it is | Key files |
 | --- | --- | --- | --- |
 | Odoo | Assignees/roles | Multiple assignees per task; project roles assigned from templates; resource calendar on project; no capacity planner in this community checkout. | `odoo/addons/project/models/project_task.py` (`user_ids`, `role_ids`), `project_project.py` (`resource_calendar_id`) |
-| ERPNext | Project users + holidays | Project User child table (welcome email, attachments, hide timesheets, status); Holiday List on project for working-day calculations; no capacity planner. | `erpnext/erpnext/projects/doctype/project_user/project_user.json`, `project.json` (`holiday_list`) |
+| ERPNext | Project users + holidays | Project User child table (welcome email, attachments, hide timesheets, status); Holiday List on project for working-day calculations; no capacity planner. | `erpnext/projects/doctype/project_user/project_user.json`, `project.json` (`holiday_list`) |
 | Gauzy | People/teams/time off | Employees, teams, time-off, approvals; resource context for project/task assignment, but no allocation planner. | `apps/gauzy/src/app/pages/{employees,teams,time-off,approvals}/` |
 | Dolibarr | Project contacts/roles | Internal/external contacts with project/task roles; agenda/events; no workload view. | `htdocs/projet/contact.php`, `htdocs/projet/tasks/contact.php`, `htdocs/projet/agenda.php` |
 | Redmine | Members/roles | Project membership with roles and per-role permissions; no workload planning. | `app/views/projects/settings/_members.html.erb`, `app/models/member.rb`, `app/models/role.rb` |
@@ -497,11 +498,11 @@ IronStone Projects needs **milestones** (client-visible dates/deliverables), **v
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Project costing/billing tab | Estimated costing, total costing amount, total purchase cost, total sales amount, total billable amount, total billed amount, material cost, gross margin and margin %. | `erpnext/erpnext/projects/doctype/project/project.json` |
-| Timesheet billing | Total hours/billable hours/billed hours, billable/costing amounts, per-billed %, sales invoice link, status. | `erpnext/erpnext/projects/doctype/timesheet/timesheet.json` |
-| Time log rates | Billable flag, billing rate/amount, costing rate/amount per row; activity type carries default costing/billing rates. | `erpnext/erpnext/projects/doctype/timesheet_detail/timesheet_detail.json`, `activity_type/activity_type.json` |
-| Sales invoice | Timesheets link to a Sales Invoice; billing summary report reconciles billable vs billed. | `erpnext/erpnext/projects/doctype/timesheet/timesheet.json` (`sales_invoice`), `erpnext/erpnext/projects/report/timesheet_billing_summary/` |
-| Project transactions | Dashboard connections for sales order/invoice, purchase order/receipt/invoice, stock entry, work order, material request/BOM. | `erpnext/erpnext/projects/doctype/project/project_dashboard.py` |
+| Project costing/billing tab | Estimated costing, total costing amount, total purchase cost, total sales amount, total billable amount, total billed amount, material cost, gross margin and margin %. | `erpnext/projects/doctype/project/project.json` |
+| Timesheet billing | Total hours/billable hours/billed hours, billable/costing amounts, per-billed %, sales invoice link, status. | `erpnext/projects/doctype/timesheet/timesheet.json` |
+| Time log rates | Billable flag, billing rate/amount, costing rate/amount per row; activity type carries default costing/billing rates. | `erpnext/projects/doctype/timesheet_detail/timesheet_detail.json`, `activity_type/activity_type.json` |
+| Sales invoice | Timesheets link to a Sales Invoice; billing summary report reconciles billable vs billed. | `erpnext/projects/doctype/timesheet/timesheet.json` (`sales_invoice`), `erpnext/projects/report/timesheet_billing_summary/` |
+| Project transactions | Dashboard connections for sales order/invoice, purchase order/receipt/invoice, stock entry, work order, material request/BOM. | `erpnext/projects/doctype/project/project_dashboard.py` |
 
 ### Dolibarr / Gauzy / Redmine
 
@@ -528,7 +529,7 @@ Projects intake in BOSS means: a customer/internal request arrives (Customer Ser
 | **OpenProject** | Authenticated work-package create (list/split/full view); project creation wizard for new-project requests; no public request form in this checkout. Access controlled by `add_work_packages`/project permissions. | Work package (type/status/project preset) or project | `app/components/work_packages/full_view/create_component.*`, `app/views/projects/creation_wizard/show.html.erb`, `app/controllers/projects/creation_wizard_controller.rb` |
 | **Redmine** | Email intake via mail handler; issue create from any project/global context; issue categories/trackers route the request. Replies thread into the issue journal. | Issue (tracker/status/priority/assignee/category/version) | `app/models/mail_handler.rb`, `app/views/issues/new.html.erb`, `app/views/issues/_form.html.erb` |
 | **Odoo** | Project email alias creates tasks; portal users can create/view tasks; service products on sales orders generate projects/tasks; project/task sharing. | Task (project alias), project/task from SO | `odoo/addons/project/models/project_project.py` (`alias_id`), `odoo/addons/sale_project/models/sale_order_line.py`, `project_sharing_project_task_views.xml` |
-| **ERPNext** | Issue linked to a project; public issue web form and task web form; project linked to sales order. | Issue, Task, Project | `erpnext/erpnext/projects/web_form/tasks/tasks.json`, `erpnext/erpnext/support/doctype/issue/issue.json`, `project.json` (`sales_order`) |
+| **ERPNext** | Issue linked to a project; public issue web form and task web form; project linked to sales order. | Issue, Task, Project | `erpnext/projects/web_form/tasks/tasks.json`, `erpnext/support/doctype/issue/issue.json`, `project.json` (`sales_order`) |
 | **Dolibarr** | Project tab "Tickets"; public ticket portal; project links to proposals/orders/invoices/contracts/interventions. | Ticket, linked commercial documents | `htdocs/core/lib/project.lib.php` (`project_prepare_head`), `htdocs/ticket/`, `htdocs/public/ticket/`, `htdocs/projet/element.php` |
 | **Frappe Helpdesk / Customer Service** | Ticket templates, portal article suggestions, email/telephony channels; no project field exists in this checkout, so project linkage would be an added `Request` relation/custom field. | HD Ticket | see [research-customer-service.md](research-customer-service.md) §2–§3 |
 | **Moqui Commons** | Shared tasks/requests screens; request assigned from any app. | WorkEffort task / Mantle Request | [initial-design.md](initial-design.md), [research-drawers-commons.md](research-drawers-commons.md) §11 |
@@ -539,7 +540,7 @@ Projects intake in BOSS means: a customer/internal request arrives (Customer Ser
 | App | Handoff | Key files |
 | --- | --- | --- |
 | Odoo | Service product `service_tracking` = task / project+task / project; project template + task template; SO line stores generated project/task; ordered qty syncs allocated hours; invoice policy per product. | `odoo/addons/sale_project/models/product_template.py`, `sale_order_line.py`, `odoo/addons/sale_timesheet/models/*` |
-| ERPNext | Project has customer + sales order; project dashboard links sales orders/invoices; project costing/billing tab aggregates them. | `erpnext/erpnext/projects/doctype/project/project.json`, `project_dashboard.py` |
+| ERPNext | Project has customer + sales order; project dashboard links sales orders/invoices; project costing/billing tab aggregates them. | `erpnext/projects/doctype/project/project.json`, `project_dashboard.py` |
 | Dolibarr | Project overview/elements tab lists proposals, orders, invoices, contracts, interventions, shipments; project can be created from an opportunity (lead/project mode). | `htdocs/projet/element.php`, `htdocs/projet/card.php`, `htdocs/projet/list.php` (`LeadsOrProjects`) |
 | OpenProject / Redmine | No sales integration; external reference fields/custom fields only. | — |
 
@@ -561,8 +562,8 @@ Projects intake in BOSS means: a customer/internal request arrives (Customer Ser
 | Odoo | Task analysis | Pivot/graph of tasks by stage/assignee/project/working hours/rating. | `odoo/addons/project/views/project_task_views.xml` (`view_project_task_pivot`, `view_project_task_graph`) |
 | Odoo | Burndown | Project/task burndown chart embedded action. | `odoo/addons/project/views/project_task_views.xml` (`project_embedded_action_project_burndown_chart`), `odoo/addons/project/static/src/views/burndown_chart/` |
 | Odoo | Project updates / ratings | Health narrative + customer ratings. | `project_update_views.xml`, `rating_rating_views.xml` |
-| ERPNext | Projects workspace | Project Summary chart, Open Projects / Non-completed Tasks / Timesheet Working Hours cards, report links. | `erpnext/erpnext/projects/workspace/projects/projects.json` |
-| ERPNext | Reports | Project Summary, Delayed Tasks Summary, Timesheet Billing Summary, Daily Timesheet Summary, Project-wise Stock Tracking. | `erpnext/erpnext/projects/report/` |
+| ERPNext | Projects workspace | Project Summary chart, Open Projects / Non-completed Tasks / Timesheet Working Hours cards, report links. | `erpnext/projects/workspace/projects/projects.json` |
+| ERPNext | Reports | Project Summary, Delayed Tasks Summary, Timesheet Billing Summary, Daily Timesheet Summary, Project-wise Stock Tracking. | `erpnext/projects/report/` |
 | AureusERP | Dashboard widgets | Stats overview, tasks by state/stage, top assignees, top projects. | `plugins/webkul/projects/src/Filament/Widgets/` |
 | Gauzy | Reports | Time reports, weekly time reports, manual time, project/team reports; custom dashboards. | `apps/gauzy/src/app/pages/reports/{time-reports,weekly-time-reports,manual-time}/`, `pages/dashboard/custom-dashboard/` |
 | Dolibarr | Project statistics | Graph/statistics over projects. | `htdocs/projet/stats/index.php` |
@@ -599,7 +600,7 @@ Projects intake in BOSS means: a customer/internal request arrives (Customer Ser
 | App | Area | Screens | Key files |
 | --- | --- | --- | --- |
 | Odoo | Project configuration | Settings, project/template list, project roles, project stages, task stages, tags, activity types, activity plans. | `odoo/addons/project/views/project_menus.xml`, `odoo/addons/project/views/project_project_stage_views.xml`, `odoo/addons/project/views/project_task_type_views.xml`, `odoo/addons/project/views/mail_activity_type_views.xml`, `odoo/addons/project/views/mail_activity_plan_views.xml` |
-| ERPNext | Project settings | Project Settings, Project Type, Task Type, Activity Type (costing/billing rates), Project Template. | `erpnext/erpnext/projects/doctype/{projects_settings,project_type,task_type,activity_type,project_template}/` |
+| ERPNext | Project settings | Project Settings, Project Type, Task Type, Activity Type (costing/billing rates), Project Template. | `erpnext/projects/doctype/{projects_settings,project_type,task_type,activity_type,project_template}/` |
 | AureusERP | Project configuration cluster | Activity plans, tags, task stages, milestones, project stages; settings pages for tasks/time. | `plugins/webkul/projects/src/Filament/Clusters/Configurations/`, `plugins/webkul/projects/src/Filament/Clusters/Settings/Pages/ManageTasks.php`, `plugins/webkul/projects/src/Filament/Clusters/Settings/Pages/ManageTime.php` |
 | Dolibarr | Project admin | Project module setup, extra fields for project/task, permissions, opportunities toggle, timesheet visibility, billable-time switch, project numbering. | `htdocs/projet/admin/`, `htdocs/core/lib/project.lib.php` (`project_admin_prepare_head`), `htdocs/admin/` |
 | Gauzy | Project/task settings | Project/task statuses, priorities, sizes, tags, project modules, organization settings. | `apps/gauzy/src/app/pages/{settings,tags,projects,tasks}/` |
@@ -633,7 +634,7 @@ Recommended screen set for IronStone Projects, with the strongest reference for 
 | 16 | Project settings | General, phases, members/roles, modules, custom fields, rates, templates | OpenProject project settings + Redmine project settings | Per-project enablement over global config |
 | 17 | Portfolio / program (later) | Roll-up of projects, shared budgets/capacity | OpenProject portfolio/program | Data model supports parent workspace types now |
 
-**Data-model sketch (Mantle-based).** `WorkEffort` for project and task; a project-type flag or `WorkEffortType`; `WorkEffortPartyAssignment` for manager/members/roles; Mantle status entities/status flows for status and stage (or stage as a project-specific status flow); `WorkEffort` parent/child for subtasks and project hierarchy; a typed relation table for blocked-by/blocks/relates/duplicates/precedes/follows/requires; `TimeEntry` linked to work item + project + party + activity + rate; `ResourceAllocation` linked to work item/project + placeholder/party + date range + hours; `Budget` + labor/material items or cost entries; `Request` linked to work item; Sales order line linked to project; `CommunicationEvent` for the timeline. Milestones are their own entity (name, date, reached, billing percentage) because they carry commercial semantics; versions/releases can reuse a WorkEffort subtype if needed.
+**Data-model sketch (Mantle-based).** `WorkEffort` for project and task; a project-type flag or `WorkEffortType`; `WorkEffortParty` for manager/members/roles; Mantle status entities/status flows for status and stage (or stage as a project-specific status flow); `WorkEffort` parent/child for subtasks and project hierarchy; a typed relation table for blocked-by/blocks/relates/duplicates/precedes/follows/requires; `TimeEntry` linked to work item + project + party + activity + rate; `ResourceAllocation` linked to work item/project + placeholder/party + date range + hours; `Budget` + labor/material items or cost entries; `Request` linked to work item; Sales order line linked to project; `CommunicationEvent` for the timeline. Milestones are their own entity (name, date, reached, billing percentage) because they carry commercial semantics; versions/releases can reuse a WorkEffort subtype if needed.
 
 ---
 

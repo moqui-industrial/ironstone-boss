@@ -24,7 +24,7 @@ Each area ends with **BOSS implications**.
 | Prefix in this doc | Checkout |
 | --- | --- |
 | **Odoo** | `/home/jonesde/work/moquiwork/3p_other/odoo` — business addons under `odoo/addons/` (purchase, stock, …), core addons under `odoo/odoo/addons/` (base, web); views in `<addon>/views/`, assets in `<addon>/static/src/` |
-| **Frappe / ERPNext** | `/home/jonesde/work/moquiwork/3p_other/frappe` — buying module at `erpnext/erpnext/buying/`; screens are metadata-driven (DocType JSON + form JS + workspace/report JSON) |
+| **ERPNext** | `/home/jonesde/work/moquiwork/3p_other/frappe/erpnext` — buying module at `erpnext/buying/`; screens are metadata-driven (DocType JSON + form JS + workspace/report JSON) |
 | **metasfresh** | `/home/jonesde/work/moquiwork/3p_other/metasfresh` — generic React WebUI in `frontend/src/`; business windows defined by SQL under `backend/<module>/src/main/sql/` |
 | **Dolibarr** | `/home/jonesde/work/moquiwork/3p_other/dolibarr` — module pages under `htdocs/<module>/`; module descriptors under `htdocs/core/modules/` |
 | **Carbon** | `/home/jonesde/work/moquiwork/3p_other/carbon` — ERP module at `apps/erp/app/modules/purchasing/`, routes at `apps/erp/app/routes/x+/purchasing+/` |
@@ -62,7 +62,7 @@ status bar, and the main "new" action is *New RFQ*, not *New PO* — an RFQ beco
 | Purchase & Inventory menu additions | Receipts, reordering rules and replenishment reachable from the purchase/inventory app | `odoo/addons/purchase_stock/views/purchase_views.xml`, `stock_orderpoint_views.xml` |
 | Purchase Requisitions app | Separate requisition/agreement menu and views | `odoo/addons/purchase_requisition/views/purchase_requisition_views.xml` |
 
-### Frappe / ERPNext — Buying workspace
+### ERPNext — Buying workspace
 
 The Buying workspace is the module landing page: shortcut cards, number cards, dashboard
 charts, onboarding and report links. The sidebar repeats the document sequence. The
@@ -71,14 +71,14 @@ template.
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Buying workspace | Landing page: shortcuts, number cards, charts, onboarding, report links | `erpnext/erpnext/buying/workspace/buying/buying.json` |
-| Buying sidebar | Document/report navigation for the module | `erpnext/erpnext/buying/sidebar/buying/buying.json` |
-| Buying dashboard | Dashboard with purchase charts | `erpnext/erpnext/buying/buying_dashboard/buying/buying.json` |
-| Number cards | Active suppliers, annual purchase, average order value, PO count, POs to bill, POs to receive, total purchase amount | `erpnext/erpnext/buying/number_card/` (7 folders) |
-| Dashboard charts | Material request analysis, PO analysis, PO trends, top suppliers | `erpnext/erpnext/buying/dashboard_chart/` |
-| Buying onboarding | Guided setup steps from create supplier through pay supplier | `erpnext/erpnext/buying/module_onboarding/buying_onboarding/`, `erpnext/erpnext/buying/onboarding_step/` |
-| Buying insights workbook | Prebuilt Insights workbook for buying analysis | `erpnext/erpnext/buying/insights_workbook/buying/` |
-| Buying settings | Module settings page (DocType form) | `erpnext/erpnext/buying/doctype/buying_settings/` |
+| Buying workspace | Landing page: shortcuts, number cards, charts, onboarding, report links | `erpnext/buying/workspace/buying/buying.json` |
+| Buying sidebar | Document/report navigation for the module | `erpnext/buying/sidebar/buying/buying.json` |
+| Buying dashboard | Dashboard with purchase charts | `erpnext/buying/buying_dashboard/buying/buying.json` |
+| Number cards | Active suppliers, annual purchase, average order value, PO count, POs to bill, POs to receive, total purchase amount | `erpnext/buying/number_card/` (7 folders) |
+| Dashboard charts | Material request analysis, PO analysis, PO trends, top suppliers | `erpnext/buying/dashboard_chart/` |
+| Buying onboarding | Guided setup steps from create supplier through pay supplier | `erpnext/buying/module_onboarding/buying_onboarding/`, `erpnext/buying/onboarding_step/` |
+| Buying insights workbook | Prebuilt Insights workbook for buying analysis | `erpnext/buying/insights_workbook/buying/` |
+| Buying settings | Module settings page (DocType form) | `erpnext/buying/doctype/buying_settings/` |
 
 ### Carbon — Purchasing module
 
@@ -192,7 +192,7 @@ minimum quantities. Vendor bill and purchase order counts appear as smart button
 | Purchase warnings | Vendor/product warning text shown on RFQs, POs and bills | `odoo/addons/purchase/views/res_partner_views.xml`, `odoo/addons/purchase/views/product_views.xml` |
 | Vendor portal | Supplier-facing PO/quote pages when portal is enabled | `odoo/addons/purchase/controllers/portal.py`, `odoo/addons/purchase/views/portal_templates.xml` |
 
-### Frappe / ERPNext — Supplier and Supplier Scorecard
+### ERPNext — Supplier and Supplier Scorecard
 
 Suppliers are full DocTypes with contacts, addresses, bank accounts, tax and payment
 terms. Supplier scorecards are a separate DocType family: criteria, scoring variables,
@@ -201,13 +201,13 @@ supplier records carry vendor part number, price and lead time.
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Supplier form | Supplier master: contacts, addresses, bank accounts, tax, payment terms, default currency | `erpnext/erpnext/buying/doctype/supplier/supplier.json`, `supplier.js` |
-| Supplier list | Filterable supplier list with disabled/on-hold states | `erpnext/erpnext/buying/doctype/supplier/supplier.json` |
-| Supplier scorecard | Scorecard definition and evaluation periods | `erpnext/erpnext/buying/doctype/supplier_scorecard/`, `erpnext/erpnext/buying/doctype/supplier_scorecard_period/` |
-| Scorecard criteria | Criteria, scoring criteria, variables and standings | `erpnext/erpnext/buying/doctype/supplier_scorecard_criteria/`, `erpnext/erpnext/buying/doctype/supplier_scorecard_scoring_criteria/`, `erpnext/erpnext/buying/doctype/supplier_scorecard_scoring_variable/`, `erpnext/erpnext/buying/doctype/supplier_scorecard_scoring_standing/`, `erpnext/erpnext/buying/doctype/supplier_scorecard_standing/`, `erpnext/erpnext/buying/doctype/supplier_scorecard_variable/` |
-| Item supplier | Vendor part number, price, lead time per item | `erpnext/erpnext/stock/doctype/item_supplier/` |
-| Item lead time | Lead-time history per item/supplier | `erpnext/erpnext/stock/doctype/item_lead_time/`, `erpnext/erpnext/stock/doctype/item_lead_time_supplier/` |
-| Customer number at supplier | Supplier's identifier for the buying company | `erpnext/erpnext/buying/doctype/customer_number_at_supplier/` |
+| Supplier form | Supplier master: contacts, addresses, bank accounts, tax, payment terms, default currency | `erpnext/buying/doctype/supplier/supplier.json`, `supplier.js` |
+| Supplier list | Filterable supplier list with disabled/on-hold states | `erpnext/buying/doctype/supplier/supplier.json` |
+| Supplier scorecard | Scorecard definition and evaluation periods | `erpnext/buying/doctype/supplier_scorecard/`, `erpnext/buying/doctype/supplier_scorecard_period/` |
+| Scorecard criteria | Criteria, scoring criteria, variables and standings | `erpnext/buying/doctype/supplier_scorecard_criteria/`, `erpnext/buying/doctype/supplier_scorecard_scoring_criteria/`, `erpnext/buying/doctype/supplier_scorecard_scoring_variable/`, `erpnext/buying/doctype/supplier_scorecard_scoring_standing/`, `erpnext/buying/doctype/supplier_scorecard_standing/`, `erpnext/buying/doctype/supplier_scorecard_variable/` |
+| Item supplier | Vendor part number, price, lead time per item | `erpnext/stock/doctype/item_supplier/` |
+| Item lead time | Lead-time history per item/supplier | `erpnext/stock/doctype/item_lead_time/`, `erpnext/stock/doctype/item_lead_time_supplier/` |
+| Customer number at supplier | Supplier's identifier for the buying company | `erpnext/buying/doctype/customer_number_at_supplier/` |
 
 ### Carbon — Supplier 360
 
@@ -335,7 +335,7 @@ Draft → Confirmed → Done/Cancelled. Confirmed agreements spawn RFQs/orders a
 | RFQs for an agreement | Filtered purchase-order list scoped to the agreement | `odoo/addons/purchase_requisition/views/purchase_requisition_views.xml` (`action_purchase_requisition_list`) |
 | Merge RFQs | Server action merging multiple RFQs for the same vendor/need | `odoo/addons/purchase/views/purchase_views.xml` (`action_merger`), `wizard/` |
 
-### Frappe / ERPNext — Material Request
+### ERPNext — Material Request
 
 Material Request is the internal demand document: purpose Purchase, Material Transfer,
 Material Issue, Manufacturing or Customer, with required-by dates and per-line ordered/
@@ -344,11 +344,11 @@ Subcontracted Purchase Order; buttons on the form create each downstream documen
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Material Request form | Purpose, required-by, company, items, status, % ordered, % received, terms | `erpnext/erpnext/stock/doctype/material_request/material_request.json`, `material_request.js` |
-| Material Request list | List with status/purpose filters and bulk actions | `erpnext/erpnext/stock/doctype/material_request/material_request_list.js` |
-| Create downstream documents | Buttons: Purchase Order, Request for Quotation, Supplier Quotation, Subcontracted PO | `erpnext/erpnext/stock/doctype/material_request/material_request.js` |
-| Material Request analysis chart | Workspace chart of request volume/status | `erpnext/erpnext/buying/dashboard_chart/material_request_analysis/` |
-| Requested items to order and receive | Report of open request lines with ordered/received quantities | `erpnext/erpnext/buying/report/requested_items_to_order_and_receive/` |
+| Material Request form | Purpose, required-by, company, items, status, % ordered, % received, terms | `erpnext/stock/doctype/material_request/material_request.json`, `material_request.js` |
+| Material Request list | List with status/purpose filters and bulk actions | `erpnext/stock/doctype/material_request/material_request_list.js` |
+| Create downstream documents | Buttons: Purchase Order, Request for Quotation, Supplier Quotation, Subcontracted PO | `erpnext/stock/doctype/material_request/material_request.js` |
+| Material Request analysis chart | Workspace chart of request volume/status | `erpnext/buying/dashboard_chart/material_request_analysis/` |
+| Requested items to order and receive | Report of open request lines with ordered/received quantities | `erpnext/buying/report/requested_items_to_order_and_receive/` |
 
 ### Carbon — planning-generated demand, no requisition document
 
@@ -435,7 +435,7 @@ wizard, and an editable "Compare Product Lines" list with Choose/Clear per line.
 | Alternatives with OTD | Adds vendor on-time-delivery percentage to alternatives/comparison | `odoo/addons/purchase_alternative_stock/views/purchase_views.xml` |
 | Vendor portal quote | Supplier-facing RFQ list/detail and scheduled-date update | `odoo/addons/purchase/controllers/portal.py`, `odoo/addons/purchase/views/portal_templates.xml`, `odoo/addons/purchase/data/portal_entry_data.xml` |
 
-### Frappe / ERPNext — RFQ, Supplier Quotation and comparison
+### ERPNext — RFQ, Supplier Quotation and comparison
 
 ERPNext separates the RFQ (a request sent to one or more suppliers) from Supplier
 Quotation records, and ships a comparison report across quotes for the same RFQ. The RFQ
@@ -444,12 +444,12 @@ PDF; the comparison report is the sourcing decision screen.
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| RFQ form | Suppliers table, items, required-by, message; create quotation, send emails, PDF | `erpnext/erpnext/buying/doctype/request_for_quotation/request_for_quotation.json`, `request_for_quotation.js` |
-| RFQ list/dashboard | RFQ list and dashboard counts | `erpnext/erpnext/buying/doctype/request_for_quotation/request_for_quotation_dashboard.py` |
-| Supplier Quotation form | Supplier, valid till, currency, items/rates, taxes; create PO/Quotation | `erpnext/erpnext/buying/doctype/supplier_quotation/supplier_quotation.json`, `supplier_quotation.js` |
-| Supplier Quotation Comparison | Side-by-side quote comparison report | `erpnext/erpnext/buying/report/supplier_quotation_comparison/` |
-| Procurement Tracker | End-to-end status of requests → RFQs → POs → receipts | `erpnext/erpnext/buying/report/procurement_tracker/` |
-| Add suppliers to RFQ | "Get Suppliers" dialog filtered by group/tag | `erpnext/erpnext/buying/doctype/request_for_quotation/request_for_quotation.js` |
+| RFQ form | Suppliers table, items, required-by, message; create quotation, send emails, PDF | `erpnext/buying/doctype/request_for_quotation/request_for_quotation.json`, `request_for_quotation.js` |
+| RFQ list/dashboard | RFQ list and dashboard counts | `erpnext/buying/doctype/request_for_quotation/request_for_quotation_dashboard.py` |
+| Supplier Quotation form | Supplier, valid till, currency, items/rates, taxes; create PO/Quotation | `erpnext/buying/doctype/supplier_quotation/supplier_quotation.json`, `supplier_quotation.js` |
+| Supplier Quotation Comparison | Side-by-side quote comparison report | `erpnext/buying/report/supplier_quotation_comparison/` |
+| Procurement Tracker | End-to-end status of requests → RFQs → POs → receipts | `erpnext/buying/report/procurement_tracker/` |
+| Add suppliers to RFQ | "Get Suppliers" dialog filtered by group/tag | `erpnext/buying/doctype/request_for_quotation/request_for_quotation.js` |
 
 ### Carbon — RFQ + Supplier Quote + compare/conversion drawers
 
@@ -547,7 +547,7 @@ button when the order exceeds the configured double-validation threshold.
 | Send PO / print / portal | Email composer, mass send, followers, PO PDF, vendor portal PO page | `odoo/addons/purchase/views/purchase_views.xml`, `odoo/addons/purchase/report/purchase_reports.xml`, `odoo/addons/purchase/views/portal_templates.xml` |
 | UBL BIS3 order exchange | Import/export on purchase orders (no dedicated view) | `odoo/addons/purchase_edi_ubl_bis3/__manifest__.py`, `odoo/addons/purchase/views/portal_templates.xml` |
 
-### Frappe / ERPNext — Purchase Order with full action set
+### ERPNext — Purchase Order with full action set
 
 The PO form is a dense two-column document: supplier/company/dates, addresses, currency
 and price list, items with warehouse and required-by, taxes, terms and totals. Status
@@ -557,13 +557,13 @@ Subcontracting Order and Material Request. Blanket orders are a separate DocType
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Purchase Order form | Supplier, schedule, addresses, currency/price list, items, taxes, terms, totals | `erpnext/erpnext/buying/doctype/purchase_order/purchase_order.json`, `purchase_order.js` |
-| PO list | Status/date/supplier filters, bulk actions | `erpnext/erpnext/buying/doctype/purchase_order/purchase_order_list.js` |
-| PO dashboard | Linked receipts/bills counts | `erpnext/erpnext/buying/doctype/purchase_order/purchase_order_dashboard.py` |
-| Create downstream | Receipt, invoice, payment, payment request, subcontracting order | `erpnext/erpnext/buying/doctype/purchase_order/purchase_order.js` |
-| Blanket Order | Long-term agreement with quantities/rates, used by POs | `erpnext/erpnext/manufacturing/doctype/blanket_order/`, referenced from `purchase_order.js` |
-| PO print formats | Classic/modern/bordered and with-images formats | `erpnext/erpnext/buying/print_format/` |
-| Drop-ship format | Supplier-facing drop-ship PO print format | `erpnext/erpnext/buying/print_format/drop_shipping_format/` |
+| Purchase Order form | Supplier, schedule, addresses, currency/price list, items, taxes, terms, totals | `erpnext/buying/doctype/purchase_order/purchase_order.json`, `purchase_order.js` |
+| PO list | Status/date/supplier filters, bulk actions | `erpnext/buying/doctype/purchase_order/purchase_order_list.js` |
+| PO dashboard | Linked receipts/bills counts | `erpnext/buying/doctype/purchase_order/purchase_order_dashboard.py` |
+| Create downstream | Receipt, invoice, payment, payment request, subcontracting order | `erpnext/buying/doctype/purchase_order/purchase_order.js` |
+| Blanket Order | Long-term agreement with quantities/rates, used by POs | `erpnext/manufacturing/doctype/blanket_order/`, referenced from `purchase_order.js` |
+| PO print formats | Classic/modern/bordered and with-images formats | `erpnext/buying/print_format/` |
+| Drop-ship format | Supplier-facing drop-ship PO print format | `erpnext/buying/print_format/drop_shipping_format/` |
 
 ### Carbon — PO 360, revisions, approvals and leases
 
@@ -659,7 +659,7 @@ buy route and lets rules create RFQs.
 | Product catalog — stock columns | On hand, forecasted, monthly demand and Suggest; filters for suggested/to-order | `odoo/addons/purchase_stock/views/product_views.xml` |
 | Buy route / stock rule | Route and rule that turns shortages into RFQs; Days to Purchase setting | `odoo/addons/purchase_stock/data/purchase_stock_data.xml`, `odoo/addons/stock/views/stock_rule_views.xml`, `odoo/addons/purchase_stock/views/res_config_settings_views.xml` |
 
-### Frappe / ERPNext — reorder levels and auto-reorder
+### ERPNext — reorder levels and auto-reorder
 
 ERPNext stores reorder rules per item/warehouse (`Item Reorder` child table) and runs a
 scheduled auto-reorder job that creates Material Requests (POs are then created from
@@ -668,13 +668,13 @@ the procurement tracker follows the resulting documents.
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Item reorder levels | Per-warehouse re-order level/qty inside the Item form | `erpnext/erpnext/stock/doctype/item/item.json` (`reorder_levels`), `item_reorder/item_reorder.json` |
-| Auto-reorder job | Scheduled creation of material requests from reorder levels | `erpnext/erpnext/stock/reorder_item.py` |
-| Items to be requested | Report of items below reorder level | `erpnext/erpnext/stock/report/items_to_be_requested/` |
-| Itemwise recommended reorder level | Suggested reorder levels from consumption/lead time | `erpnext/erpnext/stock/report/itemwise_recommended_reorder_level/` |
-| Stock projected quantity | Projected qty by warehouse with incoming/outgoing | `erpnext/erpnext/stock/report/stock_projected_qty/` |
-| Item shortage report | Shortages against demand | `erpnext/erpnext/stock/report/item_shortage_report/` |
-| Requested items to order and receive | Buying-side open demand report | `erpnext/erpnext/buying/report/requested_items_to_order_and_receive/` |
+| Item reorder levels | Per-warehouse re-order level/qty inside the Item form | `erpnext/stock/doctype/item/item.json` (`reorder_levels`), `item_reorder/item_reorder.json` |
+| Auto-reorder job | Scheduled creation of material requests from reorder levels | `erpnext/stock/reorder_item.py` |
+| Items to be requested | Report of items below reorder level | `erpnext/stock/report/items_to_be_requested/` |
+| Itemwise recommended reorder level | Suggested reorder levels from consumption/lead time | `erpnext/stock/report/itemwise_recommended_reorder_level/` |
+| Stock projected quantity | Projected qty by warehouse with incoming/outgoing | `erpnext/stock/report/stock_projected_qty/` |
+| Item shortage report | Shortages against demand | `erpnext/stock/report/item_shortage_report/` |
+| Requested items to order and receive | Buying-side open demand report | `erpnext/buying/report/requested_items_to_order_and_receive/` |
 
 ### Carbon — Material Planning worklist
 
@@ -761,7 +761,7 @@ quantities and receipt status roll up to the PO.
 | Receipt print | Picking operations/delivery slip | `odoo/addons/stock/report/picking_templates.xml`, `odoo/addons/stock/report/report_stockpicking_operations.xml` |
 | Stock lots/serials on receipt | Lot/serial selection and "Purchases" smart button on lots | `odoo/addons/purchase_stock/views/stock_lot_views.xml` |
 
-### Frappe / ERPNext — Purchase Receipt and Purchase Return
+### ERPNext — Purchase Receipt and Purchase Return
 
 Purchase Receipt records goods received against a PO (or directly); its form creates a
 Debit Note (Purchase Return), Purchase Invoice, Landed Cost Voucher or Stock Entry. The
@@ -770,11 +770,11 @@ and bill.
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Purchase Receipt form | Supplier, PO, items, accepted/rejected qty, warehouse, return flags | `erpnext/erpnext/stock/doctype/purchase_receipt/purchase_receipt.json`, `purchase_receipt.js` |
-| Purchase Receipt list | Status/supplier/date filters | `erpnext/erpnext/stock/doctype/purchase_receipt/purchase_receipt_list.js` |
-| Receipt → Debit Note | Create Purchase Return from a receipt | `erpnext/erpnext/stock/doctype/purchase_receipt/purchase_receipt.js` |
-| Receipt → Invoice/Landed Cost/Stock Entry | Downstream document actions | `erpnext/erpnext/stock/doctype/purchase_receipt/purchase_receipt.js` |
-| Purchase Invoice from receipt | Invoice against received quantities | `erpnext/erpnext/accounts/doctype/purchase_invoice/purchase_invoice.js` |
+| Purchase Receipt form | Supplier, PO, items, accepted/rejected qty, warehouse, return flags | `erpnext/stock/doctype/purchase_receipt/purchase_receipt.json`, `purchase_receipt.js` |
+| Purchase Receipt list | Status/supplier/date filters | `erpnext/stock/doctype/purchase_receipt/purchase_receipt_list.js` |
+| Receipt → Debit Note | Create Purchase Return from a receipt | `erpnext/stock/doctype/purchase_receipt/purchase_receipt.js` |
+| Receipt → Invoice/Landed Cost/Stock Entry | Downstream document actions | `erpnext/stock/doctype/purchase_receipt/purchase_receipt.js` |
+| Purchase Invoice from receipt | Invoice against received quantities | `erpnext/accounts/doctype/purchase_invoice/purchase_invoice.js` |
 
 ### Carbon — PO receiving and Purchase Return Orders
 
@@ -868,7 +868,7 @@ and a "Create Bills" action. This is the reference for 3-way match UI.
 | PO → bills | Create Bills action, billed qty, Vendor Bills smart button | `odoo/addons/purchase/views/purchase_views.xml` |
 | 3-way matching setting | Policy toggle requiring receipt before bill payment | `odoo/addons/purchase/views/res_config_settings_views.xml` |
 
-### Frappe / ERPNext — Purchase Invoice with PO/receipt links
+### ERPNext — Purchase Invoice with PO/receipt links
 
 Purchase Invoice is the vendor bill: supplier invoice number/date, PO/receipt references,
 items, taxes, payment terms, and actions for Payment, Payment Request, Return/Debit Note
@@ -876,11 +876,11 @@ and Block/Unblock/Hold. It is the accounting-side document with purchasing links
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Purchase Invoice form | Supplier bill no./date, PO/receipt refs, items, taxes, terms, totals | `erpnext/erpnext/accounts/doctype/purchase_invoice/purchase_invoice.json`, `purchase_invoice.js` |
-| Purchase Invoice list | Status/supplier/date filters | `erpnext/erpnext/accounts/doctype/purchase_invoice/purchase_invoice_list.js` |
-| Actions | Payment, Payment Request, Return/Debit Note, Block/Unblock, Hold | `erpnext/erpnext/accounts/doctype/purchase_invoice/purchase_invoice.js` |
-| Purchase Order → Invoice | Create Purchase Invoice from PO/receipt | `erpnext/erpnext/buying/doctype/purchase_order/purchase_order.js` |
-| Purchase Receipt → Invoice | Create invoice from received quantities | `erpnext/erpnext/stock/doctype/purchase_receipt/purchase_receipt.js` |
+| Purchase Invoice form | Supplier bill no./date, PO/receipt refs, items, taxes, terms, totals | `erpnext/accounts/doctype/purchase_invoice/purchase_invoice.json`, `purchase_invoice.js` |
+| Purchase Invoice list | Status/supplier/date filters | `erpnext/accounts/doctype/purchase_invoice/purchase_invoice_list.js` |
+| Actions | Payment, Payment Request, Return/Debit Note, Block/Unblock, Hold | `erpnext/accounts/doctype/purchase_invoice/purchase_invoice.js` |
+| Purchase Order → Invoice | Create Purchase Invoice from PO/receipt | `erpnext/buying/doctype/purchase_order/purchase_order.js` |
+| Purchase Receipt → Invoice | Create invoice from received quantities | `erpnext/stock/doctype/purchase_receipt/purchase_receipt.js` |
 
 ### Carbon — Purchase Invoice with extraction-assisted mapping
 
@@ -980,7 +980,7 @@ on-time rate.
 | Product purchase history | Past PO lines list/pivot/graph by product/vendor | `odoo/addons/purchase/views/purchase_views.xml` |
 | RFQ/PO dashboard KPIs | New, sent, late, not acknowledged, late receipt, days to order/OTD | `odoo/addons/purchase/static/src/views/purchase_dashboard.xml`, `odoo/addons/purchase_stock/static/src/purchase_dashboard/purchase_dashboard.xml` |
 
-### Frappe / ERPNext — Supplier Scorecard and buying reports
+### ERPNext — Supplier Scorecard and buying reports
 
 ERPNext has the most developed supplier-performance model: scorecards with weighted
 criteria, variables, standings and evaluation periods. Buying reports cover quote
@@ -989,15 +989,15 @@ top suppliers; the workspace surfaces them as cards/charts.
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Supplier Scorecard | Scorecard definition, criteria weights, periods, standings | `erpnext/erpnext/buying/doctype/supplier_scorecard/`, `erpnext/erpnext/buying/doctype/supplier_scorecard_period/` |
-| Scorecard criteria/variables | Criteria, scoring criteria, variables and standings | `erpnext/erpnext/buying/doctype/supplier_scorecard_criteria/`, `erpnext/erpnext/buying/doctype/supplier_scorecard_scoring_criteria/`, `erpnext/erpnext/buying/doctype/supplier_scorecard_scoring_variable/`, `erpnext/erpnext/buying/doctype/supplier_scorecard_scoring_standing/`, `erpnext/erpnext/buying/doctype/supplier_scorecard_standing/`, `erpnext/erpnext/buying/doctype/supplier_scorecard_variable/` |
-| Supplier Quotation Comparison | Compare quotes for an RFQ | `erpnext/erpnext/buying/report/supplier_quotation_comparison/` |
-| Procurement Tracker | Request → RFQ → PO → receipt status | `erpnext/erpnext/buying/report/procurement_tracker/` |
-| Item-wise Purchase History | Purchase history per item/vendor | `erpnext/erpnext/buying/report/item_wise_purchase_history/` |
-| Purchase Analytics | Buying analytics report | `erpnext/erpnext/buying/report/purchase_analytics/` |
-| Purchase Order Analysis / Trends | PO analysis and trend reports | `erpnext/erpnext/buying/report/purchase_order_analysis/`, `erpnext/erpnext/buying/report/purchase_order_trends/` |
-| Top Suppliers / buying charts | Top-supplier chart and buying dashboard | `erpnext/erpnext/buying/dashboard_chart/top_suppliers/`, `erpnext/erpnext/buying/buying_dashboard/buying/` |
-| Buying number cards | Active suppliers, annual purchase, average order value, PO count, to bill/receive | `erpnext/erpnext/buying/number_card/` |
+| Supplier Scorecard | Scorecard definition, criteria weights, periods, standings | `erpnext/buying/doctype/supplier_scorecard/`, `erpnext/buying/doctype/supplier_scorecard_period/` |
+| Scorecard criteria/variables | Criteria, scoring criteria, variables and standings | `erpnext/buying/doctype/supplier_scorecard_criteria/`, `erpnext/buying/doctype/supplier_scorecard_scoring_criteria/`, `erpnext/buying/doctype/supplier_scorecard_scoring_variable/`, `erpnext/buying/doctype/supplier_scorecard_scoring_standing/`, `erpnext/buying/doctype/supplier_scorecard_standing/`, `erpnext/buying/doctype/supplier_scorecard_variable/` |
+| Supplier Quotation Comparison | Compare quotes for an RFQ | `erpnext/buying/report/supplier_quotation_comparison/` |
+| Procurement Tracker | Request → RFQ → PO → receipt status | `erpnext/buying/report/procurement_tracker/` |
+| Item-wise Purchase History | Purchase history per item/vendor | `erpnext/buying/report/item_wise_purchase_history/` |
+| Purchase Analytics | Buying analytics report | `erpnext/buying/report/purchase_analytics/` |
+| Purchase Order Analysis / Trends | PO analysis and trend reports | `erpnext/buying/report/purchase_order_analysis/`, `erpnext/buying/report/purchase_order_trends/` |
+| Top Suppliers / buying charts | Top-supplier chart and buying dashboard | `erpnext/buying/dashboard_chart/top_suppliers/`, `erpnext/buying/buying_dashboard/buying/` |
+| Buying number cards | Active suppliers, annual purchase, average order value, PO count, to bill/receive | `erpnext/buying/number_card/` |
 
 ### Carbon — dashboard KPIs and supplier risk
 
@@ -1099,7 +1099,7 @@ Accounting settings but are consumed by POs.
 | Buyer/approval security | Purchase User vs Administrator groups | `odoo/addons/purchase/security/purchase_security.xml` |
 | Inventory purchase settings | Days to Purchase, dropshipping, MTO | `odoo/addons/purchase_stock/views/res_config_settings_views.xml` |
 
-### Frappe / ERPNext — Buying Settings and setup DocTypes
+### ERPNext — Buying Settings and setup DocTypes
 
 Buying Settings enforces process rules: PO required for invoice/receipt, receipt required
 for invoice, same-rate throughout the cycle, multiple items, subcontracting, over-transfer
@@ -1108,11 +1108,11 @@ and zero-quantity POs. Supplier groups, incoterms and terms are setup DocTypes.
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Buying Settings | PO/receipt requirements, rate rules, subcontracting, allowances, defaults | `erpnext/erpnext/buying/doctype/buying_settings/buying_settings.json`, `erpnext/erpnext/buying/doctype/buying_settings/buying_settings.py` |
-| Supplier Group | Hierarchical supplier grouping with payment terms | `erpnext/erpnext/setup/doctype/supplier_group/supplier_group.json` |
-| Incoterm | Incoterm setup | `erpnext/erpnext/setup/doctype/incoterm/` |
-| Terms and Conditions | Terms templates | `erpnext/erpnext/setup/doctype/terms_and_conditions/` |
-| Item / price list / UOM | Product, buying price list and unit setup consumed by POs | `erpnext/erpnext/stock/doctype/item/`, `erpnext/erpnext/stock/doctype/price_list/` |
+| Buying Settings | PO/receipt requirements, rate rules, subcontracting, allowances, defaults | `erpnext/buying/doctype/buying_settings/buying_settings.json`, `erpnext/buying/doctype/buying_settings/buying_settings.py` |
+| Supplier Group | Hierarchical supplier grouping with payment terms | `erpnext/setup/doctype/supplier_group/supplier_group.json` |
+| Incoterm | Incoterm setup | `erpnext/setup/doctype/incoterm/` |
+| Terms and Conditions | Terms templates | `erpnext/setup/doctype/terms_and_conditions/` |
+| Item / price list / UOM | Product, buying price list and unit setup consumed by POs | `erpnext/stock/doctype/item/`, `erpnext/stock/doctype/price_list/` |
 
 ### Carbon — supplier types, approvals and saved views
 
@@ -1251,7 +1251,7 @@ Admin/Accounting configuration rather than duplicating them in Purchasing.
 | Reference app | Supplier master | Requests/requisitions | RFQ/quotes | POs/agreements | Replenishment | Receiving/returns | Invoice matching | Performance |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Odoo | Yes | Agreements only | Yes + alternatives | Yes | Yes | Yes | Yes | Yes |
-| Frappe/ERPNext | Yes + scorecard | Yes (Material Request) | Yes + comparison report | Yes + blanket | Yes + auto-reorder | Yes + debit note | Yes | Yes |
+| ERPNext | Yes + scorecard | Yes (Material Request) | Yes + comparison report | Yes + blanket | Yes + auto-reorder | Yes + debit note | Yes | Yes |
 | Carbon | Yes (Supplier 360) | Planning only | Yes + compare drawer | Yes + leases | Yes | Yes + return orders | Yes | KPIs + risk |
 | AureusERP | Yes | Agreements only | Yes + vendor portal | Yes | Inventory rules | Receipts; generic return | Yes | No reports |
 | Dolibarr | Yes | No | Supplier proposals | Yes | Yes | Receptions; credit notes | Yes | Statements/stats |

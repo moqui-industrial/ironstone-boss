@@ -11,7 +11,8 @@ where that app's screens / UI files live in the checkout.
   (Frappe, Nextcloud, Ever Co, Odoo, Zimbra) each bundled project gets its own sub-section.
 - **UI location.** Only the top-level screen/UI locations are recorded, not every
   file. Paths were spot-checked; a path lists a directory that contains the app's
-  screens/views, or a small set of named files.
+  screens/views, or a small set of named files. The research files follow the path
+  conventions in [research-crosscut.md](research-crosscut.md) §1.
 
 ## Repository index
 
@@ -22,6 +23,8 @@ where that app's screens / UI files live in the checkout.
 | WeCreate | `3p_moqui/WeCreate` | Creative-collaboration app (talent, projects, messages) | Moqui XML | CC0 + patent grant |
 | coarchy | `3p_moqui/coarchy` | Values/process/vision documentation, plus public site | Moqui XML | CC0 + patent grant |
 | resistmanagement | `3p_moqui/resistmanagement` | Profiles/talent social management + public site | Moqui XML | CC0 + patent grant |
+| ServiceJobMonitor | `3p_moqui/ServiceJobMonitor` | Monitor bounds, alerts and charts over ServiceJob results | Moqui XML | CC0 + patent grant |
+| ridgecrest | `3p_moqui/ridgecrest` | Herbal-products ERP + eCommerce site on PopRestStore | Moqui XML + FTL | none in checkout |
 | Akaunting | `3p_other/akaunting` | Small-business accounting & invoicing | PHP / Laravel / Blade | Business Source License 1.1 |
 | AureusERP | `3p_other/aureuserp` | Modular ERP built on Filament | PHP / Laravel / Filament | MIT |
 | Carbon | `3p_other/carbon` | Manufacturing ERP + MES | Rust / React (React Router) | AGPL-3 (+ commercial `ee`) |
@@ -32,6 +35,9 @@ where that app's screens / UI files live in the checkout.
 | metasfresh | `3p_other/metasfresh` | ERP with React WebUI | Java / Spring + React | GPL-2.0 |
 | Nextcloud | `3p_other/nextcloud` | Groupware suite (apps + server core) | PHP + Vue/JS | AGPL-3 |
 | Odoo | `3p_other/odoo` | ERP/CRM with 640+ community modules + industry packages | Python + OWL/JS | LGPL-3.0 |
+| OpenProject | `3p_other/openproject` | Project management: work packages, Gantt, boards, backlogs, team planner, budgets, costs, wiki, meetings | Ruby on Rails + Angular | GPL-3.0 |
+| Redmine | `3p_other/redmine` | Compact project and issue tracker: issues, Gantt/calendar, roadmap, time log, wiki, forums, email intake | Ruby on Rails + ERB | GPL-2.0 |
+| Signal | `3p_other/signalapp` | Messaging: Signal-Desktop, -Server, -Android, -iOS, plus `libsignal`, `ringrtc`, `boring` crates | TypeScript / Electron, Java, Rust | AGPL-3.0 (`boring`: Apache-2.0/MIT) |
 | Twenty | `3p_other/twenty` | Modern CRM | TypeScript / React / NestJS | AGPL-3 |
 | Zimbra | `3p_other/Zimbra` | Email/collaboration suite (6 repos: mailbox, web client, admin console, desktop, OnlyOffice, build) | Java + JS | GPL-2.0 / CPAL 1.0 / GPL-3.0 / AGPL-3.0 |
 
@@ -125,6 +131,31 @@ classification screens.
 | Admin dashboard | `screen/resistadmin.xml`, `screen/resistadmin/dashboard.xml` |
 | Profile / talent types | `screen/resistadmin/dashboard/ProfileType.xml`, `screen/resistadmin/dashboard/ProfileType/TalentTypeDetail.xml` |
 | Custom overrides | `screen/custom.xml` |
+
+### ServiceJobMonitor
+
+Tailorsoft service monitor: ServiceJob specifications with expected bounds, alerting on
+results outside them, and charts over job results.
+**IronStone relevance:** IronStone Admin job health and alerting (see research-admin.md §10).
+
+| App / Module | Screen / UI files (relative path) |
+| --- | --- |
+| Admin root | `screen/MonitorAdmin.xml`, `screen/MonitorAdmin/` |
+| Monitors, alerts, charts | `screen/MonitorAdmin/{Monitor,Alerts,Charts}.xml`, `screen/MonitorAdmin/{Monitor,Charts}/` |
+| Static assets | `screen/sjmstatic.xml`, `screen/sjmstatic/` |
+
+### ridgecrest
+
+RidgeCrest Herbals ERP and eCommerce, built on PopRestStore: a Moqui-native storefront
+(FTL pages) plus a small admin for retailers, order import and reports.
+**IronStone relevance:** the only Moqui storefront in the checkout, for IronStone Commerce
+(cart, checkout, account, blog pages) and order import / retailer screens.
+
+| App / Module | Screen / UI files (relative path) |
+| --- | --- |
+| Storefront | `screen/rcherbals.xml`, `screen/rcherbals/` (home, details, cart, checkout, account, blog, contact) |
+| PopRestStore overlays | `screen/{popdynamic,popstatic,poptemplate}/` |
+| Admin | `screen/rcadmin.xml`, `screen/rcadmin/` (dashboard, retailers, reports, OrderFileImporter, InventoryFileImporter, OrderVelocity) |
 
 ---
 
@@ -451,7 +482,57 @@ Comms, Commons and every business app.
 | Productivity / discuss | `odoo/addons/mail*/views/`, `odoo/addons/calendar*/views/`, `odoo/addons/board/views/`, `odoo/addons/spreadsheet*/views/`, `odoo/addons/digest/` |
 | Administration / auth / technical | `odoo/addons/auth_*/`, `odoo/addons/base_*/`, `odoo/addons/iap*/`, `odoo/addons/iot_*/`, `odoo/addons/web_*/` |
 | Localization (account charts, EDI, POS) | `odoo/addons/l10n_*/views/`, `odoo/addons/l10n_*/static/src/` |
-| Industry verticals | `odoo/industry/<vertical>/` (116 packages, e.g. `agriculture_shop`, `construction`, `hotel`, `restaurant`) |
+| Industry verticals | `industry/<vertical>/` (116 packages, e.g. `agriculture_shop`, `construction`, `hotel`, `restaurant`) |
+
+### OpenProject
+
+Project-management-first application (GPL-3.0): Rails backend with ERB/Primer views and
+view components, an Angular front end for work packages, and feature modules.
+**IronStone relevance:** primary reference for IronStone Projects (work packages, saved
+queries, boards, Gantt, team planner, resource management, budgets, costs, phases); also
+admin and wiki patterns.
+
+| App / Module | Screen / UI files (relative path) |
+| --- | --- |
+| Projects, portfolios, phases | `app/views/projects/`, `app/components/projects/`, `app/components/portfolios/`, `app/views/project_phases/` |
+| Work packages | `frontend/src/app/features/work-packages/`, `app/components/work_packages/`, `app/views/work_packages/` |
+| Boards, backlogs, Gantt, calendar, team planner | `modules/{boards,backlogs,gantt,calendar,team_planner}/`, `frontend/src/app/features/{boards,backlogs,calendar,team-planner}/` |
+| Time, costs, budgets, reporting | `modules/{costs,budgets,reporting}/` |
+| Resource management | `modules/resource_management/` |
+| My page, overview grids | `modules/{my_page,overviews,grids}/`, `frontend/src/app/features/{my-page,overview}/` |
+| Meetings, wiki, documents, news, forums | `modules/{meeting,wikis,documents}/`, `app/views/{news,forums,wiki}/` |
+| Admin, users, roles, workflows | `app/views/admin/`, `app/components/admin/`, `app/views/{users,roles,workflows,custom_fields}/` |
+
+### Redmine
+
+Long-lived, minimal project tracker (GPL-2.0), Rails + ERB.
+**IronStone relevance:** compact issue/query UI and email-driven issue intake for IronStone
+Projects and Customer Service; non-working dates for People.
+
+| App / Module | Screen / UI files (relative path) |
+| --- | --- |
+| Projects, members, settings | `app/views/projects/`, `app/views/members/`, `app/views/settings/` |
+| Issues, queries, relations | `app/views/issues/`, `app/views/queries/`, `app/views/issue_relations/` |
+| Gantt, calendar, roadmap | `app/views/gantts/`, `app/views/calendars/`, `app/views/versions/` |
+| Time log, reports | `app/views/timelog/`, `app/views/reports/` |
+| Wiki, forums, news, files | `app/views/{wiki,boards,messages,news,files}/` |
+| Email intake | `app/views/mail_handler/`, `app/models/mail_handler.rb` |
+| Admin, workflows, custom fields | `app/views/{admin,workflows,custom_fields,trackers,issue_statuses,roles}/` |
+
+### Signal
+
+Signal messaging projects (AGPL-3.0). Signal ships no web client; the desktop app is
+Electron/React.
+**IronStone relevance:** messaging and calling UX for Comms chat and calls (Signal-Desktop);
+candidate Rust crates `libsignal` (protocol) and `ringrtc` (WebRTC calling). Catalogued in
+research-drawers-commons.md §6–7.
+
+| App / Module | Screen / UI files (relative path) |
+| --- | --- |
+| Desktop UI | `Signal-Desktop/ts/components/`, `Signal-Desktop/ts/state/` |
+| Calling | `Signal-Desktop/ts/calling/`, `ringrtc/` |
+| Server (no UI) | `Signal-Server/` |
+| Protocol crates | `libsignal/rust/`, `boring/` |
 
 ### Twenty
 
