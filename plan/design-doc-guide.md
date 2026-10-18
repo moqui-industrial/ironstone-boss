@@ -20,20 +20,24 @@ Sections: [1 file set](#1-the-design-file-set) · [2 depth](#2-level-of-detail) 
 
 ## 1. The design file set
 
-One file per app, one for Commons, one for Comms, and one crosscut file that holds what the
-others share. The crosscut file is written first, because the app files reference its reused
-screens rather than designing them.
+One file per app, one for the suite shell with Commons and Comms, and one crosscut file that
+holds what the others share. The crosscut file is written first, because the app files
+reference its reused screens rather than designing them; the shell, Commons and Comms file is
+written beside it, because Chatter, record files and the inner drawer are its screens.
 
 | File | Covers | Main inputs |
 | --- | --- | --- |
 | `design-crosscut.md` | The reused screens of research-crosscut §3 (Contact / party record, Customer 360, Supplier 360, Employee 360, Product 360, Order detail, Inventory availability, Shipment detail, Material issue / receipt, Facility & equipment record, Request / case, Task / work item, Calendar & schedules, Chatter & activities, Approvals waiting, Dashboard widgets); cross-app decisions answering research-crosscut §8; the roll-up of every file's framework and data needs | research-crosscut §3–§5, §8; the shell design in style-guide §2 |
 | `design-sales.md`, `design-marketing.md`, `design-customer-service.md`, `design-commerce.md`, `design-products.md`, `design-purchasing.md`, `design-warehouse.md`, `design-manufacturing.md`, `design-maintenance.md`, `design-accounting.md`, `design-people.md`, `design-projects.md`, `design-insights.md`, `design-admin.md` | One IronStone app each: its shell, menu, landing page, own screens, and the context it passes to each reused screen | The matching `research-<app>.md`, its candidate screen inventory and open questions; [ss-inventory.md](ss-inventory.md) and [usl-inventory.md](usl-inventory.md) |
-| `design-commons.md`, `design-comms.md` | The Commons and Comms apps and the screens they lend to every other app (Files on records, Chatter messages, email and chat from a record) | research-drawers-commons §6–§14 and §18; the tray panel design in style-guide §2 |
+| `design-drawers-commons.md` | The suite shell (the header, the outer Assist drawer, the inner drawer, the palette, quick create, screen context, key map, presence), the Commons and Comms apps, and the screens they lend to every other app (Chatter, record files, email and chat from a record, consent) | research-drawers-commons §1–§18; style-guide §2 and §8; the Java Assist panel and its tools |
 
-The shell, header, drawers and tray panel are designed once in style-guide §2 and are not
-repeated in any design file. A design file that needs something from the shell (a quick-create
-item, a Today source, a palette provider, a notification topic) lists it in its screen table
-and its framework needs, and the crosscut file collects them.
+The shell's look is style-guide §2; its behavior, providers and content screens are decided
+once in `design-drawers-commons.md` §1 and are not repeated in any other design file. There the
+outer drawer is Assist (a framework shell item) and the inner drawer is the panel style-guide
+§2.4 calls the tray panel, whose tabs are Commons and Comms screens. An app file that needs
+something from the shell (a quick-create item, a Today source, a palette provider, a
+notification topic, a key-map scope) lists it in its screen table and its framework needs, and
+the crosscut file collects them.
 
 ## 2. Level of detail
 
@@ -79,12 +83,13 @@ One row per screen. Columns:
 | **Screen** | The screen's name, which is its file name (§10) |
 | **Path** | Its path under the app, `Sales/Orders/OrderDetail`; a reused screen gives the app path it is mounted at |
 | **Archetype** | One of the archetypes of style-guide §3: landing, list, detail, 360, task, board, calendar, split, settings, wizard, dialog, report, editor, panel |
+| **Impl** | `xml` (screen and form XML widgets) or `qvue` (a Vue component file served as a screen, style-guide §4.8). Decided per screen, because it fixes the widget set the screen may use; `qvue` only when the interaction does not fit the XML widgets (a mail client, a chat room, a calendar grid, a files browser, a co-editing editor, a board until `view-board` exists) |
 | **Purpose** | One sentence |
 | **Main record** | The Mantle entity the screen is about, or the service for a report |
 | **Reused** | `own`, or the reused screen's name with the crosscut section (`Order detail, crosscut §3.6`) |
 | **Roles** | The user groups or roles that see it, when narrower than the app's group; `app` otherwise |
 | **Scope** | `parity` (replaces something MarbleERP or SimpleScreens has), `new` (in the first BOSS release without a baseline), or `later` (designed, built after the first release) |
-| **Context** | What the screen exposes to the shell: the record (`OrderHeader orderId`), the selection (`OrderItem rows`), the filters (`list find parameters`), or `none`. Assist, Chatter, quick create and the tray panel read this (style-guide §2.5) |
+| **Context** | What the screen exposes to the shell: the record (`OrderHeader orderId`), the selection (`OrderItem rows`), the filters (`list find parameters`), or `none`. Assist, Chatter, quick create and the inner drawer read this (style-guide §2.5; design-drawers-commons §1.6) |
 
 A dialog that only edits one form is a form on its parent screen, not a row. A dialog that
 holds its own subscreens or several forms is a row with archetype `dialog`.
@@ -96,7 +101,7 @@ line that has nothing to say beyond the archetype's default.
 
 | Line | Contents |
 | --- | --- |
-| **Layout** | The archetype and only the deviations from it: "detail; Chatter as a tab, not a column, because the item list needs the width" |
+| **Layout** | The archetype and only the deviations from it: "detail; Chatter as a tab, not a column, because the item list needs the width"; for a `qvue` screen, the regions the component draws and the `m-*` components it still uses |
 | **Sections and tabs** | The boxes, tabs or panes, each with the forms or lists it holds, as a nested list |
 | **Forms** | The form summary table of §6 |
 | **Actions** | Primary actions (one or two), secondary, row actions, bulk actions; each with its transition or service, whether it confirms, and the status or role it needs |
@@ -164,7 +169,8 @@ Rules:
 - **A highly custom screen becomes a `.qvue` screen.** When a screen does not fit the XML widgets
   (a board with drag and drop, a chat room, a calendar grid, a co-editing editor), design it as a
   Vue component file served as a screen, using Quasar components and the Moqui `m-*` components
-  directly, within the style guide's rules. Say so in the screen's **Layout** line.
+  directly, within the style guide's rules. Say so in the screen's **Impl** column and describe
+  its regions in the **Layout** line.
 - **Lower-level needs are called for, not assumed.** Mail, calendar, contacts, files, chat, calls,
   office and sync protocols belong to mr-moqui (initial-design "Protocol layer"); a Comms or
   Commons screen that depends on one names the client or server it needs and what the screen
@@ -219,10 +225,10 @@ and the baseline forms it replaces are in ss-inventory's.
 
 ## 11. Process and review
 
-**Order.** `design-crosscut.md` first, as far as the reused screens and the shell providers;
-then the apps whose screens are mostly reused ones (Customer Service, Sales, Purchasing,
-Warehouse, Accounting), then the rest; Commons and Comms alongside the crosscut file since
-Chatter, Files and the tray panel are theirs; Insights and Admin last, since they index the
+**Order.** `design-drawers-commons.md` and `design-crosscut.md` first, the one for the shell,
+Chatter, record files and the inner drawer, the other for the reused business screens and the
+shell providers; then the apps whose screens are mostly reused ones (Customer Service, Sales,
+Purchasing, Warehouse, Accounting), then the rest; Insights and Admin last, since they index the
 others. The crosscut roll-up of needs is updated as each file lands.
 
 **Review checklist for a design file:**
@@ -230,7 +236,7 @@ others. The crosscut roll-up of needs is updated as each file lands.
 1. Every screen in the research file's candidate screen inventory is a row in the screen table,
    or is named in **Decided** as dropped or merged, with the reason.
 2. Every reused screen is referenced, not redesigned, and has a **Context passed** block.
-3. Every row has an archetype from style-guide §3 and a **Scope** value.
+3. Every row has an archetype from style-guide §3, an **Impl** value and a **Scope** value.
 4. Every form summary has services and a **Derived from**; every `new` form has its field list.
 5. Every **Needs** line points at a row of the file's framework and data needs table, and that
    table is merged into the crosscut roll-up.
@@ -239,6 +245,6 @@ others. The crosscut roll-up of needs is updated as each file lands.
    with a recommendation.
 8. The screens' **Context** cells are filled, so the shell work in style-guide §8 has its inputs.
 
-**Done.** The design pass is complete when the 17 files exist and pass this checklist, the
+**Done.** The design pass is complete when the 16 files exist and pass this checklist, the
 crosscut roll-up is reviewed as the framework and data work list, and the archetype gallery
 (style-guide §10) renders every archetype the screen tables use.
