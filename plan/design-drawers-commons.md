@@ -1,7 +1,8 @@
 # IronStone BOSS — Header, drawers, Commons & Comms design
 
 Oct 18, 2026 — reviewed; mailboxes added after review (§12); terminology pass (tray panel,
-contact book, `EmailClientServices`, meeting room)
+contact book, `EmailClientServices`, meeting room); drives and revision storage after mr-moqui's
+git and version-diff work (§9, §10, §19)
 
 The suite chrome every IronStone app runs in (the header, the Assist drawer, the tray panel
 and the palette), and the two shared apps that feed it: **IronStone Commons** (contacts,
@@ -18,7 +19,8 @@ Three decisions shape every screen here: all screens are client-rendered and ser
 each screen is written in XML widgets or as a `.qvue` component, decided per screen in the
 **Impl** column of §3 (an email client, a chat room, a calendar grid, a files browser and a
 co-editing editor are `.qvue`, the rest XML); and everything, files included, lives in Postgres
-under one backup, with file-system storage as a deployment option rather than the default.
+under one backup by default: a drive or a wiki space kept on disk (a `local` git repository, §9
+and §10) is a choice made when it is created, and a file-system root is a deployment option.
 
 **Scope against [design-doc-guide.md](design-doc-guide.md).** This one file is the guide's
 `design-drawers-commons.md`: the suite shell, Commons and Comms together. It designs the header
@@ -165,7 +167,7 @@ grouped by document type, with the organization limit it applies), **People** (C
 `mantle.party.PartyServices.search#Party` over the directory and the user's contact books),
 **Messages and rooms** (Comms: mail threads by subject and sender, mailboxes and chat rooms by
 name), **Pages
-and files** (Commons: wiki pages and files by name), **Events** (upcoming events by name),
+and files** (Commons: wiki pages, files and drives by name), **Events** (upcoming events by name),
 **Actions** (the `<palette-action>` providers of the apps the user may open: "Compose email",
 "New event", "Create sales order", "Receive shipment"), **Screens** (by menu title), **Saved
 finds** (`moqui.screen.form.FormListFind` the user may run). An id pattern goes straight to
@@ -263,6 +265,7 @@ have `menu-include="false"`):
 - Tasks — `Commons/Tasks`
 - Requests — `Commons/Requests`
 - Files — `Commons/Files`
+  - Drives — `Commons/Files/Drives`
   - Shares — `Commons/Files/Shares`
 - Knowledge — `Commons/Knowledge`
   - Spaces — `Commons/Knowledge/Spaces`
@@ -330,11 +333,12 @@ Account, Party, Wiki or search screen; `new` is in the first BOSS release withou
 | TaskDetail | `Commons/Tasks/TaskDetail` | detail | xml | The task | `WorkEffort` | Task / work item, crosscut §3.12 | app | parity | `WorkEffort workEffortId` |
 | Requests | `Commons/Requests` | list | xml | Requests I raised, am assigned to or watch | `Request` | own | app | parity | list find parameters |
 | RequestDetail | `Commons/Requests/RequestDetail` | detail | xml | The request | `Request` | Request / case, crosscut §3.11 | app | parity | `Request requestId` |
-| Files | `Commons/Files` | split | qvue | Folders, recent, favorites, shared with me, records and trash; detail sidebar with sharing, versions, comments and activity; upload and preview | `DbResource` | own | app | new | `DbResource resourceId`; `DbResource rows` |
-| Shares | `Commons/Files/Shares` | list | xml | Outgoing shares and links with expiry and revoke; incoming shares to accept | `DbResourceShare` (new) | own | app | new | list find parameters |
-| PublicShare | `Commons/Files/Public` (served at `/s/<token>`) | split | qvue | The anonymous page of a shared file or folder: view, download, file drop | `DbResource` | own | anonymous by token | new | none |
+| Files | `Commons/Files` | split | qvue | Drives (My files, folder drives, version-controlled drives, mirrors) with their folders, recent, favorites, shared with me, records and trash; detail sidebar with sharing, versions and compare, comments and activity; upload and preview | `ResourceDrive` (new) and its files by location (`dbresource://` or `git://`) | own | app | new | `ResourceDrive driveId`; the selected files by path; filters: path, type, tag |
+| Drives | `Commons/Files/Drives` | list | xml | The drives I belong to: create a folder or version-controlled drive, members, storage, quota, export, archive; mirrors of a git URL for admins | `ResourceDrive` (new) | own | app; mirrors: admins | new | `ResourceDrive driveId` |
+| Shares | `Commons/Files/Shares` | list | xml | Outgoing shares and links with expiry and revoke; incoming shares to accept | `ResourceShare` (new) | own | app | new | list find parameters |
+| PublicShare | `Commons/Files/Public` (served at `/s/<token>`) | split | qvue | The anonymous page of a shared file or folder: view, download, file drop | `ResourceShare` and the shared file or folder | own | anonymous by token | new | none |
 | Knowledge | `Commons/Knowledge` | editor | qvue | Spaces, page tree and the page: read, co-edit, history and compare, comments, review and publish, links to records | `WikiPage` | own; Knowledge base articles, included by Customer Service | app | parity | `WikiPage wikiPageId` |
-| Spaces | `Commons/Knowledge/Spaces` | list | xml | Wiki spaces: create, clone, members, visibility, public URL | `WikiSpace` | own | space admins | parity | `WikiSpace wikiSpaceId` |
+| Spaces | `Commons/Knowledge/Spaces` | list | xml | Wiki spaces: create (on database files or version-controlled), clone, members, visibility, public URL, export | `WikiSpace` | own | space admins | parity | `WikiSpace wikiSpaceId` |
 | Review | `Commons/Knowledge/Review` | list | xml | Pages with a version awaiting review | `WikiPageReview` (new) | own | reviewers | new | list find parameters |
 | Notes | `Commons/Notes` | editor | qvue | Personal notes: the same editor over the user's private space, a flat list, tags and pins | `WikiPage` | own | app | new | `WikiPage wikiPageId` |
 | Settings | `Commons/Settings` | settings | xml | The settings index | — | own | app | new | none |
@@ -882,29 +886,56 @@ Baseline forms covered: `MyAccount` `EditRequest` `EditRequest`, `UpdatePartyFor
 
 ## 9. Files
 
-Files is Google Drive and Nextcloud Files over the framework's database-backed resource tree:
-every file and folder is a `moqui.resource.DbResource` with its bytes in `DbResourceFile` and
-its versions in `DbResourceFileHistory`, so a Postgres backup holds everything. The tree gains
-the metadata a drive needs (owner, size, trash, favorites, tags, shares, public links; §19). A
-deployment that wants files on disk or in object storage points the root at another resource
-location; the screens do not change. Record attachments are the same tree, in the layout Mantle
-already writes: each `save#*ContentFile` service stores a record's file at
-`dbresource://mantle/content/<type>/<id>/content_<contentId>/<file>` (the root is the
-`mantle.content.root` preference) and the record's `*Content` row (`PartyContent`,
-`WorkEffortContent`, `RequestContent`, `OrderContent`, …) points at it. The browser's
-**Records** section is a view over those type folders, named by record type, and the
-`record-files` element is the same component scoped to one record; no file moves. WebDAV serves
-the tree to desktop clients; the virtual SFTP
-server serves it to scripts (§11 Sync, §19).
+Files is Google Drive and Nextcloud Files over the framework's resource locations, in
+**drives**. A drive (`moqui.resource.ResourceDrive`, §19) is a root location with an owner,
+members, a quota and a storage chosen when it is created:
+
+- **My files**: each user's personal drive, made on first use, on the database-backed resource
+  tree: every file and folder is a `moqui.resource.DbResource` with its bytes in `DbResourceFile`
+  and its past versions in `DbResourceFileHistory`. Its root is under the `moqui.drive.root`
+  preference (`dbresource://drive` by default); a deployment that wants personal files on disk
+  or in object storage points that at another resource location, and the screens do not change.
+- **Folder drives**: shared drives on the same tree, under the same root, with the same per-file
+  versions.
+- **Version-controlled drives**: `git://<repositoryId>/` over a `moqui.resource.GitRepository`
+  made with the drive, kept in the database (kind `db`, the default: objects and refs in
+  `GitObject` and `GitRef`) or on disk (kind `local`: a bare repository that can be cloned and
+  pushed to with the git command line on the host). Every change is a commit by the user, and a
+  file's versions are the commits that changed it.
+- **Mirrors**: a read-only drive an admin adds over a remote git URL (kind `remote`), fetched on
+  its interval by the `fetch_AllGitRepositories_frequent` job.
+- **Records**: a system drive over the record attachments, in the layout Mantle already writes:
+  each `save#*ContentFile` service stores a record's file at
+  `dbresource://mantle/content/<type>/<id>/content_<contentId>/<file>` (the root is the
+  `mantle.content.root` preference) and the record's `*Content` row (`PartyContent`,
+  `WorkEffortContent`, `RequestContent`, `OrderContent`, …) points at it. The browser's
+  **Records** section is a view over those type folders, named by record type, and the
+  `record-files` element is the same component scoped to one record; no file moves.
+
+Every storage but a disk drive is in the database, so a Postgres backup holds everything. On the
+database tree a replaced text version is kept as a reverse line delta against the next one (whole
+for a binary file, for every 20th version and when the delta would be over half the text), so
+keeping every version of an edited document costs little. Every storage answers the same version
+API of the resource facade (mr-moqui `docs/Revision-Management.md`): the version history, the
+text of a version, a `location#version` read and a server-side line diff of two versions
+(`getVersionDiff`, with a `moqui-diff` HTML table), so Versions, compare and restore look the
+same on every drive. The drive metadata (members, shares, public links, favorites, tags, trash;
+§19) is keyed by drive and path for every storage, since a file in a version-controlled drive has
+no row of its own. WebDAV serves each drive the user may open to desktop clients and the virtual
+SFTP server serves it to scripts (§11 Sync, §19); a write to a version-controlled drive through
+either is a commit. A disk drive can also be cloned on the host, and a database drive exported
+as a bare repository (`export#GitRepository`).
 
 ### Files
 
 - **Layout:** split as `.qvue` (the browser needs drag and drop, a virtual grid and a preview
-  overlay). Left rail: All files, Recent, Favorites, Shared with me, Shared by me, Records (a
-  tree by entity: Orders, Parties, Requests, Tasks, …), Tags, Trash, and the quota bar. Main: a
-  breadcrumb bar with **Upload** and **New** (folder, text or markdown note, document through the
-  Office app later), a grid or list toggle, sort, and filter chips (type, modified, tag, owner);
-  the rows; a detail sidebar on the right with tabs Details, Sharing, Versions, Activity. A
+  overlay). Left rail: My files, Drives (each drive I belong to, a version-controlled one marked
+  with a history icon and a mirror with a lock, and "Manage drives" to `Commons/Files/Drives`),
+  Recent, Favorites, Shared with me, Shared by me, Records (a tree by entity: Orders, Parties,
+  Requests, Tasks, …), Tags, Trash, and the open drive's quota bar. Main: a breadcrumb bar from
+  the drive with **Upload** and **New** (folder, text or markdown note, document through the
+  Office app later), a grid or list toggle, sort, and filter chips (type, modified, tag, modified
+  by); the rows; a detail sidebar on the right with tabs Details, Sharing, Versions, Activity. A
   file click opens the preview overlay (image, PDF, video and audio, text and markdown, `.eml`,
   office through WOPI later) with previous and next. The keys: arrows move, Enter opens, Space
   previews, Delete trashes, Ctrl+A selects all, F2 renames, `/` searches.
@@ -912,32 +943,70 @@ server serves it to scripts (§11 Sync, §19).
 
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
 | --- | --- | --- | --- | --- | --- | --- |
-| `FileFind` | find | Search and filters | text (name and extracted text), type, modified period, tag, owner, in this folder | | `org.moqui.impl.FileServices.find#Resources` (new) and the search index | Nextcloud in-folder search and filters; Google Drive filter chips |
-| `FileList` | list | The folder | name with icon or thumbnail, size, modified, owner, shared chip, favorite star | `q-virtual-scroll`; drag rows to a folder; `row-selection` | `FileServices.list#Folder` (new) | Nextcloud FilesListVirtual; Frappe Drive ListView and GridView |
-| `Upload` | single | Upload files or a folder | files (multiple), destination | `file` with drop zone; a progress tracker; conflict dialog (replace, keep both, skip) | `FileServices.upload#Resource` (new); `DbResourceFileHistory` keeps the replaced version | Nextcloud uploader and conflict dialog; Zimbra upload conflict |
+| `FileFind` | find | Search and filters | text (name and extracted text), type, modified period, tag, modified by, drive, in this folder | | `org.moqui.impl.FileServices.find#Resources` (new) and the search index | Nextcloud in-folder search and filters; Google Drive filter chips |
+| `FileList` | list | The folder | name with icon or thumbnail, size, modified, modified by (the current version's user; the drive is the owner, as in Google shared drives), shared chip, favorite star | `q-virtual-scroll`; drag rows to a folder; `row-selection` | `FileServices.list#Folder` (new): size from `DbResourceFile.fileSize` or the git object, modified and modified by on a version-controlled drive from the Git path index | Nextcloud FilesListVirtual; Frappe Drive ListView and GridView |
+| `Upload` | single | Upload files or a folder | files (multiple), destination, version note (optional) | `file` with drop zone; a progress tracker; conflict dialog (replace, keep both, skip) | `FileServices.upload#Resource` (new), the files of one upload as one change set (one commit on a version-controlled drive); the drive's storage keeps the replaced version (a history row or a commit) | Nextcloud uploader and conflict dialog; Zimbra upload conflict |
 | `NewFolder`, `Rename` | dialog | Name a new folder, or rename a file or folder | name | | `FileServices.create#Folder`, `rename#Resource` (new) | Nextcloud NewNodeDialog |
-| `Move` | dialog | Move or copy the selection | destination (folder tree) | `tree` | `FileServices.move#Resource`, `copy#Resource` (new) | Nextcloud move-copy; Frappe MoveDialog |
-| `Share` | dialog | Share with people or by link | sharee (user, group, party, email), permission (view, edit, upload only), expiry, password, note; links: label, permission, expiry, password | sharee `server-search` | `FileServices.share#Resource`, `revoke#Share` (new) over `DbResourceShare` | Nextcloud SharingTab and SharingDetailsTab; Google Drive share dialog |
-| `Details` | single, read | Metadata and tags | type, size, created, modified, owner, location, tags (editable) | | `entity`; `DbResourceTag` (new) | Nextcloud sidebar; Drive details pane |
-| `Versions` | list | History | version, date, by, size; restore, download, label | | `DbResourceFileHistory` (`entity`); `FileServices.restore#Version` (new) | Nextcloud files_versions; Zimbra briefcase revisions |
+| `Move` | dialog | Move or copy the selection | destination (drive and folder tree) | `tree` | `FileServices.move#Resource`, `copy#Resource` (new): within a drive one move (one commit); across drives a copy and a trash, the history staying with the source drive | Nextcloud move-copy; Frappe MoveDialog |
+| `Share` | dialog | Share with people or by link | sharee (user, group, party, email), permission (view, edit, upload only), expiry, password, note; links: label, permission, expiry, password | sharee `server-search` | `FileServices.share#Resource`, `revoke#Share` (new) over `ResourceShare` | Nextcloud SharingTab and SharingDetailsTab; Google Drive share dialog |
+| `Details` | single, read | Metadata and tags | type, size, created, modified, modified by, drive and its storage, location, the current version (a commit id on a version-controlled drive), tags (editable) | | `entity`; the version API; `ResourceTag` (new) | Nextcloud sidebar; Drive details pane |
+| `Versions` | list | History and compare | version (`01`, `02`, … on the database tree, the first 10 digits of the commit id on a version-controlled drive), date, by, note; view, compare with the previous or the current version, restore, download | compare (text files) shows the `moqui-diff` table by `render-mode` in a dialog | `FileServices.get#Versions` and `get#VersionDiff` (new) over the version API (`getVersionHistory`, `getText(version)`, `getVersionDiff`); view by `location#version`; `FileServices.restore#Version` (new) writes the version as the newest one | Nextcloud files_versions; Zimbra briefcase revisions; `Gallery/Editor.xml` history and compare |
 | `Comments` | component | Chatter comments on the file | | the `chatter` element in comments-only mode | `mantle.party.CommunicationServices.create#Message` type `Comment` with `CommunicationEventRecord` | Nextcloud comments tab |
-| `Activity` | list | What happened to the file | action, by, when | | `FileServices.get#Activity` (new) from the audit log and share rows | Nextcloud activity tab; Drive activity |
-| `BulkActions` | list, bulk | On the selection | download as zip, move, copy, share, tag, favorite, delete | | as above; `FileServices.download#Zip` (new) | Nextcloud file list actions |
+| `Activity` | list | What happened to the file | action, by, when | | `FileServices.get#Activity` (new) from the audit log and share rows, and on a version-controlled drive the commits under the file or folder (Git path index) | Nextcloud activity tab; Drive activity |
+| `BulkActions` | list, bulk | On the selection | download as zip, move, copy, share, tag, favorite, delete | | as above, a move or delete of the selection as one change set; `FileServices.download#Zip` (new) | Nextcloud file list actions |
 
 - **Actions:** Upload, New; row: preview, download, share, rename, move, favorite, versions,
-  copy link, delete (to trash); Trash: restore, delete forever, empty trash (confirms).
+  compare, copy link, delete (to trash); Trash: restore, delete forever, empty trash (confirms).
+  Trash is the same on every drive (`ResourceTrash`, §19): on the database tree a deleted item
+  moves into the drive's hidden trash folder with its history, and restore moves it back; on a
+  version-controlled drive the delete is one commit for the item and everything under it, and
+  restore writes back the version from before that commit as a new one, while delete forever
+  removes the trash row and leaves the file in the drive's history. A version carries the note
+  written with it (Upload, a Knowledge Save) rather than a label added later, since a commit
+  cannot be relabeled.
 - **Navigation:** from the launcher, the palette's Pages and files group, a record's Files tab
   ("Open in Files"), a share notification, a Chatter attachment, the Compose "attach from Files"
   picker (which is this screen's list in a dialog).
 - **Views:** list and grid; Recent, Favorites, Shared with me and Trash are the same list with a
   fixed filter.
 - **States:** an empty folder shows the drop zone and New; an over-quota upload fails with the
-  quota named; a folder the user may not open is absent.
+  quota named; a folder the user may not open is absent; a mirror is read-only (Upload, New,
+  rename, move and delete are absent) with a banner of its last fetch (`lastFetchDate`) and any
+  error (`lastFetchError`), and Fetch now (`org.moqui.impl.GitServices.fetch#GitRepository`) for
+  admins; compare is absent for a binary file.
 - **Devices:** phone (list only; upload from the camera roll; preview full screen).
 - **Source:** research §12 (Nextcloud Files, Zimbra briefcase, Frappe Drive), §17 `DbResource`,
-  §18 "No Files app"; Google Drive and OneDrive.
-- **Needs:** File metadata model; File services; Search DataDocuments (`MoquiDbResource`);
-  Extracted text for search (later); WebDAV server; `chatter`.
+  §18 "No Files app"; Google Drive and OneDrive; mr-moqui `docs/Revision-Management.md`.
+- **Needs:** Drives; File metadata model; File services; Change sets; Version notes; Git path
+  index; Search DataDocuments (`MoquiDriveFile`); Extracted text for search (later); WebDAV
+  server; `chatter`.
+
+### Drives
+
+- **Layout:** list of the drives I belong to with **New drive** and, for admins, **Add mirror**;
+  a row opens the drive in Files and its menu opens the drive's settings and members. Each
+  storage in the New drive dialog has one line on what it means: Folder ("each file keeps its
+  own versions"), Version-controlled in the database ("every change is a commit; in the
+  backup"; the default when version control is wanted), Version-controlled on disk ("a git
+  repository on the server that can be cloned").
+- **Forms:**
+
+| Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
+| --- | --- | --- | --- | --- | --- | --- |
+| `DriveList` | list | The drives I may open | name, storage, members, used of quota, last change, my permission | storage as an icon | `ResourceDrive`, `ResourceDriveMember` (`entity`) | Google Drive shared drives; Nextcloud team folders |
+| `NewDrive` | dialog | A shared drive | name, description, storage (Folder, Version-controlled in the database, Version-controlled on disk), members, quota | storage as a `radio` with the explanation lines; members `drop-down` `allow-multiple` `server-search` | `org.moqui.impl.FileServices.create#Drive` (new): a folder drive gets its root on the database tree; a version-controlled one gets a `GitRepository` of kind `db` or `local` and `org.moqui.impl.GitServices.init#GitRepository` | Google Drive new shared drive |
+| `NewMirror` | dialog | Admins: a read-only drive over a git URL | name, HTTPS URL, branch, username, access token, fetch interval, members | token as `password` | `create#Drive` with kind `remote`, then `GitServices.fetch#GitRepository` | Gitea and GitLab pull mirrors |
+| `DriveSettings` | single | One drive | name, description, quota, storage (read only); for a version-controlled drive the repository, branch and head commit, and for a disk drive the path to clone from; for a mirror the URL, interval, last fetch and error | | `FileServices.update#Drive`, `archive#Drive`, `export#Drive` (new: `GitServices.export#GitRepository` for a version-controlled drive, a zip for a folder drive); `GitServices.fetch#GitRepository` for a mirror | Google Drive shared drive settings |
+| `DriveMembers` | list, editable rows | Who may open the drive | user or group, permission (view, edit, manage) | | `FileServices.add#DriveMember`, `remove#DriveMember` (new) over `ResourceDriveMember` | Google Drive manage members; Nextcloud team folder members |
+
+- **Actions:** New drive, Add mirror (admins), open, settings, members, export, archive
+  (confirms; an archived drive is read-only and leaves the rail). My files and Records are
+  listed without members or archive.
+- **States:** a mirror whose last fetch failed shows the error on its row; a drive at its quota
+  shows the bar as a warning.
+- **Source:** research §12 (Nextcloud Files); Google Drive shared drives; mr-moqui
+  `docs/Revision-Management.md` (repository kinds, fetch, export).
+- **Needs:** Drives; File services.
 
 ### Shares
 
@@ -946,7 +1015,7 @@ server serves it to scripts (§11 Sync, §19).
 
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
 | --- | --- | --- | --- | --- | --- | --- |
-| `OutgoingShares` | list | What I shared with people | item, with whom, permission, expiry, shared on | bulk revoke | `DbResourceShare` (`entity`); `FileServices.revoke#Share` | Nextcloud shares views; Zimbra sharing page |
+| `OutgoingShares` | list | What I shared with people | item, with whom, permission, expiry, shared on | bulk revoke | `ResourceShare` (`entity`); `FileServices.revoke#Share` | Nextcloud shares views; Zimbra sharing page |
 | `Links` | list | Public links | item, label, permission, expiry, password set, opened count, link | copy link, revoke | same | Nextcloud SharingLinkList |
 | `IncomingShares` | list | Shared with me | item, from, permission, received; accept or decline when pending | | `FileServices.accept#Share`, `decline#Share` (new) | Nextcloud pending shares |
 
@@ -999,11 +1068,19 @@ The framework wiki (`WikiSpace`, `WikiPage`, `WikiPageHistory`, `WikiPageCategor
 knowledge pages and personal notes alike. A **space** is a knowledge base, a team wiki, a
 project's pages or a customer-facing help center (its `publicPageUrl` set); a user's **notes**
 are the pages of a private space created on first use with `restrictView` and
-`restrictUpdate` set. Pages are edited in the co-editing editor (Tiptap over Yjs with the `yrs`
-sync server; initial-design) whose document is the decided CRDT-plus-snapshot store; the
-rendered markdown snapshot is what `WikiPageHistory`, search, print and the published version
-read. Until the editor lands, the page body is a `text-area editor-type="md"`, which is the
-baseline's behavior with a preview.
+`restrictUpdate` set. A space's pages are files under its root location, and its storage is
+chosen when the space is created, as a drive's is (§9): database files
+(`dbresource://WikiSpace`, the default, and always for a notes space) or a version-controlled
+space in a git repository (`git://<repositoryId>`, in the database or on disk), where each save
+is a commit. The wiki services read and write pages only through the resource facade's version
+API, so history, compare, publish and `#version` views work the same on both (mr-moqui
+`docs/Revision-Management.md`); on database files a past text version is a reverse line delta,
+so frequent saves cost little. Pages are edited in the co-editing editor (Tiptap over Yjs with
+the `yrs` sync server; initial-design) whose document is the decided CRDT-plus-snapshot store;
+the rendered markdown snapshot is the page file, and its versions (history rows or commits) are
+what history, compare, search, print and the published version read, while `WikiPageHistory`
+records who saved each version and the page's moves. Until the editor lands, the page body is a
+`text-area editor-type="md"`, which is the baseline's behavior with a preview.
 
 ### Knowledge
 
@@ -1015,15 +1092,17 @@ baseline's behavior with a preview.
   Backlinks, Comments and Attachments. Actions on the title row: Edit or Done, Publish this
   version, Request review, History, and a menu (rename or move, clone, link to a record, export
   PDF or markdown, print, delete). The keys: `e` edit, Ctrl+S save a named version, `/` slash
-  commands, Ctrl+K link.
+  commands, Ctrl+K link. The gallery's `Gallery/Editor.xml` is the rendered reference for the
+  page, History, compare, restore and publish, with a space on each storage (`EXAMPLE` on
+  database files, `EXGIT` in a database git repository).
 - **Forms:**
 
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
 | --- | --- | --- | --- | --- | --- | --- |
 | `PageTree` | component | The space's pages | title, children | `tree` with drag; a drop sets the page's `parentWikiPageId` and `sequenceNum` | `org.moqui.impl.WikiServices.get#WikiSpacePages`, `get#WikiPageChildren`, `update#WikiPage` (parent and sequence) | SimpleScreens Wiki `wiki` tree; Nextcloud Collectives PageList; Frappe WikiTree |
 | `PageHeader` | single | Title and placement | title, page path, parent, categories, visibility | | `org.moqui.impl.WikiServices.update#WikiPage`; `WikiPageCategoryMember` (`entity`) | `wiki` `AddPageForm`, `AddCategory`, `CategoriesForm`; `EditWikiPage` `EditPageForm` |
-| `Editor` | component | The body | page text | `m-coedit` (§19); fallback `text-area editor-type="md"` | `update#WikiPage` writes the snapshot and a `WikiPageHistory` version on idle and on Save | Nextcloud Text; Frappe WikiEditor slash commands; Notion and Confluence editing |
-| `History` | dialog | Versions and compare | version, date, by, note; compare two; restore; set published | a diff view by `render-mode` | `WikiPageHistory` (`entity`); `org.moqui.impl.WikiServices.set#PublishedVersion` | SimpleScreens `WikiCompare`; Redmine and OpenProject history and diff |
+| `Editor` | component | The body | page text; on Save a version note | `m-coedit` (§19); fallback `text-area editor-type="md"` | `update#WikiPage` writes the snapshot as a new version with a `WikiPageHistory` row: on database files on idle and on Save, a reverse delta each; in a version-controlled space on Save and when the editing session closes, one commit each with the note as its message (Version notes) | Nextcloud Text; Frappe WikiEditor slash commands; Notion and Confluence editing |
+| `History` | dialog | Versions and compare | version (`01`, … or the first 10 digits of a commit id), date, by, note, moved from; view; compare two; restore; set published | the `moqui-diff` table of `getVersionDiff` by `render-mode` (`text type="html,qvt"`); no diff library in the browser | the page reference's `getVersionHistory()` from `org.moqui.impl.WikiServices.get#WikiPageInfo`, with `WikiPageHistory` (`entity`) for who and the moves; compare by `getVersionDiff(lhs, rhs)`; view an old version by `location#versionName`; restore writes `getText(versionName)` through `update#WikiPage` as the newest version; `org.moqui.impl.WikiServices.set#PublishedVersion` | SimpleScreens `WikiCompare`; `Gallery/Editor.xml`; Redmine and OpenProject history and diff |
 | `ReviewRequest` | dialog | Ask for review before publishing | reviewer, note, version | | `WikiPageReview` (new, §19) and a notification on topic `WikiPageReview` | Frappe Wiki contributions; Ever Gauzy Docs review |
 | `Comments` | component | Chatter comments on the page | | the `chatter` element, comments only | `mantle.party.CommunicationServices.add#WikiPageComment` (`WikiPageCommunicationEvent`) | `wiki` `AddCommentForm`, `WikiCommentReply` `ReplyCommentForm`; Collectives comments |
 | `Attachments` | component | Files on the page | | `record-files` | `org.moqui.impl.WikiServices.upload#WikiPageAttachment`, `get#WikiPageAttachment`, `delete#WikiPageAttachment` | `wiki` `UploadAttachment` |
@@ -1062,16 +1141,18 @@ baseline's behavior with a preview.
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
 | --- | --- | --- | --- | --- | --- | --- |
 | `Spaces` | list | The spaces I may see | id, description, pages count, visibility, public URL | | `org.moqui.impl.WikiServices.get#UserWikiSpaces` | `WikiSpaces` `WikiSpaceList` |
-| `NewSpace` | dialog | Create or clone | id, description, from space (clone), restrict view and update | | `org.moqui.impl.WikiServices.create#WikiSpace`, `clone#WikiSpace` | `WikiSpaces` `NewSpace`; `EditWikiSpace` `CloneSpace` |
-| `SpaceSettings` | single | A space | description, root page, public page URL, public attachment URL, allow any HTML, theme, restrict view and update | | `WikiSpace` (`entity`) | `EditWikiSpace` `EditSpace` |
+| `NewSpace` | dialog | Create or clone | id, description, storage (Database files, the default; Version-controlled in the database; Version-controlled on disk; for admins, a read-only mirror of a git URL), from space (clone), restrict view and update | storage as a `radio` with the explanation lines of New drive (§9) | `org.moqui.impl.WikiServices.create#WikiSpace`, `clone#WikiSpace`, with `repositoryKind` for a version-controlled space (Wiki git storage, §19), which makes the `GitRepository` and roots the space at `git://<repositoryId>` | `WikiSpaces` `NewSpace`; `EditWikiSpace` `CloneSpace`; `Gallery/Editor.xml` `createGitSpace` |
+| `SpaceSettings` | single | A space | description, root page, storage (read only; for a version-controlled space the repository, branch and head commit), public page URL, public attachment URL, allow any HTML, theme, restrict view and update | | `WikiSpace` (`entity`); Export (`org.moqui.impl.GitServices.export#GitRepository`) for a version-controlled space | `EditWikiSpace` `EditSpace` |
 | `SpaceMembers` | list, editable rows | Who may read and write | user or group, permission | | `WikiSpaceUser`, `WikiPageUser` (`entity`) | Collectives members; Confluence space permissions |
 
 - **Source:** research §13 and §17.
+- **Needs:** Wiki git storage.
 
 ### Review
 
 - **Layout:** list; a row opens the page's History dialog on the compare of the requested
-  version against the published one.
+  version against the published one (`getVersionDiff` from the published version to the
+  requested one, whose name is a version name or a commit id).
 - **Forms:**
 
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
@@ -1082,10 +1163,11 @@ baseline's behavior with a preview.
 
 ### Notes
 
-- **Layout:** the Knowledge editor over the user's notes space with a flat side list instead of
-  a tree (sorted by modified, with a search line, tags from categories, and pinned notes
-  first), a quick "New note" that starts typing at once, and "Move to a space" to promote a note
-  to shared knowledge (it keeps its history). Notes never show the review and publish actions.
+- **Layout:** the Knowledge editor over the user's notes space (always on database files) with a
+  flat side list instead of a tree (sorted by modified, with a search line, tags from categories,
+  and pinned notes first), a quick "New note" that starts typing at once, and "Move to a space"
+  to promote a note to shared knowledge (it keeps its history). Notes never show the review and
+  publish actions.
 - **Forms:**
 
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
@@ -1093,7 +1175,7 @@ baseline's behavior with a preview.
 | `NoteList` | list | My notes, pinned first, then by modified | title, snippet, modified, tags, pinned | search line; pin toggle (pinned is the reserved category `Pinned`) | `org.moqui.impl.WikiServices.get#WikiSpacePages` over my notes space | Nextcloud Notes list; Google Keep pinned notes |
 | `Editor` | component | The note body | page text | as Knowledge `Editor` | `org.moqui.impl.WikiServices.update#WikiPage` | Knowledge `Editor` |
 | `Tags` | component | Tags as chips | category names | chips with a create line | `WikiPageCategoryMember` (`entity`) | `wiki` `AddCategory`, `CategoriesForm`; Nextcloud Notes categories |
-| `MoveToSpace` | dialog | Promote a note to shared knowledge | space, parent page | | `org.moqui.impl.WikiServices.move#WikiPage` (new: moves a page with its history, categories and attachments to another space) | Ever Gauzy Docs move dialog; OpenProject wiki move |
+| `MoveToSpace` | dialog | Promote a note to shared knowledge | space, parent page | | `org.moqui.impl.WikiServices.move#WikiPage` (new: moves a page with its history, categories and attachments to another space; into a version-controlled space the history is replayed oldest version first, one commit each with a note naming the original date and author, §21) | Ever Gauzy Docs move dialog; OpenProject wiki move |
 
 - **Source:** research §13 (Nextcloud Notes, Gameplan My Pages); Google Keep and OneNote.
 - **Needs:** as Knowledge; Notes space and knowledge review (the notes `WikiSpace` per user
@@ -1731,6 +1813,7 @@ once it has external members by email (`later`).
 | Message print and `.eml` download; `.mbox` export of a folder | `html-print`, export | MessageDetail, Inbox | Zimbra show original; Gmail export |
 | Message import (`.eml`, `.mbox` into a folder) | import | MailAccounts | Thunderbird import |
 | Wiki page PDF and markdown export; space export as HTML | `html-print`, export | Knowledge | Redmine and Collectives export |
+| Drive or version-controlled space export as a bare git repository (`export#GitRepository`); a folder drive as a zip | export | Drives, SpaceSettings | git bare clone; Google Drive download of a shared drive |
 | File download, folder as zip, public link | export | Files, PublicShare | Nextcloud and Drive |
 | Consent export (CSV) | export | Consent | Marketing suppression lists |
 | Unsubscribe confirmation | email | Unsubscribe | Mailchimp |
@@ -1779,7 +1862,7 @@ rolls this table up with the other files'. Kinds are those of design-doc-guide �
 | `m-avatar` | Vue component | A `q-avatar` from a party's `PcntFaceImage` or initials, with the presence dot | everywhere | |
 | Record cards | Vue component | `m-record-card`: a compact card for an entity and id (type icon, title, status chip, one or two key fields, the link under the viewer's app) from `mantle.GeneralServices.lookup#ById` and the record's title | Chat, Chatter, Inbox linked-records strip | an id such as `SO10023` or a pasted BOSS link in a message renders one |
 | Print documents | render mode | `html-print` templates for the calendar range, a contact, a message, a wiki page | §18 | style-guide §8 |
-| Search DataDocuments | seed data | `MoquiEmailMessage` (subject, bodies, addresses, labels, account, folder), `MoquiChatEvent` (room, sender, body), `MoquiDbResource` (name, path, tags, extracted text later), plus the existing party, work effort and wiki documents in the `mantle` index with per-user filters; the existing `MantleCommunicationEvent` gains `contactListId`, and its per-user filter shows a message to its named recipients and a mailbox post to those who may read the mailbox (any user for a public one, members for a private one) | palette, Inbox search, Chat search, Files search | the universal search's organization and user limits apply |
+| Search DataDocuments | seed data | `MoquiEmailMessage` (subject, bodies, addresses, labels, account, folder), `MoquiChatEvent` (room, sender, body), `MoquiDriveFile` (drive, path, name, type, modified by, tags, extracted text later; indexed by `FileServices` on each write, move and trash and by the fetch job for a mirror's changed paths, since a file in a version-controlled drive has no row to feed a document), plus the existing party, work effort and wiki documents in the `mantle` index with per-user filters; the existing `MantleCommunicationEvent` gains `contactListId`, and its per-user filter shows a message to its named recipients and a mailbox post to those who may read the mailbox (any user for a public one, members for a private one) | palette, Inbox search, Chat search, Files search | the universal search's organization and user limits apply |
 
 ### Mail
 
@@ -1826,18 +1909,23 @@ rolls this table up with the other files'. Kinds are those of design-doc-guide �
 | Mailboxes | data model + service type | A mailbox is a Mantle `mantle.marketing.contact.ContactList` of the new type `MAILBOX` (an `Enumeration` of `ContactListType` beside `MARKETING`, `NEWSLETTER` and `ANNOUNCEMENT`), using `contactListName`, `description`, `isPublic`, `ownerPartyId` (the organization) and `contactMechTypeEnumId` (empty while internal only); `ContactList` gains `postingEnumId` (new enumeration: members, moderators, any user), `defaultDeliveryEnumId` and `archivedDate`; `ContactListParty` gains `roleTypeId` outside the key (new role types `ListOwner` and `ListModerator`; empty is a member) and `deliveryEnumId` (new enumeration: Inbox, Mailbox only; digest later), with `CLPT_ACCEPTED` for a member, `CLPT_PENDING` for a join request or invitation, `CLPT_REJECTED` when declined and `thruDate` set on leaving; posts use the existing `CommunicationEvent.contactListId`. Services: `mantle.marketing.ContactListServices` (new, general so that Marketing uses them too): `create#ContactList`, `update#ContactList`, `find#ContactLists` (by type, with my membership and unread counts), `join#ContactList` (a member of a public list, a pending request for a private one), `leave#ContactList`, `add#ContactListParty` (also accepts a request), `remove#ContactListParty`, `set#ContactListPartyDelivery`; in `mantle.party.CommunicationServices`: `find#InboxThreads`, `get#InternalThread`, `set#InternalMessageState` (read, flag, archive, snooze and labels on my rows) and `close#ListThread` (new), and `create#Message` (extended: to and cc lists and `contactListId`; checks the posting policy and writes the recipient rows), `reply#CommunicationEvent` (extended: keeps the list and its participants, or answers the sender only) and `find#PartyCommunicationEvents` (extended, §15). Later, the email bridge: `contactMechTypeEnumId` email, members' `preferredContactMechId`, `ContactListCommStatus` per address (its `messageId` matches the replies) and the §16 unsubscribe | Inbox, Compose, Comms Home, palette | §12 |
 | Consent | data model + service type | Mantle `mantle.party.PartyConsent` {partyId, contactMechId, purposeEnumId, statusId granted or withdrawn, consentDate, sourceEnumId, evidenceText, userId}; `mantle.party.ConsentServices` `store#PartyConsent`, `unsubscribe#ContactListParty` | Consent, Unsubscribe, Marketing | |
 | Notification fields and approvals | data model | `moqui.security.user.NotificationMessage` gains `reasonEnumId` (mention, assignment, approval, dateAlert, reminder, comment, system), `recordEntityName`, `recordId`, `actorUserId`, `appName`; `NotificationTopic` gains `approveServiceName`, `refuseServiceName`, `digestDefault`; `NotificationTopicUser` gains `digest`; a daily digest job | NotificationsPanel, Notifications, settings | answers the research open question |
-| Notes space and knowledge review | data model + service type | `moqui.resource.wiki.WikiPageReview` {wikiPageId, versionName, requestedByUserId, reviewerUserId, statusId, note, requestedDate, decidedDate}; a service that creates a user's private notes `WikiSpace` on first use; `WikiServices.update#WikiPage` writing the snapshot of a `CollabDocument` and indexing the snapshot's page links in a new `WikiPageLink` {wikiPageId, toWikiPageId}; `get#WikiPageBacklinks` over it; `move#WikiPage` to another space with history, categories and attachments | Knowledge, Review, Notes | |
+| Notes space and knowledge review | data model + service type | `moqui.resource.wiki.WikiPageReview` {wikiPageId, versionName (a version name or a commit id), requestedByUserId, reviewerUserId, statusId, note, requestedDate, decidedDate}; a service that creates a user's private notes `WikiSpace` on database files on first use; `WikiServices.update#WikiPage` writing the snapshot of a `CollabDocument` and indexing the snapshot's page links in a new `WikiPageLink` {wikiPageId, toWikiPageId}; `get#WikiPageBacklinks` over it; `move#WikiPage` to another space with history, categories and attachments (into a version-controlled space by replaying the versions) | Knowledge, Review, Notes | |
 
 ### Files
 
 | Need | Kind | Proposed as | Used by | Stub spec |
 | --- | --- | --- | --- | --- |
-| File metadata model | data model | `moqui.resource.DbResource` gains `ownerUserId`, `size`, `isTrashed`, `trashedParentResourceId`, `trashedDate`; new `DbResourceShare` {resource, user, group, party or link token, permission, expiry, passwordHash, note, createdBy, openedCount}, `DbResourceFavorite`, `DbResourceTag`, `DbResourceTagMember`; the record content folders the Mantle `save#*ContentFile` services already write under `mantle.content.root` (`dbresource://mantle/content/<type>/<id>/…`) are the Records section, mapped by type folder to record type | Files, Shares, PublicShare, RecordFiles | §9 |
-| File services | service type | `org.moqui.impl.FileServices`: `list#Folder`, `find#Resources`, `find#Recent`, `upload#Resource`, `create#Folder`, `rename#Resource`, `move#Resource`, `copy#Resource`, `trash#Resource`, `restore#Resource`, `restore#Version`, `share#Resource`, `revoke#Share`, `accept#Share`, `decline#Share`, `open#PublicShare`, `list#PublicShare`, `upload#PublicShare`, `download#Zip`, `get#Activity`; previews (image thumbnails, PDF first page) by a Rust tool | Files, RecordFiles, Compose, Home | |
-| WebDAV server | protocol server | The resource tree with the user's rights, locks, and `PROPFIND` of the share and tag properties | Sync, desktop clients | initial-design "Protocol layer" |
-| Virtual SFTP server | protocol server | The same tree over the russh host with app passwords | Sync, scripts | the Java virtual SFTP; `moqui-host/src/ssh/` has the cluster sender |
+| Drives | data model | `moqui.resource.ResourceDrive` {driveId, driveName, description, driveKindEnumId (personal, shared, mirror, records), rootLocation, repositoryId, ownerUserId, quotaBytes, archivedDate}, `ResourceDriveMember` {driveId, userId or userGroupId, permissionEnumId (view, edit, manage), fromDate, thruDate}; the storage is the root's scheme and, for `git://`, the `GitRepository` kind (`db`, `local`, `remote`); personal and folder drive roots under the `moqui.drive.root` preference (`dbresource://drive` by default); BOSS seeds the Records drive over `mantle.content.root`, so the framework stays Mantle-free | Files, Drives, Shares, RecordFiles | §9 |
+| File metadata model | data model | Keyed by drive and path for every storage, since a file in a version-controlled drive has no row of its own: `moqui.resource.ResourceShare` {driveId, path, user, group, party or link token, permission, expiry, passwordHash, note, createdBy, openedCount}, `ResourceFavorite` {driveId, path, userId}, `ResourceTag`, `ResourceTagMember` {driveId, path, tag}, `ResourceTrash` {driveId, path, trashedDate, trashedByUserId, isDirectory, versionName (on a version-controlled drive the version before the delete), trashLocation (on the database tree the hidden trash folder it moved to)}; `FileServices` moves the rows with a move or rename; `DbResourceFile` gains `fileSize`, written with each write, so a folder list does not read every file to size it; the record content folders the Mantle `save#*ContentFile` services already write under `mantle.content.root` (`dbresource://mantle/content/<type>/<id>/…`) are the Records drive, mapped by type folder to record type | Files, Shares, PublicShare, RecordFiles | §9 |
+| File services | service type | `org.moqui.impl.FileServices`: `create#Drive`, `update#Drive`, `archive#Drive`, `add#DriveMember`, `remove#DriveMember`, `export#Drive`, `list#Folder`, `find#Resources`, `find#Recent`, `upload#Resource`, `create#Folder`, `rename#Resource`, `move#Resource`, `copy#Resource`, `trash#Resource`, `restore#Resource`, `get#Versions`, `get#VersionDiff`, `restore#Version`, `share#Resource`, `revoke#Share`, `accept#Share`, `decline#Share`, `open#PublicShare`, `list#PublicShare`, `upload#PublicShare`, `download#Zip`, `get#Activity`; all by drive and path over the resource facade, so every storage takes the same calls; the version services wrap the version API (`getVersionHistory`, `getText(version)`, `getVersionDiff`); a move or rename carries the metadata rows, a move across drives is a copy and a trash, and an action on several files is one change set; previews (image thumbnails, PDF first page) by a Rust tool | Files, Drives, RecordFiles, Compose, Home | |
+| Change sets | tool | A resource facade change set over one root: several writes, deletes and moves and a message, applied as one commit on a `git://` root (the git provider now commits each call alone, with a message of its own such as `Update <path>`) and as the plain writes on a `dbresource://` root; a directory delete in a change set takes the files under it, where a lone delete of a git directory that still has files is refused | Files upload, move, trash and bulk actions; WebDAV `MOVE` and `DELETE` of a folder | mr-moqui `resource/git/mod.rs` |
+| Version notes | tool + data model | A note written with a version: the commit message on git (read back from the commit), `DbResourceFile.versionNote` on the database tree (moved into the `DbResourceFileHistory` row when the version is replaced); the facade's `ResourceVersion` and the script version object gain `note` | Files Upload and Versions, Knowledge Save and History | |
+| Git path index | tool | Per path on a branch: the last commit that changed it (the date and user for the Files list, where `stat` now answers the head commit's time for every file) and its size, cached by head commit, which also serves the per-file history walk (the history cache of mr-moqui's Remaining-Work); history that follows a move (exact, since a move keeps the blob id; a moved file's history now starts at the move); the log of commits under a path, for Activity | Files list and Activity, Knowledge History after a move | mr-moqui `resource/git/ops.rs` `history` |
+| Wiki git storage | service type | `org.moqui.impl.WikiServices.create#WikiSpace` and `clone#WikiSpace` take `repositoryKind` (`db` or `local`, or `remote` with a URL for admins): they create the `GitRepository`, run `GitServices.init#GitRepository` and set `rootPageDirectory` to `git://<repositoryId>` | Spaces | mr-moqui `docs/Revision-Management.md` "Wiki spaces on git" |
+| WebDAV server | protocol server | Each drive the user may open, with the drive member rights, locks, and `PROPFIND` of the share and tag properties; a write to a version-controlled drive is a commit by the user, a folder `MOVE` or `DELETE` one change set; a mirror is read-only | Sync, desktop clients | initial-design "Protocol layer" |
+| Virtual SFTP server | protocol server | The same drives over the russh host with app passwords | Sync, scripts | the Java virtual SFTP; `moqui-host/src/ssh/` has the cluster sender |
 | CalDAV and CardDAV servers | protocol server | Calendars (`Calendar` and `WorkEffort` events, `WetTask` as VTODO) and contact books (`ContactBook` and parties as vCards, each a CardDAV address book) for phones and desktop clients, with app passwords | Sync | initial-design "Calendar / contacts" |
-| Extracted text for search | tool | Text extraction from PDF and office files into the `MoquiDbResource` document | Files search | later |
+| Extracted text for search | tool | Text extraction from PDF and office files into the `MoquiDriveFile` document | Files search | later |
 
 ## 20. Decided
 
@@ -1861,8 +1949,10 @@ rolls this table up with the other files'. Kinds are those of design-doc-guide �
 | Contact books are new `ContactBook` records; groups are labels inside a book; a personal contact is a `Party` in a personal book with no role, hidden from the directory and the duplicate scan, and from every other user everywhere through `Party.privateOwnerUserId` and an entity filter applied to all users | Answers the research question; CardDAV maps one book to one address book; "Link to a directory party" merges a personal contact into the directory when wanted |
 | Calendars are a new `Calendar` collection over `WorkEffort` events, with `CalendarShare` and `CalendarSubscription`; recurrence is an RRULE on `WorkEffortRecurrence` with instance overrides by `WorkEffortAssoc` `WeatRecurrenceInstance`; reminders are `WorkEffortReminder`; working hours are `WetAvailable` work efforts; the grid shows the toggled calendars plus every event where the user is a `WorkEffortParty` | Answers the research question; nothing is added to `WorkEffort` itself except through the new child entities; an event another app schedules with a user shows without a `CalendarWorkEffort` row |
 | RSVP uses `WorkEffortParty` statuses (`WeptOffered`, `WeptAssigned`, `WeptDeclined`, new `WeptTentative`); meeting-room booking uses `WorkEffortFacility` with a new status; equipment uses `WorkEffortAssetAssign` statuses; policies and approval live in Maintenance | initial-design's split; without a policy a booking is assigned at once; Maintenance's policies are opt-in per resource |
-| Files run on `DbResource` with added metadata, shares, favorites, tags and trash; record attachments stay where the Mantle `save#*ContentFile` services put them (`dbresource://mantle/content/<type>/<id>/…`) with their `*Content` rows, and that tree is the Files Records section; WebDAV, SFTP, CalDAV and CardDAV are framework servers over the same data | Answers the research question; everything in Postgres under one backup; a file-system root is configuration |
-| Personal notes are the pages of a private `WikiSpace` per user; knowledge base, team wiki and help center are spaces; review is `WikiPageReview` over the existing published version; co-editing is Tiptap over Yjs with `yrs`, with a markdown text area until it lands | initial-design "Notes and knowledge live in Commons"; blogs (`WikiBlog`) go to Marketing's content screens; Tiptap rather than BlockNote because the same core serves the composer and chat as `m-rich-text`, and Nextcloud Text and Frappe Wiki are Tiptap references |
+| Files run on drives (`ResourceDrive`): My files and folder drives on the database tree (`DbResource`, per-file versions in `DbResourceFileHistory`), version-controlled drives on a git repository in the database or on disk, and read-only mirrors of a git URL that only admins add; shares, favorites, tags and trash are keyed by drive and path for every storage; record attachments stay where the Mantle `save#*ContentFile` services put them (`dbresource://mantle/content/<type>/<id>/…`) with their `*Content` rows, and that tree is the Records drive; WebDAV, SFTP, CalDAV and CardDAV are framework servers over the same data | Answers the research question; everything but a disk drive in Postgres under one backup, the database being the default for version control and a disk drive the choice for a team that wants to clone it with git; a git file has no row, so the metadata cannot hang off `DbResource`; a mirror fetches from outside on a schedule, so it is an admin's to add; a file-system root is configuration |
+| Personal notes are the pages of a private `WikiSpace` per user, on database files; knowledge base, team wiki and help center are spaces; review is `WikiPageReview` over the existing published version; co-editing is Tiptap over Yjs with `yrs`, with a markdown text area until it lands | initial-design "Notes and knowledge live in Commons"; blogs (`WikiBlog`) go to Marketing's content screens; Tiptap rather than BlockNote because the same core serves the composer and chat as `m-rich-text`, and Nextcloud Text and Frappe Wiki are Tiptap references |
+| A Knowledge space chooses its storage when created, as a drive does: database files by default, or a git repository in the database or on disk; a notes space is always on database files | The wiki services use only the version API, so the screens do not change with the storage; notes are personal and edited often, where the database tree's deltas are cheapest |
+| Compare is the server's line diff everywhere (`getVersionDiff` and its `moqui-diff` table, for wiki pages, review and text files); no diff library in the browser | One diff for both storages, escaped and styled in light and dark; SimpleScreens' `WikiCompare` and `Gallery/Editor.xml` already use it, where the Java screens ran jsdiff from a CDN |
 | Chat messages are a separate Matrix-style store (`ChatRoom`, `ChatRoomMember`, `ChatEvent`); a message becomes a `CommunicationEvent` only when linked to a record or turned into one; a record-bound room shows in Chatter | Answers the research question; search indexes chat events directly |
 | Mail is `EmailMessage` plus the new account, folder, label, attachment and rule entities in the framework; a `CommunicationEvent` is created when a party matches and the account's filing policy allows it, or when the user links; internal messages are the Internal account of the same Inbox, an automatic `EmailAccount` of kind `internal` per user, which the Inbox lists through `mantle.party.CommunicationServices.find#InboxThreads` | Answers initial-design "Internal comm events: same inbox UI as email"; the receiver's party matching sets `emailMessageId` as the order, invoice and shipment services already do; the merge service is Mantle's so that the framework's mail services never read a Mantle entity |
 | Filing mail on records is a per-account policy (`EmailAccount.recordFilingEnumId`): business, shared and hosted accounts file every party match; a personal external account files only what its owner links | Someone using Comms as their own mail client must not see their personal Gmail on a customer's 360 |
@@ -1921,3 +2011,15 @@ Each with the answer the author would give.
 - **A personal "Me" page** (research-crosscut §8, People and Commons). Recommended: no separate
   page; `Commons/Settings/Account` is the account, People's employee self-service is People's,
   and Commons Home shows a shortcut to it for users who have it.
+- **Git access from desktops.** Cloning or pulling a version-controlled drive over HTTPS needs a
+  git server in mr-moqui, and gitoxide has no push yet. Recommended: later; until then a disk
+  drive is cloned on the host, a database drive is exported (`export#GitRepository`), and
+  desktop clients use WebDAV. Push and an in-process SSH transport are follow-ups in mr-moqui's
+  `plans/Remaining-Work.md`.
+- **Moving a note into a version-controlled space.** The notes space is on database files, so
+  `move#WikiPage` cannot carry its history rows into a git repository. Recommended: replay the
+  versions oldest first, one commit each with a note naming the original date and author;
+  moving only the current text would lose the history the Notes screen promises to keep.
+- **Snapshot cadence in a version-controlled space.** A commit for every idle snapshot would
+  make a log of fragments. Recommended: on git, commit on Save and when an editing session
+  closes (§10 `Editor`); database files keep the idle versions, which are cheap deltas.
