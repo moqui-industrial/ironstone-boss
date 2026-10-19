@@ -718,9 +718,9 @@ is a 3 px left border in its semantic color, never a colored header.
 
 BOSS uses **Material Symbols, outlined**, through Quasar's `material-symbols-outlined` icon set:
 icon names are written `sym_o_<name>` (`sym_o_receipt_long`), weight 400, no fill. The
-framework change that vendors the font and sets the icon set is in §8; until it lands the same
-names exist in Material Icons without the prefix, and the `icon` attributes of links, buttons,
-menus and dialogs take them. Font Awesome 4 stays loaded for the baseline's
+framework vendors the font and sets the icon set (§8.2, built Oct 18, 2026), and the `icon`
+attributes of links, buttons, menus and dialogs and `menu-image-type="icon"` take these
+names. Font Awesome 4 stays loaded for the baseline's
 `fa fa-*` menu images and is not used in new screens. Rules: an icon-only button has a tooltip;
 an icon beside a label is `size="sm"`; a status has a word, not only an icon; every app and
 every quick-create kind has one icon, used in the launcher, the drawer, the palette and the
@@ -806,7 +806,7 @@ crosscut design's roll-up is the work list.
 
 | Item | Kind | Proposed as | Stub spec | Used by |
 | --- | --- | --- | --- | --- |
-| Material Symbols | Icon set | Vendor the `material-symbols` font (outlined, Apache-2.0) through `libs/refresh.mjs` with a manifest and license-review line; vendor Quasar's `icon-set/material-symbols-outlined.umd.prod.js`; set the icon set when the app is created; `menu-image-type="icon"` renders a Quasar icon name through `q-icon` and keeps `fa fa-*` as a class | §5.6 | Every screen, the shell |
+| Material Symbols | Icon set | Built Oct 18, 2026: the outlined font at weight 400 (npm `@material-symbols/font-400`, Apache-2.0) through `libs/refresh.mjs` with a manifest and license-review line; Quasar's `icon-set/material-symbols-outlined.umd.prod.js`, set as the icon set when the app is created; `menu-image-type="icon"` renders a Quasar icon name through `q-icon` (`m-menu-icon`, and the app list) and keeps `fa fa-*` as a class | §5.6 | Every screen, the shell |
 | Shell: launcher, search button, quick create, Today, Chat, Inbox count, Notifications, Assist toggle | Shell item | `m-qapps-root` changes of §2.2; badges fed by a `shellCounts` object the notification WebSocket updates | §2.2, §2.8 | All |
 | Tray panel | Shell item | A right panel in the canvas with tabs whose content screens are theme values (`STRT_TRAY_TODAY`, `STRT_TRAY_CHAT`, `STRT_TRAY_NOTIFICATIONS`) so BOSS supplies them; open state and tab kept in the root; Esc closes | §2.4 | Commons, Comms, every app through providers |
 | Shell providers | XML Screen element | `<shell-providers>` in an app root screen with `<quick-create label icon screen parameter-map>`, `<today-source service>`, `<palette-action label screen>`, `<palette-type doc-type>`, `<notification-topic>`; the menu data aggregates them for the apps the user may open | §2.7 | Every app |
