@@ -1,0 +1,265 @@
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- Unsubscribe (design-drawers-commons.md §16 Unsubscribe; style-guide §3.5 Task), the component Unsubscribe.xml serves in the
+    qvue render mode in the public shell (WebrootPublic.qvt.js): a visitor who is not signed in, at /u/<token> from the
+    unsubscribe link of a list email. What the route's token check answered is $root.context (expired, the organization and
+    the list's name); the transitions are under $root.basePath. The page reads the state (the list, the status, the masked
+    address, the organization's other lists the visitor is on), then offers one choice (this list, all marketing email, or
+    the lists one by one) with an optional reason and one Confirm; the done page says what changed, that a list which
+    requires confirmation sent an email to confirm it, and offers Resubscribe. The verification email's link (verifyCode)
+    asks only to confirm. An ended or unknown link is the expired page. Brand color names and Quasar classes only
+    (style-guide §4.8, §5). -->
+<template><div class="boss-unsubscribe q-py-md q-mx-auto" style="max-width:640px">
+    <div class="row items-center no-wrap q-gutter-x-md q-mb-md">
+        <q-avatar size="48px" color="primary" text-color="white" icon="sym_o_mark_email_read"></q-avatar>
+        <div class="col" style="min-width:0">
+            <div v-if="organizationName" class="text-caption m-muted ellipsis">{{organizationName}}</div>
+            <div class="text-h6">{{t('Email preferences')}}</div>
+        </div>
+    </div>
+
+    <div v-if="state === 'loading'" class="q-pa-xl text-center"><q-spinner size="32px" color="primary"></q-spinner></div>
+
+    <!-- an ended or unknown link -->
+    <q-card v-else-if="state === 'expired'" flat bordered data-state="expired">
+        <q-card-section class="row no-wrap q-gutter-x-md">
+            <q-icon name="sym_o_link_off" size="32px" color="warning"></q-icon>
+            <div class="col">
+                <div class="text-subtitle1 text-weight-medium">{{t('This link has expired')}}</div>
+                <div class="text-body2 q-mt-xs">{{t('Unsubscribe links stop working after a while. To stop these emails, use the unsubscribe link in a more recent one, or reply to it and ask to be removed.')}}</div>
+            </div>
+        </q-card-section>
+    </q-card>
+
+    <q-banner v-else-if="state === 'error'" rounded class="m-tonal text-negative">
+        <template v-slot:avatar><q-icon name="sym_o_error"></q-icon></template>
+        {{error}}
+        <template v-slot:action><q-btn flat no-caps :label="t('Try again')" @click="load"></q-btn></template>
+    </q-banner>
+
+    <!-- the verification email's link: confirm the unsubscribe that waits -->
+    <q-card v-else-if="state === 'verify'" flat bordered data-state="verify">
+        <q-card-section>
+            <div class="text-subtitle1 text-weight-medium">{{t('Confirm your unsubscribe')}}</div>
+            <div class="text-body2 q-mt-xs">{{fill(t('You asked to stop getting {list}. Confirm it and no more of these emails go to {address}.'))}}</div>
+        </q-card-section>
+        <q-card-actions class="q-px-md q-pb-md">
+            <q-btn unelevated no-caps color="primary" icon="sym_o_unsubscribe" :label="t('Confirm unsubscribe')" :loading="busy" @click="confirmVerify"></q-btn>
+        </q-card-actions>
+    </q-card>
+
+    <!-- the choice -->
+    <q-card v-else-if="state === 'choose'" flat bordered data-state="choose">
+        <q-card-section>
+            <template v-if="info.subscribed">
+                <div class="text-body1">{{t('You are subscribed to')}} <span class="text-weight-medium">{{info.contactListName}}</span></div>
+            </template>
+            <template v-else-if="info.unsubscribePending">
+                <div class="text-body1">{{fill(t('Your unsubscribe from {list} waits for its confirmation: check your email for the link.'))}}</div>
+            </template>
+            <template v-else>
+                <div class="text-body1">{{t('You are not subscribed to')}} <span class="text-weight-medium">{{info.contactListName}}</span></div>
+            </template>
+            <div v-if="info.maskedAddress" class="text-caption m-muted">{{info.maskedAddress}}</div>
+            <div v-if="info.listDescription" class="text-body2 m-muted q-mt-xs">{{info.listDescription}}</div>
+        </q-card-section>
+        <q-separator></q-separator>
+
+        <q-list>
+            <q-item v-for="option in choices" :key="option.value" clickable :active="choice === option.value" active-class="text-primary"
+                    :data-choice="option.value" @click="choice = option.value">
+                <q-item-section avatar style="min-width:36px">
+                    <q-icon :name="choice === option.value ? 'sym_o_radio_button_checked' : 'sym_o_radio_button_unchecked'" :color="choice === option.value ? 'primary' : undefined"></q-icon>
+                </q-item-section>
+                <q-item-section>
+                    <q-item-label>{{option.label}}</q-item-label>
+                    <q-item-label caption>{{option.caption}}</q-item-label>
+                </q-item-section>
+            </q-item>
+        </q-list>
+
+        <!-- the lists one by one -->
+        <q-card-section v-if="choice === 'prefs'" class="q-pt-none q-pl-xl">
+            <div v-for="list in info.listList" :key="list.contactListId" class="q-py-xs">
+                <m-check v-model="picked[list.contactListId]" :name="'list_' + list.contactListId" true-value="Y" false-value="N" :single-label="list.contactListName"></m-check>
+                <div v-if="list.description" class="text-caption m-muted q-pl-lg">{{list.description}}</div>
+                <div v-if="list.unsubscribePending" class="text-caption text-warning q-pl-lg">{{t('Waiting for your confirmation')}}</div>
+            </div>
+        </q-card-section>
+
+        <q-card-section v-if="leaving" class="q-pt-none">
+            <m-drop-down v-model="reason" name="reason" :label="t('Why are you leaving? (optional)')" :options="reasons" allow-empty></m-drop-down>
+            <m-text-area v-if="reason === 'other'" v-model="reasonOther" name="reasonOther" class="q-mt-sm" :label="t('Tell us more (optional)')" rows="2" maxlength="200"></m-text-area>
+        </q-card-section>
+
+        <q-card-actions class="q-px-md q-pb-md">
+            <q-btn unelevated no-caps color="primary" :icon="choice === 'prefs' ? 'sym_o_check' : 'sym_o_unsubscribe'" :label="choice === 'prefs' ? t('Save preferences') : t('Confirm')"
+                    :loading="busy" :disable="!canConfirm" data-action="confirm" @click="confirm"></q-btn>
+            <q-btn v-if="!info.subscribed && !info.unsubscribePending && choice !== 'prefs'" unelevated no-caps class="m-btn-tonal" icon="sym_o_mark_email_unread"
+                    :label="t('Subscribe again')" :loading="busy" @click="resubscribe([info.contactListId])"></q-btn>
+        </q-card-actions>
+    </q-card>
+
+    <!-- what changed, with the undo -->
+    <q-card v-else-if="state === 'done'" flat bordered data-state="done">
+        <q-card-section class="row no-wrap q-gutter-x-md">
+            <q-icon :name="done.pending ? 'sym_o_mark_email_unread' : 'sym_o_check_circle'" size="32px" :color="done.pending ? 'info' : 'positive'"></q-icon>
+            <div class="col">
+                <div class="text-subtitle1 text-weight-medium">{{done.title}}</div>
+                <div v-if="done.text" class="text-body2 q-mt-xs">{{done.text}}</div>
+                <div v-if="done.pending" class="text-body2 q-mt-xs">{{done.pendingText}}</div>
+            </div>
+        </q-card-section>
+        <q-card-actions v-if="done.undoIds.length" class="q-px-md q-pb-md">
+            <span class="text-body2 m-muted q-mr-sm">{{t('Unsubscribed by mistake?')}}</span>
+            <q-btn unelevated no-caps class="m-btn-tonal" icon="sym_o_undo" :label="t('Resubscribe')" :loading="busy" data-action="resubscribe"
+                    @click="resubscribe(done.undoIds)"></q-btn>
+        </q-card-actions>
+        <q-card-actions v-else-if="done.backToChoice" class="q-px-md q-pb-md">
+            <q-btn flat no-caps color="primary" :label="t('Change my preferences')" @click="load"></q-btn>
+        </q-card-actions>
+    </q-card>
+</div></template>
+
+<script>
+const t = (text) => (moqui.l10n && moqui.l10n.localize ? moqui.l10n.localize(text) : text);
+module.exports = {
+    name: 'BossUnsubscribe',
+    data() {
+        return { state: 'loading', error: null, info: {}, choice: 'list', picked: {}, reason: null, reasonOther: '', busy: false,
+            done: { title: '', text: '', pending: false, pendingText: '', undoIds: [], backToChoice: false } };
+    },
+    computed: {
+        base() { return this.$root.basePath || ''; },
+        context() { return this.$root.context || {}; },
+        organizationName() { return this.info.organizationName || this.context.organizationName || ''; },
+        verifyCode() { return (this.$root.currentParameters || {}).verifyCode || ''; },
+        choices() {
+            const list = [{ value: 'list', label: this.fill(t('Unsubscribe from {list}')),
+                caption: (this.info.listList || []).length > 1 ? t('You keep getting the other lists you are on') : t('No more of these emails') },
+                { value: 'all', label: t('Unsubscribe from all marketing email'),
+                    caption: this.fill(this.organizationName ? t('No more marketing email from {org} to {address}') : t('No more marketing email to {address}')) }];
+            if ((this.info.listList || []).length > 1) list.push({ value: 'prefs', label: t('Choose the lists you get'), caption: t('Keep the ones you want') });
+            if (!this.info.subscribed) list.shift();
+            return list;
+        },
+        reasons() {
+            return [{ value: 'unwanted', label: t('I no longer want these emails') }, { value: 'tooMany', label: t('I get too many emails') },
+                { value: 'notRelevant', label: t('The emails are not relevant to me') }, { value: 'neverSignedUp', label: t('I never signed up') },
+                { value: 'other', label: t('Something else') }];
+        },
+        // a reason is asked for any choice that unsubscribes
+        leaving() {
+            if (this.choice !== 'prefs') return this.choice === 'all' || this.info.subscribed;
+            return (this.info.listList || []).some((list) => list.subscribed && this.picked[list.contactListId] !== 'Y');
+        },
+        canConfirm() {
+            if (this.choice === 'prefs') return (this.info.listList || []).some((list) => (this.picked[list.contactListId] === 'Y') !== !!list.subscribed);
+            if (this.choice === 'list') return !!this.info.subscribed;
+            return true;
+        },
+        reasonText() {
+            if (!this.reason) return '';
+            const found = this.reasons.find((option) => option.value === this.reason);
+            const label = found ? found.label : '';
+            return this.reason === 'other' && this.reasonOther ? (label + ': ' + this.reasonOther).slice(0, 250) : label;
+        }
+    },
+    methods: {
+        t,
+        url(name) { return this.base + '/' + name; },
+        fill(text) {
+            return String(text).replace('{list}', this.info.contactListName || t('this list')).replace('{org}', this.organizationName)
+                .replace('{address}', this.info.maskedAddress || t('your address'));
+        },
+        load() {
+            if (this.context.expired) { this.state = 'expired'; return; }
+            this.state = 'loading';
+            moqui.request(this.url('state'), {}).then((result) => {
+                const json = result.json || {};
+                if (!json.valid) { this.state = 'expired'; return; }
+                this.info = json;
+                const picked = {};
+                (json.listList || []).forEach((list) => { picked[list.contactListId] = list.subscribed ? 'Y' : 'N'; });
+                this.picked = picked;
+                if (this.verifyCode && json.unsubscribePending) { this.state = 'verify'; return; }
+                this.choice = json.subscribed ? 'list' : ((json.listList || []).length > 1 ? 'prefs' : 'all');
+                this.state = 'choose';
+            }, (err) => this.fail(err));
+        },
+        fail(err) {
+            const text = (err && err.json && err.json.errors) || '';
+            if (/not valid or has expired/i.test(text)) { this.state = 'expired'; return; }
+            this.state = 'error';
+            this.error = text && !/^\s*</.test(text) ? text : t('Your preferences cannot be changed now. Try again in a moment.');
+        },
+        post(name, params) {
+            this.busy = true;
+            return moqui.request(this.url(name), { method: 'POST', params }).then((result) => { this.busy = false; return result.json || {}; },
+                (err) => { this.busy = false; this.fail(err); throw err; });
+        },
+        pendingText(json) {
+            return json.verifyEmailSent ? this.fill(t('This list asks you to confirm: we sent an email to {address} with the link.'))
+                : t('This list asks you to confirm, and the confirmation email could not be sent now. Try again later.');
+        },
+        confirm() {
+            if (this.choice === 'prefs') {
+                const listChoices = (this.info.listList || []).map((list) => ({ contactListId: list.contactListId, subscribed: this.picked[list.contactListId] === 'Y' }));
+                this.post('preferences', { listChoices: JSON.stringify(listChoices), reasonText: this.reasonText }).then((json) => {
+                    const left = (json.changedList || []).filter((change) => change.statusId === 'CLPT_UNSUBSCRIBED' || change.statusId === 'CLPT_UNSUBS_PENDING');
+                    this.show({ title: t('Your preferences are saved'), text: (json.changedList || []).length ? '' : t('Nothing changed.'),
+                        pending: !!json.unsubscribePending, pendingText: this.pendingText(json), undoIds: left.map((change) => change.contactListId),
+                        backToChoice: !left.length });
+                }, () => {});
+                return;
+            }
+            const all = this.choice === 'all';
+            this.post('unsubscribe', { choice: this.choice, reasonText: this.reasonText }).then((json) => {
+                const changed = (json.changedList || []).map((change) => change.contactListId);
+                const pending = !!json.unsubscribePending;
+                this.show({ title: all ? t('You are unsubscribed from all marketing email') : (pending ? this.fill(t('Confirm your unsubscribe from {list}'))
+                        : this.fill(t('You are unsubscribed from {list}'))),
+                    text: all ? this.fill(this.organizationName ? t('No more marketing email from {org} goes to {address}.') : t('No more marketing email goes to {address}.'))
+                        : (pending ? '' : t('You will not get these emails any more.')),
+                    pending: pending, pendingText: this.pendingText(json), undoIds: changed, backToChoice: !changed.length });
+            }, () => {});
+        },
+        confirmVerify() {
+            this.post('unsubscribe', { choice: 'list', verifyCode: this.verifyCode }).then(() => {
+                this.show({ title: this.fill(t('You are unsubscribed from {list}')), text: t('You will not get these emails any more.'), pending: false,
+                    pendingText: '', undoIds: [this.info.contactListId], backToChoice: false });
+            }, () => {});
+        },
+        resubscribe(ids) {
+            const listChoices = ids.map((id) => ({ contactListId: id, subscribed: true }));
+            this.post('preferences', { listChoices: JSON.stringify(listChoices) }).then(() => {
+                const names = (this.info.listList || []).filter((list) => ids.includes(list.contactListId)).map((list) => list.contactListName);
+                this.show({ title: t('You are subscribed again'), text: names.length ? names.join(', ') : '', pending: false, pendingText: '', undoIds: [],
+                    backToChoice: true });
+            }, () => {});
+        },
+        show(done) {
+            this.done = done;
+            this.state = 'done';
+            // the page's URL without the confirmation code, so a reload shows the preferences
+            if (this.verifyCode && window.history && window.history.replaceState) window.history.replaceState(null, '', this.base);
+        }
+    },
+    mounted() {
+        // dark when the visitor's system is, as the public shell has no preference to read
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches && this.$q.dark && !this.$q.dark.isActive) this.$q.dark.set(true);
+        this.load();
+    }
+};
+</script>

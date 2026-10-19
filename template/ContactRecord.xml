@@ -25,7 +25,9 @@ along with this software (see the LICENSE.md file). If not, see
     with, export vCard, link to a directory party, delete), and the tabs Overview (names, contact information with purposes
     and the Expired toggle, addresses, organization and title, relationships, books and groups, notes, an employee's
     directory card), Activity (Chatter, opening on Send message), Calendar, Tasks, Requests, Files (record files) and Consent
-    (read only, with "Edit in Comms Consent"). Edits are for the owner of a personal contact and contact admins. Call and
+    (template/ConsentRecord.xml: the state for anyone who may see the contact; subscribe, unsubscribe and record consent for
+    contact admins, with "History and export in Comms Consent"; its transitions are included by the same screens). Edits
+    are for the owner of a personal contact and contact admins. Call and
     chat come with Comms calls and chat (later); print comes later. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-include="false">
@@ -181,7 +183,7 @@ along with this software (see the LICENSE.md file). If not, see
                             in-map="{partyId:recordPartyId, showExpired:(showExpired == 'Y')}"/>
                 </if>
                 <set field="act" from="{}"/>
-                <if condition="rec.found &amp;&amp; ['calendar', 'tasks', 'requests', 'consent'].includes(tab)">
+                <if condition="rec.found &amp;&amp; ['calendar', 'tasks', 'requests'].includes(tab)">
                     <service-call name="ironstone.ContactServices.get#ContactActivity" in-map="{partyId:recordPartyId, tab:tab}" out-map="act"/>
                 </if>
                 <script><![CDATA[
@@ -244,8 +246,7 @@ along with this software (see the LICENSE.md file). If not, see
                     eventList = (act.eventList || []).map((event) => Object.assign({}, event, {linkHtml: mLink(event.url, event.title)}))
                     taskList = (act.taskList || []).map((task) => Object.assign({}, task, {linkHtml: mLink(task.url, task.workEffortName, task.closed ? 'm-muted' : '')}))
                     requestList = (act.requestList || []).map((request) => Object.assign({}, request, {linkHtml: mLink(request.url, request.requestName)}))
-                    consentAddressList = act.consentAddressList || []
-                    consentListList = act.consentListList || []
+                    isConsentAdmin = !!access.isContactAdmin
                     mergedToPartyId = rec.mergedToPartyId
                     bookOptions = otherBookList.map((book) => ({key: book.contactBookId, text: book.contactBookName + (book.isOwner ? '' : ' · ' + L('shared'))}))
                     favoriteBookId = record.favoriteBookId
@@ -830,29 +831,21 @@ along with this software (see the LICENSE.md file). If not, see
                         <record-files id="ContactFiles" record-entity="mantle.party.Party" record-id="${recordPartyId}"/>
                     </widgets></section>
 
-                    <!-- ===== Consent, read only ===== -->
-                    <section name="ConsentTab" condition="tab == 'consent'"><widgets>
-                        <container-box><box-header title="Consent"/>
-                            <box-toolbar>
-                                <render-mode><text type="qvt"><![CDATA[<m-link href="/qapps/Comms/Consent?partyId=${recordPartyId}"><q-btn unelevated no-caps dense class="m-btn-tonal" icon="sym_o_edit" label="${ec.l10n.localize('Edit in Comms Consent')}"></q-btn></m-link>]]></text></render-mode>
-                            </box-toolbar>
-                            <box-body-nopad>
-                                <form-list name="ContactConsentAddressList" list="consentAddressList" skip-form="true" paginate="false">
-                                    <field name="value"><default-field title="Address or number"><display/></default-field></field>
-                                    <field name="allowSolicitation"><default-field title="Allows contact"><display/></default-field></field>
-                                    <field name="consentText"><default-field title="Consent"><display/></default-field></field>
-                                </form-list>
-                                <section name="NoConsentAddresses" condition="!consentAddressList.length"><widgets>
-                                    <label type="p" text="No consent recorded for ${record.name}" style="m-muted q-pa-sm q-mb-none"/>
-                                </widgets></section>
-                                <section name="ConsentLists" condition="consentListList.length"><widgets>
-                                    <form-list name="ContactConsentListList" list="consentListList" skip-form="true" paginate="false">
-                                        <field name="contactListName"><default-field title="List"><display/></default-field></field>
-                                        <field name="statusText"><default-field title="Subscription"><display/></default-field></field>
-                                    </form-list>
-                                </widgets></section>
-                            </box-body-nopad>
-                        </container-box>
+                    <!-- ===== Consent: the state for anyone who may see the contact; the changes for contact admins, with the history
+                        and the export in Comms Consent (template/ConsentRecord.xml) ===== -->
+                    <section name="ConsentTab" condition="tab == 'consent'"><actions>
+                        <set field="consentPartyId" from="recordPartyId"/>
+                        <set field="consentFull" from="false"/>
+                        <set field="consentPageUrl" from="'/qapps/Comms/Consent/Contact?partyId=' + encodeURIComponent(recordPartyId)"/>
+                    </actions><widgets>
+                        <section name="ConsentTabLink" condition="isConsentAdmin"><widgets>
+                            <container style="row justify-end q-mb-sm">
+                                <render-mode><text type="qvt"><![CDATA[<m-link href="${consentPageUrl}"><q-btn unelevated no-caps dense class="m-btn-tonal" icon="sym_o_history" label="${ec.l10n.localize('History and export in Comms Consent')}"></q-btn></m-link>]]></text></render-mode>
+                            </container>
+                        </widgets></section>
+                        <!-- include-screen, not section-include: a section-include inside this included section does not find the
+                            sections nested in the one it includes (they are looked up in the including screen) -->
+                        <include-screen location="component://ironstone-boss/template/ConsentRecord.xml" share-scope="true"/>
                     </widgets></section>
                 </widgets></section>
             </widgets>

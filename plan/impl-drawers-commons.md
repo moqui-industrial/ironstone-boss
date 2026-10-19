@@ -1,7 +1,7 @@
 # IronStone BOSS — Header, drawers, Commons & Comms implementation
 
-Oct 18, 2026 — plan; Step 0 done (the review corrections are in design-drawers-commons.md); Oct 19 — M0–M10 built
-(M5f and M11's screens left; status in §5)
+Oct 18, 2026 — plan; Step 0 done (the review corrections are in design-drawers-commons.md); Oct 19 — M0–M11 built
+(M5f left; status in §5)
 
 How [design-drawers-commons.md](design-drawers-commons.md) gets built: the review of that design against mr-moqui and
 Mantle as they stand (findings R1–R27, each with the resolution now written into the design), the rules every step
@@ -117,7 +117,7 @@ Each finding was verified in the code. Each resolution is now part of the design
 | M8 Files and drives | mr-moqui, BOSS | Files, Drives, Shares, PublicShare | done Oct 19 |
 | M9 Knowledge and notes | mr-moqui, BOSS | Knowledge, Spaces, Review, Notes | done Oct 19 |
 | M10 Chat and presence | mr-moqui, Mantle, BOSS | Chat, ChatPanel, ChatSettings | done Oct 19 |
-| M11 Consent and unsubscribe | mr-moqui, Mantle, BOSS | Consent, Unsubscribe | Mantle done; BOSS screens and the public page not started |
+| M11 Consent and unsubscribe | mr-moqui, Mantle, BOSS | Consent, Unsubscribe | done Oct 19 (the List-Unsubscribe headers on the wire wait for the framework) |
 
 ### M0 — Foundations (mr-moqui, BOSS)
 
@@ -551,6 +551,26 @@ Built Oct 19:
 - **Mantle:** PartyConsent; `ConsentServices` (`store#PartyConsent`, `unsubscribe#ContactListParty`);
   `List-Unsubscribe` headers on ContactList sends and the one-click POST.
 - **BOSS:** Consent; Unsubscribe in the public shell at `/u/<token>`; the Consent tab on ContactDetail.
+
+Built Oct 19:
+- **Mantle:** `ContactListServices.send#ContactListEmail` (Marketing's send: the subscribed members, consent gating them,
+  one CommunicationEvent, per member a token, the email, a ContactListCommStatus with the Message-ID); `ConsentServices`
+  `check#UnsubscribeToken` (the `u` route's check: a known token passes, an ended one only to say so),
+  `send#UnsubscribeVerifyEmail` (the confirmation a pending unsubscribe waits for; the seed template
+  MANTLE_UNSUBSCRIBE_VERIFY), `process#UnsubscribeEmail` with `MantleConsent.emecas.xml` (the List-Unsubscribe mailto), and
+  `reasonText` on the unsubscribe services. List-Unsubscribe is `<…/u/<token>/oneClick>` and, with an address, a mailto.
+- **BOSS:** `screen/Unsubscribe.xml` and `.qvue` at `/u/<token>` (this list, all marketing email, the lists one by one, a
+  reason, Resubscribe, the confirmation link, the expired page) with the one-click POST at `/u/<token>/oneClick`;
+  `Comms/Consent` (List and Contact) and `template/ConsentRecord.xml`, which the contact record's Consent tab includes;
+  `ironstone.ConsentServices` (contact admins only); `data/BossConsentDemoData.xml`.
+- **What the build settled:**
+  - The one-click URL is a transition below the page: a POST to `/u/<token>` itself renders the public shell.
+  - EditConsent is a page (Comms/Consent/Contact) rather than a dialog: with the history it is longer than a dialog may be.
+  - Consent is not per organization (PartyConsent has none, as §19 has it): "all marketing email" withdraws the address's
+    marketing consent, which every organization's sends respect; the lists unsubscribed are the token list's organization's.
+  - Framework gaps: `send#EmailTemplate` takes no extra headers (the send passes `extraHeaders`, dropped today) and
+    MailCapture keeps no headers, so the headers do not go out yet; a `section-include` inside an included section does not
+    find the sections nested in the one it includes (the Consent tab uses `include-screen`).
 
 ## 6. Later
 

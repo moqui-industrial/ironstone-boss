@@ -517,8 +517,8 @@ along with this software (see the LICENSE.md file). If not, see
     <service verb="get" noun="ContactActivity">
         <description>One tab of the contact record beyond the overview, for a party the user may see: calendar (the party's
             events from 30 days ago to 90 days ahead, mantle.work.EventServices.get#FullCalendarData), tasks (the WetTask work
-            efforts the party is on, open ones first), requests (the requests the party is on) and consent
-            (mantle.party.ConsentServices.get#PartyConsentState, read only).</description>
+            efforts the party is on, open ones first) and requests (the requests the party is on). The consent tab is
+            ironstone.ConsentServices.get#ContactConsent.</description>
         <in-parameters>
             <parameter name="partyId" required="true"/>
             <parameter name="tab" required="true"/>
@@ -527,11 +527,9 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="eventList" type="List"/>
             <parameter name="taskList" type="List"/>
             <parameter name="requestList" type="List"/>
-            <parameter name="consentAddressList" type="List"/>
-            <parameter name="consentListList" type="List"/>
         </out-parameters>
         <actions><script><![CDATA[
-            eventList = []; taskList = []; requestList = []; consentAddressList = []; consentListList = []
+            eventList = []; taskList = []; requestList = []
             const access = ec.service.sync().name('ironstone.ContactServices.check#ContactAccess').parameters({partyId: partyId, need: 'view'}).call()
             if (ec.message.hasError()) return
             const cf = ec.entity.conditionFactory
@@ -584,19 +582,6 @@ along with this software (see the LICENSE.md file). If not, see
                         roleText: role(row.roleTypeId), dateText: request.requestDate ? ec.l10n.format(request.requestDate, 'yyyy-MM-dd') : '',
                         url: '/qapps/Commons/Requests/RequestDetail?requestId=' + encodeURIComponent(request.requestId)})
                 }
-            } else if (tab === 'consent') {
-                const out = ec.service.sync().name('mantle.party.ConsentServices.get#PartyConsentState').parameters({partyId: partyId}).call()
-                if (ec.message.hasError()) { ec.logger.warn(`Contact ${partyId} consent not shown: ${ec.message.getErrorsString()}`); ec.message.clearErrors(); return }
-                const purposeText = (id) => {
-                    const value = id ? ec.entity.find('moqui.basic.Enumeration').condition('enumId', id).useCache(true).one() : null
-                    return value ? (value.description || id) : (id || '')
-                }
-                consentAddressList = Array.from(out?.addressList || []).map((address) => ({contactMechId: address.contactMechId,
-                    value: address.infoString || address.address || address.contactMechId, allowSolicitation: address.allowSolicitation === 'Y' ? 'Yes'
-                        : (address.allowSolicitation === 'N' ? 'No' : ''),
-                    consentText: Array.from(address.consentList || []).map((consent) => `${purposeText(consent.purposeEnumId)}: ${status(consent.statusId)}`).join(', ')}))
-                consentListList = Array.from(out?.listList || []).map((list) => ({contactListId: list.contactListId, contactListName: list.contactListName || list.contactListId,
-                    statusText: list.subscribed ? ec.l10n.localize('Subscribed') : status(list.statusId) || ec.l10n.localize('Not subscribed')}))
             }
         ]]></script></actions>
     </service>

@@ -113,6 +113,11 @@ const demoRecords = {
     "Comms/Settings/Identities": { text: "Ziziwork Support" },
     "Comms/Settings/OutOfOffice": { text: "Away until Monday" },
     "Comms/Settings/TextBlocks": { text: "Directions to the office" },
+    // M11: the consent registry and one contact's consent (data/BossConsentDemoData.xml); the public page /u/<token> is
+    // test/Unsubscribe.spec.js's
+    "Comms/Consent": { text: "Alex Rivera" },
+    "Comms/Consent/List": { text: "Alex Rivera" },
+    "Comms/Consent/Contact": { parameters: { partyId: "BOSS_DEMO_CON_ALEX" }, text: "alex.rivera@example.com" },
     "Insights/ReportBuilder/Datasets": { text: "BOSS_DEMO_PRODUCTS" },
     "Insights/ReportBuilder/DatasetDetail": { parameters: { dataDocumentId: "BOSS_DEMO_PRODUCTS" }, text: "Products" },
     "Insights/ReportBuilder/DatasetDetail/FieldList": { parameters: { dataDocumentId: "BOSS_DEMO_PRODUCTS" }, text: "productName" },

@@ -172,7 +172,8 @@ feature("the contact record of a directory party, with its books and groups, and
         { tab: "tasks", partyId: "EX_JOHN_DOE", texts: ["Review the open support requests"] },
         { tab: "requests", partyId: "ORG_ACME_BA", texts: ["Set up the shared team calendar", "Customer"] },
         { tab: "files", partyId: "ORG_ACME_BA", texts: ["m-record-files"] },
-        { tab: "consent", partyId: "ORG_ACME_BA", texts: ["Edit in Comms Consent", "/qapps/Comms/Consent?partyId=ORG_ACME_BA"] },
+        { tab: "consent", partyId: "ORG_ACME_BA", texts: ["History and export in Comms Consent", "/qapps/Comms/Consent/Contact?partyId=ORG_ACME_BA",
+            "Addresses and numbers", "Record consent"] },
     ],
     expect({ tab, partyId, texts }) {
         const shown = detail(partyId, { tab })

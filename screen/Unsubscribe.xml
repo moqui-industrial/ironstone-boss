@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- Unsubscribe (design-drawers-commons.md §16 Unsubscribe; impl-drawers-commons.md R16, M11): the page of the unsubscribe link
+    of a list email, for a visitor who is not signed in, at /u/<token>: the token-route "u" of MoquiConf.xml renders it in the
+    public shell (no header, drawers or session user) after mantle.party.ConsentServices.check#UnsubscribeToken let the token
+    through (an unknown one gets the route's "not found" page; an ended one reaches the page only to say it has expired). The
+    component is Unsubscribe.qvue next to this file: the organization, "You are subscribed to" the list at the masked address,
+    the choice (this list, all marketing email from the organization, or the lists one by one), a reason, one Confirm, the
+    done page with Resubscribe, the confirmation an unsubscribe waits for when the list requires it (the verification email's
+    link carries verifyCode), and the expired page. Every transition below calls a Mantle consent service with the token the
+    route gives (the token parameter, whatever the request says), which checks it before it reads anything; nothing else is
+    read here. Reading the page changes nothing (state is read only), so a mail scanner that fetches the link unsubscribes
+    no one.
+
+    oneClick is the List-Unsubscribe URL of the list emails (create#UnsubscribeToken): the RFC 8058 one-click POST with the
+    form field List-Unsubscribe=One-Click unsubscribes the party from the token's list at once and answers 200 with a line
+    of text, a second POST changes nothing; it needs no session token, as a mail provider's POST has none. A GET of it (a mail
+    program that opens the URL) goes to the page. The token is the capability on every call, so the page's own posts need no
+    session token either. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        require-authentication="false" default-menu-include="false" default-menu-title="Email preferences" render-modes="vue,qvue" server-static="vue,qvue">
+
+    <!-- what the page shows: the organization, the token's list and the party's status on it, the masked address, the
+        organization's other lists the party is on (resolve#UnsubscribeToken, read only) -->
+    <transition name="state" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('mantle.party.ConsentServices.resolve#UnsubscribeToken').parameters({token: token || ''}).call()
+            if (ec.message.hasError()) { ec.web.sendJsonResponse({}); return }
+            ec.web.sendJsonResponse({valid: true, organizationName: out.organizationName ?? null, contactListId: out.contactListId ?? null,
+                contactListName: out.contactListName ?? null, listDescription: out.listDescription ?? null, statusId: out.statusId ?? null,
+                subscribed: !!out.subscribed, unsubscribePending: !!out.unsubscribePending, maskedAddress: out.maskedAddress ?? null,
+                marketingWithdrawn: !!out.marketingWithdrawn, listList: Array.from(out.listList || [])})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+
+    <!-- Confirm: this list (choice=list) or all marketing email of the organization (choice=all), with the reason; with the
+        verification email's verifyCode, the confirmation of an unsubscribe that waits for it -->
+    <transition name="unsubscribe" require-session-token="false">
+        <actions><script><![CDATA[
+            let baseUrl = null
+            try { baseUrl = ec.web.getWebappRootUrl() || null } catch (err) { baseUrl = null }
+            const out = ec.service.sync().name('mantle.party.ConsentServices.unsubscribe#ContactListParty').parameters({token: token || '',
+                allMarketing: choice === 'all', reasonText: reasonText || null, verifyCode: verifyCode || null, baseUrl: baseUrl}).call()
+            if (ec.message.hasError()) { ec.web.sendJsonResponse({}); return }
+            ec.web.sendJsonResponse({statusId: out.statusId ?? null, unsubscribePending: !!out.unsubscribePending, verifyEmailSent: !!out.verifyEmailSent,
+                marketingWithdrawn: !!out.marketingWithdrawn, changedList: Array.from(out.changedList || []),
+                failedContactListIds: Array.from(out.failedContactListIds || [])})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+
+    <!-- the lists one by one (listChoices as JSON: [{contactListId, subscribed}]), and Resubscribe, the done page's undo -->
+    <transition name="preferences" require-session-token="false">
+        <actions><script><![CDATA[
+            let choices = []
+            try { choices = JSON.parse(String(listChoices || '[]')) } catch (err) { choices = [] }
+            if (!Array.isArray(choices)) choices = []
+            let baseUrl = null
+            try { baseUrl = ec.web.getWebappRootUrl() || null } catch (err) { baseUrl = null }
+            const out = ec.service.sync().name('mantle.party.ConsentServices.apply#UnsubscribePreferences').parameters({token: token || '',
+                listChoices: choices.map((choice) => ({contactListId: String(choice && choice.contactListId || ''), subscribed: !!(choice && choice.subscribed)})),
+                reasonText: reasonText || null, baseUrl: baseUrl}).call()
+            if (ec.message.hasError()) { ec.web.sendJsonResponse({}); return }
+            ec.web.sendJsonResponse({changedList: Array.from(out.changedList || []), failedContactListIds: Array.from(out.failedContactListIds || []),
+                unsubscribePending: !!out.unsubscribePending, verifyEmailSent: !!out.verifyEmailSent})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+
+    <!-- RFC 8058: the one-click POST of a mail provider, List-Unsubscribe=One-Click -->
+    <transition name="oneClick" method="post" require-session-token="false">
+        <actions><script><![CDATA[
+            const field = context.get('List-Unsubscribe') || context.get('listUnsubscribe') || ''
+            if (String(field).trim().toLowerCase() !== 'one-click') {
+                ec.web.sendJsonError(400, ec.l10n.localize('A one-click unsubscribe posts List-Unsubscribe=One-Click')); return }
+            // in a transaction of its own, so a refused token leaves this request a plain answer
+            ec.message.pushErrors()
+            let refused = false
+            try {
+                ec.service.sync().name('mantle.party.ConsentServices.unsubscribe#ContactListParty').parameters({token: token || '',
+                    listUnsubscribe: 'One-Click'}).requireNewTransaction(true).call()
+                refused = ec.message.hasError()
+            } catch (err) {
+                refused = true
+            } finally {
+                ec.message.clearErrors()
+                ec.message.popErrors()
+            }
+            if (refused) { ec.web.sendJsonError(410, ec.l10n.localize('This unsubscribe link is not valid or has expired')); return }
+            ec.web.sendTextResponse(ec.l10n.localize('You are unsubscribed.'), 'text/plain', null)
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- a GET of the one-click URL: the page -->
+    <transition name="oneClick" read-only="true">
+        <default-response url="${tokenRoute.basePath}" url-type="plain"/>
+    </transition>
+
+    <widgets>
+        <render-mode>
+            <text type="qvue" location="component://ironstone-boss/screen/Unsubscribe.qvue" template="false"/>
+            <text type="html,qvt"><![CDATA[<p>Your email preferences open in a browser with JavaScript.</p>]]></text>
+        </render-mode>
+    </widgets>
+</screen>

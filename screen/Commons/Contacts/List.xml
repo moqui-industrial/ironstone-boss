@@ -54,6 +54,9 @@ along with this software (see the LICENSE.md file). If not, see
     <transition-include name="contactSearch" location="component://ironstone-boss/template/ContactRecord.xml"/>
     <transition-include name="contactGeoRegions" location="component://ironstone-boss/template/ContactRecord.xml"/>
     <transition-include name="contactBookGroups" location="component://ironstone-boss/template/ContactRecord.xml"/>
+    <!-- the Consent tab's changes (template/ConsentRecord.xml) -->
+    <transition-include name="consentRecord" location="component://ironstone-boss/template/ConsentRecord.xml"/>
+    <transition-include name="consentListSet" location="component://ironstone-boss/template/ConsentRecord.xml"/>
 
     <!-- ========== bulk actions on the selected rows (selectedPartyIds, a comma list) ========== -->
     <transition name="bulkAddToGroup">
