@@ -71,13 +71,14 @@ along with this software (see the LICENSE.md file). If not, see
         ]]></script></actions>
         <default-response type="none"/>
     </transition>
-    <!-- a file of the record's folder or a past version of it, inline only for a picture or a PDF -->
+    <!-- a file of the record's folder or a past version of it (its location#version), inline only for a picture or a PDF, under
+        the file's name -->
     <transition name="driveDownload" method="get" read-only="true">
         <actions><script><![CDATA[
             const out = ec.service.sync().name('ironstone.RecordFilesServices.get#RecordDriveFile').parameters({recordEntityName: recordEntity || '',
                 recordId: recordId || '', drivePath: drivePath || '', versionName: versionName || null}).call()
             if (ec.message.hasError() || !out.location) ec.web.sendJsonResponse({})
-            else ec.web.sendResourceResponse(out.location, String(inline) === 'true' && out.inlineAllowed)
+            else ec.web.sendResourceResponse(out.location, String(inline) === 'true' && out.inlineAllowed, out.fileName)
         ]]></script></actions>
         <default-response type="none"/>
     </transition>
@@ -122,7 +123,7 @@ along with this software (see the LICENSE.md file). If not, see
                 recordId: recordId || '', contentKey: contentKey || ''}).call()
             if (!ec.message.hasError() && !out.contentLocation) ec.message.addError(ec.l10n.localize('This file has no content'))
             if (ec.message.hasError()) ec.web.sendJsonResponse({})
-            else ec.web.sendResourceResponse(out.contentLocation, String(inline) === 'true' && out.inlineAllowed)
+            else ec.web.sendResourceResponse(out.contentLocation, String(inline) === 'true' && out.inlineAllowed, out.fileName || null)
         ]]></script></actions>
         <default-response type="none"/>
     </transition>

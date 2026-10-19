@@ -13,12 +13,19 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- The sign-in button of a mail account (SignIn.xml): its query comes from mScreen (the dynamic-container that loaded it).
     The click opens the popup at once (moqui.oauthPopup, so no popup blocker stops it), then asks startSignIn for the
-    provider's address and signInStatus when the window closed without a word. On success the wizard goes on to its next
-    step with the account (mWizard), and the account page shows the account again with its connection tested. A sign-in as
-    another address asks the user ($q.dialog) and signs in again with their yes; a sign-in that did not finish takes back
-    the account made for it (dropSignIn) and says why under the button. While the window is open Cancel ends the wait: a
-    provider's page may cut the window off from this one (Google's does), and then its closing is not seen here. -->
+    provider's address, and signInStatus while the sign-in runs. In the wizard a new account is made by the framework when
+    the sign-in succeeds (its id comes with the outcome, or from signInStatus), and the wizard goes on to its next step with
+    it (mWizard); the account page shows the account again with its connection tested. A sign-in as another address asks
+    the user ($q.dialog) and signs in again with their yes; a sign-in that did not finish says why under the button, and a
+    POP account made for it is taken back (dropSignIn). While the window is open Cancel ends the wait (the popup promise's
+    cancel()): a provider's page may cut the window off from this one (Google's does), and then its closing is not seen here.
+    In the wizard (offerPop) the user chooses IMAP or POP first: POP reads the Inbox from the provider's POP server, and the
+    sign-in asks to allow POP too. -->
 <template><div class="m-mail-sign-in">
+    <div v-if="offerPop" class="q-mb-sm">
+        <q-option-group v-model="storeKind" :options="kindOptions" type="radio" inline dense :disable="busy"></q-option-group>
+        <div v-if="storeKind === 'pop'" class="text-caption m-muted q-mt-xs">{{popNote}}</div>
+    </div>
     <div class="row items-center">
         <q-btn unelevated no-caps :color="secondary ? undefined : 'primary'" :class="secondary ? 'm-btn-tonal text-primary' : ''" icon="sym_o_login"
                 :label="label" :loading="busy" :disable="busy" @click="signIn(false, null)"></q-btn>
@@ -37,13 +44,27 @@ const fill = (text, values) => String(text).replace(/\{(\w+)\}/g, (match, key) =
 module.exports = {
     name: 'BossMailSignIn',
     inject: { mScreen: { default: null }, mWizard: { default: null } },
-    data() { return { busy: false, error: null, madeId: null, aborter: null }; },
+    data() {
+        const query = this.mScreen ? this.mScreen.parameters : {};
+        return { busy: false, error: null, madeId: null, popup: null, storeKind: query.storeKind === 'pop' ? 'pop' : 'imap' };
+    },
     computed: {
         query() { return this.mScreen ? this.mScreen.parameters : {}; },
         mode() { return this.query.mode === 'wizard' ? 'wizard' : 'account'; },
         providerLabel() { return this.query.providerLabel || t('your provider'); },
         label() { return this.query.buttonText || fill(t('Sign in with {name}'), { name: this.providerLabel }); },
         secondary() { return this.query.secondary === 'Y'; },
+        offerPop() { return this.mode === 'wizard' && this.query.offerPop === 'Y'; },
+        kindOptions() {
+            return [{ value: 'imap', label: t('IMAP (recommended: folders and read mail stay in step everywhere)') },
+                { value: 'pop', label: t('POP (downloads the Inbox only)') }];
+        },
+        popNote() {
+            const provider = this.query.oauthProviderEnumId;
+            if (provider === 'EopMicrosoft') return t('With POP, Microsoft asks you to allow POP access to your mailbox too.');
+            if (provider === 'EopGoogle') return t('With POP, turn POP on in your Gmail settings (Forwarding and POP/IMAP) first.');
+            return fill(t('With POP, {name} may ask you to allow POP access too.'), { name: this.providerLabel });
+        },
         base() { return this.mScreen ? this.mScreen.path : this.$root.basePath + '/Comms/Settings/MailAccounts/SignIn'; }
     },
     methods: {
@@ -61,6 +82,7 @@ module.exports = {
             this.error = null;
             const query = this.query;
             const params = { mode: accountId ? 'account' : this.mode, allowAddressChange: allowChange ? 'true' : 'false' };
+            if (this.offerPop && !accountId) params.storeKind = this.storeKind;
             const fields = accountId ? { emailAccountId: accountId, oauthProviderEnumId: query.oauthProviderEnumId }
                 : { emailAccountId: query.emailAccountId, emailAddress: query.emailAddress, displayName: query.displayName,
                     accountKindEnumId: query.accountKindEnumId, oauthProviderEnumId: query.oauthProviderEnumId };
@@ -71,18 +93,25 @@ module.exports = {
                 return started;
             }, (err) => ({ errors: this.errorText(err) }));
             const status = (signInId) => moqui.request(this.url('signInStatus'), { params: { signInId } }).then((result) => result.json || {}, () => ({}));
-            this.aborter = typeof AbortController === 'function' ? new AbortController() : null;
-            moqui.oauthPopup(start, status, { signal: this.aborter ? this.aborter.signal : undefined }).then((result) => {
+            // the popup's promise (its cancel() is Cancel's)
+            this.popup = moqui.oauthPopup(start, status);
+            this.popup.then((result) => {
                 this.busy = false;
-                this.aborter = null;
+                this.popup = null;
+                // a POP account made for this sign-in (a new IMAP account is made only when the sign-in succeeds)
                 const made = started && started.created ? started.emailAccountId : null;
                 const id = result.emailAccountId || (started && started.emailAccountId) || accountId || null;
-                if (result.status === 'success') { this.signedIn(id, result); return; }
-                if (result.errorCode === 'addressMismatch' && id) { this.askAddress(result, id, made || (accountId ? this.madeId : null)); return; }
+                if (result.status === 'success') { this.signedIn(id, result, status); return; }
+                if (result.errorCode === 'addressMismatch') { this.askAddress(result, id, made || (accountId ? this.madeId : null)); return; }
                 this.notDone(result, made || (accountId ? this.madeId : null));
             });
         },
-        signedIn(accountId, result) {
+        // the account the sign-in made or signed in: from its outcome, else asked by its signInId
+        signedIn(accountId, result, status) {
+            if (!accountId && result.signInId) {
+                status(result.signInId).then((json) => { if (json.emailAccountId) this.signedIn(json.emailAccountId, result, status); else this.notDone(result, null); });
+                return;
+            }
             this.madeId = null;
             if (result.message) moqui.notifyMessages([{ type: 'success', message: result.message }]);
             if (this.mode === 'wizard' && this.mWizard) {
@@ -92,8 +121,8 @@ module.exports = {
             const accounts = this.base.replace(/\/SignIn$/, '');
             this.$root.setUrl(this.$root.getLinkPath(accounts + '/Account?' + moqui.objToSearch({ emailAccountId: accountId, runTest: 'Y' })));
         },
-        // signed in as another address than the account's: the account takes it only with the user's yes, then a new
-        // sign-in (the OK is a click, so its window may open)
+        // signed in as another address than the account's (or the address typed in the wizard): the account takes it only
+        // with the user's yes, then a new sign-in (the OK is a click, so its window may open)
         askAddress(result, accountId, madeId) {
             this.madeId = madeId;
             this.$q.dialog({ title: t('Another address'), message: fill(t('You signed in as {got}, but the account is {expected}. Make the account {got}?'),
@@ -109,8 +138,8 @@ module.exports = {
             this.error = result.status === 'cancelled' && !result.message ? t('The sign-in was not finished.') : (result.message || t('The sign-in did not work.'));
             if (madeId) moqui.request(this.url('dropSignIn'), { method: 'POST', params: { emailAccountId: madeId } }).then(() => {}, () => {});
         },
-        // the user stops waiting for the window (oauthPopup closes it and answers cancelled)
-        cancel() { if (this.aborter) this.aborter.abort(); }
+        // the user stops waiting for the window (the popup's cancel() closes it and answers cancelled)
+        cancel() { if (this.popup && this.popup.cancel) this.popup.cancel(); }
     },
     beforeUnmount() { this.cancel(); }
 };

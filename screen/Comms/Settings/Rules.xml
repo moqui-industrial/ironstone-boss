@@ -15,12 +15,13 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- Rules (design-drawers-commons.md §17 Rules): the user's mail rules as an ordered list (drag, or up and down), each with
     its conditions and actions in words, the account it is on (or all of the user's own accounts), how often it matched, on
     or off; the rule editor (match all or any of the conditions on from, to, cc, subject, the text, a file attached, the
-    mailing list, the size or any header; the actions move, label, mark read, flag, forward, delete, Spam and stop); Run
-    now over a folder; and the blocked senders (block#Sender's rules) with Unblock and Block an address. Rules run on the
-    server as the sync stores new Inbox mail. The component is Rules.qvue next to this file (qvue render mode); its JSON
-    transitions below are ironstone.MailSettingsServices get#RulesView and store#Rule and the framework's rule services,
-    which check that the user may change each rule (its owner, or a manager of its account) and normalize them. A test of a
-    rule against recent mail needs a service that matches without acting, which the framework has not got yet. -->
+    mailing list, the size or any header; the actions move, label, mark read, flag, forward, delete, Spam and stop) with its
+    Test, which lists the messages of the newest 50 of a folder the rule as edited matches, without acting on them
+    (ironstone.MailSettingsServices.test#Rule over the framework's test#EmailRule); Run now over a folder; and the blocked
+    senders (block#Sender's rules) with Unblock and Block an address. Rules run on the server as the sync stores new Inbox
+    mail. The component is Rules.qvue next to this file (qvue render mode); its JSON transitions below are
+    ironstone.MailSettingsServices get#RulesView, store#Rule and test#Rule and the framework's rule services, which check that
+    the user may change each rule (its owner, or a manager of its account) and normalize them. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Rules" default-menu-index="3" render-modes="vue,qvue" server-static="vue,qvue">
 
@@ -38,6 +39,17 @@ along with this software (see the LICENSE.md file). If not, see
                 actionsJson: actionsJson || '[]', enabled: enabled || null, stopProcessing: stopProcessing || null}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {emailRuleId: out.emailRuleId,
                 messageInfos: [{type: 'success', message: ec.l10n.localize('Rule saved')}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- the rule as it is in the editor, tried on the newest mail of a folder: what it matches, nothing done to it -->
+    <transition name="testRule">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.MailSettingsServices.test#Rule').parameters({emailRuleId: emailRuleId || null,
+                emailAccountId: emailAccountId || null, emailFolderId: emailFolderId || null, conditionsJson: conditionsJson || '[]',
+                matchAllEnumId: matchAllEnumId || 'ErmAll', limit: 50}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {matchList: out.matchList || [], matchedCount: out.matchedCount || 0,
+                testedCount: out.testedCount || 0, resultText: out.resultText})
         ]]></script></actions>
         <default-response type="none"/>
     </transition>

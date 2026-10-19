@@ -469,7 +469,8 @@ along with this software (see the LICENSE.md file). If not, see
     </service>
 
     <service verb="get" noun="RecordFileVersions">
-        <description>The versions of a file of the record (FileServices.get#Versions on the records drive), newest first.</description>
+        <description>The versions of a file of the record (FileServices.get#Versions on the records drive, which checks the
+            records of the path), newest first.</description>
         <in-parameters>
             <parameter name="recordEntityName" required="true"/>
             <parameter name="recordId" required="true"/>
@@ -480,8 +481,6 @@ along with this software (see the LICENSE.md file). If not, see
             <service-call name="ironstone.RecordFilesServices.check#RecordDrivePath" out-map="pathOut"
                     in-map="{recordEntityName:recordEntityName, recordId:recordId, drivePath:drivePath}"/>
             <if condition="ec.message.hasError()"><return/></if>
-            <service-call name="ironstone.DriveServices.check#ItemAccess" in-map="{driveId:pathOut.driveId, path:drivePath}"/>
-            <if condition="ec.message.hasError()"><return/></if>
             <service-call name="org.moqui.impl.FileServices.get#Versions" in-map="{driveId:pathOut.driveId, path:drivePath}" out-map="versionsOut"/>
             <set field="versionList" from="versionsOut.versionList || []"/>
             <set field="canChange" from="pathOut.canChange"/>
@@ -489,8 +488,9 @@ along with this software (see the LICENSE.md file). If not, see
     </service>
 
     <service verb="get" noun="RecordDriveFile">
-        <description>A file of the record's folder to send (a past version with versionName): its location and name, after
-            check#RecordDrivePath and FileServices.get#ResourceInfo; inlineAllowed only for a raster image or a PDF.</description>
+        <description>A file of the record's folder to send (a past version with versionName: location#version, which
+            ec.web.sendResourceResponse sends as that version): its location and name, after check#RecordDrivePath and
+            FileServices.get#ResourceInfo; inlineAllowed only for a raster image or a PDF.</description>
         <in-parameters>
             <parameter name="recordEntityName" required="true"/>
             <parameter name="recordId" required="true"/>
@@ -506,8 +506,6 @@ along with this software (see the LICENSE.md file). If not, see
             <service-call name="ironstone.RecordFilesServices.check#RecordDrivePath" out-map="pathOut"
                     in-map="{recordEntityName:recordEntityName, recordId:recordId, drivePath:drivePath}"/>
             <if condition="ec.message.hasError()"><return/></if>
-            <service-call name="ironstone.DriveServices.check#ItemAccess" in-map="{driveId:pathOut.driveId, path:drivePath}"/>
-            <if condition="ec.message.hasError()"><return/></if>
             <service-call name="org.moqui.impl.FileServices.get#ResourceInfo" out-map="infoOut"
                     in-map="{driveId:pathOut.driveId, path:drivePath, versionName:(versionName || null), opened:true}"/>
             <if condition="ec.message.hasError()"><return/></if>
@@ -515,7 +513,7 @@ along with this software (see the LICENSE.md file). If not, see
                 const resource = infoOut.resource
                 if (resource.isDirectory) { ec.message.addError(ec.l10n.localize('Not a file of this record')); return }
                 fileName = resource.name
-                location = ec.service.sync().name('ironstone.DriveServices.get#DownloadLocation').parameters({location: resource.location, fileName: fileName}).call().downloadLocation
+                location = resource.location
                 inlineAllowed = /\.(png|jpe?g|gif|webp|pdf)$/i.test(fileName)
             ]]></script>
         </actions>
@@ -524,8 +522,9 @@ along with this software (see the LICENSE.md file). If not, see
     <service verb="upload" noun="RecordFileVersion">
         <description>A new version of a file of the record: the uploaded file is written over it (whatever its own name) in the
             records drive, which keeps the one before as a version (FileServices.upload#Resource as one change set, with the
-            version note). The record must be visible and the user may change its files (check#RecordDrivePath requireChange);
-            the drive is read only for its members, so the upload is made for the user after these checks.</description>
+            version note). The record must be visible and the user may change its files (check#RecordDrivePath requireChange),
+            and the path one the user reaches in the records drive (FileServices.get#DriveAccess, the records of the path); the
+            drive is read only for its members, so the upload is made for the user after these checks.</description>
         <in-parameters>
             <parameter name="recordEntityName" required="true"/>
             <parameter name="recordId" required="true"/>
@@ -538,9 +537,10 @@ along with this software (see the LICENSE.md file). If not, see
             <service-call name="ironstone.RecordFilesServices.check#RecordDrivePath" out-map="pathOut"
                     in-map="{recordEntityName:recordEntityName, recordId:recordId, drivePath:drivePath, requireChange:true}"/>
             <if condition="ec.message.hasError()"><return/></if>
-            <service-call name="ironstone.DriveServices.check#ItemAccess" in-map="{driveId:pathOut.driveId, path:drivePath}"/>
-            <if condition="ec.message.hasError()"><return/></if>
             <script><![CDATA[
+                // the upload below is internal (the drive is read only to its members): the path must be one the user reaches
+                const access = ec.service.sync().name('org.moqui.impl.FileServices.get#DriveAccess').parameters({driveId: pathOut.driveId, path: drivePath}).call()
+                if (!access?.drive || !(access.level >= 1)) { ec.message.addError(ec.l10n.localize('File not found')); return }
                 const file = Array.isArray(contentFile) ? contentFile[0] : contentFile
                 if (!file || typeof file !== 'object') { ec.message.addError(ec.l10n.localize('Choose the file of the new version')); return }
                 const slash = drivePath.lastIndexOf('/')
@@ -571,8 +571,6 @@ along with this software (see the LICENSE.md file). If not, see
             <service-call name="ironstone.RecordFilesServices.check#RecordDrivePath" out-map="pathOut"
                     in-map="{recordEntityName:recordEntityName, recordId:recordId, drivePath:drivePath, requireChange:true}"/>
             <if condition="ec.message.hasError()"><return/></if>
-            <service-call name="ironstone.DriveServices.check#ItemAccess" in-map="{driveId:pathOut.driveId, path:drivePath}"/>
-            <if condition="ec.message.hasError()"><return/></if>
             <service-call name="org.moqui.impl.FileServices.get#ResourceInfo" out-map="infoOut"
                     in-map="{driveId:pathOut.driveId, path:drivePath, versionName:versionName}"/>
             <if condition="ec.message.hasError()"><return/></if>
@@ -599,7 +597,7 @@ along with this software (see the LICENSE.md file). If not, see
         <description>Add files the user picked in Files (itemList of {driveId, path}) to the record, as copies: for each a
             content row of the record's type with contentTypeEnumId and description, its file in the record's folder as the
             record type's own save#*ContentFile lays it out (content_id/name; an asset maintenance record's folder itself).
-            Each file is read through FileServices after ironstone.DriveServices.check#ItemAccess, so only a file the user may
+            Each file is read through FileServices.get#ResourceInfo as the user, so only a file the user may
             open is copied; each stands alone (one that fails is named in failedList). The record must be visible and the user
             may add files to it (the content entity's create permission).</description>
         <in-parameters>
@@ -639,7 +637,7 @@ along with this software (see the LICENSE.md file). If not, see
                 const readable = (item) => {
                     ec.message.pushErrors()
                     try {
-                        const out = ec.service.sync().name('ironstone.DriveServices.get#ItemForUser').parameters({driveId: item.driveId, path: item.path})
+                        const out = ec.service.sync().name('org.moqui.impl.FileServices.get#ResourceInfo').parameters({driveId: item.driveId, path: item.path, opened: true})
                                 .requireNewTransaction(true).call()
                         return ec.message.hasError() ? {why: ec.message.getErrorsString()} : {resource: out.resource}
                     } finally { ec.message.clearErrors(); ec.message.popErrors() }

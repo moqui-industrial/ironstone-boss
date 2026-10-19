@@ -14,7 +14,8 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- Add account step 5, finish (design-drawers-commons.md §17 MailAccounts): what was set up, and what Start syncing does.
     It makes the account active and starts its first sync on a worker (ironstone.MailSettingsServices.finish#AccountSetup),
-    then shows the account's page, which says the sync is under way, with the way to the Inbox. -->
+    then shows the account's page, which says the sync is under way, with the way to the Inbox and how far it is (the
+    SyncProgress screen on the emailSyncProgress topic, here too while a sync of the account runs). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Finish" default-menu-index="5">
 
@@ -80,6 +81,9 @@ along with this software (see the LICENSE.md file). If not, see
                     </field-layout>
                 </form-single>
                 <label type="p" text="Start syncing brings your mail in, the newest first: it shows in the Inbox as it arrives, and keeps in step with the server from then on. What you do here (read, move, delete, send) happens on the server too, as in any mail app." style="m-muted q-mt-md"/>
+                <dynamic-container id="FinishSyncProgress" transition="../../SyncProgress">
+                    <parameter name="emailAccountId" from="emailAccountId"/>
+                </dynamic-container>
             </box-body></container-box>
         </widgets></section>
     </widgets>

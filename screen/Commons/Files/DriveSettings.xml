@@ -52,15 +52,15 @@ along with this software (see the LICENSE.md file). If not, see
         <actions><if condition="!ec.message.hasError()"><message type="success">${archived != 'false' ? 'Drive archived: it is read only' : 'Drive back in use'}</message></if></actions>
         <default-response url="." parameter-map="{driveId:driveId}"/>
     </transition>
-    <!-- a folder drive as a zip download -->
+    <!-- a folder drive as a zip download, named by the drive (the export is under a name of its own in runtime://tmp/drive-export,
+        which clean#DriveTempFiles removes after a day) -->
     <transition name="exportZip" method="get">
         <actions><script><![CDATA[
             const out = ec.service.sync().name('org.moqui.impl.FileServices.export#Drive').parameter('driveId', driveId || '').call()
             const access = ec.message.hasError() ? null : ec.service.sync().name('org.moqui.impl.FileServices.get#DriveAccess').parameter('driveId', driveId).call()
-            if (!ec.message.hasError() && out.exportLocation) {
-                const name = String(access.drive.driveName || 'drive').replace(/[\\/*?"<>|#%]/g, '_').replace(/:/g, '_') + '.zip'
-                ec.web.sendResourceResponse(ec.service.sync().name('ironstone.DriveServices.get#DownloadLocation').parameters({location: out.exportLocation,
-                    fileName: name}).call().downloadLocation, false)
+            if (!ec.message.hasError() && out?.exportLocation && access?.drive) {
+                const name = String(access.drive.driveName || 'drive').replace(/[\\/*?"<>|#%:]/g, '_') + '.zip'
+                ec.web.sendResourceResponse(out.exportLocation, false, name)
             } else ec.web.sendJsonResponse({})
         ]]></script></actions>
         <default-response type="none"/>

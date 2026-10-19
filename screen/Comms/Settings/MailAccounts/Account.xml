@@ -19,12 +19,17 @@ along with this software (see the LICENSE.md file). If not, see
     signs it in again and then tests it; an account signed in with its provider says so in Sign-in and servers, with Sign
     out (org.moqui.impl.EmailClientServices.revoke#OAuthSignIn), and a password account at a provider this server is set up
     for may sign in with it instead; the test of both
-    servers (runTest=Y) with what to try; the server settings; the folders as the sync maps them; the options (name, sync
-    window, filing policy); the members of a shared account (add, change what they may do, remove); importing .eml and
-    .mbox files into a folder (org.moqui.impl.EmailClientServices.import#EmailMessages); and removing the account, keeping
-    the mail here or deleting it (nothing is deleted on the server). A member who does not manage the account sees its
-    details and may leave it. Everything through ironstone.MailSettingsServices and the framework's mail services, which
-    check the user's access: an account the user does not reach is "not found". The password is never shown. -->
+    servers (runTest=Y) with what to try; the server settings with the outgoing server's own sign-in (a user and password
+    for a provider whose SMTP takes another user, tried before it is saved); the folders as the sync maps them, where a
+    manager chooses what a folder is used as (Sent, Drafts, Archive, Spam, Trash; the Inbox is the server's INBOX) and
+    whether the sync reads it (org.moqui.impl.EmailClientServices.update#EmailFolder); the options (name, sync window,
+    filing policy, personal or shared by the framework's rules: personal again only when one person is left); the members
+    of a shared account (add, change what they may do, remove); importing .eml and .mbox files into a folder
+    (org.moqui.impl.EmailClientServices.import#EmailMessages); and removing the account, keeping the mail here or deleting
+    it (nothing is deleted on the server). While it syncs, how far it is (the SyncProgress screen). A member who does not
+    manage the account sees its details and may leave it. Everything through ironstone.MailSettingsServices and the
+    framework's mail services, which check the user's access: an account the user does not reach is "not found". A
+    password is never shown. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Account" default-menu-index="3" default-menu-include="false">
 
@@ -48,16 +53,26 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="saveServers">
         <service-call name="ironstone.MailSettingsServices.save#AccountConnection" in-map="{emailAccountId:emailAccountId, emailAddress:emailAddress,
-                accountKindEnumId:accountKindEnumId, storeKind:storeKind, storeSecurity:storeSecurity, storeHost:storeHost, storePort:storePort,
-                smtpHost:smtpHost, smtpPort:smtpPort, smtpSecurity:smtpSecurity, mailUsername:mailUsername, mailPassword:mailPassword}"/>
+                storeKind:storeKind, storeSecurity:storeSecurity, storeHost:storeHost, storePort:storePort,
+                smtpHost:smtpHost, smtpPort:smtpPort, smtpSecurity:smtpSecurity, mailUsername:mailUsername, mailPassword:mailPassword,
+                smtpUsername:(smtpUsername ?? null), smtpPassword:(smtpPassword ?? null)}"/>
         <actions><set field="runTest" value="Y"/></actions>
         <default-response url="."><parameter name="emailAccountId"/><parameter name="runTest"/></default-response>
         <error-response url="."/>
     </transition>
     <transition name="saveOptions">
         <service-call name="ironstone.MailSettingsServices.save#AccountOptions" in-map="{emailAccountId:emailAccountId, accountName:accountName,
-                syncWindowDays:(syncWindowDays == 'all' ? '' : (syncWindowDays ?? null)), recordFilingEnumId:recordFilingEnumId}"/>
+                syncWindowDays:(syncWindowDays == 'all' ? '' : (syncWindowDays ?? null)), recordFilingEnumId:recordFilingEnumId,
+                accountKindEnumId:(accountKindEnumId || null)}"/>
         <actions><if condition="!ec.message.hasError()"><message type="success">Options saved</message></if></actions>
+        <default-response url="."><parameter name="emailAccountId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <!-- a folder's use (Sent, Drafts, Archive, Spam, Trash or a folder of its own) and whether the sync reads it -->
+    <transition name="saveFolder">
+        <service-call name="org.moqui.impl.EmailClientServices.update#EmailFolder" out-map="folderOut"
+                in-map="{emailFolderId:emailFolderId, folderKindEnumId:(folderKindEnumId || null), subscribed:(subscribed || null)}"/>
+        <actions><if condition="!ec.message.hasError()"><message type="success">${folderOut?.formerFolderDeleted ? 'Folder saved; the empty one kept only here for it is gone' : 'Folder saved'}</message></if></actions>
         <default-response url="."><parameter name="emailAccountId"/></default-response>
         <error-response url="."/>
     </transition>
@@ -172,13 +187,26 @@ along with this software (see the LICENSE.md file). If not, see
         helpLinkText = provider?.helpLinkText || L('Where to make it')
         passwordTitle = provider?.appPassword ? L('App password') : L('Password')
         signIn = {emailAccountId: emailAccountId, emailAddress: account.emailAddress, mailPassword: ''}
-        servers = server ? Object.assign({emailAccountId: emailAccountId, emailAddress: account.emailAddress, accountKindEnumId: account.accountKindEnumId,
-            mailPassword: ''}, server) : {emailAccountId: emailAccountId, emailAddress: account.emailAddress, accountKindEnumId: account.accountKindEnumId,
-            storeKind: 'imap', storeSecurity: 'ssl', storeHost: '', storePort: '', smtpHost: '', smtpPort: '', smtpSecurity: 'starttls',
-            mailUsername: account.emailAddress, mailPassword: ''}
+        servers = server ? Object.assign({emailAccountId: emailAccountId, emailAddress: account.emailAddress, mailPassword: '', smtpPassword: ''}, server)
+            : {emailAccountId: emailAccountId, emailAddress: account.emailAddress, storeKind: 'imap', storeSecurity: 'ssl', storeHost: '', storePort: '',
+                smtpHost: '', smtpPort: '', smtpSecurity: 'starttls', mailUsername: account.emailAddress, mailPassword: '', smtpUsername: '', smtpPassword: ''}
+        // the outgoing server's own sign-in (a provider whose SMTP takes another user): tried before it is saved
+        smtpCaption = server?.smtpUsername ? (server.hasSmtpPassword ? L('The outgoing server signs in as its own user, with the password saved for it: leave its password empty to keep it, or empty the user to sign it in as above.')
+                : L('The outgoing server signs in as its own user: enter its password.'))
+            : L('Only when your provider\'s outgoing server signs in as another user than the incoming one: its user name and password, tried before they are saved.')
+        // an account that signs in with Microsoft and reads its mail over POP: the sign-in must allow POP too
+        popSignInText = isOAuth && server?.storeKind === 'pop' ? ec.resource.expand('The mail is read over POP: the sign-in with ${name} must allow POP access too. If the sync says the sign-in was refused, sign in again.', '',
+            {name: providerLabel || L('the provider')}) : null
         const saved = detail.options || {}
         options = {emailAccountId: emailAccountId, accountName: saved.accountName || account.emailAddress, syncWindowDays: saved.syncWindowDays ? saved.syncWindowDays : 'all',
-            recordFilingEnumId: saved.recordFilingEnumId}
+            recordFilingEnumId: saved.recordFilingEnumId, accountKindEnumId: account.accountKindEnumId}
+        // personal or shared (a hosted account keeps its own kind among them)
+        kindOptions = [{key: 'EakExternal', text: L('Personal: my own address')}, {key: 'EakShared', text: L('Shared: a team address read by several people')}]
+        if (account.accountKindEnumId === 'EakHosted') kindOptions.unshift({key: 'EakHosted', text: L('Hosted here')})
+        kindNote = account.isShared && memberRows.length ? L('To make it personal again, remove the people who share it first, so only one is left.') : null
+        // the folders a manager maps: what each is used as, and whether the sync reads it
+        folderUseOptions = [{key: 'EfkOther', text: L('A folder of its own')}, {key: 'EfkSent', text: L('Sent')}, {key: 'EfkDrafts', text: L('Drafts')},
+            {key: 'EfkArchive', text: L('Archive')}, {key: 'EfkJunk', text: L('Spam')}, {key: 'EfkTrash', text: L('Trash')}]
         addMember = {emailAccountId: emailAccountId, memberPermissionEnumId: 'EapSend'}
         importFolderOptions = folderRows.filter((folder) => !['Drafts', 'Trash', 'Spam'].includes(folder.kindLabel) || !folder.isSpecial)
             .map((folder) => ({key: folder.emailFolderId, text: folder.isSpecial ? folder.kindLabel : folder.folderName}))
@@ -191,6 +219,7 @@ along with this software (see the LICENSE.md file). If not, see
         testPassed = false
         testSteps = []
         testAdvice = ''
+        testFolderNotes = []
         if (runTest === 'Y' && canManage && account.hasServer) {
             const out = ec.service.sync().name('ironstone.MailSettingsServices.test#MailAccount').parameter('emailAccountId', emailAccountId).call()
             if (ec.message.hasError()) { testError = ec.message.getErrorsString(); ec.message.clearErrors() }
@@ -200,6 +229,8 @@ along with this software (see the LICENSE.md file). If not, see
                 testSteps = Array.from(out?.stepList || [])
                 testAdvice = out?.adviceText || ''
                 if (testPassed) needsSignIn = false
+                // where the account uses a folder otherwise than the server marks it
+                testFolderNotes = Array.from(out?.folderList || []).filter((folder) => folder.chosenHere && folder.noteText).map((folder) => ({text: folder.noteText}))
             }
         }
     ]]></script></actions>
@@ -222,6 +253,12 @@ along with this software (see the LICENSE.md file). If not, see
                 <link url="resume" link-type="hidden-form" text="Resume" icon="sym_o_play_arrow" condition="account.canResume" parameter-map="{emailAccountId:emailAccountId}"/>
                 <link url="../List" text="Mail accounts" icon="sym_o_arrow_back"/>
             </container>
+            <!-- while it syncs: how far it is -->
+            <section name="AccountSyncProgress" condition="account.hasServer"><widgets>
+                <dynamic-container id="AccountSyncProgress" transition="../SyncProgress">
+                    <parameter name="emailAccountId" from="emailAccountId"/>
+                </dynamic-container>
+            </widgets></section>
 
             <section name="SetupDone" condition="showSetupDone"><widgets>
                 <container-box type="success"><box-header title="Your account is set up"/><box-body>
@@ -307,6 +344,9 @@ along with this software (see the LICENSE.md file). If not, see
                         </widgets></section-iterate>
                         <render-mode><text type="qvt"><![CDATA[</q-list>]]></text></render-mode>
                         <label type="p" text="${testAdvice}" style="text-weight-medium q-mb-none"/>
+                        <section-iterate name="AccountTestFolderNotes" list="testFolderNotes" entry="note"><widgets>
+                            <label type="div" text="${note.text}" style="text-caption m-muted"/>
+                        </widgets></section-iterate>
                     </box-body>
                 </container-box>
             </widgets></section>
@@ -345,6 +385,7 @@ along with this software (see the LICENSE.md file). If not, see
                                     <link url="signOut" link-type="hidden-form" text="Sign out" icon="sym_o_logout" condition="signedIn"
                                             confirmation="Sign out of ${providerLabel || 'the provider'}? The account stops syncing until you sign in again." parameter-map="{emailAccountId:emailAccountId}"/>
                                 </container>
+                                <label type="p" text="${popSignInText}" style="text-caption m-muted" condition="popSignInText"/>
                             </widgets></section>
                             <section name="OfferOAuth" condition="offerOAuth &amp;&amp; !needsSignIn"><widgets>
                                 <container style="row items-center q-gutter-sm q-mb-sm">
@@ -362,7 +403,6 @@ along with this software (see the LICENSE.md file). If not, see
                             <form-single name="AccountServers" transition="saveServers" map="servers">
                                 <field name="emailAccountId"><default-field><hidden/></default-field></field>
                                 <field name="emailAddress"><default-field><hidden/></default-field></field>
-                                <field name="accountKindEnumId"><default-field><hidden/></default-field></field>
                                 <field name="mailPassword"><conditional-field condition="isOAuth"><ignored/></conditional-field>
                                     <default-field title="${passwordTitle}"><password size="30"/></default-field></field>
                                 <field name="mailUsername"><default-field title="User name"><text-line size="40"/></default-field></field>
@@ -376,32 +416,61 @@ along with this software (see the LICENSE.md file). If not, see
                                 <field name="smtpPort"><default-field title="Port"><text-line size="6" input-type="number"/></default-field></field>
                                 <field name="smtpSecurity"><default-field title="Security"><radio no-current-selected-key="starttls">
                                     <option key="ssl" text="SSL/TLS"/><option key="starttls" text="STARTTLS"/><option key="none" text="None"/></radio></default-field></field>
+                                <field name="smtpUsername"><conditional-field condition="isOAuth"><ignored/></conditional-field>
+                                    <default-field title="Outgoing user name" tooltip="Empty: the outgoing server signs in as the user name above"><text-line size="40"/></default-field></field>
+                                <field name="smtpPassword"><conditional-field condition="isOAuth"><ignored/></conditional-field>
+                                    <default-field title="Outgoing password"><password size="30"/></default-field></field>
                                 <field name="submitButton"><default-field title="Save and test"><submit/></default-field></field>
                                 <field-layout>
-                                    <field-ref name="emailAccountId"/><field-ref name="emailAddress"/><field-ref name="accountKindEnumId"/>
+                                    <field-ref name="emailAccountId"/><field-ref name="emailAddress"/>
                                     <field-row><field-ref name="mailUsername"/><field-ref name="mailPassword"/></field-row>
                                     <field-ref name="storeKind"/>
                                     <field-row><field-ref name="storeHost"/><field-ref name="storePort"/><field-ref name="storeSecurity"/></field-row>
                                     <field-row><field-ref name="smtpHost"/><field-ref name="smtpPort"/><field-ref name="smtpSecurity"/></field-row>
+                                    <field-group title="Outgoing server sign-in (only when it differs)">
+                                        <field-row><field-ref name="smtpUsername"/><field-ref name="smtpPassword"/></field-row>
+                                    </field-group>
                                     <field-ref name="submitButton"/>
                                 </field-layout>
                             </form-single>
+                            <label type="p" text="${smtpCaption}" style="text-caption m-muted q-mt-xs q-mb-none" condition="!isOAuth"/>
                         </box-body></container-box>
                     </widgets></section>
 
                     <container-box><box-header title="Folders"/><box-body-nopad>
-                        <form-list name="AccountFolders" list="folderRows" skip-form="true" paginate="false">
-                            <field name="folderName"><default-field title="Folder"><display/></default-field></field>
-                            <field name="kindLabel"><default-field title="Kind"><display style="text-caption"/></default-field></field>
-                            <field name="pathText"><default-field title="On the server"><display style="text-caption m-muted"/></default-field></field>
-                            <field name="unreadCount" align="right"><default-field title="Unread"><display/></default-field></field>
-                            <field name="totalCount" align="right"><default-field title="Messages"><display/></default-field></field>
-                            <columns type="mobile">
-                                <column><field-ref name="folderName"/><field-ref name="pathText"/></column>
-                                <column><field-ref name="unreadCount"/></column>
-                            </columns>
-                        </form-list>
-                        <label type="p" text="The sync maps the server's folders here: Inbox, Sent, Drafts, Spam, Trash and Archive by their kind, and the others by name." style="text-caption m-muted q-pa-sm q-mb-none"/>
+                        <!-- a manager: each server folder's use and whether the sync reads it (the Inbox is fixed and always read) -->
+                        <section name="FoldersManage" condition="canManage &amp;&amp; account.hasServer"><widgets>
+                            <form-list name="AccountFolderUse" list="folderRows" transition="saveFolder" paginate="false">
+                                <field name="emailAccountId"><default-field><hidden/></default-field></field>
+                                <field name="emailFolderId"><default-field><hidden/></default-field></field>
+                                <field name="folderName"><default-field title="Folder"><display/></default-field></field>
+                                <field name="folderKindEnumId"><conditional-field condition="isInbox || !onServer" title="Use as"><display text="${kindLabel}"/></conditional-field>
+                                    <default-field title="Use as"><drop-down submit-on-select="true"><list-options list="folderUseOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                <field name="subscribed"><conditional-field condition="isInbox || !onServer" title="Sync"><display text="${syncText}"/></conditional-field>
+                                    <default-field title="Sync"><drop-down submit-on-select="true"><option key="Y" text="Synced"/><option key="N" text="Not synced"/></drop-down></default-field></field>
+                                <field name="totalCount" align="right"><default-field title="Messages"><display/></default-field></field>
+                                <columns type="mobile">
+                                    <column><field-ref name="folderName"/></column>
+                                    <column><field-ref name="folderKindEnumId"/><field-ref name="subscribed"/></column>
+                                </columns>
+                            </form-list>
+                            <label type="p" text="The sync maps the server's folders by their kind (and INBOX); choose here which folder is your Sent, Drafts, Archive, Spam or Trash when the server does not say, and the sync keeps your choice. A folder that is not synced is not read again: its mail here stays." style="text-caption m-muted q-pa-sm q-mb-none"/>
+                        </widgets></section>
+                        <section name="FoldersView" condition="!(canManage &amp;&amp; account.hasServer)"><widgets>
+                            <form-list name="AccountFolders" list="folderRows" skip-form="true" paginate="false">
+                                <field name="folderName"><default-field title="Folder"><display/></default-field></field>
+                                <field name="kindLabel"><default-field title="Kind"><display style="text-caption"/></default-field></field>
+                                <field name="pathText"><default-field title="On the server"><display style="text-caption m-muted"/></default-field></field>
+                                <field name="syncText"><default-field title="Sync"><display style="text-caption"/></default-field></field>
+                                <field name="unreadCount" align="right"><default-field title="Unread"><display/></default-field></field>
+                                <field name="totalCount" align="right"><default-field title="Messages"><display/></default-field></field>
+                                <columns type="mobile">
+                                    <column><field-ref name="folderName"/><field-ref name="pathText"/></column>
+                                    <column><field-ref name="unreadCount"/></column>
+                                </columns>
+                            </form-list>
+                            <label type="p" text="The sync maps the server's folders here: Inbox, Sent, Drafts, Spam, Trash and Archive by their kind, and the others by name." style="text-caption m-muted q-pa-sm q-mb-none"/>
+                        </widgets></section>
                     </box-body-nopad></container-box>
                 </row-col>
 
@@ -417,8 +486,10 @@ along with this software (see the LICENSE.md file). If not, see
                                 <field name="recordFilingEnumId"><default-field title="Put mail on records"><radio no-current-selected-key="ErfLinkedOnly">
                                     <option key="ErfLinkedOnly" text="Only what I link (private until I link a message)"/>
                                     <option key="ErfAllMatches" text="Every message with a known contact (for the team to see)"/></radio></default-field></field>
+                                <field name="accountKindEnumId"><default-field title="Whose mail is it?"><radio><list-options list="kindOptions" key="${key}" text="${text}"/></radio></default-field></field>
                                 <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
                             </form-single>
+                            <label type="p" text="${kindNote}" style="text-caption m-muted q-mb-none" condition="kindNote"/>
                         </box-body></container-box>
                     </widgets></section>
 

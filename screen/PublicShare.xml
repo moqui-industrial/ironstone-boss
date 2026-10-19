@@ -41,28 +41,14 @@ along with this software (see the LICENSE.md file). If not, see
         ]]></script></actions>
         <default-response type="none"/>
     </transition>
-    <!-- a file (inline only a picture or a PDF), or the folder (path empty) or a folder below it as a zip -->
+    <!-- a file (inline only a picture or a PDF), or the folder (path empty) or a folder below it as a zip: download#PublicShare
+        sends it itself (sendResponse) after its token and grant checks, under its own anonymous authorization, named by the
+        file (a folder as name.zip); after an error it sends nothing and the answer here is the error -->
     <transition name="download" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('org.moqui.impl.FileServices.download#PublicShare').parameters({token: token || '', grant: grant || null,
-                path: path || null}).call()
-            if (ec.message.hasError() || !out.location) { ec.web.sendJsonResponse({}); return }
-            // the visitor has no user: the file the service answered after its token and grant checks is read with authorization
-            // off (the drive's database files are entity rows). The download is named by its location's last segment, so a zip
-            // made under a random name gets the folder's name.
-            const wasDisabled = ec.artifactExecution.disableAuthz()
-            try {
-                let location = out.location
-                const last = String(location).split('/').pop()
-                if (out.fileName && last !== out.fileName) {
-                    const target = `runtime://tmp/drive-download/${ec.user.randomString(16)}/${String(out.fileName).replace(/[\\/*?"<>|#%]/g, '_').replace(/:/g, '_')}`
-                    const stream = ec.resource.getLocationReference(location).openStream()
-                    try { ec.resource.getLocationReference(target).putStream(stream) } finally { if (stream && stream.close) stream.close() }
-                    location = target
-                }
-                const inlineOk = /^(image\/(png|jpeg|gif|webp|bmp)|application\/pdf)$/.test(String(out.contentType || ''))
-                ec.web.sendResourceResponse(location, String(inline) === 'true' && inlineOk)
-            } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+            ec.service.sync().name('org.moqui.impl.FileServices.download#PublicShare').parameters({token: token || '', grant: grant || null,
+                path: path || null, sendResponse: true, inline: String(inline) === 'true'}).call()
+            if (ec.message.hasError()) ec.web.sendJsonResponse({})
         ]]></script></actions>
         <default-response type="none"/>
     </transition>

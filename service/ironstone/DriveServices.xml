@@ -15,152 +15,72 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- Files and drives for the BOSS screens (design-drawers-commons.md §9; impl-drawers-commons.md M8): screen/Commons/Files
     (the browser, Drives, Shares), the records drive under Shared/RecordFiles, Compose's Attach from Files, Commons Home's
     recent files and the palette's Files group. Every read and write goes through org.moqui.impl.FileServices, which checks
-    the drive's members and shares (R21); these services add what the framework leaves to the application:
+    the drive's members and shares (R21) and, on a records drive, the records (below); these services add what the framework
+    leaves to the application:
 
     - The records drive (driveKindEnumId RdkRecords, BOSS_RECORDS in data/BossSetupData.xml): a view over the record
       attachment folders Mantle writes under mantle.content.root, mapped by its ResourceDriveRecordFolder rows (R25). Every
-      user may view the drive (an ALL_USERS member row), so every path of it is checked here first (check#ItemAccess): a
-      path outside the mapped folders is not found, and a path in a record's folder needs the record to be one the user may
-      see (mantle.party.CommunicationServices.get#RecordLinkInfo with checkOnly, under the user's filters, as R5 and R28 have
-      it). Lists across drives (recent, favorites, search, the palette) leave out the rows of records the user may not see.
+      user may view the drive (an ALL_USERS member row); FileServices (get#DriveAccess, for every caller) lets a user only
+      into the mapped folders and the folders of records the user may see, as the theme's STRT_RECORD_VISIBLE_SERVICE hook
+      answers (Mantle's get#RecordLinkInfo with checkOnly, under the user's filters, as R5 and R28 have it), and its lists
+      (a folder, recent, favorites, search, the trash, a zip) leave the others out. Here: the records' titles and links, a
+      record folder's content rows (description and type), and its content_ folders opened in place.
     - Names and labels for the lists, the share notification (topic FileShare, seeded by Mantle), the share targets, the
-      quick lists of Home and the palette.
+      quick lists of Home and the palette, and the open drive's storage (FileServices.get#DriveUsage, asked when shown).
 
     A path is relative to its drive's root, '/'-separated; what the user may not reach is "not found", as in FileServices. -->
 <services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
 
     <!-- ========== The records drive ========== -->
 
-    <service verb="get" noun="RecordsPathInfo" allow-remote="false">
-        <description>Whether a drive is a records drive and, for each path (path or pathList), whether it is in one of its
-            mapped folders (the drive's top, a mapped folder, a step on the way to a pattern such as asset/*/maintenance, or
-            below one) and the records it is in: each mapped folder the path goes below gives the record named by the next
-            segment (recordEntityName, idField, recordId, folderPath of the record's own folder). Nothing for another drive.</description>
-        <in-parameters>
-            <parameter name="driveId" required="true"/>
-            <parameter name="path"/>
-            <parameter name="pathList" type="List"/>
-        </in-parameters>
-        <out-parameters>
-            <parameter name="isRecords" type="Boolean"/>
-            <parameter name="pathInfoList" type="List"/>
-            <parameter name="folderList" type="List"/>
-        </out-parameters>
+    <service verb="get" noun="RecordNames" allow-remote="false">
+        <description>Titles for the record folders of a records drive listing (recordList of {recordEntityName, recordId}): the
+            record's name (a party's name, else its request, task, order, product, facility, asset or other name field, else its
+            id), its BOSS link and icon (ironstone.PaletteServices.get#RecordLink). One find per entity for all its ids, under the
+            user's filters: no visibility check per record, as FileServices answered only the records the user may see
+            (check#RecordPaths through the STRT_RECORD_VISIBLE_SERVICE hook). idField is the folder map's (else the entity's
+            primary key). A record not found here keeps its id as its title. nameMap is recordEntityName, a new line and
+            recordId to {title, url, icon}.</description>
+        <in-parameters><parameter name="recordList" type="List"/></in-parameters>
+        <out-parameters><parameter name="nameMap" type="Map"/></out-parameters>
         <actions><script><![CDATA[
-            const clean = (text) => String(text == null ? '' : text).split('/').filter((part) => part && part !== '.').join('/')
-            isRecords = false
-            pathInfoList = []
-            folderList = []
-            const drive = ec.entity.find('moqui.resource.ResourceDrive').condition('driveId', driveId).useCache(true).one()
-            if (drive == null || drive.driveKindEnumId !== 'RdkRecords') return
-            isRecords = true
-            folderList = Array.from(ec.entity.find('moqui.resource.ResourceDriveRecordFolder').condition('driveId', driveId)
-                    .orderBy('sequenceNum').orderBy('folderPath').useCache(true).list())
-                    .map((row) => ({folderPath: clean(row.folderPath), pattern: clean(row.folderPath).split('/'), recordEntityName: row.recordEntityName ?? null,
-                        idField: row.idField ?? null, label: row.label ?? null}))
-            const paths = pathList ? Array.from(pathList) : [path]
-            for (const raw of paths) {
-                const text = clean(raw)
-                const segments = text ? text.split('/') : []
-                let mapped = segments.length === 0
-                const records = []
-                for (const folder of folderList) {
-                    const pattern = folder.pattern
-                    const count = Math.min(pattern.length, segments.length)
-                    let matches = true
-                    for (let index = 0; index < count; index++) if (pattern[index] !== '*' && pattern[index] !== segments[index]) { matches = false; break }
-                    if (!matches) continue
-                    mapped = true
-                    if (segments.length > pattern.length && folder.recordEntityName) records.push({recordEntityName: folder.recordEntityName,
-                        idField: folder.idField, recordId: segments[pattern.length], folderPath: segments.slice(0, pattern.length + 1).join('/'),
-                        depth: pattern.length + 1})
-                }
-                // the innermost record first: its folder is the deepest
-                records.sort((left, right) => right.depth - left.depth)
-                pathInfoList.push({path: text, mapped: mapped, records: records})
+            nameMap = {}
+            const byEntity = {}
+            for (const item of Array.from(recordList || [])) {
+                if (!item || !item.recordEntityName || item.recordId == null) continue
+                const entry = byEntity[item.recordEntityName] = byEntity[item.recordEntityName] || {idField: null, ids: new Set()}
+                if (item.idField && !entry.idField) entry.idField = item.idField
+                entry.ids.add(String(item.recordId))
             }
-        ]]></script></actions>
-    </service>
-
-    <service verb="check" noun="ItemAccess" allow-remote="false">
-        <description>The gate of every BOSS call on a drive path: on a records drive each path (path or pathList) must be in a
-            mapped folder, and each record it is in one the user may see (get#RecordLinkInfo with checkOnly under the user's
-            filters, IronStone R5); otherwise the error "File not found", as FileServices answers for what the user may not
-            reach (the reason is logged). Nothing to check on another drive: FileServices checks its members and shares.
-            record is the innermost record of the first path.</description>
-        <in-parameters>
-            <parameter name="driveId" required="true"/>
-            <parameter name="path"/>
-            <parameter name="pathList" type="List"/>
-        </in-parameters>
-        <out-parameters>
-            <parameter name="isRecords" type="Boolean"/>
-            <parameter name="record" type="Map"/>
-            <parameter name="pathInfoList" type="List"/>
-        </out-parameters>
-        <actions><script><![CDATA[
-            record = null
-            const info = ec.service.sync().name('ironstone.DriveServices.get#RecordsPathInfo').parameters({driveId: driveId, path: path ?? null,
-                pathList: pathList ?? null}).call()
-            isRecords = info.isRecords
-            pathInfoList = info.pathInfoList
-            if (!isRecords) return
-            const seen = {}
-            for (const item of info.pathInfoList) {
-                if (!item.mapped) {
-                    ec.logger.info(`Records drive ${driveId}: ${item.path} is outside the mapped folders, refused for ${ec.user.username}`)
-                    ec.message.addError(ec.l10n.localize('File not found'))
-                    return
-                }
-                for (const found of item.records) {
-                    const key = found.recordEntityName + '\n' + found.recordId
-                    if (seen[key] === undefined) {
-                        const out = ec.service.sync().name('mantle.party.CommunicationServices.get#RecordLinkInfo').parameters({
-                            recordEntityName: found.recordEntityName, recordId: found.recordId, checkOnly: true}).call()
-                        seen[key] = out.recordVisible === true
-                        if (!seen[key]) ec.logger.info(`Records drive ${driveId}: ${found.recordEntityName} ${found.recordId} not visible to ${ec.user.username}: ${out.notVisibleReason || ''}`)
+            const NAME_FIELDS = ['requestName', 'workEffortName', 'orderName', 'productName', 'categoryName', 'facilityName', 'assetName',
+                'subject', 'description']
+            for (const entityName of Object.keys(byEntity)) {
+                const ids = Array.from(byEntity[entityName].ids)
+                const found = {}
+                ec.message.pushErrors()
+                try {
+                    if (entityName === 'mantle.party.Party') {
+                        for (const party of ec.entity.find('mantle.party.PartyDetail').condition('partyId', 'in', ids).list())
+                            found[party.partyId] = {title: (ec.resource.expand('PartyNameOnlyTemplate', '', party) || '').trim(), partyTypeEnumId: party.partyTypeEnumId ?? null}
+                    } else {
+                        const ed = ec.entity.getEntityDefinition(entityName)
+                        const pk = byEntity[entityName].idField || (ed ? Array.from(ed.getPkFieldNames())[0] : null)
+                        if (ed && pk) for (const row of ec.entity.find(entityName).condition(pk, 'in', ids).list()) {
+                            const field = NAME_FIELDS.find((name) => ed.isField(name) && row[name])
+                            found[row[pk]] = {title: field ? String(row[field]) : '', workEffortTypeEnumId: ed.isField('workEffortTypeEnumId') ? (row.workEffortTypeEnumId ?? null) : null}
+                        }
                     }
-                    if (!seen[key]) { ec.message.addError(ec.l10n.localize('File not found')); return }
+                    if (ec.message.hasError()) throw new Error(ec.message.getErrorsString())
+                } catch (err) {
+                    ec.logger.warn(`Records drive: the names of ${entityName} records not read, their ids shown: ${err && err.message ? err.message : err}`)
+                } finally { ec.message.clearErrors(); ec.message.popErrors() }
+                for (const id of ids) {
+                    const row = found[id] || {}
+                    const link = ec.service.sync().name('ironstone.PaletteServices.get#RecordLink').parameters({recordEntityName: entityName, id: id,
+                        workEffortTypeEnumId: row.workEffortTypeEnumId || null, partyTypeEnumId: row.partyTypeEnumId || null}).call()
+                    nameMap[entityName + '\n' + id] = {title: row.title || id, url: link?.url || null, icon: link?.icon || null}
                 }
             }
-            const first = info.pathInfoList[0]
-            record = first && first.records.length ? first.records[0] : null
-        ]]></script></actions>
-    </service>
-
-    <service verb="filter" noun="VisibleRows" allow-remote="false">
-        <description>The rows of a list across drives (each with driveId and path) without those of a records drive the user
-            may not reach (outside its mapped folders, or in the folder of a record the user may not see).</description>
-        <in-parameters><parameter name="rowList" type="List"/></in-parameters>
-        <out-parameters><parameter name="rowList" type="List"/></out-parameters>
-        <actions><script><![CDATA[
-            const rows = Array.from(rowList || [])
-            const kinds = {}
-            const isRecords = (id) => {
-                if (kinds[id] === undefined) {
-                    const drive = ec.entity.find('moqui.resource.ResourceDrive').condition('driveId', id).useCache(true).one()
-                    kinds[id] = drive != null && drive.driveKindEnumId === 'RdkRecords'
-                }
-                return kinds[id]
-            }
-            const visible = {}
-            const kept = []
-            for (const row of rows) {
-                if (!row || !row.driveId) continue
-                if (!isRecords(row.driveId)) { kept.push(row); continue }
-                const info = ec.service.sync().name('ironstone.DriveServices.get#RecordsPathInfo').parameters({driveId: row.driveId, path: row.path || ''}).call()
-                const item = info.pathInfoList[0]
-                if (!item || !item.mapped) continue
-                let ok = true
-                for (const found of item.records) {
-                    const key = found.recordEntityName + '\n' + found.recordId
-                    if (visible[key] === undefined) visible[key] = ec.service.sync().name('mantle.party.CommunicationServices.get#RecordLinkInfo')
-                            .parameters({recordEntityName: found.recordEntityName, recordId: found.recordId, checkOnly: true}).call().recordVisible === true
-                    if (!visible[key]) { ok = false; break }
-                }
-                if (ok) kept.push(row)
-            }
-            rowList = kept
         ]]></script></actions>
     </service>
 
@@ -191,53 +111,6 @@ along with this software (see the LICENSE.md file). If not, see
                 spreadsheet: 'sym_o_table_chart', presentation: 'sym_o_slideshow', document: 'sym_o_article', archive: 'sym_o_folder_zip',
                 text: 'sym_o_description', other: 'sym_o_draft'}
             icon = icons[fileType]
-        ]]></script></actions>
-    </service>
-
-    <service verb="get" noun="ItemForUser" allow-remote="false">
-        <description>A file or folder the user may open (check#ItemAccess, then FileServices.get#ResourceInfo, opened as recent):
-            the resource with its location, for a caller that copies it (Compose's Attach from Files, a record's Add from Files).
-            A caller that goes on after one item fails calls this in a transaction of its own and reads the error.</description>
-        <in-parameters>
-            <parameter name="driveId" required="true"/>
-            <parameter name="path" required="true"/>
-        </in-parameters>
-        <out-parameters><parameter name="resource" type="Map"/></out-parameters>
-        <actions>
-            <service-call name="ironstone.DriveServices.check#ItemAccess" in-map="{driveId:driveId, path:path}"/>
-            <if condition="ec.message.hasError()"><return/></if>
-            <service-call name="org.moqui.impl.FileServices.get#ResourceInfo" in-map="{driveId:driveId, path:path, opened:true}" out-map="infoOut"/>
-            <set field="resource" from="infoOut.resource"/>
-        </actions>
-    </service>
-
-    <service verb="get" noun="DownloadLocation" allow-remote="false">
-        <description>A location to send with ec.web.sendResourceResponse, which names the download by the location's last
-            segment: the location itself when that is the file's name, else a copy under runtime://tmp/drive-download named
-            fileName (a past version, location#version, or a zip that download#Zip wrote under a random name). The location is
-            one FileServices answered after its access check.</description>
-        <in-parameters>
-            <parameter name="location" required="true"/>
-            <parameter name="fileName"/>
-        </in-parameters>
-        <out-parameters><parameter name="downloadLocation"/></out-parameters>
-        <actions><script><![CDATA[
-            downloadLocation = location
-            const last = String(location).replace(/\/+$/, '').split('/').pop()
-            if (!fileName || last === fileName) return
-            const safe = String(fileName).replace(/[\\/:*?"<>|#%]/g, '_').slice(0, 200) || 'download'
-            const target = `runtime://tmp/drive-download/${ec.user.randomString(16)}/${safe}`
-            // a past version (location#version) is read by its name: a reference reads the current bytes
-            const hash = String(location).indexOf('#')
-            if (hash > 0) {
-                const bytes = ec.resource.getVersionBytes(String(location).slice(0, hash), String(location).slice(hash + 1))
-                if (bytes == null) { ec.message.addError(ec.l10n.localize('That version is not there')); return }
-                ec.resource.putContent(target, bytes, null)
-            } else {
-                const stream = ec.resource.getLocationReference(location).openStream()
-                try { ec.resource.getLocationReference(target).putStream(stream) } finally { if (stream && stream.close) stream.close() }
-            }
-            downloadLocation = target
         ]]></script></actions>
     </service>
 
@@ -289,9 +162,10 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- ========== The browser: rail, folders, views ========== -->
 
     <service verb="get" noun="FilesData">
-        <description>The rail of Files: the drives the user may open (FileServices.get#UserDrives with the bytes used: the
-            personal drive first, then the shared drives and mirrors, the records drive apart), the tags the user sees, the
-            shares waiting for an answer, and whether the user is an administrator (mirrors).</description>
+        <description>The rail of Files: the drives the user may open (FileServices.get#UserDrives, without sizes: the personal
+            drive first, then the shared drives and mirrors, the records drive apart), the tags the user sees, the shares waiting
+            for an answer, and whether the user is an administrator (mirrors). The storage of the open drive is asked when the
+            rail shows it (the screen's usage transition, FileServices.get#DriveUsage), as sizing a drive reads every file.</description>
         <out-parameters>
             <parameter name="driveList" type="List"/>
             <parameter name="personalDriveId"/>
@@ -307,16 +181,13 @@ along with this software (see the LICENSE.md file). If not, see
             tagList = []
             pendingShareCount = 0
             isAdmin = ec.user.isInGroup('ADMIN')
-            const drives = ec.service.sync().name('org.moqui.impl.FileServices.get#UserDrives').parameters({includeUsage: true}).call()
+            const drives = ec.service.sync().name('org.moqui.impl.FileServices.get#UserDrives').call()
             if (ec.message.hasError()) return
             personalDriveId = drives.personalDriveId
             for (const drive of Array.from(drives.driveList || [])) {
                 const isRecords = drive.driveKindEnumId === 'RdkRecords'
                 if (isRecords && !recordsDriveId) recordsDriveId = drive.driveId
-                const quota = drive.quotaBytes != null ? Number(drive.quotaBytes) : null
-                const used = drive.usedBytes != null ? Number(drive.usedBytes) : null
-                driveList.push(Object.assign({}, drive, {isRecords: isRecords, isMirror: drive.driveKindEnumId === 'RdkMirror' || drive.repositoryKind === 'remote',
-                    usedPercent: quota && used != null ? Math.min(100, Math.round(used * 100 / quota)) : null}))
+                driveList.push(Object.assign({}, drive, {isRecords: isRecords, isMirror: drive.driveKindEnumId === 'RdkMirror' || drive.repositoryKind === 'remote'}))
             }
             ec.message.pushErrors()
             try {
@@ -334,12 +205,13 @@ along with this software (see the LICENSE.md file). If not, see
     </service>
 
     <service verb="list" noun="FolderView">
-        <description>A folder of a drive for the browser: FileServices.list#Folder, after check#ItemAccess. On the records
-            drive the record folders are only those of records the user may see (at most limit, newest first; hiddenCount
-            says how many more there are to search for), each named by its record's title; inside a record's folder its
-            content_ folders (one per *Content row, as Mantle's save#*ContentFile writes them) are opened, so the record's
-            files show at once, with the description and type of their content row, and record is the record with its link.
-            In a folder shared with the user (not a member) the breadcrumbs start at the shared folder.</description>
+        <description>A folder of a drive for the browser: FileServices.list#Folder, which on the records drive lists only the
+            records the user may see and of a mapped folder's record folders the newest limit (hiddenCount: how many more there
+            are, to open by search or from the record); each record folder is named by its record's title (get#RecordNames).
+            Inside a record's folder (folder.recordList, innermost first) its content_ folders (one per *Content row, as Mantle's
+            save#*ContentFile writes them) are opened, so the record's files show at once, with the description and type of
+            their content row, and record is the record with its title and link. In a folder shared with the user (not a
+            member) the breadcrumbs start at the shared folder.</description>
         <in-parameters>
             <parameter name="driveId" required="true"/>
             <parameter name="path"/>
@@ -358,43 +230,37 @@ along with this software (see the LICENSE.md file). If not, see
             const L = (text) => ec.l10n.localize(text)
             fileList = []; folder = null; drive = null; breadcrumbList = []; record = null; hiddenCount = 0
             path = clean(path)
-            const gate = ec.service.sync().name('ironstone.DriveServices.check#ItemAccess').parameters({driveId: driveId, path: path}).call()
-            if (ec.message.hasError()) return
-            const out = ec.service.sync().name('org.moqui.impl.FileServices.list#Folder').parameters({driveId: driveId, path: path}).call()
+            const out = ec.service.sync().name('org.moqui.impl.FileServices.list#Folder').parameters({driveId: driveId, path: path,
+                recordLimit: limit || 200}).call()
             if (ec.message.hasError()) return
             folder = out.folder
             drive = out.drive
+            hiddenCount = out.moreRecordCount || 0
             breadcrumbList = Array.from(out.breadcrumbList || []).map((crumb) => Object.assign({}, crumb))
             let rows = Array.from(out.fileList || []).map((row) => Object.assign({}, row))
             const typeOf = (row) => ec.service.sync().name('ironstone.DriveServices.get#FileType').parameters({name: row.name, isDirectory: row.isDirectory}).call()
-            if (gate.isRecords) {
+            if (drive.driveKindEnumId === 'RdkRecords') {
                 const root = String(drive.rootLocation || '').replace(/\/+$/, '')
-                // the record folders of a mapped folder: only the records the user may see, named by their titles
+                // the record folders of a mapped folder (FileServices listed only those the user may see), named by their titles
                 const recordRows = rows.filter((row) => row.recordEntityName && row.recordId)
                 if (recordRows.length) {
-                    recordRows.sort((left, right) => (right.modified || 0) - (left.modified || 0))
-                    const shown = []
+                    const names = ec.service.sync().name('ironstone.DriveServices.get#RecordNames').parameter('recordList', recordRows).call()?.nameMap || {}
                     for (const row of recordRows) {
-                        if (shown.length >= (limit || 200)) { hiddenCount++; continue }
-                        const check = ec.service.sync().name('mantle.party.CommunicationServices.get#RecordLinkInfo').parameters({
-                            recordEntityName: row.recordEntityName, recordId: row.recordId, checkOnly: true}).call()
-                        if (check.recordVisible !== true) continue
-                        const info = ec.service.sync().name('ironstone.ChatterServices.get#RecordInfo').parameters({recordEntityName: row.recordEntityName,
-                            recordId: row.recordId}).call()
-                        if (!info.visible) continue
-                        shown.push(Object.assign(row, {recordTitle: info.title || row.recordId, recordTypeLabel: info.typeLabel || null, recordUrl: info.url || null,
-                            recordIcon: info.icon || null}))
+                        const named = names[row.recordEntityName + '\n' + row.recordId] || {}
+                        Object.assign(row, {recordTitle: named.title || row.recordId, recordUrl: named.url || null, recordIcon: named.icon || null})
                     }
-                    rows = rows.filter((row) => !(row.recordEntityName && row.recordId)).concat(shown)
+                    recordRows.sort((left, right) => (right.modified || 0) - (left.modified || 0))
+                    rows = rows.filter((row) => !(row.recordEntityName && row.recordId)).concat(recordRows)
                 }
                 // inside a record's folder: the record, its content rows, its crumb by title
-                if (gate.record) {
-                    const info = ec.service.sync().name('ironstone.ChatterServices.get#RecordInfo').parameters({recordEntityName: gate.record.recordEntityName,
-                        recordId: gate.record.recordId}).call()
-                    record = {recordEntityName: info.info?.recordEntityName || gate.record.recordEntityName, recordId: gate.record.recordId,
-                        title: info.title || gate.record.recordId, typeLabel: info.typeLabel || null, url: info.url || null, icon: info.icon || null,
-                        folderPath: gate.record.folderPath}
-                    for (const crumb of breadcrumbList) if (crumb.path === gate.record.folderPath) crumb.name = record.title
+                const inner = Array.from(folder.recordList || [])[0] || null
+                if (inner) {
+                    const info = ec.service.sync().name('ironstone.ChatterServices.get#RecordInfo').parameters({recordEntityName: inner.recordEntityName,
+                        recordId: inner.recordId}).call()
+                    record = {recordEntityName: info.info?.recordEntityName || inner.recordEntityName, recordId: inner.recordId,
+                        title: info.title || inner.recordId, typeLabel: info.typeLabel || null, url: info.url || null, icon: info.icon || null,
+                        folderPath: inner.folderPath}
+                    for (const crumb of breadcrumbList) if (crumb.path === inner.folderPath) crumb.name = record.title
                     // the content rows of the record by location: their description and type
                     const contentByLocation = {}
                     const content = info.info?.contentEntity
@@ -406,26 +272,26 @@ along with this software (see the LICENSE.md file). If not, see
                             const labels = {}
                             if (enumTypeId) for (const item of ec.entity.find('moqui.basic.Enumeration').condition('enumTypeId', enumTypeId).useCache(true).list())
                                 labels[item.enumId] = item.description || item.enumId
-                            for (const row of ec.entity.find(content.entityName).condition(content.keyField, gate.record.recordId).list()) {
+                            for (const row of ec.entity.find(content.entityName).condition(content.keyField, inner.recordId).list()) {
                                 if (!row.contentLocation) continue
                                 const typeId = row[content.typeField] ?? null
                                 contentByLocation[String(row.contentLocation)] = {description: row.description ?? null, contentTypeEnumId: typeId,
                                     contentTypeLabel: typeId ? (labels[typeId] || typeId) : null}
                             }
                         } catch (err) {
-                            ec.logger.warn(`Records drive: the content rows of ${gate.record.recordEntityName} ${gate.record.recordId} not read: ${err && err.message ? err.message : err}`)
+                            ec.logger.warn(`Records drive: the content rows of ${inner.recordEntityName} ${inner.recordId} not read: ${err && err.message ? err.message : err}`)
                         } finally { ec.message.clearErrors(); ec.message.popErrors() }
                     }
                     // the record's own folder: each content_ folder opened, its files shown in its place
-                    if (path === gate.record.folderPath) {
+                    if (path === inner.folderPath) {
                         const opened = []
                         for (const row of rows) {
                             if (!row.isDirectory || !/^content_/.test(row.name)) { opened.push(row); continue }
                             ec.message.pushErrors()
                             try {
-                                const inner = ec.service.sync().name('org.moqui.impl.FileServices.list#Folder').parameters({driveId: driveId, path: row.path})
+                                const listed = ec.service.sync().name('org.moqui.impl.FileServices.list#Folder').parameters({driveId: driveId, path: row.path})
                                         .requireNewTransaction(true).call()
-                                if (!ec.message.hasError()) for (const child of Array.from(inner.fileList || [])) opened.push(Object.assign({}, child, {contentFolder: row.path}))
+                                if (!ec.message.hasError()) for (const child of Array.from(listed.fileList || [])) opened.push(Object.assign({}, child, {contentFolder: row.path}))
                                 else opened.push(row)
                             } finally { ec.message.clearErrors(); ec.message.popErrors() }
                         }
@@ -436,12 +302,11 @@ along with this software (see the LICENSE.md file). If not, see
                         if (found) Object.assign(row, found)
                     }
                 }
-                for (const row of rows) if (row.isRecordFolder && row.label) row.name = row.label
                 // the mapped folders' crumbs by their labels (request is Requests)
-                const mapped = ec.service.sync().name('ironstone.DriveServices.get#RecordsPathInfo').parameters({driveId: driveId, path: ''}).call().folderList || []
+                const mapped = Array.from(ec.entity.find('moqui.resource.ResourceDriveRecordFolder').condition('driveId', driveId).useCache(true).list())
                 for (const crumb of breadcrumbList) {
-                    const found = mapped.find((item) => item.folderPath === crumb.path && item.label)
-                    if (found && crumb.path) crumb.name = found.label
+                    const found = crumb.path ? mapped.find((item) => clean(item.folderPath) === crumb.path && item.label) : null
+                    if (found) crumb.name = found.label
                 }
             }
             // a folder reached through a share: the crumbs from the shared folder on
@@ -467,10 +332,11 @@ along with this software (see the LICENSE.md file). If not, see
 
     <service verb="find" noun="FileRows">
         <description>The rows of a fixed view of the browser: recent (find#Recent), favorites (get#Favorites), shared (shares
-            made to the user, not declined), sharedByMe (the user's shares and links), tag (the files with tagId), search
-            (find#Resources by text with the type, period and person filters, in one drive and folder when driveId is given)
-            and trash (list#Trash of driveId). Rows of a records drive are only those of records the user may see. Each row has
-            driveId, driveName, path, name, isDirectory, size, modified, fileType and icon where the source has them.</description>
+            made to the user, not declined), sharedByMe (the user's shares and links), tag (find#Resources by tagId, a tag the
+            user sees), search (find#Resources by text with the type, period and person filters, in one drive and folder when
+            driveId is given) and trash (list#Trash of driveId). FileServices leaves out the rows of records the user may not
+            see. Each row has driveId, driveName, path, name, isDirectory, size, modified, fileType and icon where the source
+            has them.</description>
         <in-parameters>
             <parameter name="view" required="true"/>
             <parameter name="driveId"/>
@@ -532,21 +398,13 @@ along with this software (see the LICENSE.md file). If not, see
                     rows.sort((left, right) => (right.createdDate || 0) - (left.createdDate || 0))
                 }
             } else if (view === 'tag') {
-                // the tag's files from its member rows, each read through FileServices as the user (a row the user may not open is
-                // left out): find#Resources by tagId through the search index finds nothing (its tagIds list field)
+                // only a tag the user sees (their own or everyone's); its files across the drives the user may open
                 const tag = Array.from(ec.service.sync().name(`${FILES}.get#Tags`).call().tagList || []).find((item) => item.tagId === tagId)
                 if (!tag) { ec.message.addError(L('Tag not found')); return }
-                for (const member of ec.entity.find('moqui.resource.ResourceTagMember').condition('tagId', tagId).orderBy('driveId').orderBy('path').list()) {
-                    if (rows.length >= (limit || 100)) break
-                    ec.message.pushErrors()
-                    try {
-                        const info = ec.service.sync().name(`${FILES}.get#ResourceInfo`).parameters({driveId: member.driveId, path: member.path})
-                                .requireNewTransaction(true).call()
-                        if (!ec.message.hasError() && info.resource) rows.push({driveId: member.driveId, path: info.resource.path, name: info.resource.name,
-                            isDirectory: info.resource.isDirectory, size: info.resource.size ?? null, modified: info.resource.modified ?? null,
-                            modifiedByUserId: info.resource.modifiedByUserId ?? null, contentType: info.resource.contentType ?? null})
-                    } finally { ec.message.clearErrors(); ec.message.popErrors() }
-                }
+                const found = ec.service.sync().name(`${FILES}.find#Resources`).parameters({tagId: tagId, limit: limit || 100}).call()
+                if (ec.message.hasError()) return
+                usedIndex = found.usedIndex === true
+                rows = Array.from(found.resultList || []).map((row) => Object.assign({}, row))
             } else if (view === 'search') {
                 const parameters = {limit: limit || 100, text: text || null, fileType: fileType || null, modifiedPeriod: modifiedPeriod || null,
                     modifiedByUserId: modifiedByUserId || null}
@@ -565,7 +423,6 @@ along with this software (see the LICENSE.md file). If not, see
                             trashedByName: nameOf(row.trashedByUserId)}))
             } else { ec.message.addError(`Unknown view ${view}`); return }
             if (ec.message.hasError()) return
-            rows = ec.service.sync().name('ironstone.DriveServices.filter#VisibleRows').parameter('rowList', rows).call().rowList
             for (const row of rows) {
                 const kind = ec.service.sync().name('ironstone.DriveServices.get#FileType').parameters({name: row.name, isDirectory: row.isDirectory === true}).call()
                 row.fileType = row.fileType || kind.fileType
@@ -601,16 +458,16 @@ along with this software (see the LICENSE.md file). If not, see
             const clean = (text) => String(text == null ? '' : text).split('/').filter((part) => part && part !== '.').join('/')
             item = null; drive = null; access = null; shareList = []; linkList = []; record = null
             path = clean(path)
-            const gate = ec.service.sync().name('ironstone.DriveServices.check#ItemAccess').parameters({driveId: driveId, path: path}).call()
-            if (ec.message.hasError()) return
             const info = ec.service.sync().name(`${FILES}.get#ResourceInfo`).parameters({driveId: driveId, path: path}).call()
             if (ec.message.hasError()) return
             item = Object.assign({}, info.resource)
             delete item.location
+            delete item.recordList
             const levels = ec.service.sync().name(`${FILES}.get#DriveAccess`).parameters({driveId: driveId, path: path}).call()
             drive = levels.drive
+            const isRecords = drive?.driveKindEnumId === 'RdkRecords'
             access = {level: levels.level, permissionEnumId: levels.permissionEnumId, isOwner: levels.isOwner, canWrite: levels.canWrite,
-                canUpload: levels.canUpload, canShare: levels.level >= 2 && !gate.isRecords, viaShareId: levels.viaShareId ?? null}
+                canUpload: levels.canUpload, canShare: levels.level >= 2 && !isRecords, viaShareId: levels.viaShareId ?? null}
             const kind = ec.service.sync().name('ironstone.DriveServices.get#FileType').parameters({name: item.name, isDirectory: item.isDirectory}).call()
             item.fileType = kind.fileType
             item.icon = kind.icon
@@ -631,7 +488,13 @@ along with this software (see the LICENSE.md file). If not, see
             const shares = ec.service.sync().name(`${FILES}.get#Shares`).parameters({driveId: driveId, path: path}).call()
             shareList = Array.from(shares.outgoingList || [])
             linkList = Array.from(shares.linkList || [])
-            if (gate.record) record = gate.record
+            // a records drive path: its innermost record, with its title and link
+            const inner = Array.from(info.resource.recordList || [])[0] || null
+            if (inner) {
+                const named = ec.service.sync().name('ironstone.DriveServices.get#RecordNames').parameter('recordList', [inner]).call()?.nameMap || {}
+                const found = named[inner.recordEntityName + '\n' + inner.recordId] || {}
+                record = Object.assign({}, inner, {title: found.title || inner.recordId, url: found.url || null, icon: found.icon || null})
+            }
         ]]></script></actions>
     </service>
 
@@ -650,8 +513,7 @@ along with this software (see the LICENSE.md file). If not, see
             const clean = (text) => String(text == null ? '' : text).split('/').filter((part) => part && part !== '.').join('/')
             conflictList = []
             path = clean(path)
-            ec.service.sync().name('ironstone.DriveServices.check#ItemAccess').parameters({driveId: driveId, path: path}).call()
-            if (ec.message.hasError()) return
+            // each folder through list#Folder, as the user: a folder the user may not read has no names to answer
             const listed = {}
             const entries = (folder) => {
                 if (listed[folder] === undefined) {
@@ -696,8 +558,6 @@ along with this software (see the LICENSE.md file). If not, see
         <actions><script><![CDATA[
             const L = (text) => ec.l10n.localize(text)
             uploadedList = []
-            ec.service.sync().name('ironstone.DriveServices.check#ItemAccess').parameters({driveId: driveId, path: path || ''}).call()
-            if (ec.message.hasError()) return
             const files = (Array.isArray(contentFile) ? contentFile : [contentFile]).filter((file) => file != null && typeof file === 'object')
             if (!files.length) { ec.message.addError(L('Choose one or more files to upload')); return }
             const relatives = relativePath == null ? [] : (Array.isArray(relativePath) ? relativePath : [relativePath]).map((item) => String(item || ''))
@@ -746,8 +606,6 @@ along with this software (see the LICENSE.md file). If not, see
                 if (!fileName || fileName.includes('/') || fileName === '.' || fileName === '..' || fileName.startsWith('.trash')) { ec.message.addError(L('That is not a file name')); return }
                 target = path ? `${path}/${fileName}` : fileName
             }
-            ec.service.sync().name('ironstone.DriveServices.check#ItemAccess').parameters({driveId: driveId, path: target}).call()
-            if (ec.message.hasError()) return
             if (!replace) {
                 ec.message.pushErrors()
                 let exists = false
@@ -766,8 +624,8 @@ along with this software (see the LICENSE.md file). If not, see
     </service>
 
     <service verb="get" noun="ItemText">
-        <description>The whole text of a text file to edit (at most 2 MB), after check#ItemAccess and
-            FileServices.get#ResourceInfo; refused for a binary file.</description>
+        <description>The whole text of a text file to edit (at most 2 MB), through FileServices.get#ResourceInfo; refused for a
+            binary file.</description>
         <in-parameters>
             <parameter name="driveId" required="true"/>
             <parameter name="path" required="true"/>
@@ -779,8 +637,6 @@ along with this software (see the LICENSE.md file). If not, see
         </out-parameters>
         <actions><script><![CDATA[
             text = null
-            ec.service.sync().name('ironstone.DriveServices.check#ItemAccess').parameters({driveId: driveId, path: path}).call()
-            if (ec.message.hasError()) return
             const info = ec.service.sync().name('org.moqui.impl.FileServices.get#ResourceInfo').parameters({driveId: driveId, path: path, opened: true}).call()
             if (ec.message.hasError()) return
             const resource = info.resource
@@ -820,8 +676,6 @@ along with this software (see the LICENSE.md file). If not, see
             const L = (text) => ec.l10n.localize(text)
             notifiedUserIds = []
             path = clean(path)
-            ec.service.sync().name('ironstone.DriveServices.check#ItemAccess').parameters({driveId: driveId, path: path}).call()
-            if (ec.message.hasError()) return
             const link = isLink === 'Y' || isLink === true || isLink === 'true'
             const parameters = {driveId: driveId, path: path, permissionEnumId: permissionEnumId || 'RspView', expireDate: expireDate ?? null,
                 note: note || null, isLink: link ? 'Y' : 'N'}
@@ -946,8 +800,9 @@ along with this software (see the LICENSE.md file). If not, see
 
     <service verb="get" noun="DrivesData">
         <description>The drives screen: every drive the user may open, archived ones too (FileServices.get#UserDrives), with
-            the user's level, storage, members, used of quota and the last fetch of a mirror; and whether the user may add a
-            mirror (administrators).</description>
+            the user's level, storage, members, used of quota (includeUsage; FileServices leaves the records drive unsized, a
+            walk of every record's files) and the last fetch of a mirror; and whether the user may add a mirror
+            (administrators).</description>
         <out-parameters>
             <parameter name="driveList" type="List"/>
             <parameter name="isAdmin" type="Boolean"/>

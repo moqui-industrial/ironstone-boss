@@ -16,7 +16,9 @@ along with this software (see the LICENSE.md file). If not, see
     the user owns or shares as a card with its status (active, syncing, paused, setup not finished, sign-in failed, sync
     failed, local only), last sync and its error, unread, the servers and members, and what the user may do: Sync now,
     Pause or Resume, Fix (a failed sign-in: the account's page with the password, or the provider's sign-in), Continue setup (a wizard left before its
-    end), Settings. With no mail account yet, a welcome card leads into the wizard. ironstone.MailSettingsServices
+    end), Settings; while an account syncs its card shows how far it is (the SyncProgress screen, on the emailSyncProgress
+    topic). With no mail account yet, a welcome card leads into the wizard. Below, the user's own removed accounts whose mail
+    was kept, to delete with their mail (the Removed screen, which asks first). ironstone.MailSettingsServices
     get#MailAccountList reads them through the framework's access rules; syncNow is the Inbox's sync#UserAccounts. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Accounts" default-menu-index="1" default-menu-include="false">
@@ -46,6 +48,13 @@ along with this software (see the LICENSE.md file). If not, see
             hasMailAccounts = mailAccountList.length > 0
             problemCount = listOut?.problemCount || 0
             failedCount = Array.from(listOut?.failedParts || []).length
+            // the user's own removed accounts with their mail kept: their section only when there is one
+            hasRemoved = false
+            ec.message.pushErrors()
+            try {
+                hasRemoved = Array.from(ec.service.sync().name('ironstone.MailSettingsServices.get#RemovedMailAccounts').call()?.removedList || []).length > 0
+                if (ec.message.hasError()) { ec.logger.warn(`Removed mail accounts of ${ec.user.username} not read: ${ec.message.getErrorsString()}`); hasRemoved = false }
+            } finally { ec.message.clearErrors(); ec.message.popErrors() }
         ]]></script>
     </actions>
     <widgets>
@@ -104,6 +113,11 @@ along with this software (see the LICENSE.md file). If not, see
                         <label type="div" text="${account.serverText}" style="text-caption m-muted q-mt-sm ellipsis" condition="account.serverText"/>
                         <label type="div" text="Members: ${account.memberText}" style="text-caption m-muted" condition="account.memberText"/>
                         <label type="div" text="${account.filingText}" style="text-caption m-muted" condition="account.filingText"/>
+                        <section name="CardSyncProgress" condition="account.hasServer"><widgets>
+                            <dynamic-container id="CardSyncProgress" transition="../SyncProgress">
+                                <parameter name="emailAccountId" from="account.emailAccountId"/>
+                            </dynamic-container>
+                        </widgets></section>
                         <container style="row q-gutter-sm q-mt-sm items-center">
                             <link url="../Account" text="Fix the sign-in" icon="sym_o_key" btn-type="primary" condition="account.canManage &amp;&amp; account.statusId == 'EasAuthFailed'"
                                     parameter-map="{emailAccountId:account.emailAccountId, fix:'Y'}"/>
@@ -138,6 +152,10 @@ along with this software (see the LICENSE.md file). If not, see
                 </container-box></row-col>
             </widgets></section>
         </container-row>
+
+        <section name="RemovedAccounts" condition="hasRemoved"><widgets>
+            <dynamic-container id="RemovedMailAccounts" transition="../Removed"/>
+        </widgets></section>
 
         <container style="row q-gutter-sm q-mt-xs">
             <link url="../../Identities" link-type="anchor" text="Identities and signatures"/>

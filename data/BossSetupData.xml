@@ -160,10 +160,11 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- Files (design-drawers-commons.md §9 Records, impl-drawers-commons.md M8, R25): the Records drive, a view over the record
         attachment folders Mantle's save#*ContentFile services write under the mantle.content.root preference (the default
         dbresource://mantle/content; a deployment that moves the root changes rootLocation too). Every user may view it (the
-        ALL_USERS member row), and ironstone.DriveServices.check#ItemAccess lets a user into a record's folder only when the
-        record is one the user may see (R5, R28), so the drive shows each user only their records; it is read only (files are
-        added from a record's Files panel). The folders are mapped explicitly, since they follow no naming rule: CommunicationEvent
-        is capitalised, a work effort of any type (task, project, event) is under work, an asset maintenance record's files are
+        ALL_USERS member row), and FileServices (get#DriveAccess, through the STRT_RECORD_VISIBLE_SERVICE hook above) lets a user
+        into a record's folder only when the record is one the user may see (R5, R28), so the drive shows each user only their
+        records; it is read only (files are added from a record's Files panel). The folders are mapped explicitly, since they
+        follow no naming rule: CommunicationEvent is capitalised, a work effort of any type (task, project, event) is under work,
+        an asset maintenance record's files are
         under asset/<assetId>/maintenance/<id>, a facility's are written by BOSS's RecordFiles (no Mantle pair) and its
         certifications by Mantle. Payment methods and employments are left out on purpose; wiki page attachments are under
         each space's own root, not here. -->

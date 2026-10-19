@@ -20,11 +20,15 @@ along with this software (see the LICENSE.md file). If not, see
     one. Server passwords and sign-in tokens are never answered: the views say only whether one is stored. An account signs
     in with a password (or an app password, with the provider's help on where to make one) or, where this server is set up
     for it (mr-moqui docs/Mail-OAuth.md), with Google or Microsoft: get#OAuthChoice says which, start#MailSignIn begins the
-    sign-in of the SignIn screen's popup, drop#UnusedSignIn takes back an account made for a sign-in that did not finish.
+    sign-in of the SignIn screen's popup (a new IMAP account is made by the framework when the sign-in succeeds; POP with the
+    provider's POP scope), drop#UnusedSignIn takes back a POP account made for a sign-in that did not finish. An outgoing server that signs in as another user has its own sign-in
+    (save#AccountConnection smtpUsername, smtpPassword: tried before it is stored). The account page maps folders through the
+    framework's update#EmailFolder; the list shows the user's removed accounts (get#RemovedMailAccounts,
+    delete#RemovedMailAccount); the Rules editor tries a rule without acting (test#Rule); the automatic reply has its audience.
 
     The wizard (MailAccounts/Add): Address suggests the servers (suggest#MailServer: the providers IronStone knows, else
-    discover#EmailServer), Connect makes the account, paused until the wizard ends (save#AccountConnection with a password,
-    or before a provider's sign-in, start#MailSignIn), Test signs in
+    discover#EmailServer), Connect makes the account, paused until the wizard ends (save#AccountConnection with a password;
+    with a provider's sign-in, start#MailSignIn, the framework makes it when the sign-in succeeds), Test signs in
     (test#MailAccount, with what to try for each failure), Options (save#AccountOptions: name, sync window, filing, members
     of a shared account) and Finish (finish#AccountSetup: active, and the first sync on a worker). An account still paused
     from a wizard that was left is "Setup not finished" in the list, with the way back into it.
@@ -119,10 +123,10 @@ along with this software (see the LICENSE.md file). If not, see
     <service verb="get" noun="OAuthChoice">
         <description>Whether an address (or a server) signs in with a provider this server is set up for (mr-moqui
             docs/Mail-OAuth.md): oauthProviderEnumId when given (discover#EmailServer's, or the account server's), else the
-            EmailOAuthProvider whose addressDomains has the address's domain or whose hostSuffixes the incoming server is
-            under, as discover#EmailServer finds it but without its network lookups; configured as get#OAuthProviders says
-            (a client of this deployment, not disabled); providerLabel names the button (Sign in with Google, with
-            Microsoft). The provider rows are read without their secrets. choice is null when no provider has the mail.</description>
+            provider org.moqui.impl.EmailClientServices.find#OAuthProvider finds for the address's domain or the incoming
+            server's host (no network: no MX lookup); configured as get#OAuthProviders says (a client of this deployment, not
+            disabled); providerLabel names the button (Sign in with Google, with Microsoft). choice is null when no provider
+            has the mail.</description>
         <in-parameters>
             <parameter name="emailAddress" allow-html="any"/>
             <parameter name="storeHost"/>
@@ -131,24 +135,20 @@ along with this software (see the LICENSE.md file). If not, see
         <out-parameters><parameter name="choice" type="Map"/></out-parameters>
         <actions><script><![CDATA[
             choice = null
-            const address = String(emailAddress || '').trim().toLowerCase()
-            const domain = address.includes('@') ? address.substring(address.lastIndexOf('@') + 1).replace(/\.$/, '') : ''
-            const host = String(storeHost || '').trim().toLowerCase().replace(/\.$/, '')
-            const list = (text) => String(text || '').split(',').map((part) => part.trim().toLowerCase()).filter((part) => part)
-            const under = (name, suffix) => !!suffix && (name === suffix || name.endsWith('.' + suffix))
+            const LABELS = {EopGoogle: 'Google', EopMicrosoft: 'Microsoft'}
             let id = oauthProviderEnumId || null
-            if (!id && (domain || host)) {
-                const rows = Array.from(ec.entity.find('moqui.basic.email.EmailOAuthProvider').selectField('oauthProviderEnumId,addressDomains,hostSuffixes')
-                        .orderBy('oauthProviderEnumId').disableAuthz().list())
-                const found = rows.find((row) => domain && list(row.addressDomains).includes(domain)) ||
-                        rows.find((row) => host && list(row.hostSuffixes).some((suffix) => under(host, suffix)))
-                id = found ? found.oauthProviderEnumId : null
+            if (!id) {
+                if (!emailAddress && !storeHost) return
+                const found = ec.service.sync().name('org.moqui.impl.EmailClientServices.find#OAuthProvider').parameters({emailAddress: emailAddress || null,
+                    storeHost: storeHost || null, lookupMx: false}).call()
+                if (ec.message.hasError() || !found?.oauthProviderEnumId) return
+                choice = {oauthProviderEnumId: found.oauthProviderEnumId, providerLabel: LABELS[found.oauthProviderEnumId] || found.providerName || found.oauthProviderEnumId,
+                    configured: found.configured === true}
+                return
             }
-            if (!id) return
             const providers = Array.from(ec.service.sync().name('org.moqui.impl.EmailClientServices.get#OAuthProviders').call()?.providerList || [])
             const provider = providers.find((row) => row.oauthProviderEnumId === id)
             if (!provider) return
-            const LABELS = {EopGoogle: 'Google', EopMicrosoft: 'Microsoft'}
             choice = {oauthProviderEnumId: id, providerLabel: LABELS[id] || provider.description || id, configured: provider.configured === true}
         ]]></script></actions>
     </service>
@@ -159,9 +159,10 @@ along with this software (see the LICENSE.md file). If not, see
             (Thunderbird autoconfig and its ISPDB, DNS SRV records, else the guesses imap.domain and smtp.domain). A reserved
             domain (example.com, .example, .test, .invalid, .localhost, .local) is never looked up: it gets the guesses at once.
             A discovery that fails falls back to the guesses, said so (logged). The servers are in the wizard's terms:
-            storeKind imap or pop, storeSecurity and smtpSecurity ssl, starttls or none. oauthProviderEnumId is the
-            provider discovery found the mail at (for a company domain at Google or Microsoft, by its MX hosts), for
-            get#OAuthChoice.</description>
+            storeKind imap or pop, storeSecurity and smtpSecurity ssl, starttls or none; smtpUsername is the outgoing
+            server's own user when discovery says it signs in as another one than the incoming (the Connect step's outgoing
+            sign-in, prefilled). oauthProviderEnumId is the provider discovery found the mail at (for a company domain at
+            Google or Microsoft, by its MX hosts), for get#OAuthChoice.</description>
         <in-parameters><parameter name="emailAddress" required="true" allow-html="any"/></in-parameters>
         <out-parameters><parameter name="suggestion" type="Map"/></out-parameters>
         <actions><script><![CDATA[
@@ -182,7 +183,7 @@ along with this software (see the LICENSE.md file). If not, see
                 failed: L('The settings could not be looked up just now, so these are guesses: check them against your provider\'s help page.')}
             const result = {emailAddress: address, domain: domain, providerId: null, providerName: null, source: 'guess', sourceText: SOURCES.guess,
                 storeKind: 'imap', storeSecurity: 'ssl', storeHost: 'imap.' + domain, storePort: '993', smtpHost: 'smtp.' + domain, smtpPort: '587',
-                smtpSecurity: 'starttls', mailUsername: address, displayName: null, appPassword: false, unsupported: false, oauthOnly: false,
+                smtpSecurity: 'starttls', mailUsername: address, smtpUsername: '', displayName: null, appPassword: false, unsupported: false, oauthOnly: false,
                 oauthProviderEnumId: null, helpText: null, helpUrl: null, helpLinkText: null, noteText: null, warningText: null}
             const applyProvider = (provider, setServers) => {
                 if (!provider) return
@@ -221,6 +222,9 @@ along with this software (see the LICENSE.md file). If not, see
                             oauthProviderEnumId: found.oauthProviderEnumId || null})
                         if (found.smtpHost) Object.assign(result, {smtpHost: found.smtpHost, smtpPort: String(found.smtpPort || 587),
                             smtpSecurity: found.smtpSsl === 'Y' ? 'ssl' : (found.smtpStartTls === 'Y' ? 'starttls' : 'none')})
+                        // an outgoing server that signs in as another user than the incoming one
+                        if (found.smtpUsername && String(found.smtpUsername).toLowerCase() !== String(result.mailUsername).toLowerCase())
+                            result.smtpUsername = String(found.smtpUsername)
                         // a company domain at Google or Microsoft: their help
                         applyProvider(ec.service.sync().name('ironstone.MailSettingsServices.get#MailProvider').parameter('storeHost', found.storeHost).call()?.provider, false)
                         if (result.oauthOnly) result.warningText = found.oauthConfigured === true
@@ -364,9 +368,11 @@ along with this software (see the LICENSE.md file). If not, see
 
     <service verb="get" noun="MailAccountDetail">
         <description>One account for its page (MailAccounts/Account): the list's view of it (get#MailAccountList), its folders
-            with their kind, the server's path and counts, and for a manager the servers in the wizard's terms (storeKind,
-            storeSecurity, storeHost, storePort, smtpHost, smtpPort, smtpSecurity, mailUsername and hasPassword; never the
-            password), the members of a shared account, the options and the provider's help. signIn says how a manager's
+            with their kind (folderKindEnumId, kindByUser when the user chose it), the server's path, counts and whether the
+            sync reads it (subscribed; the Inbox always), and for a manager the servers in the wizard's terms (storeKind,
+            storeSecurity, storeHost, storePort, smtpHost, smtpPort, smtpSecurity, mailUsername and hasPassword; smtpUsername
+            and hasSmtpPassword, the outgoing server's own sign-in when it has one; never a password), the members of a shared
+            account, the options and the provider's help. signIn says how a manager's
             account signs in (get#OAuthStatus: isOAuth, signedIn, needsSignIn, signInDate) and oauth whether it may sign in
             with Google or Microsoft here (get#OAuthChoice: providerLabel, configured). found is false, with "not found",
             for an account the user does not reach.</description>
@@ -403,11 +409,16 @@ along with this software (see the LICENSE.md file). If not, see
             const users = ec.service.sync().name('org.moqui.impl.EmailClientServices.get#UserEmailAccounts').call() || {}
             const mine = Array.from(users.accountList || []).find((item) => item.emailAccountId === emailAccountId)
             const KIND = {EfkInbox: L('Inbox'), EfkDrafts: L('Drafts'), EfkSent: L('Sent'), EfkArchive: L('Archive'), EfkJunk: L('Spam'), EfkTrash: L('Trash'), EfkOther: L('Folder')}
+            // the kinds a user chose (update#EmailFolder kindByUser): the sync keeps them
+            const chosen = new Set(Array.from(ec.entity.find('moqui.basic.email.EmailFolder').condition('emailAccountId', emailAccountId)
+                    .condition('kindByUser', 'Y').selectField('emailFolderId').list()).map((row) => row.emailFolderId))
             folderList = Array.from(mine?.folderList || []).filter((folder) => !folder.removed).map((folder) => ({emailFolderId: folder.emailFolderId,
+                emailAccountId: emailAccountId, folderKindEnumId: folder.folderKindEnumId || 'EfkOther', kindByUser: chosen.has(folder.emailFolderId),
                 kindLabel: KIND[folder.folderKindEnumId] || L('Folder'), isSpecial: folder.folderKindEnumId !== 'EfkOther',
-                folderName: folder.folderName || folder.folderPath || folder.emailFolderId,
-                pathText: folder.folderPath || L('only here'), unreadCount: folder.unreadCount || 0, totalCount: folder.totalCount ?? null,
-                syncText: folder.subscribed === false ? L('not synced') : L('synced')}))
+                isInbox: folder.folderKindEnumId === 'EfkInbox', folderName: folder.folderName || folder.folderPath || folder.emailFolderId,
+                pathText: folder.folderPath || L('only here'), onServer: !!folder.folderPath, unreadCount: folder.unreadCount || 0, totalCount: folder.totalCount ?? null,
+                subscribed: folder.folderKindEnumId === 'EfkInbox' || folder.subscribed !== false ? 'Y' : 'N',
+                syncText: folder.folderKindEnumId === 'EfkInbox' ? L('always') : (!folder.folderPath ? L('only here') : (folder.subscribed === false ? L('not synced') : L('synced')))}))
             if (access.level >= 3 && raw.emailServerId) {
                 const row = ec.entity.find('moqui.basic.email.EmailServer').condition('emailServerId', raw.emailServerId).one()
                 if (row) {
@@ -417,6 +428,7 @@ along with this software (see the LICENSE.md file). If not, see
                         storeHost: row.storeHost || '', storePort: row.storePort != null ? String(row.storePort) : '', smtpHost: row.smtpHost || '',
                         smtpPort: row.smtpPort != null ? String(row.smtpPort) : '', smtpSecurity: row.smtpSsl === 'Y' ? 'ssl' : (row.smtpStartTls === 'Y' ? 'starttls' : 'none'),
                         mailUsername: row.mailUsername || '', hasPassword: !!row.mailPassword, hasStore: !!row.storeHost,
+                        smtpUsername: row.smtpUsername || '', hasSmtpPassword: !!row.smtpPassword,
                         authTypeEnumId: row.authTypeEnumId || 'EatPassword', oauthProviderEnumId: row.oauthProviderEnumId || null}
                     // the sign-in with a provider (get#OAuthStatus answers no token)
                     const status = ec.service.sync().name('org.moqui.impl.EmailClientServices.get#OAuthStatus').parameter('emailAccountId', emailAccountId).call()
@@ -453,16 +465,26 @@ along with this software (see the LICENSE.md file). If not, see
             to make an account with a password, and an empty one keeps the one stored; a password given makes the account
             sign in with it (EatPassword: an account that signed in with a provider is signed out there). With
             authTypeEnumId EatOAuth2 and oauthProviderEnumId no password is taken: a new account is made for the provider's
-            sign-in (start#MailSignIn), on the servers given or else the provider's own, and an account there already keeps
-            its servers and its sign-in, which the provider's sign-in sets. The wizard coming back with another kind changes
-            the account's kind (update#EmailAccount, by the framework's rules). Strict on access: an emailAccountId the user
-            does not manage is not found.</description>
+            sign-in to POP (start#MailSignIn; a new account for IMAP is the framework's start#OAuthSignIn's), on the servers
+            given or else the provider's own (its POP server with storeKind pop, so the sign-in asks for the provider's POP
+            scope), and an account there already keeps its servers and its sign-in,
+            which the provider's sign-in sets (storeKind given moves it between the provider's IMAP and POP servers).
+
+            The outgoing server's own sign-in (smtpUsername, smtpPassword: a provider whose SMTP takes another user than its
+            incoming server) is tried first (test#MailAccount, SMTP only, on the servers just saved) and stored only when the
+            server takes it; refused, nothing of the save is kept and the error says what the server answered. An empty
+            smtpUsername makes SMTP sign in as the incoming server does again; the same user with no password keeps the one
+            stored. Not for an account that signs in with a provider.
+
+            accountKindEnumId: a new account's kind (EakExternal, the default, or EakShared); given for an account there it
+            changes the kind (update#EmailAccount, by the framework's rules: personal again only when one person is left on
+            it). Strict on access: an emailAccountId the user does not manage is not found.</description>
         <in-parameters>
             <parameter name="emailAccountId"/>
             <parameter name="emailAddress" required="true" allow-html="any"/>
             <parameter name="displayName"/>
-            <parameter name="accountKindEnumId" default-value="EakExternal"/>
-            <parameter name="storeKind" default-value="imap"/>
+            <parameter name="accountKindEnumId"/>
+            <parameter name="storeKind"/>
             <parameter name="storeSecurity" default-value="ssl"/>
             <parameter name="storeHost"/>
             <parameter name="storePort"/>
@@ -471,6 +493,8 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="smtpSecurity" default-value="starttls"/>
             <parameter name="mailUsername" allow-html="any"/>
             <parameter name="mailPassword" allow-html="any"/>
+            <parameter name="smtpUsername" allow-html="any"/>
+            <parameter name="smtpPassword" allow-html="any"/>
             <parameter name="passwordOnly" type="Boolean" default="false"><description>Only the password changes (the Fix of a
                 sign-in that failed)</description></parameter>
             <parameter name="authTypeEnumId" default-value="EatPassword"><description>EatPassword, or EatOAuth2 for an account
@@ -488,18 +512,24 @@ along with this software (see the LICENSE.md file). If not, see
             const address = String(emailAddress || '').trim()
             const at = address.lastIndexOf('@')
             if (at < 1 || at === address.length - 1 || /\s/.test(address)) { invalid('emailAddress', 'Enter your whole email address, like name@example.com'); return }
-            if (!['EakExternal', 'EakShared'].includes(accountKindEnumId)) { ec.message.addError(ec.resource.expand('Unknown account kind ${kind}', '', {kind: accountKindEnumId})); return }
             const oauth = authTypeEnumId === 'EatOAuth2'
             if (!oauth && authTypeEnumId !== 'EatPassword') { ec.message.addError(ec.resource.expand('Unknown sign-in ${kind}', '', {kind: authTypeEnumId})); return }
             if (oauth && !oauthProviderEnumId) { ec.message.addError(L('Which provider does the account sign in with?')); return }
             let existing = null
+            let existingServer = null
             if (emailAccountId) {
                 const access = ec.service.sync().name('org.moqui.impl.EmailClientServices.get#EmailAccountAccess').parameter('emailAccountId', emailAccountId).call()
                 if (ec.message.hasError()) return
                 if (!(access?.level >= 1) || access.account?.isInternal) { ec.message.addError(ec.resource.expand('Email account ${id} not found', '', {id: emailAccountId})); return }
                 if (access.level < 3) { ec.message.addError(ec.resource.expand('You may not change email account ${id}', '', {id: emailAccountId})); return }
                 existing = access.account
+                existingServer = existing.emailServerId ? ec.entity.find('moqui.basic.email.EmailServer').condition('emailServerId', existing.emailServerId)
+                        .selectField('storeHost,storeProtocol,smtpUsername,authTypeEnumId,oauthProviderEnumId').one() : null
             }
+            // the kind: a new account's, or a change of an account's (its own kind given back is no change)
+            const kind = accountKindEnumId ? String(accountKindEnumId) : null
+            if (kind && !['EakExternal', 'EakShared'].includes(kind) && !(existing && kind === existing.accountKindEnumId)) {
+                ec.message.addError(ec.resource.expand('Unknown account kind ${kind}', '', {kind: kind})); return }
             const password = oauth || mailPassword == null ? '' : String(mailPassword).trim()
             if (passwordOnly) {
                 if (!existing) { ec.message.addError(L('Which account? The account is required')); return }
@@ -512,14 +542,27 @@ along with this software (see the LICENSE.md file). If not, see
             const hostOk = (value) => /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/.test(value)
             let storeName = host(storeHost), smtpName = host(smtpHost)
             let servers = null
+            // the providers' POP servers (their EmailOAuthProvider rows name the IMAP one)
+            const POP_SERVERS = {EopGoogle: ['pop.gmail.com', '995'], EopMicrosoft: ['outlook.office365.com', '995']}
+            const providerRow = () => ec.entity.find('moqui.basic.email.EmailOAuthProvider').condition('oauthProviderEnumId', oauthProviderEnumId)
+                    .selectField('storeHost,storePort,storeProtocol,smtpHost,smtpPort,smtpSsl,smtpStartTls').disableAuthz().one()
+            const providerStore = (row, pop) => pop ? {storeHost: (POP_SERVERS[oauthProviderEnumId] || [row.storeHost])[0],
+                    storePort: (POP_SERVERS[oauthProviderEnumId] || [null, '995'])[1], storeProtocol: 'pop3s'}
+                : {storeHost: row.storeHost, storePort: row.storePort, storeProtocol: row.storeProtocol || 'imaps'}
             // an account for a provider's sign-in: the servers given, else the provider's own (read without its secrets)
             if (oauth && !existing && !storeName && !smtpName) {
-                const row = ec.entity.find('moqui.basic.email.EmailOAuthProvider').condition('oauthProviderEnumId', oauthProviderEnumId)
-                        .selectField('storeHost,storePort,storeProtocol,smtpHost,smtpPort,smtpSsl,smtpStartTls').disableAuthz().one()
+                const row = providerRow()
                 if (row == null) { ec.message.addError(ec.resource.expand('No sign-in provider ${id}', '', {id: oauthProviderEnumId})); return }
-                servers = {storeHost: row.storeHost, storePort: row.storePort, storeProtocol: row.storeProtocol || 'imaps', smtpHost: row.smtpHost,
-                    smtpPort: row.smtpPort, smtpSsl: row.smtpSsl || 'N', smtpStartTls: row.smtpStartTls || 'N', mailUsername: address}
-            } else if (!(oauth && existing && !storeName && !smtpName)) {
+                servers = Object.assign({smtpHost: row.smtpHost, smtpPort: row.smtpPort, smtpSsl: row.smtpSsl || 'N', smtpStartTls: row.smtpStartTls || 'N',
+                    mailUsername: address}, providerStore(row, storeKind === 'pop'))
+            } else if (oauth && existing && !storeName && !smtpName) {
+                // keeps its servers; storeKind given moves its incoming mail between the provider's IMAP and POP servers
+                const isPop = String(existingServer?.storeProtocol || '').startsWith('pop')
+                if (storeKind && (storeKind === 'pop') !== isPop) {
+                    const row = providerRow()
+                    if (row != null) servers = providerStore(row, storeKind === 'pop')
+                }
+            } else {
                 if (!storeName || !hostOk(storeName)) { invalid('storeHost', 'Enter the incoming server, like imap.example.com'); return }
                 if (!smtpName || !hostOk(smtpName)) { invalid('smtpHost', 'Enter the outgoing server, like smtp.example.com'); return }
                 const pop = storeKind === 'pop'
@@ -538,12 +581,20 @@ along with this software (see the LICENSE.md file). If not, see
                     smtpHost: smtpName, smtpPort: smtpPortText, smtpSsl: smtpSecurity === 'ssl' ? 'Y' : 'N', smtpStartTls: smtpSecurity === 'starttls' ? 'Y' : 'N',
                     mailUsername: String(mailUsername || '').trim() || address}
             }
+            // the outgoing sign-in to try, before anything is written
+            const smtpUser = smtpUsername == null || oauth ? null : String(smtpUsername).trim()
+            const smtpPass = smtpPassword == null ? '' : String(smtpPassword).trim()
+            const storedSmtpUser = existingServer ? String(existingServer.smtpUsername || '') : ''
+            const trySmtp = smtpUser && (smtpUser !== storedSmtpUser || smtpPass)
+            if (trySmtp && !smtpPass) { invalid('smtpPassword', 'Enter the password of the outgoing server\'s sign-in'); return }
             if (existing) {
                 const changes = Object.assign({emailAccountId: emailAccountId, emailAddress: address}, servers || {})
                 // the wizard came back with another kind: the account takes it (to shared at any time; personal again only
                 // when one person is left on it)
-                if (existing.accountKindEnumId !== accountKindEnumId) changes.accountKindEnumId = accountKindEnumId
+                if (kind && existing.accountKindEnumId !== kind) changes.accountKindEnumId = kind
                 if (password) { changes.mailPassword = password; changes.authTypeEnumId = 'EatPassword' }
+                // no outgoing user of its own any more: SMTP signs in as the incoming server again
+                if (smtpUser === '' && storedSmtpUser) changes.smtpUsername = ''
                 ec.service.sync().name('org.moqui.impl.EmailClientServices.update#EmailAccount').parameters(changes).call()
                 if (ec.message.hasError()) return
                 if (displayName != null && String(displayName).trim()) {
@@ -552,36 +603,54 @@ along with this software (see the LICENSE.md file). If not, see
                     if (identity.length && !identity[0].displayName) ec.service.sync().name('org.moqui.impl.EmailClientServices.update#EmailIdentity')
                             .parameters({emailIdentityId: identity[0].emailIdentityId, displayName: String(displayName).trim()}).call()
                 }
+            } else {
+                if (!oauth && !password) { invalid('mailPassword', 'Enter the password (or app password)'); return }
+                // paused: not synced until the wizard's Finish
+                const made = ec.service.sync().name('org.moqui.impl.EmailClientServices.create#EmailAccount').parameters(Object.assign({
+                    accountKindEnumId: kind || 'EakExternal', emailAddress: address, accountName: address, syncWindowDays: 365, statusId: 'EasPaused',
+                    displayName: String(displayName || '').trim() || null}, oauth ? {authTypeEnumId: 'EatOAuth2', oauthProviderEnumId: oauthProviderEnumId}
+                        : {mailPassword: password, authTypeEnumId: 'EatPassword'}, servers)).call()
+                if (ec.message.hasError()) return
+                emailAccountId = made.emailAccountId
+                created = true
+            }
+            if (!trySmtp) return
+            // the outgoing sign-in, tried on the servers just written (in this transaction) before it is stored
+            const tried = ec.service.sync().name('ironstone.MailSettingsServices.test#MailAccount').parameters({emailAccountId: emailAccountId,
+                testStore: false, smtpUsername: smtpUser, smtpPassword: smtpPass}).call()
+            if (ec.message.hasError()) return
+            const step = Array.from(tried?.stepList || []).find((item) => item.step === 'smtp') || null
+            if (!step || !step.ok) {
+                ec.message.addValidationError(null, 'smtpUsername', null, ec.resource.expand('The outgoing server did not take this sign-in: ${why}', '',
+                    {why: step ? [step.message, step.hint].filter((part) => part).join(' ') : L('it was not tried')}), null)
                 return
             }
-            if (!oauth && !password) { invalid('mailPassword', 'Enter the password (or app password)'); return }
-            const made = ec.service.sync().name('org.moqui.impl.EmailClientServices.create#EmailAccount').parameters(Object.assign({
-                accountKindEnumId: accountKindEnumId, emailAddress: address, accountName: address, syncWindowDays: 365,
-                displayName: String(displayName || '').trim() || null}, oauth ? {authTypeEnumId: 'EatOAuth2', oauthProviderEnumId: oauthProviderEnumId}
-                    : {mailPassword: password, authTypeEnumId: 'EatPassword'}, servers)).call()
-            if (ec.message.hasError()) return
-            emailAccountId = made.emailAccountId
-            created = true
-            // not synced until the wizard's Finish
-            ec.service.sync().name('org.moqui.impl.EmailClientServices.update#EmailAccount').parameters({emailAccountId: emailAccountId, statusId: 'EasPaused'}).call()
+            ec.service.sync().name('org.moqui.impl.EmailClientServices.update#EmailAccount').parameters({emailAccountId: emailAccountId,
+                smtpUsername: smtpUser, smtpPassword: smtpPass}).call()
         ]]></script></actions>
     </service>
 
     <service verb="start" noun="MailSignIn">
         <description>Begin an account's sign-in with Google or Microsoft (org.moqui.impl.EmailClientServices.start#OAuthSignIn,
             in the popup of the SignIn screen; mr-moqui docs/Mail-OAuth.md), on a provider this server is set up for
-            (get#OAuthChoice). From the wizard (setup) the account is made first, or changed, by save#AccountConnection with
-            authTypeEnumId EatOAuth2: a new one is paused with the year's sync window until the wizard's Finish, as one with a
-            password, and created says so; the sign-in then stores itself on it. From the account page (no setup) the
-            account the user manages signs in again, or for the first time instead of a password. allowAddressChange is the
-            user's yes to a sign-in as another address than the account's (the account takes the address). The sign-in
-            itself, its state and its tokens are the framework's: authUrl is for the popup, signInId for get#OAuthStatus.</description>
+            (get#OAuthChoice). From the wizard (setup) with no account yet, the address, name and kind go to start#OAuthSignIn,
+            which makes the account only when the sign-in succeeds: paused with the year's sync window until the wizard's
+            Finish, as one with a password; its emailAccountId comes with the sign-in's outcome (get#OAuthStatus). storeKind pop
+            (the wizard's choice) reads the Inbox over POP from the provider's POP server, so the account is made first
+            (save#AccountConnection, paused; created says so) for the sign-in to ask for the provider's POP scope too
+            (popScope: Microsoft's POP.AccessAsUser.All; Google's mail scope covers POP), and drop#UnusedSignIn takes it back
+            when the sign-in does not finish. The wizard coming back to an account it made changes it first (its kind, IMAP or
+            POP). From the account page (no setup) the account the user manages signs in again, or for the first time instead
+            of a password. allowAddressChange is the user's yes to a sign-in as another address (the account takes the
+            address). The sign-in itself, its state and its tokens are the framework's: authUrl is for the popup, signInId for
+            get#OAuthStatus.</description>
         <in-parameters>
             <parameter name="emailAccountId"/>
             <parameter name="emailAddress" allow-html="any"/>
             <parameter name="displayName"/>
             <parameter name="accountKindEnumId" default-value="EakExternal"/>
             <parameter name="oauthProviderEnumId"/>
+            <parameter name="storeKind"><description>imap or pop, for the wizard's account</description></parameter>
             <parameter name="setup" type="Boolean" default="false"/>
             <parameter name="allowAddressChange" type="Boolean" default="false"/>
         </in-parameters>
@@ -613,16 +682,22 @@ along with this software (see the LICENSE.md file). If not, see
             if (!choice) { ec.message.addError(ec.resource.expand('${address} does not sign in with Google or Microsoft here: use its password or an app password', '', {address: address})); return }
             if (!choice.configured) { ec.message.addError(ec.resource.expand('Sign-in with ${name} is not set up on this server: use an app password, or ask an administrator to set it up', '',
                 {name: choice.providerLabel})); return }
-            if (setup) {
+            const pop = storeKind === 'pop'
+            // the wizard: an account it made before is changed first; a POP account is made first, so the sign-in asks for POP
+            if (setup && (emailAccountId || pop)) {
                 const saved = ec.service.sync().name('ironstone.MailSettingsServices.save#AccountConnection').parameters({emailAccountId: emailAccountId || null,
                     emailAddress: address, displayName: displayName || null, accountKindEnumId: accountKindEnumId, authTypeEnumId: 'EatOAuth2',
-                    oauthProviderEnumId: choice.oauthProviderEnumId}).call()
+                    oauthProviderEnumId: choice.oauthProviderEnumId, storeKind: pop ? 'pop' : (storeKind === 'imap' ? 'imap' : null)}).call()
                 if (ec.message.hasError()) return
                 emailAccountId = saved.emailAccountId || emailAccountId
                 created = saved.created === true
             }
-            const started = ec.service.sync().name('org.moqui.impl.EmailClientServices.start#OAuthSignIn').parameters({emailAccountId: emailAccountId,
-                oauthProviderEnumId: choice.oauthProviderEnumId, allowAddressChange: allowAddressChange === true}).call()
+            // with no account, start#OAuthSignIn makes one once the sign-in succeeds: paused, the year's window, as the wizard's
+            const parameters = emailAccountId ? {emailAccountId: emailAccountId} : {emailAddress: address, accountName: address,
+                displayName: String(displayName || '').trim() || null, accountKindEnumId: accountKindEnumId || 'EakExternal', statusId: 'EasPaused',
+                syncWindowDays: 365}
+            const started = ec.service.sync().name('org.moqui.impl.EmailClientServices.start#OAuthSignIn').parameters(Object.assign(parameters,
+                {oauthProviderEnumId: choice.oauthProviderEnumId, allowAddressChange: allowAddressChange === true})).call()
             if (ec.message.hasError()) return
             authUrl = started.authUrl
             signInId = started.signInId
@@ -630,10 +705,10 @@ along with this software (see the LICENSE.md file). If not, see
     </service>
 
     <service verb="drop" noun="UnusedSignIn">
-        <description>Take back an account the wizard made for a provider's sign-in (start#MailSignIn) when the sign-in did not
-            finish (closed, refused, another address the user did not want): only an account the user manages that has never
-            synced, is still paused for its setup, signs in with a provider and has no sign-in stored
-            (get#OAuthStatus); any other is kept, and dropped is false.</description>
+        <description>Take back an account the wizard made for a provider's sign-in to POP (start#MailSignIn: a POP account is
+            made before its sign-in) when the sign-in did not finish (closed, refused, another address the user did not want):
+            only an account the user manages that has never synced, is still paused for its setup, signs in with a provider and
+            has no sign-in stored (get#OAuthStatus); any other is kept, and dropped is false.</description>
         <in-parameters><parameter name="emailAccountId" required="true"/></in-parameters>
         <out-parameters><parameter name="dropped" type="Boolean"/></out-parameters>
         <actions><script><![CDATA[
@@ -654,19 +729,29 @@ along with this software (see the LICENSE.md file). If not, see
         <description>Sign in to an account's servers (manage permission; org.moqui.impl.EmailClientServices.test#EmailAccount):
             each step (sending, receiving, folders) with what it said, and for a failure what it most likely means and what to
             try (an app password, the port and security, the host name, a firewall, IMAP access turned off), with the
-            provider's help; folderMap is how the server's folders map to Inbox, Sent, Drafts, Spam, Trash and Archive.</description>
-        <in-parameters><parameter name="emailAccountId" required="true"/></in-parameters>
+            provider's help. testStore false tries only the outgoing server; smtpUsername and smtpPassword are an outgoing
+            sign-in to try instead of the stored one (nothing is stored). folderMap is how the folders map to Inbox, Sent,
+            Drafts, Spam, Trash and Archive here: the account's own choice of a folder (update#EmailFolder) over the server's
+            special use, with the server's folder for the kind when the two differ (serverPath); folderList is each server
+            folder with its kind on the server and here and whether the sync reads it.</description>
+        <in-parameters>
+            <parameter name="emailAccountId" required="true"/>
+            <parameter name="testStore" type="Boolean" default="true"/>
+            <parameter name="smtpUsername" allow-html="any"/>
+            <parameter name="smtpPassword" allow-html="any"/>
+        </in-parameters>
         <out-parameters>
             <parameter name="success" type="Boolean"/>
             <parameter name="stepList" type="List"/>
             <parameter name="folderMap" type="List"/>
+            <parameter name="folderList" type="List"/>
             <parameter name="folderCount" type="Integer"/>
             <parameter name="adviceText"/>
             <parameter name="provider" type="Map"/>
         </out-parameters>
         <actions><script><![CDATA[
             const L = (text) => text.length > 255 ? text : ec.l10n.localize(text)
-            success = false; stepList = []; folderMap = []; folderCount = 0; adviceText = null; provider = null
+            success = false; stepList = []; folderMap = []; folderList = []; folderCount = 0; adviceText = null; provider = null
             const access = ec.service.sync().name('org.moqui.impl.EmailClientServices.get#EmailAccountAccess').parameter('emailAccountId', emailAccountId).call()
             if (ec.message.hasError()) return
             if (!(access?.level >= 1) || access.account?.isInternal) { ec.message.addError(ec.resource.expand('Email account ${id} not found', '', {id: emailAccountId})); return }
@@ -678,7 +763,10 @@ along with this software (see the LICENSE.md file). If not, see
             const isOAuth = server?.authTypeEnumId === 'EatOAuth2'
             const oauth = ec.service.sync().name('ironstone.MailSettingsServices.get#OAuthChoice').parameters({emailAddress: access.account.emailAddress,
                 storeHost: server?.storeHost || null, oauthProviderEnumId: server?.oauthProviderEnumId || null}).call()?.choice || null
-            const result = ec.service.sync().name('org.moqui.impl.EmailClientServices.test#EmailAccount').parameter('emailAccountId', emailAccountId).call()
+            const tried = {emailAccountId: emailAccountId, testStore: testStore !== false}
+            if (smtpUsername != null) tried.smtpUsername = String(smtpUsername).trim()
+            if (smtpPassword) tried.smtpPassword = smtpPassword
+            const result = ec.service.sync().name('org.moqui.impl.EmailClientServices.test#EmailAccount').parameters(tried).call()
             if (ec.message.hasError()) return
             success = result?.success === true
             const LABELS = {smtp: L('Sending mail (SMTP)'), storeLogin: L('Receiving mail: signing in'), storeList: L('Receiving mail: the folders')}
@@ -713,11 +801,24 @@ along with this software (see the LICENSE.md file). If not, see
             const KIND = {EfkInbox: L('Inbox'), EfkSent: L('Sent'), EfkDrafts: L('Drafts'), EfkJunk: L('Spam'), EfkTrash: L('Trash'), EfkArchive: L('Archive')}
             const folders = Array.from(result?.folderList || [])
             folderCount = folders.length
+            // the account's mapping (folderKindEnumId: the user's choice where the account has the folder) over the server's
             for (const kind of Object.keys(KIND)) {
                 const folder = folders.find((entry) => entry.folderKindEnumId === kind)
-                folderMap.push({kindLabel: KIND[kind], folderPath: folder ? folder.folderPath : null,
-                    mappedText: folder ? folder.folderPath : (kind === 'EfkInbox' ? 'INBOX' : L('made here when first used'))})
+                const serverFolder = folders.find((entry) => entry.serverKindEnumId === kind)
+                const differs = !!serverFolder && (!folder || serverFolder.folderPath !== folder.folderPath)
+                folderMap.push({kind: kind, kindLabel: KIND[kind], folderPath: folder ? folder.folderPath : null, serverPath: differs ? serverFolder.folderPath : null,
+                    mappedText: (folder ? folder.folderPath : (kind === 'EfkInbox' ? 'INBOX' : L('made here when first used'))) +
+                        (differs ? ' · ' + ec.resource.expand('the server marks ${path} as its ${kind}', '', {path: serverFolder.folderPath, kind: KIND[kind]}) : '')})
             }
+            folderList = folders.map((folder) => {
+                const here = folder.folderKindEnumId || 'EfkOther', there = folder.serverKindEnumId || 'EfkOther'
+                const item = {folderPath: folder.folderPath, emailFolderId: folder.emailFolderId ?? null, folderKindEnumId: here, serverKindEnumId: there,
+                    kindLabel: KIND[here] || L('Folder'), serverKindLabel: KIND[there] || L('Folder'), chosenHere: here !== there, synced: folder.subscribed !== false}
+                item.noteText = !item.chosenHere ? null : (there === 'EfkOther' ? ec.resource.expand('${path}: used here as ${here}', '', {path: folder.folderPath, here: item.kindLabel})
+                    : (here === 'EfkOther' ? ec.resource.expand('${path}: the server\'s ${server}; a folder of its own here', '', {path: folder.folderPath, server: item.serverKindLabel})
+                        : ec.resource.expand('${path}: the server\'s ${server}; used here as ${here}', '', {path: folder.folderPath, server: item.serverKindLabel, here: item.kindLabel})))
+                return item
+            })
             const signInFailed = (step) => !step.ok && /refused the user name or password|app password|Microsoft sign-in/.test(step.hint || '')
             if (success) adviceText = L('Everything works.')
             else if (stepList.filter(signInFailed).length >= 2) adviceText = L('Neither server took the password: go back to enter it again, then test again.')
@@ -727,11 +828,13 @@ along with this software (see the LICENSE.md file). If not, see
 
     <service verb="save" noun="AccountOptions">
         <description>The wizard's Options step and the account page's options (manage permission): the account's name, color,
-            sync window (days; empty for all mail), sync interval and filing policy (ErfLinkedOnly: only the mail the user
-            links goes on a record; ErfAllMatches: every message with a known contact), and for a shared account the users
-            to add as members (add#EmailAccountUser), each on its own: one that is refused (an unknown user, the owner) is logged
-            and named in failedMemberList. They are added in the caller's transaction: the update above holds the account's
-            row, so a member row in a transaction of its own would wait on it.</description>
+            sync window (days; empty for all mail), sync interval, filing policy (ErfLinkedOnly: only the mail the user links
+            goes on a record; ErfAllMatches: every message with a known contact) and kind, personal (EakExternal) or shared
+            (EakShared), by the framework's rules (update#EmailAccount: shared at any time, personal again only when one person
+            is left on it; when the kind changes and the filing given is the one the account had, it follows the new kind's
+            default), and for a shared account the users to add as members (add#EmailAccountUser), each on its own: one that is
+            refused (an unknown user, the owner) is logged and named in failedMemberList. They are added in the caller's
+            transaction: the update above holds the account's row, so a member row in a transaction of its own would wait on it.</description>
         <in-parameters>
             <parameter name="emailAccountId" required="true"/>
             <parameter name="accountName"/>
@@ -739,6 +842,7 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="syncWindowDays"/>
             <parameter name="syncIntervalMinutes"/>
             <parameter name="recordFilingEnumId"/>
+            <parameter name="accountKindEnumId"/>
             <parameter name="memberUserIds" type="Object"/>
             <parameter name="memberPermissionEnumId" default-value="EapSend"/>
         </in-parameters>
@@ -767,16 +871,22 @@ along with this software (see the LICENSE.md file). If not, see
                 if (text && !/^\d{1,4}$/.test(text)) { ec.message.addValidationError(null, 'syncIntervalMinutes', null, L('The sync interval is a number of minutes'), null); return }
                 changes.syncIntervalMinutes = text
             }
+            const oldKind = access.account.accountKindEnumId
+            if (accountKindEnumId != null && accountKindEnumId !== '' && accountKindEnumId !== oldKind) {
+                if (!['EakExternal', 'EakShared'].includes(accountKindEnumId)) { ec.message.addError(L('An account is personal or shared')); return }
+                changes.accountKindEnumId = accountKindEnumId
+            }
             if (recordFilingEnumId != null && recordFilingEnumId !== '') {
                 if (!['ErfLinkedOnly', 'ErfAllMatches'].includes(recordFilingEnumId)) { ec.message.addError(L('Unknown filing choice')); return }
-                changes.recordFilingEnumId = recordFilingEnumId
+                // a new kind with the filing as it was: the framework sets the new kind's default (unless it was chosen apart)
+                if (!(changes.accountKindEnumId && recordFilingEnumId === access.account.recordFilingEnumId)) changes.recordFilingEnumId = recordFilingEnumId
             }
             ec.service.sync().name('org.moqui.impl.EmailClientServices.update#EmailAccount').parameters(changes).call()
             if (ec.message.hasError()) return
             const ids = memberUserIds == null ? [] : (Array.isArray(memberUserIds) || typeof memberUserIds !== 'string' ? Array.from(memberUserIds) : String(memberUserIds).split(','))
             const wanted = Array.from(new Set(ids.map((id) => String(id || '').trim()).filter((id) => id && id !== ec.user.userId)))
             if (!wanted.length) return
-            if (access.account.accountKindEnumId !== 'EakShared') { ec.message.addError(L('Only a shared account has members')); return }
+            if ((changes.accountKindEnumId || oldKind) !== 'EakShared') { ec.message.addError(L('Only a shared account has members')); return }
             for (const userId of wanted) {
                 ec.message.pushErrors()
                 try {
@@ -831,6 +941,79 @@ along with this software (see the LICENSE.md file). If not, see
                 statusId: paused ? 'EasPaused' : 'EasActive'}).call()
         ]]></script></actions>
     </service>
+    <service verb="get" noun="RemovedMailAccounts">
+        <description>The user's own accounts removed with their mail kept (org.moqui.impl.EmailClientServices.get#EmailAccountAccess
+            includeRemoved: the owner's only, never a member's), for the account list's Removed accounts: the name, the
+            address, how many messages are kept here and when it last synced.</description>
+        <out-parameters><parameter name="removedList" type="List"/></out-parameters>
+        <actions><script><![CDATA[
+            removedList = []
+            const access = ec.service.sync().name('org.moqui.impl.EmailClientServices.get#EmailAccountAccess').parameter('includeRemoved', true).call()
+            if (ec.message.hasError()) return
+            for (const account of Array.from(access?.accountList || [])) {
+                if (!account.isRemoved || !account.isOwner) continue
+                removedList.push({emailAccountId: account.emailAccountId, accountName: account.accountName || account.emailAddress || account.emailAccountId,
+                    emailAddress: account.emailAddress ?? null, keptMessageCount: account.keptMessageCount || 0,
+                    lastSyncText: account.lastSyncDate ? ec.l10n.format(new Date(Number(account.lastSyncDate)), 'MMM d, yyyy') : null})
+            }
+        ]]></script></actions>
+    </service>
+
+    <service verb="delete" noun="RemovedMailAccount">
+        <description>Delete one of the user's removed accounts with its mail kept here (delete#EmailAccount, which deletes a
+            removed account for its owner only, always with its mail; a message another record still refers to is kept, out
+            of the account). Only a removed account: an account in use is removed from its own page.</description>
+        <in-parameters><parameter name="emailAccountId" required="true"/></in-parameters>
+        <out-parameters>
+            <parameter name="deletedMessageCount" type="Integer"/>
+            <parameter name="keptMessageCount" type="Integer"/>
+            <parameter name="message"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const access = ec.service.sync().name('org.moqui.impl.EmailClientServices.get#EmailAccountAccess').parameters({emailAccountId: emailAccountId,
+                includeRemoved: true}).call()
+            if (ec.message.hasError()) return
+            const account = access?.account
+            if (!account || !account.isRemoved || !account.isOwner) { ec.message.addError(ec.resource.expand('Email account ${id} not found', '', {id: emailAccountId})); return }
+            const out = ec.service.sync().name('org.moqui.impl.EmailClientServices.delete#EmailAccount').parameters({emailAccountId: emailAccountId,
+                deleteLocalCopies: true}).call()
+            if (ec.message.hasError()) return
+            deletedMessageCount = out?.deletedMessageCount || 0
+            keptMessageCount = out?.keptMessageCount || 0
+            message = ec.resource.expand(keptMessageCount ? '${name} deleted with ${deleted} messages; ${kept} filed on records are kept'
+                : '${name} deleted with its mail', '', {name: account.accountName || account.emailAddress, deleted: deletedMessageCount, kept: keptMessageCount})
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="SyncAccounts">
+        <description>The accounts whose sync progress the screens show (the topic emailSyncProgress of
+            org.moqui.impl.EmailClientServices.sync#EmailAccount, sent to the account's owner and members): the user's mail
+            accounts with a server, by id with their names, and which are syncing now. emailAccountId narrows it to one.</description>
+        <in-parameters><parameter name="emailAccountId"/></in-parameters>
+        <out-parameters><parameter name="accountList" type="List"/></out-parameters>
+        <actions><script><![CDATA[
+            accountList = []
+            const access = ec.service.sync().name('org.moqui.impl.EmailClientServices.get#EmailAccountAccess').call()
+            if (ec.message.hasError()) return
+            const toMillis = (value) => {
+                if (value == null || value === '') return null
+                if (typeof value === 'number') return value
+                if (value instanceof Date) return value.getTime()
+                const number = Number(value)
+                return Number.isNaN(number) ? new Date(String(value)).getTime() : number
+            }
+            const now = toMillis(ec.user.nowTimestamp)
+            for (const account of Array.from(access?.accountList || [])) {
+                if (account.isInternal || !account.emailServerId) continue
+                if (emailAccountId && account.emailAccountId !== emailAccountId) continue
+                const row = ec.entity.find('moqui.basic.email.EmailAccount').condition('emailAccountId', account.emailAccountId).selectField('syncLockedUntil').one()
+                const locked = toMillis(row?.syncLockedUntil)
+                accountList.push({emailAccountId: account.emailAccountId, accountName: account.accountName || account.emailAddress,
+                    syncing: locked != null && locked > now})
+            }
+        ]]></script></actions>
+    </service>
+
     <!-- ========== Identities ========== -->
 
     <service verb="get" noun="IdentitySettings">
@@ -902,8 +1085,10 @@ along with this software (see the LICENSE.md file). If not, see
     <service verb="get" noun="OutOfOfficeSettings">
         <description>The OutOfOffice screen: the accounts the user manages (not the Internal one) with whether their automatic
             reply is on now, and the chosen account's reply (emailAccountId, else the first) for the form, from
-            org.moqui.impl.EmailClientServices.get#EmailOutOfOffice. Each account's state stands alone: one that fails is
-            logged and shown as unknown.</description>
+            org.moqui.impl.EmailClientServices.get#EmailOutOfOffice, with who gets it (replyAudienceEnumId: EraEveryone,
+            EraContacts, EraInternal). contactsNote says, when no contact hook is configured (contactHookService empty: the
+            email_contact_service property or the theme value STRT_EMAIL_CONTACT_SERVICE), that every sender counts as a
+            contact until one is. Each account's state stands alone: one that fails is logged and shown as unknown.</description>
         <in-parameters><parameter name="emailAccountId"/></in-parameters>
         <out-parameters>
             <parameter name="accountList" type="List"/>
@@ -912,10 +1097,13 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="statusText"/>
             <parameter name="isActive" type="Boolean"/>
             <parameter name="hasServer" type="Boolean"/>
+            <parameter name="contactHookService"/>
+            <parameter name="contactsNote"/>
         </out-parameters>
         <actions><script><![CDATA[
             const L = (text) => text.length > 255 ? text : ec.l10n.localize(text)
             accountList = []; selectedAccountId = null; reply = null; statusText = null; isActive = false; hasServer = false
+            contactHookService = null; contactsNote = null
             const access = ec.service.sync().name('org.moqui.impl.EmailClientServices.get#EmailAccountAccess').call()
             if (ec.message.hasError()) return
             const fmt = (millis) => millis == null ? '' : ec.l10n.format(new Date(Number(millis)), 'yyyy-MM-dd HH:mm')
@@ -944,7 +1132,9 @@ along with this software (see the LICENSE.md file). If not, see
             isActive = states[selectedAccountId]?.isActive === true
             reply = {emailAccountId: selectedAccountId, enabled: current?.enabled ? 'Y' : 'N', fromDate: fmt(current?.fromDate), thruDate: fmt(current?.thruDate),
                 subject: current?.subject || '', bodyHtml: current?.bodyHtml || '', internalBodyHtml: current?.internalBodyHtml || '',
-                replyOncePerDays: String(current?.replyOncePerDays ?? 4), applyToAll: 'N'}
+                replyOncePerDays: String(current?.replyOncePerDays ?? 4), replyAudienceEnumId: current?.replyAudienceEnumId || 'EraEveryone', applyToAll: 'N'}
+            contactHookService = states[selectedAccountId]?.contactHookService || null
+            if (!contactHookService) contactsNote = L('Which senders are your contacts is not set up on this server yet, so until it is, everyone who writes counts as a contact.')
             const now = Number(ec.user.nowTimestamp)
             if (isActive) statusText = current?.thruDate ? ec.resource.expand('On now, until ${until}: people who write get your reply.', '', {until: nice(current.thruDate)})
                 : L('On now: people who write get your reply until you turn it off.')
@@ -954,9 +1144,11 @@ along with this software (see the LICENSE.md file). If not, see
         ]]></script></actions>
     </service>
     <service verb="store" noun="OutOfOffice">
-        <description>Set an account's automatic reply (manage permission, checked by store#EmailOutOfOffice), or with applyToAll
-            the same reply on every account the user manages that has a server, each on its own (one that fails is logged and
-            named in failedList). The messages are cleaned as safe HTML. Dates are yyyy-MM-dd HH:mm in the user's zone.</description>
+        <description>Set an account's automatic reply (manage permission, checked by store#EmailOutOfOffice), with who gets it
+            (replyAudienceEnumId: EraEveryone, EraContacts for contacts and people inside, EraInternal for people inside only),
+            or with applyToAll the same reply on every account the user manages that has a server, each on its own in a
+            transaction of its own (one that fails is logged and named in failedList). The messages are cleaned as safe HTML.
+            Dates are yyyy-MM-dd HH:mm in the user's zone.</description>
         <in-parameters>
             <parameter name="emailAccountId" required="true"/>
             <parameter name="enabled"/>
@@ -966,6 +1158,7 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="bodyHtml" allow-html="safe"/>
             <parameter name="internalBodyHtml" allow-html="safe"/>
             <parameter name="replyOncePerDays"/>
+            <parameter name="replyAudienceEnumId"/>
             <parameter name="applyToAll"/>
         </in-parameters>
         <out-parameters>
@@ -981,8 +1174,10 @@ along with this software (see the LICENSE.md file). If not, see
             if (days && !/^\d{1,3}$/.test(days)) { ec.message.addValidationError(null, 'replyOncePerDays', null, L('A number of days'), null); return }
             const empty = (html) => !String(html || '').replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim()
             if (on && empty(bodyHtml)) { ec.message.addValidationError(null, 'bodyHtml', null, L('Write the reply people get'), null); return }
+            const audience = replyAudienceEnumId ? String(replyAudienceEnumId) : 'EraEveryone'
+            if (!['EraEveryone', 'EraContacts', 'EraInternal'].includes(audience)) { ec.message.addValidationError(null, 'replyAudienceEnumId', null, L('Choose who gets the reply'), null); return }
             const fields = {enabled: on, fromDate: fromDate, thruDate: thruDate, subject: String(subject || '').trim() || null, bodyHtml: empty(bodyHtml) ? null : bodyHtml,
-                internalBodyHtml: empty(internalBodyHtml) ? null : internalBodyHtml, replyOncePerDays: days ? Number(days) : 4}
+                internalBodyHtml: empty(internalBodyHtml) ? null : internalBodyHtml, replyOncePerDays: days ? Number(days) : 4, replyAudienceEnumId: audience}
             let ids = [emailAccountId]
             if (applyToAll === 'Y') {
                 const access = ec.service.sync().name('org.moqui.impl.EmailClientServices.get#EmailAccountAccess').call()
@@ -992,8 +1187,10 @@ along with this software (see the LICENSE.md file). If not, see
                 if (!ids.includes(emailAccountId)) ids.unshift(emailAccountId)
             }
             // store#EmailOutOfOffice stores the whole reply, so a date, subject or internal message cleared here is cleared
-            const storeOne = (id) => {
-                ec.service.sync().name('org.moqui.impl.EmailClientServices.store#EmailOutOfOffice').parameters(Object.assign({emailAccountId: id}, fields)).call()
+            const storeOne = (id, own) => {
+                const call = ec.service.sync().name('org.moqui.impl.EmailClientServices.store#EmailOutOfOffice').parameters(Object.assign({emailAccountId: id}, fields))
+                if (own) call.requireNewTransaction(true)
+                call.call()
             }
             for (const id of ids) {
                 if (id === emailAccountId) {
@@ -1002,9 +1199,10 @@ along with this software (see the LICENSE.md file). If not, see
                     storedCount++
                     continue
                 }
+                // each other account in a transaction of its own: one that fails leaves the rest
                 ec.message.pushErrors()
                 try {
-                    storeOne(id)
+                    storeOne(id, true)
                     if (ec.message.hasError()) throw new Error(ec.message.getErrorsString())
                     storedCount++
                 } catch (err) {
@@ -1182,6 +1380,51 @@ along with this software (see the LICENSE.md file). If not, see
             emailRuleId = ec.service.sync().name('org.moqui.impl.EmailClientServices.create#EmailRule').parameters({ruleName: name,
                 emailAccountId: emailAccountId || null, matchAllEnumId: matchAllEnumId, conditionsJson: conditionsJson || '[]', actionsJson: actionsJson || '[]',
                 enabled: flag(enabled) || 'Y', stopProcessing: flag(stopProcessing) || 'N'}).call()?.emailRuleId ?? null
+        ]]></script></actions>
+    </service>
+
+    <service verb="test" noun="Rule">
+        <description>The Rules editor's Test: a rule as it is in the editor (conditionsJson, matchAllEnumId; emailRuleId when it
+            is a saved rule, which must be one the user may change) tried on the newest limit messages of a folder
+            (emailFolderId, else the Inbox of emailAccountId) without acting on them (org.moqui.impl.EmailClientServices
+            test#EmailRule: no action runs, the rule's count stays). matchList: each message it matches with its subject,
+            sender and date in the user's words, newest first; resultText counts them.</description>
+        <in-parameters>
+            <parameter name="emailRuleId"/>
+            <parameter name="emailAccountId"/>
+            <parameter name="emailFolderId"/>
+            <parameter name="conditionsJson" allow-html="any"/>
+            <parameter name="matchAllEnumId"/>
+            <parameter name="limit" type="Integer" default="50"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="matchList" type="List"/>
+            <parameter name="matchedCount" type="Integer"/>
+            <parameter name="testedCount" type="Integer"/>
+            <parameter name="resultText"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => text.length > 255 ? text : ec.l10n.localize(text)
+            matchList = []; matchedCount = 0; testedCount = 0; resultText = null
+            const out = ec.service.sync().name('org.moqui.impl.EmailClientServices.test#EmailRule').parameters({emailRuleId: emailRuleId || null,
+                emailAccountId: emailAccountId || null, emailFolderId: emailFolderId || null, conditionsJson: conditionsJson || '[]',
+                matchAllEnumId: matchAllEnumId || 'ErmAll', limit: limit || 50}).call()
+            if (ec.message.hasError()) return
+            const nowMillis = Number(ec.user.nowTimestamp)
+            const fmt = (millis, pattern) => ec.l10n.format(new Date(Number(millis)), pattern)
+            const dateText = (value) => {
+                if (value == null || value === '') return ''
+                const millis = typeof value === 'number' ? value : (Number.isNaN(Number(value)) ? new Date(String(value)).getTime() : Number(value))
+                return fmt(millis, 'yyyy-MM-dd') === fmt(nowMillis, 'yyyy-MM-dd') ? fmt(millis, 'h:mm a') : fmt(millis, 'MMM d, yyyy')
+            }
+            matchList = Array.from(out?.matchList || []).map((found) => ({emailMessageId: found.emailMessageId, subject: found.subject || L('(no subject)'),
+                fromText: found.fromName ? (found.fromName + (found.fromAddress ? ' <' + found.fromAddress + '>' : '')) : (found.fromAddress || ''),
+                dateText: dateText(found.messageDate), snippet: found.snippet || ''}))
+            matchedCount = out?.matchedCount || matchList.length
+            testedCount = out?.testedCount || 0
+            resultText = matchedCount === 0 ? ec.resource.expand('None of the newest ${tested} messages match', '', {tested: testedCount})
+                : ec.resource.expand(matchedCount === 1 ? '1 of the newest ${tested} messages matches; nothing was done to it'
+                    : '${count} of the newest ${tested} messages match; nothing was done to them', '', {count: matchedCount, tested: testedCount})
         ]]></script></actions>
     </service>
 

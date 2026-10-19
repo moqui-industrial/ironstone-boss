@@ -14,7 +14,8 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- Files (design-drawers-commons.md §9 Files), the component Files.xml serves in the qvue render mode: the drives the user may
     open as a browser. The rail: New (upload files or a folder, a folder, a text file, a markdown note), My files, the shared
     drives (a version-controlled one with a history icon, a mirror with a lock), Manage drives, Records, Shared with me (with
-    the shares waiting for an answer), Shared by me, Recent, Favorites, the tags, Trash, and the open drive's storage. The main
+    the shares waiting for an answer), Shared by me, Recent, Favorites, the tags, Trash, and the open drive's storage (asked for
+    that drive only, its usage transition, and again after a change). The main
     pane: breadcrumbs, the folder as a list or a grid (name with its type icon or a thumbnail, modified, by, size, tags, shared
     and favorite marks), sort, the type chips, search across the drives or in the folder, selection with the checkboxes (Shift
     for a range) and the actions on it, a drop zone for files and folders, the upload tracker; the preview overlay with
@@ -125,12 +126,12 @@ along with this software (see the LICENSE.md file). If not, see
                     </q-list>
                 </div>
                 <!-- the open drive's storage -->
-                <div v-if="usageDrive && usageDrive.usedBytes != null" class="q-px-md q-py-sm">
+                <div v-if="usageDrive && usage.driveId === usageDrive.driveId && usage.usedBytes != null" class="q-px-md q-py-sm">
                     <q-separator class="q-mb-sm"></q-separator>
-                    <div class="text-caption ellipsis">{{t('Storage')}} · {{usageDrive.driveName}}</div>
-                    <q-linear-progress v-if="usageDrive.usedPercent != null" :value="usageDrive.usedPercent / 100" rounded size="6px" class="q-my-xs"
-                            :color="usageDrive.usedPercent >= 90 ? 'warning' : 'primary'"></q-linear-progress>
-                    <div class="text-caption m-muted">{{usageText(usageDrive)}}</div>
+                    <div class="text-caption ellipsis">{{t('Storage')}} · {{usageDrive.isPersonal ? t('My files') : usageDrive.driveName}}</div>
+                    <q-linear-progress v-if="usage.usedPercent != null" :value="usage.usedPercent / 100" rounded size="6px" class="q-my-xs"
+                            :color="usage.usedPercent >= 90 ? 'warning' : 'primary'"></q-linear-progress>
+                    <div class="text-caption m-muted">{{usageText(usage)}}</div>
                 </div>
             </div>
             <q-separator v-if="wide" vertical></q-separator>
@@ -637,6 +638,7 @@ module.exports = {
             height: 600, railOpen: false, detailOpen: false, mode: mode === 'grid' ? 'grid' : 'list', sortBy: 'name', sortDesc: false, typeFilter: 'all',
             searchInput: '', searchInFolder: false, shiftDown: false, fetching: false,
             rail: { loaded: false, drives: [], personalDriveId: null, recordsDriveId: null, tags: [], pendingShareCount: 0, isAdmin: false },
+            usage: { driveId: null, usedBytes: null, quotaBytes: null, usedPercent: null },
             rows: [], folder: null, drive: null, folderCrumbs: [], record: null, hiddenCount: 0, trashDrive: null, loading: false, loadError: null,
             loadedKey: null, requestSeq: 0, selected: {}, lastIndex: null, focusIndex: -1, dragOver: false, dragDepth: 0, draggedRows: null,
             detail: { key: null, driveId: null, path: null, loading: false, error: null, item: null, drive: null, access: null, shareList: [], linkList: [],
@@ -682,6 +684,7 @@ module.exports = {
             const drive = (this.view === 'drive' || this.view === 'trash') ? (this.currentRailDrive || this.personalDrive) : this.personalDrive;
             return drive && !drive.isRecords ? drive : null;
         },
+        usageDriveId() { return this.usageDrive ? this.usageDrive.driveId : null; },
         trashDrives() { return this.rail.drives.filter((drive) => !drive.isRecords && drive.canWrite); },
         trashDriveId() { return this.view === 'trash' ? this.driveId : ((this.currentRailDrive && !this.currentRailDrive.isRecords && this.currentRailDrive.canWrite) ? this.driveId : this.rail.personalDriveId); },
         trashCanWrite() { return !!(this.trashDrive && this.trashDrive.canWrite); },
@@ -785,7 +788,7 @@ module.exports = {
             facts.push({ label: t('Location'), value: '/' + (item.path || '') });
             if (item.versionName) facts.push({ label: t('Version'), value: (String(item.versionName).length === 40 ? String(item.versionName).slice(0, 10) : item.versionName)
                 + (item.versionNote ? ' · ' + item.versionNote : '') });
-            if (this.detail.record) facts.push({ label: t('Record'), value: this.detail.record.recordId });
+            if (this.detail.record) facts.push({ label: t('Record'), value: this.detail.record.title || this.detail.record.recordId });
             return facts;
         },
         tagSuggestions() { return this.rail.tags.filter((tag) => !this.tagsDialog.names.some((name) => name.toLowerCase() === String(tag.tagName).toLowerCase())).slice(0, 12); },
@@ -839,6 +842,7 @@ module.exports = {
     watch: {
         '$root.currentParameters': { handler() { if (!this.subActive) this.applyParams(); }, deep: true },
         subActive(value) { if (!value) this.$nextTick(() => { this.measure(); this.applyParams(); }); },
+        usageDriveId() { this.loadUsage(false); },
         selectedKeys() { if (moqui.webrootVue && typeof moqui.webrootVue.formsVersion === 'number') moqui.webrootVue.formsVersion += 1; }
     },
     methods: {
@@ -874,7 +878,19 @@ module.exports = {
             return this.request('filesData').then((json) => {
                 this.rail = { loaded: true, drives: json.driveList || [], personalDriveId: json.personalDriveId || null, recordsDriveId: json.recordsDriveId || null,
                     tags: json.tagList || [], pendingShareCount: json.pendingShareCount || 0, isAdmin: !!json.isAdmin };
+                this.$nextTick(() => this.loadUsage(true));
             }, () => { this.rail.loaded = true; });
+        },
+        // the storage of the drive the rail shows, asked for that drive only (sizing reads its files); again after a change
+        loadUsage(force) {
+            const driveId = this.usageDriveId;
+            if (!driveId || (!force && this.usage.driveId === driveId)) return;
+            if (this.usage.driveId !== driveId) this.usage = { driveId, usedBytes: null, quotaBytes: null, usedPercent: null };
+            moqui.request(this.url('usage'), { params: { driveId } }).then((result) => {
+                const usage = (result.json || {}).usage;
+                if (this.usageDriveId !== driveId || !usage) return;
+                this.usage = { driveId, usedBytes: usage.usedBytes ?? null, quotaBytes: usage.quotaBytes ?? null, usedPercent: usage.usedPercent ?? null };
+            }, () => { /* the storage line is left out */ });
         },
         applyParams() {
             if (!this.rail.loaded) return;

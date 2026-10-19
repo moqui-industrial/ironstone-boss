@@ -14,9 +14,11 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- Add account step 4, options (design-drawers-commons.md §17 AccountOptions, §12 the filing policy): the account's name in
     the Inbox, how far back to sync, whether its mail goes on the records of known contacts (a personal account files only
-    what its owner links; a shared one every match, said in plain words), and for a shared account the people who share it
-    and what they may do. Next saves them (ironstone.MailSettingsServices.save#AccountOptions; each member added on its own).
-    The folders the sync maps are shown after the test and on the account's page. -->
+    what its owner links; a shared one every match, said in plain words), whether it is personal or shared (the framework's
+    update#EmailAccount rules: shared at any time, personal again only when one person is left on it; the filing follows the
+    kind unless chosen), and for a shared account the people who share it and what they may do. Next saves them
+    (ironstone.MailSettingsServices.save#AccountOptions; each member added on its own). The folders the sync maps are shown
+    after the test and on the account's page. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Options" default-menu-index="4">
 
@@ -25,7 +27,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="saveOptions">
         <service-call name="ironstone.MailSettingsServices.save#AccountOptions" in-map="{emailAccountId:emailAccountId, accountName:accountName,
                 syncWindowDays:(syncWindowDays == 'all' ? '' : (syncWindowDays ?? null)), recordFilingEnumId:recordFilingEnumId, memberUserIds:(memberUserIds ?? null),
-                memberPermissionEnumId:memberPermissionEnumId}"/>
+                memberPermissionEnumId:memberPermissionEnumId, accountKindEnumId:(accountKindEnumId || null)}"/>
         <default-response url="."><parameter name="emailAccountId"/></default-response>
         <error-response url="."/>
     </transition>
@@ -49,7 +51,11 @@ along with this software (see the LICENSE.md file). If not, see
         memberRows = Array.from(detail.memberList || [])
         const saved = detail.options || {}
         options = {emailAccountId: emailAccountId, accountName: saved.accountName || detail.account.emailAddress,
-            syncWindowDays: saved.syncWindowDays ? saved.syncWindowDays : 'all', recordFilingEnumId: saved.recordFilingEnumId, memberPermissionEnumId: 'EapSend'}
+            syncWindowDays: saved.syncWindowDays ? saved.syncWindowDays : 'all', recordFilingEnumId: saved.recordFilingEnumId, memberPermissionEnumId: 'EapSend',
+            accountKindEnumId: detail.account.accountKindEnumId}
+        const L = (text) => ec.l10n.localize(text)
+        kindOptions = [{key: 'EakExternal', text: L('Personal: my own address')}, {key: 'EakShared', text: L('Shared: a team address such as sales@ or support@, read by several people')}]
+        if (detail.account.accountKindEnumId === 'EakHosted') kindOptions.unshift({key: 'EakHosted', text: L('Hosted here')})
     ]]></script></actions>
     <widgets>
         <section name="NoAccount" condition="!hasAccount"><widgets>
@@ -66,6 +72,7 @@ along with this software (see the LICENSE.md file). If not, see
                     <field name="syncWindowDays"><default-field title="Bring in mail from"><radio no-current-selected-key="365">
                         <option key="30" text="The last 30 days"/><option key="90" text="The last 3 months"/><option key="365" text="The last year"/>
                         <option key="all" text="All of it (a large mailbox takes a while)"/></radio></default-field></field>
+                    <field name="accountKindEnumId"><default-field title="Whose mail is it?"><radio><list-options list="kindOptions" key="${key}" text="${text}"/></radio></default-field></field>
                     <field name="recordFilingEnumId"><default-field title="Put mail on customer and supplier records">
                         <radio no-current-selected-key="ErfLinkedOnly">
                             <option key="ErfLinkedOnly" text="Only what I link: my mail stays private until I link a message to a contact, an order or another record (best for your own mail)"/>

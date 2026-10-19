@@ -38,14 +38,22 @@ spec({
     cleanupSpec() { login("john.doe") },
 })
 
-feature("the rail: My files first, the shared drives, Records, the tags and the shares waiting", {
-    when() { return get("filesData") },
-    then({ status, errors, json }) {
+feature("the rail: My files first, the shared drives, Records, the tags and the shares waiting; the open drive's storage on request", {
+    when() {
+        return { rail: get("filesData"), team: get("usage", { driveId: "BOSS_DEMO_TEAM" }), records: get("usage", { driveId: "BOSS_RECORDS" }) }
+    },
+    then({ rail, team, records }) {
+        const { status, errors, json } = rail
         status == 200
         errors == ""
         json.personalDriveId == personalDriveId
         json.driveList[0].isPersonal
-        json.driveList.some((drive) => drive.driveId === "BOSS_DEMO_TEAM" && drive.usedBytes > 0 && drive.quotaBytes == 52428800)
+        json.driveList.some((drive) => drive.driveId === "BOSS_DEMO_TEAM" && drive.quotaBytes == 52428800)
+        json.driveList.every((drive) => drive.usedBytes == null)
+        team.json.usage.usedBytes > 0
+        team.json.usage.quotaBytes == 52428800
+        team.json.usage.usedPercent != null
+        records.json.usage == null
         json.driveList.some((drive) => drive.driveId === "BOSS_DEMO_WEB" && drive.storage === "git-db")
         json.recordsDriveId == "BOSS_RECORDS"
         json.tagList.map((tag) => tag.tagName).includes("Work")
@@ -156,6 +164,9 @@ feature("versions: compare two, restore one as the newest, download a past one",
         diff.json.diff.html.includes("moqui-diff")
         old.status == 200
         String(old.output).startsWith("# Weekly team meeting\n\n- The calendar rollout\n- The open requests\n")
+        // the past version downloads under the file's own name, kept by no shared cache
+        String(old.header("Content-Disposition")).includes("Meeting%20notes.md")
+        String(old.header("Cache-Control")).includes("no-store")
         !String(old.output).includes("Action items")
         message(restored) == "Restored as the newest version"
         after.json.versionList.length == 4
@@ -227,10 +238,14 @@ feature("downloads: a file as it is, a picture inline, a folder and a selection 
         text.status == 200
         String(text.output).startsWith("Welcome to My files.")
         picture.status == 200
+        String(picture.header("Content-Disposition")).startsWith("inline")
+        String(text.header("Content-Disposition")).includes("Welcome.txt")
         folder.status == 200
         String(folder.output).startsWith("PK")
+        String(folder.header("Content-Disposition")).includes("Pictures.zip")
         selection.status == 200
         String(selection.output).startsWith("PK")
+        String(selection.header("Content-Disposition")).includes(".zip")
         thumb.status == 200
         preview.json.kind == "text"
         preview.json.text.startsWith("Welcome to My files.")
@@ -299,11 +314,16 @@ feature("the records drive shows each user the records they may see, by kind, wi
             unmapped: get("folder", { driveId: "BOSS_RECORDS", path: "employment" }),
             parties: get("folder", { driveId: "BOSS_RECORDS", path: "party" }),
             privateFile: get("detail", { driveId: "BOSS_RECORDS", path: "party/BOSS_TEST_DRIVE_PRIVATE/content_X1/secret.txt" }),
+            requestFile: get("detail", { driveId: "BOSS_RECORDS", path: "request/BOSS_DEMO_REQUEST/content_BOSS_DEMO_RC_OPTIONS/calendar-options.txt" }),
+            requestDownload: render(commons, "Files/download", { driveId: "BOSS_RECORDS",
+                path: "request/BOSS_DEMO_REQUEST/content_BOSS_DEMO_RC_OPTIONS/calendar-options.txt" }),
             write: post("newFolder", { driveId: "BOSS_RECORDS", path: "request/BOSS_DEMO_REQUEST", name: "x" }) }
         login("joe.developer")
         out.joeParties = get("folder", { driveId: "BOSS_RECORDS", path: "party" })
         out.joePrivate = get("folder", { driveId: "BOSS_RECORDS", path: "party/BOSS_TEST_DRIVE_PRIVATE" })
         out.joeFile = render(commons, "Files/download", { driveId: "BOSS_RECORDS", path: "party/BOSS_TEST_DRIVE_PRIVATE/content_X1/secret.txt" })
+        out.joeDetail = get("detail", { driveId: "BOSS_RECORDS", path: "party/BOSS_TEST_DRIVE_PRIVATE/content_X1/secret.txt" })
+        out.joeZip = render(commons, "Files/downloadZip", { driveId: "BOSS_RECORDS", pathListJson: JSON.stringify(["party"]) })
         out.joeSearch = get("rows", { view: "search", text: "secret" })
         login("john.doe")
         return out
@@ -321,12 +341,21 @@ feature("the records drive shows each user the records they may see, by kind, wi
         names(v.request).includes("signed-quote.txt")
         v.unmapped.status == 500
         v.parties.json.fileList.some((item) => item.recordId === "BOSS_TEST_DRIVE_PRIVATE")
+        v.requests.json.hiddenCount == 0
         v.privateFile.status == 200
+        v.privateFile.json.record.recordId == "BOSS_TEST_DRIVE_PRIVATE"
+        v.requestFile.json.record.title == "Set up the shared team calendar"
+        v.requestFile.json.record.url.startsWith("/qapps/Commons/Requests/RequestDetail")
+        v.requestFile.json.access.canShare == false
+        v.requestDownload.status == 200
         v.write.status == 500
         !v.joeParties.json.fileList.some((item) => item.recordId === "BOSS_TEST_DRIVE_PRIVATE")
         v.joePrivate.status == 500
-        v.joePrivate.errors.includes("File not found")
+        v.joePrivate.errors.includes("Folder not found")
         !String(v.joeFile.output).includes("secret")
+        v.joeDetail.status == 500
+        v.joeDetail.errors.includes("File not found")
+        !String(v.joeZip.output).includes("secret.txt")
         v.joeSearch.json.fileList.length == 0
     },
 })
@@ -343,10 +372,14 @@ feature("the drives: a new folder drive with members, its settings, a member add
         const back = render(commons, "Files/DriveSettings/archiveDrive", { driveId: drive.driveId, archived: "false" }, "post")
         const drivesPage = ec.screen.makeTest().rootScreen(commons).renderMode("qvt").render("Files/Drives", { lastStandalone: "-2" }, null)
         const settingsPage = ec.screen.makeTest().rootScreen(commons).renderMode("qvt").render("Files/DriveSettings", { driveId: drive.driveId, lastStandalone: "-2" }, null)
+        const exported = ec.screen.makeTest().rootScreen(commons).render("Files/DriveSettings/exportZip", { driveId: "BOSS_DEMO_TEAM" }, null)
         ec.message.clearErrors()
-        return { created, drive, added, settings, archived, rail, back, drivesPage, settingsPage }
+        return { created, drive, added, settings, archived, rail, back, drivesPage, settingsPage, exported }
     },
-    then({ created, drive, added, settings, archived, rail, back, drivesPage, settingsPage }) {
+    then({ created, drive, added, settings, archived, rail, back, drivesPage, settingsPage, exported }) {
+        exported.status == 200
+        String(exported.output).startsWith("PK")
+        String(exported.header("Content-Disposition")).includes("Team.zip")
         created.errors == ""
         drive.quotaBytes == 5242880
         drive.ownerUserId == "EX_JOHN_DOE"

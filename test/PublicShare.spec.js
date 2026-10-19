@@ -16,7 +16,8 @@ function visit(name, token, parameters, method) {
     try { json = JSON.parse(str.output) } catch (err) { json = null }
     const errors = (json && !Array.isArray(json) && json.errors) || str.errorMessages.join(" | ")
     ec.message.clearErrors()
-    return { status: str.status, errors: errors || "", json: json || {}, output: String(str.output || "") }
+    return { status: str.status, errors: errors || "", json: json || {}, output: String(str.output || ""),
+        disposition: String(str.header("Content-Disposition") || "") }
 }
 function sys(run) {
     const wasDisabled = ec.artifactExecution.disableAuthz()
@@ -83,8 +84,11 @@ feature("a link with a password: nothing without the grant, a wrong password ref
         names(files) == ["beach.png", "floor-plan.png", "garden.png", "team-calendar.png"]
         files.json.fileList[0].contentType == "image/png"
         picture.status == 200
+        picture.disposition.startsWith("inline")
         zip.status == 200
         zip.output.startsWith("PK")
+        // download#PublicShare sends the folder under its own name
+        zip.disposition.includes("Pictures.zip")
         outside.status == 500
         forged.status == 500
         after == before + 1
@@ -103,6 +107,7 @@ feature("a link without a password to one file: open, list, download", {
         names(files) == ["Plan.md"]
         text.status == 200
         text.output.includes("Movers booked: Acme Moving")
+        text.disposition.includes("Plan.md")
         below.status == 500
     },
 })

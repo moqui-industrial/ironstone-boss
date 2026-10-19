@@ -21,8 +21,9 @@ along with this software (see the LICENSE.md file). If not, see
     pane (preview, details, sharing, versions with compare and restore, activity) and the Files key scope; its subscreens
     Drives, DriveSettings and Shares show in its place. The view is in the URL (drive, path, view, tag, q, file), so a view is
     a link. The data and every change go through the JSON transitions below, each a service of org.moqui.impl.FileServices
-    (which checks the drive's members and shares, R21) behind service/ironstone/DriveServices.xml check#ItemAccess (the
-    records drive shows only the records the user may see, R5). -->
+    (which checks the drive's members and shares, R21, and on the records drive the records: only those the user may see,
+    R5) or of service/ironstone/DriveServices.xml over it. A download is sent by ec.web.sendResourceResponse under the file's
+    own name (a past version by its location#version, a zip under its folder's name). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Files" default-menu-index="6" render-modes="vue,qvue" server-static="vue,qvue">
 
@@ -42,6 +43,14 @@ along with this software (see the LICENSE.md file). If not, see
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {driveList: out.driveList, personalDriveId: out.personalDriveId,
                 recordsDriveId: out.recordsDriveId, tagList: out.tagList, pendingShareCount: out.pendingShareCount, isAdmin: out.isAdmin,
                 userId: ec.user.userId})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- the storage of the drive the rail shows (sizing reads every file, so it is asked for that one drive only) -->
+    <transition name="usage" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('org.moqui.impl.FileServices.get#DriveUsage').parameter('driveId', driveId || '').call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {usage: Array.from(out.usageList || [])[0] || null})
         ]]></script></actions>
         <default-response type="none"/>
     </transition>
@@ -75,8 +84,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="versions" method="get" read-only="true">
         <actions><script><![CDATA[
-            ec.service.sync().name('ironstone.DriveServices.check#ItemAccess').parameters({driveId: driveId || '', path: path || ''}).call()
-            const out = ec.message.hasError() ? null : ec.service.sync().name('org.moqui.impl.FileServices.get#Versions').parameters({driveId: driveId, path: path || ''}).call()
+            const out = ec.service.sync().name('org.moqui.impl.FileServices.get#Versions').parameters({driveId: driveId || '', path: path || ''}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {versionList: out.versionList})
         ]]></script></actions>
         <default-response type="none"/>
@@ -84,8 +92,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the line diff of two versions of a text file (an empty version is the current text), a moqui-diff table -->
     <transition name="diff" method="get" read-only="true">
         <actions><script><![CDATA[
-            ec.service.sync().name('ironstone.DriveServices.check#ItemAccess').parameters({driveId: driveId || '', path: path || ''}).call()
-            const out = ec.message.hasError() ? null : ec.service.sync().name('org.moqui.impl.FileServices.get#VersionDiff').parameters({driveId: driveId,
+            const out = ec.service.sync().name('org.moqui.impl.FileServices.get#VersionDiff').parameters({driveId: driveId || '',
                 path: path || '', fromVersion: fromVersion || null, toVersion: toVersion || null}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {diff: out.diff})
         ]]></script></actions>
@@ -93,8 +100,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="activity" method="get" read-only="true">
         <actions><script><![CDATA[
-            ec.service.sync().name('ironstone.DriveServices.check#ItemAccess').parameters({driveId: driveId || '', path: path || ''}).call()
-            const out = ec.message.hasError() ? null : ec.service.sync().name('org.moqui.impl.FileServices.get#Activity').parameters({driveId: driveId,
+            const out = ec.service.sync().name('org.moqui.impl.FileServices.get#Activity').parameters({driveId: driveId || '',
                 path: path || ''}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {activityList: out.activityList})
         ]]></script></actions>
@@ -103,8 +109,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- what a preview shows: the kind (image, pdf, text, none) and a text file's first characters; the open is recent -->
     <transition name="preview" method="get" read-only="true">
         <actions><script><![CDATA[
-            ec.service.sync().name('ironstone.DriveServices.check#ItemAccess').parameters({driveId: driveId || '', path: path || ''}).call()
-            const out = ec.message.hasError() ? null : ec.service.sync().name('org.moqui.impl.FileServices.get#Preview').parameters({driveId: driveId,
+            const out = ec.service.sync().name('org.moqui.impl.FileServices.get#Preview').parameters({driveId: driveId || '',
                 path: path || '', size: 64}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {kind: out.kind, text: out.text, contentType: out.contentType})
         ]]></script></actions>
@@ -113,37 +118,26 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- an image's thumbnail (PNG, made once per version and size) -->
     <transition name="thumb" method="get" read-only="true">
         <actions><script><![CDATA[
-            ec.service.sync().name('ironstone.DriveServices.check#ItemAccess').parameters({driveId: driveId || '', path: path || ''}).call()
-            const out = ec.message.hasError() ? null : ec.service.sync().name('org.moqui.impl.FileServices.get#Preview').parameters({driveId: driveId,
+            const out = ec.service.sync().name('org.moqui.impl.FileServices.get#Preview').parameters({driveId: driveId || '',
                 path: path || '', size: Math.max(16, Math.min(Number(size) || 256, 2048))}).call()
             if (!ec.message.hasError() && out.previewLocation) ec.web.sendResourceResponse(out.previewLocation, true)
             else ec.web.sendJsonResponse({})
         ]]></script></actions>
         <default-response type="none"/>
     </transition>
-    <!-- a file (inline only a picture, a PDF, audio or video: no script of an uploaded file runs here), a past version of it,
-        or a folder as a zip -->
+    <!-- a file (inline only a picture, a PDF, audio or video: no script of an uploaded file runs here), a past version of it
+        (its location#version), or a folder as a zip, each under its own name -->
     <transition name="download" method="get" read-only="true">
         <actions><script><![CDATA[
-            ec.service.sync().name('ironstone.DriveServices.check#ItemAccess').parameters({driveId: driveId || '', path: path || ''}).call()
-            const info = ec.message.hasError() ? null : ec.service.sync().name('org.moqui.impl.FileServices.get#ResourceInfo').parameters({driveId: driveId,
+            const info = ec.service.sync().name('org.moqui.impl.FileServices.get#ResourceInfo').parameters({driveId: driveId || '',
                 path: path || '', versionName: versionName || null, opened: true}).call()
-            let location = null, inlineOk = false
-            if (!ec.message.hasError()) {
-                const resource = info.resource
-                if (resource.isDirectory) {
-                    const zip = ec.service.sync().name('org.moqui.impl.FileServices.download#Zip').parameters({driveId: driveId, path: path}).call()
-                    if (!ec.message.hasError()) location = ec.service.sync().name('ironstone.DriveServices.get#DownloadLocation')
-                            .parameters({location: zip.zipLocation, fileName: zip.zipFilename}).call().downloadLocation
-                } else {
-                    location = ec.service.sync().name('ironstone.DriveServices.get#DownloadLocation').parameters({location: resource.location,
-                        fileName: resource.name}).call().downloadLocation
-                    const type = String(resource.contentType || '')
-                    inlineOk = /^(image\/(png|jpeg|gif|webp|bmp)|application\/pdf|audio\/|video\/)/.test(type)
-                }
-            }
-            if (!ec.message.hasError() && location) ec.web.sendResourceResponse(location, String(inline) === 'true' && inlineOk)
-            else ec.web.sendJsonResponse({})
+            const resource = ec.message.hasError() ? null : info.resource
+            const zip = resource && resource.isDirectory ? ec.service.sync().name('org.moqui.impl.FileServices.download#Zip').parameters({driveId: driveId,
+                path: path}).call() : null
+            if (ec.message.hasError() || !resource) ec.web.sendJsonResponse({})
+            else if (zip) ec.web.sendResourceResponse(zip.zipLocation, false, zip.zipFilename)
+            else ec.web.sendResourceResponse(resource.location, String(inline) === 'true' &&
+                    /^(image\/(png|jpeg|gif|webp|bmp)|application\/pdf|audio\/|video\/)/.test(String(resource.contentType || '')), resource.name)
         ]]></script></actions>
         <default-response type="none"/>
     </transition>
@@ -152,12 +146,9 @@ along with this software (see the LICENSE.md file). If not, see
         <actions><script><![CDATA[
             let paths = []
             try { paths = JSON.parse(pathListJson || '[]') } catch (err) { paths = [] }
-            ec.service.sync().name('ironstone.DriveServices.check#ItemAccess').parameters({driveId: driveId || '', pathList: paths}).call()
-            const zip = ec.message.hasError() ? null : ec.service.sync().name('org.moqui.impl.FileServices.download#Zip').parameters({driveId: driveId,
-                pathList: paths}).call()
-            const location = ec.message.hasError() ? null : ec.service.sync().name('ironstone.DriveServices.get#DownloadLocation')
-                    .parameters({location: zip.zipLocation, fileName: zip.zipFilename}).call().downloadLocation
-            if (!ec.message.hasError() && location) ec.web.sendResourceResponse(location, false)
+            const zip = ec.service.sync().name('org.moqui.impl.FileServices.download#Zip').parameters({driveId: driveId || '',
+                pathList: Array.isArray(paths) ? paths : []}).call()
+            if (!ec.message.hasError() && zip?.zipLocation) ec.web.sendResourceResponse(zip.zipLocation, false, zip.zipFilename)
             else ec.web.sendJsonResponse({})
         ]]></script></actions>
         <default-response type="none"/>
@@ -204,9 +195,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="newFolder">
         <actions><script><![CDATA[
-            const target = [String(path || ''), String(name || '')].filter((part) => part).join('/')
-            ec.service.sync().name('ironstone.DriveServices.check#ItemAccess').parameters({driveId: driveId || '', path: target}).call()
-            const out = ec.message.hasError() ? null : ec.service.sync().name('org.moqui.impl.FileServices.create#Folder').parameters({driveId: driveId,
+            const out = ec.service.sync().name('org.moqui.impl.FileServices.create#Folder').parameters({driveId: driveId || '',
                 path: path || '', name: name || ''}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {newPath: out.newPath, messageInfos: [{type: 'success',
                 message: ec.resource.expand('Folder ${name} made', '', {name: name})}]})
@@ -225,8 +214,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="rename">
         <actions><script><![CDATA[
-            ec.service.sync().name('ironstone.DriveServices.check#ItemAccess').parameters({driveId: driveId || '', path: path || ''}).call()
-            const out = ec.message.hasError() ? null : ec.service.sync().name('org.moqui.impl.FileServices.rename#Resource').parameters({driveId: driveId,
+            const out = ec.service.sync().name('org.moqui.impl.FileServices.rename#Resource').parameters({driveId: driveId || '',
                 path: path || '', newName: newName || ''}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {newPath: out.newPath, messageInfos: [{type: 'success', message: ec.l10n.localize('Renamed')}]})
         ]]></script></actions>
@@ -238,15 +226,10 @@ along with this software (see the LICENSE.md file). If not, see
             let paths = []
             try { paths = JSON.parse(pathListJson || '[]') } catch (err) { paths = [] }
             const L = (text) => ec.l10n.localize(text)
-            ec.service.sync().name('ironstone.DriveServices.check#ItemAccess').parameters({driveId: driveId || '', pathList: paths}).call()
-            if (!ec.message.hasError()) ec.service.sync().name('ironstone.DriveServices.check#ItemAccess').parameters({driveId: toDriveId || driveId || '', path: toPath || ''}).call()
-            let rows = []
-            if (!ec.message.hasError()) {
-                if (mode === 'copy') rows = ec.service.sync().name('org.moqui.impl.FileServices.copy#Resource').parameters({driveId: driveId, pathList: paths,
-                    toDriveId: toDriveId || driveId, toPath: toPath || '', conflictPolicy: 'keepBoth'}).call().copiedList || []
-                else rows = ec.service.sync().name('org.moqui.impl.FileServices.move#Resource').parameters({driveId: driveId, pathList: paths,
-                    toDriveId: toDriveId || driveId, toPath: toPath || '', conflictPolicy: 'keepBoth'}).call().movedList || []
-            }
+            if (!Array.isArray(paths)) paths = []
+            const moving = {driveId: driveId || '', pathList: paths, toDriveId: toDriveId || driveId || '', toPath: toPath || '', conflictPolicy: 'keepBoth'}
+            const rows = mode === 'copy' ? (ec.service.sync().name('org.moqui.impl.FileServices.copy#Resource').parameters(moving).call()?.copiedList || [])
+                : (ec.service.sync().name('org.moqui.impl.FileServices.move#Resource').parameters(moving).call()?.movedList || [])
             if (ec.message.hasError()) { ec.web.sendJsonResponse({}); return }
             const done = Array.from(rows).filter((row) => row.outcome === 'moved' || row.outcome === 'copied' || row.outcome === 'unchanged')
             const infos = [{type: done.length ? 'success' : 'warning', message: ec.resource.expand(mode === 'copy' ? 'Copied ${count} of ${total}' : 'Moved ${count} of ${total}', '',
@@ -260,9 +243,8 @@ along with this software (see the LICENSE.md file). If not, see
         <actions><script><![CDATA[
             let paths = []
             try { paths = JSON.parse(pathListJson || '[]') } catch (err) { paths = [] }
-            ec.service.sync().name('ironstone.DriveServices.check#ItemAccess').parameters({driveId: driveId || '', pathList: paths}).call()
-            const out = ec.message.hasError() ? null : ec.service.sync().name('org.moqui.impl.FileServices.trash#Resource').parameters({driveId: driveId,
-                pathList: paths}).call()
+            const out = ec.service.sync().name('org.moqui.impl.FileServices.trash#Resource').parameters({driveId: driveId || '',
+                pathList: Array.isArray(paths) ? paths : []}).call()
             if (ec.message.hasError()) { ec.web.sendJsonResponse({}); return }
             const trashed = Array.from(out.trashList || []).filter((row) => row.outcome === 'trashed')
             const infos = [{type: trashed.length ? 'success' : 'warning', message: trashed.length === 1 ? ec.resource.expand('${name} moved to the trash', '',
@@ -297,8 +279,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="favorite">
         <actions><script><![CDATA[
-            ec.service.sync().name('ironstone.DriveServices.check#ItemAccess').parameters({driveId: driveId || '', path: path || ''}).call()
-            if (!ec.message.hasError()) ec.service.sync().name('org.moqui.impl.FileServices.set#Favorite').parameters({driveId: driveId, path: path || '',
+            ec.service.sync().name('org.moqui.impl.FileServices.set#Favorite').parameters({driveId: driveId || '', path: path || '',
                 favorite: String(favorite) !== 'false'}).call()
             ec.web.sendJsonResponse({})
         ]]></script></actions>
@@ -308,8 +289,7 @@ along with this software (see the LICENSE.md file). If not, see
         <actions><script><![CDATA[
             let names = []
             try { names = JSON.parse(tagNamesJson || '[]') } catch (err) { names = [] }
-            ec.service.sync().name('ironstone.DriveServices.check#ItemAccess').parameters({driveId: driveId || '', path: path || ''}).call()
-            const out = ec.message.hasError() ? null : ec.service.sync().name('org.moqui.impl.FileServices.set#Tags').parameters({driveId: driveId,
+            const out = ec.service.sync().name('org.moqui.impl.FileServices.set#Tags').parameters({driveId: driveId || '',
                 path: path || '', tagNameList: names}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {tagList: out.tagList})
         ]]></script></actions>
@@ -344,8 +324,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="restoreVersion">
         <actions><script><![CDATA[
-            ec.service.sync().name('ironstone.DriveServices.check#ItemAccess').parameters({driveId: driveId || '', path: path || ''}).call()
-            const out = ec.message.hasError() ? null : ec.service.sync().name('org.moqui.impl.FileServices.restore#Version').parameters({driveId: driveId,
+            const out = ec.service.sync().name('org.moqui.impl.FileServices.restore#Version').parameters({driveId: driveId || '',
                 path: path || '', versionName: versionName || '', versionNote: versionNote || null}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {newVersionName: out.newVersionName, messageInfos: [{type: 'success',
                 message: ec.l10n.localize('Restored as the newest version')}]})

@@ -161,6 +161,13 @@ feature("rules: the demo's in words with the blocked sender apart; a new rule sa
         const off = rules("setEnabled", { emailRuleId: ruleId, enabled: "N" })
         const offRule = one("moqui.basic.email.EmailRule", { emailRuleId: ruleId })
         rules("setEnabled", { emailRuleId: ruleId, enabled: "Y" })
+        // the editor's Test: what the conditions match in the folder's newest mail, nothing done to it
+        const tested = rules("testRule", { emailFolderId: ownInbox, matchAllEnumId: "ErmAll",
+            conditionsJson: JSON.stringify([{ field: "subject", operator: "contains", value: "invoice" }]) })
+        const testedEdit = rules("testRule", { emailRuleId: ruleId, emailFolderId: ownInbox, conditionsJson: JSON.stringify([{ field: "from", operator: "contains", value: "ada@" }]) })
+        const testedBad = rules("testRule", { emailFolderId: ownInbox, conditionsJson: JSON.stringify([{ field: "subject", operator: "contains", value: "" }]) })
+        const untouched = rows("moqui.basic.email.EmailMessage", { emailAccountId: ownId }).find((row) => row.subject == "Invoice 7 is due").emailFolderId
+        const matchedBefore = one("moqui.basic.email.EmailRule", { emailRuleId: ruleId }).matchedCount || 0
         const run = rules("runRules", { emailFolderId: ownInbox })
         const invoice = rows("moqui.basic.email.EmailMessage", { emailAccountId: ownId }).find((row) => row.subject == "Invoice 7 is due")
         const hello = rows("moqui.basic.email.EmailMessage", { emailAccountId: ownId }).find((row) => row.subject == "Hello")
@@ -170,9 +177,22 @@ feature("rules: the demo's in words with the blocked sender apart; a new rule sa
         const withBlock = rules("rulesData", {}, "get").json
         const unblocked = rules("deleteRule", { emailRuleId: blockId })
         const withoutBlock = rules("rulesData", {}, "get").json
-        return { page, qvue, data: data.json, badRule, saved, before, reordered, afterOrder, off, offRule, run, invoice, hello, label, blocked, withBlock, unblocked, withoutBlock }
+        return { page, qvue, data: data.json, badRule, saved, before, reordered, afterOrder, off, offRule, run, invoice, hello, label, blocked, withBlock, unblocked, withoutBlock,
+            tested, testedEdit, testedBad, untouched, matchedBefore }
     },
-    then({ page, qvue, data, badRule, saved, before, reordered, afterOrder, off, offRule, run, invoice, hello, label, blocked, withBlock, unblocked, withoutBlock }) {
+    then({ page, qvue, data, badRule, saved, before, reordered, afterOrder, off, offRule, run, invoice, hello, label, blocked, withBlock, unblocked, withoutBlock,
+            tested, testedEdit, testedBad, untouched, matchedBefore }) {
+        tested.errors == ""
+        tested.json.matchedCount == 1
+        tested.json.testedCount == 2
+        tested.json.matchList[0].subject == "Invoice 7 is due"
+        tested.json.matchList[0].fromText.includes("billing@vendor.example")
+        tested.json.resultText.includes("nothing was done")
+        testedEdit.json.matchList.map((match) => match.subject) == ["Hello"]
+        testedBad.errors.includes("needs a value")
+        untouched == ownInbox
+        matchedBefore == 0
+        qvue.includes("testRule")
         // a .qvue screen only: the shell loads it in qvue (its best client mode), and a .qvt of it is not found
         page.status != 200
         qvue.includes("module.exports")
@@ -219,9 +239,26 @@ feature("out of office: the demo's reply shows off; turned on for three days it 
         const ownReply = one("moqui.basic.email.EmailOutOfOffice", { emailAccountId: ownId })
         for (const id of [DEMO, SUPPORT, ownId]) settings("OutOfOffice/turnOff", { emailAccountId: id })
         const afterOff = rows("moqui.basic.email.EmailOutOfOffice", {}).filter((row) => [DEMO, SUPPORT, ownId].includes(row.emailAccountId) && row.enabled == "Y")
-        return { shown, noBody, on, stored, shownOn, inbox: inbox.json, all, supportReply, ownReply, afterOff }
+        // who gets it: people inside only; until a contact hook is set up, every sender counts as a contact
+        const inside = settings("OutOfOffice/storeReply", { emailAccountId: DEMO, enabled: "Y", fromDate: fmt(now - 3600000), thruDate: fmt(now + 3 * 86400000),
+            subject: "Away", bodyHtml: "<p>Away until Thursday.</p>", replyOncePerDays: "2", replyAudienceEnumId: "EraInternal" })
+        const insideRow = one("moqui.basic.email.EmailOutOfOffice", { emailAccountId: DEMO })
+        const badAudience = settings("OutOfOffice/storeReply", { emailAccountId: DEMO, enabled: "Y", bodyHtml: "<p>x</p>", replyAudienceEnumId: "EraNobody" })
+        const shownInside = render("Comms/Settings/OutOfOffice", { emailAccountId: DEMO })
+        settings("OutOfOffice/turnOff", { emailAccountId: DEMO })
+        const offKeepsAudience = one("moqui.basic.email.EmailOutOfOffice", { emailAccountId: DEMO })
+        return { shown, noBody, on, stored, shownOn, inbox: inbox.json, all, supportReply, ownReply, afterOff, inside, insideRow, badAudience, shownInside, offKeepsAudience }
     },
-    then({ shown, noBody, on, stored, shownOn, inbox, all, supportReply, ownReply, afterOff }) {
+    then({ shown, noBody, on, stored, shownOn, inbox, all, supportReply, ownReply, afterOff, inside, insideRow, badAudience, shownInside, offKeepsAudience }) {
+        shown.output.includes("Reply to")
+        shown.output.includes("Only people inside the organization")
+        stored.replyAudienceEnumId == "EraEveryone"
+        inside.errors == ""
+        insideRow.replyAudienceEnumId == "EraInternal"
+        badAudience.errors.includes("Choose who gets the reply")
+        shownInside.output.includes("everyone who writes counts as a contact")
+        offKeepsAudience.enabled == "N"
+        offKeepsAudience.replyAudienceEnumId == "EraInternal"
         shown.errors == ""
         !shown.broken
         shown.output.includes("Away until Monday")
@@ -313,6 +350,7 @@ feature("joe.developer changes none of john.doe's settings; he sees the shared t
         const changeSupport = settings("Identities/storeIdentity", { emailIdentityId: "BOSS_DEMO_MAIL_S_IDENT", emailAddress: "support@ziziwork.example", displayName: "Joe's support" })
         const ruleChange = rules("saveRule", { emailRuleId: "BOSS_DEMO_MAIL_R_RECEIPTS", ruleName: "Mine" })
         const ruleDelete = rules("deleteRule", { emailRuleId: "BOSS_DEMO_MAIL_R_NEWS" })
+        const ruleTest = rules("testRule", { emailRuleId: "BOSS_DEMO_MAIL_R_RECEIPTS", conditionsJson: JSON.stringify([{ field: "from", operator: "contains", value: "x" }]) })
         const ruleOn = rules("saveRule", { ruleName: "On his account", emailAccountId: DEMO, conditionsJson: JSON.stringify([{ field: "from", operator: "contains", value: "x" }]),
             actionsJson: JSON.stringify([{ action: "markRead" }]) })
         const reply = settings("OutOfOffice/storeReply", { emailAccountId: DEMO, enabled: "N", bodyHtml: "<p>x</p>" })
@@ -320,10 +358,11 @@ feature("joe.developer changes none of john.doe's settings; he sees the shared t
         const deleteShared = settings("TextBlocks/deleteTextBlock", { emailTextBlockId: "BOSS_DEMO_MAIL_TB_FOLLOWUP" })
         const shareAdmin = settings("TextBlocks/storeTextBlock", { title: "Mine", userGroupId: "ADMIN" })
         login("john.doe")
-        return { identities, storeOther, changeSupport, ruleChange, ruleDelete, ruleOn, reply, blocks, deleteShared, shareAdmin,
+        return { identities, storeOther, changeSupport, ruleChange, ruleDelete, ruleTest, ruleOn, reply, blocks, deleteShared, shareAdmin,
             receipts: one("moqui.basic.email.EmailRule", { emailRuleId: "BOSS_DEMO_MAIL_R_RECEIPTS" }), support: one("moqui.basic.email.EmailIdentity", { emailIdentityId: "BOSS_DEMO_MAIL_S_IDENT" }) }
     },
-    then({ identities, storeOther, changeSupport, ruleChange, ruleDelete, ruleOn, reply, blocks, deleteShared, shareAdmin, receipts, support }) {
+    then({ identities, storeOther, changeSupport, ruleChange, ruleDelete, ruleTest, ruleOn, reply, blocks, deleteShared, shareAdmin, receipts, support }) {
+        ruleTest.errors.includes("You may not try")
         identities.errors == ""
         identities.output.includes("Ziziwork Support")
         identities.output.includes("managed by its owner")

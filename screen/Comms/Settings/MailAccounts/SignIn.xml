@@ -14,12 +14,15 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- The "Sign in with Google" or "Sign in with Microsoft" button of a mail account (design-drawers-commons.md §17
     AccountCredentials; mr-moqui docs/Mail-OAuth.md): SignIn.qvue next to this file, which the wizard's Connect step and the
-    account page load in a dynamic-container with its query: mode (wizard: the account is made or changed first, then signs
-    in; account: an account there signs in again, or instead of its password), the account or the address, name and kind
-    of a new one, the provider and its label. The click opens the provider's popup (moqui.oauthPopup) over the JSON
+    account page load in a dynamic-container with its query: mode (wizard: a new account is made by the framework when the
+    sign-in succeeds, a POP one or one the wizard made before is made or changed first; account: an account there signs in
+    again, or instead of its password), the account or the address, name and kind
+    of a new one, the provider and its label, and in the wizard offerPop with storeKind, the choice of reading the mail over
+    IMAP or POP (the provider's POP server; the sign-in then asks for the provider's POP scope too, Microsoft's
+    POP.AccessAsUser.All). The click opens the provider's popup (moqui.oauthPopup) over the JSON
     transitions below: startSignIn (ironstone.MailSettingsServices.start#MailSignIn) and signInStatus
     (org.moqui.impl.EmailClientServices.get#OAuthStatus by signInId only, which answers only a sign-in of this user's
-    session); dropSignIn takes back an account made for a sign-in that did not finish (drop#UnusedSignIn). No token ever
+    session); dropSignIn takes back a POP account made for a sign-in that did not finish (drop#UnusedSignIn). No token ever
     reaches the page. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Sign in" default-menu-include="false" render-modes="vue,qvue" server-static="vue,qvue">
@@ -28,7 +31,8 @@ along with this software (see the LICENSE.md file). If not, see
         <actions><script><![CDATA[
             const out = ec.service.sync().name('ironstone.MailSettingsServices.start#MailSignIn').parameters({emailAccountId: emailAccountId || null,
                 emailAddress: emailAddress || null, displayName: displayName || null, accountKindEnumId: accountKindEnumId || 'EakExternal',
-                oauthProviderEnumId: oauthProviderEnumId || null, setup: mode === 'wizard', allowAddressChange: String(allowAddressChange) === 'true'}).call()
+                oauthProviderEnumId: oauthProviderEnumId || null, storeKind: storeKind === 'pop' ? 'pop' : (storeKind === 'imap' ? 'imap' : null),
+                setup: mode === 'wizard', allowAddressChange: String(allowAddressChange) === 'true'}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {authUrl: out.authUrl, signInId: out.signInId, emailAccountId: out.emailAccountId,
                 created: out.created === true})
         ]]></script></actions>

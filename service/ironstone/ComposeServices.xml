@@ -644,7 +644,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <service verb="attach" noun="DriveFiles">
         <description>Attach from Files (design-drawers-commons.md §12 AttachFromFiles): the drive files the user picked (itemList of
-            {driveId, path}), each read through FileServices after ironstone.DriveServices.check#ItemAccess, so only a file the
+            {driveId, path}), each read through FileServices.get#ResourceInfo as the user (records too), so only a file the
             user may open is used. For an email draft (emailMessageId) each is copied where the mail client keeps a message's
             files (dbresource://email/account/message/, the only place save#Draft takes a file from) and added to the draft's
             attachments; without a draft (an internal message) each is copied under the user's compose folder for send#Compose.
@@ -691,7 +691,7 @@ along with this software (see the LICENSE.md file). If not, see
                 ec.message.pushErrors()
                 try {
                     if (!item || !item.driveId || !item.path) throw new Error(L('No file chosen'))
-                    const found = own('ironstone.DriveServices.get#ItemForUser', {driveId: item.driveId, path: item.path})
+                    const found = own('org.moqui.impl.FileServices.get#ResourceInfo', {driveId: item.driveId, path: item.path, opened: true})
                     if (!found.out || !found.out.resource) throw new Error(found.why || L('File not found'))
                     const resource = found.out.resource
                     if (resource.isDirectory || (resource.size != null && Number(resource.size) > Number(maxAttachBytes || 26214400))) {

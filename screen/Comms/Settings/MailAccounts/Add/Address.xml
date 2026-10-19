@@ -56,6 +56,8 @@ along with this software (see the LICENSE.md file). If not, see
             smtpPort = settings.smtpPort || ''
             smtpSecurity = settings.smtpSecurity || 'starttls'
             mailUsername = settings.mailUsername || address
+            // the outgoing server's own user, when the lookup says it signs in as another one
+            smtpUsername = settings.smtpUsername || ''
             source = settings.source || 'guess'
             oauthProvider = settings.oauthProviderEnumId || ''
         ]]></script></actions>
@@ -63,7 +65,7 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="emailAddress"/><parameter name="displayName"/><parameter name="accountKindEnumId"/>
             <parameter name="storeKind"/><parameter name="storeSecurity"/><parameter name="storeHost"/><parameter name="storePort"/>
             <parameter name="smtpHost"/><parameter name="smtpPort"/><parameter name="smtpSecurity"/><parameter name="mailUsername"/>
-            <parameter name="source"/><parameter name="oauthProvider"/>
+            <parameter name="smtpUsername"/><parameter name="source"/><parameter name="oauthProvider"/>
         </default-response>
         <error-response url="."/>
     </transition>

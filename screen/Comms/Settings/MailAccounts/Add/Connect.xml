@@ -14,15 +14,17 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- Add account step 2, connect (design-drawers-commons.md §17 AccountCredentials): for mail at Google or Microsoft where this
     server is set up for it (ironstone.MailSettingsServices.get#OAuthChoice; mr-moqui docs/Mail-OAuth.md), "Sign in with Google"
-    or "Sign in with Microsoft" first: the SignIn screen's button in a dynamic-container, whose popup makes the account (paused
-    until Finish, as with a password) and signs it in, then goes on to Test; where the provider has a sign-in this server is
-    not set up for, a line says an administrator can set it up. Then, or else, the password, or the app password the provider
-    asks for, with the provider's help and the link where to make one; where the server settings came from, and the settings
-    themselves to change (IMAP or POP, hosts, ports, SSL or STARTTLS, the user name). Next saves them
-    (ironstone.MailSettingsServices.save#AccountConnection): the first time it makes the account, paused until Finish, and
-    answers its emailAccountId; later it changes it (an empty password keeps the one saved; an account signed in with its
+    or "Sign in with Microsoft" first: the SignIn screen's button in a dynamic-container, with the choice of IMAP or POP (POP
+    reads the provider's POP server, and the sign-in asks to allow POP too), whose popup makes the account (paused until
+    Finish, as with a password) and signs it in, then goes on to Test; where the provider has a sign-in this server is not set
+    up for, a line says an administrator can set it up. Then, or else, the password, or the app password the provider asks
+    for, with the provider's help and the link where to make one; where the server settings came from, and the settings
+    themselves to change (IMAP or POP, hosts, ports, SSL or STARTTLS, the user name) with the outgoing server's own sign-in
+    for a provider whose SMTP takes another user (prefilled when the lookup found one; tried before it is saved). Next saves
+    them (ironstone.MailSettingsServices.save#AccountConnection): the first time it makes the account, paused until Finish,
+    and answers its emailAccountId; later it changes it (an empty password keeps the one saved; an account signed in with its
     provider keeps that sign-in and asks no password). The settings shown are the URL's (from Address, or from the last save),
-    else the account's, else a new lookup. The password is never shown again. -->
+    else the account's, else a new lookup. A password is never shown again. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Connect" default-menu-index="2">
 
@@ -32,6 +34,7 @@ along with this software (see the LICENSE.md file). If not, see
     <parameter name="accountKindEnumId"/>
     <parameter name="storeKind"/><parameter name="storeSecurity"/><parameter name="storeHost"/><parameter name="storePort"/>
     <parameter name="smtpHost"/><parameter name="smtpPort"/><parameter name="smtpSecurity"/><parameter name="mailUsername"/>
+    <parameter name="smtpUsername"/>
     <parameter name="source"/>
     <parameter name="oauthProvider"/>
 
@@ -39,7 +42,7 @@ along with this software (see the LICENSE.md file). If not, see
         <service-call name="ironstone.MailSettingsServices.save#AccountConnection" out-map="saveOut" in-map="{emailAccountId:emailAccountId,
                 emailAddress:emailAddress, displayName:displayName, accountKindEnumId:accountKindEnumId, storeKind:storeKind, storeSecurity:storeSecurity,
                 storeHost:storeHost, storePort:storePort, smtpHost:smtpHost, smtpPort:smtpPort, smtpSecurity:smtpSecurity, mailUsername:mailUsername,
-                mailPassword:mailPassword}"/>
+                mailPassword:mailPassword, smtpUsername:(smtpUsername ?? null), smtpPassword:(smtpPassword ?? null)}"/>
         <actions>
             <set field="emailAccountId" from="saveOut?.emailAccountId || emailAccountId"/>
             <set field="source" value="saved"/>
@@ -56,7 +59,8 @@ along with this software (see the LICENSE.md file). If not, see
     <actions><script><![CDATA[
         const L = (text) => text.length > 255 ? text : ec.l10n.localize(text)
         let settings = storeHost ? {storeKind: storeKind, storeSecurity: storeSecurity, storeHost: storeHost, storePort: storePort, smtpHost: smtpHost,
-            smtpPort: smtpPort, smtpSecurity: smtpSecurity, mailUsername: mailUsername, source: source || 'guess'} : null
+            smtpPort: smtpPort, smtpSecurity: smtpSecurity, mailUsername: mailUsername, smtpUsername: smtpUsername || '', source: source || 'guess'} : null
+        hasSmtpPassword = false
         hasPassword = false
         oauthSignedIn = false
         signedInAddress = null
@@ -68,7 +72,10 @@ along with this software (see the LICENSE.md file). If not, see
             const detail = ec.service.sync().name('ironstone.MailSettingsServices.get#MailAccountDetail').parameter('emailAccountId', emailAccountId).call()
             if (!ec.message.hasError() && detail?.found) {
                 hasPassword = detail.server?.hasPassword === true
+                hasSmtpPassword = detail.server?.hasSmtpPassword === true
                 if (!settings && detail.server) settings = Object.assign({source: 'saved'}, detail.server)
+                // the outgoing user saved with the account, when the URL names none
+                else if (settings && !settings.smtpUsername && detail.server?.smtpUsername) settings.smtpUsername = detail.server.smtpUsername
                 if (!address) address = detail.account?.emailAddress
                 kind = detail.account?.accountKindEnumId || kind
                 accountProvider = detail.server?.oauthProviderEnumId || null
@@ -117,7 +124,11 @@ along with this software (see the LICENSE.md file). If not, see
         connect = {emailAccountId: emailAccountId || '', emailAddress: address, displayName: displayName || '', accountKindEnumId: kind || 'EakExternal',
             storeKind: settings.storeKind || 'imap', storeSecurity: settings.storeSecurity || 'ssl', storeHost: settings.storeHost || '',
             storePort: settings.storePort || '', smtpHost: settings.smtpHost || '', smtpPort: settings.smtpPort || '',
-            smtpSecurity: settings.smtpSecurity || 'starttls', mailUsername: settings.mailUsername || address, mailPassword: ''}
+            smtpSecurity: settings.smtpSecurity || 'starttls', mailUsername: settings.mailUsername || address, mailPassword: '',
+            smtpUsername: settings.smtpUsername || '', smtpPassword: ''}
+        smtpCaption = settings.smtpUsername && hasSmtpPassword ? L('The outgoing server signs in as its own user, with the password saved for it: leave the password empty to keep it.')
+            : (settings.smtpUsername ? L('Your provider\'s outgoing server signs in as another user: check it and enter its password. It is tried before it is saved.')
+            : L('Only when your provider\'s outgoing server signs in as another user than the incoming one: its user name and password, tried before they are saved. Empty: the same sign-in as above.'))
     ]]></script></actions>
     <widgets>
         <section name="NoAddress" condition="!hasAddress"><widgets>
@@ -143,6 +154,8 @@ along with this software (see the LICENSE.md file). If not, see
                         <parameter name="accountKindEnumId" from="connect.accountKindEnumId"/>
                         <parameter name="oauthProviderEnumId" from="oauthChoice.oauthProviderEnumId"/>
                         <parameter name="providerLabel" from="providerLabel"/>
+                        <parameter name="storeKind" from="connect.storeKind"/>
+                        <parameter name="offerPop" value="Y"/>
                     </dynamic-container>
                     <render-mode><text type="qvt"><![CDATA[<q-separator class="q-my-md"></q-separator>]]></text></render-mode>
                     <label type="p" text="Or use a password or an app password instead:" style="text-subtitle2 q-mb-xs"/>
@@ -188,6 +201,10 @@ along with this software (see the LICENSE.md file). If not, see
                     <field name="smtpPort"><default-field title="Port"><text-line size="6" input-type="number"/></default-field></field>
                     <field name="smtpSecurity"><default-field title="Security"><radio no-current-selected-key="starttls">
                         <option key="ssl" text="SSL/TLS"/><option key="starttls" text="STARTTLS"/><option key="none" text="None"/></radio></default-field></field>
+                    <field name="smtpUsername"><conditional-field condition="oauthSignedIn"><ignored/></conditional-field>
+                        <default-field title="Outgoing user name" tooltip="Empty: the outgoing server signs in as the user name above"><text-line size="40"/></default-field></field>
+                    <field name="smtpPassword"><conditional-field condition="oauthSignedIn"><ignored/></conditional-field>
+                        <default-field title="Outgoing password"><password size="30"/></default-field></field>
                     <field-layout>
                         <field-ref name="emailAccountId"/><field-ref name="emailAddress"/><field-ref name="displayName"/><field-ref name="accountKindEnumId"/>
                         <field-ref name="mailPassword"/>
@@ -197,8 +214,12 @@ along with this software (see the LICENSE.md file). If not, see
                             <field-row><field-ref name="storeHost"/><field-ref name="storePort"/><field-ref name="storeSecurity"/></field-row>
                             <field-row><field-ref name="smtpHost"/><field-ref name="smtpPort"/><field-ref name="smtpSecurity"/></field-row>
                         </field-group>
+                        <field-group title="Outgoing server sign-in (only when it differs)">
+                            <field-row><field-ref name="smtpUsername"/><field-ref name="smtpPassword"/></field-row>
+                        </field-group>
                     </field-layout>
                 </form-single>
+                <label type="p" text="${smtpCaption}" style="text-caption m-muted q-mt-xs q-mb-none" condition="!oauthSignedIn"/>
                 <label type="p" text="${sourceText}" style="${isGuess ? 'text-warning' : 'm-muted'} text-caption q-mt-sm q-mb-none"/>
                 <label type="p" text="Next tests the settings before anything syncs." style="text-caption m-muted q-mb-none"/>
             </box-body></container-box>

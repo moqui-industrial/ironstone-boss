@@ -14,8 +14,9 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- The Rules screen (design-drawers-commons.md §17 Rules), the component Rules.xml serves in the qvue render mode, over its
     JSON transitions: the user's rules in order (drag a rule, or its up and down buttons; reorderRules), each in words with
     its account and matches, on or off; the editor (a dialog: name, the account or all accounts, all or any of the
-    conditions, the conditions and actions as rows); Run now over a folder (all the rules, or one); the blocked senders with
-    Unblock and Block an address. Brand color names and Quasar classes only (style-guide §4.8, §5). -->
+    conditions, the conditions and actions as rows, and Test: the conditions as they are now tried on the newest 50 messages
+    of a folder, testRule, listing what they match with nothing done to it); Run now over a folder (all the rules, or one);
+    the blocked senders with Unblock and Block an address. Brand color names and Quasar classes only (style-guide §4.8, §5). -->
 <template><div class="m-mail-rules">
     <div class="row items-center q-mb-xs">
         <div class="text-h5">{{t('Rules')}}</div>
@@ -124,6 +125,30 @@ along with this software (see the LICENSE.md file). If not, see
         <q-btn flat dense no-caps color="primary" icon="sym_o_add" :label="t('Add an action')" class="q-mt-xs" @click="addAction"></q-btn>
 
         <m-check v-model="editor.flags" name="ruleFlags" :options="flagOptions" class="q-mt-sm"></m-check>
+
+        <!-- Test: what the conditions as they are now match in a folder's newest mail, with nothing done to it -->
+        <q-separator class="q-my-sm"></q-separator>
+        <div class="text-subtitle2">{{t('Test')}}</div>
+        <div class="text-caption m-muted">{{t('Try the conditions on the newest 50 messages of a folder: the matches are listed, and nothing is done to them.')}}</div>
+        <div class="row items-end q-col-gutter-sm q-mt-none">
+            <div class="col-12 col-sm"><m-drop-down v-model="editor.testFolderId" name="ruleTestFolder" :options="testFolderOptions" :label="t('Try it on')"></m-drop-down></div>
+            <div class="col-auto"><q-btn unelevated dense no-caps class="m-btn-tonal" icon="sym_o_science" :label="t('Test')" :loading="editor.testing"
+                    :disable="!editor.testFolderId" @click="testRule"></q-btn></div>
+        </div>
+        <div v-if="editor.test" class="q-mt-sm m-mail-rule-test">
+            <div class="text-body2">{{editor.test.resultText}}</div>
+            <q-list v-if="editor.test.matchList.length" dense separator class="q-mt-xs">
+                <q-item v-for="match in editor.test.matchList" :key="match.emailMessageId" class="q-px-none">
+                    <q-item-section>
+                        <q-item-label class="ellipsis">{{match.subject}}</q-item-label>
+                        <q-item-label caption class="ellipsis">{{match.fromText}}</q-item-label>
+                    </q-item-section>
+                    <q-item-section side top class="text-caption m-muted">{{match.dateText}}</q-item-section>
+                </q-item>
+            </q-list>
+        </div>
+        <div v-if="editor.testError" class="text-negative text-caption q-mt-xs">{{editor.testError}}</div>
+
         <div v-if="editor.error" class="text-negative q-mt-sm">{{editor.error}}</div>
         <div class="row q-gutter-sm q-mt-md">
             <q-btn unelevated no-caps color="primary" :label="t('Save')" :loading="editor.saving" @click="saveRule"></q-btn>
@@ -160,7 +185,8 @@ module.exports = {
     data() {
         return {
             loaded: false, busy: false, rules: [], blocked: [], accounts: [], dragIndex: null, dropAt: null,
-            editor: { open: false, emailRuleId: null, ruleName: '', emailAccountId: '', matchAllEnumId: 'ErmAll', conditions: [], actions: [], flags: ['enabled'], saving: false, error: null },
+            editor: { open: false, emailRuleId: null, ruleName: '', emailAccountId: '', matchAllEnumId: 'ErmAll', conditions: [], actions: [], flags: ['enabled'], saving: false, error: null,
+                testFolderId: null, testing: false, test: null, testError: null },
             run: { emailFolderId: null, emailRuleId: '', running: false, resultText: '', errors: [] },
             block: { emailAddress: '', emailAccountId: null }
         };
@@ -193,7 +219,23 @@ module.exports = {
             return list;
         },
         runRuleOptions() { return [{ value: '', label: t('All the rules that are on') }].concat(this.rules.map((rule) => ({ value: rule.emailRuleId, label: rule.ruleName }))); },
+        // the folders a rule is tried on: its account's, or every account's for a rule on all of them
+        testFolderOptions() {
+            const accounts = this.editorAccount ? [this.editorAccount] : this.accounts;
+            const list = [];
+            for (const account of accounts) for (const folder of account.folderList)
+                list.push({ value: folder.value, label: (accounts.length > 1 ? account.accountName + ' · ' : '') + folder.label });
+            return list;
+        },
         blockAccountOptions() { return this.manageAccounts.map((account) => ({ value: account.emailAccountId, label: account.accountName })); }
+    },
+    watch: {
+        // another account for the rule: its Inbox to try it on, and no result of the other one's
+        'editor.emailAccountId'() {
+            if (!this.editor.open) return;
+            this.editor.testFolderId = this.defaultTestFolder();
+            this.editor.test = null;
+        }
     },
     methods: {
         t,
@@ -245,16 +287,44 @@ module.exports = {
             this.editor = { open: true, emailRuleId: rule ? rule.emailRuleId : null, ruleName: rule ? rule.ruleName : '',
                 emailAccountId: rule ? (rule.emailAccountId || '') : (this.manageAccounts.length === 1 ? this.manageAccounts[0].emailAccountId : ''),
                 matchAllEnumId: rule ? rule.matchAllEnumId : 'ErmAll', conditions: conditions.length ? conditions : [blankCondition()],
-                actions: actions.length ? actions : [blankAction()], flags, saving: false, error: null };
+                actions: actions.length ? actions : [blankAction()], flags, saving: false, error: null, testFolderId: null, testing: false, test: null, testError: null };
+            this.editor.testFolderId = this.defaultTestFolder();
         },
-        saveRule() {
-            const editor = this.editor;
-            if (!String(editor.ruleName || '').trim()) { editor.error = t('Give the rule a name'); return; }
-            const conditions = editor.conditions.map((condition) => {
+        // the Inbox of the rule's account, else of the first account
+        defaultTestFolder() {
+            const accounts = this.editorAccount ? [this.editorAccount] : this.accounts;
+            for (const account of accounts) { const inbox = account.folderList.find((folder) => folder.kind === 'EfkInbox'); if (inbox) return inbox.value; }
+            return this.testFolderOptions.length ? this.testFolderOptions[0].value : null;
+        },
+        editorConditions() {
+            return this.editor.conditions.map((condition) => {
                 const item = { field: condition.field, operator: condition.field === 'hasAttachment' ? 'is' : condition.operator, value: condition.value };
                 if (condition.field === 'header') item.header = condition.header;
                 return item;
             });
+        },
+        // the conditions as they are now, on the folder's newest mail: the matches listed, nothing done to them
+        testRule() {
+            const editor = this.editor;
+            if (!editor.testFolderId) return;
+            editor.testing = true;
+            editor.testError = null;
+            moqui.request(this.url('testRule'), { method: 'POST', params: { emailRuleId: editor.emailRuleId || '', emailFolderId: editor.testFolderId,
+                conditionsJson: JSON.stringify(this.editorConditions()), matchAllEnumId: editor.matchAllEnumId } }).then((result) => {
+                const json = result.json || {};
+                editor.testing = false;
+                if (json.errors) { editor.test = null; editor.testError = String(json.errors); return; }
+                editor.test = { resultText: json.resultText || '', matchList: json.matchList || [] };
+            }, (err) => {
+                editor.testing = false;
+                editor.test = null;
+                editor.testError = (err && err.json && err.json.errors) || t('The rule could not be tried');
+            });
+        },
+        saveRule() {
+            const editor = this.editor;
+            if (!String(editor.ruleName || '').trim()) { editor.error = t('Give the rule a name'); return; }
+            const conditions = this.editorConditions();
             const actions = editor.actions.map((action) => (action.value ? { action: action.action, value: action.value } : { action: action.action }));
             editor.saving = true;
             editor.error = null;
