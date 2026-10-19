@@ -20,9 +20,10 @@ along with this software (see the LICENSE.md file). If not, see
     party shown), inSplit (in the split's main pane) and recordBase (the screen's link, for the tabs).
 
     The party is found under the user's filters (ironstone.ContactServices.check#ContactAccess): another user's personal
-    contact is "not available". The parts: the header (avatar with upload, name, organization and title, the "Private · in
+    contact is "not available". The parts: the header (avatar, name, organization and title, the "Private · in
     <book>" banner of a personal contact, star), the actions (email, new event, new task, add to a book or group, merge
-    with, export vCard, link to a directory party, delete), and the tabs Overview (names, contact information with purposes
+    with, add, change or remove the photo (create#PartyContent PcntFaceImage, through ironstone.ContactServices
+    upload#ContactAvatar and remove#ContactAvatar), export vCard, link to a directory party, delete), and the tabs Overview (names, contact information with purposes
     and the Expired toggle, addresses, organization and title, relationships, books and groups, notes, an employee's
     directory card), Activity (Chatter, opening on Send message), Calendar, Tasks, Requests, Files (record files) and Consent
     (template/ConsentRecord.xml: the state for anyone who may see the contact; subscribe, unsubscribe and record consent for
@@ -65,9 +66,16 @@ along with this software (see the LICENSE.md file). If not, see
         <service-call name="ironstone.ContactServices.store#ContactNote"/>
         <default-response url="."/>
     </transition>
+    <!-- the photo (the header's avatar): a new one takes the place of the one before; remove leaves the initials -->
     <transition name="contactAvatarUpload">
-        <service-call name="ironstone.ContactServices.upload#ContactAvatar"/>
-        <default-response url="."/>
+        <service-call name="ironstone.ContactServices.upload#ContactAvatar" in-map="{partyId:partyId, contentFile:contentFile}"/>
+        <actions><if condition="!ec.message.hasError()"><message type="success">Photo saved</message></if></actions>
+        <default-response url="."/><error-response url="."/>
+    </transition>
+    <transition name="contactAvatarRemove">
+        <service-call name="ironstone.ContactServices.remove#ContactAvatar" in-map="{partyId:partyId}"/>
+        <actions><if condition="!ec.message.hasError()"><message type="success">Photo removed</message></if></actions>
+        <default-response url="."/><error-response url="."/>
     </transition>
     <transition name="contactFavorite">
         <actions>
@@ -211,6 +219,8 @@ along with this software (see the LICENSE.md file). If not, see
                     chatUrl = chatUserId ? '/qapps/Comms/Chat?dm=' + encodeURIComponent(chatUserId) : null
                     avatarHtml = '<m-avatar name="' + enc(record.name) + '"' + (avatarUrl ? ' image="' + enc(avatarUrl) + '"' : '')
                             + (chatUserId ? ' user-id="' + enc(chatUserId) + '"' : '') + ' size="56px"></m-avatar>'
+                    // the photo dialog's: the photo as it is, larger
+                    photoAvatarHtml = '<m-avatar name="' + enc(record.name) + '"' + (avatarUrl ? ' image="' + enc(avatarUrl) + '"' : '') + ' size="72px"></m-avatar>'
                     const tabs = [['overview', 'Overview'], ['activity', 'Activity'], ['calendar', 'Calendar'], ['tasks', 'Tasks'], ['requests', 'Requests'],
                         ['files', 'Files'], ['consent', 'Consent']]
                     tabsHtml = '<q-tabs dense no-caps inline-label narrow-indicator outside-arrows mobile-arrows align="left" active-color="primary" indicator-color="primary"'
@@ -340,6 +350,24 @@ along with this software (see the LICENSE.md file). If not, see
                                                 parameter-map="{excludePartyId:recordPartyId}"/></drop-down></default-field></field>
                                     <field name="submitButton"><default-field title="Compare"><submit/></default-field></field>
                                 </form-single>
+                            </container-dialog>
+                            <!-- the photo: add, change or remove it (the owner of a personal contact, a contact admin for the directory) -->
+                            <container-dialog id="ContactPhotoDialog" button-text="${record.hasFaceImage ? 'Change photo' : 'Add a photo'}" icon="sym_o_add_a_photo"
+                                    width="480" title="Photo of ${record.name}" condition="canEdit">
+                                <container style="row items-center no-wrap q-col-gutter-md m-contact-photo-row">
+                                    <render-mode><text type="qvt"><![CDATA[<div class="col-auto">${photoAvatarHtml}</div>]]></text></render-mode>
+                                    <container style="col">
+                                        <form-single name="ContactPhotoUpload" transition="contactAvatarUpload">
+                                            <field name="partyId" from="recordPartyId"><default-field><hidden/></default-field></field>
+                                            <field name="contentFile"><default-field title="${record.hasFaceImage ? 'New photo' : 'Photo'}">
+                                                <file accept="image/png,image/jpeg,image/gif,image/webp"/></default-field></field>
+                                            <field name="submitButton"><default-field title="Upload"><submit/></default-field></field>
+                                        </form-single>
+                                        <label type="div" text="PNG, JPEG, GIF or WebP, at most 5 MB." style="text-caption m-muted"/>
+                                        <link url="contactAvatarRemove" link-type="hidden-form-link" text="Remove photo" btn-type="danger" condition="record.hasFaceImage"
+                                                confirmation="Remove the photo of ${record.name}?" parameter-map="{partyId:recordPartyId}"/>
+                                    </container>
+                                </container>
                             </container-dialog>
                             <link url="contactExport" link-type="hidden-form-link" text="Export vCard" icon="sym_o_contact_page" parameter-map="{partyId:recordPartyId, format:'vcard'}"/>
                             <container-dialog id="ContactLinkDialog" button-text="Link to a directory party" icon="sym_o_link" width="560" title="Link to a directory party"
@@ -846,9 +874,7 @@ along with this software (see the LICENSE.md file). If not, see
                                 <render-mode><text type="qvt"><![CDATA[<m-link href="${consentPageUrl}"><q-btn unelevated no-caps dense class="m-btn-tonal" icon="sym_o_history" label="${ec.l10n.localize('History and export in Comms Consent')}"></q-btn></m-link>]]></text></render-mode>
                             </container>
                         </widgets></section>
-                        <!-- include-screen, not section-include: a section-include inside this included section does not find the
-                            sections nested in the one it includes (they are looked up in the including screen) -->
-                        <include-screen location="component://ironstone-boss/template/ConsentRecord.xml" share-scope="true"/>
+                        <section-include name="ConsentRecordSection" location="component://ironstone-boss/template/ConsentRecord.xml"/>
                     </widgets></section>
                 </widgets></section>
             </widgets>

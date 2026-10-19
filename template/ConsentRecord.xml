@@ -52,7 +52,6 @@ along with this software (see the LICENSE.md file). If not, see
         <default-response type="none"/>
     </transition>
 
-    <!-- the section, for an include-screen (the contact record's tab) -->
     <widgets>
         <section name="ConsentRecordSection">
             <actions>

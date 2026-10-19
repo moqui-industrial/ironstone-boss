@@ -3,9 +3,11 @@
 // on the demo links (data/BossConsentDemoData.xml): the route's token check (mantle.party.ConsentServices.check#UnsubscribeToken),
 // the page's state with the token the route gives (the organization, the list, the masked address and the lists, nothing of the
 // party beyond that; an unknown or ended token reads nothing), unsubscribing from this list with a reason and from all marketing
-// email, the lists one by one, Resubscribe, the RFC 8058 one-click POST at /u/<token>/oneClick (again changing nothing, a GET
-// going to the page), and the confirmation an unsubscribe waits for on a list that requires it. The token route itself (the 404
-// page, the public shell) is the framework's: crates/moqui-host/tests/gate3.rs.
+// email, the lists one by one, Resubscribe, the RFC 8058 one-click POST to the page's own URL /u/<token> (the route's
+// post-transition oneClick, which /u/<token>/oneClick of the emails sent before runs too; again changing nothing, a GET of
+// /oneClick going to the page), and the confirmation an unsubscribe waits for on a list that requires it. The token route itself
+// (the 404 page, the public shell, a POST to /u/<token> running its post-transition) is the framework's:
+// crates/moqui-host/tests/gate3.rs; a spec renders the screen, so a POST to /u/<token> is the oneClick transition it runs.
 // Run: ./moq test ironstone-boss --spec Unsubscribe
 const page = "component://ironstone-boss/screen/Unsubscribe.xml"
 const CONSENT = "mantle.party.ConsentServices"
@@ -150,17 +152,28 @@ feature("the lists one by one: one left, the others kept; a list the link does n
     },
 })
 
-feature("the RFC 8058 one-click POST unsubscribes at once with a line of text, again changes nothing; without the field it is refused; a GET goes to the page", {
+feature("the RFC 8058 one-click POST to /u/<token> unsubscribes at once with a line of text, again changes nothing; without the field it is refused; a GET goes to the page", {
     allowMessageErrors: true,
     when() {
+        // the u route runs oneClick for a POST to the page's URL itself, the List-Unsubscribe URL (create#UnsubscribeToken)
+        const conf = String(ec.resource.getLocationText("component://ironstone-boss/MoquiConf.xml") || "")
+        const route = (conf.match(/<token-route\s+name="u"[^>]*>/) || [""])[0]
+        // the link of a new list email (a signed-in send makes it), its List-Unsubscribe the page's URL
+        login("john.doe")
+        let link = null
+        try { link = sys(() => call(`${CONSENT}.create#UnsubscribeToken`, { contactListId: LIST_NEWS, partyId: ALEX, baseUrl: "https://shop.example.com" })) } finally { logout() }
         const first = visit("oneClick", NEWS, { "List-Unsubscribe": "One-Click" }, "post")
         const status = statusOf(LIST_NEWS, ALEX)
         const again = visit("oneClick", NEWS, { "List-Unsubscribe": "One-Click" }, "post")
         const noField = visit("oneClick", NEWS, {}, "post")
         const viewed = visit("oneClick", NEWS, {}, "get")
-        return { first, status, again, noField, viewed, consent: lastListConsent(LIST_NEWS, ALEX) }
+        return { route, link, first, status, again, noField, viewed, consent: lastListConsent(LIST_NEWS, ALEX) }
     },
-    then({ first, status, again, noField, viewed, consent }) {
+    then({ route, link, first, status, again, noField, viewed, consent }) {
+        route.includes('post-transition="oneClick"')
+        route.includes('screen-location="component://ironstone-boss/screen/Unsubscribe.xml"')
+        link.listUnsubscribeHeaders["List-Unsubscribe"] == `<https://shop.example.com/u/${link.token}>`
+        link.oneClickUrl == link.unsubscribeUrl
         first.status == 200
         first.output.includes("You are unsubscribed.")
         status == "CLPT_UNSUBSCRIBED"

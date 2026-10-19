@@ -3,7 +3,7 @@
 // with its tabs; editing a personal contact's information, names, notes, organization and relationships, and a directory party only by
 // a contact admin; the bulk actions (add to group and book, remove from book, export vCard and CSV, merge two, delete); Duplicates with
 // Compare, Merge and Not a duplicate (Mantle's PartyNotDuplicate); New contact opening the record, Link to a directory party,
-// the contact's picture. Privacy (impl R7): Joe Developer's personal contact Sam Secret (the demo's, with the same email and
+// the contact's photo (add, change, remove). Privacy (impl R7): Joe Developer's personal contact Sam Secret (the demo's, with the same email and
 // phone as the demo's duplicate pair Pat and Patricia Quinn) never shows to john.doe through the list (every scope, the search
 // by name, email and phone), the record by id, its transitions, the palette's People source, Compare or Duplicates; john.doe's
 // personal contacts never show to Joe Developer. The demo is data/BossDemoData.xml (M4). Authorization stays on, as for a
@@ -589,29 +589,66 @@ feature("New contact from Contacts (quick create with openAfter) makes a persona
     },
 })
 
-feature("a picture for a contact: an image is its face image, shown as the avatar; another file is refused", {
+feature("a photo for a contact: an image is its face image, shown as the avatar, a new one takes its place and Remove takes it away; another file and another user are refused", {
     when() {
         const png = "\u0089PNG fake image bytes for the spec"
+        const faces = (partyId) => sys(() => Array.from(ec.entity.find("mantle.party.PartyContent").condition("partyId", partyId)
+                .condition("partyContentTypeEnumId", "PcntFaceImage").list()))
+        const avatar = (partyId) => ec.screen.makeTest().rootScreen(commons).render("Contacts/ContactDetail/contactAvatar", { partyId }, null).status
+        const before = detail(MARY).output
         const uploaded = post("Contacts/ContactDetail/contactAvatarUpload", { partyId: ROBIN, contentFile: uploadedFile("robin.png", png, "image/png") })
+        const firstId = (faces(ROBIN)[0] || {}).partyContentId
+        const changed = post("Contacts/ContactDetail/contactAvatarUpload", { partyId: ROBIN, contentFile: uploadedFile("robin-new.jpg", png, "image/jpeg") })
+        const after = faces(ROBIN)
+        // the file is served inline by its name: only an image's name and type
         const refused = post("Contacts/ContactDetail/contactAvatarUpload", { partyId: ROBIN, contentFile: uploadedFile("notes.txt", "text", "text/plain") })
-        const image = ec.screen.makeTest().rootScreen(commons).render("Contacts/ContactDetail/contactAvatar", { partyId: ROBIN }, null)
-        const noImage = ec.screen.makeTest().rootScreen(commons).render("Contacts/ContactDetail/contactAvatar", { partyId: MARY }, null)
-        const hidden = ec.screen.makeTest().rootScreen(commons).render("Contacts/ContactDetail/contactAvatar", { partyId: SAM }, null)
+        const svg = post("Contacts/ContactDetail/contactAvatarUpload", { partyId: ROBIN, contentFile: uploadedFile("robin.svg", "<svg/>", "image/svg+xml") })
+        const page = post("Contacts/ContactDetail/contactAvatarUpload", { partyId: ROBIN, contentFile: uploadedFile("robin.html", png, "image/png") })
+        const imageStatus = avatar(ROBIN), noImageStatus = avatar(MARY), hiddenStatus = avatar(SAM)
         ec.message.clearErrors()
         const shown = detail(ROBIN)
         const row = list({ scope: "mine" }).output
-        return { uploaded, refused, imageStatus: image.status, noImageStatus: noImage.status, hiddenStatus: hidden.status, shown, row,
-            faces: sys(() => Array.from(ec.entity.find("mantle.party.PartyContent").condition("partyId", ROBIN).condition("partyContentTypeEnumId", "PcntFaceImage").list())).length }
+        // Joe Developer: john.doe's personal contact is not found, a directory party is not his to change, and no photo dialog for it
+        const joe = as("joe.developer", () => ({ robin: post("Contacts/ContactDetail/contactAvatarUpload", { partyId: ROBIN, contentFile: uploadedFile("x.png", png, "image/png") }),
+            robinRemove: post("Contacts/ContactDetail/contactAvatarRemove", { partyId: ROBIN }),
+            bob: post("Contacts/ContactDetail/contactAvatarUpload", { partyId: "ORG_ACME_BA", contentFile: uploadedFile("x.png", png, "image/png") }),
+            bobRemove: post("Contacts/ContactDetail/contactAvatarRemove", { partyId: "ORG_ACME_BA" }), bobPage: detail("ORG_ACME_BA").output }))
+        const kept = faces(ROBIN).length
+        const removed = post("Contacts/ContactDetail/contactAvatarRemove", { partyId: ROBIN })
+        return { before, uploaded, firstId, changed, after, refused, svg, page, imageStatus, noImageStatus, hiddenStatus, shown, row, joe, kept, removed,
+            gone: faces(ROBIN).length, goneStatus: avatar(ROBIN), afterRemove: detail(ROBIN).output }
     },
-    then({ uploaded, refused, imageStatus, noImageStatus, hiddenStatus, shown, row, faces }) {
+    then({ before, uploaded, firstId, changed, after, refused, svg, page, imageStatus, noImageStatus, hiddenStatus, shown, row, joe, kept, removed, gone, goneStatus, afterRemove }) {
+        // no photo yet: the More menu offers to add one
+        before.includes('id="ContactPhotoDialog"')
+        before.includes("Add a photo")
         uploaded.errors == ""
+        firstId != null
+        changed.errors == ""
+        after.length == 1
+        after[0].partyContentId != firstId
+        after[0].description == "robin-new.jpg"
         refused.errors.includes("Choose an image file")
-        faces == 1
+        svg.errors.includes("Choose an image file")
+        page.errors.includes("Choose an image file")
         imageStatus == 200
         noImageStatus == 404
         hiddenStatus == 404
         shown.output.includes("contactAvatar?partyId=BOSS_DEMO_PC_ROBIN")
+        shown.output.includes("Change photo")
+        shown.output.includes("contactAvatarRemove")
         row.includes("contactAvatar?partyId=BOSS_DEMO_PC_ROBIN")
+        joe.robin.errors.includes("not found")
+        joe.robinRemove.errors.includes("not found")
+        joe.bob.errors.includes("You may not change contact ORG_ACME_BA")
+        joe.bobRemove.errors.includes("You may not change contact ORG_ACME_BA")
+        !joe.bobPage.includes('id="ContactPhotoDialog"')
+        kept == 1
+        removed.errors == ""
+        gone == 0
+        goneStatus == 404
+        !afterRemove.includes("contactAvatar?partyId=BOSS_DEMO_PC_ROBIN")
+        afterRemove.includes("Add a photo")
     },
 })
 

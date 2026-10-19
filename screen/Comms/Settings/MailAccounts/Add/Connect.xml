@@ -14,8 +14,8 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- Add account step 2, connect (design-drawers-commons.md §17 AccountCredentials): for mail at Google or Microsoft where this
     server is set up for it (ironstone.MailSettingsServices.get#OAuthChoice; mr-moqui docs/Mail-OAuth.md), "Sign in with Google"
-    or "Sign in with Microsoft" first: the SignIn screen's button in a dynamic-container, with the choice of IMAP or POP (POP
-    reads the provider's POP server, and the sign-in asks to allow POP too), whose popup makes the account (paused until
+    or "Sign in with Microsoft" first: the SignIn screen's button in a dynamic-container, with the choice of IMAP or POP when
+    the provider has a POP server here (POP reads it, and the sign-in asks to allow POP too), whose popup makes the account (paused until
     Finish, as with a password) and signs it in, then goes on to Test; where the provider has a sign-in this server is not set
     up for, a line says an administrator can set it up. Then, or else, the password, or the app password the provider asks
     for, with the provider's help and the link where to make one; where the server settings came from, and the settings
@@ -155,7 +155,7 @@ along with this software (see the LICENSE.md file). If not, see
                         <parameter name="oauthProviderEnumId" from="oauthChoice.oauthProviderEnumId"/>
                         <parameter name="providerLabel" from="providerLabel"/>
                         <parameter name="storeKind" from="connect.storeKind"/>
-                        <parameter name="offerPop" value="Y"/>
+                        <parameter name="offerPop" from="oauthChoice.offersPop ? 'Y' : 'N'"/>
                     </dynamic-container>
                     <render-mode><text type="qvt"><![CDATA[<q-separator class="q-my-md"></q-separator>]]></text></render-mode>
                     <label type="p" text="Or use a password or an app password instead:" style="text-subtitle2 q-mb-xs"/>

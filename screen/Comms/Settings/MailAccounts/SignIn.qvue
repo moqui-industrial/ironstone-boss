@@ -16,8 +16,8 @@ along with this software (see the LICENSE.md file). If not, see
     provider's address, and signInStatus while the sign-in runs. In the wizard a new account is made by the framework when
     the sign-in succeeds (its id comes with the outcome, or from signInStatus), and the wizard goes on to its next step with
     it (mWizard); the account page shows the account again with its connection tested. A sign-in as another address asks
-    the user ($q.dialog) and signs in again with their yes; a sign-in that did not finish says why under the button, and a
-    POP account made for it is taken back (dropSignIn). While the window is open Cancel ends the wait (the popup promise's
+    the user ($q.dialog) and signs in again with their yes; a sign-in that did not finish says why under the button (no
+    account was made for it). While the window is open Cancel ends the wait (the popup promise's
     cancel()): a provider's page may cut the window off from this one (Google's does), and then its closing is not seen here.
     In the wizard (offerPop) the user chooses IMAP or POP first: POP reads the Inbox from the provider's POP server, and the
     sign-in asks to allow POP too. -->
@@ -46,7 +46,7 @@ module.exports = {
     inject: { mScreen: { default: null }, mWizard: { default: null } },
     data() {
         const query = this.mScreen ? this.mScreen.parameters : {};
-        return { busy: false, error: null, madeId: null, popup: null, storeKind: query.storeKind === 'pop' ? 'pop' : 'imap' };
+        return { busy: false, error: null, popup: null, storeKind: query.storeKind === 'pop' ? 'pop' : 'imap' };
     },
     computed: {
         query() { return this.mScreen ? this.mScreen.parameters : {}; },
@@ -98,21 +98,19 @@ module.exports = {
             this.popup.then((result) => {
                 this.busy = false;
                 this.popup = null;
-                // a POP account made for this sign-in (a new IMAP account is made only when the sign-in succeeds)
-                const made = started && started.created ? started.emailAccountId : null;
+                // a new account (IMAP or POP) is made only when the sign-in succeeds
                 const id = result.emailAccountId || (started && started.emailAccountId) || accountId || null;
                 if (result.status === 'success') { this.signedIn(id, result, status); return; }
-                if (result.errorCode === 'addressMismatch') { this.askAddress(result, id, made || (accountId ? this.madeId : null)); return; }
-                this.notDone(result, made || (accountId ? this.madeId : null));
+                if (result.errorCode === 'addressMismatch') { this.askAddress(result, id); return; }
+                this.notDone(result);
             });
         },
         // the account the sign-in made or signed in: from its outcome, else asked by its signInId
         signedIn(accountId, result, status) {
             if (!accountId && result.signInId) {
-                status(result.signInId).then((json) => { if (json.emailAccountId) this.signedIn(json.emailAccountId, result, status); else this.notDone(result, null); });
+                status(result.signInId).then((json) => { if (json.emailAccountId) this.signedIn(json.emailAccountId, result, status); else this.notDone(result); });
                 return;
             }
-            this.madeId = null;
             if (result.message) moqui.notifyMessages([{ type: 'success', message: result.message }]);
             if (this.mode === 'wizard' && this.mWizard) {
                 this.mWizard.goTo(this.mWizard.activeIndex + 1, { emailAccountId: accountId, emailAddress: result.emailAddress || undefined });
@@ -123,20 +121,17 @@ module.exports = {
         },
         // signed in as another address than the account's (or the address typed in the wizard): the account takes it only
         // with the user's yes, then a new sign-in (the OK is a click, so its window may open)
-        askAddress(result, accountId, madeId) {
-            this.madeId = madeId;
+        askAddress(result, accountId) {
             this.$q.dialog({ title: t('Another address'), message: fill(t('You signed in as {got}, but the account is {expected}. Make the account {got}?'),
                 { got: result.emailAddress || '', expected: result.expectedAddress || '' }),
                 ok: { label: fill(t('Use {got}'), { got: result.emailAddress || '' }), color: 'primary', unelevated: true, noCaps: true },
                 cancel: { label: t('Cancel'), flat: true, noCaps: true } })
                 .onOk(() => this.signIn(true, accountId))
-                .onCancel(() => this.notDone({ status: 'cancelled', message: fill(t('Sign in as {expected} to connect this account.'), { expected: result.expectedAddress || '' }) }, madeId));
+                .onCancel(() => this.notDone({ status: 'cancelled', message: fill(t('Sign in as {expected} to connect this account.'), { expected: result.expectedAddress || '' }) }));
         },
-        // a sign-in that did not finish: the account made for it goes again, and the reason shows under the button
-        notDone(result, madeId) {
-            this.madeId = null;
+        // a sign-in that did not finish: the reason shows under the button
+        notDone(result) {
             this.error = result.status === 'cancelled' && !result.message ? t('The sign-in was not finished.') : (result.message || t('The sign-in did not work.'));
-            if (madeId) moqui.request(this.url('dropSignIn'), { method: 'POST', params: { emailAccountId: madeId } }).then(() => {}, () => {});
         },
         // the user stops waiting for the window (the popup's cancel() closes it and answers cancelled)
         cancel() { if (this.popup && this.popup.cancel) this.popup.cancel(); }

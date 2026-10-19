@@ -3,14 +3,15 @@
 <moqui-conf xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/moqui-conf-3.xsd">
     <!-- the public page of a file or folder shared by link (design-drawers-commons.md §9 PublicShare; impl R16): /s/<token> in
         the public shell, after the token check; screen/PublicShare.xml checks the token again in every call. The unsubscribe
-        page of a list email (§16 Unsubscribe): /u/<token>, with the RFC 8058 one-click POST at /u/<token>/oneClick;
-        screen/Unsubscribe.xml calls only Mantle's token-checked consent services. -->
+        page of a list email (§16 Unsubscribe): /u/<token>, the List-Unsubscribe URL too: the RFC 8058 one-click POST to it runs
+        the screen's oneClick transition (post-transition, after the token check), as a POST to /u/<token>/oneClick does (the
+        List-Unsubscribe of the emails sent before); screen/Unsubscribe.xml calls only Mantle's token-checked consent services. -->
     <webapp-list>
         <webapp name="webroot">
             <token-route name="s" screen-location="component://ironstone-boss/screen/PublicShare.xml"
                     token-service="org.moqui.impl.FileServices.check#PublicShareToken" title="Shared files"/>
             <token-route name="u" screen-location="component://ironstone-boss/screen/Unsubscribe.xml"
-                    token-service="mantle.party.ConsentServices.check#UnsubscribeToken" title="Email preferences"/>
+                    token-service="mantle.party.ConsentServices.check#UnsubscribeToken" title="Email preferences" post-transition="oneClick"/>
         </webapp>
     </webapp-list>
     <screen-facade>

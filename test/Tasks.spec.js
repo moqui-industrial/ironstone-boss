@@ -384,6 +384,55 @@ feature("the board moves a task's status along the flow and refuses a move the f
     },
 })
 
+feature("the calendar asks for the tasks due on the dates it shows (range-find), so a task past the list's page shows in its range", {
+    when() {
+        // 26 tasks of john.doe's due a day apart from 400 days on: the list's page (25, by due) leaves out the last
+        const start = Number(String(ec.l10n.parseTimestamp(todayText + " 00:00:00.000", "yyyy-MM-dd HH:mm:ss.SSS")))
+        const dayStart = (offset) => Number(String(ec.l10n.parseTimestamp(ec.l10n.format(String(start + offset * 86400000 + 6 * 3600000), "yyyy-MM-dd")
+                + " 00:00:00.000", "yyyy-MM-dd HH:mm:ss.SSS")))
+        const ids = []
+        for (let i = 0; i < 26; i++) ids.push(quickAdd(`BOSS_TEST Range ${String(i + 1).padStart(2, "0")}`,
+            ec.l10n.format(String(dayStart(400 + i) + 6 * 3600000), "yyyy-MM-dd"), "all").id)
+        const last = ids[25]
+        // the form request the calendar asks (the screen's actions, the list's rows as JSON), with the list's find and without
+        const ask = (parameters) => {
+            const str = ec.screen.makeTest().rootScreen(commons).render("Tasks/List/actions/Tasks", Object.assign({ list: "all", text: "BOSS_TEST Range" }, parameters || {}), null)
+            let json = null
+            try { json = JSON.parse(String(str.output || "")) } catch (err) { json = null }
+            ec.message.clearErrors()
+            return { status: str.status, ids: ((json && json.taskRows) || []).map((row) => row.workEffortId) }
+        }
+        const page = ask({})
+        // the month the last one is in, as the calendar asks for it: a day wider each side, thru inclusive, no paging
+        const range = ask({ estimatedCompletionDate_from: String(dayStart(424 - 1)), estimatedCompletionDate_thru: String(dayStart(425 + 2) - 1), pageNoLimit: "true" })
+        // dates with none of them due
+        const empty = ask({ estimatedCompletionDate_from: String(dayStart(10)), estimatedCompletionDate_thru: String(dayStart(20) - 1), pageNoLimit: "true" })
+        // another list's find stays: Done has none of them
+        const done = ask({ list: "done", estimatedCompletionDate_from: String(dayStart(399)), estimatedCompletionDate_thru: String(dayStart(430) - 1), pageNoLimit: "true" })
+        const shown = render("apps/Commons/Tasks", { text: "BOSS_TEST Range" })
+        // taken out of john.doe's open lists again, so the specs after this one see the demo as it was
+        sys(() => ids.forEach((id) => { const row = ec.entity.find("mantle.work.effort.WorkEffort").condition("workEffortId", id).one(); row.statusId = "WeCancelled"; row.update() }))
+        return { ids, last, page, range, empty, done, shown }
+    },
+    then({ ids, last, page, range, empty, done, shown }) {
+        ids.length == 26
+        page.status == 200
+        page.ids.length == 25
+        !page.ids.includes(last)
+        range.status == 200
+        range.ids.includes(last)
+        range.ids.includes(ids[24])
+        range.ids.includes(ids[23])
+        !range.ids.includes(ids[0])
+        empty.ids == []
+        done.ids == []
+        shown.errors == ""
+        shown.output.includes("'rangeFind':true")
+        shown.output.includes("/actions/Tasks")
+        shown.output.includes("'listName':'taskRows'")
+    },
+})
+
 feature("TaskDetail renders the task with its stage chips, the next status as the primary action, the facts, the tabs and Chatter", {
     when() {
         return { overview: render("apps/Commons/Tasks/TaskDetail", { workEffortId: "BOSS_DEMO_TASK_PLAN" }),

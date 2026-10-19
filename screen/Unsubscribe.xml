@@ -24,11 +24,13 @@ along with this software (see the LICENSE.md file). If not, see
     read here. Reading the page changes nothing (state is read only), so a mail scanner that fetches the link unsubscribes
     no one.
 
-    oneClick is the List-Unsubscribe URL of the list emails (create#UnsubscribeToken): the RFC 8058 one-click POST with the
-    form field List-Unsubscribe=One-Click unsubscribes the party from the token's list at once and answers 200 with a line
-    of text, a second POST changes nothing; it needs no session token, as a mail provider's POST has none. A GET of it (a mail
-    program that opens the URL) goes to the page. The token is the capability on every call, so the page's own posts need no
-    session token either. -->
+    oneClick takes the RFC 8058 one-click POST of the list emails: their List-Unsubscribe URL is the page's own, /u/<token>
+    (create#UnsubscribeToken), and the route's post-transition (MoquiConf.xml) runs oneClick for a POST there after the token
+    check; /u/<token>/oneClick, the List-Unsubscribe of the emails sent before, still takes it. The form field
+    List-Unsubscribe=One-Click unsubscribes the party from the token's list at once and answers 200 with a line of text, a
+    second POST changes nothing; it needs no session token, as a mail provider's POST has none. A GET of /u/<token>/oneClick
+    (a mail program that opens the URL) goes to the page. The token is the capability on every call, so the page's own posts
+    need no session token either. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         require-authentication="false" default-menu-include="false" default-menu-title="Email preferences" render-modes="vue,qvue" server-static="vue,qvue">
 
@@ -80,7 +82,8 @@ along with this software (see the LICENSE.md file). If not, see
         <default-response type="none"/>
     </transition>
 
-    <!-- RFC 8058: the one-click POST of a mail provider, List-Unsubscribe=One-Click -->
+    <!-- RFC 8058: the one-click POST of a mail provider, List-Unsubscribe=One-Click, to /u/<token> (the route's post-transition)
+        or /u/<token>/oneClick -->
     <transition name="oneClick" method="post" require-session-token="false">
         <actions><script><![CDATA[
             const field = context.get('List-Unsubscribe') || context.get('listUnsubscribe') || ''

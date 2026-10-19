@@ -190,6 +190,15 @@ feature("rules: the demo's in words with the blocked sender apart; a new rule sa
         tested.json.matchList[0].subject == "Invoice 7 is due"
         tested.json.matchList[0].fromText.includes("billing@vendor.example")
         tested.json.resultText.includes("nothing was done")
+        // each match opens its thread in the Inbox: the folder tried with the thread open
+        tested.json.matchList[0].store == "email"
+        tested.json.matchList[0].emailAccountId == ownId
+        tested.json.matchList[0].emailFolderId == ownInbox
+        // the invoice is its thread's root
+        tested.json.matchList[0].threadId == invoice.emailMessageId
+        tested.json.matchList[0].threadKey == "email:" + invoice.emailMessageId
+        tested.json.matchList[0].inboxUrl == `/qapps/Comms/Inbox?account=${ownId}&folder=${ownInbox}&thread=${encodeURIComponent(tested.json.matchList[0].threadKey)}`
+        qvue.includes("match.inboxUrl")
         testedEdit.json.matchList.map((match) => match.subject) == ["Hello"]
         testedBad.errors.includes("needs a value")
         untouched == ownInbox

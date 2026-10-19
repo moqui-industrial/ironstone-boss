@@ -19,9 +19,10 @@ along with this software (see the LICENSE.md file). If not, see
     user's access (get#EmailAccountAccess, R21): an account the user does not reach is "not found", and only a manager changes
     one. Server passwords and sign-in tokens are never answered: the views say only whether one is stored. An account signs
     in with a password (or an app password, with the provider's help on where to make one) or, where this server is set up
-    for it (mr-moqui docs/Mail-OAuth.md), with Google or Microsoft: get#OAuthChoice says which, start#MailSignIn begins the
-    sign-in of the SignIn screen's popup (a new IMAP account is made by the framework when the sign-in succeeds; POP with the
-    provider's POP scope), drop#UnusedSignIn takes back a POP account made for a sign-in that did not finish. An outgoing server that signs in as another user has its own sign-in
+    for it (mr-moqui docs/Mail-OAuth.md), with Google or Microsoft: get#OAuthChoice says which (and whether the provider has
+    a POP server here), start#MailSignIn begins the sign-in of the SignIn screen's popup (a new account, IMAP or POP on the
+    provider's POP server with its POP scope, is made by the framework only when the sign-in succeeds). An outgoing server
+    that signs in as another user has its own sign-in
     (save#AccountConnection smtpUsername, smtpPassword: tried before it is stored). The account page maps folders through the
     framework's update#EmailFolder; the list shows the user's removed accounts (get#RemovedMailAccounts,
     delete#RemovedMailAccount); the Rules editor tries a rule without acting (test#Rule); the automatic reply has its audience.
@@ -125,8 +126,9 @@ along with this software (see the LICENSE.md file). If not, see
             docs/Mail-OAuth.md): oauthProviderEnumId when given (discover#EmailServer's, or the account server's), else the
             provider org.moqui.impl.EmailClientServices.find#OAuthProvider finds for the address's domain or the incoming
             server's host (no network: no MX lookup); configured as get#OAuthProviders says (a client of this deployment, not
-            disabled); providerLabel names the button (Sign in with Google, with Microsoft). choice is null when no provider
-            has the mail.</description>
+            disabled); providerLabel names the button (Sign in with Google, with Microsoft); offersPop when the provider has a
+            POP server here (its EmailOAuthProvider popHost), so the wizard may offer to read the mail over POP. choice is null
+            when no provider has the mail.</description>
         <in-parameters>
             <parameter name="emailAddress" allow-html="any"/>
             <parameter name="storeHost"/>
@@ -137,19 +139,23 @@ along with this software (see the LICENSE.md file). If not, see
             choice = null
             const LABELS = {EopGoogle: 'Google', EopMicrosoft: 'Microsoft'}
             let id = oauthProviderEnumId || null
+            // each provider with its servers (get#OAuthProviders: IMAP, POP3 and SMTP, no secrets)
+            const providerOf = (providerId) => Array.from(ec.service.sync().name('org.moqui.impl.EmailClientServices.get#OAuthProviders').call()?.providerList || [])
+                    .find((row) => row.oauthProviderEnumId === providerId) || null
             if (!id) {
                 if (!emailAddress && !storeHost) return
                 const found = ec.service.sync().name('org.moqui.impl.EmailClientServices.find#OAuthProvider').parameters({emailAddress: emailAddress || null,
                     storeHost: storeHost || null, lookupMx: false}).call()
                 if (ec.message.hasError() || !found?.oauthProviderEnumId) return
+                const provider = providerOf(found.oauthProviderEnumId)
                 choice = {oauthProviderEnumId: found.oauthProviderEnumId, providerLabel: LABELS[found.oauthProviderEnumId] || found.providerName || found.oauthProviderEnumId,
-                    configured: found.configured === true}
+                    configured: found.configured === true, offersPop: !!provider?.popHost}
                 return
             }
-            const providers = Array.from(ec.service.sync().name('org.moqui.impl.EmailClientServices.get#OAuthProviders').call()?.providerList || [])
-            const provider = providers.find((row) => row.oauthProviderEnumId === id)
+            const provider = providerOf(id)
             if (!provider) return
-            choice = {oauthProviderEnumId: id, providerLabel: LABELS[id] || provider.description || id, configured: provider.configured === true}
+            choice = {oauthProviderEnumId: id, providerLabel: LABELS[id] || provider.description || id, configured: provider.configured === true,
+                offersPop: !!provider.popHost}
         ]]></script></actions>
     </service>
 
@@ -464,11 +470,12 @@ along with this software (see the LICENSE.md file). If not, see
             left empty takes the usual one for its security); the user name defaults to the address. A password is needed
             to make an account with a password, and an empty one keeps the one stored; a password given makes the account
             sign in with it (EatPassword: an account that signed in with a provider is signed out there). With
-            authTypeEnumId EatOAuth2 and oauthProviderEnumId no password is taken: a new account is made for the provider's
-            sign-in to POP (start#MailSignIn; a new account for IMAP is the framework's start#OAuthSignIn's), on the servers
-            given or else the provider's own (its POP server with storeKind pop, so the sign-in asks for the provider's POP
-            scope), and an account there already keeps its servers and its sign-in,
-            which the provider's sign-in sets (storeKind given moves it between the provider's IMAP and POP servers).
+            authTypeEnumId EatOAuth2 and oauthProviderEnumId no password is taken: a new account is made to sign in with the
+            provider later (the wizard's own sign-in makes its account through start#MailSignIn, by the framework, once the
+            sign-in succeeds), on the servers given or else the provider's own (its EmailOAuthProvider row: the IMAP server, or
+            with storeKind pop its POP server, popHost, refused when it has none), and an account there already keeps its
+            servers and its sign-in, which the provider's sign-in sets (storeKind given moves it between the provider's IMAP and
+            POP servers).
 
             The outgoing server's own sign-in (smtpUsername, smtpPassword: a provider whose SMTP takes another user than its
             incoming server) is tried first (test#MailAccount, SMTP only, on the servers just saved) and stored only when the
@@ -542,17 +549,23 @@ along with this software (see the LICENSE.md file). If not, see
             const hostOk = (value) => /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/.test(value)
             let storeName = host(storeHost), smtpName = host(smtpHost)
             let servers = null
-            // the providers' POP servers (their EmailOAuthProvider rows name the IMAP one)
-            const POP_SERVERS = {EopGoogle: ['pop.gmail.com', '995'], EopMicrosoft: ['outlook.office365.com', '995']}
+            // the provider's servers, IMAP and POP3, as its EmailOAuthProvider row names them (read without its secrets)
             const providerRow = () => ec.entity.find('moqui.basic.email.EmailOAuthProvider').condition('oauthProviderEnumId', oauthProviderEnumId)
-                    .selectField('storeHost,storePort,storeProtocol,smtpHost,smtpPort,smtpSsl,smtpStartTls').disableAuthz().one()
-            const providerStore = (row, pop) => pop ? {storeHost: (POP_SERVERS[oauthProviderEnumId] || [row.storeHost])[0],
-                    storePort: (POP_SERVERS[oauthProviderEnumId] || [null, '995'])[1], storeProtocol: 'pop3s'}
+                    .selectField('description,storeHost,storePort,storeProtocol,popHost,popPort,popProtocol,smtpHost,smtpPort,smtpSsl,smtpStartTls')
+                    .disableAuthz().one()
+            const providerStore = (row, pop) => pop ? {storeHost: row.popHost, storePort: row.popPort || '995', storeProtocol: row.popProtocol || 'pop3s'}
                 : {storeHost: row.storeHost, storePort: row.storePort, storeProtocol: row.storeProtocol || 'imaps'}
-            // an account for a provider's sign-in: the servers given, else the provider's own (read without its secrets)
+            const noPop = (row) => {
+                if (row.popHost) return false
+                ec.message.addError(ec.resource.expand('${name} has no POP server set up here: read the mail over IMAP', '',
+                    {name: row.description || oauthProviderEnumId}))
+                return true
+            }
+            // an account for a provider's sign-in: the servers given, else the provider's own
             if (oauth && !existing && !storeName && !smtpName) {
                 const row = providerRow()
                 if (row == null) { ec.message.addError(ec.resource.expand('No sign-in provider ${id}', '', {id: oauthProviderEnumId})); return }
+                if (storeKind === 'pop' && noPop(row)) return
                 servers = Object.assign({smtpHost: row.smtpHost, smtpPort: row.smtpPort, smtpSsl: row.smtpSsl || 'N', smtpStartTls: row.smtpStartTls || 'N',
                     mailUsername: address}, providerStore(row, storeKind === 'pop'))
             } else if (oauth && existing && !storeName && !smtpName) {
@@ -560,7 +573,10 @@ along with this software (see the LICENSE.md file). If not, see
                 const isPop = String(existingServer?.storeProtocol || '').startsWith('pop')
                 if (storeKind && (storeKind === 'pop') !== isPop) {
                     const row = providerRow()
-                    if (row != null) servers = providerStore(row, storeKind === 'pop')
+                    if (row != null) {
+                        if (storeKind === 'pop' && noPop(row)) return
+                        servers = providerStore(row, storeKind === 'pop')
+                    }
                 }
             } else {
                 if (!storeName || !hostOk(storeName)) { invalid('storeHost', 'Enter the incoming server, like imap.example.com'); return }
@@ -636,11 +652,10 @@ along with this software (see the LICENSE.md file). If not, see
             (get#OAuthChoice). From the wizard (setup) with no account yet, the address, name and kind go to start#OAuthSignIn,
             which makes the account only when the sign-in succeeds: paused with the year's sync window until the wizard's
             Finish, as one with a password; its emailAccountId comes with the sign-in's outcome (get#OAuthStatus). storeKind pop
-            (the wizard's choice) reads the Inbox over POP from the provider's POP server, so the account is made first
-            (save#AccountConnection, paused; created says so) for the sign-in to ask for the provider's POP scope too
-            (popScope: Microsoft's POP.AccessAsUser.All; Google's mail scope covers POP), and drop#UnusedSignIn takes it back
-            when the sign-in does not finish. The wizard coming back to an account it made changes it first (its kind, IMAP or
-            POP). From the account page (no setup) the account the user manages signs in again, or for the first time instead
+            (the wizard's choice) makes it read the Inbox over POP: start#OAuthSignIn storeProtocol pop3, on the provider's POP
+            server (popHost; refused when it has none), and the sign-in asks for the provider's POP scope too (popScope:
+            Microsoft's POP.AccessAsUser.All; Google's mail scope covers POP); nothing is made when the sign-in does not
+            finish. The wizard coming back to an account it made changes it first (its kind, IMAP or POP). From the account page (no setup) the account the user manages signs in again, or for the first time instead
             of a password. allowAddressChange is the user's yes to a sign-in as another address (the account takes the
             address). The sign-in itself, its state and its tokens are the framework's: authUrl is for the popup, signInId for
             get#OAuthStatus.</description>
@@ -658,11 +673,9 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="authUrl"/>
             <parameter name="signInId"/>
             <parameter name="emailAccountId"/>
-            <parameter name="created" type="Boolean"/>
         </out-parameters>
         <actions><script><![CDATA[
             const L = (text) => text.length > 255 ? text : ec.l10n.localize(text)
-            created = false
             let address = String(emailAddress || '').trim()
             let providerId = oauthProviderEnumId || null
             let storeHost = null
@@ -683,45 +696,23 @@ along with this software (see the LICENSE.md file). If not, see
             if (!choice.configured) { ec.message.addError(ec.resource.expand('Sign-in with ${name} is not set up on this server: use an app password, or ask an administrator to set it up', '',
                 {name: choice.providerLabel})); return }
             const pop = storeKind === 'pop'
-            // the wizard: an account it made before is changed first; a POP account is made first, so the sign-in asks for POP
-            if (setup && (emailAccountId || pop)) {
-                const saved = ec.service.sync().name('ironstone.MailSettingsServices.save#AccountConnection').parameters({emailAccountId: emailAccountId || null,
+            // the wizard: an account it made before is changed first (its kind, IMAP or POP)
+            if (setup && emailAccountId) {
+                ec.service.sync().name('ironstone.MailSettingsServices.save#AccountConnection').parameters({emailAccountId: emailAccountId,
                     emailAddress: address, displayName: displayName || null, accountKindEnumId: accountKindEnumId, authTypeEnumId: 'EatOAuth2',
                     oauthProviderEnumId: choice.oauthProviderEnumId, storeKind: pop ? 'pop' : (storeKind === 'imap' ? 'imap' : null)}).call()
                 if (ec.message.hasError()) return
-                emailAccountId = saved.emailAccountId || emailAccountId
-                created = saved.created === true
             }
-            // with no account, start#OAuthSignIn makes one once the sign-in succeeds: paused, the year's window, as the wizard's
+            // with no account, start#OAuthSignIn makes one once the sign-in succeeds: paused, the year's window, as the wizard's,
+            // IMAP or POP on the provider's POP server
             const parameters = emailAccountId ? {emailAccountId: emailAccountId} : {emailAddress: address, accountName: address,
                 displayName: String(displayName || '').trim() || null, accountKindEnumId: accountKindEnumId || 'EakExternal', statusId: 'EasPaused',
-                syncWindowDays: 365}
+                syncWindowDays: 365, storeProtocol: pop ? 'pop3' : 'imap'}
             const started = ec.service.sync().name('org.moqui.impl.EmailClientServices.start#OAuthSignIn').parameters(Object.assign(parameters,
                 {oauthProviderEnumId: choice.oauthProviderEnumId, allowAddressChange: allowAddressChange === true})).call()
             if (ec.message.hasError()) return
             authUrl = started.authUrl
             signInId = started.signInId
-        ]]></script></actions>
-    </service>
-
-    <service verb="drop" noun="UnusedSignIn">
-        <description>Take back an account the wizard made for a provider's sign-in to POP (start#MailSignIn: a POP account is
-            made before its sign-in) when the sign-in did not finish (closed, refused, another address the user did not want):
-            only an account the user manages that has never synced, is still paused for its setup, signs in with a provider and
-            has no sign-in stored (get#OAuthStatus); any other is kept, and dropped is false.</description>
-        <in-parameters><parameter name="emailAccountId" required="true"/></in-parameters>
-        <out-parameters><parameter name="dropped" type="Boolean"/></out-parameters>
-        <actions><script><![CDATA[
-            dropped = false
-            const access = ec.service.sync().name('org.moqui.impl.EmailClientServices.get#EmailAccountAccess').parameter('emailAccountId', emailAccountId).call()
-            if (ec.message.hasError()) return
-            if (!(access?.level >= 3) || access.account?.isInternal) { ec.message.addError(ec.resource.expand('Email account ${id} not found', '', {id: emailAccountId})); return }
-            const account = access.account
-            if (account.statusId !== 'EasPaused' || account.lastSyncDate != null || !account.emailServerId) return
-            const status = ec.service.sync().name('org.moqui.impl.EmailClientServices.get#OAuthStatus').parameter('emailAccountId', emailAccountId).call()
-            if (ec.message.hasError() || status?.authTypeEnumId !== 'EatOAuth2' || status.signedIn) return
-            ec.service.sync().name('org.moqui.impl.EmailClientServices.delete#EmailAccount').parameters({emailAccountId: emailAccountId, deleteLocalCopies: true}).call()
-            if (!ec.message.hasError()) dropped = true
         ]]></script></actions>
     </service>
 
@@ -1382,7 +1373,9 @@ along with this software (see the LICENSE.md file). If not, see
             is a saved rule, which must be one the user may change) tried on the newest limit messages of a folder
             (emailFolderId, else the Inbox of emailAccountId) without acting on them (org.moqui.impl.EmailClientServices
             test#EmailRule: no action runs, the rule's count stays). matchList: each message it matches with its subject,
-            sender and date in the user's words, newest first; resultText counts them.</description>
+            sender and date in the user's words, newest first, and what opens its thread in the Inbox as the framework answers
+            it (store, threadId, rootEmailMessageId, emailAccountId, emailFolderId): threadKey (email:threadId, the Inbox's
+            thread parameter) and inboxUrl (the folder with the thread open); resultText counts them.</description>
         <in-parameters>
             <parameter name="emailRuleId"/>
             <parameter name="emailAccountId"/>
@@ -1411,9 +1404,20 @@ along with this software (see the LICENSE.md file). If not, see
                 const millis = typeof value === 'number' ? value : (Number.isNaN(Number(value)) ? new Date(String(value)).getTime() : Number(value))
                 return fmt(millis, 'yyyy-MM-dd') === fmt(nowMillis, 'yyyy-MM-dd') ? fmt(millis, 'h:mm a') : fmt(millis, 'MMM d, yyyy')
             }
-            matchList = Array.from(out?.matchList || []).map((found) => ({emailMessageId: found.emailMessageId, subject: found.subject || L('(no subject)'),
-                fromText: found.fromName ? (found.fromName + (found.fromAddress ? ' <' + found.fromAddress + '>' : '')) : (found.fromAddress || ''),
-                dateText: dateText(found.messageDate), snippet: found.snippet || ''}))
+            matchList = Array.from(out?.matchList || []).map((found) => {
+                const store = found.store || 'email'
+                const threadId = found.threadId || found.rootEmailMessageId || found.emailMessageId
+                const threadKey = threadId ? store + ':' + threadId : null
+                // the Inbox (Mail.qvue) with the tested folder shown and the thread open in the reading pane
+                const query = {account: found.emailAccountId || null, folder: found.emailFolderId || null, thread: threadKey}
+                const inboxUrl = threadKey ? '/qapps/Comms/Inbox?' + Object.keys(query).filter((key) => query[key])
+                        .map((key) => key + '=' + encodeURIComponent(query[key])).join('&') : null
+                return {emailMessageId: found.emailMessageId, subject: found.subject || L('(no subject)'),
+                    fromText: found.fromName ? (found.fromName + (found.fromAddress ? ' <' + found.fromAddress + '>' : '')) : (found.fromAddress || ''),
+                    dateText: dateText(found.messageDate), snippet: found.snippet || '', store: store, threadId: threadId || null,
+                    rootEmailMessageId: found.rootEmailMessageId || null, emailAccountId: found.emailAccountId || null, emailFolderId: found.emailFolderId || null,
+                    threadKey: threadKey, inboxUrl: inboxUrl}
+            })
             matchedCount = out?.matchedCount || matchList.length
             testedCount = out?.testedCount || 0
             resultText = matchedCount === 0 ? ec.resource.expand('None of the newest ${tested} messages match', '', {tested: testedCount})

@@ -31,6 +31,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition-include name="contactRelationshipAdd" location="component://ironstone-boss/template/ContactRecord.xml"/>
     <transition-include name="contactNote" location="component://ironstone-boss/template/ContactRecord.xml"/>
     <transition-include name="contactAvatarUpload" location="component://ironstone-boss/template/ContactRecord.xml"/>
+    <transition-include name="contactAvatarRemove" location="component://ironstone-boss/template/ContactRecord.xml"/>
     <transition-include name="contactFavorite" location="component://ironstone-boss/template/ContactRecord.xml"/>
     <transition-include name="contactBooks" location="component://ironstone-boss/template/ContactRecord.xml"/>
     <transition-include name="contactLink" location="component://ironstone-boss/template/ContactRecord.xml"/>

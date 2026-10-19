@@ -15,7 +15,8 @@ along with this software (see the LICENSE.md file). If not, see
     JSON transitions: the user's rules in order (drag a rule, or its up and down buttons; reorderRules), each in words with
     its account and matches, on or off; the editor (a dialog: name, the account or all accounts, all or any of the
     conditions, the conditions and actions as rows, and Test: the conditions as they are now tried on the newest 50 messages
-    of a folder, testRule, listing what they match with nothing done to it); Run now over a folder (all the rules, or one);
+    of a folder, testRule, listing what they match with nothing done to it, each a link to its thread in the Inbox in a new
+    tab, so the rule being edited stays); Run now over a folder (all the rules, or one);
     the blocked senders with Unblock and Block an address. Brand color names and Quasar classes only (style-guide §4.8, §5). -->
 <template><div class="m-mail-rules">
     <div class="row items-center q-mb-xs">
@@ -138,12 +139,17 @@ along with this software (see the LICENSE.md file). If not, see
         <div v-if="editor.test" class="q-mt-sm m-mail-rule-test">
             <div class="text-body2">{{editor.test.resultText}}</div>
             <q-list v-if="editor.test.matchList.length" dense separator class="q-mt-xs">
-                <q-item v-for="match in editor.test.matchList" :key="match.emailMessageId" class="q-px-none">
+                <!-- each match opens its thread in the Inbox, in a new tab so the rule being edited stays -->
+                <q-item v-for="match in editor.test.matchList" :key="match.emailMessageId" class="q-px-none" :clickable="!!match.inboxUrl"
+                        :tag="match.inboxUrl ? 'a' : 'div'" :href="match.inboxUrl || undefined" :target="match.inboxUrl ? '_blank' : undefined"
+                        :rel="match.inboxUrl ? 'noopener' : undefined" :data-thread="match.threadKey || undefined">
                     <q-item-section>
                         <q-item-label class="ellipsis">{{match.subject}}</q-item-label>
                         <q-item-label caption class="ellipsis">{{match.fromText}}</q-item-label>
                     </q-item-section>
                     <q-item-section side top class="text-caption m-muted">{{match.dateText}}</q-item-section>
+                    <q-item-section v-if="match.inboxUrl" side><q-icon name="sym_o_open_in_new" size="xs" :aria-label="t('Open in the Inbox')"></q-icon>
+                        <q-tooltip>{{t('Open in the Inbox')}}</q-tooltip></q-item-section>
                 </q-item>
             </q-list>
         </div>

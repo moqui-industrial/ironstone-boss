@@ -19,7 +19,8 @@ along with this software (see the LICENSE.md file). If not, see
     due; Enter adds and stays, the cursor back in the name); the done check is the first column of each row; the due date and
     the priority are edited in place; the row actions are open (the name), done and add to Today; the bulk actions on the
     selected rows are complete, reassign, set due, set priority and move to project. The views (style-guide §3.6, §3.7, §8.2:
-    the form-list's views, over the rows of the page, so the chips and TaskFind narrow them too) are the list, the board by
+    the form-list's views, over the rows of the page, so the chips and TaskFind narrow them too; the calendar asks for the
+    tasks due on the dates it shows, range-find, so a task past the list's page shows too) are the list, the board by
     status (In Planning, In Progress, On Hold and Complete, and any other status a row has, in the flow's order; a card dragged
     to another column moves the task through set#TaskStatus, the rules of the done check and TaskDetail's status-bar, and a
     move the flow has not goes back with its message) and the calendar by due date (a task a whole day on its due day; a drag
@@ -198,9 +199,16 @@ along with this software (see the LICENSE.md file). If not, see
                 if (param('due_from')) dueFrom = ec.l10n.parseTimestamp(param('due_from').substring(0, 10) + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS')
                 if (param('due_thru')) dueThru = new Date(Number(String(ec.l10n.parseTimestamp(param('due_thru').substring(0, 10) + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS'))) + 86400000)
             }
+            // the calendar's dates (view-calendar range-find): its form request (actions/Tasks) asks for the list's find with the tasks
+            // due from and thru (epoch millis, thru inclusive) added and no paging, so it shows every task of the dates it shows
+            const millisOf = (text) => text == null ? null : (/^-?\d+$/.test(text) ? Number(text) : (Number.isNaN(Date.parse(text)) ? null : Date.parse(text)))
+            const rangeFrom = millisOf(param('estimatedCompletionDate_from'))
+            const rangeThru = millisOf(param('estimatedCompletionDate_thru'))
+            if (rangeFrom != null && (dueFrom == null || rangeFrom > Number(String(dueFrom)))) dueFrom = new Date(rangeFrom)
+            if (rangeThru != null && (dueThru == null || rangeThru + 1 < Number(String(dueThru)))) dueThru = new Date(rangeThru + 1)
             const out = ec.service.sync().name('ironstone.TaskServices.find#TaskRows').parameters({list: list, text: text || null, statusId: statusId || null,
                 purposeEnumId: purposeEnumId || null, dueFrom: dueFrom, dueThru: dueThru, rootWorkEffortId: rootWorkEffortId || null, recordId: recordId || null,
-                orderByField: orderByField || null, pageIndex: Number(pageIndex || 0) || 0, pageSize: 25}).call() || {}
+                orderByField: orderByField || null, pageIndex: Number(pageIndex || 0) || 0, pageSize: 25, pageNoLimit: param('pageNoLimit') === 'true'}).call() || {}
             taskRows = Array.from(out.rowList || [])
             taskRowsCount = out.rowCount || 0
             taskRowsPageIndex = out.pageIndex || 0
@@ -414,7 +422,7 @@ along with this software (see the LICENSE.md file). If not, see
                 <view-board group-field="statusId" card-title-field="workEffortName" card-fields="estimatedCompletionDate,assigneeText" badge-field="priority"
                         column-order="${boardColumnOrder}" key-fields="workEffortId" transition="moveTaskStatus" parameter-name="toStatusId"/>
                 <view-calendar start-field="estimatedCompletionDate" all-day-field="dueAllDay" color-field="statusId" key-fields="workEffortId"
-                        transition="moveTaskDue" create-transition="calendarAdd"/>
+                        transition="moveTaskDue" create-transition="calendarAdd" range-find="true"/>
             </form-list>
             <section name="NoTasks" condition="!taskRows.length"><widgets>
                 <container style="q-pa-sm">

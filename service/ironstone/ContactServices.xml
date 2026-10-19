@@ -852,21 +852,60 @@ along with this software (see the LICENSE.md file). If not, see
     </service>
 
     <service verb="upload" noun="ContactAvatar">
-        <description>The face image of a contact the user may change (mantle.party.PartyServices.create#PartyContent with
-            PcntFaceImage); an image file only.</description>
+        <description>The photo of a contact the user may change (check#ContactAccess need edit: the owner of a personal contact,
+            a contact admin for the directory; impl R7): a PNG, JPEG, GIF or WebP file of at most 5 MB, stored by
+            mantle.party.PartyServices.create#PartyContent as PcntFaceImage. It takes the place of the photo before, whose rows
+            and files are removed (remove#ContactAvatar keepPartyContentId), as Settings/Account's own photo does.</description>
         <in-parameters>
             <parameter name="partyId" required="true"/>
             <parameter name="contentFile" type="org.apache.commons.fileupload2.core.FileItem" required="true"/>
         </in-parameters>
         <out-parameters><parameter name="partyContentId"/></out-parameters>
         <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
             ec.service.sync().name('ironstone.ContactServices.check#ContactAccess').parameters({partyId: partyId, need: 'edit'}).call()
             if (ec.message.hasError()) return
-            const name = String(contentFile.getName ? contentFile.getName() : contentFile.name || '')
+            const name = String(contentFile.getName ? contentFile.getName() : contentFile.name || '').replace(/^.*[\/\\]/, '')
             const type = String(contentFile.contentType || contentFile.getContentType?.() || '')
-            if (!/^image\//.test(type) && !/\.(png|jpe?g|gif|webp)$/i.test(name)) { ec.message.addError(ec.l10n.localize('Choose an image file')); return }
+            // the file is served inline by its name's type, so the name is an image's, and the type sent, when there is one, too
+            if (!/\.(png|jpe?g|gif|webp)$/i.test(name) || (type && !/^image\/(png|jpe?g|pjpeg|gif|webp)$/i.test(type))) {
+                ec.message.addError(L('Choose an image file: PNG, JPEG, GIF or WebP')); return }
+            if (Number(contentFile.size ?? contentFile.getSize?.() ?? 0) > 5 * 1024 * 1024) { ec.message.addError(L('The photo may be at most 5 MB')); return }
             partyContentId = ec.service.sync().name('mantle.party.PartyServices.create#PartyContent').parameters({partyId: partyId,
                 partyContentTypeEnumId: 'PcntFaceImage', contentFile: contentFile, contentDate: ec.user.nowTimestamp, description: name}).call()?.partyContentId
+            if (ec.message.hasError() || !partyContentId) return
+            ec.service.sync().name('ironstone.ContactServices.remove#ContactAvatar').parameters({partyId: partyId, keepPartyContentId: partyContentId}).call()
+        ]]></script></actions>
+    </service>
+    <service verb="remove" noun="ContactAvatar">
+        <description>Removes the photo of a contact the user may change (check#ContactAccess need edit): its PcntFaceImage
+            PartyContent rows and their files under the party's content folder (a file that cannot be deleted is logged; its
+            row is gone), but keepPartyContentId (the photo just uploaded). The initials show in its place.</description>
+        <in-parameters>
+            <parameter name="partyId" required="true"/>
+            <parameter name="keepPartyContentId"/>
+        </in-parameters>
+        <out-parameters><parameter name="removedCount" type="Integer"/></out-parameters>
+        <actions><script><![CDATA[
+            removedCount = 0
+            ec.service.sync().name('ironstone.ContactServices.check#ContactAccess').parameters({partyId: partyId, need: 'edit'}).call()
+            if (ec.message.hasError()) return
+            const folder = `/party/${partyId}/content_`
+            for (const content of ec.entity.find('mantle.party.PartyContent').condition('partyId', partyId)
+                    .condition('partyContentTypeEnumId', 'PcntFaceImage').list()) {
+                if (keepPartyContentId && content.partyContentId === keepPartyContentId) continue
+                const location = content.contentLocation ? String(content.contentLocation) : null
+                ec.service.sync().name('delete#mantle.party.PartyContent').parameter('partyContentId', content.partyContentId).call()
+                if (ec.message.hasError()) return
+                removedCount++
+                if (!location || !location.includes(folder + content.partyContentId + '/')) continue
+                try {
+                    const ref = ec.resource.getLocationReference(location)
+                    if (ref && ref.getExists()) ref.delete()
+                } catch (err) {
+                    ec.logger.warn(`The photo of party ${partyId}: the row of ${location} is removed, the file was not: ${err}`)
+                }
+            }
         ]]></script></actions>
     </service>
     <service verb="get" noun="ContactAvatar" allow-remote="false">
