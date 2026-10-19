@@ -119,6 +119,16 @@ Each finding was verified in the code. Each resolution is now part of the design
 | M10 Chat and presence | mr-moqui, Mantle, BOSS | Chat, ChatPanel, ChatSettings | done Oct 19 |
 | M11 Consent and unsubscribe | mr-moqui, Mantle, BOSS | Consent, Unsubscribe | done Oct 19 (the List-Unsubscribe headers on the wire wait for the framework) |
 
+**Inventories.** The **Implemented in** columns of `ss-inventory.md` and `usl-inventory.md` are filled as of Oct 19 for
+M0–M11 (each file's notes give the rules): 100 of the 101 SimpleScreens forms designed here and the 5 `—` ones, and
+148 Mantle services, 99 of them new in Mantle and listed in **Added** tables. Still blank: wiki `ClonePage` (page
+clone is not built); the designed services no built screen calls, either reached only inside Mantle
+(`save#*ContentFile`, `find#PartyCommunicationEvents`, `create#Person`, `create#Organization`, `create#EmailAddress`,
+`create#TelecomNumber`) or replaced (`search#Party` by `find#Party`, `add#TaskComment` and `add#WikiPageComment` by
+Chatter's `log#RecordNote`, `remove#WorkEffortParty` by `remove#EventAttendee`) or not used (`update#RequestComment`
+and `delete#RequestComment`, as Chatter does not edit an entry, and `find#PartyHasDuplicates`); the Calls screens
+(`later`); and the other apps' rows.
+
 ### M0 — Foundations (mr-moqui, BOSS)
 
 - Screen failure tolerance (Remaining-Work, gallery findings F4 and F28). A screen with a parse or script error is

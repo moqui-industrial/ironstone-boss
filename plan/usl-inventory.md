@@ -6,6 +6,8 @@ Per-service inventory of the mr-mantle-usl component, for tracking service-level
 - Service: every `<service>` element in the service definition XML files under `service/mantle/` (including `GeneralServices.xml`).
 - Test services (`PaymentTestServices.xml`, `OrderTestServices.xml`), service ECAs (`*.secas.xml`), and the REST API definition (`mantle.rest.xml`) are excluded.
 - The **Designed in** column is filled when a design file is reviewed with the IronStone screen path(s) whose form summaries call the service (blank when no screen calls it); the **Implemented in** column is filled during implementation with the screens that call it. See [design-doc-guide.md](design-doc-guide.md) §9.
+- **Implemented in** was filled on Oct 19, 2026 from the drawers-commons build (the Commons, Comms, `Shared`, `PublicShare` and `Unsubscribe` screens): each screen whose transitions, actions or forms call the service, directly or through the `ironstone.*` services of `service/ironstone/` (followed from one to the next, but not into Mantle's own calls, so `save#*ContentFile`, which `create#*Content` calls, stays blank). A screen that includes a `template/` record (ContactRecord, ConsentRecord) has that record's calls, so the contact record's are on both `Commons/Contacts/ContactDetail` and `Commons/Contacts/List`; a `.qvue` screen goes by its `.xml` path; a service the shell calls through a BOSS theme value names the value, and `Unsubscribe` includes its token route's check. The other apps' screens from the first port (Sales/Reports, Projects/Timesheets) are not counted.
+- **Added** tables, at the end of Party, Request and Work and as the Marketing section: the services Mantle gained during that build that a built screen calls (99 of the 138 new ones; the rest are not listed yet). Their **Designed in** is blank until design-drawers-commons, which names most of them in its form summaries and §19, is reviewed again.
 
 ## Account (162 services)
 
@@ -82,7 +84,7 @@ Per-service inventory of the mr-mantle-usl component, for tracking service-level
 | InvoiceServices | send#SalesInvoicePastDueEmails |  |  |
 | InvoiceServices | send#CustomerPastDueEmail |  |  |
 | InvoiceServices | get#InvoiceContentLocation |  |  |
-| InvoiceServices | create#InvoiceContent | Shared/RecordFiles |  |
+| InvoiceServices | create#InvoiceContent | Shared/RecordFiles | Shared/RecordFiles |
 | InvoiceServices | update#InvoiceContent |  |  |
 | InvoiceServices | save#InvoiceContentFile | Shared/RecordFiles |  |
 | NachaServices | generate#NachaFile |  |  |
@@ -104,7 +106,7 @@ Per-service inventory of the mr-mantle-usl component, for tracking service-level
 | PaymentMethodServices | update#BankAccount |  |  |
 | PaymentMethodServices | update#BankAccountMutable |  |  |
 | PaymentMethodServices | get#PaymentMethodContentLocation |  |  |
-| PaymentMethodServices | create#PaymentMethodContent | Shared/RecordFiles |  |
+| PaymentMethodServices | create#PaymentMethodContent | Shared/RecordFiles | Shared/RecordFiles |
 | PaymentMethodServices | update#PaymentMethodContent |  |  |
 | PaymentMethodServices | save#PaymentMethodContentFile | Shared/RecordFiles |  |
 | PaymentMethodServices | update#PaymentMethodFileComplete |  |  |
@@ -153,7 +155,7 @@ Per-service inventory of the mr-mantle-usl component, for tracking service-level
 | PaymentServices | get#SinglePaymentGatewayDetails |  |  |
 | PaymentServices | poll#PaymentGatewayDetails |  |  |
 | PaymentServices | get#PaymentContentLocation |  |  |
-| PaymentServices | create#PaymentContent | Shared/RecordFiles |  |
+| PaymentServices | create#PaymentContent | Shared/RecordFiles | Shared/RecordFiles |
 | PaymentServices | update#PaymentContent |  |  |
 | PaymentServices | save#PaymentContentFile | Shared/RecordFiles |  |
 | PositivePayServices | generate#PositivePayFile |  |  |
@@ -323,6 +325,24 @@ Per-service inventory of the mr-mantle-usl component, for tracking service-level
 | PaymentAutoPostServices | revert#PaymentApplicationPost |  |  |
 | PaymentAutoPostServices | repost#PaymentAndApplications |  |  |
 
+## Marketing (11 services, all added)
+
+Added in the drawers-commons build (Oct 18–19, 2026), called by built screens:
+
+| Service XML | Service | Designed in | Implemented in |
+| --- | --- | --- | --- |
+| ContactListServices | get#ContactListAccess |  | Comms/Inbox/Compose; Comms/Inbox/Mail |
+| ContactListServices | create#ContactList |  | Comms/Inbox/Mail |
+| ContactListServices | update#ContactList |  | Comms/Inbox/Mail |
+| ContactListServices | find#ContactLists |  | Comms; Comms/Inbox/Compose; Comms/Inbox/Mail |
+| ContactListServices | find#ContactListParties |  | Comms/Inbox/Mail |
+| ContactListServices | join#ContactList |  | Comms/Inbox/Mail |
+| ContactListServices | leave#ContactList |  | Comms/Inbox/Mail |
+| ContactListServices | add#ContactListParty |  | Comms/Inbox/Mail |
+| ContactListServices | remove#ContactListParty |  | Comms/Inbox/Mail |
+| ContactListServices | decline#ContactListParty |  | Comms/Inbox/Mail |
+| ContactListServices | set#ContactListPartyDelivery |  | Comms/Inbox/Mail |
+
 ## Order (89 services)
 
 | Service XML | Service | Designed in | Implemented in |
@@ -386,7 +406,7 @@ Per-service inventory of the mr-mantle-usl component, for tracking service-level
 | OrderServices | update#OrderHeaderTotal |  |  |
 | OrderServices | update#OrderPartTotal |  |  |
 | OrderServices | increment#OrderRevision |  |  |
-| OrderServices | create#OrderContent | Shared/RecordFiles |  |
+| OrderServices | create#OrderContent | Shared/RecordFiles | Shared/RecordFiles |
 | OrderServices | update#OrderContent |  |  |
 | OrderServices | save#OrderContentFile | Shared/RecordFiles |  |
 | OrderServices | create#PurchaseRequestOrder |  |  |
@@ -444,25 +464,25 @@ Per-service inventory of the mr-mantle-usl component, for tracking service-level
 | TaxServices | get#RecipientTaxInfo |  |  |
 | TaxServices | get#PayerTaxInfo |  |  |
 
-## Party (86 services)
+## Party (86 services, 57 added)
 
 | Service XML | Service | Designed in | Implemented in |
 | --- | --- | --- | --- |
-| AgreementServices | create#AgreementContent | Shared/RecordFiles |  |
+| AgreementServices | create#AgreementContent | Shared/RecordFiles | Shared/RecordFiles |
 | AgreementServices | update#AgreementContent |  |  |
 | AgreementServices | save#AgreementContentFile | Shared/RecordFiles |  |
 | CommunicationServices | find#PartyCommunicationEvents | Shared/Chatter |  |
-| CommunicationServices | create#Message | Commons/QuickCreate; Commons/Files; Comms/Inbox/Compose; Shared/Chatter |  |
-| CommunicationServices | reply#CommunicationEvent | Comms/Inbox/Compose; Shared/Chatter |  |
+| CommunicationServices | create#Message | Commons/QuickCreate; Commons/Files; Comms/Inbox/Compose; Shared/Chatter | Comms/Inbox/Compose; Shared/Chatter |
+| CommunicationServices | reply#CommunicationEvent | Comms/Inbox/Compose; Shared/Chatter | Comms/Inbox/Compose; Shared/Chatter |
 | CommunicationServices | add#WikiPageComment | Commons/Knowledge; Commons/Knowledge/Review |  |
 | CommunicationServices | get#CommunicationEventContentLocation |  |  |
-| CommunicationServices | create#CommunicationEventContent | Shared/RecordFiles |  |
+| CommunicationServices | create#CommunicationEventContent | Shared/RecordFiles | Shared/RecordFiles |
 | CommunicationServices | update#CommunicationEventContent |  |  |
 | CommunicationServices | save#CommunicationEventContentFile | Shared/RecordFiles |  |
-| ContactServices | get#PartyContactInfo | Commons/Contacts/ContactDetail; Comms/Inbox |  |
+| ContactServices | get#PartyContactInfo | Commons/Contacts/ContactDetail; Comms/Inbox | Commons/Settings/Account; Comms/Inbox/Mail |
 | ContactServices | get#PartyContactInfoList |  |  |
 | ContactServices | get#PartyDefaultBilling |  |  |
-| ContactServices | store#PartyContactInfo | Commons/Contacts/ContactDetail; Commons/Settings/Account |  |
+| ContactServices | store#PartyContactInfo | Commons/Contacts/ContactDetail; Commons/Settings/Account | Commons/Contacts/ContactDetail; Commons/Contacts/List; Commons/Settings/Account |
 | ContactServices | create#PostalAddress |  |  |
 | ContactServices | update#PartyPostalAddress |  |  |
 | ContactServices | get#PostalAddressGeoIdSet |  |  |
@@ -472,33 +492,33 @@ Per-service inventory of the mr-mantle-usl component, for tracking service-level
 | ContactServices | update#PartyTelecomNumber |  |  |
 | ContactServices | findOrCreate#PartyTelecomNumber |  |  |
 | ContactServices | create#EmailAddress | Commons/QuickCreate |  |
-| ContactServices | get#PrimaryEmailAddress |  |  |
+| ContactServices | get#PrimaryEmailAddress |  | Commons/Settings/Account; Comms/Inbox/Compose |
 | ContactServices | findOrCreate#PartyEmailAddress |  |  |
 | ContactServices | create#WebAddress |  |  |
 | ContactServices | create#ContactMechOther |  |  |
 | ContactServices | update#PartyContactOther |  |  |
 | ContactServices | update#ContactMechMutable |  |  |
-| ContactServices | store#PartyContactMech | Commons/Contacts/ContactDetail; Comms/Consent |  |
-| ContactServices | delete#PartyContactMech | Commons/Contacts/ContactDetail |  |
+| ContactServices | store#PartyContactMech | Commons/Contacts/ContactDetail; Comms/Consent | Commons/Contacts/ContactDetail; Commons/Contacts/List |
+| ContactServices | delete#PartyContactMech | Commons/Contacts/ContactDetail | Commons/Contacts/ContactDetail; Commons/Contacts/List |
 | ContactServices | undelete#PartyContactMech |  |  |
 | DuplicateServices | find#PartyHasDuplicates | Commons/Contacts/Duplicates |  |
-| DuplicateServices | find#PartyDuplicates | Commons/Contacts/Duplicates |  |
+| DuplicateServices | find#PartyDuplicates | Commons/Contacts/Duplicates | Commons/Contacts/Duplicates |
 | DuplicateServices | find#TelecomNumbers |  |  |
 | DuplicateServices | find#PostalAddresses |  |  |
-| DuplicateServices | check#AllPartyDuplicates | Commons/Contacts/Duplicates |  |
+| DuplicateServices | check#AllPartyDuplicates | Commons/Contacts/Duplicates | Commons/Contacts/Duplicates |
 | DuplicateServices | merge#AllDuplicateParties |  |  |
-| DuplicateServices | merge#Parties | Commons/Contacts; Commons/Contacts/Duplicates |  |
+| DuplicateServices | merge#Parties | Commons/Contacts; Commons/Contacts/Duplicates | Commons/Contacts/Compare |
 | GooglePartyServices | get#MapsGeoCodeResults |  |  |
 | GooglePartyServices | get#MapsPlaceSearchText |  |  |
 | GooglePartyServices | get#MapsPlaceDetails |  |  |
-| PartyServices | find#Party | Commons/Contacts |  |
+| PartyServices | find#Party | Commons/Contacts | Commons; Commons/Contacts/ContactDetail; Commons/Contacts/List; Comms/Consent/List |
 | PartyServices | search#Party | Commons/Contacts; Comms/Panel/Chat; Comms/Inbox |  |
-| PartyServices | search#Person |  |  |
+| PartyServices | search#Person |  | Commons/Calendar; Commons/Calendar/EventDetail; Commons/QuickCreate |
 | PartyServices | get#UserNoticeCounts |  |  |
-| PartyServices | setup#UserOrganizationInfo | Commons; Comms |  |
+| PartyServices | setup#UserOrganizationInfo | Commons; Comms | Commons; Comms |
 | PartyServices | get#PartyOrganizationInfo |  |  |
 | PartyServices | create#Account |  |  |
-| PartyServices | update#Account |  |  |
+| PartyServices | update#Account |  | Commons/Settings/Account |
 | PartyServices | create#UserAccountPerson |  |  |
 | PartyServices | create#PartyUserAccount |  |  |
 | PartyServices | update#PartyUserAccount |  |  |
@@ -506,7 +526,7 @@ Per-service inventory of the mr-mantle-usl component, for tracking service-level
 | PartyServices | create#PersonCustomer |  |  |
 | PartyServices | create#PersonEmployee |  |  |
 | PartyServices | create#Organization | Commons/QuickCreate |  |
-| PartyServices | update#PartyDetail | Commons/Contacts/ContactDetail |  |
+| PartyServices | update#PartyDetail | Commons/Contacts/ContactDetail | Commons/Contacts/Compare; Commons/Contacts/ContactDetail; Commons/Contacts/List |
 | PartyServices | convert#PartyToOrganization |  |  |
 | PartyServices | convert#PartyToPerson |  |  |
 | PartyServices | ensure#PartyRole |  |  |
@@ -516,7 +536,7 @@ Per-service inventory of the mr-mantle-usl component, for tracking service-level
 | PartyServices | lookup#PartyBadge |  |  |
 | PartyServices | scan#PartyBadge |  |  |
 | PartyServices | get#PartyContentLocation |  |  |
-| PartyServices | create#PartyContent | Commons/Contacts/ContactDetail; Commons/Settings/Account; Shared/RecordFiles |  |
+| PartyServices | create#PartyContent | Commons/Contacts/ContactDetail; Commons/Settings/Account; Shared/RecordFiles | Commons/Contacts/ContactDetail; Commons/Contacts/List; Shared/RecordFiles |
 | PartyServices | update#PartyContent |  |  |
 | PartyServices | save#PartyContentFile | Shared/RecordFiles |  |
 | PartyServices | get#PartySettingValue |  |  |
@@ -534,6 +554,68 @@ Per-service inventory of the mr-mantle-usl component, for tracking service-level
 | TimeServices | getOrCreate#PreviousTimePeriod |  |  |
 | TimeServices | get#TimePeriodInfo |  |  |
 | TimeServices | find#PartyTimePeriodGroups |  |  |
+
+Added in the drawers-commons build (Oct 18–19, 2026), called by built screens:
+
+| Service XML | Service | Designed in | Implemented in |
+| --- | --- | --- | --- |
+| CommunicationServices | get#InternalThread |  | Comms/Inbox/Compose; Comms/Inbox/Mail; Comms/Inbox/MessageDetail |
+| CommunicationServices | set#InternalMessageState |  | Comms/Inbox/Compose; Comms/Inbox/Mail |
+| CommunicationServices | close#ListThread |  | Comms/Inbox/Compose; Comms/Inbox/Mail |
+| CommunicationServices | find#InboxThreads |  | Comms; Comms/Home; Comms/Inbox/Mail |
+| CommunicationServices | get#InboxUnreadCounts |  | Comms/Home; Comms/Inbox/Mail |
+| CommunicationServices | get#RecordLinkInfo |  | Commons/Calendar; Commons/Calendar/EventDetail; Commons/Files; Commons/Knowledge; Commons/Notes; Commons/QuickCreate; Commons/Requests/List; Commons/Requests/RequestDetail; Commons/Tasks/List; Commons/Tasks/TaskDetail; Comms/Chat; Comms/Inbox/Compose; Comms/Inbox/Mail; Comms/Inbox/MessageDetail; Shared/Chatter; Shared/RecordFiles |
+| CommunicationServices | findOrCreate#EmailCommunicationEvent |  | Comms/Inbox/Mail |
+| CommunicationServices | link#CommunicationEventRecord |  | Comms/Chat; Comms/Inbox/Compose; Comms/Inbox/Mail; Comms/Inbox/MessageDetail; Shared/Chatter |
+| CommunicationServices | unlink#CommunicationEventRecord |  | Comms/Inbox/Mail; Shared/Chatter |
+| CommunicationServices | send#EmailDraft |  | Comms/Inbox/Compose |
+| CommunicationServices | get#RecordTimeline |  | Shared/Chatter |
+| CommunicationServices | log#RecordNote |  | Commons/QuickCreate; Shared/Chatter |
+| CommunicationServices | notify#RecordMention |  | Shared/Chatter |
+| CommunicationServices | notify#RecordFollowers |  | Commons/Knowledge; Commons/Notes |
+| CommunicationServices | follow#Record |  | Commons/Knowledge; Shared/Chatter |
+| CommunicationServices | unfollow#Record |  | Commons/Knowledge; Shared/Chatter |
+| CommunicationServices | get#RecordFollowers |  | Shared/Chatter |
+| CommunicationServices | findOrCreate#ChatCommunicationEvent |  | Comms/Chat |
+| CommunicationServices | create#RecordFromChatMessage |  | Comms/Chat |
+| ConsentServices | store#PartyConsent |  | Commons/Contacts/ContactDetail; Commons/Contacts/List; Comms/Consent/Contact; Comms/Consent/List |
+| ConsentServices | get#PartyConsentState |  | Comms/Consent/Contact |
+| ConsentServices | get#PartyConsentHistory |  | Comms/Consent/Contact |
+| ConsentServices | find#Consents |  | Comms/Consent/List |
+| ConsentServices | subscribe#ContactListParty |  | Commons/Contacts/ContactDetail; Commons/Contacts/List; Comms/Consent/Contact |
+| ConsentServices | unsubscribe#ContactListParty |  | Commons/Contacts/ContactDetail; Commons/Contacts/List; Comms/Consent/Contact; Unsubscribe |
+| ConsentServices | unsubscribe#ContactListParties |  | Comms/Consent/List |
+| ConsentServices | check#UnsubscribeToken |  | Unsubscribe |
+| ConsentServices | resolve#UnsubscribeToken |  | Unsubscribe |
+| ConsentServices | apply#UnsubscribePreferences |  | Unsubscribe |
+| ContactBookServices | create#ContactBook |  | Commons/Settings/ContactBooks |
+| ContactBookServices | update#ContactBook |  | Commons/Settings/ContactBooks |
+| ContactBookServices | delete#ContactBook |  | Commons/Settings/ContactBooks |
+| ContactBookServices | ensure#UserDefaultContactBook |  | Commons/QuickCreate |
+| ContactBookServices | share#ContactBook |  | Commons/Settings/ContactBooks |
+| ContactBookServices | unshare#ContactBook |  | Commons/Settings/ContactBooks |
+| ContactBookServices | add#ContactBookParties |  | Commons/Contacts/ContactDetail; Commons/Contacts/List |
+| ContactBookServices | remove#ContactBookParties |  | Commons/Contacts/ContactDetail; Commons/Contacts/List |
+| ContactBookServices | create#ContactBookGroup |  | Commons/Settings/ContactBooks |
+| ContactBookServices | update#ContactBookGroup |  | Commons/Settings/ContactBooks |
+| ContactBookServices | delete#ContactBookGroup |  | Commons/Settings/ContactBooks |
+| ContactBookServices | add#ContactBookGroupParties |  | Commons/Contacts/List |
+| ContactBookServices | remove#ContactBookGroupParties |  | Commons/Contacts/ContactDetail; Commons/Contacts/List |
+| ContactBookServices | set#ContactFavorite |  | Commons/Contacts/ContactDetail; Commons/Contacts/List |
+| ContactBookServices | find#ContactBookParties |  | Commons/Contacts/List |
+| ContactBookServices | get#UserContactBooks |  | Commons/Contacts/Compare; Commons/Contacts/ContactDetail; Commons/Contacts/Duplicates; Commons/Contacts/Import/Options; Commons/Contacts/Import/Result; Commons/Contacts/List; Commons/QuickCreate; Commons/Settings/ContactBooks |
+| ContactBookServices | store#ContactParty |  | Commons/Calendar/EventDetail; Commons/QuickCreate |
+| ContactBookServices | create#PersonalContact |  | Commons/Calendar/EventDetail; Commons/QuickCreate |
+| ContactBookServices | link#PersonalContactToDirectory |  | Commons/Contacts/Compare; Commons/Contacts/ContactDetail; Commons/Contacts/List |
+| ContactBookServices | delete#Contacts |  | Commons/Contacts/ContactDetail; Commons/Contacts/List |
+| ContactBookServices | filter#ContactAddresses |  | Comms/Settings/OutOfOffice (theme value STRT_EMAIL_CONTACT_SERVICE) |
+| ContactImportServices | read#ContactFileText |  | Commons/Contacts/Import/Source |
+| ContactImportServices | parse#ContactFile |  | Commons/Contacts/Import/Mapping; Commons/Contacts/Import/Source |
+| ContactImportServices | preview#Contacts |  | Commons/Contacts/Import/Preview |
+| ContactImportServices | import#Contacts |  | Commons/Contacts/Import/Result |
+| ContactImportServices | export#Contacts |  | Commons/Contacts/ContactDetail; Commons/Contacts/List |
+| DuplicateServices | mark#PartyNotDuplicate |  | Commons/Contacts/Compare; Commons/Contacts/Duplicates |
+| PartyServices | get#ShellCounts |  | shell header (theme value STRT_SHELL_COUNTS_SERVICE) |
 
 ## Product (108 services)
 
@@ -587,7 +669,7 @@ Per-service inventory of the mr-mantle-usl component, for tracking service-level
 | EquipmentServices | create#Equipment |  |  |
 | EquipmentServices | get#AssetMaintenanceNeeded |  |  |
 | EquipmentServices | create#AssetMaintenance |  |  |
-| EquipmentServices | create#AssetMaintenanceContent | Shared/RecordFiles |  |
+| EquipmentServices | create#AssetMaintenanceContent | Shared/RecordFiles | Shared/RecordFiles |
 | EquipmentServices | update#AssetMaintenanceContent |  |  |
 | EquipmentServices | save#AssetMaintenanceContentFile | Shared/RecordFiles |  |
 | InventoryReportServices | get#InventoryProjectedInfo |  |  |
@@ -615,10 +697,10 @@ Per-service inventory of the mr-mantle-usl component, for tracking service-level
 | ProductServices | remove#ProductsFromCategory |  |  |
 | ProductServices | add#FeatureToProducts |  |  |
 | ProductServices | remove#FeatureFromProducts |  |  |
-| ProductServices | create#ProductContent | Shared/RecordFiles |  |
+| ProductServices | create#ProductContent | Shared/RecordFiles | Shared/RecordFiles |
 | ProductServices | update#ProductContent |  |  |
 | ProductServices | save#ProductContentFile | Shared/RecordFiles |  |
-| ProductServices | create#ProductCategoryContent | Shared/RecordFiles |  |
+| ProductServices | create#ProductCategoryContent | Shared/RecordFiles | Shared/RecordFiles |
 | ProductServices | update#ProductCategoryContent |  |  |
 | ProductServices | save#ProductCategoryContentFile | Shared/RecordFiles |  |
 | ProductServices | get#ProductManualDocumentData |  |  |
@@ -648,22 +730,28 @@ Per-service inventory of the mr-mantle-usl component, for tracking service-level
 | TenantSubscriptionServices | restore#TenantAccess |  |  |
 | TenantSubscriptionServices | destroy#Tenant |  |  |
 
-## Request (12 services)
+## Request (12 services, 1 added)
 
 | Service XML | Service | Designed in | Implemented in |
 | --- | --- | --- | --- |
-| RequestServices | create#Request | Commons/QuickCreate; Commons/Requests; Comms/Inbox; Comms/Chat |  |
-| RequestServices | update#Request | Commons/Requests/RequestDetail |  |
+| RequestServices | create#Request | Commons/QuickCreate; Commons/Requests; Comms/Inbox; Comms/Chat | Commons/QuickCreate; Commons/Requests/List; Commons/Tasks/TaskDetail |
+| RequestServices | update#Request | Commons/Requests/RequestDetail | Commons/Requests/RequestDetail |
 | RequestServices | create#ContactRequest |  |  |
 | RequestServices | create#ContactRequestReCaptcha |  |  |
-| RequestServices | replace#RequestParty | Commons/Requests/RequestDetail |  |
-| RequestServices | add#RequestComment | Commons/Requests/RequestDetail |  |
+| RequestServices | replace#RequestParty | Commons/Requests/RequestDetail | Commons/Requests/RequestDetail |
+| RequestServices | add#RequestComment | Commons/Requests/RequestDetail | Commons/Requests/RequestDetail |
 | RequestServices | update#RequestComment | Commons/Requests/RequestDetail |  |
 | RequestServices | delete#RequestComment | Commons/Requests/RequestDetail |  |
 | RequestServices | get#RequestContentLocation |  |  |
-| RequestServices | create#RequestContent | Commons/Requests/RequestDetail; Shared/RecordFiles |  |
+| RequestServices | create#RequestContent | Commons/Requests/RequestDetail; Shared/RecordFiles | Shared/RecordFiles |
 | RequestServices | update#RequestContent |  |  |
 | RequestServices | save#RequestContentFile | Commons/Requests/RequestDetail; Shared/RecordFiles |  |
+
+Added in the drawers-commons build (Oct 18–19, 2026), called by built screens:
+
+| Service XML | Service | Designed in | Implemented in |
+| --- | --- | --- | --- |
+| RequestServices | get#UserTodayRequests |  | Commons |
 
 ## Sales (8 services)
 
@@ -682,7 +770,7 @@ Per-service inventory of the mr-mantle-usl component, for tracking service-level
 
 | Service XML | Service | Designed in | Implemented in |
 | --- | --- | --- | --- |
-| UniversalSearchServices | search#Universal | Commons/Search; Comms/Inbox |  |
+| UniversalSearchServices | search#Universal | Commons/Search; Comms/Inbox | Commons; Commons/Knowledge; Commons/Notes; Commons/Search; Comms/Chat; Comms/Inbox/Mail; Comms/Inbox/MessageDetail |
 
 ## Shipment (68 services)
 
@@ -753,16 +841,16 @@ Per-service inventory of the mr-mantle-usl component, for tracking service-level
 | ShipmentServices | cancel#Shipment |  |  |
 | ShipmentServices | reduce#QuantitiesToHandled |  |  |
 | ShipmentServices | send#ShipmentStoreEmail |  |  |
-| ShipmentServices | create#ShipmentContent | Shared/RecordFiles |  |
+| ShipmentServices | create#ShipmentContent | Shared/RecordFiles | Shared/RecordFiles |
 | ShipmentServices | update#ShipmentContent |  |  |
 | ShipmentServices | save#ShipmentContentFile | Shared/RecordFiles |  |
 
-## Work (87 services)
+## Work (87 services, 30 added)
 
 | Service XML | Service | Designed in | Implemented in |
 | --- | --- | --- | --- |
-| EventServices | get#FullCalendarData | Commons/Home; Commons/Calendar; Commons/Calendar/Schedules; Commons/Calendar/Schedules/ResourceDetail; Comms/Home; Comms/Calls |  |
-| EventServices | create#Event | Commons/QuickCreate; Commons/Calendar; Commons/Calendar/EventDetail; Commons/Calendar/Schedules; Commons/Calendar/Schedules/ResourceDetail; Comms/Inbox; Comms/Chat |  |
+| EventServices | get#FullCalendarData | Commons/Home; Commons/Calendar; Commons/Calendar/Schedules; Commons/Calendar/Schedules/ResourceDetail; Comms/Home; Comms/Calls | Commons/Calendar; Commons/Calendar/Schedules; Commons/Calendar/Schedules/ResourceDetail; Commons/Contacts/ContactDetail; Commons/Contacts/List; Commons/Home; Comms/Home |
+| EventServices | create#Event | Commons/QuickCreate; Commons/Calendar; Commons/Calendar/EventDetail; Commons/Calendar/Schedules; Commons/Calendar/Schedules/ResourceDetail; Comms/Inbox; Comms/Chat | Commons/Calendar; Commons/Calendar/Schedules; Commons/Calendar/Schedules/ResourceDetail; Commons/QuickCreate; Shared/Chatter |
 | EventServices | get#NextBusinessDay |  |  |
 | EventServices | get#FutureBusinessDay |  |  |
 | ManufacturingServices | get#ProductionRunDisplayInfo |  |  |
@@ -804,21 +892,21 @@ Per-service inventory of the mr-mantle-usl component, for tracking service-level
 | ShipmentWorkServices | set#ShipmentLoadStatusFromShipments |  |  |
 | ShipmentWorkServices | complete#ShipmentLoadShip |  |  |
 | ShipmentWorkServices | close#ShipmentLoadShip |  |  |
-| TaskServices | get#FullCalendarData | Commons/Calendar |  |
+| TaskServices | get#FullCalendarData | Commons/Calendar | Commons/Calendar |
 | TaskServices | create#Task |  |  |
-| TaskServices | create#SimpleTask | Commons/Panel/Today; Commons/QuickCreate; Commons/Tasks; Comms/Inbox; Comms/Chat; Shared/Chatter |  |
-| TaskServices | update#Task | Commons/Panel/Today; Commons/Tasks; Commons/Tasks/TaskDetail; Shared/Chatter |  |
+| TaskServices | create#SimpleTask | Commons/Panel/Today; Commons/QuickCreate; Commons/Tasks; Comms/Inbox; Comms/Chat; Shared/Chatter | Commons/Panel/Today; Commons/QuickCreate; Commons/Requests/RequestDetail; Commons/Tasks/List; Commons/Tasks/TaskDetail; Shared/Chatter |
+| TaskServices | update#Task | Commons/Panel/Today; Commons/Tasks; Commons/Tasks/TaskDetail; Shared/Chatter | Commons/Panel/Today; Commons/Tasks/List; Commons/Tasks/TaskDetail; Shared/Chatter |
 | TaskServices | set#TaskMilestone |  |  |
 | TaskServices | set#TaskDefaults |  |  |
 | TaskServices | add#TaskComment | Commons/Tasks/TaskDetail |  |
 | TaskServices | update#TaskComment |  |  |
 | TaskServices | delete#TaskComment |  |  |
-| TaskServices | add#TaskTime | Commons/Tasks/TaskDetail |  |
-| TaskServices | update#TaskFromTime |  |  |
+| TaskServices | add#TaskTime | Commons/Tasks/TaskDetail | Commons/Tasks/TaskDetail |
+| TaskServices | update#TaskFromTime |  | Commons/Tasks/TaskDetail |
 | TaskServices | update#ProjectTimeFromTask |  |  |
-| TimeServices | store#TimeEntry |  |  |
-| TimeServices | create#TimeEntryClockIn | Commons/Tasks/TaskDetail |  |
-| TimeServices | delete#TimeEntry |  |  |
+| TimeServices | store#TimeEntry |  | Commons/Tasks/TaskDetail |
+| TimeServices | create#TimeEntryClockIn | Commons/Tasks/TaskDetail | Commons/Tasks/TaskDetail |
+| TimeServices | delete#TimeEntry |  | Commons/Tasks/TaskDetail |
 | TimeServices | delete#TimeEntries |  |  |
 | TimeServices | store#TimeEntryWorkEffort |  |  |
 | TimeServices | store#WorkEffortPartyTime |  |  |
@@ -837,21 +925,56 @@ Per-service inventory of the mr-mantle-usl component, for tracking service-level
 | TimeServices | upload#TimeDetailFile |  |  |
 | TimeServices | import#TimeDetailFile |  |  |
 | TimeServices | import#TimeDetailRecord |  |  |
-| WorkEffortServices | clone#WorkEffort | Commons/Calendar/EventDetail; Commons/Tasks/TaskDetail |  |
-| WorkEffortServices | delete#WorkEffort |  |  |
-| WorkEffortServices | add#WorkEffortParty | Commons/QuickCreate; Commons/Calendar; Commons/Calendar/EventDetail |  |
+| WorkEffortServices | clone#WorkEffort | Commons/Calendar/EventDetail; Commons/Tasks/TaskDetail | Commons/Calendar/EventDetail; Commons/Tasks/TaskDetail |
+| WorkEffortServices | delete#WorkEffort |  | Commons/Tasks/TaskDetail |
+| WorkEffortServices | add#WorkEffortParty | Commons/QuickCreate; Commons/Calendar; Commons/Calendar/EventDetail | Commons/Calendar; Commons/Calendar/EventDetail; Commons/QuickCreate; Commons/Tasks/TaskDetail |
 | WorkEffortServices | remove#WorkEffortParty | Commons/Calendar/EventDetail |  |
-| WorkEffortServices | replace#WorkEffortParty | Commons/Calendar/EventDetail; Commons/Tasks |  |
+| WorkEffortServices | replace#WorkEffortParty | Commons/Calendar/EventDetail; Commons/Tasks | Commons/Tasks/List; Commons/Tasks/TaskDetail; Shared/Chatter |
 | WorkEffortServices | add#WorkEffortProduct |  |  |
-| WorkEffortServices | get#WorkEffortStartEnd |  |  |
+| WorkEffortServices | get#WorkEffortStartEnd |  | Commons/Calendar; Commons/Calendar/EventDetail |
 | WorkEffortServices | get#WorkEffortContentLocation |  |  |
-| WorkEffortServices | create#WorkEffortContent | Commons/Tasks/TaskDetail; Shared/RecordFiles |  |
+| WorkEffortServices | create#WorkEffortContent | Commons/Tasks/TaskDetail; Shared/RecordFiles | Shared/RecordFiles |
 | WorkEffortServices | update#WorkEffortContent |  |  |
 | WorkEffortServices | save#WorkEffortContentFile | Commons/Tasks/TaskDetail; Shared/RecordFiles |  |
+
+Added in the drawers-commons build (Oct 18–19, 2026), called by built screens:
+
+| Service XML | Service | Designed in | Implemented in |
+| --- | --- | --- | --- |
+| CalendarServices | check#CalendarAccess |  | Commons/Calendar; Commons/Calendar/EventDetail; Commons/Settings/Calendars; Commons/Settings/Preferences |
+| CalendarServices | ensure#UserDefaultCalendar |  | Commons/Calendar; Commons/Calendar/EventDetail; Commons/Calendar/Schedules; Commons/Calendar/Schedules/ResourceDetail; Commons/QuickCreate; Shared/Chatter |
+| CalendarServices | create#Calendar |  | Commons/Settings/Calendars |
+| CalendarServices | update#Calendar |  | Commons/Settings/Calendars; Commons/Settings/Preferences |
+| CalendarServices | delete#Calendar |  | Commons/Settings/Calendars |
+| CalendarServices | share#Calendar |  | Commons/Settings/Calendars |
+| CalendarServices | unshare#Calendar |  | Commons/Settings/Calendars |
+| CalendarServices | get#UserCalendars |  | Commons/Calendar; Commons/Calendar/EventDetail; Commons/QuickCreate; Commons/Settings/Calendars; Commons/Settings/Preferences; Comms/Inbox/Mail |
+| CalendarServices | add#CalendarEvent |  | Commons/Calendar/EventDetail |
+| CalendarServices | remove#CalendarEvent |  | Commons/Calendar/EventDetail |
+| CalendarServices | subscribe#Calendar |  | Commons/Settings/Calendars |
+| CalendarServices | fetch#CalendarSubscriptions |  | Commons/Settings/Calendars |
+| CalendarServices | export#Calendar |  | Commons/Calendar; Commons/Settings/Calendars |
+| CalendarServices | import#Calendar |  | Commons/Settings/Calendars |
+| EventServices | check#EventAccess |  | Commons/Calendar; Commons/Calendar/EventDetail |
+| EventServices | get#EventIcsMaps |  | Commons/Calendar/EventDetail |
+| EventServices | store#EventRecurrence |  | Commons/Calendar; Commons/Calendar/EventDetail |
+| EventServices | update#EventOccurrence |  | Commons/Calendar; Commons/Calendar/EventDetail |
+| EventServices | cancel#EventOccurrence |  | Commons/Calendar; Commons/Calendar/EventDetail |
+| EventServices | respond#EventInvitation |  | Commons/Calendar; Commons/Calendar/EventDetail; Comms/Inbox/Mail |
+| EventServices | get#InvitationDigest |  | Commons/Calendar/EventDetail |
+| EventServices | send#EventInvitations |  | Commons/Calendar; Commons/Calendar/EventDetail; Commons/QuickCreate |
+| EventServices | remove#EventAttendee |  | Commons/Calendar/EventDetail |
+| EventServices | get#FreeBusy |  | Commons/Calendar; Commons/Calendar/EventDetail |
+| EventServices | book#Resource |  | Commons/Calendar; Commons/Calendar/EventDetail; Commons/Calendar/Schedules; Commons/Calendar/Schedules/ResourceDetail |
+| EventServices | cancel#ResourceBooking |  | Commons/Calendar/EventDetail; Commons/Calendar/Schedules; Commons/Calendar/Schedules/ResourceDetail |
+| EventServices | store#WorkEffortReminders |  | Commons/Calendar; Commons/Calendar/EventDetail |
+| WorkEffortServices | link#WorkEffortRecord |  | Commons/Calendar; Commons/Panel/Today; Commons/QuickCreate; Commons/Requests/RequestDetail; Commons/Tasks/List; Commons/Tasks/TaskDetail; Shared/Chatter |
+| WorkEffortServices | get#UserTodayItems |  | Commons/Home; Commons/Panel/Today |
+| WorkEffortServices | snooze#UserTodayItem |  | Commons/Panel/Today; Commons/Tasks/List; Commons/Tasks/TaskDetail |
 
 ## General (2 services)
 
 | Service XML | Service | Designed in | Implemented in |
 | --- | --- | --- | --- |
-| GeneralServices | lookup#ById | Commons/Calendar/EventDetail; Commons/Knowledge; Comms/Inbox; Comms/Chat |  |
+| GeneralServices | lookup#ById | Commons/Calendar/EventDetail; Commons/Knowledge; Comms/Inbox; Comms/Chat | Commons; Commons/Knowledge; Commons/Notes; Comms/Chat; Comms/Inbox/Mail; Comms/Inbox/MessageDetail; Shared/Chatter |
 | GeneralServices | search#MantleFiltered |  |  |

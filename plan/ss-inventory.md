@@ -5,6 +5,7 @@ Per-form inventory of the MrSimpleScreens component, for tracking form-level fea
 - Source: `runtime/component/MrSimpleScreens/screen/` (current working tree).
 - Form: every `<form-single>` and `<form-list>` element, including forms nested in dialogs, sections and includes.
 - The **Designed in** column is filled when a design file is reviewed with the IronStone screen path(s) whose forms cover it (`—` when deliberately not carried forward, with the reason in that design's Decided table); the **Implemented in** column is filled during implementation with the screen and form that exist. See [design-doc-guide.md](design-doc-guide.md) §9.
+- **Implemented in** was filled on Oct 19, 2026 from the drawers-commons build, by the path of the built screen that carries each form of its **Designed in** cell: a designed screen built as a parent with subscreens is its default subscreen (`Commons/Tasks/List`, `Commons/Requests/List`, `Commons/Contacts/List`, `Comms/Inbox/Mail`); the contact record (`template/ContactRecord.xml`) is on both `Commons/Contacts/ContactDetail` and the main pane of `Commons/Contacts/List`; a space's settings are on `Commons/Knowledge/SpaceDetail`, and a page's attachments are Knowledge's own, not record files; a `—` row stays `—`. Filled: 100 of the 101 rows designed with a path, and the 5 `—` rows; wiki `ClonePage` stays blank, as page clone is not built (impl-drawers-commons.md §5 M9). The update note and comment forms the design gives to `Shared/Chatter` (`UpdateNoteForm`, the `…CommentUpdate` `ReplyCommentForm`) are filled as designed, although Chatter logs and replies but does not edit an entry. Rows that other design files are to fill stay blank.
 
 ## MyAccount (45 forms)
 
@@ -17,44 +18,44 @@ Per-form inventory of the MrSimpleScreens component, for tracking form-level fea
 | FindExpenseInvoice | CreateInvoice |  |  |
 | FindExpenseInvoice | WorkerInvoice |  |  |
 | FindExpenseInvoice | InvoiceList |  |  |
-| Account | ChangePasswordForm | Commons/Settings/Account |  |
-| Account | SecondFactorSendForm | Commons/Settings/Account |  |
-| Account | EditUser | Commons/Settings/Account |  |
-| Account | CreateUserAuthcFactorTotp | Commons/Settings/Account |  |
-| Account | CreateUserAuthcFactorSingleUse | Commons/Settings/Account |  |
-| Account | CreateUserAuthcFactorEmail | Commons/Settings/Account |  |
-| Account | CreateUserAuthcFactorSms | Commons/Settings/Account |  |
-| Account | UserAuthcFactorList | Commons/Settings/Account |  |
-| EventDetail | UpdateEvent | Commons/Calendar/EventDetail |  |
-| EventDetail | NewNoteForm | Commons/Calendar/EventDetail; Shared/Chatter |  |
-| EventDetail | UpdateNoteForm | Commons/Calendar/EventDetail; Shared/Chatter |  |
-| EventDetail | AddPartyAssignForm | Commons/Calendar/EventDetail |  |
-| EventDetail | UpdateAssignForm | Commons/Calendar/EventDetail |  |
-| EventDetail | AddEquipment | Commons/Calendar/EventDetail |  |
-| EventDetail | EquipmentList | Commons/Calendar/EventDetail |  |
-| MyCalendar | NewEventForm | Commons/Calendar; Commons/QuickCreate |  |
-| UpdateContactInfo | ShippingInfo | Commons/Settings/Account |  |
-| EditMessage | ReplyMessageForm | Comms/Inbox/Compose |  |
-| EditMessage | MessageForm | Comms/Inbox/Compose |  |
-| EditMessage | AddPurposeForm | — |  |
-| EditMessage | PurposesForm | — |  |
-| FindMessage | CreateMessage | Comms/Inbox/Compose |  |
-| FindMessage | MessageList | Comms/Inbox |  |
-| SingleMessage | ReplyMessageForm | Comms/Inbox/Compose; Shared/Chatter |  |
-| Notifications | NotificationTopicList | Commons/Settings/Notifications |  |
-| Notifications | NotificationList | Commons/Notifications; Commons/Panel/Notifications |  |
-| EditRequest | EditRequest | Commons/Requests/RequestDetail |  |
-| EditRequest | UpdatePartyForm | Commons/Requests/RequestDetail |  |
-| RequestCommentReply | ReplyCommentForm | Commons/Requests/RequestDetail; Shared/Chatter |  |
-| RequestCommentUpdate | ReplyCommentForm | Commons/Requests/RequestDetail; Shared/Chatter |  |
-| MyRequests | NewRequestForm | Commons/Requests; Commons/QuickCreate |  |
-| MyRequests | ListRequests | Commons/Home; Commons/Requests |  |
+| Account | ChangePasswordForm | Commons/Settings/Account | Commons/Settings/Account |
+| Account | SecondFactorSendForm | Commons/Settings/Account | Commons/Settings/Account |
+| Account | EditUser | Commons/Settings/Account | Commons/Settings/Account |
+| Account | CreateUserAuthcFactorTotp | Commons/Settings/Account | Commons/Settings/Account |
+| Account | CreateUserAuthcFactorSingleUse | Commons/Settings/Account | Commons/Settings/Account |
+| Account | CreateUserAuthcFactorEmail | Commons/Settings/Account | Commons/Settings/Account |
+| Account | CreateUserAuthcFactorSms | Commons/Settings/Account | Commons/Settings/Account |
+| Account | UserAuthcFactorList | Commons/Settings/Account | Commons/Settings/Account |
+| EventDetail | UpdateEvent | Commons/Calendar/EventDetail | Commons/Calendar/EventDetail |
+| EventDetail | NewNoteForm | Commons/Calendar/EventDetail; Shared/Chatter | Commons/Calendar/EventDetail; Shared/Chatter |
+| EventDetail | UpdateNoteForm | Commons/Calendar/EventDetail; Shared/Chatter | Commons/Calendar/EventDetail; Shared/Chatter |
+| EventDetail | AddPartyAssignForm | Commons/Calendar/EventDetail | Commons/Calendar/EventDetail |
+| EventDetail | UpdateAssignForm | Commons/Calendar/EventDetail | Commons/Calendar/EventDetail |
+| EventDetail | AddEquipment | Commons/Calendar/EventDetail | Commons/Calendar/EventDetail |
+| EventDetail | EquipmentList | Commons/Calendar/EventDetail | Commons/Calendar/EventDetail |
+| MyCalendar | NewEventForm | Commons/Calendar; Commons/QuickCreate | Commons/Calendar; Commons/QuickCreate |
+| UpdateContactInfo | ShippingInfo | Commons/Settings/Account | Commons/Settings/Account |
+| EditMessage | ReplyMessageForm | Comms/Inbox/Compose | Comms/Inbox/Compose |
+| EditMessage | MessageForm | Comms/Inbox/Compose | Comms/Inbox/Compose |
+| EditMessage | AddPurposeForm | — | — |
+| EditMessage | PurposesForm | — | — |
+| FindMessage | CreateMessage | Comms/Inbox/Compose | Comms/Inbox/Compose |
+| FindMessage | MessageList | Comms/Inbox | Comms/Inbox/Mail |
+| SingleMessage | ReplyMessageForm | Comms/Inbox/Compose; Shared/Chatter | Comms/Inbox/Compose; Shared/Chatter |
+| Notifications | NotificationTopicList | Commons/Settings/Notifications | Commons/Settings/Notifications |
+| Notifications | NotificationList | Commons/Notifications; Commons/Panel/Notifications | Commons/Notifications; Commons/Panel/Notifications |
+| EditRequest | EditRequest | Commons/Requests/RequestDetail | Commons/Requests/RequestDetail |
+| EditRequest | UpdatePartyForm | Commons/Requests/RequestDetail | Commons/Requests/RequestDetail |
+| RequestCommentReply | ReplyCommentForm | Commons/Requests/RequestDetail; Shared/Chatter | Commons/Requests/RequestDetail; Shared/Chatter |
+| RequestCommentUpdate | ReplyCommentForm | Commons/Requests/RequestDetail; Shared/Chatter | Commons/Requests/RequestDetail; Shared/Chatter |
+| MyRequests | NewRequestForm | Commons/Requests; Commons/QuickCreate | Commons/Requests/List; Commons/QuickCreate |
+| MyRequests | ListRequests | Commons/Home; Commons/Requests | Commons/Home; Commons/Requests/List |
 | ScheduledFinds | ScreenScheduledList |  |  |
 | EditScheduledFind | EditScreenScheduled |  |  |
-| MyTasks | NewTaskForm | Commons/Tasks; Commons/QuickCreate |  |
-| MyTasks | MyTasks | Commons/Panel/Today; Commons/Home; Commons/Tasks |  |
-| TaskDetail | UpdateEvent | Commons/Tasks/TaskDetail |  |
-| TimeEntries | TimeEntryList | Commons/Tasks/TaskDetail |  |
+| MyTasks | NewTaskForm | Commons/Tasks; Commons/QuickCreate | Commons/Tasks/List; Commons/QuickCreate |
+| MyTasks | MyTasks | Commons/Panel/Today; Commons/Home; Commons/Tasks | Commons/Panel/Today; Commons/Home; Commons/Tasks/List |
+| TaskDetail | UpdateEvent | Commons/Tasks/TaskDetail | Commons/Tasks/TaskDetail |
+| TimeEntries | TimeEntryList | Commons/Tasks/TaskDetail | Commons/Tasks/TaskDetail |
 
 ## Accounting (166 forms)
 
@@ -231,7 +232,7 @@ Per-form inventory of the MrSimpleScreens component, for tracking form-level fea
 
 | Screen XML | Form | Designed in | Implemented in |
 | --- | --- | --- | --- |
-| AssetCalendar | NewEventForm | Commons/Calendar/Schedules |  |
+| AssetCalendar | NewEventForm | Commons/Calendar/Schedules | Commons/Calendar/Schedules |
 | AssetDetail | UpdateAssetAcquireCost |  |  |
 | AssetDetail | AuditLogList |  |  |
 | AssetDetail | EditAsset |  |  |
@@ -518,8 +519,8 @@ Per-form inventory of the MrSimpleScreens component, for tracking form-level fea
 | EditParty | CreateUserAccount |  |  |
 | EditParty | ConvertToPersonForm |  |  |
 | EditParty | ConvertToOrganizationForm |  |  |
-| EditParty | EditOrganizationForm | Commons/Contacts/ContactDetail |  |
-| EditParty | EditPersonForm | Commons/Contacts/ContactDetail |  |
+| EditParty | EditOrganizationForm | Commons/Contacts/ContactDetail | Commons/Contacts/ContactDetail; Commons/Contacts/List |
+| EditParty | EditPersonForm | Commons/Contacts/ContactDetail | Commons/Contacts/ContactDetail; Commons/Contacts/List |
 | EditParty | AddDirectRoleForm |  |  |
 | EditParty | AddOtherRoleForm |  |  |
 | EditParty | RolesForm |  |  |
@@ -544,23 +545,23 @@ Per-form inventory of the MrSimpleScreens component, for tracking form-level fea
 | EditParty | ParentAccountRelList |  |  |
 | EditParty | AddChildAccount |  |  |
 | EditParty | ChildAccountRelList |  |  |
-| EditParty | NewNoteForm | Commons/Contacts/ContactDetail; Shared/Chatter |  |
-| EditParty | UpdateNoteForm | Commons/Contacts/ContactDetail; Shared/Chatter |  |
-| EditParty | OtherCreateForm | Commons/Contacts/ContactDetail |  |
-| EditParty | PhonePurposeForm | Commons/Contacts/ContactDetail |  |
-| EditParty | EmailPurposeForm | Commons/Contacts/ContactDetail |  |
-| EditParty | WebPurposeForm | Commons/Contacts/ContactDetail |  |
-| EditParty | OtherUpdateForm | Commons/Contacts/ContactDetail |  |
-| EditParty | OtherPurposeForm | Commons/Contacts/ContactDetail |  |
-| EditParty | PostalPurposeForm | Commons/Contacts/ContactDetail |  |
+| EditParty | NewNoteForm | Commons/Contacts/ContactDetail; Shared/Chatter | Commons/Contacts/ContactDetail; Commons/Contacts/List; Shared/Chatter |
+| EditParty | UpdateNoteForm | Commons/Contacts/ContactDetail; Shared/Chatter | Commons/Contacts/ContactDetail; Commons/Contacts/List; Shared/Chatter |
+| EditParty | OtherCreateForm | Commons/Contacts/ContactDetail | Commons/Contacts/ContactDetail; Commons/Contacts/List |
+| EditParty | PhonePurposeForm | Commons/Contacts/ContactDetail | Commons/Contacts/ContactDetail; Commons/Contacts/List |
+| EditParty | EmailPurposeForm | Commons/Contacts/ContactDetail | Commons/Contacts/ContactDetail; Commons/Contacts/List |
+| EditParty | WebPurposeForm | Commons/Contacts/ContactDetail | Commons/Contacts/ContactDetail; Commons/Contacts/List |
+| EditParty | OtherUpdateForm | Commons/Contacts/ContactDetail | Commons/Contacts/ContactDetail; Commons/Contacts/List |
+| EditParty | OtherPurposeForm | Commons/Contacts/ContactDetail | Commons/Contacts/ContactDetail; Commons/Contacts/List |
+| EditParty | PostalPurposeForm | Commons/Contacts/ContactDetail | Commons/Contacts/ContactDetail; Commons/Contacts/List |
 | EditParty | FinancialAccountList |  |  |
-| EditParty | NewContentForm | Commons/Contacts/ContactDetail; Shared/RecordFiles |  |
-| EditParty | UpdateContentForm | Commons/Contacts/ContactDetail; Shared/RecordFiles |  |
-| ExpiredContactOther | PcmListForm | Commons/Contacts/ContactDetail |  |
-| ExpiredContactOther | PcmTelecomListForm | Commons/Contacts/ContactDetail |  |
-| ExpiredPostal | PcmListForm | Commons/Contacts/ContactDetail |  |
-| FindDuplicates | DupPartyList | Commons/Contacts/Duplicates |  |
-| UpdateContactInfo | UpdateContactInfo | Commons/Contacts/ContactDetail |  |
+| EditParty | NewContentForm | Commons/Contacts/ContactDetail; Shared/RecordFiles | Commons/Contacts/ContactDetail; Commons/Contacts/List; Shared/RecordFiles |
+| EditParty | UpdateContentForm | Commons/Contacts/ContactDetail; Shared/RecordFiles | Commons/Contacts/ContactDetail; Commons/Contacts/List; Shared/RecordFiles |
+| ExpiredContactOther | PcmListForm | Commons/Contacts/ContactDetail | Commons/Contacts/ContactDetail; Commons/Contacts/List |
+| ExpiredContactOther | PcmTelecomListForm | Commons/Contacts/ContactDetail | Commons/Contacts/ContactDetail; Commons/Contacts/List |
+| ExpiredPostal | PcmListForm | Commons/Contacts/ContactDetail | Commons/Contacts/ContactDetail; Commons/Contacts/List |
+| FindDuplicates | DupPartyList | Commons/Contacts/Duplicates | Commons/Contacts/Duplicates |
+| UpdateContactInfo | UpdateContactInfo | Commons/Contacts/ContactDetail | Commons/Contacts/ContactDetail; Commons/Contacts/List |
 | UpdatePaymentMethodInfo | PaymentMethodInfoForm |  |  |
 | FinancialInfo | UnpaidInvoiceList |  |  |
 | FinancialInfo | PaymentList |  |  |
@@ -570,14 +571,14 @@ Per-form inventory of the MrSimpleScreens component, for tracking form-level fea
 | FinancialInfo | PurchaseOrderList |  |  |
 | FinancialInfo | PaidInvoiceList |  |  |
 | FinancialInfo | PaidPayablesList |  |  |
-| FindParty | CreatePersonForm | Commons/QuickCreate |  |
+| FindParty | CreatePersonForm | Commons/QuickCreate | Commons/QuickCreate |
 | FindParty | CreatePersonCustForm |  |  |
 | FindParty | CreateEmployeeForm |  |  |
-| FindParty | CreateOrganizationForm | Commons/QuickCreate |  |
+| FindParty | CreateOrganizationForm | Commons/QuickCreate | Commons/QuickCreate |
 | FindParty | CreateAccountForm |  |  |
-| FindParty | CreateContactForm | Commons/QuickCreate |  |
-| FindParty | OuterSearchForm | Commons/Contacts |  |
-| FindParty | PartyListForm | Commons/Contacts |  |
+| FindParty | CreateContactForm | Commons/QuickCreate | Commons/QuickCreate |
+| FindParty | OuterSearchForm | Commons/Contacts | Commons/Contacts/List |
+| FindParty | PartyListForm | Commons/Contacts | Commons/Contacts/List |
 | EditAgreement | EditAgreement |  |  |
 | EditAgreement | AddSettlementTerm |  |  |
 | EditAgreement | AddOtherTerm |  |  |
@@ -588,13 +589,13 @@ Per-form inventory of the MrSimpleScreens component, for tracking form-level fea
 | EditAgreement | UpdateContentForm |  |  |
 | FindAgreement | NewAgreement |  |  |
 | FindAgreement | AgreementList |  |  |
-| PartyEmails | EmailMessageList | Comms/Inbox/MessageDetail; Shared/Chatter |  |
+| PartyEmails | EmailMessageList | Comms/Inbox/MessageDetail; Shared/Chatter | Comms/Inbox/MessageDetail; Shared/Chatter |
 | PartyProjects | AddUserAssignForm |  |  |
 | PartyProjects | UpdateUserAssignForm |  |  |
-| PartyRelated | NewToRelForm | Commons/Contacts/ContactDetail |  |
-| PartyRelated | NewFromRelForm | Commons/Contacts/ContactDetail |  |
-| PartyRelated | ToRelationshipForm | Commons/Contacts/ContactDetail |  |
-| PartyRelated | FromRelationshipForm | Commons/Contacts/ContactDetail |  |
+| PartyRelated | NewToRelForm | Commons/Contacts/ContactDetail | Commons/Contacts/ContactDetail; Commons/Contacts/List |
+| PartyRelated | NewFromRelForm | Commons/Contacts/ContactDetail | Commons/Contacts/ContactDetail; Commons/Contacts/List |
+| PartyRelated | ToRelationshipForm | Commons/Contacts/ContactDetail | Commons/Contacts/ContactDetail; Commons/Contacts/List |
+| PartyRelated | FromRelationshipForm | Commons/Contacts/ContactDetail | Commons/Contacts/ContactDetail; Commons/Contacts/List |
 | PartyRequests | AddUserForm |  |  |
 | PartyRequests | UpdateUserForm |  |  |
 | PartyTasks | AddUserAssignForm |  |  |
@@ -690,14 +691,14 @@ Per-form inventory of the MrSimpleScreens component, for tracking form-level fea
 | Screen XML | Form | Designed in | Implemented in |
 | --- | --- | --- | --- |
 | EditRequest | EditRequest |  |  |
-| EditRequest | AddCommentForm | Commons/Requests/RequestDetail; Shared/Chatter |  |
+| EditRequest | AddCommentForm | Commons/Requests/RequestDetail; Shared/Chatter | Commons/Requests/RequestDetail; Shared/Chatter |
 | EditRequest | AddPartyForm |  |  |
 | EditRequest | UpdatePartyForm |  |  |
-| EditRequest | NewNoteForm | Commons/Requests/RequestDetail; Shared/Chatter |  |
-| EditRequest | UpdateNoteForm | Commons/Requests/RequestDetail; Shared/Chatter |  |
-| EditRequest | NewContentForm | Commons/Requests/RequestDetail; Shared/RecordFiles |  |
-| EditRequest | UpdateContentForm | Commons/Requests/RequestDetail; Shared/RecordFiles |  |
-| EditRequest | RequestTaskList | Commons/Requests/RequestDetail |  |
+| EditRequest | NewNoteForm | Commons/Requests/RequestDetail; Shared/Chatter | Commons/Requests/RequestDetail; Shared/Chatter |
+| EditRequest | UpdateNoteForm | Commons/Requests/RequestDetail; Shared/Chatter | Commons/Requests/RequestDetail; Shared/Chatter |
+| EditRequest | NewContentForm | Commons/Requests/RequestDetail; Shared/RecordFiles | Commons/Requests/RequestDetail; Shared/RecordFiles |
+| EditRequest | UpdateContentForm | Commons/Requests/RequestDetail; Shared/RecordFiles | Commons/Requests/RequestDetail; Shared/RecordFiles |
+| EditRequest | RequestTaskList | Commons/Requests/RequestDetail | Commons/Requests/RequestDetail |
 | RequestCommentReply | ReplyCommentForm |  |  |
 | RequestCommentUpdate | ReplyCommentForm |  |  |
 | EditRequestItems | NewRequestItemForm |  |  |
@@ -707,10 +708,10 @@ Per-form inventory of the MrSimpleScreens component, for tracking form-level fea
 | EditTasks | UpdateRweForm |  |  |
 | EditUsers | AddUserForm |  |  |
 | EditUsers | UpdateUserForm |  |  |
-| EditWikiPages | AddWprForm | Commons/Knowledge |  |
-| EditWikiPages | DeleteWprForm | Commons/Knowledge |  |
+| EditWikiPages | AddWprForm | Commons/Knowledge | Commons/Knowledge |
+| EditWikiPages | DeleteWprForm | Commons/Knowledge | Commons/Knowledge |
 | FindRequest | NewRequestForm |  |  |
-| FindRequest | ListRequests | Commons/Requests |  |
+| FindRequest | ListRequests | Commons/Requests | Commons/Requests/List |
 
 ## Return (8 forms)
 
@@ -874,21 +875,21 @@ Per-form inventory of the MrSimpleScreens component, for tracking form-level fea
 | EditUsers | AddUserAssignForm |  |  |
 | EditUsers | AddTeamAssignForm |  |  |
 | EditUsers | UpdateAssignForm |  |  |
-| EditWikiPages | AddWpweForm | Commons/Knowledge |  |
-| EditWikiPages | DeleteWpweForm | Commons/Knowledge |  |
-| FindTask | SearchOptions | Commons/Tasks |  |
-| FindTask | NewTaskForm | Commons/Tasks |  |
-| FindTask | ListTasks | Commons/Tasks |  |
-| FindTask | AssignTaskSelected | Commons/Tasks |  |
-| FindTask | UnAssignTaskSelected | Commons/Tasks |  |
-| FindTask | UpdateTaskSelected | Commons/Tasks |  |
-| TaskSummary | ClockInForm | Commons/Tasks/TaskDetail |  |
-| TaskSummary | AddCommentForm | Commons/Tasks/TaskDetail; Shared/Chatter |  |
-| TaskSummary | NewChildTaskForm | Commons/Tasks/TaskDetail |  |
-| TaskSummary | NewContentForm | Commons/Tasks/TaskDetail; Shared/RecordFiles |  |
-| TaskSummary | UpdateContentForm | Commons/Tasks/TaskDetail; Shared/RecordFiles |  |
-| TaskCommentReply | ReplyCommentForm | Commons/Tasks/TaskDetail; Shared/Chatter |  |
-| TaskCommentUpdate | ReplyCommentForm | Commons/Tasks/TaskDetail; Shared/Chatter |  |
+| EditWikiPages | AddWpweForm | Commons/Knowledge | Commons/Knowledge |
+| EditWikiPages | DeleteWpweForm | Commons/Knowledge | Commons/Knowledge |
+| FindTask | SearchOptions | Commons/Tasks | Commons/Tasks/List |
+| FindTask | NewTaskForm | Commons/Tasks | Commons/Tasks/List |
+| FindTask | ListTasks | Commons/Tasks | Commons/Tasks/List |
+| FindTask | AssignTaskSelected | Commons/Tasks | Commons/Tasks/List |
+| FindTask | UnAssignTaskSelected | Commons/Tasks | Commons/Tasks/List |
+| FindTask | UpdateTaskSelected | Commons/Tasks | Commons/Tasks/List |
+| TaskSummary | ClockInForm | Commons/Tasks/TaskDetail | Commons/Tasks/TaskDetail |
+| TaskSummary | AddCommentForm | Commons/Tasks/TaskDetail; Shared/Chatter | Commons/Tasks/TaskDetail; Shared/Chatter |
+| TaskSummary | NewChildTaskForm | Commons/Tasks/TaskDetail | Commons/Tasks/TaskDetail |
+| TaskSummary | NewContentForm | Commons/Tasks/TaskDetail; Shared/RecordFiles | Commons/Tasks/TaskDetail; Shared/RecordFiles |
+| TaskSummary | UpdateContentForm | Commons/Tasks/TaskDetail; Shared/RecordFiles | Commons/Tasks/TaskDetail; Shared/RecordFiles |
+| TaskCommentReply | ReplyCommentForm | Commons/Tasks/TaskDetail; Shared/Chatter | Commons/Tasks/TaskDetail; Shared/Chatter |
+| TaskCommentUpdate | ReplyCommentForm | Commons/Tasks/TaskDetail; Shared/Chatter | Commons/Tasks/TaskDetail; Shared/Chatter |
 
 ## Vendor (10 forms)
 
@@ -912,21 +913,21 @@ Per-form inventory of the MrSimpleScreens component, for tracking form-level fea
 | EditWikiBlog | EditBlogForm |  |  |
 | EditWikiBlog | AddCategory |  |  |
 | EditWikiBlog | CategoriesForm |  |  |
-| EditWikiPage | EditPageForm | Commons/Knowledge |  |
-| EditWikiSpace | CloneSpace | Commons/Knowledge/Spaces |  |
-| EditWikiSpace | EditSpace | Commons/Knowledge/Spaces |  |
+| EditWikiPage | EditPageForm | Commons/Knowledge | Commons/Knowledge |
+| EditWikiSpace | CloneSpace | Commons/Knowledge/Spaces | Commons/Knowledge/Spaces |
+| EditWikiSpace | EditSpace | Commons/Knowledge/Spaces | Commons/Knowledge/SpaceDetail |
 | WikiBlogs | AddBlogPage |  |  |
 | WikiBlogs | AddBlogText |  |  |
 | WikiBlogs | WikiBlogList |  |  |
-| WikiSpaces | NewSpace | Commons/Knowledge/Spaces |  |
-| WikiSpaces | WikiSpaceList | Commons/Knowledge/Spaces |  |
-| wiki | AddPageForm | Commons/Knowledge |  |
+| WikiSpaces | NewSpace | Commons/Knowledge/Spaces | Commons/Knowledge/Spaces |
+| WikiSpaces | WikiSpaceList | Commons/Knowledge/Spaces | Commons/Knowledge/Spaces |
+| wiki | AddPageForm | Commons/Knowledge | Commons/Knowledge |
 | wiki | ClonePage | Commons/Knowledge |  |
-| wiki | AddCommentForm | Commons/Knowledge; Shared/Chatter |  |
-| wiki | UploadAttachment | Commons/Knowledge; Shared/RecordFiles |  |
-| wiki | AddCategory | Commons/Knowledge; Commons/Notes |  |
-| wiki | CategoriesForm | Commons/Knowledge; Commons/Notes |  |
-| WikiCommentReply | ReplyCommentForm | Commons/Knowledge; Shared/Chatter |  |
+| wiki | AddCommentForm | Commons/Knowledge; Shared/Chatter | Commons/Knowledge; Shared/Chatter |
+| wiki | UploadAttachment | Commons/Knowledge; Shared/RecordFiles | Commons/Knowledge |
+| wiki | AddCategory | Commons/Knowledge; Commons/Notes | Commons/Knowledge; Commons/Notes |
+| wiki | CategoriesForm | Commons/Knowledge; Commons/Notes | Commons/Knowledge; Commons/Notes |
+| WikiCommentReply | ReplyCommentForm | Commons/Knowledge; Shared/Chatter | Commons/Knowledge; Shared/Chatter |
 
 ## BasicHandheld (Warehouse handheld) (16 forms)
 
@@ -953,8 +954,8 @@ Per-form inventory of the MrSimpleScreens component, for tracking form-level fea
 
 | Screen XML | Form | Designed in | Implemented in |
 | --- | --- | --- | --- |
-| Search | SearchOptions | Commons/Search |  |
-| Search | SearchResults | Commons/Search |  |
-| QuickSearch | SearchOptions | — |  |
-| QuickSearch | SearchResults | — |  |
-| QuickLookup | QuickLookupForm | — |  |
+| Search | SearchOptions | Commons/Search | Commons/Search |
+| Search | SearchResults | Commons/Search | Commons/Search |
+| QuickSearch | SearchOptions | — | — |
+| QuickSearch | SearchResults | — | — |
+| QuickLookup | QuickLookupForm | — | — |
