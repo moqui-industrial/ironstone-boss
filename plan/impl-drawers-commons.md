@@ -630,17 +630,19 @@ Designed in design-drawers-commons.md; each of these gets its own plan:
 
 ## 8. Save point, Oct 19, 2026
 
-Every milestone M0–M11 is built and committed: mr-moqui-base e6d8504, Mantle udm f443cb8 and usl 8c3b30c, BOSS eb4a3d3
+Every milestone M0–M11 is built and committed: mr-moqui-base e6d8504 (then the merge below), Mantle udm f443cb8 and usl 8c3b30c, BOSS eb4a3d3
 (MrSimpleScreens 5330d2a). The last full `./moq test` was 1076 features, all passing, before the final follow-ups; those
 were checked with their own specs only. Build notes per milestone are in §5; the framework's own list is mr-moqui
 plans/Remaining-Work.md.
 
+**Merged after the save point**
+- mr-moqui `entity-modified-fields` (merged Oct 19 after the save point, at the user's call, to be watched): a found
+  value's `update()` writes only the fields that changed, so two transactions changing different fields of one row no
+  longer undo each other. This goes beyond Java, whose `update()` of a found value writes every field it holds
+  (plans/Parity-Diffs.md, "Modified fields"). Checked with moqui-core (1306), mantle-usl with SimpleScreens (620) and
+  ironstone-boss (378).
+
 **Waiting for a decision**
-- mr-moqui branch `entity-modified-fields` (0109e5e, not merged): a found value's `update()` writes only the fields that
-  changed, so two transactions changing different fields of one row no longer undo each other. This goes beyond Java,
-  whose `update()` of a found value writes every field it holds; recorded in plans/Parity-Diffs.md on the branch. Its
-  core, gate3 and example tests pass; the component suites were not run on it (one Mantle spec failed only because the
-  branch predates the MailCapture headers change).
 - view-calendar `range-find` is opt-in (Tasks uses it); making it the default adds a request to every calendar list.
 
 **Left to build**
