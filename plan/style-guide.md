@@ -60,7 +60,7 @@ Assist" asks for. §2.8 lists what is new against today's shell; the implementat
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────────────┐
-│ ≡ [logo▾] IronStone Sales › Orders › SO10023   [Search ⌘K] [+] [Today] [Chat] [Inbox] [Notif] [?] [Account] [Assist] │  header
+│ ≡ [logo▾] IronStone Sales › Orders › SO10023   [Search ⌘K] [+] [Today] [Chat] [Mail] [Msgs] [Notif] [?] [Account] [Assist] │  header
 ├──────────────┬──────────────────────────────────────────────────┬──────────┬──────────┤
 │ app drawer   │ canvas (the screen)                              │ tray     │ Assist   │
 │ menu tree    │                                                  │ panel    │ drawer   │
@@ -101,8 +101,9 @@ change.
 | Quick create | flat round `+` | Framework; items from app providers | A `q-menu` of record kinds (task, event, note, contact, request, and what the current app registers); each opens that record's create form in a dialog, prefilled from the screen context (link to the current record, current customer, current product) |
 | Today | flat round button with a badge | Framework; content from Commons | Badge: tasks and activities due today plus overdue; opens the tray panel on Today |
 | Chat | flat round button with a badge | Framework; content from Comms | Badge: unread chat messages and mentions; opens the tray panel on Chat; presence dot on the icon |
-| Inbox count | flat round button with a badge | Comms | Email and other asynchronous communication events unread; a link into the Comms Inbox, not a panel, per initial-design's rule (synchronous or time-bound gets a panel, asynchronous gets a count) |
-| Notifications | flat round bell with a badge | Framework; topics from every app | Badge: unread notifications and approvals waiting; opens the tray panel on Notifications |
+| Mail | flat round button with a badge | Comms | Unread email of the user's mail accounts; a link into the Comms Inbox, not a panel, per initial-design's rule (synchronous or time-bound gets a panel, asynchronous gets a count) |
+| Messages | flat round button with a badge | Comms | Unread internal messages and the mailbox posts delivered to the Inbox; a link to the Inbox's Internal account. Below 600 px Mail and Messages are one button with the summed badge |
+| Notifications | flat round bell with a badge | Framework; topics from every app | Badge: unread notifications of the Notifications inbox and approvals waiting (the automatic Updates inbox has no badge; design-drawers-commons §1.2); opens the tray panel on Notifications |
 | Documentation | flat round `?`, only when the screen has documents | Framework | As today: the screen's documents in dialogs |
 | Theme plugins | the `STRT_HEADER_NAVBAR_COMP` components | Theme | As today; a deployment's own header widgets. The My Account counters widget retires, replaced by the badges above |
 | Account | flat round avatar or initials | Framework | A `q-menu` list: name and user name, presence and status message, Preferences (opens Commons account screen), dark mode toggle, re-login, the `STRT_HEADER_ACCOUNT_COMP` components, Log out |
@@ -809,7 +810,7 @@ crosscut design's roll-up is the work list.
 | Item | Kind | Proposed as | Stub spec | Used by |
 | --- | --- | --- | --- | --- |
 | Material Symbols | Icon set | Built Oct 18, 2026: the outlined font at weight 400 (npm `@material-symbols/font-400`, Apache-2.0) through `libs/refresh.mjs` with a manifest and license-review line; Quasar's `icon-set/material-symbols-outlined.umd.prod.js`, set as the icon set when the app is created; `menu-image-type="icon"` renders a Quasar icon name through `q-icon` (`m-menu-icon`, and the app list) and keeps `fa fa-*` as a class | §5.6 | Every screen, the shell |
-| Shell: launcher, search button, quick create, Today, Chat, Inbox count, Notifications, Assist toggle | Shell item | Built Oct 19, 2026, except the Assist toggle (Phase 13), the presence dot and status (Comms chat): `m-qapps-root` changes of §2.2; badges fed by a `shellCounts` object the notification WebSocket updates | §2.2, §2.8 | All |
+| Shell: launcher, search button, quick create, Today, Chat, Mail and Messages counts, Notifications, Assist toggle | Shell item | Built Oct 19, 2026, except the Assist toggle (Phase 13), the presence dot and status (Comms chat): `m-qapps-root` changes of §2.2; badges fed by a `shellCounts` object the notification WebSocket updates | §2.2, §2.8 | All |
 | Tray panel | Shell item | Built Oct 19, 2026 (`m-shell-tray`): A right panel in the canvas with tabs whose content screens are theme values (`STRT_TRAY_TODAY`, `STRT_TRAY_CHAT`, `STRT_TRAY_NOTIFICATIONS`) so BOSS supplies them; open state and tab kept in the root; Esc closes | §2.4 | Commons, Comms, every app through providers |
 | Shell providers | XML Screen element | Built Oct 19, 2026, with `<palette-source>` and `<account-menu-item>` (design-drawers-commons §19): `<shell-providers>` in an app root screen with `<quick-create label icon screen parameter-map>`, `<today-source service>`, `<palette-action label screen>`, `<palette-type doc-type>`, `<notification-topic>`; the menu data aggregates them for the apps the user may open | §2.7 | Every app |
 | Screen context | XML Screen element | Built Oct 19, 2026 (`m-screen-context`): `<context record-entity="…" record-id="${id}" title="${…}" selection-form="…"/>`; the root exposes `screenContext` {path, parameters, record, selection, filters, forms}; quick create, Chatter, Today and Assist read it | §2.5 | Every detail, 360, list |

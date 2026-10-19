@@ -70,7 +70,7 @@ Each finding was verified in the code. Each resolution is now part of the design
 | R23 | §4, §19 approvals: no contract for what the approve and refuse services receive. | They get `recordEntityName`, `recordId`, the message's `messageJson` map, and `reason` for a refuse. |
 | R24 | §10 Comments and §15 Chatter need the new comment's id, and `add#WikiPageComment` returns no `communicationEventId`. | It returns it. |
 | R25 | §9 Records drive: the content folders are not uniform. `CommunicationEvent/` is capitalised, AssetMaintenance sits under `asset/<id>/maintenance/`, and Facility has no pair. | BOSS seeds an explicit map from folder to entity and id field. A naming rule would not cover these cases. |
-| R26 | §1.2 Inbox count, §12 mailboxes delivered to the Inbox: count and unread are per row (R15). | `get#ShellCounts.mail` counts a message once per user: unread mail, plus internal messages and Inbox-delivered posts on that user's rows. |
+| R26 | §1.2 Inbox count, §12 mailboxes delivered to the Inbox: count and unread are per row (R15). | `get#ShellCounts.messages` counts an internal message once per user: internal messages and Inbox-delivered posts on that user's rows. Changed Oct 19 (§5 M2): the header has separate Mail, Messages and Notifications counts. |
 | R27 | §19: the shell changes every `/qapps` user (MarbleERP, SimpleScreens, tools). | Every new header element hides when its theme value or provider is empty. Without BOSS a deployment gains only the launcher, the palette (Recent, Screens, Saved finds, Actions) and icons. |
 
 ## 4. Ground rules
@@ -205,6 +205,17 @@ What the build added or settled beyond the design, now in design §1 and §19:
 
 ### M2 — Today, notifications, quick create (mr-moqui, Mantle, BOSS)
 
+**Plan change, Oct 19 (from the user):** the header has separate counts for Mail (external email, `STRT_MAIL_SCREEN`,
+which replaces `STRT_INBOX_SCREEN`), Messages (internal messages and Inbox-delivered mailbox posts,
+`STRT_MESSAGES_SCREEN`) and Notifications. Notifications split into two inboxes chosen per topic
+(`NotificationTopic.inboxEnumId`, enumeration NotificationInbox): **Notifications** (actionable: mentions,
+assignments, approvals, reminders; the badge) and the automatic **Updates** (record-update feeds such as Mantle's
+MantleTask, MantleEvent, MantleRequest and MantleCommunicationEvent topics, system messages, job reports; no header
+badge; a toggle in the Notifications tab and a rail entry in the center, each with its count). The counts contract is
+{today, overdue, chat, email, messages, notifications, approvals, updates}. Framework: in M2 (the topic field, the inbox
+filter on the notification services, the header buttons). Mantle: get#ShellCounts and count#UserNotifications by inbox,
+the record-update topics seeded into Updates. BOSS: the theme values and the M2 screens.
+
 - **Framework:**
   - New fields: `NotificationMessage.reasonEnumId`, `recordEntityName`, `recordId`, `actorUserId` and `appName`;
     `NotificationTopic.approveServiceName`, `refuseServiceName` and `digestDefault`; `NotificationTopicUser.digest`.
@@ -320,7 +331,7 @@ What the build added or settled beyond the design, now in design §1 and §19:
   the filing policy.
 - Identities, TextBlocks, OutOfOffice, and Preferences MailDefaults.
 - Search documents: `MoquiEmailMessage`, and `MantleCommunicationEvent` with `contactListId` and its per-user filter.
-  The header Inbox count (R26).
+  The header Mail count (`counts.email`) from the unread external mail.
 
 **M5d — the IMAP and POP sync engine (Rust, R20)**
 
