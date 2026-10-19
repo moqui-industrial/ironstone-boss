@@ -319,20 +319,13 @@ feature("the palette's Messages group finds threads and mailboxes, and MessageDe
         const boxes = sys(() => call("ironstone.InboxServices.search#Messages", { text: "Office", limit: 5 })).rows
         const detail = ec.screen.makeTest().rootScreen(comms).renderMode("qvt").render("Inbox/MessageDetail", { emailMessageId: "BOSS_DEMO_MAIL_ACME1", lastStandalone: "-2" }, null)
         const internal = ec.screen.makeTest().rootScreen(comms).renderMode("qvt").render("Inbox/MessageDetail", { communicationEventId: "BOSS_DEMO_MAIL_IM1", lastStandalone: "-2" }, null)
-        // Download .eml: the framework's export of the message (org.moqui.impl.EmailClientServices.export#EmailMessage), with its files
-        const download = (id) => {
-            const str = ec.screen.makeTest().rootScreen(comms).render("Inbox/MessageDetail/downloadEml", { emailMessageId: id }, null)
-            ec.message.clearErrors()
-            return { status: str.status, errors: str.errorMessages.join(" | "), text: String(str.output || "") }
-        }
-        const eml = download("BOSS_DEMO_MAIL_NEWS")
-        const withFile = download("BOSS_DEMO_MAIL_ACME1")
+        // an empty id is refused before any export
         const internalEml = ec.screen.makeTest().rootScreen(comms).render("Inbox/MessageDetail/downloadEml", { emailMessageId: "" }, null)
         ec.message.clearErrors()
-        return { rows, boxes, detail: String(detail.output || ""), detailErrors: detail.errorMessages.join(" | "), internal: String(internal.output || ""), eml, withFile,
+        return { rows, boxes, detail: String(detail.output || ""), detailErrors: detail.errorMessages.join(" | "), internal: String(internal.output || ""),
             noMessage: internalEml.errorMessages.join(" | ") }
     },
-    then({ rows, boxes, detail, detailErrors, internal, eml, withFile, noMessage }) {
+    then({ rows, boxes, detail, detailErrors, internal, noMessage }) {
         rows.some((row) => row.title == "Can you review the onboarding guide?" && row.url.includes("thread=internal%3ABOSS_DEMO_MAIL_IM1"))
         boxes.some((row) => row.title == "Office announcements" && row.url == "/qapps/Comms/Inbox?mailbox=BOSS_DEMO_MBX_OFFICE")
         detailErrors == ""
@@ -340,6 +333,22 @@ feature("the palette's Messages group finds threads and mailboxes, and MessageDe
         detail.includes("purchase-order-Q4.txt")
         detail.includes("Headers and source")
         internal.includes("Can you review the onboarding guide?")
+        noMessage.length > 0
+    },
+})
+
+feature("a message downloads as an .eml file, with its files", {
+    requires: ["imap"],
+    when() {
+        // Download .eml: the framework's export of the message (org.moqui.impl.EmailClientServices.export#EmailMessage), with its files
+        const download = (id) => {
+            const str = ec.screen.makeTest().rootScreen(comms).render("Inbox/MessageDetail/downloadEml", { emailMessageId: id }, null)
+            ec.message.clearErrors()
+            return { status: str.status, errors: str.errorMessages.join(" | "), text: String(str.output || "") }
+        }
+        return { eml: download("BOSS_DEMO_MAIL_NEWS"), withFile: download("BOSS_DEMO_MAIL_ACME1") }
+    },
+    then({ eml, withFile }) {
         eml.status == 200
         eml.errors == ""
         eml.text.includes("Message-ID: <boss_demo_mail_news@demo.ironstone.example>")
@@ -348,7 +357,6 @@ feature("the palette's Messages group finds threads and mailboxes, and MessageDe
         withFile.errors == ""
         withFile.text.includes("Subject: Quarterly order for the Ziziwork parts")
         withFile.text.includes("purchase-order-Q4.txt")
-        noMessage.length > 0
     },
 })
 
