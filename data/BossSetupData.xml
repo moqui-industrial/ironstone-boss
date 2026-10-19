@@ -115,4 +115,25 @@ along with this software (see the LICENSE.md file). If not, see
             <filters entityFilterSetId="MANTLE_ACTIVE_ORG"/>
             <filters entityFilterSetId="MANTLE_PRIVATE_CONTACT"/></authz>
     </artifactGroups>
+
+    <!-- The suite shell's IronStone screens (design-drawers-commons.md §1.2, impl R14), on the Quasar theme BOSS ships with:
+        the tray panel's three tabs, the quick-create screen of the + menu kinds that name no screen, and the screen the
+        header's Inbox count links to, each a path under the apps root; the Chatter and record-files elements' subscreen
+        names, which every BOSS app root mounts from screen/Shared (R5). The webroot shellData transition sends them to
+        the shell (webroot/screen/webroot/js/README.md, "Shell data and providers"). STRT_SHELL_COUNTS_SERVICE comes with
+        mantle.party.PartyServices.get#ShellCounts (M2). -->
+    <moqui.screen.ScreenThemeResource screenThemeId="DEFAULT_QUASAR" sequenceNum="300" resourceTypeEnumId="STRT_TRAY_TODAY"
+            resourceValue="Commons/Panel/Today"/>
+    <moqui.screen.ScreenThemeResource screenThemeId="DEFAULT_QUASAR" sequenceNum="301" resourceTypeEnumId="STRT_TRAY_CHAT"
+            resourceValue="Comms/Panel/Chat"/>
+    <moqui.screen.ScreenThemeResource screenThemeId="DEFAULT_QUASAR" sequenceNum="302" resourceTypeEnumId="STRT_TRAY_NOTIFICATIONS"
+            resourceValue="Commons/Panel/Notifications"/>
+    <moqui.screen.ScreenThemeResource screenThemeId="DEFAULT_QUASAR" sequenceNum="303" resourceTypeEnumId="STRT_QUICK_CREATE"
+            resourceValue="Commons/QuickCreate"/>
+    <moqui.screen.ScreenThemeResource screenThemeId="DEFAULT_QUASAR" sequenceNum="304" resourceTypeEnumId="STRT_INBOX_SCREEN"
+            resourceValue="Comms/Inbox"/>
+    <moqui.screen.ScreenThemeResource screenThemeId="DEFAULT_QUASAR" sequenceNum="305" resourceTypeEnumId="STRT_CHATTER_SCREEN"
+            resourceValue="Chatter"/>
+    <moqui.screen.ScreenThemeResource screenThemeId="DEFAULT_QUASAR" sequenceNum="306" resourceTypeEnumId="STRT_RECORD_FILES_SCREEN"
+            resourceValue="RecordFiles"/>
 </entity-facade-xml>

@@ -31,5 +31,49 @@ along with this software (see the LICENSE.md file). If not, see
 
     <subscreens default-item="Home" always-use-full-path="true"/>
 
+    <!-- What Commons offers the suite shell (design-drawers-commons.md §1.2, §1.5, §1.7; impl R3): the + menu kinds (each
+        opens the theme's STRT_QUICK_CREATE screen, Commons/QuickCreate, with its kind), the document types and groups of
+        the palette (service/ironstone/PaletteServices.xml), the go-to keys, the account menu's Preferences and Account,
+        and the notification topics whose messages the Notifications tab lists. Screen paths are under the apps root. -->
+    <shell-providers>
+        <quick-create kind="task" label="Task" icon="sym_o_task_alt" sequence="10"/>
+        <quick-create kind="event" label="Event" icon="sym_o_event" sequence="20"/>
+        <quick-create kind="note" label="Note" icon="sym_o_sticky_note_2" sequence="30"/>
+        <quick-create kind="contact" label="Contact" icon="sym_o_person" sequence="40"/>
+        <quick-create kind="request" label="Request" icon="sym_o_support" sequence="50"/>
+
+        <palette-type doc-type="MantleParty"/>
+        <palette-type doc-type="MantleTask"/>
+        <palette-type doc-type="MantleEvent"/>
+        <palette-type doc-type="MantleRequest"/>
+        <palette-type doc-type="MantleProject"/>
+        <palette-type doc-type="MantleWikiPage"/>
+        <palette-type doc-type="MantleCommunicationEvent"/>
+        <!-- an id (with a digit and no spaces, or an upper case id such as BOSS_DEMO_REQUEST) goes to its record first -->
+        <palette-source group="IdLookup" label="Go to id" icon="sym_o_tag" service="ironstone.PaletteServices.lookup#Id"
+                id-pattern="\S*\d\S*|[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+" sequence="5"/>
+        <palette-source group="Records" label="Records" icon="sym_o_search" service="ironstone.PaletteServices.search#Records" sequence="10"/>
+        <palette-source group="People" label="People" icon="sym_o_person" prefix="@" service="ironstone.PaletteServices.search#People" sequence="20"/>
+        <palette-source group="Pages" label="Pages and files" icon="sym_o_description" service="ironstone.PaletteServices.search#Pages" sequence="40"/>
+        <palette-source group="Events" label="Events" icon="sym_o_event" service="ironstone.PaletteServices.search#Events" sequence="50"/>
+
+        <notification-topic topic="ChatterMention"/>
+        <notification-topic topic="WorkEffortReminder"/>
+        <notification-topic topic="WikiPageReview"/>
+        <notification-topic topic="FileShare"/>
+
+        <keymap>
+            <key keys="g h" label="Commons home" screen="Commons/Home"/>
+            <key keys="g c" label="Contacts" screen="Commons/Contacts"/>
+            <key keys="g k" label="Tasks" screen="Commons/Tasks"/>
+            <key keys="g l" label="Calendar" screen="Commons/Calendar"/>
+            <key keys="g f" label="Files" screen="Commons/Files"/>
+            <key keys="g n" label="Notes" screen="Commons/Notes"/>
+        </keymap>
+
+        <account-menu-item label="Preferences" icon="sym_o_tune" screen="Commons/Settings/Preferences" sequence="10"/>
+        <account-menu-item label="Account" icon="sym_o_manage_accounts" screen="Commons/Settings/Account" sequence="20"/>
+    </shell-providers>
+
     <widgets><subscreens-panel id="commons-panel" type="popup"/></widgets>
 </screen>
