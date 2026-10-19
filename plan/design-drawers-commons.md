@@ -1,6 +1,6 @@
 # IronStone BOSS — Header, drawers, Commons & Comms design
 
-Oct 18, 2026 — draft
+Oct 18, 2026 — reviewed; mailboxes added after review (§12)
 
 The suite chrome every IronStone app runs in (the header, the outer Assist drawer, the inner
 drawer and the palette), and the two shared apps that feed it: **IronStone Commons** (contacts,
@@ -35,7 +35,7 @@ Java Assist panel (`moqui/runtime/.../webroot/js/assist/`) and its tools
 (`moqui/framework/.../impl/llm/tools/`), and mr-moqui's `plans/Remaining-Work.md`.
 
 Sections: [1 suite shell](#1-the-suite-shell-header-and-drawers) · [2 app shells](#2-app-shells-commons-and-comms) ·
-[3 screens](#3-screens) · [4 header and drawer screens](#4-header-and-drawer-screens) · [5 Commons Home](#5-commons-home) ·
+[3 screens](#3-screens) · [4 header and drawer screens](#4-header-and-drawer-screens) · [5 Commons Home and search](#5-commons-home-and-search) ·
 [6 contacts](#6-contacts) · [7 calendar](#7-calendar-and-schedules) · [8 tasks and requests](#8-tasks-and-requests) ·
 [9 files](#9-files) · [10 notes and knowledge](#10-notes-and-knowledge) · [11 Commons settings](#11-commons-settings-and-account) ·
 [12 Comms Home, Inbox and email](#12-comms-home-inbox-and-email) · [13 chat](#13-chat) · [14 calls](#14-calls) ·
@@ -84,10 +84,10 @@ list of root element ids the framework exposes as `assistReach`, not a layout ch
 | --- | --- | --- |
 | Menu toggle, launcher, app title, breadcrumbs | As style-guide §2.2 | Framework, menu data |
 | Search | Opens the palette; Ctrl+K or Cmd+K | Providers of every app (§1.5); Commons and Comms register the ones in §1.5 |
-| Quick create `+` | A `q-menu` of kinds; each opens `Commons/QuickCreate?kind=…` (or Comms' composer) in a dialog, prefilled from the screen context | `<shell-providers><quick-create>` of Commons (task, event, note, contact, request), Comms (email, chat message, call) and any app |
-| Today | Badge: tasks and activities due today plus overdue; opens the inner drawer on Today | `shellCounts.today` from `mantle.party.PartyServices.get#ShellCounts` (new, §19) over the notification WebSocket topic `shellCounts`; the screen `Commons/Panel/Today` |
+| Quick create `+` | A `q-menu` of kinds; each opens `Commons/QuickCreate?kind=…` (or Comms' composer) in a dialog, prefilled from the screen context | `<shell-providers><quick-create>` of Commons (task, event, note, contact, request, and activity when a record is in context), Comms (email, chat message, call) and any app |
+| Today | Badge: tasks and activities due today plus overdue; opens the inner drawer on Today | `shellCounts.today` from `mantle.party.PartyServices.get#ShellCounts` (new, §19), which the framework finds through the theme value `STRT_SHELL_COUNTS_SERVICE`, over the notification WebSocket topic `shellCounts`; the screen `Commons/Panel/Today` |
 | Chat | Badge: unread rooms and mentions; presence dot; opens the inner drawer on Chat | `shellCounts.chat`; the screen `Comms/Panel/Chat` |
-| Inbox count | Badge: unread mail across accounts; a link to `Comms/Inbox`, not a panel (initial-design: asynchronous gets a count) | `shellCounts.mail` |
+| Inbox count | Badge: unread mail across accounts, including internal messages and the mailbox posts delivered to the Inbox (§12); a link to `Comms/Inbox`, not a panel (initial-design: asynchronous gets a count) | `shellCounts.mail` |
 | Notifications | Badge: unread notifications plus approvals waiting; opens the inner drawer on Notifications | `shellCounts.notifications`; the screen `Commons/Panel/Notifications` |
 | Documentation `?` | As today | Framework |
 | Theme plugins | As today; the My Account counters widget retires | Theme data |
@@ -96,10 +96,11 @@ list of root element ids the framework exposes as `assistReach`, not a layout ch
 
 The theme values that name the BOSS screens for the framework frames are seeded by BOSS in
 `data/BossSetupData.xml`: `STRT_TRAY_TODAY`, `STRT_TRAY_CHAT`, `STRT_TRAY_NOTIFICATIONS`,
-`STRT_QUICK_CREATE`, `STRT_CHATTER_SCREEN` and `STRT_RECORD_FILES_SCREEN` (the last two are
-how the `chatter` and `record-files` elements of style-guide §8 find their Mantle-aware
-screens, §15 and §9). A deployment without BOSS has an empty inner drawer and no Chatter; the
-framework stays Mantle-free.
+`STRT_QUICK_CREATE`, `STRT_CHATTER_SCREEN`, `STRT_RECORD_FILES_SCREEN` (these two are how
+the `chatter` and `record-files` elements of style-guide §8 find their Mantle-aware screens,
+§15 and §9) and `STRT_SHELL_COUNTS_SERVICE` (the service the shell calls for its badge counts,
+`get#ShellCounts`). A deployment without BOSS has an empty inner drawer, no badges and no
+Chatter; the framework stays Mantle-free.
 
 ### 1.3 The outer drawer: Assist
 
@@ -160,7 +161,8 @@ result, Ctrl+Enter opens it in a new tab. Groups, in order: **Recent** (the last
 shown before typing), **Records** (the search index through `mantle.search.UniversalSearchServices.search#Universal`,
 grouped by document type, with the organization limit it applies), **People** (Commons:
 `mantle.party.PartyServices.search#Party` over the directory and the user's address books),
-**Messages and rooms** (Comms: mail threads by subject and sender, chat rooms by name), **Pages
+**Messages and rooms** (Comms: mail threads by subject and sender, mailboxes and chat rooms by
+name), **Pages
 and files** (Commons: wiki pages and files by name), **Events** (upcoming events by name),
 **Actions** (the `<palette-action>` providers of the apps the user may open: "Compose email",
 "New event", "Create sales order", "Receive shipment"), **Screens** (by menu title), **Saved
@@ -173,7 +175,8 @@ as `Commons/Search` only as the "more" target for Records.
 
 **Quick create.** The `+` menu lists the kinds registered by the apps the user may open, with
 the current app's kinds first; each kind names a screen and parameters. Commons registers task,
-event, note, contact and request (all `Commons/QuickCreate?kind=…`, §4); Comms registers email
+event, note, contact and request, and activity while a record is in context (all
+`Commons/QuickCreate?kind=…`, §4); Comms registers email
 (the composer, §12), chat message (a people picker that opens the room in the inner drawer) and
 call. Prefill from the screen context: a record in context becomes the link chip (the task,
 event, note or request is linked to it, §1.6); a party in context (a customer, supplier, contact
@@ -203,7 +206,9 @@ A record link made from the context is written to the record's own join when one
 `mantle.work.effort.WorkEffortCommEvent`, `mantle.party.communication.WikiPageCommunicationEvent`,
 `mantle.request.RequestWorkEffort`, `mantle.work.effort.WikiPageWorkEffort`) and otherwise to
 the generic links this design adds (`CommunicationEventRecord`, `WorkEffortRecord`, §19), which
-answers research-crosscut §8's generic-link question for Chatter and activities.
+answers research-crosscut §8's generic-link question for Chatter and activities. A party's own
+link is the communication event's from and to party and its `CommunicationEventParty` rows, as
+`mantle.party.CommunicationServices.find#PartyCommunicationEvents` reads them.
 
 ### 1.7 Keyboard
 
@@ -214,7 +219,10 @@ listing the keys active now, and `Commons/Settings/Preferences` lets the user ch
 Esc closes the top-most dialog, menu or drawer, `?` help, `g` then a letter for the go-to set
 (`g i` Inbox, `g c` Calendar, `g t` Tasks, `g f` Files, `g n` Notes, `g h` the app's Home) and
 `c` compose or create in the current app. A screen's scope wins over the global set while it has
-focus, and a text input swallows single letters. The Inbox (§12) and Chat (§13) carry the full
+focus, and a text input swallows single letters. Inside a rich-text editor (Compose, the
+Knowledge and Notes editor) Ctrl+K inserts a link, as Gmail and Google Docs do, and the palette
+is the header Search button; the chat composer keeps Ctrl+K for the palette, as Slack does. The
+Inbox (§12) and Chat (§13) carry the full
 sets people expect from Gmail and Slack, with the gaps closed (moving focus between panes,
 ranged selection, jump to a folder or label by typing its name, "archive and open next" as a
 preference).
@@ -239,7 +247,8 @@ as `boss.xml` does today.
 ### 2.1 Commons
 
 Root `screen/Commons.xml`, menu title "IronStone Commons", icon `sym_o_hub`, default item
-`Home`. Menu to depth two (a panel screen and a reused detail have `menu-include="false"`):
+`Home`. Menu to depth two (the panel screens, `QuickCreate`, `Search` and the detail screens
+have `menu-include="false"`):
 
 - Home — `Commons/Home`
 - Contacts — `Commons/Contacts`
@@ -268,14 +277,15 @@ Root `screen/Comms.xml`, menu title "IronStone Comms", icon `sym_o_forum`, defau
 (the landing `Home` is in the menu but a mail app opens on its inbox). Menu:
 
 - Home — `Comms/Home`
-- Inbox — `Comms/Inbox`
+- Inbox — `Comms/Inbox` (mail accounts, and the Internal account with its mailboxes)
 - Chat — `Comms/Chat`
 - Calls — `Comms/Calls`
 - Consent — `Comms/Consent` (marketing and admin roles)
 - Settings — `Comms/Settings` (Mail accounts, Identities and signatures, Rules, Out of office, Text blocks, Chat, Calls)
 
 Landing (`Comms/Home`, §12): unread by account, flagged and snoozed due, mentions, missed calls,
-outbox failures, needs-reply and follow-ups-due lists, upcoming meetings with Join, shortcuts.
+outbox failures, needs-reply and follow-ups-due lists, mailboxes and rooms with unread,
+upcoming meetings with Join, shortcuts.
 Mail domains, relay, DKIM, the gateway's trusted addresses, the SMTP listener and the other
 protocol servers are Admin's screens (research-crosscut §4), read-only links from Comms
 settings.
@@ -294,8 +304,8 @@ designed and built after it.
 | TodayPanel | `Commons/Panel/Today` | panel | xml | Overdue, due today and later today across tasks, activities, events, approvals and app sources, with quick actions | `WorkEffort` | own | app | new | none |
 | ChatPanel | `Comms/Panel/Chat` | panel | qvue | Rooms and direct messages with unread counts; a room opens in the panel | `ChatRoom` (new) | own; shares the room component of Chat | app | new | `ChatRoom roomId` |
 | NotificationsPanel | `Commons/Panel/Notifications` | panel | xml | Unread and recent notifications by reason and app; approvals waiting with Approve and Refuse inline | `NotificationMessage` | own | app | new | none |
-| QuickCreate | `Commons/QuickCreate` | dialog | xml | The quick-create forms for task, event, note, contact and request, prefilled from the screen context | `WorkEffort`, `Party`, `Request`, `WikiPage` | own | app | new | none |
-| Notifications | `Commons/Notifications` | list | xml | The notification center: filters by reason, app, read state and date; the approvals inbox; mark read | `NotificationMessage` | own | app | new | list find parameters |
+| QuickCreate | `Commons/QuickCreate` | dialog | xml | The quick-create forms for task, activity, event, note, contact and request, prefilled from the screen context | `WorkEffort`, `Party`, `Request`, `WikiPage` | own | app | new | none |
+| Notifications | `Commons/Notifications` | list | xml | The notification center: filters by reason, app, read state and date; the approvals inbox; mark read | `NotificationMessage` | Approvals waiting, crosscut §3.15, designed here | app | parity | list find parameters |
 | LiveCall | `Comms/Calls/LiveCall` | panel | qvue | The call mini-window shown on any screen during a call | `CallSession` (new) | own | app | later | `CallSession callSessionId` |
 
 ### IronStone Commons
@@ -303,17 +313,19 @@ designed and built after it.
 | Screen | Path | Archetype | Impl | Purpose | Main record | Reused | Roles | Scope | Context |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Home | `Commons/Home` | landing | xml | Today, counters, my work, recent pages and files, shortcuts, first-run setup | — | own | app | new | none |
+| Search | `Commons/Search` | list | xml | The full record search, the palette's "more" target for Records, with document-type filters | `mantle.search.UniversalSearchServices.search#Universal` | own | app | parity | list find parameters |
 | Contacts | `Commons/Contacts` | split | xml | The directory and the user's address books: a side list with search, scopes and groups; the contact record in the main pane | `Party` | side own; main pane is Contact / party record, crosscut §3.1 | app | parity | `Party partyId`; `Party rows` |
 | ContactDetail | `Commons/Contacts/ContactDetail` | detail | xml | The contact record | `Party` | Contact / party record, crosscut §3.1 | app | parity | `Party partyId` |
 | ContactImport | `Commons/Contacts/Import` | wizard | xml | vCard and CSV import with mapping, duplicate policy, preview and result | `Party` | own | app | new | none |
 | Duplicates | `Commons/Contacts/Duplicates` | list | xml | Candidate duplicates with compare and merge | `Party` | own | contact admins | parity | `Party rows` |
-| Calendar | `Commons/Calendar` | calendar | qvue | Day, work week, week, month and agenda over my, shared and subscribed calendars; quick create; drag to move | `WorkEffort` (`WetEvent`) | Calendar & schedules, crosscut §3.12, designed here | app | parity | `WorkEffort workEffortId`; filters: calendars, range |
+| Calendar | `Commons/Calendar` | calendar | qvue | Day, work week, week, month and agenda over my, shared and subscribed calendars; quick create; drag to move | `WorkEffort` (`WetEvent`) | Calendar & schedules, crosscut §3.13, designed here | app | parity | `WorkEffort workEffortId`; filters: calendars, range |
 | EventDetail | `Commons/Calendar/EventDetail` | detail | xml | One event: when, repeat, reminders, where, rooms and equipment, attendees and RSVP, details, attachments, Chatter | `WorkEffort` | own; Events, included by Marketing | app | parity | `WorkEffort workEffortId` |
-| Schedules | `Commons/Calendar/Schedules` | calendar | qvue | Room and equipment schedules by resource with a Book action | `WorkEffort`, `Facility`, `Asset` | Calendar & schedules; Maintenance includes it with scheduling admin | app | new | `Facility facilityId` or `Asset assetId`; range |
+| Schedules | `Commons/Calendar/Schedules` | calendar | qvue | Room and equipment schedules by resource with a Book action | `WorkEffort`, `Facility`, `Asset` | Calendar & schedules, crosscut §3.13, designed here; Maintenance includes it with scheduling admin | app | new | `Facility facilityId` or `Asset assetId`; range |
+| ResourceDetail | `Commons/Calendar/Schedules/ResourceDetail` | detail | xml | A bookable room or piece of equipment as a user sees it: what and where it is, its schedule, Book | `Facility`, `Asset` | Facility & equipment record, crosscut §3.10 | app | new | `Facility facilityId` or `Asset assetId` |
 | Tasks | `Commons/Tasks` | list | xml | My tasks in smart lists with list, board and calendar views and a quick-add row | `WorkEffort` (`WetTask`) | own | app | parity | `WorkEffort rows`; list find parameters |
-| TaskDetail | `Commons/Tasks/TaskDetail` | detail | xml | The task | `WorkEffort` | Task / work item, crosscut §3.11 | app | parity | `WorkEffort workEffortId` |
+| TaskDetail | `Commons/Tasks/TaskDetail` | detail | xml | The task | `WorkEffort` | Task / work item, crosscut §3.12 | app | parity | `WorkEffort workEffortId` |
 | Requests | `Commons/Requests` | list | xml | Requests I raised, am assigned to or watch | `Request` | own | app | parity | list find parameters |
-| RequestDetail | `Commons/Requests/RequestDetail` | detail | xml | The request | `Request` | Request / case, crosscut §3.10 | app | parity | `Request requestId` |
+| RequestDetail | `Commons/Requests/RequestDetail` | detail | xml | The request | `Request` | Request / case, crosscut §3.11 | app | parity | `Request requestId` |
 | Files | `Commons/Files` | split | qvue | Folders, recent, favorites, shared with me, records and trash; detail sidebar with sharing, versions, comments and activity; upload and preview | `DbResource` | own | app | new | `DbResource resourceId`; `DbResource rows` |
 | Shares | `Commons/Files/Shares` | list | xml | Outgoing shares and links with expiry and revoke; incoming shares to accept | `DbResourceShare` (new) | own | app | new | list find parameters |
 | PublicShare | `Commons/Files/Public` | split | qvue | The anonymous page of a shared file or folder: view, download, file drop | `DbResource` | own | anonymous by token | new | none |
@@ -327,25 +339,25 @@ designed and built after it.
 | NotificationSettings | `Commons/Settings/Notifications` | settings | xml | Per-topic in-app, email and digest subscriptions | `NotificationTopicUser` | own | app | parity | none |
 | ContactBooks | `Commons/Settings/ContactBooks` | settings | xml | Address books and groups, sharing, CardDAV addresses | `ContactBook` (new) | own | app | new | none |
 | Calendars | `Commons/Settings/Calendars` | settings | xml | My calendars, colors, sharing, external subscriptions, publish links, working hours | `Calendar` (new) | own | app | new | none |
-| Sync | `Commons/Settings/Sync` | settings | xml | Device setup for CalDAV, CardDAV and WebDAV with app passwords | app password (new) | own | app | later | none |
+| Sync | `Commons/Settings/Sync` | settings | xml | Device setup for CalDAV, CardDAV and WebDAV with app passwords | `UserAppPassword` (new) | own | app | later | none |
 
 ### IronStone Comms
 
 | Screen | Path | Archetype | Impl | Purpose | Main record | Reused | Roles | Scope | Context |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Home | `Comms/Home` | landing | xml | Unread by account, flagged and snoozed, mentions, missed calls, outbox failures; needs-reply and follow-ups; meetings with Join | — | own | app | new | none |
-| Inbox | `Comms/Inbox` | split | qvue | Unified and per-account mail with folders and labels, thread list and reading pane, search, keyboard first; internal messages as the Internal account | `EmailMessage` | own | app | new | `EmailMessage emailMessageId`; `EmailMessage rows`; filters: account, folder, search |
-| Compose | `Comms/Inbox/Compose` | editor | qvue | The composer as a dock, a dialog or a page: identities, recipients, rich text, attachments from Files, text blocks, schedule send, undo send | `EmailMessage` (draft) | own; email sending included by Marketing and Customer Service | app | new | `EmailMessage emailMessageId` |
-| MessageDetail | `Comms/Inbox/MessageDetail` | detail | xml | One message by id for deep links, Chatter, print and audit: headers, body, attachments, record links, delivery status, resend | `EmailMessage` | own | app | new | `EmailMessage emailMessageId` |
+| Inbox | `Comms/Inbox` | split | qvue | Unified and per-account mail with folders and labels, thread list and reading pane, search, keyboard first; internal messages as the Internal account, with its mailboxes (shared lists and forums) | `EmailMessage`, `CommunicationEvent` | own | app | parity | `EmailMessage emailMessageId`; `CommunicationEvent communicationEventId`; `ContactList contactListId` (a mailbox); `EmailMessage rows`; filters: account, folder, mailbox, search |
+| Compose | `Comms/Inbox/Compose` | editor | qvue | The composer as a dock, a dialog or a page: identities, recipients, rich text, attachments from Files, text blocks, schedule send, undo send | `EmailMessage` (draft) | own; email sending included by Marketing and Customer Service | app | parity | `EmailMessage emailMessageId` |
+| MessageDetail | `Comms/Inbox/MessageDetail` | detail | xml | One message by id for deep links, Chatter, print and audit: headers, body, attachments, record links, delivery status, resend | `EmailMessage` | own | app | parity | `EmailMessage emailMessageId` |
 | Chat | `Comms/Chat` | split | qvue | Rooms and direct messages; the room view with threads, mentions, reactions, attachments, record cards and message actions; room settings | `ChatRoom` | own | app | new | `ChatRoom roomId` |
 | Calls | `Comms/Calls` | list | xml | Call history, call links and upcoming meetings with Join | `CallSession` | own | app | later | list find parameters |
 | Call | `Comms/Calls/Call` | task | qvue | The lobby and the call view; guest join by link | `CallSession` | own | app; guests by link | later | `CallSession callSessionId` |
-| Chatter | `Shared/Chatter` | panel | qvue | The timeline beside every record: messages and notes, scheduled activities, attachments, followers, changes; send email, log a note, schedule an activity from the record | `CommunicationEvent`, `WorkEffort` | Chatter & activities, crosscut §3.13, designed here | app | new | inherits the host record |
-| RecordFiles | `Shared/RecordFiles` | panel | qvue | The Files component scoped to a record: list, upload, preview, share, link an existing file | `DbResource` and the record's `*Content` | Files on records, designed here | app | new | inherits the host record |
+| Chatter | `Shared/Chatter` | panel | qvue | The timeline beside every record: messages and notes, scheduled activities, attachments, followers, changes; send email, log a note, schedule an activity from the record | `CommunicationEvent`, `WorkEffort` | Chatter & activities, crosscut §3.14, designed here | app | parity | inherits the host record |
+| RecordFiles | `Shared/RecordFiles` | panel | qvue | The Files component scoped to a record: list, upload, preview, share, link an existing file | `DbResource` and the record's `*Content` | Files on records, designed here | app | parity | inherits the host record |
 | Consent | `Comms/Consent` | list | xml | Contacts' consent and list subscriptions with history; per-contact edit; export | `PartyConsent` (new), `ContactListParty` | own; included by Marketing | marketing, admins | new | `Party rows` |
 | Unsubscribe | `Comms/Unsubscribe` | task | xml | The public unsubscribe and preferences page from a list email, with one-click support | `ContactListParty` | own | anonymous by token | new | none |
 | Settings | `Comms/Settings` | settings | xml | The settings index | — | own | app | new | none |
-| MailAccounts | `Comms/Settings/MailAccounts` | settings | xml | Accounts with status and last sync; the add-account wizard; folders, sync window, members of a shared mailbox | `EmailAccount` (new) | own | app | new | `EmailAccount emailAccountId` |
+| MailAccounts | `Comms/Settings/MailAccounts` | settings | xml | Accounts with status and last sync; the add-account wizard; folders, sync window, members of a shared account | `EmailAccount` (new) | own | app | new | `EmailAccount emailAccountId` |
 | Identities | `Comms/Settings/Identities` | settings | xml | Identities and signatures per account, reply-to, defaults | `EmailIdentity` (new) | own | app | new | none |
 | Rules | `Comms/Settings/Rules` | settings | xml | Server-side mail rules: ordered, conditions and actions, run on existing mail | `EmailRule` (new) | own | app | new | none |
 | OutOfOffice | `Comms/Settings/OutOfOffice` | settings | xml | Automatic replies per account with a date range and internal and external texts | `EmailOutOfOffice` (new) | own | app | new | none |
@@ -378,17 +390,21 @@ People).
 | `QuickAdd` | single | Add a task due today in one line | name; due (default today); the context link chip | `focus-field` on name; Enter submits | `mantle.work.TaskServices.create#SimpleTask` with `assignToPartyId` me | Nextcloud Tasks inline create; Microsoft To Do "My Day" |
 
 - **Actions:** Mark done (`mantle.work.TaskServices.update#Task` to `WeComplete`; for an event
-  "Done" is hidden), Snooze to tomorrow 09:00 in the user's time zone (`update#Task`
-  `estimatedCompletionDate`), Join (an event with a call link opens `Comms/Calls/Call`), Open (the
-  record in the canvas). Approvals link to the Notifications tab. "Add activity on this record"
-  appears when the screen context has a record and opens `QuickCreate?kind=activity`.
+  "Done" is hidden), Snooze to tomorrow 09:00 in the user's time zone (hides the item from my
+  Today only: the new `snoozeUntilDate` on my `WorkEffortParty` row, `entity`; the due date and
+  everyone else's view stay as they are), Reschedule (a date picker that changes the due date,
+  `update#Task` `estimatedCompletionDate`, shown only when I may update the task), Join (an event
+  with a call link opens `Comms/Calls/Call`), Open (the record in the canvas). Approvals link to
+  the Notifications tab. "Add activity on this record" appears when the screen context has a
+  record and opens `QuickCreate?kind=activity`.
 - **States:** "Nothing due today" with the quick-add line; an app source that fails is logged
   and shown as "Sales items unavailable", the rest renders (failure tolerance).
 - **Devices:** phone.
 - **Source:** research §4, §5 (Odoo activity menu), initial-design "Today"; replaces the four
   counts of `ssstatic/lib/MyAccountNav.qvue`.
-- **Needs:** Inner drawer frame, Shell providers (`today-source`), `get#UserTodayItems`,
-  `get#ShellCounts` and the `shellCounts` topic, Screen context.
+- **Needs:** Inner drawer frame; Shell providers (`today-source`); Today and timeline services
+  (`get#UserTodayItems`); Per-user snooze; `shellCounts` topic and `get#ShellCounts`; Screen
+  context.
 
 ### ChatPanel
 
@@ -400,14 +416,14 @@ People).
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
 | --- | --- | --- | --- | --- | --- | --- |
 | `RoomList` | list | Rooms and direct messages, unread and mentions first | avatar with presence, name, last message snippet, time, unread badge | `q-virtual-scroll` | `org.moqui.impl.ChatServices.find#Rooms` (new) | Nextcloud Talk LeftSidebar; Odoo messaging menu; Slack sidebar |
-| `RoomView` | — | The room component of §13 | | | as §13 | |
+| `RoomView` | component | The room component of §13 | as §13 | as §13 | as §13 | §13 `Timeline` and `Composer` |
 | `NewMessage` | single | Start a direct message or find a room | people or room picker with server search | `drop-down` `server-search` over `search#Party` and rooms | `ChatServices.create#Room` (new, direct type) | Talk NewConversationDialog |
 
 - **Actions:** open room, new message, start call (opens `Comms/Calls/Call` for the room, later),
   mark all read.
 - **Devices:** phone.
 - **Source:** research §6 (Talk, Signal, Odoo Discuss chat hub); style-guide §2.4.
-- **Needs:** Chat store and services, Presence and status, Inner drawer frame.
+- **Needs:** Chat store; Chat services; Presence and status; Inner drawer frame.
 
 ### NotificationsPanel
 
@@ -428,15 +444,18 @@ People).
 - **Devices:** phone.
 - **Source:** research §5 (OpenProject center, Odoo systray, Ever Gauzy approvals); initial-design
   rule "mentions, assignments, approvals waiting".
-- **Needs:** `NotificationMessage` reason, record and actor fields; `NotificationTopic` approve
-  and refuse services; Shell providers (`notification-topic`); the `notifications` WebSocket topic
-  the framework already sends.
+- **Needs:** Notification fields and approvals (the `NotificationMessage` reason, record and
+  actor fields; the `NotificationTopic` approve and refuse services); Shell providers
+  (`notification-topic`); Shell and notification topics (the `notifications` WebSocket topic the
+  framework already sends).
 
 ### QuickCreate
 
 - **Layout:** dialog (maximized on a phone) with one form chosen by `kind`; the context link
   shown as a chip above the fields ("Linked to Order SO10023 · remove"); six or fewer fields;
-  a "More options" text link opens the full record screen with the values carried over.
+  a "More options" text link opens the full record screen with the values carried over. The
+  `activity` kind is offered only while the screen context has a record, since an activity is
+  always on one.
 - **Forms:**
 
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
@@ -451,7 +470,8 @@ People).
 - **Actions:** Create (one primary) and Cancel; after Create a notification with "Open" links to
   the record; the dialog closes and the host screen's Chatter reloads.
 - **Source:** research §3 (Zimbra op registry, Nextcloud create-from-context); style-guide §2.4.
-- **Needs:** Shell providers (`quick-create`), Screen context, the generic record links.
+- **Needs:** Shell providers (`quick-create`); Quick create frame; Screen context; Generic
+  record links.
 
 ### Notifications
 
@@ -470,6 +490,13 @@ People).
   inbox); baseline `Notifications.xml`.
 - **Needs:** as NotificationsPanel.
 
+**Per-app context (Approvals waiting).**
+
+| App | Tabs or panes shown | Filters fixed | Action set | Emphasis |
+| --- | --- | --- | --- | --- |
+| Commons | the inner drawer's Approvals group and the center's `Approvals` list | the topics with approve and refuse services that are addressed to me | approve, refuse, bulk approve, open | everything waiting on me |
+| People, Projects, Purchasing, Sales, Accounting | their own approval lists over their records (design-<app>); whether they include the `Approvals` form filtered to their topics is decided in design-crosscut §3.15 | the app's topics | as the app's list | the app's policy |
+
 ### LiveCall
 
 - **Layout:** panel as `.qvue` in the framework's `q-page-sticky` slot, 320 × 180, draggable;
@@ -477,9 +504,9 @@ People).
   `Comms/Calls/Call`. Rendered only while a `CallSession` of the user is live.
 - **Source:** research §7 (Talk FloatingCallOverlay, Signal CallingPip); Teams and Meet
   picture-in-picture.
-- **Needs:** WebRTC, Call store.
+- **Needs:** WebRTC; Call store and services.
 
-## 5. Commons Home
+## 5. Commons Home and search
 
 ### Home
 
@@ -508,7 +535,22 @@ People).
 | `SetupCard` | single | First-run checklist | the four setup items with Done or Dismiss | | `UserPreference` `COMMONS_SETUP` (`org.moqui.impl.UserServices.set#Preference`) | Nextcloud first-run; Outlook setup |
 
 - **Source:** research §4 (Nextcloud dashboard, OpenProject and Redmine My page); style-guide §3.1.
-- **Needs:** `number-card`, `get#UserTodayItems`, File services.
+- **Needs:** `number-card`; Today and timeline services (`get#UserTodayItems`); File services.
+
+### Search
+
+- **Layout:** list. The palette (§1.5) is where people search; this page exists only as the
+  target of the palette's "more" for the Records group, with the typed text as its find, and for
+  a deep link to a search. Results are grouped by document type with the counts as chips.
+- **Forms:**
+
+| Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
+| --- | --- | --- | --- | --- | --- | --- |
+| `SearchFind` | find | The query | text, document type | document types as chips with counts | | `Base/Search` `SearchOptions` |
+| `SearchResults` | list | The hits | type, title, the matched snippet, the link to the record under its app | | `mantle.search.UniversalSearchServices.search#Universal` with the organization limit it applies | `Base/Search` `SearchResults` |
+
+- **Source:** research §2 and §17 (BOSS search and lookup); replaces `Base/Search`.
+- **Needs:** Search DataDocuments; Palette.
 
 ## 6. Contacts
 
@@ -520,6 +562,15 @@ named collection a user owns or an organization shares, whose members are partie
 **groups** (labels) inside it; a **personal contact** is a party that belongs only to a
 personal book and holds no role, hidden from the directory and from the duplicate scan unless
 its owner links it to a directory party. Each book maps to a CardDAV address book (§11 Sync).
+
+Hidden has to hold everywhere, not just in Contacts: other apps find parties through
+`find#Party`, `search#Party`, `lookup#ById`, party drop-downs and the MantleParty search
+document. A personal contact therefore carries its owner on the party itself, the new
+`Party.privateOwnerUserId` (§19 "Personal contact visibility"; `ownerPartyId` stays the owning
+organization the org filters use), and an entity filter on `mantle.party.Party` applied to every
+user, in the pattern of the `MANTLE_USER_ORG_9` party filter in `MantleSetupData.xml`, passes a
+party only when that field is empty or is the current user. "Link to a directory party" clears
+it.
 
 ### Contacts
 
@@ -549,7 +600,7 @@ its owner links it to a directory party. Each book maps to a CardDAV address boo
 - **Devices:** phone (stacked; a row opens the record full screen with a back button).
 - **Source:** research §10 (Nextcloud Contacts, Zimbra address book), §17 Party screens,
   §18 "Contacts are admin-shaped"; Google Contacts and Outlook People.
-- **Needs:** `container-split`, Contact books, Presence.
+- **Needs:** `container-split`; Contact books; Personal contact visibility; Presence and status.
 
 ### ContactDetail (Context passed)
 
@@ -558,14 +609,14 @@ per-app table:
 
 | App | Tabs or panes shown | Filters fixed | Action set | Emphasis |
 | --- | --- | --- | --- | --- |
-| Commons | Overview (names, contact info with purposes `EmailPrimary`, `PhoneMobile`, …, addresses, organization and title, relationships, books and groups, notes), Activity (Chatter), Calendar (shared events with this party), Tasks, Requests, Files, Consent (read, with "Edit in Comms Consent") | none; a personal contact shows a "Private · in <book>" banner | edit in place, email, call, chat, new event, new task, add to group or book, star, merge with…, export vCard, print, "Link to a directory party" for a personal contact, delete (owner of a personal contact; contact admins for the directory) | contact info, relationships, communication history |
+| Commons | Overview (names, contact info with purposes `EmailPrimary`, `PhoneMobile`, …, addresses, organization and title, relationships, books and groups, notes; for an employee a read-only directory card with position, department, manager, location and working hours, the Employee 360 itself staying People's), Activity (Chatter), Calendar (shared events with this party), Tasks, Requests, Files, Consent (read, with "Edit in Comms Consent") | none; a personal contact shows a "Private · in <book>" banner | edit in place, email, call, chat, new event, new task, add to group or book, star, merge with…, export vCard, print, "Link to a directory party" for a personal contact, delete (owner of a personal contact; contact admins for the directory) | contact info, relationships, communication history |
 
 Services the Commons version calls beyond the crosscut's: `mantle.party.ContactServices.get#PartyContactInfo`,
 `store#PartyContactInfo`, `store#PartyContactMech`, `delete#PartyContactMech`,
 `mantle.party.PartyServices.update#PartyDetail`, `create#PartyContent` (the avatar, `PcntFaceImage`),
 `mantle.party.ContactBookServices.*` (new). Baseline forms covered: `EditParty` `EditPersonForm`,
 `EditOrganizationForm`, `PostalPurposeForm`, `PhonePurposeForm`, `EmailPurposeForm`, `WebPurposeForm`,
-`OtherCreateForm`, `OtherUpdateForm`, `NewNoteForm`, `UpdateNoteForm`, `NewContentForm`, `UpdateContentForm`,
+`OtherPurposeForm`, `OtherCreateForm`, `OtherUpdateForm`, `NewNoteForm`, `UpdateNoteForm`, `NewContentForm`, `UpdateContentForm`,
 `PartyRelated` `NewToRelForm`, `NewFromRelForm`, `ToRelationshipForm`, `FromRelationshipForm`,
 `Party/UpdateContactInfo` `UpdateContactInfo`; `ExpiredPostal` and `ExpiredContactOther` become
 an "Expired" toggle on the contact info box.
@@ -580,13 +631,16 @@ an "Expired" toggle on the contact info box.
 | --- | --- | --- | --- | --- | --- | --- |
 | `ImportSource` | wizard step | Choose the file and its kind | file (vCard `.vcf`, CSV; presets for Google Contacts and Outlook CSV), character set | `file` | `mantle.party.ContactImportServices.parse#ContactFile` (new): returns columns and sample rows | Nextcloud SettingsImportContacts; Zimbra import page; Google Contacts import |
 | `ImportMapping` | wizard step | Map columns to fields | one row per column: target field (name parts, organization, title, email with purpose, phone with purpose, address parts, birthday, notes, group) | editable rows; "auto-map" by header name | | new (the reference apps map vCard only) |
-| `ImportOptions` | wizard step | Where and how | target book, groups to add, duplicate policy (skip, update, create), as personal or directory contacts | | | |
-| `ImportPreview` | list | What will happen | row, action (create, update, skip as duplicate of …), problems | | `parse#ContactFile` with the mapping; `mantle.party.DuplicateServices.find#PartyDuplicates` per row | |
-| `ImportResult` | wizard step | Progress and outcome | created, updated, skipped, failed with reasons; download the failures as CSV | `q-linear-progress` by `render-mode` | `mantle.party.ContactImportServices.import#Contacts` (new), run as a job for large files | |
+| `ImportOptions` | wizard step | Where and how | target book, groups to add, duplicate policy (skip, update, create), as personal or directory contacts | | the `import#Contacts` parameters | new |
+| `ImportPreview` | list | What will happen | row, action (create, update, skip as duplicate of …), matched party, problems | | `mantle.party.ContactImportServices.preview#Contacts` (new): parses with the mapping and matches each row by email, phone and name (`find#PartyDuplicates` takes only an existing `partyId`, so it cannot serve rows that are not parties yet) | new |
+| `ImportResult` | wizard step | Progress and outcome | created, updated, skipped, failed with reasons; download the failures as CSV | `q-linear-progress` by `render-mode` | `mantle.party.ContactImportServices.import#Contacts` (new), run as a job for large files | new |
+
+`ImportMapping`, `ImportOptions`, `ImportPreview` and `ImportResult` are `new`; their highlighted
+fields are the full field lists.
 
 - **Source:** research §10 and §18 (no CSV import in the references); Google and Outlook CSV
   formats as the common case.
-- **Needs:** Wizard panel, Contact import and export services, Contact books.
+- **Needs:** Wizard panel; Contact book, import and export services; Contact books.
 
 ### Duplicates
 
@@ -600,6 +654,7 @@ an "Expired" toggle on the contact info box.
 | `DuplicatePairs` | list | The candidates | the two parties, reason, score | Compare and merge; Not a duplicate | `mantle.party.DuplicateServices.merge#Parties`; `find#PartyHasDuplicates` | same; Google Contacts "Merge & fix"; Nextcloud Merging |
 
 - **Source:** research §17 services; baseline `FindDuplicates`.
+- **Needs:** Personal contact visibility (the scan skips personal contacts).
 
 ## 7. Calendar and schedules
 
@@ -610,7 +665,10 @@ bookable type), equipment is `WorkEffortAssetAssign` (an `Asset`, `AstTpEquipmen
 status flow `WeaaRequested` → `WeaaAssigned` / `WeaaRequestDenied` is the booking approval. A
 **calendar** is the new `Calendar` collection (§19) that owns events through
 `CalendarWorkEffort`; a user's default calendar is created on first use; shared calendars are
-`CalendarShare` rows; external feeds are `CalendarSubscription`. Recurrence is an RFC 5545
+`CalendarShare` rows; external feeds are `CalendarSubscription`. The grid shows the events of
+the calendars toggled on plus every event where the user is a `WorkEffortParty` (an invitation,
+an event another app scheduled with them), as `MyCalendar` does today, so an event needs no
+`CalendarWorkEffort` row to appear. Recurrence is an RFC 5545
 RRULE on `WorkEffortRecurrence` with exceptions as instance `WorkEffort`s linked by
 `WorkEffortAssoc` `WeatRecurrenceInstance`; reminders are `WorkEffortReminder` delivered as
 notifications on the topic `WorkEffortReminder`. Working hours are recurring `WorkEffort`s of
@@ -644,8 +702,9 @@ the existing type `WetAvailable`.
 - **Devices:** phone (day and agenda views; a tap creates with the quick form maximized).
 - **Source:** research §9 (Nextcloud Calendar, Zimbra calendar, Frappe suite calendar), §17
   `MyCalendar` and `get#FullCalendarData`; Google Calendar and Outlook as the familiar shape.
-- **Needs:** List views (`view-calendar`, later), Calendar collections, Recurrence, Reminders,
-  `get#FreeBusy`, `respond#EventInvitation`, iCalendar tool, CalDAV server.
+- **Needs:** List views (`view-calendar`, later); Calendar collections; Recurrence; Reminders;
+  Calendar services (`get#FreeBusy`, `respond#EventInvitation`); iCalendar, vCard and iMIP tool;
+  CalDAV and CardDAV servers.
 
 ### EventDetail
 
@@ -670,7 +729,7 @@ the existing type `WetAvailable`.
 | `Attendees` | list, editable rows | Who | party or external email, role (`Assignee`, optional), RSVP status, must respond, availability | party `server-search`; an external email creates a contact in the organizer's book | `mantle.work.WorkEffortServices.add#WorkEffortParty`, `remove#WorkEffortParty`, `replace#WorkEffortParty`; `mantle.work.EventServices.send#EventInvitations` (new): notifications to users, iMIP mail to external addresses | `EventDetail` `AddPartyAssignForm`, `UpdateAssignForm`; Nextcloud Invitees |
 | `Rooms` | list, editable rows | Where it happens | facility (bookable), status | availability beside the picker | `WorkEffortFacility` `entity` with the new `statusId`; `mantle.work.EventServices.book#Resource` (new) applies the policy | Nextcloud Resources; Outlook room finder |
 | `Equipment` | list, editable rows | What it needs | asset, status (`WeaaRequested`, `WeaaAssigned`, `WeaaRequestDenied`), comments | | `WorkEffortAssetAssign` `entity`; `book#Resource` | `EventDetail` `AddEquipment`, `EquipmentList` |
-| `LinkedRecords` | list | Where this event belongs | request, task, order, party | add by `lookup#ById` | `mantle.request.RequestWorkEffort`, `WorkEffortAssoc`, `WorkEffortRecord` (new) | |
+| `LinkedRecords` | list | Where this event belongs | record type, record id and title, linked on, by; remove | add by `lookup#ById` | `mantle.request.RequestWorkEffort`, `WorkEffortAssoc`, `WorkEffortRecord` (new) | new; these are the full fields |
 
 - **Actions:** Save; Send invitations (confirms; sends to new or changed attendees only);
   RSVP accept, tentative, decline with a message; Duplicate (`mantle.work.WorkEffortServices.clone#WorkEffort`);
@@ -682,8 +741,9 @@ the existing type `WetAvailable`.
   a declined room shows "Request denied" with the policy's reason.
 - **Source:** research §9; baseline `EventDetail` (`UpdateEvent`, `NewNoteForm`, `UpdateNoteForm`
   → Chatter, `AddPartyAssignForm`, `UpdateAssignForm`, `AddEquipment`, `EquipmentList`).
-- **Needs:** Recurrence, Reminders, `WeptTentative`, `WorkEffortFacility.statusId`,
-  `send#EventInvitations`, `book#Resource`, iCalendar and iMIP, `record-files`, `chatter`.
+- **Needs:** Recurrence; Reminders; RSVP and booking statuses (`WeptTentative`,
+  `WorkEffortFacility.statusId`); Calendar services (`send#EventInvitations`, `book#Resource`);
+  iCalendar, vCard and iMIP tool; `record-files`; `chatter`.
 
 **Per-app context (Events).**
 
@@ -699,19 +759,35 @@ the existing type `WetAvailable`.
 - **Layout:** the Calendar component in resource mode: one row per resource (rooms by facility,
   equipment by type), columns by hour (day) or day (week), grouped by site; filters by facility
   type, capacity, equipment type and site; a booking shows its status color (requested warning,
-  assigned primary, denied negative). A click on an empty cell opens the Booking dialog.
+  assigned primary, denied negative). A click on an empty cell opens the Booking dialog; a
+  resource's name opens `ResourceDetail`.
 - **Forms:**
 
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
 | --- | --- | --- | --- | --- | --- | --- |
 | `ScheduleFilters` | find | Which resources and when | site, type (rooms, equipment), capacity at least, range | | `mantle.work.EventServices.get#FullCalendarData` with `facilityIdList` and `assetIdList` | SimpleScreens `Facility/FacilityCalendar`, `Asset/AssetCalendar` |
-| `Booking` | dialog | Book a room or a machine | resource, start, end, purpose (becomes the event name), attendees, notes, context link | | `mantle.work.EventServices.create#Event` (takes `assetId`); `WorkEffortFacility` `entity`; `book#Resource` sets `WeaaRequested` or `WeaaAssigned` by policy | Nextcloud RoomAvailabilityModal; Outlook room booking |
+| `Booking` | dialog | Book a room or a machine | resource, start, end, purpose (becomes the event name), attendees, notes, context link | | `mantle.work.EventServices.create#Event` (takes `assetId`); `WorkEffortFacility` `entity`; `book#Resource` sets `WeaaRequested` or `WeaaAssigned` by policy | SimpleScreens `AssetCalendar` `NewEventForm`; Nextcloud RoomAvailabilityModal; Outlook room booking |
 
 - **Actions:** Book, open the event, cancel my booking; "Scheduling admin" links to Maintenance
   for users who have it.
 - **Source:** research §9 and §16; initial-design "Facility and equipment schedules live in
   Commons, admin in Maintenance".
-- **Needs:** `book#Resource`, `WorkEffortFacility.statusId`.
+- **Needs:** Calendar services (`book#Resource`); RSVP and booking statuses
+  (`WorkEffortFacility.statusId`).
+
+### ResourceDetail (Context passed)
+
+The Facility & equipment record is designed in `design-crosscut.md` §3.10; Commons mounts it
+read-only at `Commons/Calendar/Schedules/ResourceDetail` for the bookable resources. Commons'
+row of its per-app table:
+
+| App | Tabs or panes shown | Filters fixed | Action set | Emphasis |
+| --- | --- | --- | --- | --- |
+| Commons | Overview (name, type, site and location, capacity, features, image, the booking policy in words), Schedule (this resource's week in the Schedules component), My bookings of it | bookable facilities (`FcTpRoom` and the other bookable types) and equipment (`AstTpEquipment`) | book, cancel my booking; "Open in Maintenance" for users who have it | availability |
+
+Services the Commons version calls beyond the crosscut's: `mantle.work.EventServices.get#FullCalendarData`
+with `facilityId` or `assetId`, `create#Event` and `book#Resource` (new) through the Booking
+dialog.
 
 **Per-app context (Calendar & schedules).**
 
@@ -751,7 +827,7 @@ them in bulk are Projects' (work items, boards, plans) and Customer Service's (c
 - **Devices:** phone (the table scrolls; the quick-add row stays).
 - **Source:** research §11 (Nextcloud Tasks, Deck, Zimbra tasks), §17 `MyTasks`; Microsoft To Do
   and Google Tasks.
-- **Needs:** List views, Screen context.
+- **Needs:** List views; Screen context.
 
 ### TaskDetail (Context passed)
 
@@ -789,7 +865,8 @@ Services: `mantle.request.RequestServices.update#Request`, `add#RequestComment`,
 `delete#RequestComment`, `replace#RequestParty`, `create#RequestContent`, `save#RequestContentFile`.
 Baseline forms covered: `MyAccount` `EditRequest` `EditRequest`, `UpdatePartyForm`,
 `RequestCommentReply` and `RequestCommentUpdate` `ReplyCommentForm`; `Request/EditRequest`
-`AddCommentForm`, `NewNoteForm`, `NewContentForm`, `RequestTaskList`.
+`AddCommentForm`, `NewNoteForm`, `UpdateNoteForm`, `NewContentForm`, `UpdateContentForm`,
+`RequestTaskList`.
 
 ## 9. Files
 
@@ -798,11 +875,14 @@ every file and folder is a `moqui.resource.DbResource` with its bytes in `DbReso
 its versions in `DbResourceFileHistory`, so a Postgres backup holds everything. The tree gains
 the metadata a drive needs (owner, size, trash, favorites, tags, shares, public links; §19). A
 deployment that wants files on disk or in object storage points the root at another resource
-location; the screens do not change. Record attachments are the same tree: a record's files live
-under `Records/<entity>/<id>/` and the record's `*Content` row (`PartyContent`,
-`WorkEffortContent`, `RequestContent`, `OrderContent`, …) points at them, so the browser's
-**Records** section is a view over those folders and the `record-files` element is the same
-component scoped to one of them. WebDAV serves the tree to desktop clients; the virtual SFTP
+location; the screens do not change. Record attachments are the same tree, in the layout Mantle
+already writes: each `save#*ContentFile` service stores a record's file at
+`dbresource://mantle/content/<type>/<id>/content_<contentId>/<file>` (the root is the
+`mantle.content.root` preference) and the record's `*Content` row (`PartyContent`,
+`WorkEffortContent`, `RequestContent`, `OrderContent`, …) points at it. The browser's
+**Records** section is a view over those type folders, named by record type, and the
+`record-files` element is the same component scoped to one record; no file moves. WebDAV serves
+the tree to desktop clients; the virtual SFTP
 server serves it to scripts (§11 Sync, §19).
 
 ### Files
@@ -823,12 +903,12 @@ server serves it to scripts (§11 Sync, §19).
 | `FileFind` | find | Search and filters | text (name and extracted text), type, modified period, tag, owner, in this folder | | `org.moqui.impl.FileServices.find#Resources` (new) and the search index | Nextcloud in-folder search and filters; Google Drive filter chips |
 | `FileList` | list | The folder | name with icon or thumbnail, size, modified, owner, shared chip, favorite star | `q-virtual-scroll`; drag rows to a folder; `row-selection` | `FileServices.list#Folder` (new) | Nextcloud FilesListVirtual; Frappe Drive ListView and GridView |
 | `Upload` | single | Upload files or a folder | files (multiple), destination | `file` with drop zone; a progress tracker; conflict dialog (replace, keep both, skip) | `FileServices.upload#Resource` (new); `DbResourceFileHistory` keeps the replaced version | Nextcloud uploader and conflict dialog; Zimbra upload conflict |
-| `NewFolder`, `Rename` | dialog | | name | | `FileServices.create#Folder`, `rename#Resource` (new) | Nextcloud NewNodeDialog |
+| `NewFolder`, `Rename` | dialog | Name a new folder, or rename a file or folder | name | | `FileServices.create#Folder`, `rename#Resource` (new) | Nextcloud NewNodeDialog |
 | `Move` | dialog | Move or copy the selection | destination (folder tree) | `tree` | `FileServices.move#Resource`, `copy#Resource` (new) | Nextcloud move-copy; Frappe MoveDialog |
 | `Share` | dialog | Share with people or by link | sharee (user, group, party, email), permission (view, edit, upload only), expiry, password, note; links: label, permission, expiry, password | sharee `server-search` | `FileServices.share#Resource`, `revoke#Share` (new) over `DbResourceShare` | Nextcloud SharingTab and SharingDetailsTab; Google Drive share dialog |
 | `Details` | single, read | Metadata and tags | type, size, created, modified, owner, location, tags (editable) | | `entity`; `DbResourceTag` (new) | Nextcloud sidebar; Drive details pane |
 | `Versions` | list | History | version, date, by, size; restore, download, label | | `DbResourceFileHistory` (`entity`); `FileServices.restore#Version` (new) | Nextcloud files_versions; Zimbra briefcase revisions |
-| `Comments` | — | Chatter comments on the file | | the `chatter` element in comments-only mode | `mantle.party.CommunicationServices.create#Message` type `Comment` with `CommunicationEventRecord` | Nextcloud comments tab |
+| `Comments` | component | Chatter comments on the file | | the `chatter` element in comments-only mode | `mantle.party.CommunicationServices.create#Message` type `Comment` with `CommunicationEventRecord` | Nextcloud comments tab |
 | `Activity` | list | What happened to the file | action, by, when | | `FileServices.get#Activity` (new) from the audit log and share rows | Nextcloud activity tab; Drive activity |
 | `BulkActions` | list, bulk | On the selection | download as zip, move, copy, share, tag, favorite, delete | | as above; `FileServices.download#Zip` (new) | Nextcloud file list actions |
 
@@ -844,8 +924,8 @@ server serves it to scripts (§11 Sync, §19).
 - **Devices:** phone (list only; upload from the camera roll; preview full screen).
 - **Source:** research §12 (Nextcloud Files, Zimbra briefcase, Frappe drive), §17 `DbResource`,
   §18 "No Files app"; Google Drive and OneDrive.
-- **Needs:** File metadata model, File services, Full-text and name index for files, WebDAV
-  server, `chatter`, Search DataDocument for files.
+- **Needs:** File metadata model; File services; Search DataDocuments (`MoquiDbResource`);
+  Extracted text for search (later); WebDAV server; `chatter`.
 
 ### Shares
 
@@ -876,7 +956,7 @@ server serves it to scripts (§11 Sync, §19).
 
 - **Source:** research §12 (public share pages, file request); Google Drive and OneDrive link
   sharing.
-- **Needs:** Public share route and token check (framework), File services.
+- **Needs:** Anonymous token routes; File services.
 
 ### RecordFiles (`Shared/RecordFiles`)
 
@@ -890,11 +970,15 @@ server serves it to scripts (§11 Sync, §19).
 
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
 | --- | --- | --- | --- | --- | --- | --- |
-| `RecordFileList` | list | The record's files | name, type, description, by, when | preview; `row-selection` for download | the record's `*Content` join (`entity`) and the `Records/<entity>/<id>/` folder | `EditParty` `NewContentForm`, `UpdateContentForm`; `TaskSummary` `NewContentForm`; `EditRequest` `NewContentForm`; wiki `UploadAttachment` |
-| `RecordUpload` | single | Add files | files, type, description | `file` with drop zone | the record's content service when one exists: `mantle.party.PartyServices.create#PartyContent` and `save#PartyContentFile`, `mantle.work.WorkEffortServices.create#WorkEffortContent` and `save#WorkEffortContentFile`, `mantle.request.RequestServices.create#RequestContent` and `save#RequestContentFile`, `mantle.party.CommunicationServices.create#CommunicationEventContent` and `save#CommunicationEventContentFile`, `mantle.party.AgreementServices.create#AgreementContent` and `save#AgreementContentFile`; otherwise `FileServices.upload#Resource` plus the join | same; Nextcloud Deck attachments; Odoo chatter attachments |
+| `RecordFileList` | list | The record's files | name, type, description, by, when | preview; `row-selection` for download | the record's `*Content` join (`entity`) and its content folder | `EditParty` `NewContentForm`, `UpdateContentForm`; `TaskSummary` `NewContentForm`; `EditRequest` `NewContentForm`; wiki `UploadAttachment` |
+| `RecordUpload` | single | Add files | files, type, description | `file` with drop zone | the record's `create#<Record>Content` and `save#<Record>ContentFile` pair, which Mantle has for 13 record types: Agreement, AssetMaintenance, CommunicationEvent, Invoice, Order, Party, Payment, PaymentMethod, Product, ProductCategory, Request, Shipment and WorkEffort (for example `mantle.party.PartyServices.create#PartyContent` and `save#PartyContentFile`); otherwise `FileServices.upload#Resource` plus the join | same; Nextcloud Deck attachments; Odoo chatter attachments |
 
+- **Per-app context:** none. Every app gets the same component; the type chip and the type
+  picker come from the record's own content-type enumeration (`PcntInternal` and the other
+  `PartyContentType` values for a party, the order, invoice or shipment types for those), and
+  the host screen's authorization decides who may upload and remove.
 - **Source:** research §12 and §16 "Files on records"; crosscut §3 `*Content` joins.
-- **Needs:** `record-files` element, File services, `STRT_RECORD_FILES_SCREEN`.
+- **Needs:** `record-files`; File services.
 
 ## 10. Notes and knowledge
 
@@ -924,19 +1008,20 @@ baseline's behavior with a preview.
 
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
 | --- | --- | --- | --- | --- | --- | --- |
-| `PageTree` | — | The space's pages | title, children | `tree` with drag; a page's `menu-include` is its `sequenceNum` | `org.moqui.impl.WikiServices.get#WikiSpacePages`, `get#WikiPageChildren`, `update#WikiPage` (parent and sequence) | SimpleScreens Wiki `wiki` tree; Nextcloud Collectives PageList; Frappe WikiTree |
+| `PageTree` | component | The space's pages | title, children | `tree` with drag; a drop sets the page's `parentWikiPageId` and `sequenceNum` | `org.moqui.impl.WikiServices.get#WikiSpacePages`, `get#WikiPageChildren`, `update#WikiPage` (parent and sequence) | SimpleScreens Wiki `wiki` tree; Nextcloud Collectives PageList; Frappe WikiTree |
 | `PageHeader` | single | Title and placement | title, page path, parent, categories, visibility | | `org.moqui.impl.WikiServices.update#WikiPage`; `WikiPageCategoryMember` (`entity`) | `wiki` `AddPageForm`, `AddCategory`, `CategoriesForm`; `EditWikiPage` `EditPageForm` |
-| `Editor` | — | The body | | `m-coedit` (§19); fallback `text-area editor-type="md"` | `update#WikiPage` writes the snapshot and a `WikiPageHistory` version on idle and on Save | Nextcloud Text; Frappe WikiEditor slash commands; Notion and Confluence editing |
+| `Editor` | component | The body | page text | `m-coedit` (§19); fallback `text-area editor-type="md"` | `update#WikiPage` writes the snapshot and a `WikiPageHistory` version on idle and on Save | Nextcloud Text; Frappe WikiEditor slash commands; Notion and Confluence editing |
 | `History` | dialog | Versions and compare | version, date, by, note; compare two; restore; set published | a diff view by `render-mode` | `WikiPageHistory` (`entity`); `org.moqui.impl.WikiServices.set#PublishedVersion` | SimpleScreens `WikiCompare`; Redmine and OpenProject history and diff |
 | `ReviewRequest` | dialog | Ask for review before publishing | reviewer, note, version | | `WikiPageReview` (new, §19) and a notification on topic `WikiPageReview` | Frappe Wiki contributions; Ever Gauzy Docs review |
-| `Comments` | — | Chatter comments on the page | | the `chatter` element, comments only | `mantle.party.CommunicationServices.add#WikiPageComment` (`WikiPageCommunicationEvent`) | `wiki` `AddCommentForm`, `WikiCommentReply` `ReplyCommentForm`; Collectives comments |
-| `Attachments` | — | Files on the page | | `record-files` | `org.moqui.impl.WikiServices.upload#WikiPageAttachment`, `get#WikiPageAttachment`, `delete#WikiPageAttachment` | `wiki` `UploadAttachment` |
-| `LinkRecord` | dialog | Link the page to a request or task | record by id or search | `lookup#ById` | `mantle.request.WikiPageRequest`, `mantle.work.effort.WikiPageWorkEffort` (`entity`) | SimpleScreens `Request/EditWikiPages`, `Task/EditWikiPages`; OpenProject wikis tab |
-| `Backlinks` | list, read | Pages that link here | page, space | | the snapshot's links indexed on save (`WikiPageAlias` for moved pages) | Collectives backlinks |
+| `Comments` | component | Chatter comments on the page | | the `chatter` element, comments only | `mantle.party.CommunicationServices.add#WikiPageComment` (`WikiPageCommunicationEvent`) | `wiki` `AddCommentForm`, `WikiCommentReply` `ReplyCommentForm`; Collectives comments |
+| `Attachments` | component | Files on the page | | `record-files` | `org.moqui.impl.WikiServices.upload#WikiPageAttachment`, `get#WikiPageAttachment`, `delete#WikiPageAttachment` | `wiki` `UploadAttachment` |
+| `LinkRecord` | dialog | Link the page to a request or task | record by id or search | `lookup#ById` | `mantle.request.WikiPageRequest`, `mantle.work.effort.WikiPageWorkEffort` (`entity`) | SimpleScreens `Request/EditWikiPages` `AddWprForm`, `DeleteWprForm` and `Task/EditWikiPages` `AddWpweForm`, `DeleteWpweForm`; OpenProject wikis tab |
+| `Backlinks` | list, read | Pages that link here | page, space | | `org.moqui.impl.WikiServices.get#WikiPageBacklinks` (new) over the links `update#WikiPage` indexes from the snapshot on save, with `WikiPageAlias` for moved pages | Collectives backlinks |
 
 - **Actions:** New page, Edit, Save version, Publish (`set#PublishedVersion`), Request review,
-  Clone (`clone#WikiPage`), Move, Delete (`delete#WikiPage`, confirms), Export PDF (`html-print`
-  of the rendered snapshot) and markdown, Print.
+  Clone (`clone#WikiPage`, replacing the `wiki` `ClonePage` form), Move, Delete
+  (`delete#WikiPage`, confirms), Export PDF (`html-print` of the rendered snapshot) and markdown,
+  Print.
 - **Navigation:** from the launcher, the palette's Pages group, a case's Knowledge tab
   (Customer Service), a task or request's linked pages, a chat record card, a public help-center
   URL (`publicPageUrl`, anonymous read).
@@ -947,8 +1032,8 @@ baseline's behavior with a preview.
 - **Source:** research §13 (Nextcloud Text and Collectives, Frappe Wiki, Gameplan, Ever Gauzy
   Docs, OpenProject and Redmine wiki, Moqui WorkManagement wiki), §17 Wiki app; initial-design
   "Native co-editing".
-- **Needs:** Co-editing editor and `yrs` server, `container-split`, `WikiPageReview`, `chatter`,
-  `record-files`, Print documents (page PDF).
+- **Needs:** `m-coedit` and the `yrs` server; `container-split`; Notes space and knowledge
+  review (`WikiPageReview`, backlinks); `chatter`; `record-files`; Print documents (page PDF).
 
 **Per-app context (Knowledge base articles).**
 
@@ -989,10 +1074,18 @@ baseline's behavior with a preview.
   a tree (sorted by modified, with a search line, tags from categories, and pinned notes
   first), a quick "New note" that starts typing at once, and "Move to a space" to promote a note
   to shared knowledge (it keeps its history). Notes never show the review and publish actions.
-- **Forms:** `NoteList` (list: title, snippet, modified, tags, pinned), `Editor`, `Tags`
-  (categories as chips), `MoveToSpace` (dialog: space, parent page; `update#WikiPage`).
+- **Forms:**
+
+| Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
+| --- | --- | --- | --- | --- | --- | --- |
+| `NoteList` | list | My notes, pinned first, then by modified | title, snippet, modified, tags, pinned | search line; pin toggle (pinned is the reserved category `Pinned`) | `org.moqui.impl.WikiServices.get#WikiSpacePages` over my notes space | Nextcloud Notes list; Google Keep pinned notes |
+| `Editor` | component | The note body | page text | as Knowledge `Editor` | `org.moqui.impl.WikiServices.update#WikiPage` | Knowledge `Editor` |
+| `Tags` | component | Tags as chips | category names | chips with a create line | `WikiPageCategoryMember` (`entity`) | `wiki` `AddCategory`, `CategoriesForm`; Nextcloud Notes categories |
+| `MoveToSpace` | dialog | Promote a note to shared knowledge | space, parent page | | `org.moqui.impl.WikiServices.move#WikiPage` (new: moves a page with its history, categories and attachments to another space) | Ever Gauzy Docs move dialog; OpenProject wiki move |
+
 - **Source:** research §13 (Nextcloud Notes, Gameplan My Pages); Google Keep and OneNote.
-- **Needs:** as Knowledge; a notes `WikiSpace` per user created by a service on first use.
+- **Needs:** as Knowledge; Notes space and knowledge review (the notes `WikiSpace` per user
+  created on first use, `move#WikiPage`).
 
 ## 11. Commons settings and account
 
@@ -1009,8 +1102,8 @@ baseline's behavior with a preview.
 | --- | --- | --- | --- | --- | --- | --- |
 | `Account` | single | Who I am | full name, user name, email, locale, time zone, avatar | avatar upload (`PartyContent` `PcntFaceImage`) | `org.moqui.impl.UserServices.update#UserAccount`; `mantle.party.PartyServices.create#PartyContent` | `MyAccount` `Account` `EditUser` |
 | `ContactInfo` | single | My addresses and numbers | postal, phone, email with purposes | | `mantle.party.ContactServices.store#PartyContactInfo` | `MyAccount` `ContactInfo`, `UpdateContactInfo` `ShippingInfo` |
-| `ChangePassword` | single | | old, new, repeat | | `org.moqui.impl.UserServices.update#Password` | `Account` `ChangePasswordForm` |
-| `TwoFactor` | list | My second factors | type, description, enabled, last used | add dialogs per type; TOTP shows the QR | `get#UserAuthcFactorInfo`, `create#UserAuthcFactorTotp` and `setup#UserAuthcFactorTotp`, `create#UserAuthcFactorEmail`, `create#UserAuthcFactorSms`, `create#SingleUseAuthcFactor`, `invalidate#UserAuthcFactorEntry`, `send#AuthcCodeUserAccountEmail` | `Account` `UserAuthcFactorList`, `CreateUserAuthcFactorTotp`, `CreateUserAuthcFactorSingleUse`, `CreateUserAuthcFactorEmail`, `CreateUserAuthcFactorSms`, `SecondFactorSendForm` |
+| `ChangePassword` | single | Change my password | old, new, repeat | | `org.moqui.impl.UserServices.update#Password` | `Account` `ChangePasswordForm` |
+| `TwoFactor` | list | My second factors | type, description, enabled, last used | add dialogs per type; TOTP shows the QR | `org.moqui.impl.UserServices.get#UserAuthcFactorInfo`, `create#UserAuthcFactorTotp` and `setup#UserAuthcFactorTotp`, `create#UserAuthcFactorEmail`, `create#UserAuthcFactorSms`, `create#SingleUseAuthcFactor`, `invalidate#UserAuthcFactorEntry`, `send#AuthcCodeUserAccountEmail` | `Account` `UserAuthcFactorList`, `CreateUserAuthcFactorTotp`, `CreateUserAuthcFactorSingleUse`, `CreateUserAuthcFactorEmail`, `CreateUserAuthcFactorSms`, `SecondFactorSendForm` |
 | `Sessions` | list | Where I am signed in | device, since, last seen; sign out | | `moqui.server.Visit` (`entity`) | Nextcloud and Google account security |
 
 ### Preferences
@@ -1022,8 +1115,8 @@ baseline's behavior with a preview.
 | `Appearance` | single | Look | dark mode (`QUASAR_DARK`), left drawer (`QUASAR_LEFT_OPEN`), density, start app | | `org.moqui.impl.UserServices.set#Preference` | the account menu toggles today |
 | `Keymap` | list, editable rows | Every binding | scope, action, keys, default; reset | a key capture field by `render-mode` | `set#Preference` `KEYMAP` (JSON) | Zimbra shortcuts page; Gmail keyboard settings |
 | `MailDefaults` | single | How mail behaves | reading pane (right, bottom, off), conversation view, mark read after n seconds, archive opens next, undo send seconds, default account, signature placement, swipe actions on a phone | | `set#Preference` | Gmail and Outlook settings; Nextcloud Mail settings |
-| `CalendarDefaults` | single | | week starts on, working hours (`WetAvailable`), default duration, default reminder, show week numbers, time zone for the grid | | `set#Preference`; `WorkEffort` `WetAvailable` rows | Nextcloud Calendar settings; Google Calendar |
-| `Sounds` | single | | notification sound, chat sound, call ringtone | | `set#Preference` | Zimbra notifications page |
+| `CalendarDefaults` | single | How the calendar opens and new events start | week starts on, working hours (`WetAvailable`), default duration, default reminder, show week numbers, time zone for the grid | | `set#Preference`; `WorkEffort` `WetAvailable` rows | Nextcloud Calendar settings; Google Calendar |
+| `Sounds` | single | Notification, chat and call sounds | notification sound, chat sound, call ringtone | | `set#Preference` | Zimbra notifications page |
 
 ### NotificationSettings
 
@@ -1040,6 +1133,8 @@ baseline's behavior with a preview.
   (dialog: user or group, permission), `CardDavInfo` (display: the book's CardDAV address for a
   device). Services: `mantle.party.ContactBookServices.*` (new). Derived from Nextcloud contacts
   settings, Zimbra address-book dialogs.
+- **Needs:** Contact books; Contact book, import and export services; CalDAV and CardDAV
+  servers.
 
 ### Calendars
 
@@ -1050,34 +1145,69 @@ baseline's behavior with a preview.
   through OAuth as a kind, `later`), `WorkingHours` (the `WetAvailable` editor shared with
   Preferences), `CalDavInfo` (display). Services: `mantle.work.CalendarServices.*` (new).
   Derived from Nextcloud EditCalendarModal and subscriptions, Zimbra calendar dialogs.
+- **Needs:** Calendar collections; Calendar services; OAuth client and token store (Google and
+  Microsoft subscriptions, later); CalDAV and CardDAV servers.
 
 ### Sync
 
 - **Forms:** `Devices` (list: app password name, created, last used; revoke), `NewAppPassword`
   (dialog: name; shows the password once), `SetupGuides` (display: the CalDAV, CardDAV and WebDAV
-  URLs and the steps for iOS, Android, macOS, Windows, Thunderbird). Services: app passwords
-  (new, §19). Derived from Nextcloud security settings and the DAV setup pages.
+  URLs and the steps for iOS, Android, macOS, Windows, Thunderbird). Services: `UserAppPassword`
+  (`entity`; new, §19). Derived from Nextcloud security settings and the DAV setup pages.
 - **Scope:** `later`, with the protocol servers.
+- **Needs:** App passwords; CalDAV and CardDAV servers; WebDAV server; Virtual SFTP server.
 
 ## 12. Comms Home, Inbox and email
 
 The Inbox is a full mail client, good enough to be someone's only one. Its model: a **mail
-account** (`EmailAccount`, new, §19) is either an external mailbox the framework polls over
-IMAP or POP (password or OAuth for Google and Microsoft 365), an **internal mailbox** at a
-hosted domain delivered by the SMTP listener behind the edge gateway (initial-design), or a
-**shared mailbox** with members (orders@, support@); the connection details stay on
-`moqui.basic.email.EmailServer`. Messages are `moqui.basic.email.EmailMessage` rows (headers,
-HTML and text bodies, `messageId`, threading by `rootEmailMessageId` and `parentEmailMessageId`),
-extended with the account, folder, remote uid, flags, snooze and schedule fields; folders are
-`EmailFolder`, labels `EmailLabel`, attachments `EmailMessageAttachment` stored as `DbResource`
-files. Sending is `org.moqui.impl.EmailServices.send#EmailMessage` through the account's
-server, direct or relayed. A message becomes a business record only when it is linked: the
-receiver creates a `CommunicationEvent` (type `Email`, `emailMessageId` set) when a sender or
-recipient matches a party with a known email, and the user links any message to a record from
-the Inbox or Chatter, which is what the 360s and Chatter show. Internal messages
-(`CommunicationEvent` type `Message` and `Comment` addressed to me) appear in the same client
-as the **Internal** account, as initial-design asked, so one keyboard and one reading pane serve
-both. Full-text search is a `DataDocument` over `EmailMessage` in the search index.
+account** (`EmailAccount`, new, §19) is an **external account** the framework polls over IMAP
+or POP (password or OAuth for Google and Microsoft 365), a **hosted account** at a hosted domain
+delivered by the SMTP listener behind the edge gateway (initial-design), a **shared account**
+with members (orders@, support@), or the user's **Internal account** (below); the connection
+details stay on `moqui.basic.email.EmailServer`. Messages are `moqui.basic.email.EmailMessage`
+rows (headers, HTML and text bodies, `messageId`, threading by `rootEmailMessageId` and
+`parentEmailMessageId`), extended with the account, folder, remote uid, flags, snooze and
+schedule fields; folders are `EmailFolder`, labels `EmailLabel`, attachments
+`EmailMessageAttachment` stored as `DbResource` files. Sending is
+`org.moqui.impl.EmailServices.send#EmailMessage` through the account's server, direct or
+relayed. A message becomes a business record only when it is linked: the receiver creates a
+`CommunicationEvent` (type `Email`, `emailMessageId` set) when a sender or recipient matches a
+party with a known email and the account's filing policy allows it, and the user links any
+message to a record from the Inbox or Chatter, which is what the 360s and Chatter show. The
+filing policy is per account (`EmailAccount.recordFilingEnumId`, §19): a shared or hosted
+business account files every match; a personal external account, such as someone's own Gmail,
+files only what its owner links, so private mail never lands on a customer's record. Full-text
+search is a `DataDocument` over `EmailMessage` in the search index.
+
+**The Internal account.** Every user has one, an `EmailAccount` of kind `internal` made on
+first use, with no server and no `EmailMessage` rows. It shows internal messages
+(`CommunicationEvent` type `Message` and `Comment` addressed to me) in the same client, as
+initial-design asked, so one keyboard and one reading pane serve both. Each recipient's read,
+flag, archive, snooze and label state lives on that recipient's `CommunicationEventParty` row
+(§19 "Internal message state"), so one message to five people has five independent states. The
+Inbox lists both stores through `mantle.party.CommunicationServices.find#InboxThreads` (new),
+which merges the framework's mail with the internal threads by date.
+
+**Mailboxes.** Under the Internal account are the user's mailboxes, the asynchronous
+counterpart of a chat room (§13): a shared list or forum with members, where everyone reads the
+same threads. A mailbox is a Mantle `ContactList` of the new type `MAILBOX` (§19 "Mailboxes"),
+the list model Marketing sends with, and its members are `ContactListParty` rows with a role
+(owner, moderator, member) and a delivery: **Inbox** puts each post in the member's Unified and
+Internal Inbox and the header count, as a mailing list does; **Mailbox only** keeps the posts
+under the mailbox with an unread count, as a forum does. A mailbox is public (any user reads
+and joins) or private (members only; a join request waits as `CLPT_PENDING` until an owner
+accepts), and its posting policy is members, moderators only (announcements) or any user (a
+help mailbox such as "Ask IT", where a poster sees only their own threads). A post is one
+`CommunicationEvent` of type `Message` with `contactListId` set, threaded by `rootCommEventId`
+and `parentCommEventId`, its subject the topic. Posting writes a `CommunicationEventParty` row
+for each member and each participant of the thread, so per-member state works as it does for
+direct messages, and someone who joins later sees the earlier threads as read. Reply goes to
+the mailbox and Reply to sender makes a direct message; an `@` mention adds the person as cc; a
+moderator closes a thread by setting its first post to `CeResolved`. Mailbox posts stay off
+party timelines and reach a record's Chatter only when linked to it. An email address for a
+mailbox, so that external members post and receive by email, is `later`; it reuses Marketing's
+per-address delivery (`ContactListCommStatus`, whose `messageId` matches the replies) and the
+unsubscribe of §16.
 
 ### Home
 
@@ -1085,12 +1215,16 @@ both. Full-text search is a `DataDocument` over `EmailMessage` in the search ind
 - **Sections:** counters Unread (one chip per account), Flagged, Snoozed due today, Mentions,
   Missed calls, Outbox problems; lists Needs reply (threads where the last message is to me and
   unanswered for a day, Outlook's suggested replies without the AI), Follow-ups due
-  (activities `WepEmail` and `WepPhoneCall`), Upcoming meetings with Join, Rooms with unread;
-  shortcuts Compose, New room, Start a call, and Add a mail account until one exists.
+  (activities `WepEmail` and `WepPhoneCall`), Upcoming meetings with Join, Mailboxes with
+  unread, Rooms with unread; shortcuts Compose, New room, Start a call, and Add a mail account
+  until one exists.
 - **Forms:** `UnreadByAccount` (number cards from `get#ShellCounts`), `NeedsReply` (list;
-  `org.moqui.impl.MailboxServices.find#Messages` with the needs-reply filter), `FollowUps`
-  (`WorkEffortAndParty`), `Meetings` (`get#FullCalendarData`), `RoomsUnread`
-  (`ChatServices.find#Rooms`).
+  `mantle.party.CommunicationServices.find#InboxThreads` with the needs-reply filter),
+  `FollowUps` (`WorkEffortAndParty`), `Meetings` (`get#FullCalendarData`), `MailboxesUnread`
+  (`mantle.party.ContactListServices.find#ContactLists`, new, with my unread counts),
+  `RoomsUnread` (`ChatServices.find#Rooms`). Derived from Frappe suite AllInboxes
+  (`UnreadByAccount`), Outlook My Day (`NeedsReply`, `FollowUps`, `Meetings`), the Gameplan
+  AppRail's unread badges (`MailboxesUnread`) and the Nextcloud Talk home (`RoomsUnread`).
 - **Source:** research §4 (Nextcloud Mail dashboard widgets, Talk home), §8 Frappe suite
   AllInboxes; Outlook's My Day pane.
 
@@ -1100,22 +1234,26 @@ both. Full-text search is a `DataDocument` over `EmailMessage` in the search ind
   - **Rail** (240 px, collapsible to icons): Compose; views Unified inbox, Flagged, Snoozed,
     Scheduled, Drafts, Sent, Archive, Spam, Trash, Outbox; then each account with its folders
     and unread counts, its labels, and the Internal account (Received, Sent, Comments on my
-    records); saved searches; a quota line per account.
+    records, then my mailboxes with unread counts, Browse mailboxes and New mailbox); saved
+    searches; a quota line per account.
   - **List** (the thread list; messages mode by preference): dense rows with sender or
     recipients, subject, snippet, date, flags, labels, attachment icon and a snoozed-until or
     scheduled-for chip; hover quick actions archive, delete, read or unread, snooze; a checkbox
     column with shift-range selection and a select-all with "all N in this view"; grouped by
-    date (Today, Yesterday, This week, …); a virtual list that pages as it scrolls.
+    date (Today, Yesterday, This week, …); a virtual list that pages as it scrolls. In a
+    mailbox the list has the mailbox header above it (`MailboxHeader`) and each row shows the
+    reply count and a Closed chip.
   - **Reading pane** right, bottom or off (Zimbra's three layouts; the preference in
     Preferences, a toggle in the toolbar): the thread with older messages collapsed, "expand
     all", a per-message action bar (reply, reply all, forward, flag, snooze, move, label, mark
     unread from here, print, view source, block sender, unsubscribe, report spam, create task or
-    request or event, link to a record), the sender's contact card on hover (the party when
-    known, "Add to contacts" when not), remote images blocked until "show images" or the sender
-    is trusted, an attachments strip (preview, download, save to Files, open in Office later),
-    an iMIP card for invitations (Accept, Tentative, Decline, add to calendar), a linked-records
-    strip ("On Order SO10023 · Case 1182"), and the Assist actions Summarize and Draft a reply
-    (which open the outer drawer with the thread as context).
+    request or event, link to a record; in a mailbox Reply goes to the mailbox, Reply to sender
+    sits beside it, and moderators have Close thread), the sender's contact card on hover (the
+    party when known, "Add to contacts" when not), remote images blocked until "show images" or
+    the sender is trusted, an attachments strip (preview, download, save to Files, open in
+    Office later), an iMIP card for invitations (Accept, Tentative, Decline, add to calendar), a
+    linked-records strip ("On Order SO10023 · Case 1182"), and the Assist actions Summarize and
+    Draft a reply (which open the outer drawer with the thread as context).
   - **Composer dock** (§Compose) at the bottom right; several drafts minimized side by side.
   - **Search:** one line with operators (`from:`, `to:`, `subject:`, `has:attachment`, `label:`,
     `in:`, `before:`, `after:`, `is:unread`, `is:flagged`, `larger:`) and an advanced popover with
@@ -1134,42 +1272,56 @@ both. Full-text search is a `DataDocument` over `EmailMessage` in the search ind
 
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
 | --- | --- | --- | --- | --- | --- | --- |
-| `MailFind` | find | The search line and advanced popover | text with operators, account, folder, label, from, to, subject, has attachment, date period, unread, flagged, size | operator chips; `date-period` | `org.moqui.impl.MailboxServices.find#Messages` (new) over `EmailMessage` and the search index | Nextcloud Mail SearchMessages; Zimbra search toolbar and saved searches; Gmail operators |
-| `ThreadList` | list | The rows of the view | participants, subject, snippet, date, flags, labels, attachment, snooze or schedule chip, unread | `q-virtual-scroll`; hover actions; `row-selection` with range | `find#Messages` grouped by `rootEmailMessageId` | Nextcloud EnvelopeList; Zimbra ConvListView; Gmail and Outlook lists |
-| `ThreadView` | — | The reading pane | per message: from, to, cc, date, body, attachments, status (`ES_SENT`, `ES_RECEIVED`, `ES_VIEWED`, `ES_BOUNCED`), linked records | sanitized HTML in an isolated frame (`m-html-view`, §19); quoted text collapsed | `MailboxServices.get#Thread` (new); `set#MessageFlags` marks read | `MyAccount` `MessageThread`, `SingleMessage`; Nextcloud Thread and Message; Zimbra ConvView2 |
-| `Snooze` | dialog | Hide until | later today, tomorrow, this weekend, next week, pick a date and time | | `MailboxServices.snooze#Messages` (new); a job returns them | Nextcloud snooze; Gmail snooze |
-| `MoveTo` | dialog | Move the selection | folder with type-ahead across accounts | | `MailboxServices.move#Messages` (new; IMAP MOVE for external accounts) | Zimbra ChooseFolderDialog; Gmail move to |
-| `Labels` | dialog | Apply labels | labels with a create line | | `MailboxServices.apply#Labels` (new) | Nextcloud TagModal; Gmail labels |
+| `MailFind` | find | The search line and advanced popover | text with operators, account, folder, mailbox, label, from, to, subject, has attachment, date period, unread, flagged, size | operator chips; `date-period` | `mantle.party.CommunicationServices.find#InboxThreads` (new), which calls `org.moqui.impl.MailboxServices.find#Messages` (new) over `EmailMessage` and the search index and reads the internal threads | Nextcloud Mail SearchMessages; Zimbra search toolbar and saved searches; Gmail operators |
+| `ThreadList` | list | The rows of the view | participants, subject, snippet, date, flags, labels, attachment, snooze or schedule chip, unread; in a mailbox the reply count and Closed | `q-virtual-scroll`; hover actions; `row-selection` with range | `find#InboxThreads`, grouped by `rootEmailMessageId` for mail and `rootCommEventId` for internal messages | `MyAccount` `FindMessage` `MessageList` (the Internal account); Nextcloud EnvelopeList; Zimbra ConvListView; Gameplan DiscussionList; Redmine boards; Gmail and Outlook lists |
+| `ThreadView` | component | The reading pane | per message: from, to, cc, date, body, attachments, status (`ES_SENT`, `ES_RECEIVED`, `ES_VIEWED`, `ES_BOUNCED`), linked records; the mailbox of a post | sanitized HTML in an isolated frame (`m-html-view`, §19); quoted text collapsed | `MailboxServices.get#Thread` (new) for mail; `mantle.party.CommunicationServices.get#InternalThread` (new) for internal messages and posts; `set#MessageFlags` or `set#InternalMessageState` (new) marks read; `mantle.party.CommunicationServices.close#ListThread` (new: sets the first post to `CeResolved`, for moderators) | `MyAccount` `MessageThread`, `SingleMessage`; Nextcloud Thread and Message; Zimbra ConvView2; Gameplan DiscussionView; Redmine messages |
+| `Snooze` | dialog | Hide until | later today, tomorrow, this weekend, next week, pick a date and time | | `MailboxServices.snooze#Messages` (new) for mail, `set#InternalMessageState` for internal messages; a job returns them | Nextcloud snooze; Gmail snooze |
+| `MoveTo` | dialog | Move the selection (mail only; internal messages have labels, not folders) | folder with type-ahead across accounts | | `MailboxServices.move#Messages` (new; IMAP MOVE for external accounts) | Zimbra ChooseFolderDialog; Gmail move to |
+| `Labels` | dialog | Apply labels | labels with a create line | | `MailboxServices.apply#Labels` (new) for mail, `set#InternalMessageState` for internal messages | Nextcloud TagModal; Gmail labels |
 | `LinkToRecord` | dialog | File the thread on a record | party, order, request, task, project by id or search | `lookup#ById`, `search#Universal` | `mantle.party.CommunicationServices.link#CommunicationEventRecord` (new): creates or finds the `CommunicationEvent` for the message and writes the record join | Odoo "log on document"; HubSpot and Salesforce email logging |
 | `CreateFromMessage` | dialog | A task, request or event from the message | name from the subject, description from the body, party from the sender, due | the `QuickCreate` forms with prefill | `create#SimpleTask`, `create#Request`, `create#Event` plus the message link | Zimbra `CREATE_TASK` and `CREATE_APPT`; Nextcloud create from Talk; Outlook drag to tasks |
 | `ImipCard` | single | Answer an invitation | accept, tentative, decline; add to calendar | | `mantle.work.EventServices.respond#EventInvitation` with the parsed iCalendar; `create#Event` for an external organizer | Nextcloud Imip; Gmail and Outlook invitation cards |
 | `ContactCard` | single, read | Who this is | name, organization, email, phone, presence, recent threads, Open contact or Add to contacts | | `mantle.party.ContactServices.get#PartyContactInfo`; `search#Party` by email | Nextcloud DisplayContactDetails; Outlook people card |
-| `BulkActions` | list, bulk | On the selection | archive, delete, read, unread, flag, move, label, snooze, spam, link to record | | the services above | Gmail and Outlook bulk bars |
+| `BulkActions` | list, bulk | On the selection | archive, delete, read, unread, flag, move, label, snooze, spam, link to record | | the services above, by store | Gmail and Outlook bulk bars |
+| `MailboxHeader` | component | The open mailbox | name, description, member avatars and count, public or private, my delivery, Join, Request to join or Leave, settings | | `mantle.party.ContactListServices.join#ContactList`, `leave#ContactList`, `set#ContactListPartyDelivery` (new) | Gameplan Space header; Google Groups group header; Slack channel header |
+| `BrowseMailboxes` | dialog | Find a mailbox to join | search; public mailboxes and my private ones: name, description, members, last post, joined | | `ContactListServices.find#ContactLists` (new) with type `MAILBOX`; `join#ContactList` | Slack channel browser; Google Groups directory; Talk open conversations |
+| `NewMailbox` | dialog | A mailbox | name, description, public or private, posting policy, default delivery, members | members `server-search` over users | `ContactListServices.create#ContactList` (new) with type `MAILBOX`; `add#ContactListParty` (new) | Gameplan NewSpaceDialog; Frappe suite MailingListsView; Google Groups create group |
+| `MailboxSettings` | dialog | Sectioned settings | name, description; public or private; posting policy; default delivery; my delivery; archive; delete while it has no posts (owner) | | `ContactListServices.update#ContactList`, `set#ContactListPartyDelivery` | §13 `RoomSettings`; Talk ConversationSettingsDialog; Google Groups settings; Microsoft 365 group settings |
+| `MailboxMembers` | list, editable rows | Who is in it | name, role (owner, moderator, member), delivery, joined; pending requests with Accept and Decline; add, remove | | `ContactListServices.add#ContactListParty` (also accepts a pending request), `remove#ContactListParty` (new) over `ContactListParty` | §13 `Members`; Talk Participants; Google Groups members |
 
 - **Actions:** Compose (`c`); Sync now; the per-message bar above; Unsubscribe uses the
   `List-Unsubscribe` header (one-click POST when `List-Unsubscribe-Post` is present, else the
   mailto or URL); Report spam moves to Spam and tells the gateway when it supports learning;
   Block sender adds a rule; Print and View source open `MessageDetail`.
 - **Navigation:** from the launcher, the header Inbox count, the palette's Messages group, a
-  Chatter message ("Open thread"), a notification of new mail (when the topic is on), a 360's
-  Emails tab (which opens the thread under its app path).
+  Chatter message ("Open thread"), a notification of new mail or a mailbox post (when the
+  topic is on), a 360's Emails tab (which opens the thread under its app path), a mailbox from
+  the palette's Messages group or Comms Home.
 - **Views:** Unified, per account and folder, label, Flagged, Snoozed, Scheduled, Drafts, Sent,
   Archive, Spam, Trash, Outbox (queued, scheduled and failed sends with retry and the delivery
-  error), Internal, search results; thread or message mode; reading pane right, bottom or off.
+  error), Internal, each mailbox, search results; thread or message mode; reading pane right,
+  bottom or off.
 - **States:** no account: a setup card (Add account) with the Internal account still usable;
   first sync: skeleton rows and "Syncing 1,204 of 8,000"; an account whose credentials failed
-  shows a warning chip in the rail with "Fix"; a shared mailbox member without send rights sees
+  shows a warning chip in the rail with "Fix"; a shared account member without send rights sees
   no Compose from it; a message that is still only on the server (POP without body) loads on
-  open.
+  open; a public mailbox I have not joined shows its threads read-only with Join, and a private
+  one only its header with Request to join; in a help mailbox I post to without being a member I
+  see only my own threads; a closed thread shows Closed and no reply box; an archived mailbox
+  is read-only and leaves the rail.
 - **Devices:** phone: the rail is a drawer, the list is the screen, a thread opens full
   screen, swipe left and right run the two preferred actions, compose is full screen.
-- **Source:** research §8 (Nextcloud Mail, Zimbra mail, Frappe suite mail), §17 Messages
-  screens and `EmailMessage`, §18 "No mail client"; Gmail and Outlook on the web for the shape
-  people expect; the author's Gmail keyboard complaints for the gaps closed above.
-- **Needs:** Mail account model, Mailbox services, IMAP and POP poller with incremental sync,
-  SMTP send through the account, SMTP listener for internal mailboxes, OAuth for Google and
-  Microsoft, `m-html-view`, Keymap registry, Search DataDocument for email, Snooze and
-  scheduled-send jobs, iCalendar and iMIP tool, `link#CommunicationEventRecord`, Presence.
+- **Source:** research §8 (Nextcloud Mail, Zimbra mail, Frappe suite mail and mailing lists),
+  §13 (Gameplan Discussions, OpenProject forums, Redmine boards), §17 Messages screens and
+  `EmailMessage`, §18 "No mail client"; Gmail and Outlook on the web for the shape people
+  expect, Google Groups and Microsoft 365 group mailboxes for mailboxes; the author's Gmail
+  keyboard complaints for the gaps closed above.
+- **Needs:** Mail account model; Mailbox services; Internal message state; Mailboxes; IMAP and
+  POP poller with incremental sync; SMTP send through the account; SMTP listener behind the
+  gateway; OAuth client and token store; `m-html-view`; Keymap registry; Search DataDocuments
+  (`MoquiEmailMessage`, `MantleCommunicationEvent`); Snooze and scheduled-send jobs; iCalendar,
+  vCard and iMIP tool; Today and timeline services (`link#CommunicationEventRecord`); Record
+  cards; Presence and status.
 
 ### Compose
 
@@ -1178,21 +1330,25 @@ both. Full-text search is a `DataDocument` over `EmailMessage` in the search ind
   draft, `mailto:` handling and the quick-create entry); several docks side by side. Fields:
   From (an identity of an account; the Internal account for internal messages), To, Cc, Bcc
   (chips with autocomplete over parties' email addresses, recent correspondents, contact groups
-  that expand, and users for internal), Subject, the body (`m-rich-text`, §19: paragraphs,
-  bold and italic, lists, links, inline images, quotes, code, a plain-text toggle), the signature
-  of the identity (above or below the quote by preference), attachments (drop, pick, or Attach
+  that expand, and users and mailboxes for internal; the Internal identity takes users and
+  mailboxes, an email identity takes addresses; a mailbox chip does not expand, because the
+  mailbox delivers to its members, and a message to two mailboxes is posted in each), Subject,
+  the body (`m-rich-text`, §19: paragraphs, bold and italic, lists, links, inline images, quotes,
+  code, a plain-text toggle), the signature of the identity (above or below the quote by
+  preference), attachments (drop, pick, or Attach
   from Files, which inserts a share link above a size limit), text blocks (`/` opens the
   picker), a "File on <record>" chip when opened from a record or Chatter, and the send row:
   **Send** (Ctrl+Enter), Schedule send (presets and a picker), Send and archive, Discard; Undo
   send holds the message in Outbox for the preferred seconds (5 to 30) with an Undo toast.
   Drafts autosave every few seconds to the account's Drafts folder as `ES_DRAFT`. Reply and
   forward inherit the thread (`parentEmailMessageId`, `In-Reply-To`), the quote and the
-  attachments of a forward; a reply to an internal message is an internal message.
+  attachments of a forward; a reply to an internal message is an internal message, a reply to
+  a mailbox post goes to the mailbox, and Reply to sender makes a direct message.
 - **Forms:**
 
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
 | --- | --- | --- | --- | --- | --- | --- |
-| `Compose` | single | The message | from identity, to, cc, bcc, subject, body, attachments, record link, schedule | recipient chips with `server-search`; `m-rich-text`; `file` drop | `org.moqui.impl.MailboxServices.save#Draft`, `send#Draft` (new; the latter calls `org.moqui.impl.EmailServices.send#EmailMessage`); internal: `mantle.party.CommunicationServices.create#Message`, `reply#CommunicationEvent` | `EditMessage` `MessageForm`, `ReplyMessageForm`; `FindMessage` `CreateMessage`; Nextcloud Composer; Zimbra ComposeView; Frappe ComposeDock; Gmail compose |
+| `Compose` | single | The message | from identity, to, cc, bcc, subject, body, attachments, record link, schedule | recipient chips with `server-search`; `m-rich-text`; `file` drop | `org.moqui.impl.MailboxServices.save#Draft`, `send#Draft` (new; the latter calls `org.moqui.impl.EmailServices.send#EmailMessage`); internal: `mantle.party.CommunicationServices.create#Message` (extended: to and cc lists and `contactListId`; writes the `CommunicationEventParty` rows), `reply#CommunicationEvent` (extended: keeps the mailbox, or answers the sender only) | `EditMessage` `MessageForm`, `ReplyMessageForm`; `FindMessage` `CreateMessage`; Nextcloud Composer; Zimbra ComposeView; Frappe ComposeDock; Gmail compose |
 | `AttachFromFiles` | dialog | Pick from Files | the Files list in a dialog | | `FileServices.list#Folder` | Nextcloud filePicker; Google Drive attach |
 | `TextBlockPicker` | dialog | Insert canned text | search, personal and shared blocks | | `EmailTextBlock` (`entity`) | Nextcloud text blocks; Outlook quick parts |
 | `ScheduleSend` | dialog | When to send | tomorrow morning, Monday morning, pick | | `send#Draft` with `scheduledSendDate`; the scheduler job sends | Nextcloud and Gmail schedule send |
@@ -1200,12 +1356,12 @@ both. Full-text search is a `DataDocument` over `EmailMessage` in the search ind
 - **Actions:** Send, Schedule, Send and archive, Save draft, Discard (confirms when not empty),
   Pop out, Minimize; a bounced send shows in Outbox with the error and Retry.
 - **Source:** research §8; baseline `EditMessage`; Gmail and Outlook compose.
-- **Needs:** Mailbox services, `m-rich-text`, File services, Scheduled-send job, Undo-send
-  hold in Outbox.
+- **Needs:** Mailbox services; Internal message state; Mailboxes; `m-rich-text`; File
+  services; Snooze and scheduled-send jobs (scheduled send and the undo-send hold in Outbox).
 
 **Per-app context (email sending).**
 
-| App | Shown | Fixed | Action set | Emphasis |
+| App | Tabs or panes shown | Filters fixed | Action set | Emphasis |
 | --- | --- | --- | --- | --- |
 | Comms | the composer | none | all | personal mail |
 | Customer Service | the composer from a case with the case's party and record chip; text blocks of the support group; the case id in the subject | the case | send, send and resolve | canned replies |
@@ -1220,7 +1376,10 @@ both. Full-text search is a `DataDocument` over `EmailMessage` in the search ind
   the raw headers and source in a collapsed box. For mail the system sent (notifications, order
   and invoice emails, authentication codes) this is where Admin and Accounting see what went out.
 - **Forms:** `MessageHeader` (single, read), `Attachments` (list), `LinkedRecords` (list:
-  `CommunicationEvent` rows by `emailMessageId` and their joins), `Source` (display).
+  `CommunicationEvent` rows by `emailMessageId` and their joins), `Source` (display); services
+  `MailboxServices.get#Thread` for the one message and the actions below. Derived from
+  `PartyEmails` `EmailMessageList` (its resend), `MyAccount` `SingleMessage`, the tools
+  component's email message screens and Zimbra "show original".
 - **Actions:** Open in Inbox, Reply (Compose), Resend (`org.moqui.impl.EmailServices.send#EmailMessage`,
   for `ES_BOUNCED` and system mail; confirms), Download `.eml`, Print (`html-print`), Link to
   record.
@@ -1238,7 +1397,9 @@ what the WebSocket pushes and what the search index reads. Chat messages are not
 `CommunicationEvent` rows (the research's open question): a message becomes one only when a
 user links it to a record or turns it into a task, request or event, and a record-bound room's
 recent messages appear in that record's Chatter through the same component. Presence, typing
-and read markers ride the notification WebSocket.
+and read markers ride the notification WebSocket. A room is for talk now; its asynchronous
+counterpart is a **mailbox** in the Inbox (§12), a shared list or forum whose threads wait to be
+answered, and the two stay separate stores.
 
 ### Chat
 
@@ -1261,14 +1422,14 @@ and read markers ride the notification WebSocket.
 | --- | --- | --- | --- | --- | --- | --- |
 | `RoomFind` | find | The rail | text, filter chips | | `org.moqui.impl.ChatServices.find#Rooms` (new) | Talk LeftSidebar; Signal left pane; Slack sidebar |
 | `RoomList` | list | Rooms | avatar and presence, name, last message, time, unread and mention badges, pinned | `q-virtual-scroll` | same | same |
-| `Timeline` | list | The room's events | sender, time, body, reactions, thread count, edited, pinned | virtual list with day headers; reactions picker; message action bar | `ChatServices.get#Timeline` (new; paged by event id) | Talk MessagesList; Signal Timeline; Odoo Discuss |
+| `Timeline` | list | The room's events | sender, time, body, reactions, thread count, edited, pinned | virtual list with day headers; reactions picker; message action bar; record cards | `ChatServices.get#Timeline` (new; paged by event id); `mantle.GeneralServices.lookup#ById` for the record cards | Talk MessagesList; Signal Timeline; Odoo Discuss |
 | `Composer` | single | A message | body, attachments, reply to | `m-rich-text` light; drop zone | `ChatServices.send#Message`, `edit#Message`, `redact#Message`, `react#Message`, `upload#Attachment` (new) | Talk NewMessage; Signal CompositionArea; Slack composer |
 | `NewDirect` | dialog | A direct message | people (one or several) | `server-search` over users and the directory | `ChatServices.create#Room` type direct | Talk and Signal new chat |
 | `NewRoom` | dialog | A room | name, topic, type (private, public, record-bound with the record), members | | `create#Room` | Talk NewConversationDialog; Slack create channel |
 | `RoomSettings` | dialog | Sectioned settings | name, topic, avatar; visibility and who may join; notifications level for me (all, mentions, none); members and roles (owner, moderator, member, agent); retention; record binding; leave, archive, delete (owner) | | `ChatServices.update#Room`, `set#MemberRole`, `set#Notification` (new) | Talk ConversationSettingsDialog; Signal conversation details; Slack channel details |
-| `MessageActions` | — | Per message | reply in thread, react, edit, delete, copy link, pin, forward, remind me (an activity `WepToDo`), create task, request or event, link to record, mark unread from here | | `create#SimpleTask`, `create#Request`, `create#Event` with the message text; `link#CommunicationEventRecord` | Talk MessageButtonsBar; Nextcloud create task from Talk; Slack message menu |
+| `MessageActions` | component | Per message | reply in thread, react, edit, delete, copy link, pin, forward, remind me (an activity `WepToDo`), create task, request or event, link to record, mark unread from here | | `create#SimpleTask`, `create#Request`, `create#Event` with the message text; `link#CommunicationEventRecord` | Talk MessageButtonsBar; Nextcloud create task from Talk; Slack message menu |
 | `Members` | list | Who is here | name, presence, role; add, remove, change role | | `ChatServices.add#Member`, `remove#Member` | Talk Participants |
-| `Poll` | dialog | A poll in the room | question, options, anonymous, multiple | | `ChatServices.create#Poll`, `vote#Poll` (new) | Talk PollCard; Gameplan polls | 
+| `Poll` | dialog | A poll in the room | question, options, anonymous, multiple | | `ChatServices.create#Poll`, `vote#Poll` (new) | Talk PollCard; Gameplan polls |
 
 - **Actions:** New direct message, New room, Join; room: call, search, pin, mark read, mute,
   leave; message: the action bar.
@@ -1282,8 +1443,8 @@ and read markers ride the notification WebSocket.
   through the PWA later.
 - **Source:** research §6 (Talk, Signal Desktop, Odoo Discuss, Zimbra IM), §18 "No chat";
   Slack and Teams for the shape people expect.
-- **Needs:** Chat store and services, Presence, `m-rich-text`, Search DataDocument for chat,
-  Record cards (`lookup#ById`), agent membership (Assist port, later), Poll (later).
+- **Needs:** Chat store (polls later); Chat services; Presence and status; `m-rich-text`; Search
+  DataDocuments (`MoquiChatEvent`); Record cards; Assist drawer (agent members, later).
 
 ## 14. Calls
 
@@ -1319,9 +1480,10 @@ a member admits guests from; a meeting is a calendar event (`WepMeeting`) with a
   Leave; the call time and a recording chip later; an "admit" prompt for guests in the lobby).
   Leaving a call while navigating shrinks it to the mini-window (§4 LiveCall). Full screen below
   1024 px.
-- **Forms:** `Lobby` (single: devices, name), `CallControls`, `Participants` (list with mute
-  and remove for moderators), `InCallChat` (the Chat composer and timeline), `AdmitGuest`
-  (dialog).
+- **Forms:** `Lobby` (single: devices, name), `CallControls` (component), `Participants` (list
+  with mute and remove for moderators), `InCallChat` (the Chat composer and timeline), `AdmitGuest`
+  (dialog). Derived from Talk CallView, MediaSettings and lobby, Signal's lobby and call screen,
+  and Frappe Meet's side panels.
 - **Services:** `org.moqui.impl.CallServices.start#Call`, `join#Call`, `leave#Call`,
   `admit#Guest` (new); signaling messages over the WebSocket.
 - **States:** no camera or microphone permission: the lobby explains and offers audio only;
@@ -1329,8 +1491,8 @@ a member admits guests from; a meeting is a calendar event (`WepMeeting`) with a
 - **Devices:** phone (single tile, bottom bar).
 - **Source:** research §7 (Talk CallView and MediaSettings, Signal lobby and call screen,
   Frappe Meet); Google Meet and Teams join flow.
-- **Needs:** WebRTC in mr-moqui, Call store and services, `CommunicationEventType` `Call`,
-  guest access by token, Recording (later).
+- **Needs:** WebRTC; Call store and services; `CommunicationEventType` `Call`; Anonymous token
+  routes (guest join); Call recording (later).
 
 ## 15. Chatter and activities
 
@@ -1345,6 +1507,17 @@ join or `WorkEffortRecord`, and they roll up into the Today panel; **followers**
 `RecordFollower` rows (user, record, which kinds notify). The timeline also shows status changes
 from the entity audit log (the `enable-audit-log` fields of the record), files added
 (`RecordFiles`), and the recent messages of a chat room bound to the record.
+
+Two existing stores are read as well. The baseline's note forms wrote per-record note entities
+(`PartyNote`, `WorkEffortNote`, `RequestNote`; Mantle also has `OrderNote` and `FacilityNote`),
+and Mantle's own services still write some of them; the timeline shows those rows as notes.
+**Log note** always writes a `Comment` communication event, because a comment can carry
+mentions, attachments and replies and a `*Note` row cannot, so the `*Note` entities are read and
+no longer written from the UI. For a party, the messages are the communication events it is
+from or to, or a to or cc recipient of, read through
+`mantle.party.CommunicationServices.find#PartyCommunicationEvents` (extended to the recipient
+rows of §19 "Internal message state"); posts in a mailbox are left out, since they belong to the
+mailbox's members, and reach a record only when linked to it.
 
 ### Chatter (`Shared/Chatter`)
 
@@ -1368,7 +1541,7 @@ from the entity audit log (the `enable-audit-log` fields of the record), files a
 | `Activities` | list | Planned on this record | type, summary, due, assignee | Mark done opens `MarkDone`; Edit inline | `WorkEffortAndParty` with the record join (`entity`) | Odoo activity list |
 | `MarkDone` | dialog | Close an activity with feedback | feedback note, schedule next (type, due) | | `update#Task` to `WeComplete`; the feedback becomes a `Comment`; `create#SimpleTask` for the next | Odoo mark as done popover |
 | `Followers` | list | Who is notified | user, which kinds (messages, notes, activities, changes) | add by `server-search` | `RecordFollower` (new) | Odoo followers and subtypes |
-| `Timeline` | list | The history | kind, author, time, body, status, attachments | virtual list; `q-timeline` by `render-mode` | `mantle.party.CommunicationServices.get#RecordTimeline` (new): unions the comm events through the joins, the activities done, the audit log rows, the file additions and the bound room's events | `MyAccount` `MessageThread`; `find#PartyCommunicationEvents`; Odoo chatter; Nextcloud Activity tab; Twenty timeline |
+| `Timeline` | list | The history | kind, author, time, body, status, attachments | virtual list; `q-timeline` by `render-mode` | `mantle.party.CommunicationServices.get#RecordTimeline` (new): unions the comm events through the joins (for a party through `mantle.party.CommunicationServices.find#PartyCommunicationEvents`), the record's `*Note` rows, the activities done, the audit log rows, the file additions and the bound room's events | `MyAccount` `MessageThread`; `PartyEmails` `EmailMessageList`; Odoo chatter; Nextcloud Activity tab; Twenty timeline |
 
 - **Actions:** send, log, schedule, follow, add followers, add file; per entry: reply, forward,
   open thread (Inbox or Chat), unlink, react.
@@ -1378,9 +1551,9 @@ from the entity audit log (the `enable-audit-log` fields of the record), files a
 - **Devices:** phone (a tab on the detail).
 - **Source:** research §5 (Odoo chatter, activities, followers), §1 Twenty record widgets, §16
   "Chatter & activities"; initial-design "Chatter maps onto CommunicationEvent + content".
-- **Needs:** `chatter` element and `STRT_CHATTER_SCREEN`, generic record links and
-  `RecordFollower`, `get#RecordTimeline`, `link#CommunicationEventRecord`, `m-rich-text`, the
-  `ChatterMention` topic, Mailbox services.
+- **Needs:** `chatter`; Generic record links (with `RecordFollower`); Today and timeline
+  services (`get#RecordTimeline`, `link#CommunicationEventRecord`); `m-rich-text`; Shell and
+  notification topics (`ChatterMention`); Mailbox services; Record cards.
 
 **Per-app context (Chatter & activities).** Every record screen gets the full component; the
 including screen fixes the defaults:
@@ -1405,7 +1578,9 @@ unsubscription are `ContactListParty` statuses (`CLPT_PENDING`, `CLPT_ACCEPTED`,
 grant and withdrawal with its purpose (marketing email, SMS, phone, data processing), source
 (form, import, email link, staff), date and evidence text, which is what a larger organization
 needs to show. Marketing's audience screens include the same screen; Customer 360 shows the
-contact's state read-only.
+contact's state read-only. Consent shows the list types that send outside the organization;
+a mailbox (`ContactList` type `MAILBOX`, §12) is membership, not consent, and appears here only
+once it has external members by email (`later`).
 
 ### Consent
 
@@ -1417,15 +1592,15 @@ contact's state read-only.
 | `ConsentFind` | find | Narrow | text, list, status, purpose, changed period, allow solicitation | | | Frappe suite screener; Odoo blacklist |
 | `Consents` | list | Contacts and their state | party, email or phone, allow solicitation, list subscriptions as chips, purposes granted, last change and source | bulk: unsubscribe from a list, export CSV | `PartyContactMech`, `ContactListParty`, `PartyConsent` (`entity`) | Mantle `ContactListParty` statuses; Mailchimp and HubSpot subscription status |
 | `EditConsent` | dialog | One contact | per address: allow solicitation with reason; per list: subscribe or unsubscribe with source note; per purpose: granted or withdrawn with evidence | | `mantle.party.ContactServices.store#PartyContactMech`; `mantle.party.ConsentServices.store#PartyConsent`, `unsubscribe#ContactListParty` (new) | GDPR consent record patterns |
-| `ConsentHistory` | list | The audit | when, what changed, source, by | | `PartyConsent` (`entity`) | |
+| `ConsentHistory` | list | The audit | when, what changed, purpose, source, evidence, by | | `PartyConsent` (`entity`) | new; these are the full fields |
 
 - **Source:** research §8 and §18 (consent has data but no screen), crosscut §4 "Email/SMS
   sending, consent, unsubscribe".
-- **Needs:** `PartyConsent`, Consent services.
+- **Needs:** Consent.
 
 **Per-app context (Consent).**
 
-| App | Shown | Fixed | Action set | Emphasis |
+| App | Tabs or panes shown | Filters fixed | Action set | Emphasis |
 | --- | --- | --- | --- | --- |
 | Comms | all contacts | none | edit, bulk, export | the record |
 | Marketing | the audience of a list or campaign (design-marketing) | the list | subscribe, unsubscribe, import with consent source | list health |
@@ -1440,12 +1615,14 @@ contact's state read-only.
   with `List-Unsubscribe=One-Click` (RFC 8058) unsubscribes without a page. Every change writes
   `CLPT_UNSUBSCRIBED` (or `CLPT_UNSUBS_PENDING` when the list requires confirmation) and a
   `PartyConsent` withdrawal with source "email link".
-- **Forms:** `UnsubscribeChoice` (single), `Preferences` (list, editable rows).
+- **Forms:** `UnsubscribeChoice` (single: this list, all marketing email, update preferences),
+  `Preferences` (list, editable rows: list, subscribed). Derived from the Mailchimp unsubscribe
+  page and Google Groups subscription settings.
 - **Services:** `mantle.party.ConsentServices.unsubscribe#ContactListParty` (new).
 - **Source:** Mantle `ContactListParty` flow; Mailchimp and Google Groups unsubscribe pages;
   Gmail's list-unsubscribe handling on the receiving side.
-- **Needs:** Anonymous token route, Consent services, `List-Unsubscribe` headers on list mail
-  (Marketing's sends and the framework's `send#EmailTemplate`).
+- **Needs:** Anonymous token routes; Consent; `List-Unsubscribe` on list mail (Marketing's sends
+  and the framework's `send#EmailTemplate`).
 
 ## 17. Comms settings
 
@@ -1462,17 +1639,17 @@ contact's state read-only.
 
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
 | --- | --- | --- | --- | --- | --- | --- |
-| `Accounts` | list | My and shared accounts | name, address, kind (internal, external, shared), status, last sync, unread, members | row: pause, sync now, edit, remove | `EmailAccount` (`entity`); `org.moqui.impl.MailboxServices.sync#EmailAccount` (new) | Nextcloud Mail navigation accounts; Frappe mail dashboard accounts |
-| `AccountKind` | wizard step | What to add | Internal mailbox at a hosted domain; External (IMAP or POP and SMTP); Google; Microsoft 365; Shared mailbox | | | Nextcloud Setup; Outlook add account |
+| `Accounts` | list | My and shared accounts | name, address, kind (internal, hosted, external, shared), status, last sync, unread, members; the Internal account listed first and not removable | row: pause, sync now, edit, remove | `EmailAccount` (`entity`); `org.moqui.impl.MailboxServices.sync#EmailAccount` (new) | Nextcloud Mail navigation accounts; Frappe mail dashboard accounts |
+| `AccountKind` | wizard step | What to add | Hosted account at a hosted domain; External (IMAP or POP and SMTP); Google; Microsoft 365; Shared account | | | Nextcloud Setup; Outlook add account |
 | `AccountCredentials` | wizard step | How to connect | address, name; autodiscover by domain; manual IMAP or POP host, port, TLS, SMTP host, port, TLS, user, password; OAuth sign-in popup for Google and Microsoft | `password`; the OAuth popup (framework) | `MailboxServices.discover#EmailServer`, `create#EmailAccount` (new) over `EmailServer` | Nextcloud AccountForm and OAuth; Thunderbird autoconfig |
 | `AccountTest` | wizard step | Prove it works | connect, list folders, send a test message | `q-linear-progress` | `MailboxServices.test#EmailAccount` (new) | Zimbra AccountTestDialog |
-| `AccountOptions` | wizard step | How to sync | folders to sync, sync window (30 days, 1 year, all), folder mapping for Sent, Drafts, Trash, Junk and Archive, color, default identity and signature, members for a shared mailbox | | `create#EmailAccount`; `EmailAccountUser` (new) | Nextcloud account settings; Outlook shared mailbox |
-| `AccountEdit` | single | The same options after creation, plus remove (keep or delete local copies), reauthorize | | | `update#EmailAccount`, `delete#EmailAccount` (new) | |
+| `AccountOptions` | wizard step | How to sync | folders to sync, sync window (30 days, 1 year, all), folder mapping for Sent, Drafts, Trash, Junk and Archive, filing policy (file mail with known contacts on their records, or only what I link; the default by kind, §12), color, default identity and signature, members for a shared account | | `create#EmailAccount`; `EmailAccountUser` (new) | Nextcloud account settings; Outlook shared mailbox |
+| `AccountEdit` | single | The same options after creation, plus remove (keep or delete local copies), reauthorize | as `AccountCredentials` and `AccountOptions` | | `update#EmailAccount`, `delete#EmailAccount` (new) | `AccountCredentials` and `AccountOptions` above; Nextcloud account settings |
 
 - **Source:** research §8 (Nextcloud setup and settings, Frappe exchanges), initial-design
   "Email supports both modes".
-- **Needs:** Mail account model, IMAP and POP poller, SMTP listener, OAuth client and token
-  store, autodiscover (tool).
+- **Needs:** Mail account model; IMAP and POP poller with incremental sync; SMTP listener
+  behind the gateway; OAuth client and token store; Autodiscover.
 
 ### Identities
 
@@ -1518,7 +1695,8 @@ contact's state read-only.
 
 - **Forms:** `CallPreferences` (single: preferred camera, microphone and speaker (kept in the
   browser, since they are per device), ringtone, join muted, camera off on join, background
-  blur default). Derived from Talk MediaSettings, Signal calls settings, Teams devices.
+  blur default). Services: `org.moqui.impl.UserServices.set#Preference` for everything but the
+  devices. Derived from Talk MediaSettings, Signal calls settings, Teams devices.
 
 ## 18. Documents and outputs
 
@@ -1554,19 +1732,27 @@ rolls this table up with the other files'. Kinds are those of design-doc-guide �
 
 | Need | Kind | Proposed as | Used by | Stub spec |
 | --- | --- | --- | --- | --- |
-| Shell elements (style-guide §8) | shell item | `m-qapps-root`: launcher, search button, quick create, Today, Chat, Inbox count, Notifications, Assist toggle; badges from a `shellCounts` object | all | the elements of §1.2; the account menu gains status and the Preferences and Account links |
+| Shell elements (style-guide §8) | shell item | `m-qapps-root`: launcher, search button, quick create, Today, Chat, Inbox count, Notifications, Assist toggle; badges from a `shellCounts` object | all | the elements of §1.2; the account menu gains status and the Preferences and Account links; the counts come from the service named by the theme value `STRT_SHELL_COUNTS_SERVICE`, empty when it is not set |
 | Inner drawer frame (style-guide "Tray panel") | shell item | A right panel in the canvas; tabs from `STRT_TRAY_TODAY`, `STRT_TRAY_CHAT`, `STRT_TRAY_NOTIFICATIONS`; open state, tab and scroll kept in the root; Esc closes; full width below 600 px; a per-tab WebSocket topic refreshes it | §4 panels | §1.4 |
 | Shell providers | XML Screen element | `<shell-providers>` in an app root: `<quick-create label icon screen parameter-map>`, `<today-source service>`, `<palette-action label icon screen>`, `<palette-type doc-type>`, `<notification-topic topic>`, `<keymap scope>`; aggregated in the menu data for the apps the user may open | every app | §1.2, §1.5 |
 | Screen context | XML Screen element | `<context record-entity record-id title selection-form/>`; the root exposes `screenContext` {path, parameters, record, selection, filters, forms} | every detail, 360, list | §1.6 |
 | Assist drawer | shell item | The Phase 13 port of the Java panel into a right `q-drawer` with the inputs of §1.3: screen context, canvas placement, running tasks, the reach list `assistReach`, agent entry point for chat rooms | all | §1.3 |
 | Palette | shell item | `q-dialog` with the groups of §1.5, prefixes, Recent, Ctrl+K; providers from `<shell-providers>` and the Commons and Comms result services | all | §1.5 |
 | Quick create frame | shell item | The `+` menu from the providers; opens `STRT_QUICK_CREATE` (`Commons/QuickCreate`) or a provider's screen in an `m-dialog` with the context as parameters | all | §1.5 |
-| `shellCounts` topic and `get#ShellCounts` | service type, data | `mantle.party.PartyServices.get#ShellCounts` (extends `get#UserNoticeCounts`: today, overdue, chat unread and mentions, mail unread, notifications, approvals) and a framework WebSocket topic `shellCounts` the services that change those counts publish to | header badges, Home counters | |
+| `shellCounts` topic and `get#ShellCounts` | service type, data | `mantle.party.PartyServices.get#ShellCounts` (extends `get#UserNoticeCounts`: today, overdue, chat unread and mentions, mail unread, notifications, approvals) and a framework WebSocket topic `shellCounts` the services that change those counts publish to | header badges, Home counters | BOSS seeds `STRT_SHELL_COUNTS_SERVICE` with this service's name, so the framework calls it without depending on Mantle |
+| Shell and notification topics | seed data, shell item | `NotificationTopic` seed rows `ChatterMention`, `ChatMention`, `WorkEffortReminder`, `WikiPageReview`, `FileShare` and `NewMail` (mail, internal messages and the mailbox posts delivered to the Inbox) with their title and link templates and receive defaults; the WebSocket topics `shellCounts`, `todayItems`, `notifications` (exists), `userStatus`, `chatRoom:<id>` and `chatUser:<id>`, each named once here with its payload | panels, Chatter, Chat, Knowledge, Files, Inbox | §1.4 |
 | Presence and status | shell item + data model | `moqui.security.UserStatus` {userId, statusEnumId (online, away, dnd, invisible), statusText, emoji, clearAtDate, lastActiveDate, inCall}; topic `userStatus`; auto-away from client idle; shown by an `m-avatar` wrapper that draws the dot | account menu, Chat, Chatter, Contacts | §1.8 |
 | Keymap registry | shell item | `moqui.keymap`: global bindings, `registerScope(scope, bindings)` from a screen or `.qvue`, the `?` overlay, user overrides from the `KEYMAP` preference, conflict resolution by scope; the Inbox and Chat sets of §12 and §13 as the first scopes | Inbox, Chat, Calendar, Files, Knowledge, all | §1.7 |
-| `number-card`, `container-split`, wizard panel, list views, `status-bar`, `chatter`, `record-files`, Material Symbols | as style-guide §8 | unchanged, with `chatter` and `record-files` embedding the screens named by `STRT_CHATTER_SCREEN` and `STRT_RECORD_FILES_SCREEN` so the framework stays Mantle-free | §5–§15 | style-guide §8 |
+| `number-card` | XML Screen element | as style-guide §8 | Commons Home, Comms Home | style-guide §8 |
+| `container-split` | XML Screen element | as style-guide §8 | Contacts, Knowledge | style-guide §8 |
+| Wizard panel | XML Screen element | style-guide §8 "Wizard and stack panels" | ContactImport, MailAccounts | style-guide §8 |
+| List views | XML Form element | as style-guide §8 (`view-board`, `view-calendar`) | Tasks, Calendar | style-guide §8 |
+| `status-bar` | XML Screen element | as style-guide §8 | TaskDetail, RequestDetail (crosscut) | style-guide §8 |
+| `chatter` | XML Screen element | style-guide §8, embedding the screen named by `STRT_CHATTER_SCREEN` with `recordEntity` and `recordId`, so the framework stays Mantle-free | every record screen; EventDetail, Files, Knowledge | style-guide §8; §15 |
+| `record-files` | XML Screen element | style-guide §8 "Record files", embedding the screen named by `STRT_RECORD_FILES_SCREEN` the same way | every record screen; EventDetail, Knowledge | style-guide §8; §9 |
+| Material Symbols | icon set | as style-guide §8 | every screen | style-guide §8 |
 | Anonymous token routes | shell item | Webroot mounts `/s/<token>` (public share), `/u/<token>` (unsubscribe), `/call/<token>` (guest join) that render a named screen with the token checked by a service before any data | PublicShare, Unsubscribe, Call | |
-| App passwords | data model + tool | A per-user password for DAV and SFTP clients (name, hash, created, last used, revoke), accepted by the protocol servers and not by the web login | Sync | |
+| App passwords | data model + tool | `moqui.security.UserAppPassword` {userId, name, passwordHash, createdDate, lastUsedDate, revokedDate}: a per-user password for DAV and SFTP clients, accepted by the protocol servers and not by the web login | Sync | |
 | PWA manifest and push | shell item | A manifest and service worker so Comms installs on a phone; web push for chat and mail notifications | Chat, Inbox, Today | later |
 
 ### Components and render
@@ -1577,18 +1763,19 @@ rolls this table up with the other files'. Kinds are those of design-doc-guide �
 | `m-coedit` and the `yrs` server | Vue component + tool | `m-rich-text` with `@tiptap/extension-collaboration` over a `yrs` sync server in mr-moqui on the notification WebSocket; the document store `moqui.resource.CollabDocument` (CRDT state, rendered snapshot, metadata, compaction), per initial-design | Knowledge, Notes | style-guide §8 "Co-editing editor" |
 | `m-html-view` | Vue component | Sanitized HTML (DOMPurify, the Assist port vendors it) rendered in a sandboxed iframe with a CSP, remote images blocked until allowed, links opened outside, dark-mode aware | Inbox, MessageDetail, Chatter | |
 | `m-avatar` | Vue component | A `q-avatar` from a party's `PcntFaceImage` or initials, with the presence dot | everywhere | |
+| Record cards | Vue component | `m-record-card`: a compact card for an entity and id (type icon, title, status chip, one or two key fields, the link under the viewer's app) from `mantle.GeneralServices.lookup#ById` and the record's title | Chat, Chatter, Inbox linked-records strip | an id such as `SO10023` or a pasted BOSS link in a message renders one |
 | Print documents | render mode | `html-print` templates for the calendar range, a contact, a message, a wiki page | §18 | style-guide §8 |
-| Search DataDocuments | seed data | `MoquiEmailMessage` (subject, bodies, addresses, labels, account, folder), `MoquiChatEvent` (room, sender, body), `MoquiDbResource` (name, path, tags, extracted text later), plus the existing party, work effort and wiki documents in the `mantle` index with per-user filters | palette, Inbox search, Chat search, Files search | the universal search's organization and user limits apply |
+| Search DataDocuments | seed data | `MoquiEmailMessage` (subject, bodies, addresses, labels, account, folder), `MoquiChatEvent` (room, sender, body), `MoquiDbResource` (name, path, tags, extracted text later), plus the existing party, work effort and wiki documents in the `mantle` index with per-user filters; the existing `MantleCommunicationEvent` gains `contactListId`, and its per-user filter shows a direct message to its parties and a mailbox post to those who may read the mailbox (any user for a public one, members for a private one) | palette, Inbox search, Chat search, Files search | the universal search's organization and user limits apply |
 
 ### Mail
 
 | Need | Kind | Proposed as | Used by | Stub spec |
 | --- | --- | --- | --- | --- |
-| Mail account model | data model | Framework entities `moqui.basic.email.EmailAccount` {owner user or party, kind internal, external or shared, emailServerId, address, name, color, syncWindow, status, lastSyncDate}, `EmailAccountUser` (shared members and rights), `EmailIdentity`, `EmailFolder` {account, name, path, kind, remote uid validity and modseq, counts}, `EmailLabel`, `EmailMessageLabel`, `EmailMessageAttachment` {message, DbResource location, name, size, mime, contentId}, `EmailRule`, `EmailOutOfOffice`, `EmailTextBlock`, `EmailSearch`; `EmailMessage` gains `emailAccountId`, `emailFolderId`, `remoteUid`, `isRead`, `isFlagged`, `isAnswered`, `hasAttachment`, `snippet`, `size`, `snoozedThruDate`, `scheduledSendDate`; `EmailServer` gains `authTypeEnumId` and an OAuth token reference | Inbox, Compose, Comms settings | |
-| Mailbox services | service type | `org.moqui.impl.MailboxServices`: `find#Messages`, `get#Thread`, `set#MessageFlags`, `move#Messages`, `apply#Labels`, `snooze#Messages`, `trash#Messages`, `report#Spam`, `unsubscribe#Message`, `save#Draft`, `send#Draft`, `discover#EmailServer`, `create#EmailAccount`, `test#EmailAccount`, `update#EmailAccount`, `delete#EmailAccount`, `sync#EmailAccount`, `run#EmailRules`; Rust where they touch the protocol, XML actions otherwise | Inbox, Compose, settings | |
-| IMAP and POP poller with incremental sync | protocol client | Per-account sync in Rust: folder list, UIDVALIDITY and CONDSTORE or QRESYNC when offered, flags both ways, MOVE and COPY, APPEND of sent mail, IDLE or a short interval; POP as fetch-only; extends `poll#EmailServer` | Inbox | initial-design "Protocol layer" |
+| Mail account model | data model | Framework entities `moqui.basic.email.EmailAccount` {owner user or party, kind internal (automatic, one per user, made on first use, no server: internal messages and mailboxes, §12), hosted, external or shared, emailServerId, address, name, color, syncWindow, recordFilingEnumId (file every party match, or only what the user links; defaults by kind, §12), status, lastSyncDate}, `EmailAccountUser` (shared members and rights), `EmailIdentity`, `EmailFolder` {account, name, path, kind, remote uid validity and modseq, counts}, `EmailLabel`, `EmailMessageLabel`, `EmailMessageAttachment` {message, DbResource location, name, size, mime, contentId}, `EmailRule`, `EmailOutOfOffice`, `EmailTextBlock`, `EmailSearch`; `EmailMessage` gains `emailAccountId`, `emailFolderId`, `remoteUid`, `isRead`, `isFlagged`, `isAnswered`, `hasAttachment`, `snippet`, `size`, `snoozedThruDate`, `scheduledSendDate`; `EmailServer` gains `authTypeEnumId` and an OAuth token reference | Inbox, Compose, Comms settings | |
+| Mailbox services | service type | `org.moqui.impl.MailboxServices`: `find#Messages`, `get#Thread`, `set#MessageFlags`, `move#Messages`, `apply#Labels`, `snooze#Messages`, `trash#Messages`, `report#Spam`, `unsubscribe#Message`, `save#Draft`, `send#Draft`, `discover#EmailServer`, `create#EmailAccount`, `test#EmailAccount`, `update#EmailAccount`, `delete#EmailAccount`, `sync#EmailAccount`, `run#EmailRules`; Rust where they touch the protocol, XML actions otherwise; they cover `EmailMessage` only, and the Inbox combines them with internal messages through `mantle.party.CommunicationServices.find#InboxThreads` ("Mailboxes" below) | Inbox, Compose, settings | |
+| IMAP and POP poller with incremental sync | protocol client | Per-account sync in Rust: folder list, UIDVALIDITY and CONDSTORE or QRESYNC when offered, flags both ways, MOVE and COPY, APPEND of sent mail, IDLE or a short interval; POP as fetch-only; extends `poll#EmailServer`; runs the rules and makes the `CommunicationEvent` for a party match when the account's filing policy says so | Inbox | initial-design "Protocol layer" |
 | SMTP send through the account | protocol client | `send#EmailMessage` chooses the account's server, direct or relay, DKIM left to the gateway; delivery status back on the message (`ES_SENT`, `ES_BOUNCED` from DSN) | Compose, Chatter, system mail | exists for templates; per-account routing is new |
-| SMTP listener behind the gateway | protocol server | Accept from the gateway's addresses only, trust its `Authentication-Results`, route by address to internal mailboxes and shared mailboxes, run rules, store `EmailMessage` and the `CommunicationEvent` when a party matches | internal and shared mailboxes | initial-design "SMTP gateway reference setup"; `Remaining-Work` "Embedded SMTP server: no code" |
+| SMTP listener behind the gateway | protocol server | Accept from the gateway's addresses only, trust its `Authentication-Results`, route by address to hosted and shared accounts, run rules, store `EmailMessage` and the `CommunicationEvent` when a party matches | hosted and shared accounts | initial-design "SMTP gateway reference setup"; `Remaining-Work` "Embedded SMTP server: no code" |
 | OAuth client and token store | tool | Authorization-code flow with PKCE in a popup for Google and Microsoft, refresh tokens encrypted, used by the poller and SMTP (XOAUTH2) and later by calendar and contact sync | MailAccounts, Calendars | |
 | Autodiscover | tool | Thunderbird autoconfig, Microsoft autodiscover and DNS SRV lookup by domain | MailAccounts | |
 | Snooze and scheduled-send jobs | service type | `ServiceJob`s that return snoozed messages at `snoozedThruDate` and send drafts at `scheduledSendDate`; Undo send is a short hold in the Outbox before `send#Draft` | Inbox, Compose | |
@@ -1601,31 +1788,37 @@ rolls this table up with the other files'. Kinds are those of design-doc-guide �
 | --- | --- | --- | --- | --- |
 | Chat store | data model | Framework entities `moqui.chat.ChatRoom` {type, name, topic, avatar, visibility, recordEntityName, recordId, retentionDays}, `ChatRoomMember` {userId or agent reference, role, joinedDate, lastReadEventId, notificationLevel, pinned}, `ChatEvent` {room, eventSeq, type, senderUserId, contentJson, replyToEventId, threadRootEventId, editsEventId, sentDate}, `ChatAttachment` (DbResource), `ChatPoll` and `ChatPollVote` | Chat, ChatPanel, Chatter | initial-design "Matrix-style persistence" |
 | Chat services | service type + protocol server | `org.moqui.impl.ChatServices`: `find#Rooms`, `create#Room`, `update#Room`, `add#Member`, `remove#Member`, `set#MemberRole`, `set#Notification`, `get#Timeline`, `send#Message`, `edit#Message`, `redact#Message`, `react#Message`, `pin#Message`, `mark#Read`, `upload#Attachment`, `create#Poll`, `vote#Poll`; typing, read markers and new events on WebSocket topics `chatRoom:<id>` and `chatUser:<id>`; an agent entry point for the Assist port | Chat | |
-| WebRTC | protocol server | Signaling over the notification WebSocket (offer, answer, ICE), STUN and TURN from configuration (coturn documented), mesh for small calls and an SFU later; `moqui.chat.CallSession` {room, startedDate, endedDate, startedBy}, `CallParticipant`, `CallLink` {token, name, expiry, policy}; `org.moqui.impl.CallServices` `start#Call`, `join#Call`, `leave#Call`, `admit#Guest`, `create#CallLink`, `revoke#CallLink`, `find#Calls` | Calls, Call, LiveCall | initial-design "WebRTC built into mr-moqui" |
+| WebRTC | protocol server | Signaling over the notification WebSocket (offer, answer, ICE), STUN and TURN from configuration (coturn documented), mesh for small calls and an SFU later | Calls, Call, LiveCall | initial-design "WebRTC built into mr-moqui" |
+| Call store and services | data model + service type | `moqui.chat.CallSession` {room, startedDate, endedDate, startedBy}, `CallParticipant`, `CallLink` {token, name, expiry, policy}; `org.moqui.impl.CallServices` `start#Call`, `join#Call`, `leave#Call`, `admit#Guest`, `create#CallLink`, `revoke#CallLink`, `find#Calls`; a finished call writes the `Call` communication event | Calls, Call, LiveCall | |
 | `CommunicationEventType` `Call` | seed data | `Call` (voice or video call in BOSS) beside `Phone` (a logged external call) | Chatter, call history | |
+| Call recording | tool | Recording a call to a `DbResource` file with consent shown to every participant | Call | later |
 
 ### Commons data and services
 
 | Need | Kind | Proposed as | Used by | Stub spec |
 | --- | --- | --- | --- | --- |
 | Contact books | data model | Mantle `mantle.party.contact.ContactBook` {ownerPartyId or shared, name, color, visibility}, `ContactBookParty` {book, party, fromDate, isFavorite}, `ContactBookGroup`, `ContactBookGroupParty`, `ContactBookShare` {book, user or group, permission}; a personal contact is a party in a personal book only | Contacts, ContactBooks, QuickContact | §6 |
-| Contact book, import and export services | service type | `mantle.party.ContactBookServices` (`create#ContactBook`, `share#ContactBook`, `add#ContactBookParties`, `remove#ContactBookParties`, `create#ContactBookGroup`, …), `mantle.party.ContactImportServices` (`parse#ContactFile`, `import#Contacts` as a job, `export#Contacts` vCard and CSV) | Contacts, ContactImport | |
+| Personal contact visibility | data model + seed data | `mantle.party.Party` gains `privateOwnerUserId`, set for a personal contact and cleared when it is linked to the directory; an `EntityFilterSet` on `mantle.party.Party` applied to every user passes a party when that field is empty or is the current user, as the `MANTLE_USER_ORG_9` party filter does for organizations; the MantleParty search document and `check#AllPartyDuplicates` apply the same condition | Contacts, Duplicates, every app's party finds | §6 |
+| Contact book, import and export services | service type | `mantle.party.ContactBookServices` (`create#ContactBook`, `share#ContactBook`, `add#ContactBookParties`, `remove#ContactBookParties`, `create#ContactBookGroup`, …), `mantle.party.ContactImportServices` (`parse#ContactFile`, `preview#Contacts` matching rows by email, phone and name, `import#Contacts` as a job, `export#Contacts` vCard and CSV) | Contacts, ContactImport | |
 | Calendar collections | data model | Mantle `mantle.work.calendar.Calendar` {ownerPartyId, name, color, kind personal, shared, resource or subscription, timeZone, isDefault}, `CalendarWorkEffort` {calendar, workEffort}, `CalendarShare` {calendar, user, group or party, permission, publishToken, password}, `CalendarSubscription` {calendar, url or provider, refreshMinutes, lastFetchDate, status} | Calendar, Calendars, EventDetail | §7 |
 | Recurrence | data model + seed data | `mantle.work.effort.WorkEffortRecurrence` {workEffortId, rrule, exdates, rdates}; instance overrides as `WorkEffort`s linked by the new `WorkEffortAssoc` type `WeatRecurrenceInstance` with the instance date; the existing `recurStartCron`, `recurLimit`, `recurEndDate` stay for jobs | Calendar, EventDetail, Tasks | |
 | Reminders | data model + service type | `mantle.work.effort.WorkEffortReminder` {workEffortId, partyId, offsetMinutes, methodEnumId notification or email}; a job that sends on topic `WorkEffortReminder` with snooze | EventDetail, Tasks, Today | |
 | RSVP and booking statuses | seed data + data model | `StatusItem` `WeptTentative` in `WorkEffortParty`; `WorkEffortFacility` gains `statusId` with the `WorkEffortAssetAssign` flow (`WeaaRequested`, `WeaaAssigned`, `WeaaRequestDenied`) or its own | EventDetail, Schedules | |
 | Calendar services | service type | `mantle.work.EventServices`: `get#FullCalendarData` extended with `calendarIdList`, RRULE expansion and all-day handling; new `get#FreeBusy`, `send#EventInvitations`, `respond#EventInvitation`, `book#Resource`; `mantle.work.CalendarServices` (`create#Calendar`, `share#Calendar`, `subscribe#Calendar`, `fetch#CalendarSubscription` as a job, `export#Calendar`) | Calendar, EventDetail, Schedules, Calendars | |
-| Today and timeline services | service type | `mantle.work.WorkEffortServices.get#UserTodayItems` (tasks, activities and events of the user by overdue, today and later, plus the `<today-source>` providers' items); `mantle.party.CommunicationServices.get#RecordTimeline`, `link#CommunicationEventRecord` | TodayPanel, Home, Chatter, Inbox | |
+| Today and timeline services | service type | `mantle.work.WorkEffortServices.get#UserTodayItems` (tasks, activities and events of the user by overdue, today and later, skipping what the user snoozed, plus the `<today-source>` providers' items); `mantle.party.CommunicationServices.get#RecordTimeline` (the joins or generic links, a party's communication events through `find#PartyCommunicationEvents`, extended to the to and cc recipient rows and leaving out mailbox posts, the record's `*Note` rows, activities, audit log, files, the bound room), `link#CommunicationEventRecord` | TodayPanel, Home, Chatter, Inbox | §15 |
+| Per-user snooze | data model | `mantle.work.effort.WorkEffortParty` gains `snoozeUntilDate`: hides the task or activity from that party's Today until then without changing the work effort's dates | TodayPanel, Home | |
 | Generic record links | data model | Mantle `mantle.party.communication.CommunicationEventRecord` {communicationEventId, recordEntityName, recordId}, `mantle.work.effort.WorkEffortRecord` {workEffortId, recordEntityName, recordId}, `mantle.party.communication.RecordFollower` {recordEntityName, recordId, userId, kinds}; the per-type joins stay and are read too | Chatter, QuickCreate, Inbox, Chat | answers crosscut §8 |
+| Internal message state | data model | Every internal recipient of a `Message` (to and cc, and for a mailbox post each member and each participant of the thread) gets a `mantle.party.communication.CommunicationEventParty` row (its `roleTypeId` tells to, cc and mailbox delivery apart; those role types are seed data to add), which gains `readDate` (empty is unread; the existing `statusId` keeps its `Cep*` flow of sent, received, assigned and resolved), `isFlagged`, `archivedDate` and `snoozedThruDate`; labels are a new `CommunicationEventPartyLabel` {communicationEventId, partyId, roleTypeId, emailLabelId} to the user's Internal-account `EmailLabel`; `mantle.party.CommunicationServices.find#InboxThreads` reads this and merges it with the framework's `find#Messages`, so the framework never reads a Mantle entity | Inbox (Internal account and mailboxes), Comms Home | §12 |
+| Mailboxes | data model + service type | A mailbox is a Mantle `mantle.marketing.contact.ContactList` of the new type `MAILBOX` (an `Enumeration` of `ContactListType` beside `MARKETING`, `NEWSLETTER` and `ANNOUNCEMENT`), using `contactListName`, `description`, `isPublic`, `ownerPartyId` (the organization) and `contactMechTypeEnumId` (empty while internal only); `ContactList` gains `postingEnumId` (new enumeration: members, moderators, any user), `defaultDeliveryEnumId` and `archivedDate`; `ContactListParty` gains `roleTypeId` outside the key (new role types `ListOwner` and `ListModerator`; empty is a member) and `deliveryEnumId` (new enumeration: Inbox, Mailbox only; digest later), with `CLPT_ACCEPTED` for a member, `CLPT_PENDING` for a join request or invitation and `thruDate` set on leaving; posts use the existing `CommunicationEvent.contactListId`. Services: `mantle.party.ContactListServices` (new, general so that Marketing uses them too): `create#ContactList`, `update#ContactList`, `find#ContactLists` (by type, with my membership and unread counts), `join#ContactList` (a member of a public list, a pending request for a private one), `leave#ContactList`, `add#ContactListParty` (also accepts a request), `remove#ContactListParty`, `set#ContactListPartyDelivery`; in `mantle.party.CommunicationServices`: `find#InboxThreads`, `get#InternalThread`, `set#InternalMessageState` (read, flag, archive, snooze and labels on my rows) and `close#ListThread` (new), and `create#Message` (extended: to and cc lists and `contactListId`; checks the posting policy and writes the recipient rows), `reply#CommunicationEvent` (extended: keeps the list and its participants, or answers the sender only) and `find#PartyCommunicationEvents` (extended, §15). Later, the email bridge: `contactMechTypeEnumId` email, members' `preferredContactMechId`, `ContactListCommStatus` per address (its `messageId` matches the replies) and the §16 unsubscribe | Inbox, Compose, Comms Home, palette | §12 |
 | Consent | data model + service type | Mantle `mantle.party.PartyConsent` {partyId, contactMechId, purposeEnumId, statusId granted or withdrawn, consentDate, sourceEnumId, evidenceText, userId}; `mantle.party.ConsentServices` `store#PartyConsent`, `unsubscribe#ContactListParty` | Consent, Unsubscribe, Marketing | |
 | Notification fields and approvals | data model | `moqui.security.user.NotificationMessage` gains `reasonEnumId` (mention, assignment, approval, dateAlert, reminder, comment, system), `recordEntityName`, `recordId`, `actorUserId`, `appName`; `NotificationTopic` gains `approveServiceName`, `refuseServiceName`, `digestDefault`; `NotificationTopicUser` gains `digest`; a daily digest job | NotificationsPanel, Notifications, settings | answers the research open question |
-| Notes space and knowledge review | data model + service type | `moqui.resource.wiki.WikiPageReview` {wikiPageId, versionName, requestedByUserId, reviewerUserId, statusId, note, requestedDate, decidedDate}; a service that creates a user's private notes `WikiSpace` on first use; `WikiServices.update#WikiPage` writing the snapshot of a `CollabDocument` | Knowledge, Review, Notes | |
+| Notes space and knowledge review | data model + service type | `moqui.resource.wiki.WikiPageReview` {wikiPageId, versionName, requestedByUserId, reviewerUserId, statusId, note, requestedDate, decidedDate}; a service that creates a user's private notes `WikiSpace` on first use; `WikiServices.update#WikiPage` writing the snapshot of a `CollabDocument` and indexing the snapshot's page links in a new `WikiPageLink` {wikiPageId, toWikiPageId}; `get#WikiPageBacklinks` over it; `move#WikiPage` to another space with history, categories and attachments | Knowledge, Review, Notes | |
 
 ### Files
 
 | Need | Kind | Proposed as | Used by | Stub spec |
 | --- | --- | --- | --- | --- |
-| File metadata model | data model | `moqui.resource.DbResource` gains `ownerUserId`, `size`, `isTrashed`, `trashedParentResourceId`, `trashedDate`; new `DbResourceShare` {resource, user, group, party or link token, permission, expiry, passwordHash, note, createdBy, openedCount}, `DbResourceFavorite`, `DbResourceTag`, `DbResourceTagMember`; the `Records/<entity>/<id>/` convention for record folders | Files, Shares, PublicShare, RecordFiles | §9 |
+| File metadata model | data model | `moqui.resource.DbResource` gains `ownerUserId`, `size`, `isTrashed`, `trashedParentResourceId`, `trashedDate`; new `DbResourceShare` {resource, user, group, party or link token, permission, expiry, passwordHash, note, createdBy, openedCount}, `DbResourceFavorite`, `DbResourceTag`, `DbResourceTagMember`; the record content folders the Mantle `save#*ContentFile` services already write under `mantle.content.root` (`dbresource://mantle/content/<type>/<id>/…`) are the Records section, mapped by type folder to record type | Files, Shares, PublicShare, RecordFiles | §9 |
 | File services | service type | `org.moqui.impl.FileServices`: `list#Folder`, `find#Resources`, `find#Recent`, `upload#Resource`, `create#Folder`, `rename#Resource`, `move#Resource`, `copy#Resource`, `trash#Resource`, `restore#Resource`, `restore#Version`, `share#Resource`, `revoke#Share`, `accept#Share`, `decline#Share`, `open#PublicShare`, `list#PublicShare`, `upload#PublicShare`, `download#Zip`, `get#Activity`; previews (image thumbnails, PDF first page) by a Rust tool | Files, RecordFiles, Compose, Home | |
 | WebDAV server | protocol server | The resource tree with the user's rights, locks, and `PROPFIND` of the share and tag properties | Sync, desktop clients | initial-design "Protocol layer" |
 | Virtual SFTP server | protocol server | The same tree over the russh host with app passwords | Sync, scripts | the Java virtual SFTP; `moqui-host/src/ssh/` has the cluster sender |
@@ -1636,31 +1829,40 @@ rolls this table up with the other files'. Kinds are those of design-doc-guide �
 
 | Decision | Notes |
 | --- | --- |
-| One file for the shell, Commons and Comms; an **Impl** column | Replaces the guide's `design-commons.md` and `design-comms.md`; the guide's §1 and §4 should be updated at review |
+| One file for the shell, Commons and Comms; an **Impl** column | Replaced the guide's `design-commons.md` and `design-comms.md`; the guide's §1, §4, §6, §7 and §9 carry the change and the conventions this review added |
 | Every screen is client-rendered and server-static; `.qvue` for Inbox, Compose, Chat, ChatPanel, Calendar, Schedules, Files, PublicShare, Knowledge, Notes, Chatter, RecordFiles, Call and LiveCall; XML for the rest | The `.qvue` screens are the ones whose interaction does not fit the XML widgets (style-guide §4.8); each names the `m-*` components it still uses |
 | Outer drawer is Assist and belongs to the framework; the inner drawer is BOSS content in a framework frame | The inner drawer is style-guide §2.4's tray panel; its tabs and the quick-create, Chatter and record-files screens are named by theme values so the framework stays Mantle-free |
 | What Assist may reach: the canvas, dialogs from it, the inner drawer's tabs, the quick-create dialog and the live-call window; not the header, app drawer, palette, account menu, theme plugins or itself | Answers the initial-design and research open item; Assist reads the inner drawer's data through `request` on the panel screens' `/actions` and its tools catalog is the palette's providers |
 | Assist's `write_ui` canvas renders in the drawer and can be opened into the page | Keeps the Java panel's page-slot behavior as an option rather than the default |
 | Screen context is the one plumbing for quick create, Chatter, Today, record files and Assist | style-guide §8 "Screen context"; a record link made from it uses the record's own join when one exists, else the generic links |
-| Approvals: the inner drawer's Notifications tab, the `Commons/Notifications` center, and the source apps' own lists | Answers the research and crosscut §8 approvals questions; approve and refuse call services named on the `NotificationTopic` |
+| Approvals: the inner drawer's Notifications tab, the `Commons/Notifications` center, and the source apps' own lists | Answers the research and crosscut §8 approvals questions; approve and refuse call services named on the `NotificationTopic`; this file designs Approvals waiting (crosscut §3.15) and design-crosscut decides whether the source apps include its form |
+| The framework reaches BOSS's Mantle-aware pieces only through theme values: the three inner-drawer tabs, quick create, Chatter, record files and the shell counts service (`STRT_SHELL_COUNTS_SERVICE`) | Keeps the framework Mantle-free; a deployment without BOSS shows no badges rather than failing |
 | `NotificationMessage` gains reason, record, actor and app fields rather than conventions inside `messageJson` | Filters and the record link need columns; `messageJson` stays for the payload |
 | Badges and the inner drawer refresh over WebSocket topics (`shellCounts`, per-tab topics), with a five-minute poll as the fallback | Replaces the My Account widget's polling |
-| A suite key map with Gmail-compatible mail defaults, Slack-compatible chat defaults, a `?` overlay and user overrides | The Inbox and Chat scopes close the gaps named in §1.7 and §12 |
+| A suite key map with Gmail-compatible mail defaults, Slack-compatible chat defaults, a `?` overlay and user overrides | The Inbox and Chat scopes close the gaps named in §1.7 and §12; inside a rich-text editor Ctrl+K is "insert link" and the palette is the Search button |
+| Today's Snooze hides an item for the user only (`WorkEffortParty.snoozeUntilDate`); Reschedule, a separate action, changes the due date | Snoozing a shared project task must not move its date for everyone; Microsoft To Do's My Day keeps the same split |
 | QuickSearch, Search and QuickLookup retire into the palette; `Commons/Search` remains only as the "more" page for records | `Base/QuickSearch`, `Base/Search`, `Base/QuickLookup` and `template/SearchTransitions.xml` go when the palette lands |
 | Commons and Comms are authorized for `ALL_USERS` | A deployment narrows with its own authz; role-limited screens (Duplicates, Spaces, Review, Consent) check their own groups |
-| Address books are new `ContactBook` records; groups are labels inside a book; a personal contact is a `Party` in a personal book with no role, hidden from the directory and the duplicate scan | Answers the research question; CardDAV maps one book to one address book; "Link to a directory party" merges a personal contact into the directory when wanted |
-| Calendars are a new `Calendar` collection over `WorkEffort` events, with `CalendarShare` and `CalendarSubscription`; recurrence is an RRULE on `WorkEffortRecurrence` with instance overrides by `WorkEffortAssoc` `WeatRecurrenceInstance`; reminders are `WorkEffortReminder`; working hours are `WetAvailable` work efforts | Answers the research question; nothing is added to `WorkEffort` itself except through the new child entities |
+| Address books are new `ContactBook` records; groups are labels inside a book; a personal contact is a `Party` in a personal book with no role, hidden from the directory and the duplicate scan, and from every other user everywhere through `Party.privateOwnerUserId` and an entity filter applied to all users | Answers the research question; CardDAV maps one book to one address book; "Link to a directory party" merges a personal contact into the directory when wanted |
+| Calendars are a new `Calendar` collection over `WorkEffort` events, with `CalendarShare` and `CalendarSubscription`; recurrence is an RRULE on `WorkEffortRecurrence` with instance overrides by `WorkEffortAssoc` `WeatRecurrenceInstance`; reminders are `WorkEffortReminder`; working hours are `WetAvailable` work efforts; the grid shows the toggled calendars plus every event where the user is a `WorkEffortParty` | Answers the research question; nothing is added to `WorkEffort` itself except through the new child entities; an event another app schedules with a user shows without a `CalendarWorkEffort` row |
 | RSVP uses `WorkEffortParty` statuses (`WeptOffered`, `WeptAssigned`, `WeptDeclined`, new `WeptTentative`); room booking uses `WorkEffortFacility` with a new status; equipment uses `WorkEffortAssetAssign` statuses; policies and approval live in Maintenance | initial-design's split; without a policy a booking is assigned at once |
-| Files run on `DbResource` with added metadata, shares, favorites, tags and trash; record attachments live under `Records/<entity>/<id>/` and keep their `*Content` rows; WebDAV, SFTP, CalDAV and CardDAV are framework servers over the same data | Answers the research question; everything in Postgres under one backup; a file-system root is configuration |
+| Files run on `DbResource` with added metadata, shares, favorites, tags and trash; record attachments stay where the Mantle `save#*ContentFile` services put them (`dbresource://mantle/content/<type>/<id>/…`) with their `*Content` rows, and that tree is the Files Records section; WebDAV, SFTP, CalDAV and CardDAV are framework servers over the same data | Answers the research question; everything in Postgres under one backup; a file-system root is configuration |
 | Personal notes are the pages of a private `WikiSpace` per user; knowledge base, team wiki and help center are spaces; review is `WikiPageReview` over the existing published version; co-editing is Tiptap over Yjs with `yrs`, with a markdown text area until it lands | initial-design "Notes and knowledge live in Commons"; blogs (`WikiBlog`) go to Marketing's content screens |
 | Chat messages are a separate Matrix-style store (`ChatRoom`, `ChatRoomMember`, `ChatEvent`); a message becomes a `CommunicationEvent` only when linked to a record or turned into one; a record-bound room shows in Chatter | Answers the research question; search indexes chat events directly |
-| Mail is `EmailMessage` plus the new account, folder, label, attachment and rule entities in the framework; a `CommunicationEvent` is created when a party matches or the user links; internal messages are the Internal account of the same Inbox | Answers initial-design "Internal comm events: same inbox UI as email"; the receiver's party matching sets `emailMessageId` as the order, invoice and shipment services already do |
+| Mail is `EmailMessage` plus the new account, folder, label, attachment and rule entities in the framework; a `CommunicationEvent` is created when a party matches and the account's filing policy allows it, or when the user links; internal messages are the Internal account of the same Inbox, an automatic `EmailAccount` of kind `internal` per user, which the Inbox lists through `mantle.party.CommunicationServices.find#InboxThreads` | Answers initial-design "Internal comm events: same inbox UI as email"; the receiver's party matching sets `emailMessageId` as the order, invoice and shipment services already do; the merge service is Mantle's so that the framework's mail services never read a Mantle entity |
+| Filing mail on records is a per-account policy (`EmailAccount.recordFilingEnumId`): business, shared and hosted accounts file every party match; a personal external account files only what its owner links | Someone using Comms as their own mail client must not see their personal Gmail on a customer's 360 |
+| Internal messages keep a per-recipient state on `CommunicationEventParty` (`readDate`, `isFlagged`, `archivedDate`, `snoozedThruDate`, labels through `CommunicationEventPartyLabel`); a mailbox post writes a row for each member and each participant of the thread, and someone who joins later sees the earlier threads as read | One message to several users needs independent read, flag and archive state; `CommunicationEvent.statusId` is one value for everyone |
+| Mailboxes, the asynchronous counterpart of chat rooms, are Mantle `ContactList` rows of the new type `MAILBOX`: members are `ContactListParty` rows with a role and a delivery (Inbox or Mailbox only), posts are `CommunicationEvent`s with the existing `contactListId`, threaded by `rootCommEventId`; closing a thread sets its first post to `CeResolved`; the Internal account (an Open item before) stays, with the mailboxes under it | `ContactList` is the list model Mantle already has, unused by any service yet, and the same model serves Marketing's mass distribution; the later email bridge reuses its per-address delivery (`ContactListCommStatus`) and unsubscribe. Not `ChatRoom` (the framework's synchronous `ChatEvent` store) and not a shared `EmailAccount` (real addresses and `EmailMessage`). Whether a project or a case gets a mailbox is for design-projects and design-customer-service |
+| Account terms: external, hosted (at a hosted domain), shared and Internal accounts; "mailbox" means only the shared list or forum under the Internal account | Hosted and shared accounts were "internal mailbox" and "shared mailbox", which the new mailboxes would have made ambiguous; the framework's `org.moqui.impl.MailboxServices` keeps its name |
+| Log note writes a `Comment` communication event; the timeline also reads the baseline's `PartyNote`, `WorkEffortNote`, `RequestNote`, `OrderNote` and `FacilityNote` rows, and a party's own communication events through `find#PartyCommunicationEvents` | Existing notes stay visible with no migration; comments carry mentions, attachments and replies that note rows cannot |
+| Message purposes (`CommunicationEventPurpose`) are not shown in Comms; labels file mail and record links tie it to business | `EditMessage` `AddPurposeForm` and `PurposesForm` are not carried forward; services may still set a purpose, and Customer Service may show it on case messages |
+| Commons mounts the Facility & equipment record read-only as `ResourceDetail`, and shows an employee's directory card on the contact record | Answers research-crosscut §3's "Commons (schedules and booking)" and Employee 360's "Commons (directory card)"; Maintenance and People keep the full records |
 | The composer is one component used from the Inbox, quick create, Chatter and the business records; Marketing's campaign sends do not use it | §12 per-app context |
 | Calls are WebRTC in mr-moqui with `CallSession` and `CallLink`; a finished call is a `CommunicationEvent` of the new type `Call`; meetings are `WepMeeting` events with a call link | initial-design "WebRTC built into mr-moqui" |
 | Consent is edited on `PartyContactMech.allowSolicitation` and `ContactListParty`, with `PartyConsent` as the history; one screen for Comms and Marketing; a public unsubscribe page with one-click support | Answers the research question |
 | Chatter is one component with a generic record link (`CommunicationEventRecord`, `WorkEffortRecord`, `RecordFollower`) beside the existing per-type joins | Answers crosscut §8 "Generic record links"; the design-crosscut file references §15 rather than redesigning it |
-| Dropped from the candidate inventory: a separate Outbox screen (a folder view), a separate Events area (`EventDetail` under Calendar), a Comms Chatter screen (one component), the My Account Time entries (Projects' My timesheet and the Task Time tab), Scheduled finds (Insights' saved reports) and Expense (People and Accounting), the org chart (`later`) | The My Account forms they held are covered as noted in §8 and §11 or carried by those files |
-| `Comms/Settings/CallSettings`, `Commons/Settings/Sync`, Calls, Call and LiveCall are `later`; everything else in the tables is `parity` or `new` | Calls and DAV sync wait on their protocol work; the Inbox is `new` in the first release because it is the suite's own mail client |
+| Dropped from the candidate inventory: a separate Outbox screen (a folder view), a separate Events area (`EventDetail` under Calendar), a Comms Chatter screen (one component), the My Account Time entries (Projects' My timesheet and the Task Time tab), Scheduled finds (Insights' saved reports) and Expense (People and Accounting), the org chart (`later`) | The My Account forms they held are covered as noted in §8 and §11 or carried by those files; the Expense and Scheduled finds forms, and the Wiki blog forms that go to Marketing, stay blank in ss-inventory until design-people, design-accounting, design-insights and design-marketing fill them |
+| `Comms/Settings/Calls`, `Commons/Settings/Sync`, Calls, Call and LiveCall are `later`; everything else in the tables is `parity` or `new` | Calls and DAV sync wait on their protocol work. `parity` marks a screen that replaces a My Account, Party, Wiki or search screen or form (Notifications, Inbox, Compose, MessageDetail, Chatter and RecordFiles among them); `new` marks one with no baseline |
 
 ## 21. Open
 
@@ -1669,16 +1871,14 @@ Each with the answer the author would give.
 - **Personal contacts as parties.** A personal contact pollutes nothing visible, but it is a
   row in `Party` with no role, and a deployment with strict data-protection rules may prefer a
   separate vCard store per user. Recommended: keep them as parties in personal books (one
-  search, one merge path, one CardDAV backend) and add a retention job that purges personal
-  books of users who are disabled.
+  search, one merge path, one CardDAV backend), hidden from everyone else by the
+  `privateOwnerUserId` entity filter (§6), and add a retention job that purges personal books of
+  users who are disabled.
 - **Mail body storage at scale.** `EmailMessage.body` and `bodyText` are `text-very-long`
   columns; a user with ten years of mail has tens of gigabytes in one table. Recommended: keep
   bodies in the table (one backup, full-text in the index), attachments in `DbResource`, and add
   an archive policy per account (older than n years moved to a cold table or exported to
   `.mbox` in Files) before the first large deployment.
-- **The Internal account.** Internal messages could instead be chat or Chatter only.
-  Recommended: keep the Internal account; a small business uses it as the message board it
-  never had, and it costs one virtual account in the rail.
 - **OAuth for Google and Microsoft in the first release.** The author's own use needs a Gmail
   account polled over IMAP with OAuth. Recommended: first release, with the client in the
   framework so calendar and contact import reuse it.
@@ -1710,3 +1910,10 @@ Each with the answer the author would give.
 - **Where the Office app (WOPI) opens from.** The Files preview and New menu assume it.
   Recommended: Office's design file names the `Commons/Files` hooks it needs (open with, new
   document from template) and this file gains them at review.
+- **The Assist key.** Ctrl+Shift+A is, as far as this review knows, bound by Chrome (tab search)
+  and Firefox (add-ons), and browsers keep some keys from pages. Recommended: check the default
+  against the browser-reserved keys of Chrome, Firefox, Safari and Edge when the Keymap registry
+  is built; it is editable either way.
+- **A personal "Me" page** (research-crosscut §8, People and Commons). Recommended: no separate
+  page; `Commons/Settings/Account` is the account, People's employee self-service is People's,
+  and Commons Home shows a shortcut to it for users who have it.
