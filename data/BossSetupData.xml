@@ -124,8 +124,9 @@ along with this software (see the LICENSE.md file). If not, see
         mantle.party.PartyServices.get#ShellCounts (M2). -->
     <moqui.screen.ScreenThemeResource screenThemeId="DEFAULT_QUASAR" sequenceNum="300" resourceTypeEnumId="STRT_TRAY_TODAY"
             resourceValue="Commons/Panel/Today"/>
+    <!-- the Chat tab is a .qvue screen (Panel/ChatPanel.qvue): named in its render mode, so the tray loads its component -->
     <moqui.screen.ScreenThemeResource screenThemeId="DEFAULT_QUASAR" sequenceNum="301" resourceTypeEnumId="STRT_TRAY_CHAT"
-            resourceValue="Comms/Panel/Chat"/>
+            resourceValue="Comms/Panel/Chat.qvue"/>
     <moqui.screen.ScreenThemeResource screenThemeId="DEFAULT_QUASAR" sequenceNum="302" resourceTypeEnumId="STRT_TRAY_NOTIFICATIONS"
             resourceValue="Commons/Panel/Notifications"/>
     <moqui.screen.ScreenThemeResource screenThemeId="DEFAULT_QUASAR" sequenceNum="303" resourceTypeEnumId="STRT_QUICK_CREATE"
@@ -141,6 +142,13 @@ along with this software (see the LICENSE.md file). If not, see
             resourceValue="RecordFiles"/>
     <moqui.screen.ScreenThemeResource screenThemeId="DEFAULT_QUASAR" sequenceNum="307" resourceTypeEnumId="STRT_SHELL_COUNTS_SERVICE"
             resourceValue="mantle.party.PartyServices.get#ShellCounts"/>
+    <!-- Chat (design-drawers-commons.md §13, impl M10): a room bound to a record is read and joined by the users who may see the
+        record (org.moqui.impl.ChatServices.check#RecordVisible calls this service with checkOnly, under the user's filters) -->
+    <moqui.screen.ScreenThemeResource screenThemeId="DEFAULT_QUASAR" sequenceNum="309" resourceTypeEnumId="STRT_RECORD_VISIBLE_SERVICE"
+            resourceValue="mantle.party.CommunicationServices.get#RecordLinkInfo"/>
+    <!-- the do not disturb hours of Comms Settings, Chat (ironstone.ChatServices.apply#DndHours) -->
+    <moqui.service.job.ServiceJob jobName="apply_ChatDndHours" description="Do not disturb hours of the chat users (IronStone)"
+            serviceName="ironstone.ChatServices.apply#DndHours" cronExpression="0 */5 * * * ?" paused="N"/>
     <!-- Contacts (design-drawers-commons.md §6, impl M4): contact admins change and delete directory contacts and review the
         duplicates (Commons/Contacts/Duplicates); ADMIN members are contact admins too. A pair a contact admin marks "not a
         duplicate" is kept in a PartySetting of each party (a comma list of the other party ids), until Mantle records it. -->

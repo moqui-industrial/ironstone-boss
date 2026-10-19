@@ -197,7 +197,14 @@ along with this software (see the LICENSE.md file). If not, see
                     // two columns of boxes: from 1024 px on the full screen, from 1440 px in the split's narrower pane
                     halfClass = inSplit ? 'col-12 col-lg-6' : 'col-12 col-md-6'
                     avatarUrl = record.hasFaceImage ? sri.buildUrl('contactAvatar').path + '?partyId=' + encodeURIComponent(recordPartyId) : ''
-                    avatarHtml = '<m-avatar name="' + enc(record.name) + '"' + (avatarUrl ? ' image="' + enc(avatarUrl) + '"' : '') + ' size="56px"></m-avatar>'
+                    // a contact who is a user: the Chat action (a direct message, the one there is or a new one) and the presence dot
+                    const chatAccount = Array.from(ec.entity.find('moqui.security.UserAccount').condition('partyId', recordPartyId)
+                            .condition(ec.entity.conditionFactory.makeCondition('disabled', 'not-equals', 'Y', true)).selectField('userId').disableAuthz().list())
+                            .find((account) => account.userId !== ec.user.userId)
+                    chatUserId = chatAccount ? chatAccount.userId : null
+                    chatUrl = chatUserId ? '/qapps/Comms/Chat?dm=' + encodeURIComponent(chatUserId) : null
+                    avatarHtml = '<m-avatar name="' + enc(record.name) + '"' + (avatarUrl ? ' image="' + enc(avatarUrl) + '"' : '')
+                            + (chatUserId ? ' user-id="' + enc(chatUserId) + '"' : '') + ' size="56px"></m-avatar>'
                     const tabs = [['overview', 'Overview'], ['activity', 'Activity'], ['calendar', 'Calendar'], ['tasks', 'Tasks'], ['requests', 'Requests'],
                         ['files', 'Files'], ['consent', 'Consent']]
                     tabsHtml = '<q-tabs dense no-caps inline-label narrow-indicator outside-arrows mobile-arrows align="left" active-color="primary" indicator-color="primary"'
@@ -293,10 +300,13 @@ along with this software (see the LICENSE.md file). If not, see
                         </box-body></container-box>
                     </widgets></section>
 
-                    <!-- ===== actions: email; new event and task; the rest in More ===== -->
+                    <!-- ===== actions: email; chat with a contact who is a user; new event and task; the rest in More ===== -->
                     <container style="row items-center q-gutter-y-xs q-mb-sm m-contact-actions">
                         <section name="EmailAction" condition="composeUrl"><widgets>
                             <render-mode><text type="qvt"><![CDATA[<m-link href="${composeUrl}"><q-btn unelevated no-caps dense color="primary" icon="sym_o_mail" label="${ec.l10n.localize('Email')}"></q-btn></m-link>]]></text></render-mode>
+                        </widgets></section>
+                        <section name="ChatAction" condition="chatUrl"><widgets>
+                            <render-mode><text type="qvt"><![CDATA[<m-link href="${chatUrl}" class="q-ml-xs"><q-btn unelevated no-caps dense class="m-btn-tonal" icon="sym_o_chat" label="${ec.l10n.localize('Chat')}"></q-btn></m-link>]]></text></render-mode>
                         </widgets></section>
                         <render-mode><text type="qvt"><![CDATA[${quickHtml}]]></text></render-mode>
                         <button-menu text="More" icon="more_horiz" style="q-ml-xs">

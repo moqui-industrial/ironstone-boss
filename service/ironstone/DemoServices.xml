@@ -114,7 +114,7 @@ along with this software (see the LICENSE.md file). If not, see
                 titleText: 'Reminder: Compare the calendar options for the team, due today',
                 messageJson: {workEffortId: 'BOSS_DEMO_TODAY_DUE', workEffortName: 'Compare the calendar options for the team', whenText: 'due today'}})
             notification('BOSS_DEMO_NM_CHAT', {topic: 'ChatMention', reasonEnumId: 'NrMention', actorUserId: 'ORG_ZIZI_BD', appName: 'Comms',
-                sentDate: hours(5), titleText: 'Bob Developer mentioned you in Team: lunch on Friday?', linkText: '/qapps/Comms/Chat',
+                sentDate: hours(5), titleText: 'Bob Developer mentioned you in Team: lunch on Friday?', linkText: '/qapps/Comms/Chat?chatRoomId=BOSS_DEMO_CHAT_TEAM&eventSeq=4',
                 messageJson: {roomName: 'Team', authorName: 'Bob Developer', summary: 'lunch on Friday?'}})
             notification('BOSS_DEMO_NM_INVITE', {topic: 'EventInvitation', reasonEnumId: 'NrAssignment', actorUserId: 'ORG_ZIZI_JD', appName: 'Commons',
                 sentDate: hours(26), recordEntityName: 'mantle.work.effort.WorkEffort', recordId: 'BOSS_DEMO_EVENT',

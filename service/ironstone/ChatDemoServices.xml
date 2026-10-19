@@ -1,0 +1,251 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The chat demo (impl-drawers-commons.md M10): john.doe's rooms, so Comms Chat, the tray's Chat tab and Chatter's Discuss
+    show and test with content. data/BossChatDemoData.xml calls load#ChatDemo. -->
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
+
+    <service verb="load" noun="ChatDemo" authenticate="anonymous-all" allow-remote="false">
+        <description>
+            The chat rooms of john.doe (EX_JOHN_DOE) with Joe Developer (ORG_ZIZI_JD) and Bob Developer (ORG_ZIZI_BD), dated from
+            now, only BOSS_DEMO_CHAT_* rooms (loading again puts them back as they were):
+            - BOSS_DEMO_CHAT_JOE, a direct message with Joe: a picture of the floor plan, john's 👍 on it, a reply that Joe
+              edited, and two messages john has not read;
+            - BOSS_DEMO_CHAT_BOB, a direct message with Bob, read, with a link to the demo request (its record card);
+            - BOSS_DEMO_CHAT_GENERAL, the public room General (all three): a pinned welcome, a thread of two replies, a
+              message with two 🎉;
+            - BOSS_DEMO_CHAT_TEAM, the private room Team (all three, pinned for john): two unread messages, one mentioning john;
+            - BOSS_DEMO_CHAT_LEADS, the private room Leadership (john and Bob, not Joe) with the file budget-2027.txt;
+            - BOSS_DEMO_CHAT_REQUEST, the room of the demo request BOSS_DEMO_REQUEST (john and Bob), read and joined by those
+              who may see the request;
+            - BOSS_DEMO_CHAT_RANDOM, the public room Random of Bob and Joe, which john may browse and join;
+            - a status message for Joe and for Bob.
+            Each message is put in the search index when search is there.
+        </description>
+        <out-parameters><parameter name="chatRoomIdList" type="List"/></out-parameters>
+        <actions><script><![CDATA[
+            chatRoomIdList = []
+            const JOHN = 'EX_JOHN_DOE', JOE = 'ORG_ZIZI_JD', BOB = 'ORG_ZIZI_BD'
+            const found = Array.from(ec.entity.find('moqui.security.UserAccount').condition('userId', 'in', [JOHN, JOE, BOB]).disableAuthz().list()).map((row) => row.userId)
+            if (found.length < 3) { ec.logger.warn('The chat demo needs the users EX_JOHN_DOE, ORG_ZIZI_JD and ORG_ZIZI_BD (demo data); nothing loaded'); return }
+            const toMillis = (value) => value == null || value === '' ? null : (typeof value === 'number' ? value : (value instanceof Date ? value.getTime() : Number(String(value))))
+            const nowMillis = toMillis(ec.user.nowTimestamp)
+            const HOUR = 3600000
+            const ago = (hours) => new Date(nowMillis - Math.round(hours * HOUR))
+            const ROOMS = ['BOSS_DEMO_CHAT_JOE', 'BOSS_DEMO_CHAT_BOB', 'BOSS_DEMO_CHAT_GENERAL', 'BOSS_DEMO_CHAT_TEAM', 'BOSS_DEMO_CHAT_LEADS',
+                'BOSS_DEMO_CHAT_REQUEST', 'BOSS_DEMO_CHAT_RANDOM']
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try {
+                // the demo as it was: its rows and files go first
+                for (const file of ec.entity.find('moqui.chat.ChatAttachment').condition('chatRoomId', 'in', ROOMS).list()) {
+                    try { if (file.location) { const ref = ec.resource.getLocationReference(file.location); if (ref.getExists()) ref.delete() } }
+                    catch (err) { ec.logger.warn(`Chat demo: file ${file.location} not removed: ${err && err.message ? err.message : err}`) }
+                }
+                for (const entityName of ['moqui.chat.ChatEventMention', 'moqui.chat.ChatAttachment', 'moqui.chat.ChatEvent', 'moqui.chat.ChatRoomMember', 'moqui.chat.ChatRoom'])
+                    ec.entity.find(entityName).condition('chatRoomId', 'in', ROOMS).deleteAll()
+
+                const toText = (html) => String(html || '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|li|blockquote)>/gi, '\n').replace(/<[^>]*>/g, '')
+                        .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&')
+                        .replace(/[ \t]+/g, ' ').replace(/ *\n */g, '\n').replace(/\n{3,}/g, '\n\n').trim()
+                const snippetOf = (text, files) => {
+                    const shown = String(text || '').replace(/\s+/g, ' ').trim()
+                    if (shown) return shown.length > 140 ? shown.slice(0, 139) + '…' : shown
+                    return files && files.length ? '📎 ' + files.map((file) => file.fileName).join(', ') : null
+                }
+                const rooms = {}
+                const make = (entityName, fields) => { const row = ec.entity.makeValue(entityName); row.setFields(fields, true, null, null); row.create(); return row }
+                const room = (chatRoomId, fields, members, createdHours) => {
+                    make('moqui.chat.ChatRoom', Object.assign({chatRoomId: chatRoomId, createdDate: ago(createdHours), lastEventSeq: 0,
+                        lastEventDate: ago(createdHours)}, fields))
+                    for (const member of members) make('moqui.chat.ChatRoomMember', Object.assign({chatRoomId: chatRoomId, joinedDate: ago(createdHours),
+                        lastReadEventSeq: 0, roleEnumId: 'CmrMember', notificationLevelEnumId: 'CnlAll', isPinned: 'N', isMuted: 'N'}, member))
+                    rooms[chatRoomId] = {seq: 0, lastDate: ago(createdHours), lastMessage: null}
+                    chatRoomIdList.push(chatRoomId)
+                }
+                const event = (chatRoomId, typeId, sender, hours, fields) => {
+                    const state = rooms[chatRoomId]
+                    state.seq += 1
+                    state.lastDate = ago(hours)
+                    make('moqui.chat.ChatEvent', Object.assign({chatRoomId: chatRoomId, eventSeq: state.seq, eventTypeEnumId: typeId, senderUserId: sender,
+                        sentDate: ago(hours)}, fields || {}))
+                    return state.seq
+                }
+                const message = (chatRoomId, sender, hours, html, opts) => {
+                    const options = opts || {}
+                    const mentions = Array.from(String(html).matchAll(/data-mention-id="([^"]*)"/g)).map((match) => match[1])
+                    const attachments = options.attachments || []
+                    const text = toText(html)
+                    const seq = event(chatRoomId, 'CetMessage', sender, hours, {bodyText: text || null, replyToEventSeq: options.replyTo ?? null,
+                        threadRootEventSeq: options.threadRoot ?? null, contentJson: JSON.stringify({body: html || null, mentions: mentions,
+                            attachments: attachments.map((file, index) => ({chatAttachmentId: file.chatAttachmentId, attachmentSeq: index + 1, fileName: file.fileName,
+                                contentType: file.contentType, fileSize: file.fileSize})), records: options.records || []})})
+                    for (const id of mentions) make('moqui.chat.ChatEventMention', {chatRoomId: chatRoomId, eventSeq: seq, userId: id})
+                    attachments.forEach((file, index) => make('moqui.chat.ChatAttachment', {chatAttachmentId: file.chatAttachmentId, chatRoomId: chatRoomId,
+                        eventSeq: seq, attachmentSeq: index + 1, location: file.location, fileName: file.fileName, contentType: file.contentType,
+                        fileSize: file.fileSize, uploadedByUserId: sender, uploadedDate: ago(hours)}))
+                    if (options.threadRoot == null) rooms[chatRoomId].lastMessage = {seq: seq, userId: sender, date: ago(hours), snippet: snippetOf(text, attachments)}
+                    else {
+                        const root = ec.entity.find('moqui.chat.ChatEvent').condition('chatRoomId', chatRoomId).condition('eventSeq', options.threadRoot).one()
+                        root.set('threadReplyCount', Number(root.threadReplyCount || 0) + 1)
+                        root.set('threadLastDate', ago(hours))
+                        root.update()
+                    }
+                    return seq
+                }
+                const react = (chatRoomId, sender, hours, target, key) => event(chatRoomId, 'CetReaction', sender, hours, {relatesToEventSeq: target,
+                    contentJson: JSON.stringify({key: key})})
+                const edit = (chatRoomId, sender, hours, target, html) => {
+                    const text = toText(html)
+                    const seq = event(chatRoomId, 'CetEdit', sender, hours, {editsEventSeq: target, bodyText: text, contentJson: JSON.stringify({body: html, mentions: []})})
+                    const original = ec.entity.find('moqui.chat.ChatEvent').condition('chatRoomId', chatRoomId).condition('eventSeq', target).one()
+                    original.setFields({bodyText: text, editedDate: ago(hours), lastEditEventSeq: seq}, true, null, null)
+                    original.update()
+                    const state = rooms[chatRoomId]
+                    if (state.lastMessage && state.lastMessage.seq === target) state.lastMessage.snippet = snippetOf(text)
+                    return seq
+                }
+                const pin = (chatRoomId, sender, hours, target) => {
+                    const original = ec.entity.find('moqui.chat.ChatEvent').condition('chatRoomId', chatRoomId).condition('eventSeq', target).one()
+                    original.setFields({pinnedDate: ago(hours), pinnedByUserId: sender}, true, null, null)
+                    original.update()
+                    return event(chatRoomId, 'CetPin', sender, hours, {relatesToEventSeq: target, contentJson: JSON.stringify({pinned: true})})
+                }
+                const created = (chatRoomId, sender, hours, roomName, userIds) => event(chatRoomId, 'CetSystem', sender, hours,
+                    {contentJson: JSON.stringify({action: 'created', roomName: roomName, userIds: userIds})})
+                const file = (chatRoomId, chatAttachmentId, fileName, contentType, write) => {
+                    const location = `dbresource://chat/${chatRoomId}/${chatAttachmentId}/${fileName}`
+                    let fileSize = 0
+                    try {
+                        const ref = ec.resource.getLocationReference(location)
+                        write(ref)
+                        fileSize = Number(ref.getSize() || 0)
+                    } catch (err) { ec.logger.warn(`Chat demo: file ${location} not written: ${err && err.message ? err.message : err}`) }
+                    return {chatAttachmentId: chatAttachmentId, fileName: fileName, contentType: contentType, fileSize: fileSize, location: location}
+                }
+                const read = (chatRoomId, userId, seq) => ec.entity.find('moqui.chat.ChatRoomMember').condition('chatRoomId', chatRoomId).condition('userId', userId)
+                        .updateAll({lastReadEventSeq: seq, lastReadDate: ago(0)})
+
+                // a direct message with Joe: a picture, a reaction, an edited reply, two unread
+                room('BOSS_DEMO_CHAT_JOE', {roomTypeEnumId: 'CrtDirect', visibilityEnumId: 'CrvMembers', directKey: [JOHN, JOE].sort().join(','),
+                    createdByUserId: JOE}, [{userId: JOHN}, {userId: JOE}], 30)
+                message('BOSS_DEMO_CHAT_JOE', JOE, 27, '<p>Morning! The new floor plan for the office move is ready.</p>')
+                message('BOSS_DEMO_CHAT_JOE', JOHN, 26.9, '<p>Great, can you send it over?</p>')
+                const plan = file('BOSS_DEMO_CHAT_JOE', 'BOSS_DEMO_CHAT_A_PLAN', 'floor-plan.png', 'image/png',
+                    (ref) => ref.copyFrom('component://ironstone-boss/data/demo/floor-plan.png'))
+                const planSeq = message('BOSS_DEMO_CHAT_JOE', JOE, 26.8, '<p>Here it is: desks by the windows, the meeting room in the middle.</p>', {attachments: [plan]})
+                react('BOSS_DEMO_CHAT_JOE', JOHN, 26.6, planSeq, '👍')
+                const askSeq = message('BOSS_DEMO_CHAT_JOE', JOHN, 26.5, '<p>Looks good. Where does the printer go?</p>')
+                const replySeq = message('BOSS_DEMO_CHAT_JOE', JOE, 26.4, '<p>Next to the kitchen, by the window.</p>', {replyTo: askSeq})
+                const editSeq = edit('BOSS_DEMO_CHAT_JOE', JOE, 26.3, replySeq, '<p>Next to the kitchen, by the back wall.</p>')
+                read('BOSS_DEMO_CHAT_JOE', JOHN, editSeq)
+                message('BOSS_DEMO_CHAT_JOE', JOE, 1.5, '<p>Can we move the team lunch to Thursday?</p>')
+                const joeLast = message('BOSS_DEMO_CHAT_JOE', JOE, 1.4, '<p>Bob cannot make it on Friday.</p>')
+                read('BOSS_DEMO_CHAT_JOE', JOE, joeLast)
+
+                // a direct message with Bob, read, linking the demo request
+                room('BOSS_DEMO_CHAT_BOB', {roomTypeEnumId: 'CrtDirect', visibilityEnumId: 'CrvMembers', directKey: [JOHN, BOB].sort().join(','),
+                    createdByUserId: BOB}, [{userId: JOHN}, {userId: BOB}], 52)
+                message('BOSS_DEMO_CHAT_BOB', BOB, 50, '<p>Thanks for the help with the supplier invoice yesterday.</p>')
+                message('BOSS_DEMO_CHAT_BOB', JOHN, 49.8, '<p>Any time. It is with Accounting now.</p>')
+                message('BOSS_DEMO_CHAT_BOB', BOB, 3, '<p>Do you have the login for the shared calendar?</p>')
+                const bobLast = message('BOSS_DEMO_CHAT_BOB', JOHN, 2.9, '<p>Not yet, I am setting it up: <a href="/qapps/Commons/Requests/RequestDetail?requestId=BOSS_DEMO_REQUEST">Set up the shared team calendar</a></p>',
+                    {records: [{entity: 'mantle.request.Request', id: 'BOSS_DEMO_REQUEST'}]})
+                read('BOSS_DEMO_CHAT_BOB', JOHN, bobLast)
+                read('BOSS_DEMO_CHAT_BOB', BOB, bobLast)
+
+                // General, the public room: a pinned welcome, a thread, a message with reactions
+                room('BOSS_DEMO_CHAT_GENERAL', {roomTypeEnumId: 'CrtPublic', visibilityEnumId: 'CrvUsers', roomName: 'General',
+                    topic: 'News and anything for everyone', createdByUserId: JOHN},
+                    [{userId: JOHN, roleEnumId: 'CmrOwner'}, {userId: JOE, notificationLevelEnumId: 'CnlMentions'}, {userId: BOB, notificationLevelEnumId: 'CnlMentions'}], 72)
+                created('BOSS_DEMO_CHAT_GENERAL', JOHN, 72, 'General', [JOHN, JOE, BOB])
+                const welcome = message('BOSS_DEMO_CHAT_GENERAL', JOHN, 71.5, '<p>Welcome to the team chat! This room is for news for everyone; make a room for a project or a topic.</p>')
+                pin('BOSS_DEMO_CHAT_GENERAL', JOHN, 71, welcome)
+                const closed = message('BOSS_DEMO_CHAT_GENERAL', BOB, 48, '<p>The office is closed on Monday for the holiday.</p>')
+                message('BOSS_DEMO_CHAT_GENERAL', JOE, 47, '<p>Does that include the warehouse?</p>', {threadRoot: closed})
+                message('BOSS_DEMO_CHAT_GENERAL', BOB, 46.5, '<p>Yes, everything is closed.</p>', {threadRoot: closed})
+                const coffee = message('BOSS_DEMO_CHAT_GENERAL', JOE, 20, '<p>The coffee machine on the second floor works again ☕</p>')
+                react('BOSS_DEMO_CHAT_GENERAL', BOB, 19.5, coffee, '🎉')
+                const generalLast = react('BOSS_DEMO_CHAT_GENERAL', JOHN, 19, coffee, '🎉')
+                for (const userId of [JOHN, JOE, BOB]) read('BOSS_DEMO_CHAT_GENERAL', userId, generalLast)
+
+                // Team, private and pinned for john: two unread, one mentioning him
+                room('BOSS_DEMO_CHAT_TEAM', {roomTypeEnumId: 'CrtPrivate', visibilityEnumId: 'CrvMembers', roomName: 'Team', topic: 'The day to day of the team',
+                    createdByUserId: JOHN}, [{userId: JOHN, roleEnumId: 'CmrOwner', isPinned: 'Y'}, {userId: JOE}, {userId: BOB}], 100)
+                created('BOSS_DEMO_CHAT_TEAM', JOHN, 100, 'Team', [JOHN, JOE, BOB])
+                const notes = message('BOSS_DEMO_CHAT_TEAM', JOHN, 99, '<p>Stand-up notes go in this room from now on.</p>')
+                read('BOSS_DEMO_CHAT_TEAM', JOHN, notes)
+                message('BOSS_DEMO_CHAT_TEAM', JOE, 5, '<p>I pushed the new report layout, please have a look.</p>')
+                const lunch = message('BOSS_DEMO_CHAT_TEAM', BOB, 4.5, '<p><span data-mention-id="EX_JOHN_DOE">@John Doe</span> lunch on Friday?</p>')
+                read('BOSS_DEMO_CHAT_TEAM', JOE, lunch)
+                read('BOSS_DEMO_CHAT_TEAM', BOB, lunch)
+
+                // Leadership, private to john and Bob, with a file
+                room('BOSS_DEMO_CHAT_LEADS', {roomTypeEnumId: 'CrtPrivate', visibilityEnumId: 'CrvMembers', roomName: 'Leadership', topic: 'Budgets and hiring',
+                    createdByUserId: JOHN}, [{userId: JOHN, roleEnumId: 'CmrOwner'}, {userId: BOB, roleEnumId: 'CmrModerator'}], 80)
+                created('BOSS_DEMO_CHAT_LEADS', JOHN, 80, 'Leadership', [JOHN, BOB])
+                const budget = file('BOSS_DEMO_CHAT_LEADS', 'BOSS_DEMO_CHAT_A_BUDGET', 'budget-2027.txt', 'text/plain',
+                    (ref) => ref.putText('Draft budget 2027\nPeople: 62%\nOffice: 18%\nTools: 12%\nOther: 8%\n'))
+                message('BOSS_DEMO_CHAT_LEADS', BOB, 30, '<p>The draft budget for next year, for the two of us for now.</p>', {attachments: [budget]})
+                const leadsLast = message('BOSS_DEMO_CHAT_LEADS', JOHN, 29, '<p>Thanks, I will go through it this week.</p>')
+                read('BOSS_DEMO_CHAT_LEADS', JOHN, leadsLast)
+                read('BOSS_DEMO_CHAT_LEADS', BOB, leadsLast)
+
+                // the room of the demo request
+                room('BOSS_DEMO_CHAT_REQUEST', {roomTypeEnumId: 'CrtRecord', visibilityEnumId: 'CrvRecord', roomName: 'Set up the shared team calendar',
+                    recordEntityName: 'mantle.request.Request', recordId: 'BOSS_DEMO_REQUEST', createdByUserId: JOHN},
+                    [{userId: JOHN, roleEnumId: 'CmrOwner'}, {userId: BOB}], 24)
+                created('BOSS_DEMO_CHAT_REQUEST', JOHN, 24, 'Set up the shared team calendar', [JOHN, BOB])
+                message('BOSS_DEMO_CHAT_REQUEST', JOHN, 23.9, '<p>Let us use this room for the calendar setup.</p>')
+                const requestLast = message('BOSS_DEMO_CHAT_REQUEST', BOB, 23, '<p>I can test the room bookings tomorrow.</p>')
+                read('BOSS_DEMO_CHAT_REQUEST', JOHN, requestLast)
+                read('BOSS_DEMO_CHAT_REQUEST', BOB, requestLast)
+
+                // Random, public, of Bob and Joe: john may browse it and join
+                room('BOSS_DEMO_CHAT_RANDOM', {roomTypeEnumId: 'CrtPublic', visibilityEnumId: 'CrvUsers', roomName: 'Random', topic: 'Anything off topic',
+                    createdByUserId: BOB}, [{userId: BOB, roleEnumId: 'CmrOwner', notificationLevelEnumId: 'CnlMentions'},
+                    {userId: JOE, notificationLevelEnumId: 'CnlMentions'}], 60)
+                created('BOSS_DEMO_CHAT_RANDOM', BOB, 60, 'Random', [BOB, JOE])
+                message('BOSS_DEMO_CHAT_RANDOM', BOB, 10, '<p>Who is up for a board game night?</p>')
+                const randomLast = message('BOSS_DEMO_CHAT_RANDOM', JOE, 9, '<p>Count me in 🎲</p>')
+                read('BOSS_DEMO_CHAT_RANDOM', JOE, randomLast)
+                read('BOSS_DEMO_CHAT_RANDOM', BOB, randomLast)
+
+                // each room's last event and last message
+                for (const chatRoomId of Object.keys(rooms)) {
+                    const state = rooms[chatRoomId]
+                    const row = ec.entity.find('moqui.chat.ChatRoom').condition('chatRoomId', chatRoomId).one()
+                    row.setFields({lastEventSeq: state.seq, lastEventDate: state.lastDate, lastMessageSeq: state.lastMessage ? state.lastMessage.seq : null,
+                        lastMessageUserId: state.lastMessage ? state.lastMessage.userId : null, lastMessageDate: state.lastMessage ? state.lastMessage.date : null,
+                        lastMessageSnippet: state.lastMessage ? state.lastMessage.snippet : null}, true, null, null)
+                    row.update()
+                }
+
+                // status messages (presence comes from each user's own heartbeat)
+                const status = (userId, fields) => {
+                    const row = ec.entity.makeValue('moqui.security.UserStatus')
+                    row.setFields(Object.assign({userId: userId, statusEnumId: 'UpsOnline', clearAtDate: null, statusSetDate: ago(2)}, fields), true, null, null)
+                    row.createOrUpdate()
+                }
+                status(JOE, {statusText: 'Working on the floor plan', emoji: '📐'})
+                status(BOB, {statusText: 'Out on Friday', emoji: '🌴'})
+            } finally {
+                if (!wasDisabled) ec.artifactExecution.enableAuthz()
+            }
+            // the search index: each message on its own (nothing without search)
+            for (const chatRoomId of chatRoomIdList) for (const row of ec.entity.find('moqui.chat.ChatEvent').condition('chatRoomId', chatRoomId)
+                    .condition('eventTypeEnumId', 'CetMessage').selectField('eventSeq').disableAuthz().list())
+                ec.service.sync().name('org.moqui.impl.ChatServices.index#ChatEvent').parameters({chatRoomId: chatRoomId, eventSeq: Number(row.eventSeq)}).call()
+        ]]></script></actions>
+    </service>
+</services>

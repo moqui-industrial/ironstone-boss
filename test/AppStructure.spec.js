@@ -4,7 +4,8 @@
 // "Placeholder:" label. Every other screen under the Commons, Comms and Insights roots and in screen/Shared (the screens
 // built there and the ones moved from the first SimpleScreens port) renders the same way, on the demo records of
 // data/BossDemoData.xml and data/BossMailDemoData.xml, and shows them; a .qvue screen (render-modes vue,qvue: Shared/Chatter,
-// Shared/RecordFiles, Comms/Inbox/Mail and Comms/Inbox/Compose) renders in qvue, its component.
+// Shared/RecordFiles, Comms/Inbox/Mail, Comms/Inbox/Compose, Comms/Chat, Comms/Panel/Chat and Comms/Settings/Rules) renders in qvue,
+// its component.
 // Run: ./moq test ironstone-boss
 const base = "component://ironstone-boss/screen"
 const apps = ["Commons", "Comms", "Sales", "Marketing", "CustomerService", "Commerce", "Products", "Purchasing", "Warehouse",
@@ -84,6 +85,10 @@ const demoRecords = {
     // M5: the Inbox (the default subscreen Inbox/Mail, a .qvue screen like Compose) and MessageDetail on a message of the mail
     // demo (data/BossMailDemoData.xml) that no spec changes
     "Comms/Inbox": { text: "Inbox" },
+    // M10: Chat and the tray's Chat tab (.qvue screens: their components, the room view in Chat's), and the chat settings
+    "Comms/Chat": { text: "BossChatRoom" },
+    "Comms/Panel/Chat": { text: "BossChatPanel" },
+    "Comms/Settings/Chat": { text: "Do not disturb hours" },
     "Comms/Inbox/MessageDetail": { parameters: { emailMessageId: "BOSS_DEMO_MAIL_INVOICE" }, text: "Invoice INV-1042 is due on the 30th" },
     "Insights/ReportBuilder/Datasets": { text: "BOSS_DEMO_PRODUCTS" },
     "Insights/ReportBuilder/DatasetDetail": { parameters: { dataDocumentId: "BOSS_DEMO_PRODUCTS" }, text: "Products" },
@@ -135,8 +140,8 @@ feature("every placeholder screen renders in qvt without errors, with its menu",
         return { failures }
     },
     then({ failures }) {
-        // fewer as the milestones replace them (129 after M4)
-        placeholders.length > 120
+        // fewer as the milestones replace them (129 after M4, 114 after M10 and the Comms mail settings)
+        placeholders.length >= 114
         failures.join("\n") == ""
     },
 })
@@ -149,7 +154,8 @@ feature("every other Commons, Comms, Insights and Shared screen renders in qvt (
             const demo = demoRecords[`${app}/${path}`] || {}
             const parameters = Object.assign({ lastStandalone: "-2" }, demo.parameters)
             // a .qvue screen answers its component in the qvue render mode
-            const qvue = /render-modes="vue,qvue"/.test(ec.resource.getLocationReference(location).getText())
+            // (render-modes "vue,qvue", or with qvt and html after them for the text those modes write)
+            const qvue = /render-modes="vue,qvue[",]/.test(ec.resource.getLocationReference(location).getText())
             const str = ec.screen.makeTest().rootScreen(root).renderMode(qvue ? "qvue" : "qvt").render(path, parameters, null)
             const where = `${root.substring(base.length + 1)} ${path}`.trim()
             const output = str.output || ""

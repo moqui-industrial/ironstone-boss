@@ -74,11 +74,12 @@ feature("shellData lists Commons and Comms with their providers and the IronSton
         account == ["/qapps/Commons/Settings/Preferences", "/qapps/Commons/Settings/Account"]
         topics.includes("ChatterMention")
         commsKinds == ["email", "chatMessage"]
-        commsKindUrls == ["/qapps/Comms/Inbox/Compose", "/qapps/Comms/Panel/Chat"]
+        // the chat message kind is the tray's Chat tab, a .qvue screen named in its render mode
+        commsKindUrls == ["/qapps/Comms/Inbox/Compose", "/qapps/Comms/Panel/Chat.qvue"]
         commsKeys == ["g i"]
         // the theme values: links for the screens, the subscreen names as written
         shell.trayToday == "/qapps/Commons/Panel/Today"
-        shell.trayChat == "/qapps/Comms/Panel/Chat"
+        shell.trayChat == "/qapps/Comms/Panel/Chat.qvue"
         shell.trayNotifications == "/qapps/Commons/Panel/Notifications"
         shell.quickCreate == "/qapps/Commons/QuickCreate"
         shell.mailScreen == "/qapps/Comms/Inbox"

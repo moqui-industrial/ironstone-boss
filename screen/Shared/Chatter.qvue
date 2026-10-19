@@ -20,13 +20,17 @@ along with this software (see the LICENSE.md file). If not, see
     Top to bottom: the compose bar (Send message, Log note, Schedule activity as tabs; buttons that open one below 600 px), the
     followers line, the planned activities (Mark done opens the MarkDone dialog, Edit inline, Cancel), the attachments strip
     (Add opens the page's RecordFiles upload, or the RecordFiles panel in a dialog when the page has none), and the timeline
-    newest first in pages with Load more, its filter chips and a search over the entries loaded. Forms are m-form with the m-*
+    newest first in pages with Load more, its filter chips and a search over the entries loaded. Discuss opens the record's
+    chat room in Comms Chat (made on first use); the room's messages are in the timeline as chat entries. Forms are m-form with the m-*
     inputs; each sits in a chatter-done scope, whose mSubmitHide (the hook m-form calls after an answer without errors) resets
     that form and reloads what it changed. Brand color names only, no style colors (style-guide §4.8, §5). -->
 <template><div class="m-chatter-panel">
     <m-container-box v-if="state !== 'hidden'" :title="t('Chatter')">
         <template v-slot:toolbar>
             <span v-if="state === 'ready' && record" class="text-caption m-muted q-mr-xs ellipsis gt-xs">{{record.typeLabel}} {{record.id}}</span>
+            <!-- the record's chat room (Comms Chat makes it on first use, design §13 and §15) -->
+            <q-btn v-if="state === 'ready' && record" flat dense no-caps size="sm" color="primary" icon="sym_o_forum" :label="narrow ? undefined : t('Discuss')"
+                    :aria-label="t('Discuss in the record chat room')" @click="discuss"><q-tooltip>{{t('Discuss in the record chat room')}}</q-tooltip></q-btn>
         </template>
 
         <div v-if="state === 'loading'" class="q-gutter-y-sm">
@@ -262,8 +266,8 @@ along with this software (see the LICENSE.md file). If not, see
                                             <q-item-section avatar><q-icon name="sym_o_forum" size="xs"></q-icon></q-item-section>
                                             <q-item-section>{{t('Open thread in Inbox')}}</q-item-section></q-item>
                                         <q-item v-if="entry.url" clickable @click="go(entry.url)">
-                                            <q-item-section avatar><q-icon name="sym_o_open_in_new" size="xs"></q-icon></q-item-section>
-                                            <q-item-section>{{t('Open')}}</q-item-section></q-item>
+                                            <q-item-section avatar><q-icon :name="entry.kind === 'chat' ? 'sym_o_chat' : 'sym_o_open_in_new'" size="xs"></q-icon></q-item-section>
+                                            <q-item-section>{{entry.kind === 'chat' ? t('Open in Chat') : t('Open')}}</q-item-section></q-item>
                                         <q-item v-if="entry.kind === 'file'" clickable @click="openFile(entry)">
                                             <q-item-section avatar><q-icon name="sym_o_download" size="xs"></q-icon></q-item-section>
                                             <q-item-section>{{t('Open the file')}}</q-item-section></q-item>
@@ -623,6 +627,7 @@ module.exports = {
             this.post('unlink', { communicationEventId: entry.communicationEventId }).then((json) => { if (json.unlinked) this.loadTimeline(false); }, () => {});
         },
         go(url) { if (url) this.$root.setUrl(url); },
+        discuss() { this.go('/qapps/Comms/Chat?' + moqui.objToSearch({ recordEntity: this.recordEntity, recordId: this.recordId })); },
         // Comms Compose with the record chip: mantle.party.CommunicationServices.send#EmailDraft files the sent email on this record
         composeQuery(extra) {
             const to = this.emailParties.map((party) => party.email);

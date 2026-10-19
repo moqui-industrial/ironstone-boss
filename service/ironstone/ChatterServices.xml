@@ -385,8 +385,8 @@ along with this software (see the LICENSE.md file). If not, see
             newest first: each entry's key, kind, icon and color, the author's name, what it is (Email, Message, Note, Call done,
             a change, a file), when (dateText, and dateMillis for the next page's beforeDate), its title, its body as safe HTML
             with quoted text apart (quotedHtml, collapsed in the panel), the delivery status of an email, its attachments, the
-            thread's Inbox link, and which actions apply (reply here, reply by email, unlink). kinds is all, messages, notes,
-            activities, changes or files.</description>
+            thread's Inbox link, and which actions apply (reply here, reply by email, unlink); a message of the record's chat room
+            links to it in Comms Chat. kinds is all, messages, notes, activities, changes or files.</description>
         <in-parameters>
             <parameter name="recordEntityName" required="true"/>
             <parameter name="recordId" required="true"/>
@@ -417,11 +417,12 @@ along with this software (see the LICENSE.md file). If not, see
                 const wanted = kinds && kindValues.includes(String(kinds)) ? [String(kinds)] : null
                 const beforeMillis = beforeDate != null && /^\d+$/.test(String(beforeDate)) ? Number(String(beforeDate)) : null
                 const out = ec.service.sync().name('mantle.party.CommunicationServices.get#RecordTimeline').parameters({recordEntityName: entityName,
-                    recordId: recordId, kinds: wanted, pageSize: pageSize || 25, beforeDate: beforeMillis == null ? null : new Date(beforeMillis)}).call()
+                    recordId: recordId, kinds: wanted, pageSize: pageSize || 25, beforeDate: beforeMillis == null ? null : new Date(beforeMillis),
+                    chatRoomUrl: '/qapps/Comms/Chat'}).call()
                 if (ec.message.hasError()) return
                 hasMore = !!out.hasMore
                 const sourceLabels = {communicationEvents: 'messages and notes', notes: 'notes', activities: 'activities', auditLog: 'changes',
-                    content: 'files', attachments: 'attachments', authors: 'authors'}
+                    content: 'files', attachments: 'attachments', authors: 'authors', chatRoom: 'chat messages'}
                 failedSources = Array.from(out.failedSources || []).map((name) => L(sourceLabels[name] || name))
 
                 const toMillis = (value) => {
@@ -591,6 +592,14 @@ along with this software (see the LICENSE.md file). If not, see
                             title: name, contentKey: keyOf(entry.contentKey), isImage: /\.(png|jpe?g|gif|webp)$/i.test(name), isPdf: /\.pdf$/i.test(name),
                             bodyHtml: parts.bodyHtml})
                         searchText += ' ' + parts.text
+                    } else if (entry.kind === 'chat') {
+                        // a message of the record's chat room (get#RecordTimeline gives its room and url): Open goes to it in Chat
+                        const parts = bodyParts(entry.body || entry.bodyText, entry.body ? 'text/html' : 'text/plain')
+                        Object.assign(decorated, {key: 'chat-' + entry.chatRoomId + '-' + entry.eventSeq, icon: 'sym_o_chat', color: 'primary', kindLabel: L('Chat'),
+                            authorName: authorName || entry.authorName || null, title: null, bodyHtml: parts.bodyHtml,
+                            url: entry.url || ('/qapps/Comms/Chat?chatRoomId=' + encodeURIComponent(entry.chatRoomId) + '&eventSeq=' + entry.eventSeq),
+                            toName: entry.roomName || null})
+                        searchText += ' ' + parts.text + ' ' + (entry.authorName || '')
                     } else {
                         // a registered source's entry
                         const parts = bodyParts(entry.body, entry.contentType)
