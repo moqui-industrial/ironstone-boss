@@ -23,18 +23,18 @@ Sections: [1 file set](#1-the-design-file-set) · [2 depth](#2-level-of-detail) 
 One file per app, one for the suite shell with Commons and Comms, and one crosscut file that
 holds what the others share. The crosscut file is written first, because the app files
 reference its reused screens rather than designing them; the shell, Commons and Comms file is
-written beside it, because Chatter, record files and the inner drawer are its screens.
+written beside it, because Chatter, record files and the tray panel are its screens.
 
 | File | Covers | Main inputs |
 | --- | --- | --- |
 | `design-crosscut.md` | The reused screens of research-crosscut §3 (Contact / party record, Customer 360, Supplier 360, Employee 360, Product 360, Order detail, Inventory availability, Shipment detail, Material issue / receipt, Facility & equipment record, Request / case, Task / work item, Calendar & schedules, Chatter & activities, Approvals waiting, Dashboard widgets), except the three that `design-drawers-commons.md` designs and this file only references (Calendar & schedules in its §7, Chatter & activities in §15, Approvals waiting in §4); cross-app decisions answering research-crosscut §8; the roll-up of every file's framework and data needs | research-crosscut §3–§5, §8; the shell design in style-guide §2 |
 | `design-sales.md`, `design-marketing.md`, `design-customer-service.md`, `design-commerce.md`, `design-products.md`, `design-purchasing.md`, `design-warehouse.md`, `design-manufacturing.md`, `design-maintenance.md`, `design-accounting.md`, `design-people.md`, `design-projects.md`, `design-insights.md`, `design-admin.md` | One IronStone app each: its shell, menu, landing page, own screens, and the context it passes to each reused screen | The matching `research-<app>.md`, its candidate screen inventory and open questions; [ss-inventory.md](ss-inventory.md) and [usl-inventory.md](usl-inventory.md) |
-| `design-drawers-commons.md` | The suite shell (the header, the outer Assist drawer, the inner drawer, the palette, quick create, screen context, key map, presence), the Commons and Comms apps, and the screens they lend to every other app (Chatter and activities, record files, Calendar & schedules, Events, Knowledge base articles, the approvals center, email and chat from a record, consent) | research-drawers-commons §1–§18; style-guide §2 and §8; the Java Assist panel and its tools |
+| `design-drawers-commons.md` | The suite shell (the header, the Assist drawer, the tray panel, the palette, quick create, screen context, key map, presence), the Commons and Comms apps, and the screens they lend to every other app (Chatter and activities, record files, Calendar & schedules, Events, Knowledge base articles, the approvals center, email and chat from a record, consent) | research-drawers-commons §1–§18; style-guide §2 and §8; the Java Assist panel and its tools |
 
 The shell's look is style-guide §2; its behavior, providers and content screens are decided
 once in `design-drawers-commons.md` §1 and are not repeated in any other design file. There the
-outer drawer is Assist (a framework shell item) and the inner drawer is the panel style-guide
-§2.4 calls the tray panel, whose tabs are Commons and Comms screens. An app file that needs
+Assist drawer is a framework shell item and the tray panel (style-guide §2.4) is a framework
+frame whose tabs are Commons and Comms screens. An app file that needs
 something from the shell (a quick-create item, a Today source, a palette provider, a
 notification topic, a key-map scope) lists it in its screen table and its framework needs, and
 the crosscut file collects them.
@@ -89,7 +89,7 @@ One row per screen. Columns:
 | **Reused** | `own`, or the reused screen's name with the crosscut section (`Order detail, crosscut §3.6`) |
 | **Roles** | The user groups or roles that see it, when narrower than the app's group; `app` otherwise |
 | **Scope** | `parity` (replaces something MarbleERP or SimpleScreens has), `new` (in the first BOSS release without a baseline), or `later` (designed, built after the first release) |
-| **Context** | What the screen exposes to the shell: the record (`OrderHeader orderId`), the selection (`OrderItem rows`), the filters (`list find parameters`), or `none`. Assist, Chatter, quick create and the inner drawer read this (style-guide §2.5; design-drawers-commons §1.6) |
+| **Context** | What the screen exposes to the shell: the record (`OrderHeader orderId`), the selection (`OrderItem rows`), the filters (`list find parameters`), or `none`. Assist, Chatter, quick create and the tray panel read this (style-guide §2.5; design-drawers-commons §1.6) |
 
 A dialog that only edits one form is a form on its parent screen, not a row. A dialog that
 holds its own subscreens or several forms is a row with archetype `dialog`.
@@ -120,7 +120,7 @@ One table per screen, one row per form:
 | --- | --- | --- | --- | --- | --- | --- |
 | `OrderItems` | list, editable rows | The lines of the order | product, quantity, unit price, status; totals row | product lookup with server search and availability beside it; inline quantity edit | `mantle.order.OrderServices.update#OrderItem`, `delete#OrderItem` | SimpleScreens `Order/OrderDetail` `OrderItems`; Odoo sale order lines |
 
-- **Kind:** `single`, `list`, `list, editable rows`, `dialog` (a form-single in a container-dialog), `find` (the header find of a list), `wizard step`, `component` (a region of a `.qvue` screen that is not a form: a tree, an editor, a timeline, an embedded `chatter` or `record-files`).
+- **Kind:** `single`, `list`, `list, editable rows`, `dialog` (a form-single in a container-dialog), `find` (the header find of a list), `wizard step`, `component` (a region of a `.qvue` screen that is not a form: a tree, an editor, a timeline, an embedded `chatter` or `record-files`), `list, bulk` (the bulk-action bar over a list's selection), `list, first row` (a quick-add row at the top of a list), `display` (a read-only single); the qualifier `, read` marks a read-only form of any kind.
 - **Highlighted fields:** the identifiers, statuses, amounts and lookups that define the form, usually eight or fewer. Not the full list.
 - **Widgets of note:** only a widget that is not the default for its field type (style-guide §4): a lookup with server search, a date-period, an editable cell, a file upload, a markdown editor, a status bar.
 - **Services:** the `verb#Noun` services from usl-inventory the form submits to or loads from; `entity` when it is a plain entity create or update. A `find` form names none, since it narrows the list form it sits above. Name a service in full (`mantle.party.PartyServices.search#Party`) the first time it appears in a file; usl-inventory is filled from these names.
@@ -235,7 +235,7 @@ and the baseline forms it replaces are in ss-inventory's.
 ## 11. Process and review
 
 **Order.** `design-drawers-commons.md` and `design-crosscut.md` first, the one for the shell,
-Chatter, record files and the inner drawer, the other for the reused business screens and the
+Chatter, record files and the tray panel, the other for the reused business screens and the
 shell providers; then the apps whose screens are mostly reused ones (Customer Service, Sales,
 Purchasing, Warehouse, Accounting), then the rest; Insights and Admin last, since they index the
 others. The crosscut roll-up of needs is updated as each file lands.
