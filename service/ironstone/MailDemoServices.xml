@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The mail demo of the Comms Inbox (impl-drawers-commons.md M5b, M5c), for john.doe, so the Inbox, Compose and MessageDetail
+    show and test with no mail server: data/BossMailDemoData.xml calls load#MailDemo. -->
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
+
+    <service verb="load" noun="MailDemo" authenticate="anonymous-all" allow-remote="false">
+        <description>
+            john.doe's (EX_JOHN_DOE) demo mail, dated from now, only BOSS_DEMO_MAIL_* and BOSS_DEMO_MBX_* records (loading again
+            puts them back as they were):
+            - BOSS_DEMO_MAIL_ACCT, a personal account (john.doe@moqui.org) with no server: its six folders, Clients and
+              Receipts, the labels Customers, Follow up and Newsletters, an identity with a signature;
+            - its mail: a thread with Bob Acme (a directory contact) in three messages, the first with a purchase order file,
+              the last unread; a newsletter in HTML with remote images and a List-Unsubscribe header; an invitation (an iMIP
+              REQUEST for the day after tomorrow); a flagged contract, a snoozed reminder, a draft, a scheduled send, a sent
+              reply, an archived receipt, spam and a few more in the Inbox across the week;
+            - internal messages: a thread with Joe Developer (unread reply), a message from Bob Developer, and a Chatter note
+              on the demo request that mentions john.doe (Comments on my records);
+            - two mailboxes: Office announcements (BOSS_DEMO_MBX_OFFICE: public, members' Inboxes; john.doe owns it, Joe and
+              Bob are members) with a thread of two posts, and Leadership (BOSS_DEMO_MBX_LEAD: private; john.doe owns it, Joe
+              Developer asked to join) with one post.
+        </description>
+        <out-parameters><parameter name="emailMessageIdList" type="List"/><parameter name="communicationEventIdList" type="List"/></out-parameters>
+        <actions><script><![CDATA[
+            emailMessageIdList = []
+            communicationEventIdList = []
+            if (ec.entity.find('mantle.party.Party').condition('partyId', 'EX_JOHN_DOE').disableAuthz().one() == null) {
+                ec.logger.warn('The mail demo needs the party EX_JOHN_DOE (mantle-usl demo data); nothing loaded')
+                return
+            }
+            const toMillis = (value) => value == null || value === '' ? null : (typeof value === 'number' ? value : (value instanceof Date ? value.getTime() : Number(String(value))))
+            const nowMillis = toMillis(ec.user.nowTimestamp)
+            const HOUR = 3600000
+            const ago = (hours) => new Date(nowMillis - hours * HOUR)
+            const ahead = (hours) => new Date(nowMillis + hours * HOUR)
+            const at = (days, hour) => { const d = new Date(nowMillis); d.setDate(d.getDate() + days); d.setHours(hour, 0, 0, 0); return d }
+            const ACCT = 'BOSS_DEMO_MAIL_ACCT'
+            const ME = 'john.doe@moqui.org'
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try {
+                const store = (entityName, fields) => ec.service.sync().name('store#' + entityName).parameters(fields).call()
+                const textOf = (html) => String(html || '').replace(/<(style|script)[^>]*>[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]*>/g, ' ')
+                        .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim()
+
+                // the account, its folders, labels and identity
+                store('moqui.basic.email.EmailAccount', {emailAccountId: ACCT, ownerUserId: 'EX_JOHN_DOE', accountKindEnumId: 'EakExternal', emailAddress: ME,
+                    accountName: 'John Doe', recordFilingEnumId: 'ErfLinkedOnly', statusId: 'EasActive', sequenceNum: 1, lastSyncDate: ago(0.1)})
+                const FOLDERS = [['INBOX', 'Inbox', 'EfkInbox'], ['DRAFTS', 'Drafts', 'EfkDrafts'], ['SENT', 'Sent', 'EfkSent'], ['ARCHIVE', 'Archive', 'EfkArchive'],
+                    ['JUNK', 'Spam', 'EfkJunk'], ['TRASH', 'Trash', 'EfkTrash'], ['CLIENTS', 'Clients', 'EfkOther'], ['RECEIPTS', 'Receipts', 'EfkOther']]
+                FOLDERS.forEach(([key, name, kind], index) => store('moqui.basic.email.EmailFolder', {emailFolderId: 'BOSS_DEMO_MAIL_F_' + key, emailAccountId: ACCT,
+                    folderName: name, folderPath: name === 'Inbox' ? 'INBOX' : name, folderKindEnumId: kind, sequenceNum: index + 1, subscribed: 'Y'}))
+                const folder = (key) => 'BOSS_DEMO_MAIL_F_' + key
+                const LABELS = [['CLIENTS', 'Customers'], ['FOLLOWUP', 'Follow up'], ['NEWS', 'Newsletters']]
+                LABELS.forEach(([key, name], index) => store('moqui.basic.email.EmailLabel', {emailLabelId: 'BOSS_DEMO_MAIL_L_' + key, emailAccountId: ACCT,
+                    labelName: name, sequenceNum: index + 1}))
+                store('moqui.basic.email.EmailIdentity', {emailIdentityId: 'BOSS_DEMO_MAIL_IDENT', emailAccountId: ACCT, emailAddress: ME, displayName: 'John Doe',
+                    signatureHtml: '<p>John Doe<br>Ziziwork Industries · (555) 010-0100</p>', signaturePlacementEnumId: 'EspBelowQuote', useForReplies: 'N', isDefault: 'Y'})
+
+                // the messages: the demo's own ids, their labels and files again
+                const ids = []
+                const mail = (id, fields) => {
+                    const html = fields.body || null
+                    const text = fields.bodyText || (html ? textOf(html) : '')
+                    // a load again puts back what the user changed: folder, flags, snooze, archive, labels
+                    ec.entity.find('moqui.basic.email.EmailMessageLabel').condition('emailMessageId', id).deleteAll()
+                    const row = Object.assign({emailMessageId: id, emailAccountId: ACCT, statusId: 'ES_RECEIVED', toAddresses: `"John Doe" <${ME}>`, isRead: 'N',
+                        snoozedThruDate: null, scheduledSendDate: null, archivedDate: null, sendError: null, rootEmailMessageId: null, parentEmailMessageId: null,
+                        isFlagged: 'N', isAnswered: 'N', hasAttachment: 'N', contentType: html ? 'text/html' : 'text/plain', bodyText: text,
+                        snippet: text.length > 140 ? text.substring(0, 137) + '...' : text, messageSize: String(html || '').length + text.length,
+                        messageId: `<${id.toLowerCase()}@demo.ironstone.example>`}, fields)
+                    if (!row.receivedDate && row.statusId === 'ES_RECEIVED') row.receivedDate = row.messageDate
+                    store('moqui.basic.email.EmailMessage', row)
+                    ids.push(id)
+                    return id
+                }
+                const label = (id, key) => store('moqui.basic.email.EmailMessageLabel', {emailMessageId: id, emailLabelId: 'BOSS_DEMO_MAIL_L_' + key})
+                const file = (id, name, contentType, text) => {
+                    const location = `dbresource://email/${ACCT}/${id}/${name}`
+                    ec.resource.getLocationReference(location).putText(text)
+                    store('moqui.basic.email.EmailMessageAttachment', {emailMessageAttachmentId: id + '_A1', emailMessageId: id, attachmentLocation: location,
+                        fileName: name, fileSize: text.length, contentType: contentType, isInline: 'N'})
+                }
+
+                // a thread with Bob Acme: his order with a file, John's answer (Sent), Bob's question (unread)
+                mail('BOSS_DEMO_MAIL_ACME1', {emailFolderId: folder('INBOX'), subject: 'Quarterly order for the Ziziwork parts', fromAddress: 'bob.acme@test.com',
+                    fromName: 'Bob Acme', messageDate: ago(26), isRead: 'Y', isAnswered: 'Y', hasAttachment: 'Y',
+                    body: '<p>Hi John,</p><p>Attached is our purchase order for the next quarter: 400 of the standard widgets and 120 of the large ones, ' +
+                        'delivered in two shipments.</p><p>Could you confirm the prices hold from last quarter?</p><p>Thanks,<br>Bob</p>'})
+                file('BOSS_DEMO_MAIL_ACME1', 'purchase-order-Q4.txt', 'text/plain', 'Purchase order Q4\n\n400 x Standard widget\n120 x Large widget\n\nTwo shipments, Nov and Dec.\n')
+                label('BOSS_DEMO_MAIL_ACME1', 'CLIENTS')
+                mail('BOSS_DEMO_MAIL_ACME2', {emailFolderId: folder('SENT'), statusId: 'ES_SENT', subject: 'Re: Quarterly order for the Ziziwork parts', fromAddress: ME,
+                    fromName: 'John Doe', toAddresses: '"Bob Acme" <bob.acme@test.com>', messageDate: ago(25), sentDate: ago(25), isRead: 'Y',
+                    rootEmailMessageId: 'BOSS_DEMO_MAIL_ACME1', parentEmailMessageId: 'BOSS_DEMO_MAIL_ACME1', inReplyTo: '<boss_demo_mail_acme1@demo.ironstone.example>',
+                    body: '<p>Hi Bob,</p><p>Yes, the prices hold. I will send the confirmation with the delivery dates tomorrow.</p><p>John</p>'})
+                mail('BOSS_DEMO_MAIL_ACME3', {emailFolderId: folder('INBOX'), subject: 'Re: Quarterly order for the Ziziwork parts', fromAddress: 'bob.acme@test.com',
+                    fromName: 'Bob Acme', messageDate: ago(0.7), rootEmailMessageId: 'BOSS_DEMO_MAIL_ACME1', parentEmailMessageId: 'BOSS_DEMO_MAIL_ACME2',
+                    inReplyTo: '<boss_demo_mail_acme2@demo.ironstone.example>',
+                    body: '<p>Great, thanks John. One more thing: can the first shipment go out before the 15th?</p><p>Bob</p>' +
+                        '<div class="gmail_quote">On ' + new Date(nowMillis - 25 * HOUR).toDateString() + ', John Doe wrote:<blockquote>Yes, the prices hold. I will send ' +
+                        'the confirmation with the delivery dates tomorrow.</blockquote></div>'})
+                label('BOSS_DEMO_MAIL_ACME3', 'CLIENTS')
+
+                // a newsletter in HTML: remote images, styles, and a list to leave
+                mail('BOSS_DEMO_MAIL_NEWS', {emailFolderId: folder('INBOX'), subject: 'IronStone Weekly: shared calendars and faster search',
+                    fromAddress: 'news@ironstone.example', fromName: 'IronStone Weekly', messageDate: ago(20), isRead: 'N',
+                    headersString: 'From: IronStone Weekly <news@ironstone.example>\r\nTo: john.doe@moqui.org\r\nSubject: IronStone Weekly: shared calendars and faster search\r\n' +
+                        'List-Unsubscribe: <mailto:leave@ironstone.example?subject=unsubscribe>\r\nMessage-ID: <boss_demo_mail_news@demo.ironstone.example>',
+                    body: '<html><head><style>.hero{background:#0b5394;color:#fff;padding:14px 18px;font-size:20px}.card{border:1px solid #ddd;padding:12px;margin:10px 0}' +
+                        '.muted{color:#777;font-size:12px}</style></head><body><div class="hero"><b>IronStone Weekly</b></div>' +
+                        '<p><img src="https://images.ironstone.example/banner-calendars.png" alt="Shared calendars" width="560" height="180"></p>' +
+                        '<div class="card"><h3>Shared calendars</h3><p>Give your team one calendar for meetings and time off, with rooms you can book.</p>' +
+                        '<p><a href="https://ironstone.example/blog/calendars">Read more</a></p></div><div class="card"><h3>Faster search</h3>' +
+                        '<p>Search now finds a message by any word in it, the sender\'s name, or a label.</p></div>' +
+                        '<img src="https://track.ironstone.example/open.gif?u=42" width="1" height="1">' +
+                        '<p class="muted">You get this because you subscribed at ironstone.example.</p></body></html>'})
+                label('BOSS_DEMO_MAIL_NEWS', 'NEWS')
+
+                // an invitation: an iMIP REQUEST for the day after tomorrow at 10:00
+                const start = at(2, 10)
+                const end = at(2, 11)
+                const ics = (date) => date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')
+                mail('BOSS_DEMO_MAIL_INVITE', {emailFolderId: folder('INBOX'), subject: 'Invitation: Partner planning session', fromAddress: 'carol@partner.example',
+                    fromName: 'Carol Partner', messageDate: ago(5), hasAttachment: 'Y',
+                    body: '<p>Hi John,</p><p>Let us plan the next quarter together: an hour in our office or on a call.</p><p>Carol</p>'})
+                file('BOSS_DEMO_MAIL_INVITE', 'invite.ics', 'text/calendar; method=REQUEST', ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Partner//Calendar//EN',
+                    'METHOD:REQUEST', 'BEGIN:VEVENT', 'UID:boss-demo-partner-planning@partner.example', 'SEQUENCE:0', `DTSTAMP:${ics(new Date(nowMillis))}`,
+                    `DTSTART:${ics(start)}`, `DTEND:${ics(end)}`, 'SUMMARY:Partner planning session', 'LOCATION:Partner office, 2nd floor',
+                    'ORGANIZER;CN=Carol Partner:mailto:carol@partner.example', 'ATTENDEE;CN=John Doe;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:john.doe@moqui.org',
+                    'STATUS:CONFIRMED', 'END:VEVENT', 'END:VCALENDAR', ''].join('\r\n'))
+
+                // flagged, snoozed, more of the week
+                mail('BOSS_DEMO_MAIL_CONTRACT', {emailFolderId: folder('INBOX'), subject: 'Contract renewal terms for next year', fromAddress: 'dora@legal.example',
+                    fromName: 'Dora Counsel', messageDate: ago(50), isRead: 'Y', isFlagged: 'Y',
+                    body: '<p>John,</p><p>Here are the renewal terms we discussed: a two-year term, prices fixed for the first year, then indexed.</p>' +
+                        '<p>Let me know by Friday.</p><p>Dora</p>'})
+                label('BOSS_DEMO_MAIL_CONTRACT', 'FOLLOWUP')
+                mail('BOSS_DEMO_MAIL_DOMAIN', {emailFolderId: folder('INBOX'), subject: 'Reminder: your domain renews in 14 days', fromAddress: 'billing@registrar.example',
+                    fromName: 'Registrar Billing', messageDate: ago(30), isRead: 'Y', snoozedThruDate: at(1, 8),
+                    bodyText: 'Your domain ziziwork.example renews in 14 days. The card on file will be charged USD 18.00.'})
+                mail('BOSS_DEMO_MAIL_LUNCH', {emailFolderId: folder('INBOX'), subject: 'Lunch on Friday?', fromAddress: 'sam.friend@mail.example', fromName: 'Sam Friend',
+                    messageDate: ago(3), bodyText: 'Hey John,\n\nLunch on Friday at the usual place? 12:30 works for me.\n\nSam'})
+                mail('BOSS_DEMO_MAIL_INVOICE', {emailFolderId: folder('INBOX'), subject: 'Invoice INV-1042 is due on the 30th', fromAddress: 'billing@supplier.example',
+                    fromName: 'Supplier Billing', messageDate: ago(76), isRead: 'Y',
+                    body: '<p>Dear customer,</p><p>Invoice <b>INV-1042</b> for USD 1,240.00 is due on the 30th.</p><p>Thank you for your business.</p>'})
+                mail('BOSS_DEMO_MAIL_WELCOME', {emailFolderId: folder('INBOX'), subject: 'Welcome to your new Inbox', fromAddress: 'team@ironstone.example', fromName: 'IronStone',
+                    messageDate: ago(100), isRead: 'Y',
+                    body: '<p>Your mail and your team\'s messages are in one place now. Press <b>?</b> for the keyboard shortcuts, <b>c</b> to write.</p>'})
+                mail('BOSS_DEMO_MAIL_CLIENT', {emailFolderId: folder('CLIENTS'), subject: 'Thank you for the quick delivery', fromAddress: 'bob.acme@test.com', fromName: 'Bob Acme',
+                    messageDate: ago(200), isRead: 'Y', bodyText: 'John, the parts arrived early. Thank you!\n\nBob'})
+
+                // the Outbox and Drafts: a draft, a scheduled send
+                mail('BOSS_DEMO_MAIL_DRAFT', {emailFolderId: folder('DRAFTS'), statusId: 'ES_DRAFT', subject: 'Notes for the team offsite', fromAddress: ME, fromName: 'John Doe',
+                    emailIdentityId: 'BOSS_DEMO_MAIL_IDENT', toAddresses: '"Joe Developer" <joe.developer@test.com>', messageDate: ago(4), isRead: 'Y',
+                    body: '<p>Joe,</p><p>Ideas for the offsite agenda:</p><ul><li>Next year\'s goals</li><li>The new office</li></ul>'})
+                mail('BOSS_DEMO_MAIL_SCHEDULED', {emailFolderId: null, statusId: 'ES_SCHEDULED', subject: 'Happy anniversary!', fromAddress: ME, fromName: 'John Doe',
+                    emailIdentityId: 'BOSS_DEMO_MAIL_IDENT', toAddresses: '"Sam Friend" <sam.friend@mail.example>', messageDate: ago(2), scheduledSendDate: at(3, 8), isRead: 'Y',
+                    body: '<p>Happy anniversary, Sam! Ten years already.</p>'})
+
+                // archived, spam
+                mail('BOSS_DEMO_MAIL_RECEIPT', {emailFolderId: folder('ARCHIVE'), subject: 'Your receipt from Hardware Depot', fromAddress: 'receipts@hardware.example',
+                    fromName: 'Hardware Depot', messageDate: ago(120), isRead: 'Y', archivedDate: ago(119), bodyText: 'Thank you for your purchase: USD 64.18.'})
+                mail('BOSS_DEMO_MAIL_SPAM', {emailFolderId: folder('JUNK'), subject: 'You have won a prize!!!', fromAddress: 'winner@prize.example', fromName: 'Prize Team',
+                    messageDate: ago(10), bodyText: 'Click here to claim your prize.'})
+                emailMessageIdList = ids
+
+                // internal messages: rows of each recipient's state
+                const event = (id, fields) => {
+                    store('mantle.party.communication.CommunicationEvent', Object.assign({communicationEventId: id, communicationEventTypeId: 'Message',
+                        contactMechTypeEnumId: 'CmtWebForm', statusId: 'CeReceived', contentType: 'text/html'}, fields))
+                    communicationEventIdList.push(id)
+                    return id
+                }
+                const recipient = (id, partyId, roleTypeId, read) => store('mantle.party.communication.CommunicationEventParty', {communicationEventId: id,
+                    partyId: partyId, roleTypeId: roleTypeId, statusId: 'CepReceived', readDate: read ? ago(0.5) : null, isFlagged: 'N', archivedDate: null, snoozedThruDate: null})
+                event('BOSS_DEMO_MAIL_IM1', {fromPartyId: 'ORG_ZIZI_JD', toPartyId: 'EX_JOHN_DOE', entryDate: ago(6), subject: 'Can you review the onboarding guide?',
+                    body: '<p>John, I updated the onboarding guide for new hires. Could you look at the part about laptops and accounts?</p>'})
+                recipient('BOSS_DEMO_MAIL_IM1', 'EX_JOHN_DOE', 'MessageTo', true)
+                event('BOSS_DEMO_MAIL_IM2', {fromPartyId: 'EX_JOHN_DOE', toPartyId: 'ORG_ZIZI_JD', entryDate: ago(5.5), subject: 'Re: Can you review the onboarding guide?',
+                    parentCommEventId: 'BOSS_DEMO_MAIL_IM1', rootCommEventId: 'BOSS_DEMO_MAIL_IM1', body: '<p>Sure, I will read it this afternoon.</p>'})
+                recipient('BOSS_DEMO_MAIL_IM2', 'ORG_ZIZI_JD', 'MessageTo', true)
+                event('BOSS_DEMO_MAIL_IM3', {fromPartyId: 'ORG_ZIZI_JD', toPartyId: 'EX_JOHN_DOE', entryDate: ago(1.2), subject: 'Re: Can you review the onboarding guide?',
+                    parentCommEventId: 'BOSS_DEMO_MAIL_IM2', rootCommEventId: 'BOSS_DEMO_MAIL_IM1',
+                    body: '<p>Thanks! I also added a checklist for the first day. <strong>No rush</strong>.</p>'})
+                recipient('BOSS_DEMO_MAIL_IM3', 'EX_JOHN_DOE', 'MessageTo', false)
+                event('BOSS_DEMO_MAIL_IM4', {fromPartyId: 'ORG_ZIZI_BD', toPartyId: 'EX_JOHN_DOE', entryDate: ago(28), subject: 'Server maintenance on Saturday',
+                    body: '<p>The file server is down on Saturday from 8 to 10 for the upgrade.</p>'})
+                recipient('BOSS_DEMO_MAIL_IM4', 'EX_JOHN_DOE', 'MessageTo', true)
+                recipient('BOSS_DEMO_MAIL_IM4', 'ORG_ZIZI_JD', 'MessageCc', true)
+                // a Chatter note on the demo request that mentions john.doe
+                event('BOSS_DEMO_MAIL_NOTE', {communicationEventTypeId: 'Comment', fromPartyId: 'ORG_ZIZI_JD', entryDate: ago(8), subject: 'Set up the shared team calendar',
+                    body: '<p><span data-mention-id="EX_JOHN_DOE">@John Doe</span> the meeting rooms are in the calendar now.</p>'})
+                recipient('BOSS_DEMO_MAIL_NOTE', 'EX_JOHN_DOE', 'MessageCc', false)
+                if (ec.entity.find('mantle.request.Request').condition('requestId', 'BOSS_DEMO_REQUEST').one() != null)
+                    store('mantle.request.RequestCommEvent', {requestId: 'BOSS_DEMO_REQUEST', communicationEventId: 'BOSS_DEMO_MAIL_NOTE'})
+
+                // mailboxes: a public one delivered to the Inbox, a private one with a request to join
+                const since = ago(24 * 30)
+                store('mantle.marketing.contact.ContactList', {contactListId: 'BOSS_DEMO_MBX_OFFICE', contactListTypeEnumId: 'MAILBOX', contactListName: 'Office announcements',
+                    description: 'News for everyone in the office: closures, visitors, facilities.', isPublic: 'Y', postingEnumId: 'ClpMembers',
+                    defaultDeliveryEnumId: 'CldInbox', archivedDate: null})
+                store('mantle.marketing.contact.ContactList', {contactListId: 'BOSS_DEMO_MBX_LEAD', contactListTypeEnumId: 'MAILBOX', contactListName: 'Leadership',
+                    description: 'Plans and budgets, for the leadership team.', isPublic: 'N', postingEnumId: 'ClpMembers', defaultDeliveryEnumId: 'CldMailboxOnly', archivedDate: null})
+                for (const listId of ['BOSS_DEMO_MBX_OFFICE', 'BOSS_DEMO_MBX_LEAD'])
+                    ec.entity.find('mantle.marketing.contact.ContactListParty').condition('contactListId', listId).deleteAll()
+                const member = (listId, partyId, statusId, roleTypeId) => store('mantle.marketing.contact.ContactListParty', {contactListId: listId, partyId: partyId,
+                    fromDate: since, statusId: statusId, roleTypeId: roleTypeId || null, deliveryEnumId: null})
+                member('BOSS_DEMO_MBX_OFFICE', 'EX_JOHN_DOE', 'CLPT_ACCEPTED', 'ListOwner')
+                member('BOSS_DEMO_MBX_OFFICE', 'ORG_ZIZI_JD', 'CLPT_ACCEPTED', null)
+                member('BOSS_DEMO_MBX_OFFICE', 'ORG_ZIZI_BD', 'CLPT_ACCEPTED', null)
+                member('BOSS_DEMO_MBX_LEAD', 'EX_JOHN_DOE', 'CLPT_ACCEPTED', 'ListOwner')
+                store('mantle.marketing.contact.ContactListParty', {contactListId: 'BOSS_DEMO_MBX_LEAD', partyId: 'ORG_ZIZI_JD', fromDate: ago(20),
+                    statusId: 'CLPT_PENDING', roleTypeId: null, deliveryEnumId: null})
+                event('BOSS_DEMO_MAIL_POST1', {fromPartyId: 'ORG_ZIZI_BD', contactListId: 'BOSS_DEMO_MBX_OFFICE', entryDate: ago(46),
+                    subject: 'The office is closed on Monday', body: '<p>The office is closed on Monday for the holiday. The building opens again on Tuesday at 8.</p>'})
+                recipient('BOSS_DEMO_MAIL_POST1', 'EX_JOHN_DOE', 'MessageMailbox', true)
+                recipient('BOSS_DEMO_MAIL_POST1', 'ORG_ZIZI_JD', 'MessageMailbox', true)
+                event('BOSS_DEMO_MAIL_POST2', {fromPartyId: 'ORG_ZIZI_JD', contactListId: 'BOSS_DEMO_MBX_OFFICE', entryDate: ago(2.5), parentCommEventId: 'BOSS_DEMO_MAIL_POST1',
+                    rootCommEventId: 'BOSS_DEMO_MAIL_POST1', subject: 'Re: The office is closed on Monday', body: '<p>Does that include the parking garage?</p>'})
+                recipient('BOSS_DEMO_MAIL_POST2', 'EX_JOHN_DOE', 'MessageMailbox', false)
+                recipient('BOSS_DEMO_MAIL_POST2', 'ORG_ZIZI_BD', 'MessageMailbox', false)
+                event('BOSS_DEMO_MAIL_POST3', {fromPartyId: 'EX_JOHN_DOE', contactListId: 'BOSS_DEMO_MBX_LEAD', entryDate: ago(70), subject: 'Budget planning for next year',
+                    body: '<p>Please send me your teams\' budget requests by the end of the month.</p>'})
+            } finally {
+                if (!wasDisabled) ec.artifactExecution.enableAuthz()
+            }
+        ]]></script></actions>
+    </service>
+</services>

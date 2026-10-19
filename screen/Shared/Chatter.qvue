@@ -345,6 +345,13 @@ along with this software (see the LICENSE.md file). If not, see
             <q-btn flat dense no-caps color="primary" icon="sym_o_download" :label="t('Download')" :href="preview.download" type="a"></q-btn></div>
     </m-dialog>
 
+    <!-- Email…, Reply by email: the Comms composer with this record's chip, so the sent email is filed here (send#EmailDraft, R6) -->
+    <m-dialog v-model="emailDialog.open" :title="emailDialog.title" width="900">
+        <chatter-done v-if="emailDialog.open && emailDialog.url" :key="emailDialog.key" :done="afterEmail">
+            <m-dynamic-container :id="'m-chatter-email-' + uid" :url="emailDialog.url"></m-dynamic-container>
+        </chatter-done>
+    </m-dialog>
+
     <!-- the RecordFiles panel when the page has none (Add on the attachments strip) -->
     <m-dialog v-model="filesDialog.open" :title="t('Add files')" width="640">
         <chatter-files-host v-if="filesDialog.open && filesDialog.url" :panel="filesDialog.panel" :url="filesDialog.url"></chatter-files-host>
@@ -362,7 +369,7 @@ module.exports = {
         // shell, webroot js/README.md); here it resets that form and reloads what it changed
         'chatter-done': {
             props: { done: Function },
-            provide() { return { mSubmitHide: { hide: () => { if (this.done) this.done(); } } }; },
+            provide() { return { mSubmitHide: { hide: (answer) => { if (this.done) this.done(answer); } } }; },
             template: '<div><slot></slot></div>'
         },
         // the RecordFiles panel of the record in a dialog, with the hints a record-files element would give it
@@ -381,7 +388,7 @@ module.exports = {
             tab: null, composeOpen: false, formKeys: { message: 0, log: 0, activity: 0, kinds: 0, followers: 0, edit: 0, reply: 0, done: 0 },
             replyTo: null, replyFields: {}, editing: null, editFields: {}, editOptions: [], openQuotes: {},
             markDone: { open: false, activity: null, fields: {} }, preview: { open: false, src: '', name: '', download: '' },
-            filesDialog: { open: false, url: null, panel: null }, busy: { follow: false }, loggedHidden: false, requestSeq: 0, panelWidth: 0
+            filesDialog: { open: false, url: null, panel: null }, emailDialog: { open: false, url: null, key: 0, title: '' }, busy: { follow: false }, loggedHidden: false, requestSeq: 0, panelWidth: 0
         };
     },
     computed: {
@@ -616,14 +623,28 @@ module.exports = {
             this.post('unlink', { communicationEventId: entry.communicationEventId }).then((json) => { if (json.unlinked) this.loadTimeline(false); }, () => {});
         },
         go(url) { if (url) this.$root.setUrl(url); },
-        // Comms Compose (a placeholder until M5, where mantle.party.CommunicationServices.send#EmailDraft files the sent email here)
-        composeUrl(extra) {
+        // Comms Compose with the record chip: mantle.party.CommunicationServices.send#EmailDraft files the sent email on this record
+        composeQuery(extra) {
             const to = this.emailParties.map((party) => party.email);
-            const query = Object.assign({ recordEntity: this.recordEntity, recordId: this.recordId, to: to.join(','), subject: this.record ? this.record.subject : '' }, extra || {});
-            return this.$root.linkBasePath + '/Comms/Inbox/Compose?' + moqui.objToSearch(query);
+            return Object.assign({ recordEntity: this.recordEntity, recordId: this.recordId, to: to.join(','), subject: this.record ? this.record.subject : '' }, extra || {});
         },
-        openEmail() { this.go(this.composeUrl()); },
-        replyByEmail(entry) { this.go(this.composeUrl({ replyToCommEventId: entry.communicationEventId, subject: entry.title || '' })); },
+        composeUrl(extra) { return this.$root.linkBasePath + '/Comms/Inbox/Compose?' + moqui.objToSearch(this.composeQuery(extra)); },
+        // in a dialog over the record (the composer as embedded), so the user stays here; the page when there is no Comms
+        openComposer(extra, title) {
+            const query = Object.assign({ mode: 'embedded' }, this.composeQuery(extra));
+            this.emailDialog = { open: true, key: this.emailDialog.key + 1, title: title || this.t('Email'),
+                url: this.$root.basePath + '/Comms/Inbox/Compose.qvue?' + moqui.objToSearch(query) };
+        },
+        openEmail() { this.openComposer(null, this.t('Email')); },
+        replyByEmail(entry) { this.openComposer({ replyToCommEventId: entry.communicationEventId, to: '', subject: '' }, this.t('Reply by email')); },
+        // after the send: the dialog closes, and the timeline shows the email once it is sent and filed (after the undo hold)
+        afterEmail(info) {
+            this.emailDialog.open = false;
+            const hold = info && info.holdSeconds ? Number(info.holdSeconds) : 0;
+            const reload = () => { if (this.state === 'ready') this.loadTimeline(false); };
+            setTimeout(reload, (hold + 3) * 1000);
+            setTimeout(reload, (hold + 10) * 1000);
+        },
         fileUrl(file, inline) {
             return this.url('downloadFile') + '?' + moqui.objToSearch(this.params({ contentKey: file.contentKey, inline: inline ? 'true' : 'false' }));
         },

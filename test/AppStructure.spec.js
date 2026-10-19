@@ -3,8 +3,8 @@
 // menu data builds, which also defines the sibling and default screens the menu lists. Placeholders are found by their
 // "Placeholder:" label. Every other screen under the Commons, Comms and Insights roots and in screen/Shared (the screens
 // built there and the ones moved from the first SimpleScreens port) renders the same way, on the demo records of
-// data/BossDemoData.xml, and shows them; a .qvue screen (render-modes vue,qvue: Shared/Chatter and Shared/RecordFiles) renders
-// in qvue, its component.
+// data/BossDemoData.xml and data/BossMailDemoData.xml, and shows them; a .qvue screen (render-modes vue,qvue: Shared/Chatter,
+// Shared/RecordFiles, Comms/Inbox/Mail and Comms/Inbox/Compose) renders in qvue, its component.
 // Run: ./moq test ironstone-boss
 const base = "component://ironstone-boss/screen"
 const apps = ["Commons", "Comms", "Sales", "Marketing", "CustomerService", "Commerce", "Products", "Purchasing", "Warehouse",
@@ -77,8 +77,10 @@ const demoRecords = {
     "Commons/Tasks": { text: "Review the open support requests" },
     "Commons/Tasks/List": { text: "Plan the office move" },
     "Commons/Tasks/TaskDetail": { parameters: { workEffortId: "BOSS_DEMO_TASK" }, text: "Review the open support requests" },
-    "Comms/Inbox": { text: "Question about the team calendar" },
-    "Comms/Inbox/MessageDetail": { parameters: { communicationEventId: "BOSS_DEMO_MESSAGE" }, text: "Question about the team calendar" },
+    // M5: the Inbox (the default subscreen Inbox/Mail, a .qvue screen like Compose) and MessageDetail on a message of the mail
+    // demo (data/BossMailDemoData.xml) that no spec changes
+    "Comms/Inbox": { text: "Inbox" },
+    "Comms/Inbox/MessageDetail": { parameters: { emailMessageId: "BOSS_DEMO_MAIL_INVOICE" }, text: "Invoice INV-1042 is due on the 30th" },
     "Insights/ReportBuilder/Datasets": { text: "BOSS_DEMO_PRODUCTS" },
     "Insights/ReportBuilder/DatasetDetail": { parameters: { dataDocumentId: "BOSS_DEMO_PRODUCTS" }, text: "Products" },
     "Insights/ReportBuilder/DatasetDetail/FieldList": { parameters: { dataDocumentId: "BOSS_DEMO_PRODUCTS" }, text: "productName" },

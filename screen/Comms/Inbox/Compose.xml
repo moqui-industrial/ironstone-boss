@@ -12,10 +12,132 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for Compose: design-drawers-commons.md §12, editor archetype, qvue, scope parity. -->
+<!-- The composer (design-drawers-commons.md §12 Compose; style-guide §3.13 Editor, §4.8 .qvue): Compose.qvue next to this
+    file, served in the qvue render mode, is a dock card of the Inbox (an m-dynamic-container of Compose.qvue?mode=dock), a
+    dialog the dock pops out to, a page at Comms/Inbox/Compose (a draft by emailMessageId; mailto-style to, cc, bcc, subject
+    and body; a reply or forward), and the composer of quick create and of Chatter's "Email…" (recordEntity and recordId give
+    the "File on" chip). In qvt (the quick-create dialog asks for qvt) this screen is an m-dynamic-container of the same
+    component with the same query. The JSON transitions below are service/ironstone/ComposeServices.xml: the sender is
+    always the user, from an account the user may send from, and a file is one these services stored. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Compose" default-menu-include="false">
+        default-menu-title="Compose" default-menu-include="false" render-modes="vue,qvue,qvt,html" server-static="vue,qvue">
+
+    <parameter name="emailMessageId"/>
+    <parameter name="to"/>
+    <parameter name="subject"/>
+    <parameter name="recordEntity"/>
+    <parameter name="recordId"/>
+
+    <!-- what the composer starts with: identities, recipients, subject, body, quote, attachments, the record chip -->
+    <transition name="composeData" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.ComposeServices.get#ComposeData').parameters({emailMessageId: emailMessageId || null,
+                replyToEmailMessageId: replyToEmailMessageId || null, forwardEmailMessageId: forwardEmailMessageId || null,
+                replyAll: String(replyAll) === 'true', replyToCommEventId: replyToCommEventId || null, replyToSender: String(replyToSender) === 'true',
+                contactListId: contactListId || null, to: to || null, cc: cc || null, bcc: bcc || null, subject: subject || null, body: body || null,
+                recordEntity: recordEntity || null, recordId: recordId || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {compose: out.compose})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- the recipient chips' search: addresses for email, users and mailboxes for an internal message -->
+    <transition name="recipients" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.ComposeServices.search#Recipients').parameters({term: term || '', mode: mode || 'email'}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? [] : (out.optionList || []))
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="textBlocks" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('org.moqui.impl.EmailClientServices.find#EmailTextBlocks').parameter('searchText', searchText || null).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {textBlockList: out.textBlockList})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="saveDraft">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.ComposeServices.save#ComposeDraft').parameters({emailMessageId: emailMessageId || null,
+                fromValue: fromValue || '', toJson: toJson || '[]', ccJson: ccJson || '[]', bccJson: bccJson || '[]', subject: subject ?? '', body: body ?? '',
+                bodyText: bodyText || null, quoteHtml: quoteHtml || null, parentEmailMessageId: parentEmailMessageId || null,
+                isForward: String(isForward) === 'true'}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {emailMessageId: out.emailMessageId, rootEmailMessageId: out.rootEmailMessageId})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="upload">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.ComposeServices.upload#ComposeAttachment').parameters({emailMessageId: emailMessageId || null,
+                contentFile: contentFile || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {attachmentList: out.attachmentList, uploadList: out.uploadList})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="removeAttachment">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.ComposeServices.remove#ComposeAttachment').parameters({emailMessageId: emailMessageId || '',
+                emailMessageAttachmentId: emailMessageAttachmentId || ''}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {attachmentList: out.attachmentList})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- the send: the user's own party and accounts only, whatever the request carries (no fromPartyId is read) -->
+    <transition name="send">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.ComposeServices.send#Compose').parameters({fromValue: fromValue || '', emailMessageId: emailMessageId || null,
+                toJson: toJson || '[]', ccJson: ccJson || '[]', bccJson: bccJson || '[]', subject: subject ?? '', body: body ?? '', bodyText: bodyText || null,
+                quoteHtml: quoteHtml || null, parentEmailMessageId: parentEmailMessageId || null, isForward: String(isForward) === 'true',
+                parentCommEventId: parentCommEventId || null, replyToSenderOnly: String(replyToSenderOnly) === 'true', uploadsJson: uploadsJson || null,
+                recordEntity: recordEntity || null, recordId: recordId || null,
+                scheduledSendDate: scheduledSendDate ? new Date(Number(scheduledSendDate)) : null, holdSeconds: holdSeconds != null && holdSeconds !== '' ? Number(holdSeconds) : null,
+                archiveThread: String(archiveThread) === 'true', threadStore: threadStore || null, threadId: threadId || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {mode: out.mode, emailMessageId: out.emailMessageId, statusId: out.statusId, sent: out.sent,
+                sendError: out.sendError, scheduledSendDate: out.scheduledSendDate, communicationEventIdList: out.communicationEventIdList, message: out.message})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="cancelSend">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.ComposeServices.cancel#ComposeSend').parameters({emailMessageId: emailMessageId || null,
+                communicationEventIdsJson: communicationEventIdsJson || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {statusId: out.statusId})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- the held message goes as soon as its undo hold ends (the job sends it otherwise, within the minute) -->
+    <transition name="sendDue">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('org.moqui.impl.EmailClientServices.send#DueDrafts').parameter('emailMessageId', emailMessageId || '').call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {sentCount: out.sentCount, failedCount: out.failedCount})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="discard">
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.ComposeServices.discard#ComposeDraft').parameter('emailMessageId', emailMessageId || '').call()
+            ec.web.sendJsonResponse({})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+
+    <actions><script><![CDATA[
+        // the qvt render (quick create's dialog) is the component in a container, with the query it was asked with
+        const names = ['emailMessageId', 'to', 'cc', 'bcc', 'subject', 'body', 'recordEntity', 'recordId', 'recordTitle', 'replyToCommEventId',
+            'replyToEmailMessageId', 'forwardEmailMessageId', 'replyAll', 'replyToSender', 'contactListId']
+        const query = ['mode=embedded']
+        for (const name of names) {
+            const value = context.get(name)
+            if (value != null && value !== '') query.push(encodeURIComponent(name) + '=' + encodeURIComponent(String(value)))
+        }
+        // as an attribute value: the query is URL encoded already, so only & needs its entity
+        composeComponentUrl = ('/apps/Comms/Inbox/Compose.qvue?' + query.join('&')).replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+    ]]></script></actions>
+
     <widgets>
-        <label text="Placeholder: The composer as a dock, a dialog or a page: identities, recipients, rich text, attachments from Files, text blocks, schedule send, undo send." type="p"/>
+        <render-mode>
+            <text type="qvue" location="component://ironstone-boss/screen/Comms/Inbox/Compose.qvue" template="false"/>
+            <text type="qvt"><![CDATA[<m-dynamic-container id="ComposeEmbedded" url="${composeComponentUrl}"></m-dynamic-container>]]></text>
+            <text type="html"><![CDATA[<p><strong>Compose</strong>: open it under /qapps (the qvt render mode) to write a message.</p>]]></text>
+        </render-mode>
     </widgets>
 </screen>
