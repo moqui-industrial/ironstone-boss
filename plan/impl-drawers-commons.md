@@ -110,13 +110,13 @@ Each finding was verified in the code. Each resolution is now part of the design
 | M1 Shell framework | mr-moqui, Mantle, BOSS | header, tray frame, palette, quick-create frame | done Oct 19 |
 | M2 Today, notifications, quick create | mr-moqui, Mantle, BOSS | TodayPanel, NotificationsPanel, Notifications, QuickCreate, Commons Home, Settings, Account, Preferences, NotificationSettings | done Oct 19 |
 | M3 Record links, Chatter, record files | mr-moqui, Mantle, BOSS | Chatter, RecordFiles | done Oct 19 |
-| M4 Contacts | mr-moqui, Mantle, BOSS | Contacts, ContactDetail, ContactImport, Duplicates, ContactBooks | Mantle and framework (split, wizard, VCard tool) done; BOSS screens under way |
-| M5 Mail (M5a–M5f) | mr-moqui, Mantle, BOSS | Inbox, Compose, MessageDetail, Comms Home, MailAccounts, Identities, Rules, OutOfOffice, TextBlocks | M5a done (model, client services, internal messages, mailboxes, Inbox merge and filing); M5d sync under way; BOSS screens next |
-| M6 Tasks and requests | BOSS | Tasks, TaskDetail, Requests, RequestDetail | not started |
-| M7 Calendar and schedules | mr-moqui, Mantle, BOSS | Calendar, EventDetail, Schedules, ResourceDetail, Calendars | Mantle and the ICalendar tool done; BOSS screens not started |
-| M8 Files and drives | mr-moqui, BOSS | Files, Drives, Shares, PublicShare | not started |
+| M4 Contacts | mr-moqui, Mantle, BOSS | Contacts, ContactDetail, ContactImport, Duplicates, ContactBooks | done Oct 19 |
+| M5 Mail (M5a–M5f) | mr-moqui, Mantle, BOSS | Inbox, Compose, MessageDetail, Comms Home, MailAccounts, Identities, Rules, OutOfOffice, TextBlocks | M5a, M5c services and M5d done (model, client services, internal messages, mailboxes, Inbox merge and filing, IMAP and POP sync, rules, import, `m-html-view`, mail search, out-of-office, unsubscribe); BOSS Inbox, Compose and MessageDetail under way; Comms Home and settings screens, M5e and M5f not started |
+| M6 Tasks and requests | BOSS | Tasks, TaskDetail, Requests, RequestDetail | done Oct 19 |
+| M7 Calendar and schedules | mr-moqui, Mantle, BOSS | Calendar, EventDetail, Schedules, ResourceDetail, Calendars | Mantle and framework (ICalendar tool) done; BOSS screens not started |
+| M8 Files and drives | mr-moqui, BOSS | Files, Drives, Shares, PublicShare | framework done (drives, shares and links, trash, versions, change sets, the git path index, FileServices, token routes and the public shell); BOSS screens not started |
 | M9 Knowledge and notes | mr-moqui, BOSS | Knowledge, Spaces, Review, Notes | not started |
-| M10 Chat and presence | mr-moqui, Mantle, BOSS | Chat, ChatPanel, ChatSettings | not started |
+| M10 Chat and presence | mr-moqui, Mantle, BOSS | Chat, ChatPanel, ChatSettings | framework under way |
 | M11 Consent and unsubscribe | mr-moqui, Mantle, BOSS | Consent, Unsubscribe | Mantle done; BOSS screens and the public page not started |
 
 ### M0 — Foundations (mr-moqui, BOSS)
@@ -391,6 +391,24 @@ M5 leaves two gaps, closed later: the iMIP card comes in M7 and "Attach from Fil
   conversions with Chatter, record-files and the context element.
 - The board and calendar switches open the Projects board and the Commons Calendar until `view-board` and
   `view-calendar` exist, as design §8 says.
+
+Built Oct 19:
+- **Commit:** BOSS fd517b5. `ironstone.TaskServices`, `RequestServices` and `StatusServices`, with 170 BOSS features.
+- **What the build added or settled:**
+  - Tasks and Requests hold only their subscreens. The default subscreen `List` is the list, as in Contacts.
+  - The stage chips with the next status as the primary action are `template/StatusBar.xml`. It is a BOSS stand-in
+    until the framework's `status-bar` element exists (style-guide §8.2).
+  - An "All open" chip is the default. Quick add is a form row at the top of the list card, not `first-row-field`, so
+    it keeps the list state and works on a phone. Priority finds by band (high, normal, low).
+  - Access goes through `get#RecordLinkInfo` with `checkOnly`. The owner or an assignee changes a task. A task or request
+    the user may not see is "not available".
+  - Add to Today clears the user's snooze, and makes the task due today when it has no due date or a later one.
+  - Convert to request makes a draft request linked by `RequestWorkEffort`, and the task stays.
+  - Delete own is for the owner only, and only when the task has no time, sub-tasks, comments or files.
+  - Created by me reads `ownerPartyId`, because WorkEffort has no created-by field. Watching is the Watcher role or a
+    Chatter follow.
+  - The requester edits their own draft request. Approved and Closed stay in the Projects app.
+  - Each bulk item runs in its own transaction. A failing one is logged and counted, and the rest go on.
 
 ### M7 — Calendar and schedules (mr-moqui, Mantle, BOSS)
 
