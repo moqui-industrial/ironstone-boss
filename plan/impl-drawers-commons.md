@@ -41,7 +41,7 @@ Done Oct 18, 2026, before any code:
 
 ## 3. Review findings and resolutions
 
-Each finding was verified in the code. Each resolution is now part of the design.
+Each finding was verified in the code. Each resolution is now part of the design. R28 was found during the build.
 
 | # | Finding | Resolution |
 | --- | --- | --- |
@@ -72,6 +72,7 @@ Each finding was verified in the code. Each resolution is now part of the design
 | R25 | §9 Records drive: the content folders are not uniform. `CommunicationEvent/` is capitalised, AssetMaintenance sits under `asset/<id>/maintenance/`, and Facility has no pair. | BOSS seeds an explicit map from folder to entity and id field. A naming rule would not cover these cases. |
 | R26 | §1.2 Inbox count, §12 mailboxes delivered to the Inbox: count and unread are per row (R15). | `get#ShellCounts.messages` counts an internal message once per user: internal messages and Inbox-delivered posts on that user's rows. Changed Oct 19 (§5 M2): the header has separate Mail, Messages and Notifications counts. |
 | R27 | §19: the shell changes every `/qapps` user (MarbleERP, SimpleScreens, tools). | Every new header element hides when its theme value or provider is empty. Without BOSS a deployment gains only the launcher, the palette (Recent, Screens, Saved finds, Actions) and icons. |
+| R28 | Found building M3, Oct 19: Request, WorkEffort and CommunicationEvent have no entity filter, OrderHeader's is on OrderPart, and WikiPage is a `moqui.*` entity, so R5's "find the record under the user's filters" let any app user read those records' Chatter by id; universal search also found restricted wiki pages and notes. | `get#RecordLinkInfo` applies per-user rules under an organization filter (a work effort or request by its parties and organizations, a message by its parties, mailbox or the record it is filed on, an order by its parts' parties, a wiki page by the wiki's own view rule; ADMIN and explicit entity authz see all; no active organization means all the user's organizations) and offers `checkOnly`; search uses the same rules (mantle-usl b5b2e64, eed058a). |
 
 ## 4. Ground rules
 
@@ -107,16 +108,16 @@ Each finding was verified in the code. Each resolution is now part of the design
 | --- | --- | --- | --- |
 | M0 Foundations | mr-moqui, BOSS | the moved screens | done Oct 18 |
 | M1 Shell framework | mr-moqui, Mantle, BOSS | header, tray frame, palette, quick-create frame | done Oct 19 |
-| M2 Today, notifications, quick create | mr-moqui, Mantle, BOSS | TodayPanel, NotificationsPanel, Notifications, QuickCreate, Commons Home, Settings, Account, Preferences, NotificationSettings | Mantle under way |
-| M3 Record links, Chatter, record files | mr-moqui, Mantle, BOSS | Chatter, RecordFiles | Mantle done |
-| M4 Contacts | mr-moqui, Mantle, BOSS | Contacts, ContactDetail, ContactImport, Duplicates, ContactBooks | Mantle done (vCard waits for its tool) |
-| M5 Mail (M5a–M5f) | mr-moqui, Mantle, BOSS | Inbox, Compose, MessageDetail, Comms Home, MailAccounts, Identities, Rules, OutOfOffice, TextBlocks | M5a Mantle done |
+| M2 Today, notifications, quick create | mr-moqui, Mantle, BOSS | TodayPanel, NotificationsPanel, Notifications, QuickCreate, Commons Home, Settings, Account, Preferences, NotificationSettings | done Oct 19 |
+| M3 Record links, Chatter, record files | mr-moqui, Mantle, BOSS | Chatter, RecordFiles | done Oct 19 |
+| M4 Contacts | mr-moqui, Mantle, BOSS | Contacts, ContactDetail, ContactImport, Duplicates, ContactBooks | Mantle and framework (split, wizard, VCard tool) done; BOSS screens under way |
+| M5 Mail (M5a–M5f) | mr-moqui, Mantle, BOSS | Inbox, Compose, MessageDetail, Comms Home, MailAccounts, Identities, Rules, OutOfOffice, TextBlocks | M5a done (model, client services, internal messages, mailboxes, Inbox merge and filing); M5d sync under way; BOSS screens next |
 | M6 Tasks and requests | BOSS | Tasks, TaskDetail, Requests, RequestDetail | not started |
-| M7 Calendar and schedules | mr-moqui, Mantle, BOSS | Calendar, EventDetail, Schedules, ResourceDetail, Calendars | not started |
+| M7 Calendar and schedules | mr-moqui, Mantle, BOSS | Calendar, EventDetail, Schedules, ResourceDetail, Calendars | Mantle and the ICalendar tool done; BOSS screens not started |
 | M8 Files and drives | mr-moqui, BOSS | Files, Drives, Shares, PublicShare | not started |
 | M9 Knowledge and notes | mr-moqui, BOSS | Knowledge, Spaces, Review, Notes | not started |
 | M10 Chat and presence | mr-moqui, Mantle, BOSS | Chat, ChatPanel, ChatSettings | not started |
-| M11 Consent and unsubscribe | mr-moqui, Mantle, BOSS | Consent, Unsubscribe | not started |
+| M11 Consent and unsubscribe | mr-moqui, Mantle, BOSS | Consent, Unsubscribe | Mantle done; BOSS screens and the public page not started |
 
 ### M0 — Foundations (mr-moqui, BOSS)
 
@@ -245,6 +246,20 @@ the record-update topics seeded into Updates. BOSS: the theme values and the M2 
     completed tasks), the approval services, and a failing today source.
   - BOSS screen specs.
 
+Built Oct 19:
+- **Commits:**
+  - mr-moqui 95c3624: notification reasons, records, the Notifications and Updates inboxes, approvals, the digest,
+    number-card and dashboard, the notes space, the Mail and Messages counts, plus time zones and view aliases as in Java.
+  - Mantle 307c688 and 2c99ae4: today items, snooze, shell counts by inbox, the counts ECAs.
+  - BOSS 8cefb7d: the screens, with 66 features.
+- **What the build added or settled:**
+  - The activity kind of quick create was built here, not in M3.
+  - A note's body is the `rich-light` editor.
+  - The Settings index is the default subscreen.
+  - The counter titles are shortened so two cards fit a phone row.
+  - Contacts made in quick create are personal unless "Directory" is chosen.
+  - The tray screens are server-merged qvt, like every screen so far; a later pass marks them server-static (§6).
+
 ### M3 — Record links, Chatter, record files (mr-moqui, Mantle, BOSS)
 
 - **Framework:**
@@ -268,6 +283,19 @@ the record-update topics seeded into Updates. BOSS: the theme values and the M2 
   - Chatter and record-files go into EventDetail, TaskDetail and RequestDetail as the first hosts.
 - **Specs:** `RecordLinks.spec.js` (own join versus the generic link, the timeline union, followers and mentions), and
   a record visibility check for R5.
+
+Built Oct 19:
+- **Commits:**
+  - mr-moqui 7472b7b: the chatter and record-files elements, Tiptap with m-rich-text, m-avatar, m-record-card.
+  - Mantle 5d22ef7 (links, timeline, followers) and b5b2e64 and eed058a (record visibility, R28).
+  - BOSS b53a89d: Chatter.qvue and RecordFiles.qvue in every app root, with 95 features.
+- **What the build added or settled:**
+  - Send message is internal for now. "Email…" opens `Comms/Inbox/Compose` with `recordEntity`, `recordId`, `to`,
+    `subject` and `replyToCommEventId`, which M5 connects to `send#EmailDraft`.
+  - The timeline pages ("load more") instead of scrolling virtually.
+  - Mention ids are userIds.
+  - React, forward and share are left for later.
+  - The record's old notes and content boxes on the M0 hosts are replaced by Chatter and record files.
 
 ### M4 — Contacts (mr-moqui, Mantle, BOSS)
 
@@ -432,6 +460,8 @@ M5 leaves two gaps, closed later: the iMIP card comes in M7 and "Attach from Fil
 
 Designed in design-drawers-commons.md; each of these gets its own plan:
 
+- Server-static pass (agreed Oct 19): run `moqui lint --screens --qvt-static` over the BOSS screens and mark each
+  compatible screen server-static, as design §20 asks; the screens are server-merged qvt until then.
 - Calls: WebRTC with Calls, Call, LiveCall, CallSettings, CallSession and CallLink, and the `Call` comm type.
 - Sync: CalDAV, CardDAV, WebDAV, and SFTP over drives, with app passwords and Settings/Sync.
 - `m-coedit` with `yrs` and CollabDocument.
