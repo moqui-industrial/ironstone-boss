@@ -33,7 +33,8 @@ along with this software (see the LICENSE.md file). If not, see
             sync failed), the mailboxes the user is in or asked to join with their unread counts, the saved searches, the
             Unified, Drafts and Outbox totals, me (the user, party and own addresses) and the Inbox preferences (reading pane,
             pane sizes, the rail collapsed, archive opens next, mark read after seconds, the undo-send seconds, the trusted
-            senders). A part that fails is named in failedParts and logged; the rest is answered.
+            senders, and remoteImages: always shows the pictures of every sender, Commons Preferences' Mail box). A part that
+            fails is named in failedParts and logged; the rest is answered.
         </description>
         <out-parameters>
             <parameter name="accountList" type="List"/>
@@ -44,6 +45,8 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="me" type="Map"/>
             <parameter name="prefs" type="Map"/>
             <parameter name="failedParts" type="List"/>
+            <parameter name="outOfOfficeList" type="List"><description>The accounts whose automatic reply is on now
+                ({emailAccountId, accountName}), for the Inbox's out-of-office banner</description></parameter>
         </out-parameters>
         <actions><script><![CDATA[
             const toMillis = (value) => {
@@ -104,6 +107,22 @@ along with this software (see the LICENSE.md file). If not, see
                 totalsMap.outboxErrorCount += account.outboxErrorCount || 0
             }
             mailboxList = Array.from(counts.mailboxList || [])
+            // the automatic replies on now: a part of its own
+            outOfOfficeList = []
+            if (mailIds.length) {
+                ec.message.pushErrors()
+                try {
+                    for (const row of ec.entity.find('moqui.basic.email.EmailOutOfOffice').condition('emailAccountId', 'in', mailIds).condition('enabled', 'Y').list()) {
+                        const from = toMillis(row.fromDate), thru = toMillis(row.thruDate)
+                        if ((from != null && from > nowMillis) || (thru != null && thru <= nowMillis)) continue
+                        const account = accountList.find((item) => item.emailAccountId === row.emailAccountId)
+                        outOfOfficeList.push({emailAccountId: row.emailAccountId, accountName: account ? account.accountName : row.emailAccountId})
+                    }
+                } catch (err) {
+                    failedParts.push('outOfOffice')
+                    ec.logger.error(`Inbox of user ${ec.user.userId}: the out-of-office state failed and is left out: ${err && err.message ? err.message : err}`)
+                } finally { ec.message.clearErrors(); ec.message.popErrors() }
+            }
             // saved searches: a part of its own
             ec.message.pushErrors()
             try {
@@ -130,6 +149,7 @@ along with this software (see the LICENSE.md file). If not, see
                 splitBottom: Number(pref('MAIL_SPLIT_BOTTOM')) || null, railCollapsed: pref('MAIL_RAIL_COLLAPSED') === 'Y',
                 archiveOpensNext: pref('MAIL_ARCHIVE_NEXT') !== 'N', markReadSeconds: Number(pref('MAIL_MARK_READ_SECONDS') || 0),
                 undoSeconds: pref('MAIL_UNDO_SECONDS') != null && pref('MAIL_UNDO_SECONDS') !== '' ? Number(pref('MAIL_UNDO_SECONDS')) : 10,
+                remoteImages: pref('MAIL_REMOTE_IMAGES') === 'always' ? 'always' : 'ask',
                 trustedSenders: Array.isArray(trusted) ? trusted.map((address) => String(address).toLowerCase()) : []}
         ]]></script></actions>
     </service>

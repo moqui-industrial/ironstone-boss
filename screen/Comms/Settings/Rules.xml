@@ -12,10 +12,82 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for Rules: design-drawers-commons.md §17, settings archetype, xml, scope new. -->
+<!-- Rules (design-drawers-commons.md §17 Rules): the user's mail rules as an ordered list (drag, or up and down), each with
+    its conditions and actions in words, the account it is on (or all of the user's own accounts), how often it matched, on
+    or off; the rule editor (match all or any of the conditions on from, to, cc, subject, the text, a file attached, the
+    mailing list, the size or any header; the actions move, label, mark read, flag, forward, delete, Spam and stop); Run
+    now over a folder; and the blocked senders (block#Sender's rules) with Unblock and Block an address. Rules run on the
+    server as the sync stores new Inbox mail. The component is Rules.qvue next to this file (qvue render mode); its JSON
+    transitions below are ironstone.MailSettingsServices get#RulesView and store#Rule and the framework's rule services,
+    which check that the user may change each rule (its owner, or a manager of its account) and normalize them. A test of a
+    rule against recent mail needs a service that matches without acting, which the framework has not got yet. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Rules" default-menu-index="3">
+        default-menu-title="Rules" default-menu-index="3" render-modes="vue,qvue,qvt,html" server-static="vue,qvue">
+
+    <transition name="rulesData" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.MailSettingsServices.get#RulesView').call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {ruleList: out.ruleList, blockedList: out.blockedList, accountList: out.accountList})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="saveRule">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.MailSettingsServices.store#Rule').parameters({emailRuleId: emailRuleId || null, ruleName: ruleName || '',
+                emailAccountId: emailAccountId || null, matchAllEnumId: matchAllEnumId || 'ErmAll', conditionsJson: conditionsJson || '[]',
+                actionsJson: actionsJson || '[]', enabled: enabled || null, stopProcessing: stopProcessing || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {emailRuleId: out.emailRuleId,
+                messageInfos: [{type: 'success', message: ec.l10n.localize('Rule saved')}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="setEnabled">
+        <actions><script><![CDATA[
+            ec.service.sync().name('org.moqui.impl.EmailClientServices.update#EmailRule').parameters({emailRuleId: emailRuleId || '',
+                enabled: enabled === 'Y' ? 'Y' : 'N'}).call()
+            ec.web.sendJsonResponse({})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="deleteRule">
+        <actions><script><![CDATA[
+            ec.service.sync().name('org.moqui.impl.EmailClientServices.delete#EmailRule').parameter('emailRuleId', emailRuleId || '').call()
+            ec.web.sendJsonResponse({})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="reorderRules">
+        <actions><script><![CDATA[
+            let ids = []
+            try { ids = JSON.parse(emailRuleIdsJson || '[]') } catch (err) { ids = [] }
+            ec.service.sync().name('org.moqui.impl.EmailClientServices.reorder#EmailRules').parameter('emailRuleIdList', Array.isArray(ids) ? ids : []).call()
+            ec.web.sendJsonResponse({})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="runRules">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('org.moqui.impl.EmailClientServices.run#EmailRules').parameters({emailFolderId: emailFolderId || '',
+                emailRuleId: emailRuleId || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {matchedCount: out.matchedCount || 0, actionCount: out.actionCount || 0,
+                ruleErrorList: out.ruleErrorList || []})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="blockAddress">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('org.moqui.impl.EmailClientServices.block#Sender').parameters({emailAddress: emailAddress || '',
+                emailAccountId: emailAccountId || ''}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {emailRuleId: out.emailRuleId,
+                messageInfos: [{type: 'success', message: ec.l10n.localize('Blocked: their mail goes to Spam')}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+
     <widgets>
-        <label text="Placeholder: Server-side mail rules: ordered, conditions and actions, run on existing mail." type="p"/>
+        <render-mode>
+            <text type="qvue" location="component://ironstone-boss/screen/Comms/Settings/Rules.qvue" template="false"/>
+            <text type="html,qvt"><![CDATA[<p><strong>Rules</strong>: open it under /qapps to sort your mail as it arrives.</p>]]></text>
+        </render-mode>
     </widgets>
 </screen>

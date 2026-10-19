@@ -13,7 +13,8 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 <!-- The mail demo of the Comms Inbox (impl-drawers-commons.md M5b, M5c), for john.doe, so the Inbox, Compose and MessageDetail
-    show and test with no mail server: data/BossMailDemoData.xml calls load#MailDemo. -->
+    show and test with no mail server: data/BossMailDemoData.xml calls load#MailDemo, then load#MailSettingsDemo for the Comms
+    mail settings (a shared account, rules, an automatic reply, text blocks). -->
 <services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
 
     <service verb="load" noun="MailDemo" authenticate="anonymous-all" allow-remote="false">
@@ -232,6 +233,89 @@ along with this software (see the LICENSE.md file). If not, see
                 recipient('BOSS_DEMO_MAIL_POST2', 'ORG_ZIZI_BD', 'MessageMailbox', false)
                 event('BOSS_DEMO_MAIL_POST3', {fromPartyId: 'EX_JOHN_DOE', contactListId: 'BOSS_DEMO_MBX_LEAD', entryDate: ago(70), subject: 'Budget planning for next year',
                     body: '<p>Please send me your teams\' budget requests by the end of the month.</p>'})
+            } finally {
+                if (!wasDisabled) ec.artifactExecution.enableAuthz()
+            }
+        ]]></script></actions>
+    </service>
+
+    <service verb="load" noun="MailSettingsDemo" authenticate="anonymous-all" allow-remote="false">
+        <description>
+            john.doe's (EX_JOHN_DOE) demo for the Comms mail settings, after load#MailDemo; only BOSS_DEMO_MAIL_* records and
+            the BOSS_DEMO_OFFICE user group (loading again puts them back as they were):
+            - BOSS_DEMO_MAIL_SUPPORT, a shared account (support@ziziwork.example) that files every match, with its server
+              (imap and smtp.ziziwork.example, which do not exist, so nothing ever connects), six folders and an identity; its
+              sign-in failed a day ago (the MailAccounts Fix); Joe Developer may read and send, Bob Developer read;
+            - the rules of BOSS_DEMO_MAIL_ACCT: Receipts (to the Receipts folder, read), Newsletters (a label), a rule that is
+              off, and a blocked sender;
+            - its automatic reply, written and off;
+            - two text blocks: Directions to the office (john.doe's own) and Meeting follow-up, shared with the Office team
+              group (BOSS_DEMO_OFFICE: john.doe and Joe Developer).
+        </description>
+        <actions><script><![CDATA[
+            if (ec.entity.find('moqui.basic.email.EmailAccount').condition('emailAccountId', 'BOSS_DEMO_MAIL_ACCT').disableAuthz().one() == null) {
+                ec.logger.warn('The mail settings demo needs BOSS_DEMO_MAIL_ACCT (load#MailDemo); nothing loaded')
+                return
+            }
+            const nowMillis = Number(ec.user.nowTimestamp)
+            const ago = (hours) => new Date(nowMillis - hours * 3600000)
+            const since = new Date(nowMillis - 30 * 86400000)
+            const SHARED = 'BOSS_DEMO_MAIL_SUPPORT'
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try {
+                const store = (entityName, fields) => ec.service.sync().name('store#' + entityName).parameters(fields).call()
+
+                // the shared support account, whose sign-in failed
+                store('moqui.basic.email.EmailServer', {emailServerId: 'BOSS_DEMO_MAIL_SRV', storeHost: 'imap.ziziwork.example', storePort: '993',
+                    storeProtocol: 'imaps', smtpHost: 'smtp.ziziwork.example', smtpPort: '587', smtpStartTls: 'Y', smtpSsl: 'N', storeDelete: 'N',
+                    storeMarkSeen: 'N', storeSkipSeen: 'N', mailUsername: 'support@ziziwork.example', mailPassword: 'demo-not-a-password', authTypeEnumId: 'EatPassword'})
+                store('moqui.basic.email.EmailAccount', {emailAccountId: SHARED, ownerUserId: 'EX_JOHN_DOE', accountKindEnumId: 'EakShared',
+                    emailServerId: 'BOSS_DEMO_MAIL_SRV', ownsEmailServer: 'Y', emailAddress: 'support@ziziwork.example', accountName: 'Support',
+                    recordFilingEnumId: 'ErfAllMatches', syncWindowDays: 365, statusId: 'EasAuthFailed', sequenceNum: 2, lastSyncDate: ago(26),
+                    lastSyncError: 'IMAP imap.ziziwork.example:993: Authentication failed: [AUTHENTICATIONFAILED] Invalid credentials (Failure)',
+                    syncLockedUntil: null, syncLockedBy: null})
+                const FOLDERS = [['INBOX', 'Inbox', 'EfkInbox', 'INBOX'], ['DRAFTS', 'Drafts', 'EfkDrafts', 'Drafts'], ['SENT', 'Sent', 'EfkSent', 'Sent'],
+                    ['ARCHIVE', 'Archive', 'EfkArchive', 'Archive'], ['JUNK', 'Junk', 'EfkJunk', 'Junk'], ['TRASH', 'Trash', 'EfkTrash', 'Trash']]
+                FOLDERS.forEach(([key, name, kind, path], index) => store('moqui.basic.email.EmailFolder', {emailFolderId: 'BOSS_DEMO_MAIL_S_' + key,
+                    emailAccountId: SHARED, folderName: name, folderPath: path, folderKindEnumId: kind, sequenceNum: index + 1, subscribed: 'Y'}))
+                store('moqui.basic.email.EmailIdentity', {emailIdentityId: 'BOSS_DEMO_MAIL_S_IDENT', emailAccountId: SHARED, emailAddress: 'support@ziziwork.example',
+                    displayName: 'Ziziwork Support', signatureHtml: '<p>Ziziwork Support · (555) 010-0199<br>Monday to Friday, 8 to 6</p>',
+                    signaturePlacementEnumId: 'EspAboveQuote', useForReplies: 'Y', isDefault: 'Y'})
+                ec.entity.find('moqui.basic.email.EmailAccountUser').condition('emailAccountId', SHARED).deleteAll()
+                store('moqui.basic.email.EmailAccountUser', {emailAccountId: SHARED, userId: 'ORG_ZIZI_JD', fromDate: since, permissionEnumId: 'EapSend'})
+                store('moqui.basic.email.EmailAccountUser', {emailAccountId: SHARED, userId: 'ORG_ZIZI_BD', fromDate: since, permissionEnumId: 'EapRead'})
+
+                // the rules of john.doe's own account
+                const rule = (id, sequenceNum, fields) => store('moqui.basic.email.EmailRule', Object.assign({emailRuleId: id, ownerUserId: 'EX_JOHN_DOE',
+                    emailAccountId: 'BOSS_DEMO_MAIL_ACCT', sequenceNum: sequenceNum, enabled: 'Y', matchAllEnumId: 'ErmAll', stopProcessing: 'N', matchedCount: 0}, fields))
+                rule('BOSS_DEMO_MAIL_R_BLOCK', 0, {ruleName: 'Block offers@deals.example', stopProcessing: 'Y', matchedCount: 6,
+                    conditionsJson: JSON.stringify([{field: 'from', operator: 'is', value: 'offers@deals.example'}]), actionsJson: JSON.stringify([{action: 'markSpam'}])})
+                rule('BOSS_DEMO_MAIL_R_RECEIPTS', 10, {ruleName: 'Receipts', matchAllEnumId: 'ErmAny', matchedCount: 3,
+                    conditionsJson: JSON.stringify([{field: 'subject', operator: 'contains', value: 'receipt'}, {field: 'from', operator: 'startsWith', value: 'billing@'}]),
+                    actionsJson: JSON.stringify([{action: 'moveToFolder', value: 'BOSS_DEMO_MAIL_F_RECEIPTS'}, {action: 'markRead'}])})
+                rule('BOSS_DEMO_MAIL_R_NEWS', 20, {ruleName: 'Newsletters', matchedCount: 12, matchAllEnumId: 'ErmAny',
+                    conditionsJson: JSON.stringify([{field: 'from', operator: 'contains', value: 'newsletter'}, {field: 'listId', operator: 'contains', value: 'news'}]),
+                    actionsJson: JSON.stringify([{action: 'addLabel', value: 'BOSS_DEMO_MAIL_L_NEWS'}])})
+                rule('BOSS_DEMO_MAIL_R_ACME', 30, {ruleName: 'Flag mail from Acme', enabled: 'N',
+                    conditionsJson: JSON.stringify([{field: 'from', operator: 'contains', value: '@acme.example'}]), actionsJson: JSON.stringify([{action: 'flag'}])})
+
+                // the automatic reply, written and off
+                store('moqui.basic.email.EmailOutOfOffice', {emailAccountId: 'BOSS_DEMO_MAIL_ACCT', enabled: 'N', fromDate: null, thruDate: null,
+                    subject: 'Away until Monday', replyOncePerDays: 4,
+                    bodyHtml: '<p>Thank you for your mail. I am out of the office until Monday and will answer then.</p><p>For anything urgent, please write to support@ziziwork.example.</p>',
+                    internalBodyHtml: '<p>Out until Monday; call my mobile if it cannot wait.</p>'})
+
+                // text blocks: one personal, one shared with the office team
+                store('moqui.security.UserGroup', {userGroupId: 'BOSS_DEMO_OFFICE', description: 'Office team', groupTypeEnumId: null})
+                for (const userId of ['EX_JOHN_DOE', 'ORG_ZIZI_JD'])
+                    if (ec.entity.find('moqui.security.UserGroupMember').condition('userGroupId', 'BOSS_DEMO_OFFICE').condition('userId', userId).count() === 0)
+                        store('moqui.security.UserGroupMember', {userGroupId: 'BOSS_DEMO_OFFICE', userId: userId, fromDate: since})
+                store('moqui.basic.email.EmailTextBlock', {emailTextBlockId: 'BOSS_DEMO_MAIL_TB_DIRECTIONS', ownerUserId: 'EX_JOHN_DOE', userGroupId: null,
+                    title: 'Directions to the office', shortcut: 'directions',
+                    bodyHtml: '<p>We are at 120 Main Street, second floor. Parking is behind the building; ring the bell at the side door.</p>'})
+                store('moqui.basic.email.EmailTextBlock', {emailTextBlockId: 'BOSS_DEMO_MAIL_TB_FOLLOWUP', ownerUserId: 'EX_JOHN_DOE', userGroupId: 'BOSS_DEMO_OFFICE',
+                    title: 'Meeting follow-up', shortcut: 'followup',
+                    bodyHtml: '<p>Thanks for meeting with us today. As promised, here are the next steps:</p><ul><li>We send the proposal by Friday</li><li>You check the dates with your team</li></ul>'})
             } finally {
                 if (!wasDisabled) ec.artifactExecution.enableAuthz()
             }

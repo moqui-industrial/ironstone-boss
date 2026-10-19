@@ -1,0 +1,345 @@
+// The Comms mail settings besides the accounts (screen/Comms/Settings: Index, Identities, Rules with Rules.qvue, OutOfOffice,
+// TextBlocks; the Mail box of Commons Preferences; service/ironstone/MailSettingsServices.xml; design-drawers-commons.md §17, §11
+// MailDefaults): on the demo of data/BossMailDemoData.xml (load#MailSettingsDemo: the shared Support account whose sign-in failed,
+// john.doe's rules, automatic reply and text blocks) and on an account of this spec's own (127.0.0.1 port 1, nothing listens) with
+// an imported message, so the rules run on mail no other spec reads. Each signature, reply and text block is cleaned as safe HTML.
+// joe.developer may not change john.doe's identities, rules, automatic reply or text blocks; he sees the shared text block and,
+// as a member who sends from Support, its identity without changing it. Authorization stays on, as for a browser request.
+// Run: ./moq test ironstone-boss --spec MailSettings
+const webroot = "component://webroot/screen/webroot.xml"
+const comms = "component://ironstone-boss/screen/Comms.xml"
+const commons = "component://ironstone-boss/screen/Commons.xml"
+const DEMO = "BOSS_DEMO_MAIL_ACCT"
+const SUPPORT = "BOSS_DEMO_MAIL_SUPPORT"
+
+function render(path, parameters) {
+    const str = ec.screen.makeTest().rootScreen(webroot).renderMode("qvt").render(`apps/${path}`, Object.assign({ lastStandalone: "true" }, parameters || {}), null)
+    const output = String(str.output || "")
+    ec.message.clearErrors()
+    return { status: str.status, errors: str.errorMessages.join(" | "), output, broken: /Error rendering|Exception in render/.test(output) }
+}
+function post(root, path, parameters) {
+    const str = ec.screen.makeTest().rootScreen(root).render(path, parameters || {}, "post")
+    const output = String(str.output || "")
+    ec.message.clearErrors()
+    return { status: str.status, errors: str.errorMessages.join(" | "), output }
+}
+function json(path, parameters, method) {
+    const str = ec.screen.makeTest().rootScreen(comms).render(path, parameters || {}, method || null)
+    let parsed = null
+    try { parsed = JSON.parse(str.output) } catch (err) { parsed = null }
+    const errors = (parsed && parsed.errors) || str.errorMessages.join(" | ")
+    ec.message.clearErrors()
+    return { status: str.status, errors: errors || "", json: parsed || {} }
+}
+const settings = (path, parameters) => post(comms, `Settings/${path}`, parameters)
+const rules = (name, parameters, method) => json(`Settings/Rules/${name}`, parameters, method || "post")
+function sys(run) {
+    const wasDisabled = ec.artifactExecution.disableAuthz()
+    try { return run() } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+}
+const rows = (entityName, fields) => sys(() => Array.from(ec.entity.find(entityName).condition(fields).list()))
+const one = (entityName, fields) => sys(() => ec.entity.find(entityName).condition(fields).one())
+const fmt = (millis) => ec.l10n.format(new Date(millis), "yyyy-MM-dd HH:mm")
+let ownId, ownInbox, ownArchive, identityId, ruleId, blockId, blockId2, textBlockId
+
+spec({
+    stepwise: true,
+
+    setupSpec() {
+        sys(() => { call("ironstone.MailDemoServices.load#MailDemo", {}); call("ironstone.MailDemoServices.load#MailSettingsDemo", {}) })
+        login("john.doe")
+    },
+    cleanupSpec() {
+        login("john.doe")
+        if (ownId) sys(() => call("org.moqui.impl.EmailClientServices.delete#EmailAccount", { emailAccountId: ownId, deleteLocalCopies: true }))
+        sys(() => call("ironstone.MailDemoServices.load#MailSettingsDemo", {}))
+        for (const key of ["MAIL_READING_PANE", "MAIL_MARK_READ_SECONDS", "MAIL_UNDO_SECONDS", "MAIL_ARCHIVE_NEXT", "MAIL_REMOTE_IMAGES"]) ec.user.setPreference(key, null)
+    },
+})
+
+feature("the settings index has a card per group and says an account needs attention; Comms Settings opens on it", {
+    when() {
+        const index = render("Comms/Settings/Index", {})
+        // the path of Comms Settings itself shows the index
+        const root = render("Comms/Settings", {}).output
+        return { index, root }
+    },
+    then({ index, root }) {
+        index.errors == ""
+        !index.broken
+        ["Mail accounts", "Identities and signatures", "Rules", "Out of office", "Text blocks", "Chat settings", "Reading and keys"].every((text) => index.output.includes(text))
+        index.output.includes("1 needs your attention")
+        root.includes("Identities and signatures")
+    },
+})
+
+feature("an account of this spec's own, with a message imported into its Inbox, for the rules to run on", {
+    when() {
+        const made = sys(() => call("ironstone.MailSettingsServices.save#AccountConnection", { emailAddress: "rules@acme.example", accountKindEnumId: "EakExternal",
+            storeHost: "127.0.0.1", storePort: "1", smtpHost: "127.0.0.1", smtpPort: "1", smtpSecurity: "none", mailPassword: "x" }))
+        ownId = made.emailAccountId
+        ownInbox = one("moqui.basic.email.EmailFolder", { emailAccountId: ownId, folderKindEnumId: "EfkInbox" }).emailFolderId
+        ownArchive = one("moqui.basic.email.EmailFolder", { emailAccountId: ownId, folderKindEnumId: "EfkArchive" }).emailFolderId
+        const eml = (id, subject, from) => `From: ${from}\r\nTo: rules@acme.example\r\nSubject: ${subject}\r\nMessage-ID: <${id}@acme.example>\r\nDate: Mon, 12 Oct 2026 10:00:00 +0000\r\n\r\nHello.\r\n`
+        const imported = sys(() => call("org.moqui.impl.EmailClientServices.import#EmailMessages", { emailFolderId: ownInbox,
+            messageText: eml("inv-7", "Invoice 7 is due", "Billing <billing@vendor.example>") + "\r\n" }))
+        sys(() => call("org.moqui.impl.EmailClientServices.import#EmailMessages", { emailFolderId: ownInbox, messageText: eml("hello-1", "Hello", "Ada <ada@vendor.example>") }))
+        return { imported, count: rows("moqui.basic.email.EmailMessage", { emailAccountId: ownId }).length }
+    },
+    then({ imported, count }) {
+        ownId != null
+        imported.importedCount == 1
+        count == 2
+    },
+})
+
+feature("identities: listed per account; add one with a signature cleaned of scripts, make it default, change it, delete it", {
+    when() {
+        const shown = render("Comms/Settings/Identities", {})
+        const bad = settings("Identities/storeIdentity", { emailAccountId: ownId, emailAddress: "not-an-address", displayName: "X" })
+        const added = settings("Identities/storeIdentity", { emailAccountId: ownId, emailAddress: "sales@acme.example", displayName: "Acme Sales",
+            replyToAddress: "team@acme.example", signatureHtml: '<p>Acme Sales</p><script>alert(1)</script><p onclick="x()">Call us</p>',
+            signaturePlacementEnumId: "EspAboveQuote", useForReplies: "Y", isDefault: "Y" })
+        const identity = rows("moqui.basic.email.EmailIdentity", { emailAccountId: ownId }).find((row) => row.emailAddress == "sales@acme.example")
+        identityId = identity ? identity.emailIdentityId : null
+        const defaults = rows("moqui.basic.email.EmailIdentity", { emailAccountId: ownId }).filter((row) => row.isDefault == "Y").map((row) => row.emailAddress)
+        const changed = settings("Identities/storeIdentity", { emailIdentityId: identityId, emailAddress: "sales@acme.example", displayName: "Acme Sales Team",
+            replyToAddress: "", signatureHtml: "<p>The sales team</p>", signaturePlacementEnumId: "EspBelowQuote" })
+        const after = one("moqui.basic.email.EmailIdentity", { emailIdentityId: identityId })
+        const backDefault = settings("Identities/makeDefault", { emailIdentityId: rows("moqui.basic.email.EmailIdentity", { emailAccountId: ownId })
+            .find((row) => row.emailAddress == "rules@acme.example").emailIdentityId })
+        const deleted = settings("Identities/deleteIdentity", { emailIdentityId: identityId })
+        const left = rows("moqui.basic.email.EmailIdentity", { emailAccountId: ownId }).map((row) => row.emailAddress)
+        return { shown, bad, added, identity, defaults, changed, after, backDefault, deleted, left }
+    },
+    then({ shown, bad, added, identity, defaults, changed, after, backDefault, deleted, left }) {
+        shown.errors == ""
+        !shown.broken
+        shown.output.includes("John Doe &lt;john.doe@moqui.org&gt;") || shown.output.includes("John Doe <john.doe@moqui.org>")
+        shown.output.includes("Ziziwork Support")
+        shown.output.includes("Add an identity")
+        bad.errors.includes("Enter the address to send as")
+        added.errors == ""
+        identity.signatureHtml.includes("Acme Sales")
+        !identity.signatureHtml.includes("script")
+        !identity.signatureHtml.includes("onclick")
+        identity.signaturePlacementEnumId == "EspAboveQuote"
+        identity.replyToAddress == "team@acme.example"
+        defaults == ["sales@acme.example"]
+        changed.errors == ""
+        after.displayName == "Acme Sales Team"
+        after.replyToAddress == null
+        after.useForReplies == "N"
+        after.signaturePlacementEnumId == "EspBelowQuote"
+        backDefault.errors == ""
+        deleted.errors == ""
+        left == ["rules@acme.example"]
+    },
+})
+
+feature("rules: the demo's in words with the blocked sender apart; a new rule saved, reordered, turned off, run on a folder; blocking and unblocking", {
+    when() {
+        const page = render("Comms/Settings/Rules", {})
+        const qvue = sys(() => {
+            const str = ec.screen.makeTest().rootScreen(comms).renderMode("qvue").render("Settings/Rules", {}, null)
+            ec.message.clearErrors()
+            return String(str.output || "")
+        })
+        const data = rules("rulesData", {}, "get")
+        const badRule = rules("saveRule", { ruleName: "Broken", emailAccountId: ownId, conditionsJson: JSON.stringify([{ field: "subject", operator: "contains", value: "" }]),
+            actionsJson: JSON.stringify([{ action: "markRead" }]) })
+        const saved = rules("saveRule", { ruleName: "Invoices to Archive", emailAccountId: ownId, matchAllEnumId: "ErmAll",
+            conditionsJson: JSON.stringify([{ field: "subject", operator: "contains", value: "invoice" }]),
+            actionsJson: JSON.stringify([{ action: "moveToFolder", value: ownArchive }, { action: "addLabel", value: "Invoices" }]), enabled: "Y", stopProcessing: "Y" })
+        ruleId = saved.json.emailRuleId
+        const order = () => rules("rulesData", {}, "get").json.ruleList.map((rule) => rule.ruleName)
+        const before = order()
+        const ids = rules("rulesData", {}, "get").json.ruleList.map((rule) => rule.emailRuleId)
+        const reordered = rules("reorderRules", { emailRuleIdsJson: JSON.stringify([ruleId].concat(ids.filter((id) => id != ruleId))) })
+        const afterOrder = order()
+        const off = rules("setEnabled", { emailRuleId: ruleId, enabled: "N" })
+        const offRule = one("moqui.basic.email.EmailRule", { emailRuleId: ruleId })
+        rules("setEnabled", { emailRuleId: ruleId, enabled: "Y" })
+        const run = rules("runRules", { emailFolderId: ownInbox })
+        const invoice = rows("moqui.basic.email.EmailMessage", { emailAccountId: ownId }).find((row) => row.subject == "Invoice 7 is due")
+        const hello = rows("moqui.basic.email.EmailMessage", { emailAccountId: ownId }).find((row) => row.subject == "Hello")
+        const label = rows("moqui.basic.email.EmailLabel", { emailAccountId: ownId }).find((row) => row.labelName == "Invoices")
+        const blocked = rules("blockAddress", { emailAddress: "Spammer <spam@junk.example>", emailAccountId: ownId })
+        blockId = blocked.json.emailRuleId
+        const withBlock = rules("rulesData", {}, "get").json
+        const unblocked = rules("deleteRule", { emailRuleId: blockId })
+        const withoutBlock = rules("rulesData", {}, "get").json
+        return { page, qvue, data: data.json, badRule, saved, before, reordered, afterOrder, off, offRule, run, invoice, hello, label, blocked, withBlock, unblocked, withoutBlock }
+    },
+    then({ page, qvue, data, badRule, saved, before, reordered, afterOrder, off, offRule, run, invoice, hello, label, blocked, withBlock, unblocked, withoutBlock }) {
+        page.status == 200
+        !page.broken
+        qvue.includes("module.exports")
+        qvue.includes("Blocked senders")
+        data.ruleList.map((rule) => rule.ruleName) == ["Receipts", "Newsletters", "Flag mail from Acme"]
+        data.ruleList[0].conditionText == 'Subject contains "receipt" or From starts with "billing@"'
+        data.ruleList[0].actionText == "Move to Receipts, Mark read"
+        data.ruleList[1].actionText == "Label Newsletters"
+        data.ruleList[2].enabled == false
+        data.blockedList.map((sender) => sender.emailAddress) == ["offers@deals.example"]
+        data.accountList.some((account) => account.emailAccountId == ownId && account.folderList.some((folder) => folder.value == ownArchive))
+        badRule.errors.includes("needs a value")
+        saved.errors == ""
+        before[before.length - 1] == "Invoices to Archive"
+        reordered.errors == ""
+        afterOrder[0] == "Invoices to Archive"
+        off.errors == ""
+        offRule.enabled == "N"
+        run.errors == ""
+        run.json.matchedCount == 1
+        invoice.emailFolderId == ownArchive
+        hello.emailFolderId == ownInbox
+        label != null
+        blocked.errors == ""
+        withBlock.blockedList.some((sender) => sender.emailAddress == "spam@junk.example")
+        !withBlock.ruleList.some((rule) => rule.emailRuleId == blockId)
+        unblocked.errors == ""
+        !withoutBlock.blockedList.some((sender) => sender.emailAddress == "spam@junk.example")
+    },
+})
+
+feature("out of office: the demo's reply shows off; turned on for three days it is on now, the Inbox says so; on every account at once; off again", {
+    when() {
+        const shown = render("Comms/Settings/OutOfOffice", { emailAccountId: DEMO })
+        const noBody = settings("OutOfOffice/storeReply", { emailAccountId: DEMO, enabled: "Y", bodyHtml: "<p></p>" })
+        const now = Date.now()
+        const on = settings("OutOfOffice/storeReply", { emailAccountId: DEMO, enabled: "Y", fromDate: fmt(now - 3600000), thruDate: fmt(now + 3 * 86400000),
+            subject: "Away", bodyHtml: '<p>Away until Thursday.</p><img src="x" onerror="alert(1)">', internalBodyHtml: "", replyOncePerDays: "2" })
+        const stored = one("moqui.basic.email.EmailOutOfOffice", { emailAccountId: DEMO })
+        const shownOn = render("Comms/Settings/OutOfOffice", { emailAccountId: DEMO })
+        const inbox = json("Inbox/Mail/inboxData", {}, null)
+        const all = settings("OutOfOffice/storeReply", { emailAccountId: DEMO, enabled: "Y", bodyHtml: "<p>Away.</p>", applyToAll: "Y" })
+        const supportReply = one("moqui.basic.email.EmailOutOfOffice", { emailAccountId: SUPPORT })
+        const ownReply = one("moqui.basic.email.EmailOutOfOffice", { emailAccountId: ownId })
+        for (const id of [DEMO, SUPPORT, ownId]) settings("OutOfOffice/turnOff", { emailAccountId: id })
+        const afterOff = rows("moqui.basic.email.EmailOutOfOffice", {}).filter((row) => [DEMO, SUPPORT, ownId].includes(row.emailAccountId) && row.enabled == "Y")
+        return { shown, noBody, on, stored, shownOn, inbox: inbox.json, all, supportReply, ownReply, afterOff }
+    },
+    then({ shown, noBody, on, stored, shownOn, inbox, all, supportReply, ownReply, afterOff }) {
+        shown.errors == ""
+        !shown.broken
+        shown.output.includes("Away until Monday")
+        shown.output.includes("Off.")
+        shown.output.includes("Support · off")
+        noBody.errors.includes("Write the reply people get")
+        on.errors == ""
+        stored.enabled == "Y"
+        stored.replyOncePerDays == 2
+        stored.internalBodyHtml == null
+        !stored.bodyHtml.includes("onerror")
+        shownOn.output.includes("On now, until")
+        inbox.outOfOfficeList.some((item) => item.emailAccountId == "BOSS_DEMO_MAIL_ACCT")
+        all.errors == ""
+        supportReply.enabled == "Y"
+        ownReply.enabled == "Y"
+        afterOff.length == 0
+    },
+})
+
+feature("text blocks: the demo's own and shared ones with a search; one added with its shortcut, changed and deleted; a bad shortcut refused", {
+    when() {
+        const shown = render("Comms/Settings/TextBlocks", {})
+        const found = render("Comms/Settings/TextBlocks", { searchText: "directions" })
+        const badShortcut = settings("TextBlocks/storeTextBlock", { title: "Hours", shortcut: "two words", bodyHtml: "<p>9 to 5</p>" })
+        const added = settings("TextBlocks/storeTextBlock", { title: "Opening hours", shortcut: "/hours", bodyHtml: "<p>9 to 5</p><script>x()</script>",
+            userGroupId: "BOSS_DEMO_OFFICE" })
+        const block = rows("moqui.basic.email.EmailTextBlock", { ownerUserId: "EX_JOHN_DOE" }).find((row) => row.title == "Opening hours")
+        textBlockId = block ? block.emailTextBlockId : null
+        const changed = settings("TextBlocks/storeTextBlock", { emailTextBlockId: textBlockId, title: "Opening hours", shortcut: "hours", bodyHtml: "<p>8 to 6</p>", userGroupId: "" })
+        const after = one("moqui.basic.email.EmailTextBlock", { emailTextBlockId: textBlockId })
+        const deleted = settings("TextBlocks/deleteTextBlock", { emailTextBlockId: textBlockId })
+        return { shown, found, badShortcut, added, block, changed, after, deleted, gone: one("moqui.basic.email.EmailTextBlock", { emailTextBlockId: textBlockId }) }
+    },
+    then({ shown, found, badShortcut, added, block, changed, after, deleted, gone }) {
+        shown.errors == ""
+        !shown.broken
+        shown.output.includes("Directions to the office")
+        shown.output.includes("Meeting follow-up")
+        shown.output.includes("Shared with Office team")
+        shown.output.includes("/directions")
+        found.output.includes("Directions to the office")
+        !found.output.includes("Meeting follow-up")
+        badShortcut.errors.includes("A shortcut is one word")
+        added.errors == ""
+        block.shortcut == "hours"
+        block.userGroupId == "BOSS_DEMO_OFFICE"
+        !block.bodyHtml.includes("script")
+        changed.errors == ""
+        after.userGroupId == null
+        after.bodyHtml == "<p>8 to 6</p>"
+        deleted.errors == ""
+        gone == null
+    },
+})
+
+feature("the Mail box of Preferences saves what the Inbox and Compose read", {
+    when() {
+        const shown = render("Commons/Settings/Preferences", {})
+        const bad = post(commons, "Settings/Preferences/saveMailDefaults", { readingPane: "left", markReadSeconds: "0", undoSeconds: "10", remoteImages: "ask" })
+        const saved = post(commons, "Settings/Preferences/saveMailDefaults", { readingPane: "bottom", markReadSeconds: "5", undoSeconds: "20", remoteImages: "always" })
+        const inbox = json("Inbox/Mail/inboxData", {}, null)
+        const compose = json("Inbox/Compose/composeData", {}, null)
+        const again = render("Commons/Settings/Preferences", {})
+        return { shown, bad, saved, prefs: inbox.json.prefs, compose: compose.json, again }
+    },
+    then({ shown, bad, saved, prefs, again }) {
+        shown.errors == ""
+        !shown.broken
+        shown.output.includes("Reading pane")
+        shown.output.includes("Undo send")
+        shown.output.includes("Pictures in mail")
+        bad.errors.includes("The reading pane is right, bottom or off")
+        saved.errors == ""
+        prefs.readingPane == "bottom"
+        prefs.markReadSeconds == 5
+        prefs.undoSeconds == 20
+        prefs.archiveOpensNext == false
+        prefs.remoteImages == "always"
+        again.output.includes("'readingPane':'bottom'")
+    },
+})
+
+feature("joe.developer changes none of john.doe's settings; he sees the shared text block and Support's identity without changing them", {
+    when() {
+        login("joe.developer")
+        const identities = render("Comms/Settings/Identities", {})
+        const storeOther = settings("Identities/storeIdentity", { emailAccountId: DEMO, emailAddress: "joe@moqui.org", displayName: "Joe" })
+        const changeSupport = settings("Identities/storeIdentity", { emailIdentityId: "BOSS_DEMO_MAIL_S_IDENT", emailAddress: "support@ziziwork.example", displayName: "Joe's support" })
+        const ruleChange = rules("saveRule", { emailRuleId: "BOSS_DEMO_MAIL_R_RECEIPTS", ruleName: "Mine" })
+        const ruleDelete = rules("deleteRule", { emailRuleId: "BOSS_DEMO_MAIL_R_NEWS" })
+        const ruleOn = rules("saveRule", { ruleName: "On his account", emailAccountId: DEMO, conditionsJson: JSON.stringify([{ field: "from", operator: "contains", value: "x" }]),
+            actionsJson: JSON.stringify([{ action: "markRead" }]) })
+        const reply = settings("OutOfOffice/storeReply", { emailAccountId: DEMO, enabled: "N", bodyHtml: "<p>x</p>" })
+        const blocks = render("Comms/Settings/TextBlocks", {})
+        const deleteShared = settings("TextBlocks/deleteTextBlock", { emailTextBlockId: "BOSS_DEMO_MAIL_TB_FOLLOWUP" })
+        const shareAdmin = settings("TextBlocks/storeTextBlock", { title: "Mine", userGroupId: "ADMIN" })
+        login("john.doe")
+        return { identities, storeOther, changeSupport, ruleChange, ruleDelete, ruleOn, reply, blocks, deleteShared, shareAdmin,
+            receipts: one("moqui.basic.email.EmailRule", { emailRuleId: "BOSS_DEMO_MAIL_R_RECEIPTS" }), support: one("moqui.basic.email.EmailIdentity", { emailIdentityId: "BOSS_DEMO_MAIL_S_IDENT" }) }
+    },
+    then({ identities, storeOther, changeSupport, ruleChange, ruleDelete, ruleOn, reply, blocks, deleteShared, shareAdmin, receipts, support }) {
+        identities.errors == ""
+        identities.output.includes("Ziziwork Support")
+        identities.output.includes("managed by its owner")
+        !identities.output.includes("john.doe@moqui.org")
+        storeOther.errors.includes("not found")
+        changeSupport.errors.includes("You may not change")
+        ruleChange.errors.includes("You may not change")
+        ruleDelete.errors.includes("You may not delete")
+        ruleOn.errors.includes("not found")
+        reply.errors.includes("not found")
+        blocks.output.includes("Meeting follow-up")
+        blocks.output.includes("From John Doe, shared with Office team")
+        !blocks.output.includes("Directions to the office")
+        deleteShared.errors.includes("not found")
+        shareAdmin.errors.includes("You are not in user group")
+        receipts.ruleName == "Receipts"
+        support.displayName == "Ziziwork Support"
+    },
+})

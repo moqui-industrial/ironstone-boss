@@ -90,6 +90,15 @@ const demoRecords = {
     "Comms/Panel/Chat": { text: "BossChatPanel" },
     "Comms/Settings/Chat": { text: "Do not disturb hours" },
     "Comms/Inbox/MessageDetail": { parameters: { emailMessageId: "BOSS_DEMO_MAIL_INVOICE" }, text: "Invoice INV-1042 is due on the 30th" },
+    // M5: Comms Home and the mail settings (the demo of load#MailSettingsDemo: the shared Support account whose sign-in failed,
+    // rules, an automatic reply, text blocks); the list, the account's page and the wizard's steps are a level deeper, inside
+    // MailAccounts' panel, which the client fills (test/MailAccounts.spec.js renders and walks them)
+    "Comms/Home": { text: "Needs reply" },
+    "Comms/Settings/Index": { text: "Identities and signatures" },
+    "Comms/Settings/MailAccounts/Account": { parameters: { emailAccountId: "BOSS_DEMO_MAIL_SUPPORT" } },
+    "Comms/Settings/Identities": { text: "Ziziwork Support" },
+    "Comms/Settings/OutOfOffice": { text: "Away until Monday" },
+    "Comms/Settings/TextBlocks": { text: "Directions to the office" },
     "Insights/ReportBuilder/Datasets": { text: "BOSS_DEMO_PRODUCTS" },
     "Insights/ReportBuilder/DatasetDetail": { parameters: { dataDocumentId: "BOSS_DEMO_PRODUCTS" }, text: "Products" },
     "Insights/ReportBuilder/DatasetDetail/FieldList": { parameters: { dataDocumentId: "BOSS_DEMO_PRODUCTS" }, text: "productName" },

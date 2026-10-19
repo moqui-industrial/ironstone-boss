@@ -27,7 +27,8 @@ along with this software (see the LICENSE.md file). If not, see
         <actions><script><![CDATA[
             const out = ec.service.sync().name('ironstone.InboxServices.get#InboxData').call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {accountList: out.accountList, internalEmailAccountId: out.internalEmailAccountId,
-                mailboxList: out.mailboxList, searchList: out.searchList, totals: out.totals, me: out.me, prefs: out.prefs, failedParts: out.failedParts})
+                mailboxList: out.mailboxList, searchList: out.searchList, totals: out.totals, me: out.me, prefs: out.prefs, failedParts: out.failedParts,
+                outOfOfficeList: out.outOfOfficeList})
         ]]></script></actions>
         <default-response type="none"/>
     </transition>

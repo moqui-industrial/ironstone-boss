@@ -178,13 +178,18 @@ along with this software (see the LICENSE.md file). If not, see
                                     <div class="text-subtitle2">{{t('Read your email here')}}</div>
                                     <div class="text-caption m-muted">{{t('Add a mail account (Gmail, Outlook, your own domain) to read and send email next to your internal messages.')}}</div>
                                 </div>
-                                <q-btn unelevated no-caps color="primary" :label="t('Add an account')" @click="go('/qapps/Comms/Settings/MailAccounts')"></q-btn>
+                                <q-btn unelevated no-caps color="primary" :label="t('Add an account')" @click="go('/qapps/Comms/Settings/MailAccounts/Add?fresh=Y')"></q-btn>
                             </q-card-section>
                         </q-card>
                         <q-banner v-for="account in warnedAccounts" :key="account.emailAccountId" dense class="q-ma-sm m-tonal text-warning" rounded>
                             <template v-slot:avatar><q-icon name="sym_o_warning"></q-icon></template>
                             {{account.accountName}}: {{account.warning === 'authFailed' ? t('the sign-in failed; mail is not syncing.') : (account.warning === 'paused' ? t('sync is paused.') : t('the last sync failed') + (account.lastSyncError ? ': ' + account.lastSyncError : '.'))}}
-                            <template v-slot:action><q-btn flat dense no-caps color="primary" :label="t('Fix')" @click="go('/qapps/Comms/Settings/MailAccounts')"></q-btn></template>
+                            <template v-slot:action><q-btn flat dense no-caps color="primary" :label="t('Fix')" @click="go(fixUrl(account))"></q-btn></template>
+                        </q-banner>
+                        <q-banner v-if="data.outOfOfficeList && data.outOfOfficeList.length" dense class="q-ma-sm m-tonal text-info" rounded>
+                            <template v-slot:avatar><q-icon name="sym_o_beach_access"></q-icon></template>
+                            {{t('Your automatic reply is on')}}: {{data.outOfOfficeList.map((item) => item.accountName).join(', ')}}
+                            <template v-slot:action><q-btn flat dense no-caps color="primary" :label="t('Change')" @click="go('/qapps/Comms/Settings/OutOfOffice?emailAccountId=' + encodeURIComponent(data.outOfOfficeList[0].emailAccountId))"></q-btn></template>
                         </q-banner>
                         <q-banner v-if="failedStores.length" dense class="q-ma-sm m-tonal text-warning" rounded>
                             {{failedStores.includes('email') ? t('Your mail could not be read just now; internal messages are shown.') : t('Internal messages could not be read just now; mail is shown.')}}
@@ -734,7 +739,7 @@ const railTemplate = '' +
                             '<div v-if="account.accountName !== account.emailAddress" class="text-caption m-muted ellipsis">{{account.emailAddress}}</div></q-item-section>' +
                         '<q-item-section side class="row no-wrap items-center">' +
                             '<q-spinner v-if="account.syncing" size="14px" color="info"><q-tooltip>{{t(\'Syncing…\')}}</q-tooltip></q-spinner>' +
-                            '<q-btn v-if="account.warning" dense flat no-caps size="sm" color="warning" icon="sym_o_warning" :label="t(\'Fix\')" @click.stop="inbox.go(\'/qapps/Comms/Settings/MailAccounts\')">' +
+                            '<q-btn v-if="account.warning" dense flat no-caps size="sm" color="warning" icon="sym_o_warning" :label="t(\'Fix\')" @click.stop="inbox.go(inbox.fixUrl(account))">' +
                                 '<q-tooltip>{{account.warning === \'authFailed\' ? t(\'The sign-in failed\') : (account.lastSyncError || t(\'The last sync failed\'))}}</q-tooltip></q-btn>' +
                             '<q-icon :name="inbox.collapsedAccounts[account.emailAccountId] ? \'sym_o_expand_more\' : \'sym_o_expand_less\'" size="18px"></q-icon>' +
                         '</q-item-section>' +
@@ -1052,6 +1057,10 @@ module.exports = {
             return list[list.length - 1] === 'Mail' ? this.$root.currentLinkPath : this.$root.linkBasePath + '/' + this.inboxPath();
         },
         go(target) { if (target) this.$root.setUrl(target); },
+        // a sign-in that failed: the account's page asks for the password again; another warning: its page
+        fixUrl(account) {
+            return '/qapps/Comms/Settings/MailAccounts/Account?emailAccountId=' + encodeURIComponent(account.emailAccountId) + (account.warning === 'authFailed' ? '&fix=Y' : '');
+        },
         request(name, params, method) {
             return moqui.request(this.url(name), { method: method || 'GET', params: params || {} }).then((result) => {
                 const json = result.json || {};
@@ -1479,7 +1488,7 @@ module.exports = {
         isTrusted(message) {
             if (message.store === 'internal') return true;
             const address = message.from && message.from.address ? String(message.from.address).toLowerCase() : null;
-            return !!address && ((this.data.prefs.trustedSenders || []).includes(address) || (message.from && message.from.isMe));
+            return !!address && (this.data.prefs.remoteImages === 'always' || (this.data.prefs.trustedSenders || []).includes(address) || (message.from && message.from.isMe));
         },
         onShowImages(message) { if (message.store === 'email' && message.from && message.from.address && !message.from.isMe) this.trustOffer = message.key; },
         trustSender(message) {

@@ -18,7 +18,10 @@ along with this software (see the LICENSE.md file). If not, see
     keys change the KEYMAP preference (JSON {scope: {action or keys: keys}}, set#KeymapOverride), which the shell reads when
     a page loads; and CalendarDefaults: how the calendar opens and new events start (the default view, the first day of the week, the
     working days and hours, the length and reminder of a new event, the default calendar, declined events and week numbers;
-    ironstone.CalendarServices.set#CalendarDefaults, which Calendar.qvue reads). Mail and sound defaults come with Mail. -->
+    ironstone.CalendarServices.set#CalendarDefaults, which Calendar.qvue reads); and MailDefaults: where the reading pane goes,
+    whether archive opens the next conversation, when an open message is marked read, how long Undo send waits and whether
+    pictures in mail show at once (ironstone.MailSettingsServices.set#MailDefaults, the preferences the Inbox and Compose
+    read). Sound defaults come later. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Preferences" default-menu-index="2">
 
@@ -40,6 +43,13 @@ along with this software (see the LICENSE.md file). If not, see
                     defaultCalendarId:(defaultCalendarId || null)}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(calendarOut.message, 'success')</script></if>
         </actions>
+        <default-response url="."/>
+        <error-response url="."/>
+    </transition>
+    <transition name="saveMailDefaults">
+        <service-call name="ironstone.MailSettingsServices.set#MailDefaults" in-map="{readingPane:readingPane, archiveOpensNext:(archiveOpensNext == 'Y' ? 'Y' : 'N'),
+                markReadSeconds:markReadSeconds, undoSeconds:undoSeconds, remoteImages:(remoteImages == 'always' ? 'always' : 'ask')}"/>
+        <actions><if condition="!ec.message.hasError()"><message type="success">Mail settings saved</message></if></actions>
         <default-response url="."/>
         <error-response url="."/>
     </transition>
@@ -70,6 +80,7 @@ along with this software (see the LICENSE.md file). If not, see
         <!-- the calendar defaults and the user's own personal calendars, one of which is the default -->
         <service-call name="ironstone.CalendarServices.get#CalendarDefaults" out-map="calendarDefaultsOut"/>
         <service-call name="mantle.work.CalendarServices.get#UserCalendars" out-map="userCalendarsOut"/>
+        <service-call name="ironstone.MailSettingsServices.get#MailDefaults" out-map="mailDefaultsOut"/>
         <script><![CDATA[
             const defaults = calendarDefaultsOut.defaults || {}
             calendarDefaults = {view: defaults.view, weekStart: String(defaults.weekStart ?? 0), workStart: defaults.workStart, workEnd: defaults.workEnd,
@@ -132,6 +143,28 @@ along with this software (see the LICENSE.md file). If not, see
                         </field-layout>
                     </form-single>
                     <label type="p" text="Your time zone is on your Account; the calendar shows every time in it." style="text-caption m-muted q-mb-none q-mt-sm"/>
+                </box-body></container-box>
+                <container-box><box-header title="Mail"/><box-body>
+                    <form-single name="MailDefaults" transition="saveMailDefaults" map="mailDefaultsOut.mailDefaults">
+                        <field name="readingPane"><default-field title="Reading pane"><radio>
+                            <option key="right" text="On the right"/><option key="bottom" text="Below the list"/><option key="off" text="Off: open a message on its own"/></radio></default-field></field>
+                        <field name="markReadSeconds"><default-field title="Mark a message read"><drop-down>
+                            <option key="0" text="As soon as it opens"/><option key="2" text="After 2 seconds"/><option key="5" text="After 5 seconds"/>
+                            <option key="10" text="After 10 seconds"/><option key="30" text="After 30 seconds"/></drop-down></default-field></field>
+                        <field name="undoSeconds"><default-field title="Undo send"><drop-down>
+                            <option key="0" text="Off: send at once"/><option key="5" text="5 seconds"/><option key="10" text="10 seconds"/>
+                            <option key="20" text="20 seconds"/><option key="30" text="30 seconds"/></drop-down></default-field></field>
+                        <field name="archiveOpensNext"><default-field title=""><check><option key="Y" text="After archive or delete, open the next conversation"/></check></default-field></field>
+                        <field name="remoteImages"><default-field title="Pictures in mail"><radio>
+                            <option key="ask" text="Ask first (senders can tell when you read their mail)"/><option key="always" text="Always show them"/></radio></default-field></field>
+                        <field name="saveButton"><default-field title="Save"><submit/></default-field></field>
+                        <field-layout>
+                            <field-ref name="readingPane"/>
+                            <field-row><field-ref name="markReadSeconds"/><field-ref name="undoSeconds"/></field-row>
+                            <field-ref name="archiveOpensNext"/><field-ref name="remoteImages"/><field-ref name="saveButton"/>
+                        </field-layout>
+                    </form-single>
+                    <label type="p" text="Accounts, signatures, rules and the automatic reply are in Comms settings." style="text-caption m-muted q-mb-none q-mt-sm"/>
                 </box-body></container-box>
             </row-col>
             <row-col lg="7" md="6">

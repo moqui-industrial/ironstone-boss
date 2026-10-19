@@ -1,0 +1,405 @@
+// The mail accounts of Comms Settings (screen/Comms/Settings/MailAccounts: List, the Add wizard and Account;
+// service/ironstone/MailSettingsServices.xml; design-drawers-commons.md §17 MailAccounts; impl-drawers-commons.md M5c): the wizard
+// step by step as its Next posts each step's form, with no network: the providers IronStone knows (Gmail, Outlook.com, iCloud,
+// Proton) and a reserved domain (acme.example) are answered without a lookup, and the servers are 127.0.0.1 port 1, where
+// nothing listens, so the test fails at once with what to try. Then the list (status, Fix, Continue setup), the account's page
+// (sign in again, servers, options, members, pause and resume, import of an .eml), and remove (keeping or deleting the mail
+// here). Another user (joe.developer) reaches none of john.doe's accounts; a member who does not manage one sees it but changes
+// nothing. Authorization stays on, as for a browser request; the password is never in a page.
+// Run: ./moq test ironstone-boss --spec MailAccounts
+const webroot = "component://webroot/screen/webroot.xml"
+const comms = "component://ironstone-boss/screen/Comms.xml"
+const SETTINGS = "ironstone.MailSettingsServices"
+const BASE = "Settings/MailAccounts"
+const PASSWORD = "s3cret-app-pass"
+
+function render(path, parameters) {
+    const str = ec.screen.makeTest().rootScreen(webroot).renderMode("qvt").render(`apps/Comms/${BASE}/${path}`, Object.assign({ lastStandalone: "true" }, parameters || {}), null)
+    const output = String(str.output || "")
+    ec.message.clearErrors()
+    return { status: str.status, errors: str.errorMessages.join(" | "), output, broken: /Error rendering|Exception in render/.test(output) }
+}
+function post(path, parameters) {
+    const str = ec.screen.makeTest().rootScreen(comms).render(`${BASE}/${path}`, parameters || {}, "post")
+    const output = String(str.output || "")
+    ec.message.clearErrors()
+    return { status: str.status, errors: str.errorMessages.join(" | "), output }
+}
+function sys(run) {
+    const wasDisabled = ec.artifactExecution.disableAuthz()
+    try { return run() } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+}
+const accountOf = (address) => sys(() => {
+    const rows = Array.from(ec.entity.find("moqui.basic.email.EmailAccount").condition("ownerUserId", "EX_JOHN_DOE").condition("emailAddress", address)
+        .orderBy("-emailAccountId").list())
+    return rows.length ? rows[0] : null
+})
+const serverOf = (account) => sys(() => ec.entity.find("moqui.basic.email.EmailServer").condition("emailServerId", account.emailServerId).one())
+const local = { storeKind: "imap", storeSecurity: "ssl", storeHost: "127.0.0.1", storePort: "1", smtpHost: "127.0.0.1", smtpPort: "1", smtpSecurity: "none" }
+let personalId, sharedId
+
+spec({
+    stepwise: true,
+    setupSpec() { login("john.doe") },
+    cleanupSpec() { login("john.doe") },
+})
+
+feature("the wizard has five steps, Address first; the list and the account's page render", {
+    when() {
+        const wizard = sys(() => {
+            const str = ec.screen.makeTest().rootScreen("component://ironstone-boss/screen/Comms/Settings/MailAccounts/Add.xml").renderMode("qvt").render("", {}, null)
+            const output = String(str.output || "")
+            ec.message.clearErrors()
+            return { status: str.status, errors: str.errorMessages.join(" | "), output }
+        })
+        return { wizard, address: render("Add/Address", {}), connect: render("Add/Connect", {}), list: render("List", {}),
+            demo: render("Account", { emailAccountId: "BOSS_DEMO_MAIL_ACCT" }) }
+    },
+    then({ wizard, address, connect, list, demo }) {
+        wizard.status == 200
+        wizard.errors == ""
+        wizard.output.includes("m-subscreens-wizard")
+        wizard.output.includes('finish-text="Start syncing"')
+        address.errors == ""
+        !address.broken
+        address.output.includes("Whose mail is it?")
+        address.output.includes("Shared: a team address")
+        connect.output.includes("Start with your email address")
+        list.errors == ""
+        !list.broken
+        list.output.includes("Internal messages")
+        list.output.includes("Local only")
+        demo.errors == ""
+        demo.output.includes("john.doe@moqui.org")
+        demo.output.includes("Clients")
+    },
+})
+
+feature("the servers of a known provider and of a reserved domain come without a lookup; a bad address and Proton Mail are refused", {
+    when() {
+        const suggest = (address) => sys(() => call(`${SETTINGS}.suggest#MailServer`, { emailAddress: address }).suggestion)
+        const started = Date.now()
+        const gmail = suggest("jane.roe@gmail.com"), outlook = suggest("jane.roe@hotmail.com"), icloud = suggest("jane@me.com"), acme = suggest("pat@acme.example")
+        const elapsed = Date.now() - started
+        const bad = post("Add/Address/findServers", { emailAddress: "not an address", accountKindEnumId: "EakExternal" })
+        const proton = post("Add/Address/findServers", { emailAddress: "jane@proton.me", accountKindEnumId: "EakExternal" })
+        const found = post("Add/Address/findServers", { emailAddress: "jane.roe@gmail.com", displayName: "Jane Roe", accountKindEnumId: "EakExternal" })
+        return { gmail, outlook, icloud, acme, elapsed, bad, proton, found }
+    },
+    then({ gmail, outlook, icloud, acme, elapsed, bad, proton, found }) {
+        gmail.source == "provider"
+        gmail.providerName == "Gmail"
+        gmail.storeHost == "imap.gmail.com"
+        gmail.storePort == "993"
+        gmail.storeSecurity == "ssl"
+        gmail.smtpHost == "smtp.gmail.com"
+        gmail.smtpPort == "465"
+        gmail.smtpSecurity == "ssl"
+        gmail.appPassword
+        gmail.helpUrl == "https://myaccount.google.com/apppasswords"
+        gmail.helpText.includes("2-Step Verification")
+        outlook.storeHost == "outlook.office365.com"
+        outlook.smtpHost == "smtp-mail.outlook.com"
+        outlook.smtpSecurity == "starttls"
+        outlook.helpText.includes("Microsoft sign-in")
+        icloud.storeHost == "imap.mail.me.com"
+        icloud.smtpPort == "587"
+        acme.source == "guess"
+        acme.storeHost == "imap.acme.example"
+        acme.smtpHost == "smtp.acme.example"
+        acme.sourceText.includes("guesses")
+        elapsed < 2000
+        bad.errors.includes("Enter your whole email address")
+        proton.errors.includes("Proton Mail Bridge")
+        found.errors == ""
+    },
+})
+
+feature("Connect shows the provider's app-password help and the servers; Next without a password is refused, with one it makes the account, paused", {
+    when() {
+        const shown = render("Add/Connect", { emailAddress: "jane.roe@gmail.com", displayName: "Jane Roe", accountKindEnumId: "EakExternal",
+            storeKind: "imap", storeSecurity: "ssl", storeHost: "imap.gmail.com", storePort: "993", smtpHost: "smtp.gmail.com", smtpPort: "465",
+            smtpSecurity: "ssl", mailUsername: "jane.roe@gmail.com", source: "provider" })
+        const parameters = Object.assign({ emailAddress: "pat@acme.example", displayName: "Pat Doe", accountKindEnumId: "EakExternal",
+            mailUsername: "pat@acme.example" }, local)
+        const noPassword = post("Add/Connect/saveConnection", parameters)
+        const badPort = post("Add/Connect/saveConnection", Object.assign({}, parameters, { storePort: "99999", mailPassword: PASSWORD }))
+        const saved = post("Add/Connect/saveConnection", Object.assign({}, parameters, { mailPassword: PASSWORD }))
+        const account = accountOf("pat@acme.example")
+        personalId = account ? account.emailAccountId : null
+        const server = account ? serverOf(account) : null
+        const identity = personalId ? sys(() => ec.entity.find("moqui.basic.email.EmailIdentity").condition("emailAccountId", personalId).one()) : null
+        // back to Connect: the account's own settings, the password never shown
+        const back = render("Add/Connect", { emailAccountId: personalId })
+        return { shown, noPassword, badPort, saved, account, server, identity, back }
+    },
+    then({ shown, noPassword, badPort, saved, account, server, identity, back }) {
+        shown.errors == ""
+        !shown.broken
+        shown.output.includes("Make a Google app password")
+        shown.output.includes("https://myaccount.google.com/apppasswords")
+        shown.output.includes("App password")
+        shown.output.includes("imap.gmail.com")
+        shown.output.includes("IronStone knows the server settings of your provider")
+        noPassword.errors.includes("Enter the password")
+        badPort.errors.includes("A port is a number from 1 to 65535")
+        saved.errors == ""
+        account != null
+        account.statusId == "EasPaused"
+        account.accountKindEnumId == "EakExternal"
+        account.recordFilingEnumId == "ErfLinkedOnly"
+        account.syncWindowDays == 365
+        server.storeHost == "127.0.0.1"
+        server.storeProtocol == "imaps"
+        server.smtpSsl == "N"
+        server.smtpStartTls == "N"
+        server.mailUsername == "pat@acme.example"
+        server.mailPassword == PASSWORD
+        identity.displayName == "Pat Doe"
+        back.errors == ""
+        back.output.includes("Saved. Leave it empty to keep it")
+        back.output.includes("127.0.0.1")
+        !back.output.includes(PASSWORD)
+    },
+})
+
+feature("Test fails at once on a server that is not there, with what to try; Next needs Continue anyway", {
+    when() {
+        const shown = render("Add/Test", { emailAccountId: personalId })
+        const tested = sys(() => call(`${SETTINGS}.test#MailAccount`, { emailAccountId: personalId }))
+        const refused = post("Add/Test/confirmTest", { emailAccountId: personalId, testPassed: "N" })
+        const anyway = post("Add/Test/confirmTest", { emailAccountId: personalId, testPassed: "N", continueAnyway: "Y" })
+        return { shown, tested, refused, anyway }
+    },
+    then({ shown, tested, refused, anyway }) {
+        shown.errors == ""
+        !shown.broken
+        shown.output.includes("It did not work yet")
+        shown.output.includes("Sending mail (SMTP)")
+        shown.output.includes("Receiving mail: signing in")
+        shown.output.includes("Continue anyway")
+        tested.success == false
+        tested.stepList.length == 2
+        tested.stepList.every((step) => !step.ok && step.hint)
+        tested.stepList.some((step) => step.hint.includes("Nothing answers on that port"))
+        tested.adviceText.includes("Go back to fix what failed")
+        refused.errors.includes("The test did not pass")
+        anyway.errors == ""
+    },
+})
+
+feature("Options saves the name, the sync window and the filing; a personal account has no members", {
+    when() {
+        const shown = render("Add/Options", { emailAccountId: personalId })
+        const saved = post("Add/Options/saveOptions", { emailAccountId: personalId, accountName: "Acme", syncWindowDays: "90", recordFilingEnumId: "ErfAllMatches" })
+        const members = post("Add/Options/saveOptions", { emailAccountId: personalId, memberUserIds: "ORG_ZIZI_JD" })
+        const all = post("Add/Options/saveOptions", { emailAccountId: personalId, syncWindowDays: "all" })
+        const account = accountOf("pat@acme.example")
+        post("Add/Options/saveOptions", { emailAccountId: personalId, syncWindowDays: "90" })
+        return { shown, saved, members, all, account, after: accountOf("pat@acme.example") }
+    },
+    then({ shown, saved, members, all, account, after }) {
+        shown.errors == ""
+        shown.output.includes("Only what I link")
+        shown.output.includes("Every message with a known contact")
+        !shown.output.includes("Add people who share it")
+        saved.errors == ""
+        members.errors.includes("Only a shared account has members")
+        all.errors == ""
+        account.accountName == "Acme"
+        account.recordFilingEnumId == "ErfAllMatches"
+        account.syncWindowDays == null
+        after.syncWindowDays == 90
+    },
+})
+
+feature("Finish makes the account active and starts its first sync; its page says so, with the way to the Inbox", {
+    when() {
+        const review = render("Add/Finish", { emailAccountId: personalId })
+        const finished = post("Add/Finish/finishSetup", { emailAccountId: personalId })
+        const account = accountOf("pat@acme.example")
+        const page = render("Account", { emailAccountId: personalId, setup: "done" })
+        return { review, finished, account, page }
+    },
+    then({ review, finished, account, page }) {
+        review.errors == ""
+        review.output.includes("IMAP 127.0.0.1:1")
+        review.output.includes("the last 3 months")
+        finished.errors == ""
+        // the sync on a worker fails at once on port 1 (EasError) or has not run yet
+        ["EasActive", "EasError"].includes(account.statusId)
+        page.errors == ""
+        page.output.includes("Your account is set up")
+        page.output.includes("Open the Inbox")
+        !page.output.includes(PASSWORD)
+    },
+})
+
+feature("a shared account: the kind changes while its setup is not finished, members are added, and the list says to continue its setup", {
+    when() {
+        const parameters = Object.assign({ emailAddress: "support@acme.example", displayName: "Acme Support", mailPassword: PASSWORD }, local)
+        post("Add/Connect/saveConnection", Object.assign({ accountKindEnumId: "EakExternal" }, parameters))
+        const first = accountOf("support@acme.example")
+        // back to Address, now shared: the unfinished account is made again
+        const again = post("Add/Connect/saveConnection", Object.assign({ emailAccountId: first.emailAccountId, accountKindEnumId: "EakShared" }, parameters))
+        const account = accountOf("support@acme.example")
+        sharedId = account.emailAccountId
+        const firstGone = sys(() => ec.entity.find("moqui.basic.email.EmailAccount").condition("emailAccountId", first.emailAccountId).count())
+        const options = render("Add/Options", { emailAccountId: sharedId })
+        const added = post("Add/Options/saveOptions", { emailAccountId: sharedId, memberUserIds: "ORG_ZIZI_JD", memberPermissionEnumId: "EapSend" })
+        const memberRows = sys(() => Array.from(ec.entity.find("moqui.basic.email.EmailAccountUser").condition("emailAccountId", sharedId).list()))
+        const list = render("List", {})
+        return { again, account, firstGone, options, added, memberRows, list }
+    },
+    then({ again, account, firstGone, options, added, memberRows, list }) {
+        again.errors == ""
+        account.accountKindEnumId == "EakShared"
+        account.recordFilingEnumId == "ErfAllMatches"
+        account.statusId == "EasPaused"
+        firstGone == 0
+        options.output.includes("Add people who share it")
+        added.errors == ""
+        memberRows.length == 1
+        memberRows[0].userId == "ORG_ZIZI_JD"
+        memberRows[0].permissionEnumId == "EapSend"
+        list.errors == ""
+        list.output.includes("Setup not finished")
+        list.output.includes("Continue setup")
+        list.output.includes("support@acme.example")
+        list.output.includes("Members: Joe Developer")
+    },
+})
+
+feature("a sign-in that failed: the list offers Fix, the page asks for the password again, saves it and tests at once", {
+    when() {
+        sys(() => ec.entity.find("moqui.basic.email.EmailAccount").condition("emailAccountId", sharedId).updateAll({ statusId: "EasAuthFailed",
+            lastSyncDate: new Date(), lastSyncError: "IMAP 127.0.0.1:1: Authentication failed" }))
+        const list = render("List", {})
+        const page = render("Account", { emailAccountId: sharedId, fix: "Y" })
+        const empty = post("Account/savePassword", { emailAccountId: sharedId, emailAddress: "support@acme.example", mailPassword: "" })
+        const saved = post("Account/savePassword", { emailAccountId: sharedId, emailAddress: "support@acme.example", mailPassword: "new-app-pass" })
+        const server = serverOf(accountOf("support@acme.example"))
+        const tested = render("Account", { emailAccountId: sharedId, runTest: "Y" })
+        return { list, page, empty, saved, server, tested }
+    },
+    then({ list, page, empty, saved, server, tested }) {
+        list.output.includes("Sign-in failed")
+        list.output.includes("Fix the sign-in")
+        page.errors == ""
+        page.output.includes("Sign in again")
+        page.output.includes("Authentication failed")
+        page.output.includes("Save and test")
+        empty.errors.includes("Enter the password")
+        saved.errors == ""
+        server.mailPassword == "new-app-pass"
+        tested.errors == ""
+        tested.output.includes("The connection did not work")
+        !tested.output.includes("new-app-pass")
+    },
+})
+
+feature("the account's page: pause and resume, servers, members, and an .eml imported once into a folder", {
+    when() {
+        sys(() => ec.entity.find("moqui.basic.email.EmailAccount").condition("emailAccountId", personalId).updateAll({ statusId: "EasActive",
+            lastSyncDate: new Date(), lastSyncError: null }))
+        const paused = post("Account/pause", { emailAccountId: personalId })
+        const pausedStatus = accountOf("pat@acme.example").statusId
+        const resumed = post("Account/resume", { emailAccountId: personalId })
+        const resumedStatus = accountOf("pat@acme.example").statusId
+        const servers = post("Account/saveServers", Object.assign({ emailAccountId: personalId, emailAddress: "pat@acme.example", accountKindEnumId: "EakExternal",
+            mailUsername: "pat" }, local, { storeKind: "pop", storeSecurity: "ssl" }))
+        const server = serverOf(accountOf("pat@acme.example"))
+        const permission = post("Account/setMemberPermission", { emailAccountId: sharedId, userId: "ORG_ZIZI_JD", permissionEnumId: "EapRead" })
+        const memberRow = sys(() => ec.entity.find("moqui.basic.email.EmailAccountUser").condition("emailAccountId", sharedId).condition("userId", "ORG_ZIZI_JD").list()[0])
+        const inbox = sys(() => ec.entity.find("moqui.basic.email.EmailFolder").condition("emailAccountId", personalId).condition("folderKindEnumId", "EfkInbox").one())
+        const eml = "From: Ada <ada@acme.example>\r\nTo: pat@acme.example\r\nSubject: Imported hello\r\nMessage-ID: <imported-1@acme.example>\r\nDate: Mon, 12 Oct 2026 10:00:00 +0000\r\n\r\nHello from an eml file.\r\n"
+        const imported = post("Account/importMail", { emailAccountId: personalId, emailFolderId: inbox.emailFolderId, mailFile: uploadedFile("hello.eml", eml, "message/rfc822") })
+        const again = post("Account/importMail", { emailAccountId: personalId, emailFolderId: inbox.emailFolderId, mailFile: uploadedFile("hello.eml", eml, "message/rfc822") })
+        const messages = sys(() => Array.from(ec.entity.find("moqui.basic.email.EmailMessage").condition("emailAccountId", personalId).list()))
+        const page = render("Account", { emailAccountId: sharedId })
+        return { paused, pausedStatus, resumed, resumedStatus, servers, server, permission, memberRow, imported, again, messages, page }
+    },
+    then({ paused, pausedStatus, resumed, resumedStatus, servers, server, permission, memberRow, imported, again, messages, page }) {
+        paused.errors == ""
+        pausedStatus == "EasPaused"
+        resumed.errors == ""
+        resumedStatus == "EasActive"
+        servers.errors == ""
+        server.storeProtocol == "pop3s"
+        server.mailUsername == "pat"
+        server.mailPassword == PASSWORD
+        permission.errors == ""
+        memberRow.permissionEnumId == "EapRead"
+        imported.errors == ""
+        again.errors == ""
+        messages.length == 1
+        messages[0].subject == "Imported hello"
+        page.output.includes("Shared with")
+        page.output.includes("Joe Developer")
+        page.output.includes("Remove the account")
+    },
+})
+
+feature("another user reaches none of john.doe's accounts; a member who only reads sees the shared one and may leave it", {
+    when() {
+        login("joe.developer")
+        const page = render("Account", { emailAccountId: personalId })
+        const connect = post("Add/Connect/saveConnection", Object.assign({ emailAccountId: personalId, emailAddress: "pat@acme.example", accountKindEnumId: "EakExternal",
+            mailPassword: "stolen" }, local))
+        const test = render("Add/Test", { emailAccountId: personalId })
+        const options = post("Add/Options/saveOptions", { emailAccountId: personalId, accountName: "Mine now" })
+        const finish = post("Add/Finish/finishSetup", { emailAccountId: personalId })
+        const remove = post("Account/removeAccount", { emailAccountId: personalId, deleteLocalCopies: "Y" })
+        const password = post("Account/savePassword", { emailAccountId: personalId, emailAddress: "pat@acme.example", mailPassword: "stolen" })
+        const list = render("List", {})
+        const shared = render("Account", { emailAccountId: sharedId })
+        const sharedServers = post("Account/saveServers", Object.assign({ emailAccountId: sharedId, emailAddress: "support@acme.example", accountKindEnumId: "EakShared" }, local))
+        const addSelf = post("Account/addMembers", { emailAccountId: sharedId, memberUserIds: "ORG_ZIZI_BD" })
+        login("john.doe")
+        const account = accountOf("pat@acme.example")
+        const server = serverOf(account)
+        return { page, connect, test, options, finish, remove, password, list, shared, sharedServers, addSelf, account, server }
+    },
+    then({ page, connect, test, options, finish, remove, password, list, shared, sharedServers, addSelf, account, server }) {
+        page.output.includes("not found")
+        !page.output.includes("pat@acme.example")
+        connect.errors.includes("not found")
+        test.output.includes("not found")
+        options.errors.includes("not found")
+        finish.errors.includes("not found")
+        remove.errors.includes("not found")
+        password.errors.includes("not found")
+        !list.output.includes("pat@acme.example")
+        list.output.includes("support@acme.example")
+        shared.errors == ""
+        shared.output.includes("Leave this account")
+        !shared.output.includes("Sign-in and servers")
+        !shared.output.includes("Remove the account")
+        sharedServers.errors.includes("You may not change")
+        addSelf.errors.includes("may not")
+        account.accountName == "Acme"
+        account.statusId == "EasActive"
+        server.mailPassword == PASSWORD
+    },
+})
+
+feature("remove: keeping the mail here takes the account out of the lists; deleting removes it and its mail here", {
+    when() {
+        const kept = post("Account/removeAccount", { emailAccountId: sharedId, deleteLocalCopies: "N" })
+        const keptRow = sys(() => ec.entity.find("moqui.basic.email.EmailAccount").condition("emailAccountId", sharedId).one())
+        const deleted = post("Account/removeAccount", { emailAccountId: personalId, deleteLocalCopies: "Y" })
+        const deletedCount = sys(() => ec.entity.find("moqui.basic.email.EmailAccount").condition("emailAccountId", personalId).count())
+        const messageCount = sys(() => ec.entity.find("moqui.basic.email.EmailMessage").condition("emailAccountId", personalId).count())
+        const list = render("List", {})
+        return { kept, keptRow, deleted, deletedCount, messageCount, list }
+    },
+    then({ kept, keptRow, deleted, deletedCount, messageCount, list }) {
+        kept.errors == ""
+        keptRow.statusId == "EasRemoved"
+        deleted.errors == ""
+        deletedCount == 0
+        messageCount == 0
+        !list.output.includes("support@acme.example")
+        !list.output.includes("pat@acme.example")
+    },
+})
