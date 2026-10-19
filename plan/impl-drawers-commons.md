@@ -111,12 +111,12 @@ Each finding was verified in the code. Each resolution is now part of the design
 | M2 Today, notifications, quick create | mr-moqui, Mantle, BOSS | TodayPanel, NotificationsPanel, Notifications, QuickCreate, Commons Home, Settings, Account, Preferences, NotificationSettings | done Oct 19 |
 | M3 Record links, Chatter, record files | mr-moqui, Mantle, BOSS | Chatter, RecordFiles | done Oct 19 |
 | M4 Contacts | mr-moqui, Mantle, BOSS | Contacts, ContactDetail, ContactImport, Duplicates, ContactBooks | done Oct 19 |
-| M5 Mail (M5a–M5f) | mr-moqui, Mantle, BOSS | Inbox, Compose, MessageDetail, Comms Home, MailAccounts, Identities, Rules, OutOfOffice, TextBlocks | M5a, M5c services and M5d done (model, client services, internal messages, mailboxes, Inbox merge and filing, IMAP and POP sync, rules, import, `m-html-view`, mail search, out-of-office, unsubscribe); BOSS Inbox, Compose and MessageDetail under way; Comms Home and settings screens, M5e and M5f not started |
+| M5 Mail (M5a–M5f) | mr-moqui, Mantle, BOSS | Inbox, Compose, MessageDetail, Comms Home, MailAccounts, Identities, Rules, OutOfOffice, TextBlocks | M5a–M5d done; BOSS Inbox, Compose and MessageDetail done Oct 19; Comms Home and the mail settings screens, M5e (OAuth) and M5f (SMTP listener) not started |
 | M6 Tasks and requests | BOSS | Tasks, TaskDetail, Requests, RequestDetail | done Oct 19 |
-| M7 Calendar and schedules | mr-moqui, Mantle, BOSS | Calendar, EventDetail, Schedules, ResourceDetail, Calendars | Mantle and framework (ICalendar tool) done; BOSS screens not started |
+| M7 Calendar and schedules | mr-moqui, Mantle, BOSS | Calendar, EventDetail, Schedules, ResourceDetail, Calendars | done Oct 19 (the Inbox iMIP card with M5) |
 | M8 Files and drives | mr-moqui, BOSS | Files, Drives, Shares, PublicShare | framework done (drives, shares and links, trash, versions, change sets, the git path index, FileServices, token routes and the public shell); BOSS screens not started |
 | M9 Knowledge and notes | mr-moqui, BOSS | Knowledge, Spaces, Review, Notes | not started |
-| M10 Chat and presence | mr-moqui, Mantle, BOSS | Chat, ChatPanel, ChatSettings | framework under way |
+| M10 Chat and presence | mr-moqui, Mantle, BOSS | Chat, ChatPanel, ChatSettings | framework done (rooms, timeline, presence, the chat store); Mantle and BOSS not started |
 | M11 Consent and unsubscribe | mr-moqui, Mantle, BOSS | Consent, Unsubscribe | Mantle done; BOSS screens and the public page not started |
 
 ### M0 — Foundations (mr-moqui, BOSS)
@@ -385,6 +385,21 @@ Built Oct 19:
 
 M5 leaves two gaps, closed later: the iMIP card comes in M7 and "Attach from Files" in M8.
 
+Built Oct 19 (M5 remainder and BOSS screens):
+- **Commits:** mr-moqui 43c75ad (`m-html-view`, mail search with operators, out-of-office replies, one-click
+  unsubscribe, server drafts, snoozed threads woken by new mail) and 2bbe78d (`save#Draft` attachment locations);
+  Mantle 733bab7 (the search line on internal threads, the comments view, `needsReply`); BOSS 6619a1b.
+- **What the build added or settled:**
+  - `Comms/Inbox` wraps the subscreen `Inbox/Mail` (`Mail.qvue`), because a `.qvue` screen cannot host the
+    subscreens of its own path. `Comms/Inbox` and `?view=internal` still work.
+  - The iMIP card (Accept, Tentative, Decline) is built in the reading pane.
+  - Internal messages have no labels or folders. Delete on an internal thread archives it.
+  - "All in this view" acts on every conversation of the view, with no count. Sync shows a chip, not a progress count.
+  - Not built: the quota line, phone swipe actions, contact groups that expand in the recipients, the Assist
+    actions and Save to Files (M8).
+  - `save#Draft` takes as attachments only the draft's own files and files under the account's mail folder;
+    an internal caller with authorization disabled may name any.
+
 ### M6 — Tasks and requests (BOSS on existing Mantle)
 
 - Tasks (smart lists, quick-add row, bulk actions), TaskDetail, Requests and RequestDetail, rewritten from the M0
@@ -425,6 +440,17 @@ Built Oct 19:
   Settings/Calendars and Preferences CalendarDefaults; the Inbox ImipCard; meetings on Comms Home.
 - **Specs:** `CalendarServices.spec.js`. It covers recurrence with overrides, RSVP, free/busy, booking with and without
   a policy, reminders, and an ICS round trip.
+
+Built Oct 19 (BOSS screens):
+- **Commit:** BOSS 5c85b7a, with the Calendar, EventDetail, Schedules and CalendarSettings specs.
+- **What the build added or settled:**
+  - The grid, drag, resize and overlap layout are built in `Calendar.qvue`; FullCalendar is not vendored.
+  - Calendar colors are user data, so events use them inline (an exception to style-guide §4.8).
+  - Changing or cancelling one occurrence, this and following, or all is in `ironstone.CalendarServices` until Mantle
+    has services for it. Delete cancels an event (`WeCancelled`).
+  - Saving the working hours in Preferences writes a weekly `WetAvailable` work effort, so `get#FreeBusy` and Find a
+    time keep to them.
+  - Not built: publish links, the CalDAV address and a room capacity filter.
 
 ### M8 — Files and drives (mr-moqui, BOSS)
 
