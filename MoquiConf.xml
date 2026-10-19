@@ -1,6 +1,14 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!-- No copyright or license for configuration file, details here are not considered a creative work. -->
 <moqui-conf xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/moqui-conf-3.xsd">
+    <!-- the public page of a file or folder shared by link (design-drawers-commons.md §9 PublicShare; impl R16): /s/<token> in
+        the public shell, after the token check; screen/PublicShare.xml checks the token again in every call -->
+    <webapp-list>
+        <webapp name="webroot">
+            <token-route name="s" screen-location="component://ironstone-boss/screen/PublicShare.xml"
+                    token-service="org.moqui.impl.FileServices.check#PublicShareToken" title="Shared files"/>
+        </webapp>
+    </webapp-list>
     <screen-facade>
         <!-- the IronStone apps, each a root under the apps screen mounted by its own name, so a design path such as
             Commons/Tasks is the URL /qapps/Commons/Tasks -->

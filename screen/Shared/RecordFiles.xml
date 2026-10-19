@@ -15,9 +15,11 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- RecordFiles (design-drawers-commons.md §9 RecordFiles; style-guide §3.14 Panel, §4.8 .qvue): the files of a record. Every
     BOSS app root mounts this file hidden as its RecordFiles subscreen (the theme value STRT_RECORD_FILES_SCREEN), and the
     record-files element loads it there as its own request, <app>/RecordFiles.qvue?recordEntity=&recordId=&appRoot=, so the
-    app's authorization and entity filters apply (IronStone R5). The component is RecordFiles.qvue next to this file. Until
-    Files and drives (M8) the files are the record's *Content rows, through service/ironstone/RecordFilesServices.xml: list,
-    upload (dispatched to the record type's Mantle create#XContent and save#XContentFile), preview and download, remove. -->
+    app's authorization and entity filters apply (IronStone R5). The component is RecordFiles.qvue next to this file. The files
+    are the record's *Content rows, through service/ironstone/RecordFilesServices.xml: list, upload (dispatched to the record
+    type's Mantle create#XContent and save#XContentFile), preview and download, remove; and (Files and drives, M8) the record's
+    folder in the records drive through FileServices: each file's versions (download, restore, a new version), the folder's
+    other files, files added from Files (the picker of template/FilePickerTransitions.xml) and Open in Files. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Files" default-menu-include="false" render-modes="vue,qvue" server-static="vue,qvue">
 
@@ -35,7 +37,8 @@ along with this software (see the LICENSE.md file). If not, see
                 recordId: recordId}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {visible: true, record: {title: recordOut.title, typeLabel: recordOut.typeLabel},
                 hasContent: out.hasContent, canUpload: out.canUpload, fileList: out.fileList, fileCount: out.fileCount, typeOptions: out.typeOptions,
-                defaultTypeId: out.defaultTypeId})
+                defaultTypeId: out.defaultTypeId, recordsDriveId: out.recordsDriveId, recordFolderPath: out.recordFolderPath, filesUrl: out.filesUrl,
+                extraList: out.extraList})
         ]]></script></actions>
         <default-response type="none"/>
     </transition>
@@ -59,6 +62,59 @@ along with this software (see the LICENSE.md file). If not, see
         ]]></script></actions>
         <default-response type="none"/>
     </transition>
+    <!-- ========== the record's folder in the records drive (M8) ========== -->
+    <transition name="versions" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.RecordFilesServices.get#RecordFileVersions').parameters({recordEntityName: recordEntity || '',
+                recordId: recordId || '', drivePath: drivePath || ''}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {versionList: out.versionList, canChange: out.canChange})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- a file of the record's folder or a past version of it, inline only for a picture or a PDF -->
+    <transition name="driveDownload" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.RecordFilesServices.get#RecordDriveFile').parameters({recordEntityName: recordEntity || '',
+                recordId: recordId || '', drivePath: drivePath || '', versionName: versionName || null}).call()
+            if (ec.message.hasError() || !out.location) ec.web.sendJsonResponse({})
+            else ec.web.sendResourceResponse(out.location, String(inline) === 'true' && out.inlineAllowed)
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="uploadVersion">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.RecordFilesServices.upload#RecordFileVersion').parameters({recordEntityName: recordEntity,
+                recordId: recordId, drivePath: drivePath || '', contentFile: contentFile || null, versionNote: versionNote || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {versionName: out.versionName, messageInfos: [{type: 'success', message: out.message}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="restoreVersion">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.RecordFilesServices.restore#RecordFileVersion').parameters({recordEntityName: recordEntity,
+                recordId: recordId, drivePath: drivePath || '', versionName: versionName || ''}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: out.message}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- files picked in Files, copied to the record -->
+    <transition name="addFromFiles">
+        <actions><script><![CDATA[
+            let items = []
+            try { items = JSON.parse(itemsJson || '[]') } catch (err) { items = [] }
+            const out = ec.service.sync().name('ironstone.RecordFilesServices.add#RecordFilesFromDrive').parameters({recordEntityName: recordEntity,
+                recordId: recordId, itemList: items, contentTypeEnumId: contentTypeEnumId || null, description: description || null}).call()
+            if (ec.message.hasError()) { ec.web.sendJsonResponse({}); return }
+            const infos = [{type: 'success', message: out.message}]
+            for (const failed of Array.from(out.failedList || [])) infos.push({type: 'warning', message: failed.fileName + ': ' + failed.error})
+            ec.web.sendJsonResponse({createdList: out.createdList, failedList: out.failedList, messageInfos: infos})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition-include name="pickerData" location="component://ironstone-boss/template/FilePickerTransitions.xml"/>
+    <transition-include name="pickerFolder" location="component://ironstone-boss/template/FilePickerTransitions.xml"/>
+    <transition-include name="pickerSearch" location="component://ironstone-boss/template/FilePickerTransitions.xml"/>
+
     <!-- a file, inline for an image or a PDF when asked, else as a download -->
     <transition name="download" method="get" read-only="true">
         <actions><script><![CDATA[

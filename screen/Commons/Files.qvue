@@ -1,0 +1,1734 @@
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- Files (design-drawers-commons.md §9 Files), the component Files.xml serves in the qvue render mode: the drives the user may
+    open as a browser. The rail: New (upload files or a folder, a folder, a text file, a markdown note), My files, the shared
+    drives (a version-controlled one with a history icon, a mirror with a lock), Manage drives, Records, Shared with me (with
+    the shares waiting for an answer), Shared by me, Recent, Favorites, the tags, Trash, and the open drive's storage. The main
+    pane: breadcrumbs, the folder as a list or a grid (name with its type icon or a thumbnail, modified, by, size, tags, shared
+    and favorite marks), sort, the type chips, search across the drives or in the folder, selection with the checkboxes (Shift
+    for a range) and the actions on it, a drop zone for files and folders, the upload tracker; the preview overlay with
+    previous and next; the details pane (preview, details and tags, sharing, versions with compare and restore, activity).
+    The view is in the URL (drive, path, view, tag, q, file) read from $root.currentParameters, so a view is a link; every
+    read and change is a JSON transition of Files.xml. While a subscreen (Drives, DriveSettings, Shares) is in the path only it
+    shows. On a phone the rail and the details open over the page and the folder is a list. Keys (the Files scope): Up and
+    Down move, Enter opens, Space previews, Delete moves to the trash, F2 renames, Ctrl+A selects all, / searches, Esc clears
+    the selection. Brand color names and Quasar classes only (style-guide §4.8, §5). -->
+<template><div class="boss-files">
+    <m-screen-context :record-entity="contextRecordEntity" :record-id="contextRecordId" :title="contextTitle" selection-form="FileList"></m-screen-context>
+
+    <template v-if="!subActive">
+    <div class="boss-files-frame column no-wrap" :style="{height: height + 'px'}">
+        <!-- ===== the top bar: search and the view's tools ===== -->
+        <div class="row items-center no-wrap q-px-sm q-py-xs q-gutter-x-xs">
+            <q-btn v-if="!wide" flat round dense icon="sym_o_menu" :aria-label="t('Drives and views')" @click="railOpen = true">
+                <q-tooltip>{{t('Drives and views')}}</q-tooltip></q-btn>
+            <div class="col" style="max-width:620px" @keydown.enter.prevent="runSearch" @keydown.esc="clearSearchInput">
+                <m-text-line v-model="searchInput" name="filesSearch" id="FilesSearch" :label="searchLabel"></m-text-line>
+            </div>
+            <q-btn flat round dense icon="sym_o_search" :aria-label="t('Search')" @click="runSearch"><q-tooltip>{{t('Search')}} (/)</q-tooltip></q-btn>
+            <q-btn v-if="view === 'drive'" flat dense no-caps size="sm" :icon="searchInFolder ? 'sym_o_folder' : 'sym_o_folder_open'"
+                    :label="isPhone ? undefined : (searchInFolder ? t('In this folder') : t('Everywhere'))" @click="searchInFolder = !searchInFolder">
+                <q-tooltip>{{searchInFolder ? t('Search this folder and below') : t('Search every drive')}}</q-tooltip></q-btn>
+            <q-space></q-space>
+            <q-btn flat dense no-caps icon="sym_o_sort" :label="isPhone ? undefined : sortLabel" :aria-label="t('Sort')">
+                <q-tooltip>{{t('Sort')}}</q-tooltip>
+                <q-menu anchor="bottom right" self="top right"><q-list dense style="min-width:180px">
+                    <q-item v-for="option in sortOptions" :key="option.value" clickable v-close-popup :active="sortBy === option.value" active-class="text-primary"
+                            @click="setSort(option.value)">
+                        <q-item-section>{{option.label}}</q-item-section>
+                        <q-item-section v-if="sortBy === option.value" side><q-icon :name="sortDesc ? 'sym_o_arrow_downward' : 'sym_o_arrow_upward'" size="18px"></q-icon></q-item-section>
+                    </q-item>
+                </q-list></q-menu>
+            </q-btn>
+            <q-btn-toggle v-if="!isPhone" v-model="mode" dense flat no-caps toggle-color="primary" :options="modeOptions" @update:model-value="saveMode"></q-btn-toggle>
+            <q-btn flat round dense icon="sym_o_info" :color="detailOpen ? 'primary' : undefined" :aria-label="t('Details')" @click="toggleDetail">
+                <q-tooltip>{{detailOpen ? t('Hide the details') : t('Show the details')}}</q-tooltip></q-btn>
+        </div>
+        <q-separator></q-separator>
+
+        <div class="col row no-wrap" style="min-height:0">
+            <!-- ===== the rail: a column from 1024 px, over the page below ===== -->
+            <div v-if="!wide && railOpen" class="fixed-full bg-black" style="opacity:.35;z-index:3000" @click="railOpen = false"></div>
+            <div v-if="wide || railOpen" :class="wide ? 'column no-wrap' : 'fixed-left column no-wrap shadow-8 ' + (dark ? 'bg-dark' : 'bg-white')"
+                    :style="wide ? {width: '248px', minWidth: '248px'} : {width: 'min(300px, 86vw)', zIndex: 3001}">
+                <div class="col scroll q-py-sm" style="min-height:0;overflow-x:hidden">
+                    <div class="row items-center no-wrap q-px-sm q-pb-sm">
+                        <q-btn unelevated no-caps color="primary" icon="sym_o_add" :label="t('New')" class="col" :disable="!canWriteHere && !canUploadHere">
+                            <q-tooltip v-if="!canWriteHere && !canUploadHere">{{t('Open a folder you may change')}}</q-tooltip>
+                            <q-menu><q-list dense style="min-width:220px">
+                                <q-item v-if="canUploadHere" clickable v-close-popup @click="pickFiles"><q-item-section avatar><q-icon name="sym_o_upload_file"></q-icon></q-item-section>
+                                    <q-item-section>{{t('Upload files')}}</q-item-section></q-item>
+                                <q-item v-if="canUploadHere" clickable v-close-popup @click="pickFolder"><q-item-section avatar><q-icon name="sym_o_drive_folder_upload"></q-icon></q-item-section>
+                                    <q-item-section>{{t('Upload a folder')}}</q-item-section></q-item>
+                                <q-separator v-if="canWriteHere"></q-separator>
+                                <q-item v-if="canWriteHere" clickable v-close-popup @click="openNewFolder"><q-item-section avatar><q-icon name="sym_o_create_new_folder"></q-icon></q-item-section>
+                                    <q-item-section>{{t('Folder')}}</q-item-section></q-item>
+                                <q-item v-if="canWriteHere" clickable v-close-popup @click="openNewText('txt')"><q-item-section avatar><q-icon name="sym_o_description"></q-icon></q-item-section>
+                                    <q-item-section>{{t('Text file')}}</q-item-section></q-item>
+                                <q-item v-if="canWriteHere" clickable v-close-popup @click="openNewText('md')"><q-item-section avatar><q-icon name="sym_o_markdown"></q-icon></q-item-section>
+                                    <q-item-section>{{t('Markdown note')}}</q-item-section></q-item>
+                            </q-list></q-menu>
+                        </q-btn>
+                        <q-btn v-if="!wide" flat dense round icon="close" class="q-ml-sm" :aria-label="t('Close')" @click="railOpen = false"></q-btn>
+                    </div>
+                    <q-list dense>
+                        <q-item v-if="personalDrive" clickable :active="isActiveDrive(personalDrive.driveId)" active-class="text-primary text-weight-medium" @click="openDrive(personalDrive.driveId)">
+                            <q-item-section avatar style="min-width:34px"><q-icon name="sym_o_home_storage" size="20px"></q-icon></q-item-section>
+                            <q-item-section class="ellipsis">{{t('My files')}}</q-item-section>
+                        </q-item>
+                        <q-item-label header class="q-py-xs text-caption text-weight-medium">{{t('Drives')}}</q-item-label>
+                        <q-item v-for="drive in sharedDrives" :key="drive.driveId" clickable :active="isActiveDrive(drive.driveId)" active-class="text-primary text-weight-medium"
+                                @click="openDrive(drive.driveId)">
+                            <q-item-section avatar style="min-width:34px"><q-icon :name="driveIcon(drive)" size="20px"></q-icon></q-item-section>
+                            <q-item-section class="ellipsis">{{drive.driveName}}</q-item-section>
+                            <q-tooltip anchor="center right" self="center left">{{driveKindText(drive)}}</q-tooltip>
+                        </q-item>
+                        <q-item v-if="!sharedDrives.length"><q-item-section class="text-caption m-muted">{{t('No shared drives yet')}}</q-item-section></q-item>
+                        <q-item clickable @click="go(linkPath + '/Drives')">
+                            <q-item-section avatar style="min-width:34px"><q-icon name="sym_o_settings" size="20px"></q-icon></q-item-section>
+                            <q-item-section class="text-primary">{{t('Manage drives')}}</q-item-section>
+                        </q-item>
+                        <q-item v-if="recordsDrive" clickable :active="isActiveDrive(recordsDrive.driveId)" active-class="text-primary text-weight-medium" @click="openDrive(recordsDrive.driveId)">
+                            <q-item-section avatar style="min-width:34px"><q-icon name="sym_o_inventory_2" size="20px"></q-icon></q-item-section>
+                            <q-item-section class="ellipsis">{{t('Records')}}</q-item-section>
+                        </q-item>
+                        <q-separator spaced></q-separator>
+                        <q-item v-for="item in viewItems" :key="item.view" clickable :active="view === item.view" active-class="text-primary text-weight-medium" @click="openView(item.view)">
+                            <q-item-section avatar style="min-width:34px"><q-icon :name="item.icon" size="20px"></q-icon></q-item-section>
+                            <q-item-section class="ellipsis">{{item.label}}</q-item-section>
+                            <q-item-section v-if="item.count" side><q-badge rounded color="primary">{{item.count}}</q-badge></q-item-section>
+                        </q-item>
+                        <template v-if="rail.tags.length">
+                            <q-item-label header class="q-py-xs text-caption text-weight-medium">{{t('Tags')}}</q-item-label>
+                            <q-item v-for="tag in rail.tags" :key="tag.tagId" clickable :active="view === 'tag' && params.tag === tag.tagId" active-class="text-primary text-weight-medium"
+                                    @click="openView('tag', {tag: tag.tagId})">
+                                <q-item-section avatar style="min-width:34px"><q-icon name="sym_o_label" size="20px"></q-icon></q-item-section>
+                                <q-item-section class="ellipsis">{{tag.tagName}}</q-item-section>
+                            </q-item>
+                        </template>
+                        <q-separator spaced></q-separator>
+                        <q-item clickable :active="view === 'trash'" active-class="text-primary text-weight-medium" @click="openView('trash', {drive: trashDriveId})">
+                            <q-item-section avatar style="min-width:34px"><q-icon name="sym_o_delete" size="20px"></q-icon></q-item-section>
+                            <q-item-section>{{t('Trash')}}</q-item-section>
+                        </q-item>
+                    </q-list>
+                </div>
+                <!-- the open drive's storage -->
+                <div v-if="usageDrive && usageDrive.usedBytes != null" class="q-px-md q-py-sm">
+                    <q-separator class="q-mb-sm"></q-separator>
+                    <div class="text-caption ellipsis">{{t('Storage')}} · {{usageDrive.driveName}}</div>
+                    <q-linear-progress v-if="usageDrive.usedPercent != null" :value="usageDrive.usedPercent / 100" rounded size="6px" class="q-my-xs"
+                            :color="usageDrive.usedPercent >= 90 ? 'warning' : 'primary'"></q-linear-progress>
+                    <div class="text-caption m-muted">{{usageText(usageDrive)}}</div>
+                </div>
+            </div>
+            <q-separator v-if="wide" vertical></q-separator>
+
+            <!-- ===== the folder or the view ===== -->
+            <div class="col column no-wrap relative-position" style="min-width:0" @dragenter.prevent="onDragEnter" @dragover.prevent="onDragOver"
+                    @dragleave="onDragLeave" @drop.prevent="onDrop">
+                <!-- the crumbs and the actions, or the actions on the selection -->
+                <div class="row items-center no-wrap q-px-md q-pt-sm q-pb-xs q-gutter-x-xs" style="min-height:46px">
+                    <template v-if="selectedKeys.length">
+                        <q-btn flat round dense icon="close" :aria-label="t('Clear the selection')" @click="clearSelection"><q-tooltip>{{t('Clear the selection')}} (Esc)</q-tooltip></q-btn>
+                        <span class="text-subtitle2">{{selectedKeys.length}} {{t('selected')}}</span>
+                        <q-space></q-space>
+                        <template v-if="view === 'trash'">
+                            <q-btn v-if="trashCanWrite" unelevated dense no-caps class="m-btn-tonal" icon="sym_o_restore_from_trash" :label="t('Restore')" @click="restoreSelected"></q-btn>
+                            <q-btn v-if="trashCanWrite" unelevated dense no-caps class="m-btn-tonal text-negative" icon="sym_o_delete_forever" :label="isPhone ? undefined : t('Delete forever')"
+                                    @click="deleteForeverSelected"></q-btn>
+                        </template>
+                        <template v-else-if="view === 'drive'">
+                            <q-btn flat round dense icon="sym_o_download" :aria-label="t('Download as zip')" @click="downloadSelectedZip"><q-tooltip>{{t('Download as zip')}}</q-tooltip></q-btn>
+                            <q-btn v-if="canWriteHere" flat round dense icon="sym_o_drive_file_move" :aria-label="t('Move')" @click="openMove('move', selectedRows)"><q-tooltip>{{t('Move')}}</q-tooltip></q-btn>
+                            <q-btn v-if="!isRecordsView" flat round dense icon="sym_o_file_copy" :aria-label="t('Copy')" @click="openMove('copy', selectedRows)"><q-tooltip>{{t('Copy')}}</q-tooltip></q-btn>
+                            <q-btn v-if="canShareHere && selectedRows.length === 1" flat round dense icon="sym_o_person_add" :aria-label="t('Share')" @click="openShare(selectedRows[0])">
+                                <q-tooltip>{{t('Share')}}</q-tooltip></q-btn>
+                            <q-btn flat round dense icon="sym_o_star" :aria-label="t('Add to favorites')" @click="favoriteSelected(true)"><q-tooltip>{{t('Add to favorites')}}</q-tooltip></q-btn>
+                            <q-btn v-if="canWriteHere" flat round dense icon="sym_o_delete" :aria-label="t('Move to the trash')" @click="trashSelected"><q-tooltip>{{t('Move to the trash')}} (Delete)</q-tooltip></q-btn>
+                        </template>
+                        <template v-else>
+                            <q-btn flat round dense icon="sym_o_star" :aria-label="t('Add to favorites')" @click="favoriteSelected(true)"><q-tooltip>{{t('Add to favorites')}}</q-tooltip></q-btn>
+                        </template>
+                    </template>
+                    <template v-else>
+                        <div class="col row items-center no-wrap" style="min-width:0;overflow:hidden">
+                            <template v-for="(crumb, index) in crumbs" :key="index">
+                                <q-icon v-if="index" name="sym_o_chevron_right" size="18px" class="m-muted"></q-icon>
+                                <q-btn flat dense no-caps :class="index === crumbs.length - 1 ? 'text-weight-medium' : 'm-muted'" :disable="index === crumbs.length - 1"
+                                        style="max-width:260px" @click="openCrumb(crumb)"><span class="ellipsis">{{crumb.name}}</span></q-btn>
+                            </template>
+                        </div>
+                        <q-btn v-if="canUploadHere" unelevated dense no-caps class="m-btn-tonal" icon="sym_o_upload" :label="isPhone ? undefined : t('Upload')" :aria-label="t('Upload')">
+                            <q-menu><q-list dense style="min-width:200px">
+                                <q-item clickable v-close-popup @click="pickFiles"><q-item-section avatar><q-icon name="sym_o_upload_file"></q-icon></q-item-section>
+                                    <q-item-section>{{t('Files')}}</q-item-section></q-item>
+                                <q-item clickable v-close-popup @click="pickFolder"><q-item-section avatar><q-icon name="sym_o_drive_folder_upload"></q-icon></q-item-section>
+                                    <q-item-section>{{t('A folder')}}</q-item-section></q-item>
+                            </q-list></q-menu>
+                        </q-btn>
+                        <q-btn v-if="canWriteHere" unelevated dense no-caps class="m-btn-tonal" icon="sym_o_create_new_folder" :label="isPhone ? undefined : t('New folder')"
+                                :aria-label="t('New folder')" @click="openNewFolder"></q-btn>
+                        <q-btn v-if="view === 'trash' && rows.length && trashCanWrite" unelevated dense no-caps class="m-btn-tonal text-negative" icon="sym_o_delete_sweep"
+                                :label="t('Empty trash')" @click="emptyTrash"></q-btn>
+                        <q-btn v-if="record && record.url" flat dense no-caps color="primary" icon="sym_o_open_in_new" :label="isPhone ? undefined : t('Open the record')"
+                                @click="go(record.url)"></q-btn>
+                    </template>
+                </div>
+
+                <!-- what the view is: a read-only drive, the records, a search, the trash's drive -->
+                <div v-if="banner" class="q-px-md q-pb-xs">
+                    <q-card flat bordered class="row items-center no-wrap q-px-sm q-py-xs">
+                        <q-icon :name="banner.icon" size="20px" :color="banner.error ? 'negative' : 'info'" class="q-mr-sm"></q-icon>
+                        <div class="col text-body2">{{banner.text}}<span v-if="banner.error" class="text-negative"> · {{banner.error}}</span></div>
+                        <q-btn v-if="banner.fetch" flat dense no-caps color="primary" :label="t('Fetch now')" :loading="fetching" @click="fetchMirror"></q-btn>
+                        <q-btn v-if="banner.clear" flat dense no-caps color="primary" :label="t('Clear search')" @click="clearSearch"></q-btn>
+                    </q-card>
+                </div>
+                <div v-if="view === 'trash' && trashDrives.length > 1" class="row items-center q-px-md q-pb-xs q-gutter-xs">
+                    <span class="text-caption m-muted">{{t('Trash of')}}</span>
+                    <q-chip v-for="drive in trashDrives" :key="drive.driveId" dense clickable square :class="drive.driveId === trashDriveId ? 'm-tonal text-primary' : ''"
+                            @click="openView('trash', {drive: drive.driveId})">{{drive.isPersonal ? t('My files') : drive.driveName}}</q-chip>
+                </div>
+                <div v-if="rows.length && view !== 'trash'" class="row items-center q-px-md q-pb-xs q-gutter-xs">
+                    <q-chip v-for="option in typeOptions" :key="option.value" dense clickable square :icon="option.icon"
+                            :class="typeFilter === option.value ? 'm-tonal text-primary' : ''" @click="typeFilter = option.value">{{option.label}}</q-chip>
+                </div>
+
+                <!-- the rows -->
+                <div ref="scroller" id="FileList_table" class="col scroll" style="min-height:0" @click.self="clearSelection">
+                    <div v-if="loadError && !loading" class="q-pa-xl text-center">
+                        <q-icon name="sym_o_folder_off" size="48px" class="m-muted"></q-icon>
+                        <div class="text-body1 q-mt-sm">{{loadError}}</div>
+                        <q-btn flat no-caps color="primary" class="q-mt-sm" :label="t('Go to My files')" @click="openDrive(rail.personalDriveId)"></q-btn>
+                    </div>
+                    <div v-else-if="!shownRows.length && !loading" class="q-pa-xl text-center">
+                        <q-icon :name="emptyState.icon" size="48px" class="m-muted"></q-icon>
+                        <div class="text-body1 q-mt-sm">{{emptyState.text}}</div>
+                        <div v-if="emptyState.hint" class="text-caption m-muted q-mt-xs">{{emptyState.hint}}</div>
+                        <div v-if="view === 'drive' && canUploadHere && !rows.length" class="row justify-center q-gutter-sm q-mt-md">
+                            <q-btn unelevated no-caps color="primary" icon="sym_o_upload" :label="t('Upload files')" @click="pickFiles"></q-btn>
+                            <q-btn v-if="canWriteHere" unelevated no-caps class="m-btn-tonal" icon="sym_o_create_new_folder" :label="t('New folder')" @click="openNewFolder"></q-btn>
+                        </div>
+                        <q-btn v-if="typeFilter !== 'all' && rows.length" flat no-caps color="primary" class="q-mt-sm" :label="t('Show all types')" @click="typeFilter = 'all'"></q-btn>
+                    </div>
+
+                    <!-- the list -->
+                    <q-list v-else-if="mode === 'list' || isPhone" class="q-pb-xl">
+                        <q-item v-if="!isPhone" dense class="text-caption m-muted" style="min-height:32px">
+                            <q-item-section side style="padding-right:4px"><q-checkbox dense size="sm" :model-value="headerCheck" @update:model-value="toggleAll"
+                                    :aria-label="t('Select all')"></q-checkbox></q-item-section>
+                            <q-item-section avatar style="min-width:44px;max-width:44px"></q-item-section>
+                            <q-item-section class="cursor-pointer" @click="setSort('name')"><div class="row items-center no-wrap">{{t('Name')}}<q-icon v-if="sortBy === 'name'"
+                                    :name="sortDesc ? 'sym_o_arrow_downward' : 'sym_o_arrow_upward'" size="14px" class="q-ml-xs"></q-icon></div></q-item-section>
+                            <div v-for="column in columns" :key="column.key" class="gt-sm col-auto self-center q-px-sm row items-center no-wrap" :class="column.sort ? 'cursor-pointer' : ''"
+                                    :style="{width: column.width}" @click="column.sort ? setSort(column.sort) : null">{{column.label}}<q-icon v-if="column.sort && sortBy === column.sort"
+                                    :name="sortDesc ? 'sym_o_arrow_downward' : 'sym_o_arrow_upward'" size="14px" class="q-ml-xs"></q-icon></div>
+                            <q-item-section side :style="{width: actionsWidth, minWidth: actionsWidth}"></q-item-section>
+                        </q-item>
+                        <q-separator v-if="!isPhone"></q-separator>
+                        <q-item v-for="(row, index) in shownRows" :key="rowKey(row)" clickable :focused="focusIndex === index" :active="!!selected[rowKey(row)]" active-class="text-primary"
+                                :draggable="canWriteHere && view === 'drive'" @dragstart="onRowDragStart(row, $event)" @dragover="onRowDragOver(row, $event)" @drop="onRowDrop(row, $event)"
+                                class="q-py-xs" @click="clickRow(row, index, $event)">
+                            <q-item-section side style="padding-right:4px" @click.stop>
+                                <q-checkbox dense size="sm" :model-value="!!selected[rowKey(row)]" @update:model-value="checkRow(row, index)" @click="shiftDown = $event.shiftKey"
+                                        :aria-label="t('Select') + ' ' + row.name"></q-checkbox></q-item-section>
+                            <q-item-section avatar class="items-center" style="min-width:44px;max-width:44px">
+                                <img v-if="hasThumb(row)" :src="thumbUrl(row, 64)" :alt="row.name" loading="lazy" style="width:32px;height:32px;object-fit:cover" class="rounded-borders">
+                                <q-icon v-else :name="row.icon || 'sym_o_draft'" size="26px" :color="iconColor(row)"></q-icon>
+                            </q-item-section>
+                            <q-item-section style="min-width:0">
+                                <q-item-label class="row items-center no-wrap">
+                                    <span class="ellipsis">{{row.recordTitle || row.name}}</span>
+                                    <q-icon v-if="row.shared" name="sym_o_group" size="16px" class="m-muted q-ml-xs"><q-tooltip>{{t('Shared')}}</q-tooltip></q-icon>
+                                    <q-icon v-if="row.favorite" name="star" size="16px" color="warning" class="q-ml-xs"><q-tooltip>{{t('Favorite')}}</q-tooltip></q-icon>
+                                    <q-chip v-if="row.pending" dense square class="m-tonal text-warning q-ml-sm">{{t('New')}}</q-chip>
+                                    <q-chip v-for="tag in (row.tags || [])" :key="tag.tagId" dense square class="m-tonal q-ml-xs gt-xs">{{tag.tagName}}</q-chip>
+                                </q-item-label>
+                                <q-item-label v-if="captionOf(row)" caption class="ellipsis">{{captionOf(row)}}</q-item-label>
+                            </q-item-section>
+                            <div v-for="column in columns" :key="column.key" class="gt-sm col-auto self-center q-px-sm text-caption ellipsis" :style="{width: column.width}">{{cellText(row, column.key)}}</div>
+                            <q-item-section side :style="{width: actionsWidth, minWidth: actionsWidth}" @click.stop>
+                                <div class="row no-wrap items-center">
+                                    <template v-if="view === 'shared' && row.pending">
+                                        <q-btn flat dense no-caps size="sm" color="primary" :label="t('Accept')" @click="answerShare(row, 'accept')"></q-btn>
+                                        <q-btn flat dense no-caps size="sm" :label="t('Decline')" @click="answerShare(row, 'decline')"></q-btn>
+                                    </template>
+                                    <q-btn flat round dense icon="sym_o_more_vert" :aria-label="t('Actions')">
+                                        <q-menu anchor="bottom right" self="top right"><q-list dense style="min-width:210px">
+                                            <q-item v-for="action in rowActions(row)" :key="action.key" clickable v-close-popup @click="runRowAction(action.key, row)">
+                                                <q-item-section avatar><q-icon :name="action.icon" :color="action.danger ? 'negative' : undefined"></q-icon></q-item-section>
+                                                <q-item-section :class="action.danger ? 'text-negative' : ''">{{action.label}}</q-item-section>
+                                            </q-item>
+                                        </q-list></q-menu>
+                                    </q-btn>
+                                </div>
+                            </q-item-section>
+                        </q-item>
+                        <q-item v-if="hiddenCount"><q-item-section class="text-caption m-muted">{{hiddenText}}</q-item-section></q-item>
+                    </q-list>
+
+                    <!-- the grid -->
+                    <div v-else class="row q-col-gutter-sm q-px-md q-pb-xl q-pt-xs">
+                        <div v-for="(row, index) in shownRows" :key="rowKey(row)" class="col-6 col-sm-4 col-md-3 col-xl-2">
+                            <q-card flat bordered class="cursor-pointer full-height column no-wrap" :class="selected[rowKey(row)] ? 'text-primary' : ''" @click="clickRow(row, index, $event)">
+                                <div class="relative-position flex flex-center" style="height:120px;overflow:hidden">
+                                    <img v-if="hasThumb(row)" :src="thumbUrl(row, 256)" :alt="row.name" loading="lazy" style="max-width:100%;max-height:120px;object-fit:contain">
+                                    <q-icon v-else :name="row.icon || 'sym_o_draft'" size="56px" :color="iconColor(row)"></q-icon>
+                                    <div class="absolute-top-left q-pa-xs" @click.stop>
+                                        <q-checkbox dense size="sm" :model-value="!!selected[rowKey(row)]" @update:model-value="checkRow(row, index)" @click="shiftDown = $event.shiftKey"
+                                                :aria-label="t('Select') + ' ' + row.name"></q-checkbox></div>
+                                    <q-icon v-if="row.favorite" name="star" color="warning" size="18px" class="absolute-top-right q-ma-xs"></q-icon>
+                                </div>
+                                <q-separator></q-separator>
+                                <div class="q-pa-sm col">
+                                    <div class="ellipsis text-body2" :class="focusIndex === index ? 'text-weight-bold' : ''">{{row.recordTitle || row.name}}</div>
+                                    <div class="ellipsis text-caption m-muted">{{gridCaption(row)}}</div>
+                                </div>
+                            </q-card>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- files dragged over the folder -->
+                <div v-if="dragOver" class="absolute-full flex flex-center text-primary rounded-borders q-ma-sm" style="border:2px dashed;z-index:5;pointer-events:none">
+                    <div class="text-center"><q-icon name="sym_o_upload_file" size="48px"></q-icon>
+                        <div class="text-subtitle1">{{t('Drop to upload into')}} {{currentFolderName}}</div></div>
+                </div>
+                <q-inner-loading :showing="loading"></q-inner-loading>
+            </div>
+
+            <!-- ===== the details pane: a column from 1440 px, over the page below ===== -->
+            <template v-if="detailOpen">
+                <div v-if="!wideDetail" class="fixed-full bg-black" style="opacity:.35;z-index:3000" @click="detailOpen = false"></div>
+                <q-separator v-if="wideDetail" vertical></q-separator>
+                <div :class="wideDetail ? 'column no-wrap' : 'fixed-right column no-wrap shadow-8 ' + (dark ? 'bg-dark' : 'bg-white')"
+                        :style="wideDetail ? {width: '340px', minWidth: '340px'} : {width: 'min(400px, 100vw)', zIndex: 3001}">
+                    <div class="row items-center no-wrap q-px-md q-py-sm">
+                        <q-icon :name="(detail.item && detail.item.icon) || 'sym_o_info'" size="22px" class="q-mr-sm"></q-icon>
+                        <div class="col text-subtitle1 text-weight-medium ellipsis">{{detail.item ? detail.item.name : t('Details')}}</div>
+                        <q-btn flat round dense icon="close" :aria-label="t('Close')" @click="detailOpen = false"></q-btn>
+                    </div>
+                    <q-separator></q-separator>
+                    <div v-if="detail.loading" class="q-pa-md"><q-skeleton type="rect" height="140px"></q-skeleton><q-skeleton type="text" class="q-mt-sm"></q-skeleton>
+                        <q-skeleton type="text" width="60%"></q-skeleton></div>
+                    <div v-else-if="!detail.item" class="q-pa-md text-body2 m-muted">{{detail.error || t('Choose a file or folder to see its details.')}}</div>
+                    <template v-else>
+                        <q-tabs v-model="detail.tab" dense no-caps align="justify" active-color="primary" indicator-color="primary" @update:model-value="loadDetailTab">
+                            <q-tab name="details" :label="t('Details')"></q-tab>
+                            <q-tab name="sharing" :label="t('Sharing')"></q-tab>
+                            <q-tab v-if="!detail.item.isDirectory" name="versions" :label="t('Versions')"></q-tab>
+                            <q-tab name="activity" :label="t('Activity')"></q-tab>
+                        </q-tabs>
+                        <q-separator></q-separator>
+                        <div class="col scroll q-pa-md" style="min-height:0">
+                            <!-- details -->
+                            <template v-if="detail.tab === 'details'">
+                                <q-card flat bordered class="q-mb-md flex flex-center cursor-pointer" style="min-height:120px;overflow:hidden" @click="previewDetailItem">
+                                    <img v-if="detail.item.fileType === 'image'" :src="thumbUrl(detail.item, 320)" :alt="detail.item.name" style="max-width:100%;max-height:220px">
+                                    <div v-else-if="detail.preview && detail.preview.kind === 'text'" class="q-pa-sm text-caption full-width" style="white-space:pre-wrap;max-height:180px;overflow:hidden">{{detail.preview.text}}</div>
+                                    <q-icon v-else :name="detail.item.icon" size="64px" :color="iconColor(detail.item)"></q-icon>
+                                </q-card>
+                                <q-list dense>
+                                    <q-item v-for="fact in detailFacts" :key="fact.label" class="q-px-none">
+                                        <q-item-section><q-item-label caption>{{fact.label}}</q-item-label><q-item-label class="ellipsis-2-lines" style="word-break:break-word">{{fact.value}}</q-item-label></q-item-section>
+                                    </q-item>
+                                </q-list>
+                                <div class="text-caption m-muted q-mt-sm">{{t('Tags')}}</div>
+                                <div class="row items-center q-gutter-xs q-mt-xs">
+                                    <q-chip v-for="tag in detail.item.tags" :key="tag.tagId" dense square class="m-tonal q-ml-none">{{tag.tagName}}</q-chip>
+                                    <q-btn flat dense no-caps size="sm" color="primary" icon="sym_o_sell" :label="detail.item.tags.length ? t('Edit') : t('Add tags')" @click="openTags(detailRow)"></q-btn>
+                                </div>
+                                <div class="row q-gutter-sm q-mt-md">
+                                    <q-btn v-if="!detail.item.isDirectory" unelevated dense no-caps class="m-btn-tonal" icon="sym_o_download" :label="t('Download')" @click="downloadRow(detailRow)"></q-btn>
+                                    <q-btn unelevated dense no-caps class="m-btn-tonal" :icon="detail.item.favorite ? 'star' : 'sym_o_star'" :label="detail.item.favorite ? t('Favorite') : t('Add to favorites')"
+                                            @click="toggleFavorite(detailRow)"></q-btn>
+                                    <q-btn v-if="detail.record && detail.record.url" flat dense no-caps color="primary" icon="sym_o_open_in_new" :label="t('Open the record')" @click="go(detail.record.url)"></q-btn>
+                                </div>
+                            </template>
+                            <!-- sharing -->
+                            <template v-else-if="detail.tab === 'sharing'">
+                                <q-btn v-if="detail.access && detail.access.canShare" unelevated no-caps color="primary" icon="sym_o_person_add" :label="t('Share')" class="q-mb-md"
+                                        @click="openShare(detailRow)"></q-btn>
+                                <div v-else class="text-caption m-muted q-mb-md">{{t('Only those who may change this may share it.')}}</div>
+                                <div class="text-caption text-weight-medium">{{t('People and groups')}}</div>
+                                <q-list dense separator class="q-mb-md">
+                                    <q-item v-for="share in detail.shareList" :key="share.shareId" class="q-px-none">
+                                        <q-item-section avatar style="min-width:36px"><m-avatar :name="share.sharedWithName || share.sharedWithUserGroupId || '?'" size="28px"></m-avatar></q-item-section>
+                                        <q-item-section><q-item-label class="ellipsis">{{share.sharedWithName || share.sharedWithUserGroupId || share.sharedWithEmail}}</q-item-label>
+                                            <q-item-label caption>{{permissionLabel(share.permissionEnumId)}}<span v-if="share.expireDate"> · {{t('until')}} {{shortDate(share.expireDate)}}</span>
+                                                <span v-if="share.declinedDate"> · {{t('declined')}}</span></q-item-label></q-item-section>
+                                        <q-item-section side><q-btn flat round dense size="sm" icon="sym_o_close" :aria-label="t('Stop sharing')" @click="revokeShare(share)">
+                                            <q-tooltip>{{t('Stop sharing')}}</q-tooltip></q-btn></q-item-section>
+                                    </q-item>
+                                    <q-item v-if="!detail.shareList.length" class="q-px-none"><q-item-section class="text-caption m-muted">{{t('Not shared with anyone')}}</q-item-section></q-item>
+                                </q-list>
+                                <div class="text-caption text-weight-medium">{{t('Links')}}</div>
+                                <q-list dense separator>
+                                    <q-item v-for="link in detail.linkList" :key="link.shareId" class="q-px-none">
+                                        <q-item-section avatar style="min-width:36px"><q-icon name="sym_o_link"></q-icon></q-item-section>
+                                        <q-item-section><q-item-label class="ellipsis">{{link.linkLabel || t('Link')}}</q-item-label>
+                                            <q-item-label caption>{{permissionLabel(link.permissionEnumId)}}<span v-if="link.hasPassword"> · {{t('password')}}</span>
+                                                <span v-if="link.expireDate"> · {{t('until')}} {{shortDate(link.expireDate)}}</span> · {{t('opened')}} {{link.openedCount || 0}}</q-item-label></q-item-section>
+                                        <q-item-section side><q-btn flat round dense size="sm" icon="sym_o_link_off" :aria-label="t('Revoke the link')" @click="revokeShare(link)">
+                                            <q-tooltip>{{t('Revoke the link')}}</q-tooltip></q-btn></q-item-section>
+                                    </q-item>
+                                    <q-item v-if="!detail.linkList.length" class="q-px-none"><q-item-section class="text-caption m-muted">{{t('No links')}}</q-item-section></q-item>
+                                </q-list>
+                            </template>
+                            <!-- versions -->
+                            <template v-else-if="detail.tab === 'versions'">
+                                <div v-if="detail.versions == null" class="q-pa-md text-center"><q-spinner></q-spinner></div>
+                                <div v-else-if="!detail.versions.length" class="text-body2 m-muted">{{t('This file keeps no versions.')}}</div>
+                                <q-list v-else dense separator>
+                                    <q-item v-for="(version, index) in detail.versions" :key="version.versionName" class="q-px-none">
+                                        <q-item-section>
+                                            <q-item-label class="row items-center no-wrap"><span class="text-weight-medium">{{version.shortName}}</span>
+                                                <q-chip v-if="version.isCurrent" dense square class="m-tonal text-primary q-ml-sm">{{t('Current')}}</q-chip></q-item-label>
+                                            <q-item-label caption>{{longDate(version.versionDate)}}<span v-if="version.userName"> · {{version.userName}}</span></q-item-label>
+                                            <q-item-label v-if="version.note" class="text-body2">{{version.note}}</q-item-label>
+                                        </q-item-section>
+                                        <q-item-section side top>
+                                            <q-btn flat round dense size="sm" icon="sym_o_more_vert" :aria-label="t('Version actions')">
+                                                <q-menu anchor="bottom right" self="top right"><q-list dense style="min-width:220px">
+                                                    <q-item clickable v-close-popup @click="downloadVersion(version)"><q-item-section avatar><q-icon name="sym_o_download"></q-icon></q-item-section>
+                                                        <q-item-section>{{t('Download this version')}}</q-item-section></q-item>
+                                                    <q-item v-if="detail.item.isText && index < detail.versions.length - 1" clickable v-close-popup @click="compareVersions(detail.versions[index + 1], version)">
+                                                        <q-item-section avatar><q-icon name="sym_o_difference"></q-icon></q-item-section><q-item-section>{{t('Compare with the one before')}}</q-item-section></q-item>
+                                                    <q-item v-if="detail.item.isText && !version.isCurrent" clickable v-close-popup @click="compareVersions(version, null)">
+                                                        <q-item-section avatar><q-icon name="sym_o_compare"></q-icon></q-item-section><q-item-section>{{t('Compare with the current one')}}</q-item-section></q-item>
+                                                    <q-item v-if="detail.item.canWrite && !version.isCurrent" clickable v-close-popup @click="restoreVersion(version)">
+                                                        <q-item-section avatar><q-icon name="sym_o_history"></q-icon></q-item-section><q-item-section>{{t('Restore this version')}}</q-item-section></q-item>
+                                                </q-list></q-menu>
+                                            </q-btn>
+                                        </q-item-section>
+                                    </q-item>
+                                </q-list>
+                            </template>
+                            <!-- activity -->
+                            <template v-else-if="detail.tab === 'activity'">
+                                <div v-if="detail.activity == null" class="q-pa-md text-center"><q-spinner></q-spinner></div>
+                                <div v-else-if="!detail.activity.length" class="text-body2 m-muted">{{t('Nothing has happened here yet.')}}</div>
+                                <q-list v-else dense>
+                                    <q-item v-for="(entry, index) in detail.activity" :key="index" class="q-px-none">
+                                        <q-item-section avatar style="min-width:34px"><q-icon :name="activityIcon(entry)" size="20px"></q-icon></q-item-section>
+                                        <q-item-section><q-item-label class="text-body2">{{activityText(entry)}}</q-item-label>
+                                            <q-item-label caption>{{longDate(entry.date)}}<span v-if="entry.userName"> · {{entry.userName}}</span></q-item-label></q-item-section>
+                                    </q-item>
+                                </q-list>
+                            </template>
+                        </div>
+                    </template>
+                </div>
+            </template>
+        </div>
+    </div>
+    </template>
+
+    <m-subscreens-active></m-subscreens-active>
+
+    <!-- ===== Preview: the file over the page, with the one before and the one after ===== -->
+    <m-dialog v-model="preview.open" :title="preview.row ? preview.row.name : ''" width="1100">
+        <div v-if="preview.row">
+            <div class="row items-center no-wrap q-mb-sm q-gutter-x-xs">
+                <q-btn flat round dense icon="sym_o_chevron_left" :disable="preview.index <= 0" :aria-label="t('Previous')" @click="movePreview(-1)"><q-tooltip>{{t('Previous')}}</q-tooltip></q-btn>
+                <span class="text-caption m-muted">{{preview.index + 1}} / {{previewRows.length}}</span>
+                <q-btn flat round dense icon="sym_o_chevron_right" :disable="preview.index >= previewRows.length - 1" :aria-label="t('Next')" @click="movePreview(1)"><q-tooltip>{{t('Next')}}</q-tooltip></q-btn>
+                <q-space></q-space>
+                <q-btn flat dense no-caps icon="sym_o_download" :label="isPhone ? undefined : t('Download')" :aria-label="t('Download')" @click="downloadRow(preview.row)"></q-btn>
+                <q-btn v-if="canEditText(preview.row)" flat dense no-caps icon="sym_o_edit" :label="isPhone ? undefined : t('Edit')" :aria-label="t('Edit')" @click="openEditor(preview.row)"></q-btn>
+                <q-btn flat dense no-caps icon="sym_o_info" :label="isPhone ? undefined : t('Details')" :aria-label="t('Details')" @click="detailFromPreview"></q-btn>
+            </div>
+            <div class="text-center">
+                <div v-if="preview.loading" class="q-pa-xl"><q-spinner size="32px"></q-spinner></div>
+                <img v-else-if="preview.kind === 'image'" :src="thumbUrl(preview.row, 1600)" :alt="preview.row.name" style="max-width:100%;max-height:72vh">
+                <iframe v-else-if="preview.kind === 'pdf'" :src="downloadUrl(preview.row, true)" :title="preview.row.name" style="width:100%;height:72vh;border:0"></iframe>
+                <video v-else-if="preview.kind === 'video'" :src="downloadUrl(preview.row, true)" controls style="max-width:100%;max-height:72vh"></video>
+                <audio v-else-if="preview.kind === 'audio'" :src="downloadUrl(preview.row, true)" controls class="q-my-xl"></audio>
+                <q-card v-else-if="preview.kind === 'text'" flat bordered class="text-left q-pa-md scroll" style="max-height:72vh">
+                    <div class="text-body2" style="white-space:pre-wrap;font-family:ui-monospace,monospace">{{preview.text}}</div>
+                    <div v-if="preview.text && preview.text.length >= 4000" class="text-caption m-muted q-mt-sm">{{t('The first part of the file; download it for the rest.')}}</div>
+                </q-card>
+                <div v-else class="q-pa-xl m-muted"><q-icon :name="preview.row.icon || 'sym_o_draft'" size="64px"></q-icon>
+                    <div class="text-body1 q-mt-sm">{{t('No preview of this kind of file')}}</div>
+                    <q-btn unelevated no-caps color="primary" class="q-mt-md" icon="sym_o_download" :label="t('Download')" @click="downloadRow(preview.row)"></q-btn></div>
+            </div>
+        </div>
+    </m-dialog>
+
+    <!-- ===== New folder, rename ===== -->
+    <m-dialog v-model="nameDialog.open" :title="nameDialog.title" width="440">
+        <div @keydown.enter.prevent="submitName">
+            <m-text-line v-model="nameDialog.name" name="itemName" id="FilesItemName" :label="t('Name')"></m-text-line>
+        </div>
+        <div class="row q-mt-md q-gutter-sm"><q-btn unelevated no-caps color="primary" :label="nameDialog.okLabel" :loading="nameDialog.saving" :disable="!String(nameDialog.name || '').trim()" @click="submitName"></q-btn>
+            <q-btn flat no-caps :label="t('Cancel')" @click="nameDialog.open = false"></q-btn></div>
+    </m-dialog>
+
+    <!-- ===== A text or markdown file: new, or an edit as a new version ===== -->
+    <m-dialog v-model="editor.open" :title="editor.isNew ? t('New file') : editor.name" width="900">
+        <m-text-line v-if="editor.isNew" v-model="editor.name" name="textName" :label="t('Name')" class="q-mb-sm"></m-text-line>
+        <div v-if="editor.loading" class="q-pa-lg text-center"><q-spinner></q-spinner></div>
+        <m-text-area v-else v-model="editor.text" name="textBody" :editor-type="/\.md$/i.test(editor.name || '') ? 'md' : undefined" rows="16" :label="t('Text')"></m-text-area>
+        <m-text-line v-if="!editor.isNew" v-model="editor.note" name="versionNote" :label="t('What changed (optional)')" class="q-mt-sm"></m-text-line>
+        <div class="row q-mt-md q-gutter-sm"><q-btn unelevated no-caps color="primary" :label="editor.isNew ? t('Create') : t('Save')" :loading="editor.saving" @click="saveEditor"></q-btn>
+            <q-btn flat no-caps :label="t('Cancel')" @click="editor.open = false"></q-btn></div>
+    </m-dialog>
+
+    <!-- ===== Move or copy into a folder ===== -->
+    <m-dialog v-model="move.open" :title="(move.mode === 'copy' ? t('Copy') : t('Move')) + ' ' + moveSubject" width="560">
+        <m-drop-down v-model="move.driveId" name="moveDrive" :options="moveDriveOptions" :label="t('Drive')" @update:model-value="moveLoad($event, '')"></m-drop-down>
+        <div class="row items-center no-wrap q-mt-sm" style="overflow:hidden">
+            <template v-for="(crumb, index) in move.crumbs" :key="index">
+                <q-icon v-if="index" name="sym_o_chevron_right" size="16px" class="m-muted"></q-icon>
+                <q-btn flat dense no-caps size="sm" :class="index === move.crumbs.length - 1 ? 'text-weight-medium' : 'm-muted'" @click="moveLoad(move.driveId, crumb.path)">{{crumb.name}}</q-btn>
+            </template>
+        </div>
+        <q-list dense bordered separator class="q-mt-xs rounded-borders" style="max-height:300px;overflow:auto">
+            <q-item v-for="row in move.rows" :key="row.path" clickable :disable="movingInto(row)" @click="moveLoad(move.driveId, row.path)">
+                <q-item-section avatar style="min-width:34px"><q-icon name="sym_o_folder" size="20px"></q-icon></q-item-section>
+                <q-item-section class="ellipsis">{{row.name}}</q-item-section>
+                <q-item-section side><q-icon name="sym_o_chevron_right" size="18px"></q-icon></q-item-section>
+            </q-item>
+            <q-item v-if="!move.loading && !move.rows.length"><q-item-section class="text-caption m-muted">{{t('No folders here')}}</q-item-section></q-item>
+            <q-item v-if="move.loading"><q-item-section class="text-center"><q-spinner></q-spinner></q-item-section></q-item>
+        </q-list>
+        <div class="row q-mt-md q-gutter-sm items-center">
+            <q-btn unelevated no-caps color="primary" :label="move.mode === 'copy' ? t('Copy here') : t('Move here')" :loading="move.saving" :disable="!move.canWrite" @click="doMove"></q-btn>
+            <q-btn flat no-caps :label="t('Cancel')" @click="move.open = false"></q-btn>
+            <span v-if="!move.canWrite && !move.loading" class="text-caption text-warning">{{t('You may not change this folder')}}</span>
+        </div>
+    </m-dialog>
+
+    <!-- ===== Share with people, or by link ===== -->
+    <m-dialog v-model="share.open" :title="t('Share') + ' ' + (share.row ? share.row.name : '')" width="620">
+        <div class="text-subtitle2 q-mb-xs">{{t('People and groups')}}</div>
+        <div class="row q-col-gutter-sm">
+            <div class="col-12 col-sm-7"><m-drop-down v-model="share.withValue" name="shareWith" server-search :server-min-length="1" :options-url="url('shareTargets')"
+                    :label="t('Add a person or a group')"></m-drop-down></div>
+            <div class="col-12 col-sm-5"><m-drop-down v-model="share.permission" name="sharePermission" :options="sharePermissionOptions" :label="t('May')"></m-drop-down></div>
+            <div class="col-12 col-sm-5"><m-date-time v-model="share.expire" name="shareExpire" type="date" :label="t('Until (optional)')"></m-date-time></div>
+            <div class="col-12 col-sm-7"><m-text-line v-model="share.note" name="shareNote" :label="t('Note (optional)')"></m-text-line></div>
+        </div>
+        <div class="row q-mt-sm"><q-btn unelevated no-caps color="primary" icon="sym_o_person_add" :label="t('Share')" :disable="!share.withValue" :loading="share.saving" @click="sharePeople"></q-btn></div>
+        <q-list dense separator class="q-mt-sm">
+            <q-item v-for="item in share.shareList" :key="item.shareId" class="q-px-none">
+                <q-item-section avatar style="min-width:36px"><m-avatar :name="item.sharedWithName || item.sharedWithUserGroupId || '?'" size="28px"></m-avatar></q-item-section>
+                <q-item-section><q-item-label>{{item.sharedWithName || item.sharedWithUserGroupId || item.sharedWithEmail}}</q-item-label>
+                    <q-item-label caption>{{permissionLabel(item.permissionEnumId)}}<span v-if="item.expireDate"> · {{t('until')}} {{shortDate(item.expireDate)}}</span></q-item-label></q-item-section>
+                <q-item-section side><q-btn flat dense no-caps size="sm" color="negative" :label="t('Remove')" @click="revokeShare(item)"></q-btn></q-item-section>
+            </q-item>
+        </q-list>
+        <q-separator class="q-my-md"></q-separator>
+        <div class="text-subtitle2 q-mb-xs">{{t('Link')}}</div>
+        <div class="text-caption m-muted q-mb-sm">{{t('Anyone with the link can open it, without signing in. Add a password and an end date for anything private.')}}</div>
+        <div class="row q-col-gutter-sm">
+            <div class="col-12 col-sm-6"><m-text-line v-model="share.linkLabel" name="linkLabel" :label="t('Label (optional)')"></m-text-line></div>
+            <div class="col-12 col-sm-6"><m-drop-down v-model="share.linkPermission" name="linkPermission" :options="linkPermissionOptions" :label="t('Visitors may')"></m-drop-down></div>
+            <div class="col-12 col-sm-6"><m-text-line v-model="share.linkPassword" name="linkPassword" type="password" :label="t('Password (optional)')"></m-text-line></div>
+            <div class="col-12 col-sm-6"><m-date-time v-model="share.linkExpire" name="linkExpire" type="date" :label="t('Until (optional)')"></m-date-time></div>
+        </div>
+        <div class="row q-mt-sm"><q-btn unelevated no-caps class="m-btn-tonal" icon="sym_o_add_link" :label="t('Make a link')" :loading="share.linkSaving" @click="shareLink"></q-btn></div>
+        <q-banner v-if="share.newLink" dense rounded class="m-tonal text-positive q-mt-sm">
+            <div class="text-caption">{{t('Copy the link now: it is shown only once.')}}</div>
+            <div class="text-body2" style="word-break:break-all">{{share.newLink}}</div>
+            <template v-slot:action><q-btn flat dense no-caps icon="sym_o_content_copy" :label="t('Copy')" @click="copyText(share.newLink)"></q-btn></template>
+        </q-banner>
+        <q-list dense separator class="q-mt-sm">
+            <q-item v-for="link in share.linkList" :key="link.shareId" class="q-px-none">
+                <q-item-section avatar style="min-width:36px"><q-icon name="sym_o_link"></q-icon></q-item-section>
+                <q-item-section><q-item-label>{{link.linkLabel || t('Link')}}</q-item-label>
+                    <q-item-label caption>{{permissionLabel(link.permissionEnumId)}}<span v-if="link.hasPassword"> · {{t('password')}}</span>
+                        <span v-if="link.expireDate"> · {{t('until')}} {{shortDate(link.expireDate)}}</span> · {{t('opened')}} {{link.openedCount || 0}}</q-item-label></q-item-section>
+                <q-item-section side><q-btn flat dense no-caps size="sm" color="negative" :label="t('Revoke')" @click="revokeShare(link)"></q-btn></q-item-section>
+            </q-item>
+        </q-list>
+    </m-dialog>
+
+    <!-- ===== Tags ===== -->
+    <m-dialog v-model="tagsDialog.open" :title="t('Tags') + ' · ' + (tagsDialog.row ? tagsDialog.row.name : '')" width="460">
+        <div class="row items-center q-gutter-xs">
+            <q-chip v-for="name in tagsDialog.names" :key="name" dense square removable class="m-tonal q-ml-none" @remove="tagsDialog.names = tagsDialog.names.filter((item) => item !== name)">{{name}}</q-chip>
+            <span v-if="!tagsDialog.names.length" class="text-caption m-muted">{{t('No tags')}}</span>
+        </div>
+        <div class="q-mt-sm" @keydown.enter.prevent="addTagInput"><m-text-line v-model="tagsDialog.input" name="tagInput" :label="t('Add a tag, then Enter')"></m-text-line></div>
+        <div v-if="tagSuggestions.length" class="row items-center q-gutter-xs q-mt-xs">
+            <span class="text-caption m-muted">{{t('Tags in use')}}</span>
+            <q-chip v-for="tag in tagSuggestions" :key="tag.tagId" dense square clickable icon="sym_o_add" class="q-ml-none" @click="tagsDialog.names.push(tag.tagName)">{{tag.tagName}}</q-chip>
+        </div>
+        <div class="row q-mt-md q-gutter-sm"><q-btn unelevated no-caps color="primary" :label="t('Save')" :loading="tagsDialog.saving" @click="saveTags"></q-btn>
+            <q-btn flat no-caps :label="t('Cancel')" @click="tagsDialog.open = false"></q-btn></div>
+    </m-dialog>
+
+    <!-- ===== An upload whose names are there already ===== -->
+    <m-dialog v-model="conflicts.open" :title="t('Some files are already here')" width="520" @update:model-value="(open) => { if (!open) resolveConflicts(null) }">
+        <div class="text-body2">{{conflictsText}}</div>
+        <q-list dense class="q-my-sm" style="max-height:160px;overflow:auto">
+            <q-item v-for="item in conflicts.list.slice(0, 20)" :key="item.path" class="q-px-none"><q-item-section avatar style="min-width:30px"><q-icon name="sym_o_draft" size="18px"></q-icon></q-item-section>
+                <q-item-section class="ellipsis">{{item.name}}</q-item-section></q-item>
+        </q-list>
+        <m-text-line v-model="conflicts.note" name="uploadNote" :label="t('Note for the new versions (optional)')"></m-text-line>
+        <div class="row q-mt-md q-gutter-sm">
+            <q-btn unelevated no-caps color="primary" icon="sym_o_published_with_changes" :label="t('Replace')" @click="resolveConflicts('replace')"><q-tooltip>{{t('The old file stays as a version')}}</q-tooltip></q-btn>
+            <q-btn unelevated no-caps class="m-btn-tonal" icon="sym_o_library_add" :label="t('Keep both')" @click="resolveConflicts('keepBoth')"></q-btn>
+            <q-btn unelevated no-caps class="m-btn-tonal" icon="sym_o_skip_next" :label="t('Skip them')" @click="resolveConflicts('skip')"></q-btn>
+            <q-btn flat no-caps :label="t('Cancel')" @click="resolveConflicts(null)"></q-btn>
+        </div>
+    </m-dialog>
+
+    <!-- ===== Compare two versions of a text file ===== -->
+    <m-dialog v-model="diff.open" :title="diff.title" width="1000">
+        <div v-if="diff.loading" class="q-pa-lg text-center"><q-spinner></q-spinner></div>
+        <div v-else class="scroll" v-html="diff.html"></div>
+    </m-dialog>
+
+    <!-- ===== A confirmation (the page has no Quasar Dialog plugin) ===== -->
+    <m-dialog v-model="confirmBox.open" :title="confirmBox.title" width="420">
+        <div class="text-body2">{{confirmBox.message}}</div>
+        <div class="row q-mt-md q-gutter-sm"><q-btn unelevated no-caps :color="confirmBox.danger ? 'negative' : 'primary'" :label="confirmBox.okLabel" @click="confirmOk"></q-btn>
+            <q-btn flat no-caps :label="t('Cancel')" @click="confirmBox.open = false"></q-btn></div>
+    </m-dialog>
+
+    <!-- the pickers: files, and a folder with what is in it -->
+    <div class="hidden">
+        <m-file ref="filePicker" v-model="picked" name="pickFiles" multiple @update:model-value="onPicked"></m-file>
+        <m-file ref="folderPicker" v-model="pickedFolder" name="pickFolder" multiple webkitdirectory @update:model-value="onPicked"></m-file>
+    </div>
+
+    <!-- the uploads under way and just done -->
+    <q-card v-if="uploads.length" flat bordered class="fixed-bottom-right q-mr-md shadow-4" :class="dark ? 'bg-dark' : 'bg-white'"
+            style="width:320px;max-width:92vw;z-index:2000;bottom:48px">
+        <div class="row items-center no-wrap q-px-md q-py-xs">
+            <div class="col text-subtitle2">{{uploadsTitle}}</div>
+            <q-btn flat round dense size="sm" icon="close" :aria-label="t('Close')" :disable="uploads.some((item) => item.state === 'sending')" @click="uploads = []"></q-btn>
+        </div>
+        <q-separator></q-separator>
+        <q-list dense style="max-height:220px;overflow:auto">
+            <q-item v-for="batch in uploads" :key="batch.id">
+                <q-item-section avatar style="min-width:30px"><q-icon :name="batch.state === 'done' ? 'sym_o_check_circle' : (batch.state === 'failed' ? 'sym_o_error' : 'sym_o_upload')"
+                        :color="batch.state === 'done' ? 'positive' : (batch.state === 'failed' ? 'negative' : 'primary')" size="20px"></q-icon></q-item-section>
+                <q-item-section>
+                    <q-item-label class="ellipsis">{{batch.label}}</q-item-label>
+                    <q-linear-progress v-if="batch.state === 'sending'" :value="batch.total ? batch.loaded / batch.total : 0" rounded size="5px" class="q-mt-xs"></q-linear-progress>
+                    <q-item-label v-else caption class="ellipsis">{{batch.message}}</q-item-label>
+                </q-item-section>
+            </q-item>
+        </q-list>
+    </q-card>
+</div></template>
+
+<script>
+const t = (text) => (moqui.l10n && moqui.l10n.localize ? moqui.l10n.localize(text) : text);
+// the type chips: the file types each one shows
+const TYPE_GROUPS = { all: null, folder: ['folder'], document: ['document', 'pdf', 'text', 'spreadsheet', 'presentation'], image: ['image'],
+    media: ['video', 'audio'], archive: ['archive'] };
+const PERMISSIONS = { RspView: 'May view', RspEdit: 'May edit', RspUpload: 'May add files' };
+
+module.exports = {
+    name: 'BossFiles',
+    data() {
+        let mode = 'list';
+        try { mode = localStorage.getItem('ironstone.files.mode') || 'list'; } catch (err) { mode = 'list'; }
+        return {
+            height: 600, railOpen: false, detailOpen: false, mode: mode === 'grid' ? 'grid' : 'list', sortBy: 'name', sortDesc: false, typeFilter: 'all',
+            searchInput: '', searchInFolder: false, shiftDown: false, fetching: false,
+            rail: { loaded: false, drives: [], personalDriveId: null, recordsDriveId: null, tags: [], pendingShareCount: 0, isAdmin: false },
+            rows: [], folder: null, drive: null, folderCrumbs: [], record: null, hiddenCount: 0, trashDrive: null, loading: false, loadError: null,
+            loadedKey: null, requestSeq: 0, selected: {}, lastIndex: null, focusIndex: -1, dragOver: false, dragDepth: 0, draggedRows: null,
+            detail: { key: null, driveId: null, path: null, loading: false, error: null, item: null, drive: null, access: null, shareList: [], linkList: [],
+                record: null, tab: 'details', versions: null, activity: null, preview: null },
+            preview: { open: false, index: 0, row: null, kind: 'none', text: null, loading: false },
+            nameDialog: { open: false, kind: 'folder', title: '', okLabel: '', name: '', row: null, saving: false },
+            editor: { open: false, isNew: true, folder: '', path: '', name: '', text: '', note: '', saving: false, loading: false, driveId: null },
+            move: { open: false, mode: 'move', items: [], fromDriveId: null, driveId: null, path: '', rows: [], crumbs: [], loading: false, saving: false, canWrite: false },
+            share: { open: false, row: null, withValue: null, permission: 'RspView', expire: '', note: '', saving: false, linkLabel: '', linkPermission: 'RspView',
+                linkPassword: '', linkExpire: '', linkSaving: false, newLink: null, shareList: [], linkList: [] },
+            tagsDialog: { open: false, row: null, names: [], input: '', saving: false },
+            conflicts: { open: false, list: [], note: '', resolve: null },
+            confirmBox: { open: false, title: '', message: '', okLabel: '', danger: false },
+            diff: { open: false, title: '', html: '', loading: false },
+            uploads: [], uploadSeq: 0, picked: null, pickedFolder: null
+        };
+    },
+    computed: {
+        params() { return this.$root.currentParameters || {}; },
+        view() { return this.params.q ? 'search' : (this.params.view || 'drive'); },
+        driveId() {
+            if (this.view === 'drive') return this.params.drive || this.rail.personalDriveId;
+            if (this.view === 'trash') return this.params.drive || this.rail.personalDriveId;
+            return this.params.drive || null;
+        },
+        path() { return this.params.path || ''; },
+        isPhone() { return this.$q.screen.lt.sm; },
+        wide() { return this.$q.screen.gt.sm; },
+        wideDetail() { return this.$q.screen.gt.md; },
+        dark() { return this.$q.dark.isActive; },
+        pathList() { return this.$root.currentPathList || []; },
+        filesIndex() { return this.pathList.indexOf('Files'); },
+        // a subscreen (Drives, DriveSettings, Shares) in the path: it shows in place of the browser
+        subActive() { return this.filesIndex >= 0 && this.pathList.length > this.filesIndex + 1; },
+        screenPath() { return this.$root.basePath + '/' + (this.filesIndex >= 0 ? this.pathList.slice(0, this.filesIndex + 1) : ['Commons', 'Files']).join('/'); },
+        linkPath() { return this.$root.linkBasePath + '/' + (this.filesIndex >= 0 ? this.pathList.slice(0, this.filesIndex + 1) : ['Commons', 'Files']).join('/'); },
+        viewKey() { return JSON.stringify([this.view, this.driveId, this.path, this.params.tag || null, this.params.q || null, this.params.in || null]); },
+        personalDrive() { return this.rail.drives.find((drive) => drive.isPersonal) || null; },
+        recordsDrive() { return this.rail.drives.find((drive) => drive.isRecords) || null; },
+        sharedDrives() { return this.rail.drives.filter((drive) => !drive.isPersonal && !drive.isRecords && !drive.archivedDate); },
+        currentRailDrive() { return this.rail.drives.find((drive) => drive.driveId === this.driveId) || null; },
+        usageDrive() {
+            const drive = (this.view === 'drive' || this.view === 'trash') ? (this.currentRailDrive || this.personalDrive) : this.personalDrive;
+            return drive && !drive.isRecords ? drive : null;
+        },
+        trashDrives() { return this.rail.drives.filter((drive) => !drive.isRecords && drive.canWrite); },
+        trashDriveId() { return this.view === 'trash' ? this.driveId : ((this.currentRailDrive && !this.currentRailDrive.isRecords && this.currentRailDrive.canWrite) ? this.driveId : this.rail.personalDriveId); },
+        trashCanWrite() { return !!(this.trashDrive && this.trashDrive.canWrite); },
+        isRecordsView() { return this.view === 'drive' && !!(this.drive && this.drive.driveKindEnumId === 'RdkRecords'); },
+        canWriteHere() { return this.view === 'drive' && !!(this.folder && this.folder.canWrite) && !this.isRecordsView; },
+        canUploadHere() { return this.view === 'drive' && !!(this.folder && this.folder.canUpload) && !this.isRecordsView; },
+        canShareHere() { return this.view === 'drive' && !!(this.folder && this.folder.level >= 2) && !this.isRecordsView && !(this.drive && this.drive.readOnly); },
+        currentFolderName() { return this.folder ? (this.folder.path ? this.folder.name : (this.drive && this.drive.driveKindEnumId === 'RdkPersonal' ? t('My files') : this.folder.name)) : ''; },
+        viewItems() {
+            return [{ view: 'shared', label: t('Shared with me'), icon: 'sym_o_folder_shared', count: this.rail.pendingShareCount || 0 },
+                { view: 'sharedByMe', label: t('Shared by me'), icon: 'sym_o_share' },
+                { view: 'recent', label: t('Recent'), icon: 'sym_o_schedule' },
+                { view: 'favorites', label: t('Favorites'), icon: 'sym_o_star' }];
+        },
+        crumbs() {
+            if (this.view === 'drive') {
+                return this.folderCrumbs.map((crumb, index) => Object.assign({}, crumb, {
+                    name: index === 0 && !crumb.view && this.drive && this.drive.driveKindEnumId === 'RdkPersonal' ? t('My files') : crumb.name }));
+            }
+            const labels = { shared: t('Shared with me'), sharedByMe: t('Shared by me'), recent: t('Recent'), favorites: t('Favorites'), trash: t('Trash'),
+                search: t('Search') };
+            if (this.view === 'tag') { const tag = this.rail.tags.find((item) => item.tagId === this.params.tag); return [{ name: tag ? tag.tagName : t('Tag'), view: 'tag' }]; }
+            return [{ name: labels[this.view] || this.view, view: this.view }];
+        },
+        banner() {
+            if (this.view === 'search') return { icon: 'sym_o_search', clear: true, text: t('Results for') + ' “' + this.params.q + '”' + (this.params.in === 'folder' ? ' · ' + t('in this folder') : '') };
+            if (this.view === 'trash') return { icon: 'sym_o_info', text: t('Items in the trash keep their history; restore puts them back where they were.') };
+            if (this.view !== 'drive' || !this.drive) return null;
+            const drive = this.drive;
+            if (drive.driveKindEnumId === 'RdkRecords') return { icon: 'sym_o_inventory_2', text: this.record ? t('The files of this record: add or change them on the record\'s Files panel.')
+                : t('The files of the records you may see, by kind of record. Read only here.') };
+            if (drive.repositoryKind === 'remote' || drive.driveKindEnumId === 'RdkMirror') {
+                return { icon: 'sym_o_lock', fetch: this.rail.isAdmin, error: drive.lastFetchError || null,
+                    text: t('A read-only mirror') + (drive.remoteUrl ? ' ' + t('of') + ' ' + drive.remoteUrl : '') + '. ' +
+                        (drive.lastFetchDate ? t('Last fetched') + ' ' + this.longDate(drive.lastFetchDate) : t('Not fetched yet')) };
+            }
+            if (drive.archivedDate) return { icon: 'sym_o_archive', text: t('This drive is archived: read only.') };
+            if (this.folder && this.folder.viaShareId && !this.folder.canWrite) return { icon: 'sym_o_folder_shared', text: this.folder.canUpload
+                ? t('Shared with you to add files: you see only this folder.') : t('Shared with you to view.') };
+            return null;
+        },
+        sortOptions() { return [{ value: 'name', label: t('Name') }, { value: 'modified', label: t('Modified') }, { value: 'size', label: t('Size') }]; },
+        sortLabel() { const option = this.sortOptions.find((item) => item.value === this.sortBy); return option ? option.label : t('Sort'); },
+        modeOptions() { return [{ value: 'list', icon: 'sym_o_view_list', attrs: { 'aria-label': t('List') } }, { value: 'grid', icon: 'sym_o_grid_view', attrs: { 'aria-label': t('Grid') } }]; },
+        typeOptions() {
+            return [{ value: 'all', label: t('All') }, { value: 'folder', label: t('Folders'), icon: 'sym_o_folder' }, { value: 'document', label: t('Documents'), icon: 'sym_o_article' },
+                { value: 'image', label: t('Images'), icon: 'sym_o_image' }, { value: 'media', label: t('Audio and video'), icon: 'sym_o_movie' },
+                { value: 'archive', label: t('Archives'), icon: 'sym_o_folder_zip' }];
+        },
+        // the row actions' column: the menu, with Accept and Decline in Shared with me
+        actionsWidth() { return this.view === 'shared' && this.rows.some((row) => row.pending) ? '200px' : '56px'; },
+        searchLabel() { return this.view === 'drive' && this.searchInFolder ? t('Search in') + ' ' + this.currentFolderName : t('Search files'); },
+        columns() {
+            if (this.view === 'shared') return [{ key: 'from', label: t('From'), width: '150px' }, { key: 'permission', label: t('May'), width: '110px' },
+                { key: 'modified', label: t('Shared'), width: '110px', sort: 'modified' }];
+            if (this.view === 'sharedByMe') return [{ key: 'with', label: t('With'), width: '150px' }, { key: 'permission', label: t('May'), width: '110px' },
+                { key: 'modified', label: t('Shared'), width: '110px', sort: 'modified' }];
+            if (this.view === 'trash') return [{ key: 'location', label: t('Was in'), width: '170px' }, { key: 'modified', label: t('Deleted'), width: '110px', sort: 'modified' },
+                { key: 'size', label: t('Size'), width: '80px', sort: 'size' }];
+            if (this.view === 'drive') return [{ key: 'modified', label: t('Modified'), width: '120px', sort: 'modified' }, { key: 'by', label: t('By'), width: '130px' },
+                { key: 'size', label: t('Size'), width: '80px', sort: 'size' }];
+            return [{ key: 'location', label: t('Location'), width: '170px' }, { key: 'modified', label: this.view === 'recent' ? t('Opened') : t('Modified'), width: '110px', sort: 'modified' },
+                { key: 'size', label: t('Size'), width: '80px', sort: 'size' }];
+        },
+        shownRows() {
+            const group = TYPE_GROUPS[this.typeFilter];
+            let list = group ? this.rows.filter((row) => group.includes(row.fileType || (row.isDirectory ? 'folder' : 'other'))) : this.rows.slice();
+            const direction = this.sortDesc ? -1 : 1;
+            const value = (row) => this.sortBy === 'modified' ? Number(row.when || row.modified || 0) : (this.sortBy === 'size' ? Number(row.size || 0) : null);
+            list.sort((left, right) => {
+                if (this.view === 'drive' && !!left.isDirectory !== !!right.isDirectory) return left.isDirectory ? -1 : 1;
+                if (this.sortBy === 'name') return direction * String(left.recordTitle || left.name || '').localeCompare(String(right.recordTitle || right.name || ''), undefined, { numeric: true, sensitivity: 'base' });
+                return direction * (value(left) - value(right));
+            });
+            return list;
+        },
+        selectedKeys() { return Object.keys(this.selected).filter((key) => this.selected[key]); },
+        selectedRows() { return this.shownRows.filter((row) => this.selected[this.rowKey(row)]); },
+        // the screen context's selection (selection-form FileList): the values of the checked rows
+        checkboxValues() { return this.selectedKeys; },
+        headerCheck() {
+            const count = this.selectedKeys.length;
+            if (!count) return false;
+            return count >= this.shownRows.length ? true : null;
+        },
+        previewRows() { return this.shownRows.filter((row) => !row.isDirectory && this.view !== 'trash'); },
+        detailRow() {
+            if (!this.detail.item) return null;
+            return Object.assign({ driveId: this.detail.driveId }, this.detail.item);
+        },
+        detailFacts() {
+            const item = this.detail.item;
+            if (!item) return [];
+            const drive = this.detail.drive || {};
+            const storage = { folder: t('Folder drive: each file keeps its own versions'), 'git-db': t('Version-controlled, in the database'),
+                'git-local': t('Version-controlled, on disk'), 'git-remote': t('Read-only mirror'), other: t('Records') };
+            const facts = [{ label: t('Type'), value: item.isDirectory ? t('Folder') : (item.contentType || t(item.fileType || 'File')) }];
+            if (!item.isDirectory && item.size != null) facts.push({ label: t('Size'), value: this.sizeText(item.size) });
+            if (item.modified) facts.push({ label: t('Modified'), value: this.longDate(item.modified) + (item.modifiedByName ? ' · ' + item.modifiedByName : '') });
+            facts.push({ label: t('Drive'), value: (drive.driveKindEnumId === 'RdkPersonal' ? t('My files') : (drive.driveName || '')) + (storage[drive.storage] ? ' · ' + storage[drive.storage] : '') });
+            facts.push({ label: t('Location'), value: '/' + (item.path || '') });
+            if (item.versionName) facts.push({ label: t('Version'), value: (String(item.versionName).length === 40 ? String(item.versionName).slice(0, 10) : item.versionName)
+                + (item.versionNote ? ' · ' + item.versionNote : '') });
+            if (this.detail.record) facts.push({ label: t('Record'), value: this.detail.record.recordId });
+            return facts;
+        },
+        tagSuggestions() { return this.rail.tags.filter((tag) => !this.tagsDialog.names.some((name) => name.toLowerCase() === String(tag.tagName).toLowerCase())).slice(0, 12); },
+        moveDriveOptions() {
+            return this.rail.drives.filter((drive) => !drive.isRecords && !drive.readOnly && (drive.canWrite || drive.driveId === this.move.fromDriveId))
+                .map((drive) => ({ value: drive.driveId, label: drive.isPersonal ? t('My files') : drive.driveName }));
+        },
+        moveSubject() { const count = this.move.items.length; return count === 1 ? this.move.items[0].name : count + ' ' + t('items'); },
+        sharePermissionOptions() {
+            const options = [{ value: 'RspView', label: t('View') }, { value: 'RspEdit', label: t('Edit') }];
+            if (this.share.row && this.share.row.isDirectory) options.push({ value: 'RspUpload', label: t('Add files only') });
+            return options;
+        },
+        linkPermissionOptions() {
+            const options = [{ value: 'RspView', label: t('View and download') }];
+            if (this.share.row && this.share.row.isDirectory) options.push({ value: 'RspUpload', label: t('Only add files (a file drop)') }, { value: 'RspEdit', label: t('View, download and add files') });
+            return options;
+        },
+        conflictsText() {
+            const count = this.conflicts.list.length;
+            return count === 1 ? t('One file of this upload has the name of a file in the folder.') : count + ' ' + t('files of this upload have the names of files in the folder.');
+        },
+        uploadsTitle() {
+            const sending = this.uploads.filter((item) => item.state === 'sending').length;
+            return sending ? t('Uploading') + '…' : t('Uploads');
+        },
+        hiddenText() { return this.hiddenCount + ' ' + t('more records are not listed: search to find them'); },
+        emptyState() {
+            if (this.typeFilter !== 'all' && this.rows.length) return { icon: 'sym_o_filter_alt_off', text: t('Nothing of this type here') };
+            const states = {
+                drive: { icon: 'sym_o_folder_open', text: this.isRecordsView ? t('No files here') : t('This folder is empty'),
+                    hint: this.canUploadHere ? t('Drop files here, or use Upload') : '' },
+                shared: { icon: 'sym_o_folder_shared', text: t('Nothing is shared with you yet') },
+                sharedByMe: { icon: 'sym_o_share', text: t('You have not shared anything yet'), hint: t('Share a file or folder from its menu') },
+                recent: { icon: 'sym_o_schedule', text: t('No recent files'), hint: t('The files you open and change show here') },
+                favorites: { icon: 'sym_o_star', text: t('No favorites yet'), hint: t('Star a file or folder from its menu') },
+                tag: { icon: 'sym_o_label', text: t('Nothing has this tag') },
+                search: { icon: 'sym_o_search_off', text: t('No files match') },
+                trash: { icon: 'sym_o_delete', text: t('The trash is empty') }
+            };
+            return states[this.view] || states.drive;
+        },
+        contextRecordEntity() { const record = this.record || this.detail.record; return record ? record.recordEntityName : ''; },
+        contextRecordId() { const record = this.record || this.detail.record; return record ? record.recordId : ''; },
+        contextTitle() {
+            if (this.record) return this.record.title;
+            if (this.detail.item) return this.detail.item.name;
+            return this.crumbs.length ? this.crumbs[this.crumbs.length - 1].name : t('Files');
+        }
+    },
+    watch: {
+        '$root.currentParameters': { handler() { if (!this.subActive) this.applyParams(); }, deep: true },
+        subActive(value) { if (!value) this.$nextTick(() => { this.measure(); this.applyParams(); }); },
+        selectedKeys() { if (moqui.webrootVue && typeof moqui.webrootVue.formsVersion === 'number') moqui.webrootVue.formsVersion += 1; }
+    },
+    methods: {
+        t,
+        url(name) { return this.screenPath + '/' + name; },
+        go(target) { if (target) this.$root.setUrl(target); },
+        request(name, params, method) {
+            return moqui.request(this.url(name), { method: method || 'GET', params: params || {} }).then((result) => {
+                const json = result.json || {};
+                if (json.messageInfos && json.messageInfos.length) moqui.notifyMessages(json.messageInfos, json.errors);
+                return json;
+            }, (err) => { moqui.handleAjaxError(err); throw err; });
+        },
+        post(name, params) { return this.request(name, params, 'POST'); },
+        // the page's query: a view is a link
+        openUrl(query) {
+            const clean = {};
+            Object.keys(query || {}).forEach((key) => { if (query[key] !== null && query[key] !== undefined && query[key] !== '') clean[key] = query[key]; });
+            const search = moqui.objToSearch(clean);
+            this.railOpen = false;
+            this.$root.setUrl(this.linkPath + (search ? '?' + search : ''));
+        },
+        openDrive(driveId, path) { this.openUrl({ drive: driveId, path: path || null }); },
+        openView(view, extra) { this.openUrl(Object.assign({ view }, extra || {})); },
+        isActiveDrive(driveId) { return this.view === 'drive' && this.driveId === driveId; },
+        openCrumb(crumb) {
+            if (crumb.view) { this.openView(crumb.view); return; }
+            this.openDrive(this.driveId, crumb.path);
+        },
+
+        // ---- loading ----
+        loadRail() {
+            return this.request('filesData').then((json) => {
+                this.rail = { loaded: true, drives: json.driveList || [], personalDriveId: json.personalDriveId || null, recordsDriveId: json.recordsDriveId || null,
+                    tags: json.tagList || [], pendingShareCount: json.pendingShareCount || 0, isAdmin: !!json.isAdmin };
+            }, () => { this.rail.loaded = true; });
+        },
+        applyParams() {
+            if (!this.rail.loaded) return;
+            if (this.viewKey !== this.loadedKey) {
+                this.loadedKey = this.viewKey;
+                this.clearSelection();
+                this.focusIndex = -1;
+                if (this.view !== 'search') this.searchInput = '';
+                else this.searchInput = this.params.q || '';
+                this.loadMain();
+            } else if (this.params.file && this.params.file !== this.detail.path) this.openFileParam();
+        },
+        loadMain() {
+            const seq = ++this.requestSeq;
+            this.loading = true;
+            this.loadError = null;
+            const done = (json) => {
+                if (seq !== this.requestSeq) return;
+                this.loading = false;
+                this.$nextTick(() => this.openFileParam());
+            };
+            const failed = (err) => {
+                if (seq !== this.requestSeq) return;
+                this.loading = false;
+                this.rows = [];
+                this.loadError = (err && err.json && err.json.errors) || t('This folder is not there, or you may not open it');
+            };
+            if (this.view === 'drive') {
+                if (!this.driveId) { this.loading = false; return; }
+                moqui.request(this.url('folder'), { params: { driveId: this.driveId, path: this.path } }).then((result) => {
+                    if (seq !== this.requestSeq) return;
+                    const json = result.json || {};
+                    this.rows = json.fileList || [];
+                    this.folder = json.folder || null;
+                    this.drive = json.drive || null;
+                    this.folderCrumbs = json.breadcrumbList || [];
+                    this.record = json.record || null;
+                    this.hiddenCount = json.hiddenCount || 0;
+                    done(json);
+                }, failed);
+                return;
+            }
+            const params = { view: this.view };
+            if (this.view === 'tag') params.tagId = this.params.tag || '';
+            if (this.view === 'trash') params.driveId = this.driveId || '';
+            if (this.view === 'search') {
+                params.text = this.params.q || '';
+                if (this.params.in === 'folder' && this.params.drive) { params.driveId = this.params.drive; params.path = this.params.path || ''; }
+            }
+            moqui.request(this.url('rows'), { params }).then((result) => {
+                if (seq !== this.requestSeq) return;
+                const json = result.json || {};
+                this.rows = json.fileList || [];
+                this.folder = null;
+                this.drive = null;
+                this.record = null;
+                this.hiddenCount = 0;
+                this.trashDrive = json.drive || null;
+                done(json);
+            }, failed);
+        },
+        reload() { this.loadMain(); this.loadRail(); if (this.detailOpen && this.detail.driveId && this.detail.path) this.loadDetail(this.detail.driveId, this.detail.path, this.detail.tab); },
+        // the file of the URL (a share notification, Home, the palette): selected, its details open
+        openFileParam() {
+            const file = this.params.file;
+            if (!file) return;
+            const row = this.rows.find((item) => item.path === file && (!item.driveId || !this.params.drive || item.driveId === this.params.drive));
+            if (row) this.focusIndex = this.shownRows.indexOf(row);
+            this.detailOpen = true;
+            this.loadDetail(this.params.drive || (row && row.driveId) || this.driveId, file, 'details');
+        },
+
+        // ---- rows ----
+        rowKey(row) {
+            if (this.view === 'trash') return 'trash:' + row.trashId;
+            if (this.view === 'shared' || this.view === 'sharedByMe') return 'share:' + row.shareId;
+            if (this.view === 'drive') return row.path;
+            return row.driveId + '\n' + row.path;
+        },
+        rowDriveId(row) { return row.driveId || this.driveId; },
+        hasThumb(row) { return row.fileType === 'image' && !row.isDirectory && this.view !== 'trash' && this.view !== 'sharedByMe'; },
+        iconColor(row) {
+            const colors = { folder: 'primary', image: 'positive', pdf: 'negative', spreadsheet: 'positive', presentation: 'warning', video: 'info', audio: 'info' };
+            return colors[row.fileType] || undefined;
+        },
+        captionOf(row) {
+            const parts = [];
+            if (row.recordTypeLabel) parts.push(row.recordTypeLabel + ' ' + row.recordId);
+            if (row.description) parts.push(row.description);
+            if (row.contentTypeLabel) parts.push(row.contentTypeLabel);
+            if (this.isPhone || !this.wide) {
+                if (this.view === 'shared') parts.push(row.fromName || '');
+                else if (this.view === 'sharedByMe') parts.push(row.withText || '');
+                else if (this.view !== 'drive') parts.push(this.locationText(row));
+                const when = row.when || row.modified;
+                if (when) parts.push(this.shortDate(when));
+                if (!row.isDirectory && row.size != null) parts.push(this.sizeText(row.size));
+            }
+            return parts.filter((part) => part).join(' · ');
+        },
+        gridCaption(row) {
+            if (row.recordTypeLabel) return row.recordTypeLabel;
+            if (row.isDirectory) return this.view === 'drive' ? t('Folder') : this.locationText(row);
+            return [this.sizeText(row.size), this.shortDate(row.when || row.modified)].filter((part) => part).join(' · ');
+        },
+        locationText(row) {
+            const drive = this.rail.drives.find((item) => item.driveId === row.driveId);
+            const name = drive && drive.isPersonal ? t('My files') : (row.driveName || '');
+            const folder = this.view === 'trash' ? String(row.path || '').split('/').slice(0, -1).join('/') : (row.folderPath || '');
+            return folder ? name + ' / ' + folder : name;
+        },
+        cellText(row, key) {
+            if (key === 'modified') return this.shortDate(row.when || row.modified);
+            if (key === 'by') return row.modifiedByName || '';
+            if (key === 'size') return row.isDirectory ? '' : this.sizeText(row.size);
+            if (key === 'location') return this.locationText(row);
+            if (key === 'from') return row.fromName || row.createdByName || '';
+            if (key === 'with') return row.isLink ? (row.withText || t('Link')) : (row.withText || '');
+            if (key === 'permission') return this.permissionLabel(row.permissionEnumId);
+            return '';
+        },
+        permissionLabel(id) { return t(PERMISSIONS[id] || 'May view'); },
+        clickRow(row, index, event) {
+            this.focusIndex = index;
+            if (event && (event.ctrlKey || event.metaKey)) { this.checkRow(row, index); return; }
+            if (event && event.shiftKey) { this.shiftDown = true; this.checkRow(row, index); return; }
+            if (this.selectedKeys.length) { this.checkRow(row, index); return; }
+            this.openRow(row);
+        },
+        openRow(row) {
+            if (this.view === 'trash') { this.showDetail(row); return; }
+            if (row.isDirectory) {
+                if (this.view === 'drive') this.openDrive(this.driveId, row.path);
+                else this.openDrive(row.driveId, row.path);
+                return;
+            }
+            this.openPreview(row);
+        },
+        checkRow(row, index) {
+            const key = this.rowKey(row);
+            const on = !this.selected[key];
+            if (this.shiftDown && this.lastIndex != null && this.lastIndex !== index) {
+                const from = Math.min(this.lastIndex, index), to = Math.max(this.lastIndex, index);
+                const next = Object.assign({}, this.selected);
+                for (let at = from; at <= to; at++) next[this.rowKey(this.shownRows[at])] = true;
+                this.selected = next;
+            } else {
+                this.selected = Object.assign({}, this.selected, { [key]: on });
+            }
+            this.shiftDown = false;
+            this.lastIndex = index;
+        },
+        toggleAll() {
+            if (this.selectedKeys.length) { this.clearSelection(); return; }
+            const next = {};
+            this.shownRows.forEach((row) => { next[this.rowKey(row)] = true; });
+            this.selected = next;
+        },
+        clearSelection() { this.selected = {}; this.lastIndex = null; },
+        getCheckboxValueArray() { return this.selectedKeys.slice(); },
+        setSort(value) {
+            if (this.sortBy === value) this.sortDesc = !this.sortDesc;
+            else { this.sortBy = value; this.sortDesc = value !== 'name'; }
+        },
+        saveMode(value) { try { localStorage.setItem('ironstone.files.mode', value); } catch (err) { /* no storage */ } },
+        rowActions(row) {
+            const actions = [];
+            const add = (key, label, icon, danger) => actions.push({ key, label, icon, danger: !!danger });
+            if (this.view === 'trash') {
+                if (this.trashCanWrite) { add('restore', t('Restore'), 'sym_o_restore_from_trash'); add('deleteForever', t('Delete forever'), 'sym_o_delete_forever', true); }
+                return actions;
+            }
+            if (this.view === 'sharedByMe') {
+                add('openFolder', t('Open'), row.isDirectory ? 'sym_o_folder_open' : 'sym_o_visibility');
+                add('revoke', row.isLink ? t('Revoke the link') : t('Stop sharing'), 'sym_o_link_off', true);
+                return actions;
+            }
+            add('open', row.isDirectory ? t('Open') : t('Preview'), row.isDirectory ? 'sym_o_folder_open' : 'sym_o_visibility');
+            add('download', row.isDirectory ? t('Download as zip') : t('Download'), 'sym_o_download');
+            if (this.view === 'drive' && this.canShareHere) add('share', t('Share'), 'sym_o_person_add');
+            add('copyLink', t('Copy a link to it'), 'sym_o_link');
+            if (this.canEditText(row)) add('edit', t('Edit'), 'sym_o_edit');
+            if (this.canWriteHere) add('rename', t('Rename'), 'sym_o_drive_file_rename_outline');
+            if (this.canWriteHere) add('move', t('Move'), 'sym_o_drive_file_move');
+            if (this.view === 'drive' && !this.isRecordsView) add('copy', t('Copy'), 'sym_o_file_copy');
+            add('favorite', row.favorite ? t('Remove from favorites') : t('Add to favorites'), row.favorite ? 'star' : 'sym_o_star');
+            if (!row.isRecordFolder) add('tags', t('Tags'), 'sym_o_sell');
+            if (!row.isDirectory && !row.isRecordFolder) add('versions', t('Versions'), 'sym_o_history');
+            if (!row.isRecordFolder) add('details', t('Details'), 'sym_o_info');
+            if (row.isRecordFolder === undefined && row.recordUrl) add('record', t('Open the record'), 'sym_o_open_in_new');
+            if (this.view === 'shared' && row.pending) { add('accept', t('Accept'), 'sym_o_check'); add('decline', t('Decline'), 'sym_o_close'); }
+            if (this.canWriteHere) add('trash', t('Move to the trash'), 'sym_o_delete', true);
+            return actions;
+        },
+        runRowAction(key, row) {
+            const actions = {
+                open: () => this.openRow(row), openFolder: () => (row.isDirectory ? this.openDrive(row.driveId, row.path) : this.openPreview(row)),
+                download: () => this.downloadRow(row), share: () => this.openShare(row), copyLink: () => this.copyItemLink(row), edit: () => this.openEditor(row),
+                rename: () => this.openRename(row), move: () => this.openMove('move', [row]), copy: () => this.openMove('copy', [row]),
+                favorite: () => this.toggleFavorite(row), tags: () => this.openTags(row), versions: () => this.showDetail(row, 'versions'),
+                details: () => this.showDetail(row), record: () => this.go(row.recordUrl), accept: () => this.answerShare(row, 'accept'),
+                decline: () => this.answerShare(row, 'decline'), trash: () => this.trashRows([row]), restore: () => this.restoreRows([row]),
+                deleteForever: () => this.deleteForeverRows([row]), revoke: () => this.revokeShare(row)
+            };
+            if (actions[key]) actions[key]();
+        },
+
+        // ---- the details pane ----
+        toggleDetail() {
+            this.detailOpen = !this.detailOpen;
+            if (this.detailOpen && !this.detail.item) {
+                const row = this.selectedRows[0] || this.shownRows[this.focusIndex];
+                if (row && this.view !== 'trash') this.showDetail(row);
+            }
+        },
+        showDetail(row, tab) {
+            this.detailOpen = true;
+            if (this.view === 'trash') { this.detail = Object.assign({}, this.detail, { item: null, error: t('Restore it to see its details.'), loading: false }); return; }
+            this.loadDetail(this.rowDriveId(row), row.path, tab || 'details');
+        },
+        loadDetail(driveId, path, tab) {
+            const key = driveId + '\n' + path;
+            this.detail = { key, driveId, path, loading: true, error: null, item: null, drive: null, access: null, shareList: [], linkList: [], record: null,
+                tab: tab || 'details', versions: null, activity: null, preview: null };
+            moqui.request(this.url('detail'), { params: { driveId, path } }).then((result) => {
+                if (this.detail.key !== key) return;
+                const json = result.json || {};
+                Object.assign(this.detail, { loading: false, item: json.item || null, drive: json.drive || null, access: json.access || null,
+                    shareList: json.shareList || [], linkList: json.linkList || [], record: json.record || null });
+                if (this.detail.item && this.detail.item.isDirectory && this.detail.tab === 'versions') this.detail.tab = 'details';
+                this.loadDetailTab(this.detail.tab);
+            }, (err) => {
+                if (this.detail.key !== key) return;
+                Object.assign(this.detail, { loading: false, error: (err && err.json && err.json.errors) || t('Not found') });
+            });
+        },
+        loadDetailTab(tab) {
+            const detail = this.detail;
+            if (!detail.item) return;
+            const params = { driveId: detail.driveId, path: detail.path };
+            if (tab === 'details' && !detail.preview && detail.item.isText) {
+                moqui.request(this.url('preview'), { params }).then((result) => { if (this.detail.key === detail.key) this.detail.preview = result.json || null; }, () => {});
+            } else if (tab === 'versions' && detail.versions == null) {
+                moqui.request(this.url('versions'), { params }).then((result) => { if (this.detail.key === detail.key) this.detail.versions = (result.json || {}).versionList || []; },
+                    () => { this.detail.versions = []; });
+            } else if (tab === 'activity' && detail.activity == null) {
+                moqui.request(this.url('activity'), { params }).then((result) => { if (this.detail.key === detail.key) this.detail.activity = (result.json || {}).activityList || []; },
+                    () => { this.detail.activity = []; });
+            }
+        },
+        previewDetailItem() { if (this.detailRow && !this.detailRow.isDirectory) this.openPreview(this.detailRow); },
+        detailFromPreview() { const row = this.preview.row; this.preview.open = false; if (row) this.showDetail(row); },
+        activityIcon(entry) { return { version: 'sym_o_history', share: 'sym_o_person_add', link: 'sym_o_link', revoke: 'sym_o_link_off', trash: 'sym_o_delete' }[entry.action] || 'sym_o_info'; },
+        activityText(entry) {
+            if (entry.action === 'version') {
+                const name = String(entry.versionName || '');
+                return t('Version') + ' ' + (name.length === 40 ? name.slice(0, 10) : name) + (entry.note ? ': ' + entry.note : '');
+            }
+            if (entry.action === 'share') return t('Shared') + (entry.note ? ': ' + entry.note : '');
+            if (entry.action === 'link') return t('Link made') + (entry.note ? ': ' + entry.note : '');
+            if (entry.action === 'revoke') return t('Sharing ended');
+            if (entry.action === 'trash') return t('Moved to the trash');
+            return entry.action;
+        },
+        downloadVersion(version) { this.download(this.downloadUrl(this.detailRow, false, version.versionName)); },
+        compareVersions(from, to) {
+            const detail = this.detail;
+            this.diff = { open: true, loading: true, html: '', title: t('Compare') + ' ' + from.shortName + ' → ' + (to ? to.shortName : t('current')) };
+            moqui.request(this.url('diff'), { params: { driveId: detail.driveId, path: detail.path, fromVersion: from.versionName, toVersion: to && !to.isCurrent ? to.versionName : '' } })
+                .then((result) => {
+                    const out = (result.json || {}).diff || {};
+                    const stats = out.stats || {};
+                    this.diff.html = out.html || '';
+                    this.diff.title += ' · ' + (stats.insertions || 0) + ' ' + t('added') + ', ' + (stats.deletions || 0) + ' ' + t('removed');
+                    this.diff.loading = false;
+                }, (err) => { this.diff.open = false; moqui.handleAjaxError(err); });
+        },
+        restoreVersion(version) {
+            const detail = this.detail;
+            this.confirm(t('Restore this version?'), t('Version') + ' ' + version.shortName + ' ' + t('becomes the newest version; the others stay.'), t('Restore')).then(() =>
+                this.post('restoreVersion', { driveId: detail.driveId, path: detail.path, versionName: version.versionName }).then(() => {
+                    this.detail.versions = null;
+                    this.loadDetailTab('versions');
+                    this.loadMain();
+                }));
+        },
+
+        // ---- preview ----
+        openPreview(row) {
+            const index = Math.max(0, this.previewRows.findIndex((item) => this.rowKey(item) === this.rowKey(row)));
+            this.preview.open = true;
+            this.showPreview(this.previewRows[index] ? index : -1, row);
+        },
+        showPreview(index, fallback) {
+            const row = index >= 0 ? this.previewRows[index] : fallback;
+            if (!row) return;
+            const kinds = { image: 'image', pdf: 'pdf', video: 'video', audio: 'audio' };
+            Object.assign(this.preview, { index: Math.max(0, index), row, text: null, kind: kinds[row.fileType] || 'none', loading: false });
+            if (!kinds[row.fileType]) {
+                this.preview.loading = true;
+                moqui.request(this.url('preview'), { params: { driveId: this.rowDriveId(row), path: row.path } }).then((result) => {
+                    if (this.preview.row !== row) return;
+                    const json = result.json || {};
+                    this.preview.kind = json.kind === 'text' ? 'text' : (json.kind === 'pdf' ? 'pdf' : 'none');
+                    this.preview.text = json.text || '';
+                    this.preview.loading = false;
+                }, () => { this.preview.loading = false; this.preview.kind = 'none'; });
+            } else {
+                // the open counts as recent (the preview transition records it)
+                moqui.request(this.url('preview'), { params: { driveId: this.rowDriveId(row), path: row.path } }).catch(() => {});
+            }
+        },
+        movePreview(step) {
+            const next = this.preview.index + step;
+            if (next < 0 || next >= this.previewRows.length) return;
+            this.showPreview(next);
+        },
+
+        // ---- links, downloads ----
+        thumbUrl(row, size) {
+            return this.url('thumb') + '?' + moqui.objToSearch({ driveId: this.rowDriveId(row), path: row.path, size: size || 256, v: row.modified || row.versionName || '' });
+        },
+        downloadUrl(row, inline, versionName) {
+            const params = { driveId: this.rowDriveId(row), path: row.path, inline: inline ? 'true' : 'false' };
+            if (versionName) params.versionName = versionName;
+            return this.url('download') + '?' + moqui.objToSearch(params);
+        },
+        download(href) {
+            const link = document.createElement('a');
+            link.href = href;
+            link.setAttribute('download', '');
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        },
+        downloadRow(row) { if (row) this.download(this.downloadUrl(row, false)); },
+        downloadSelectedZip() {
+            const rows = this.selectedRows;
+            if (rows.length === 1 && !rows[0].isDirectory) { this.downloadRow(rows[0]); return; }
+            this.download(this.url('downloadZip') + '?' + moqui.objToSearch({ driveId: this.driveId, pathListJson: JSON.stringify(rows.map((row) => row.path)) }));
+        },
+        itemLink(row) {
+            const driveId = this.rowDriveId(row);
+            const folder = row.isDirectory ? row.path : String(row.path || '').split('/').slice(0, -1).join('/');
+            const query = { drive: driveId, path: folder || null };
+            if (!row.isDirectory) query.file = row.path;
+            const clean = {};
+            Object.keys(query).forEach((key) => { if (query[key]) clean[key] = query[key]; });
+            return window.location.origin + this.$root.linkBasePath + '/Commons/Files?' + moqui.objToSearch(clean);
+        },
+        copyItemLink(row) { this.copyText(this.itemLink(row), t('Link copied: it opens for those who may see the file')); },
+        copyText(text, message) {
+            const done = () => moqui.notifyMessages([{ type: 'success', message: message || t('Copied') }]);
+            if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, () => window.prompt(t('Copy the link'), text));
+            else window.prompt(t('Copy the link'), text);
+        },
+
+        // ---- changes ----
+        openNewFolder() {
+            if (!this.canWriteHere) return;
+            this.nameDialog = { open: true, kind: 'folder', title: t('New folder'), okLabel: t('Create'), name: '', row: null, saving: false };
+            this.focusLater('FilesItemName');
+        },
+        openRename(row) {
+            this.nameDialog = { open: true, kind: 'rename', title: t('Rename'), okLabel: t('Rename'), name: row.name, row, saving: false };
+            this.focusLater('FilesItemName');
+        },
+        focusLater(id) { setTimeout(() => { const el = document.getElementById(id); if (el && el.focus) { el.focus(); if (el.select) el.select(); } }, 250); },
+        submitName() {
+            const dialog = this.nameDialog;
+            const name = String(dialog.name || '').trim();
+            if (!name || dialog.saving) return;
+            dialog.saving = true;
+            const call = dialog.kind === 'folder' ? this.post('newFolder', { driveId: this.driveId, path: this.path, name })
+                : this.post('rename', { driveId: this.driveId, path: dialog.row.path, newName: name });
+            call.then(() => { dialog.saving = false; dialog.open = false; this.loadMain(); }, () => { dialog.saving = false; });
+        },
+        canEditText(row) {
+            if (!row || row.isDirectory || row.fileType !== 'text') return false;
+            if (this.view === 'drive') return this.canWriteHere;
+            const drive = this.rail.drives.find((item) => item.driveId === row.driveId);
+            return !!(drive && drive.canWrite && !drive.isRecords);
+        },
+        openNewText(kind) {
+            if (!this.canWriteHere) return;
+            this.editor = { open: true, isNew: true, folder: this.path, path: '', name: kind === 'md' ? t('Note') + '.md' : t('Untitled') + '.txt',
+                text: kind === 'md' ? '# ' + t('Note') + '\n\n' : '', note: '', saving: false, loading: false, driveId: this.driveId };
+        },
+        openEditor(row) {
+            this.preview.open = false;
+            const driveId = this.rowDriveId(row);
+            this.editor = { open: true, isNew: false, folder: '', path: row.path, name: row.name, text: '', note: '', saving: false, loading: true, driveId };
+            moqui.request(this.url('text'), { params: { driveId, path: row.path } }).then((result) => {
+                this.editor.text = (result.json || {}).text || '';
+                this.editor.loading = false;
+            }, (err) => { this.editor.open = false; moqui.handleAjaxError(err); });
+        },
+        saveEditor() {
+            const editor = this.editor;
+            if (editor.saving || editor.loading) return;
+            editor.saving = true;
+            const params = editor.isNew ? { driveId: editor.driveId, path: editor.folder, name: String(editor.name || '').trim(), text: editor.text || '' }
+                : { driveId: editor.driveId, path: editor.path, text: editor.text || '', versionNote: editor.note || '', replace: 'true' };
+            this.post('saveText', params).then(() => {
+                editor.saving = false;
+                editor.open = false;
+                this.loadMain();
+                if (this.detail.path === editor.path) this.loadDetail(this.detail.driveId, this.detail.path, this.detail.tab);
+            }, () => { editor.saving = false; });
+        },
+        openMove(mode, rows) {
+            if (!rows || !rows.length) return;
+            const fromDriveId = this.view === 'drive' ? this.driveId : rows[0].driveId;
+            this.move = { open: true, mode, items: rows.slice(), fromDriveId, driveId: fromDriveId, path: '', rows: [], crumbs: [], loading: false, saving: false, canWrite: false };
+            const parent = String(rows[0].path || '').split('/').slice(0, -1).join('/');
+            this.moveLoad(fromDriveId, parent);
+        },
+        moveLoad(driveId, path) {
+            this.move.driveId = driveId;
+            this.move.path = path || '';
+            this.move.loading = true;
+            moqui.request(this.url('folder'), { params: { driveId, path: path || '' } }).then((result) => {
+                const json = result.json || {};
+                this.move.rows = (json.fileList || []).filter((row) => row.isDirectory);
+                this.move.crumbs = (json.breadcrumbList || []).filter((crumb) => !crumb.view);
+                this.move.canWrite = !!(json.folder && json.folder.canWrite);
+                this.move.loading = false;
+            }, () => { this.move.loading = false; this.move.rows = []; this.move.canWrite = false; });
+        },
+        movingInto(row) { return this.move.driveId === this.move.fromDriveId && this.move.items.some((item) => item.isDirectory && (row.path === item.path || row.path.startsWith(item.path + '/'))); },
+        doMove() {
+            const move = this.move;
+            if (move.saving) return;
+            move.saving = true;
+            this.post('moveCopy', { mode: move.mode, driveId: move.fromDriveId, pathListJson: JSON.stringify(move.items.map((row) => row.path)), toDriveId: move.driveId,
+                toPath: move.path }).then(() => { move.saving = false; move.open = false; this.clearSelection(); this.loadMain(); this.loadRail(); }, () => { move.saving = false; });
+        },
+        trashRows(rows) {
+            if (!rows.length || !this.canWriteHere) return;
+            const paths = rows.map((row) => row.path);
+            this.post('trash', { driveId: this.driveId, pathListJson: JSON.stringify(paths) }).then((json) => {
+                this.clearSelection();
+                this.loadMain();
+                const trashed = (json.trashList || []).filter((row) => row.outcome === 'trashed');
+                // Undo puts them back
+                if (trashed.length && this.$q.notify) this.$q.notify({ message: trashed.length === 1 ? t('Moved to the trash') : trashed.length + ' ' + t('items moved to the trash'),
+                    timeout: 6000, position: 'bottom-left', actions: [{ label: t('Undo'), color: 'yellow', handler: () => this.undoTrash(trashed) }] });
+            });
+        },
+        undoTrash(trashed) {
+            Promise.all(trashed.map((row) => moqui.request(this.url('restore'), { method: 'POST', params: { trashId: row.trashId } }).catch(() => null)))
+                .then(() => { this.loadMain(); moqui.notifyMessages([{ type: 'info', message: t('Put back') }]); });
+        },
+        trashSelected() { this.trashRows(this.selectedRows); },
+        restoreRows(rows) {
+            Promise.all(rows.map((row) => this.post('restore', { trashId: row.trashId }).catch(() => null))).then(() => { this.clearSelection(); this.loadMain(); this.loadRail(); });
+        },
+        restoreSelected() { this.restoreRows(this.selectedRows); },
+        deleteForeverRows(rows) {
+            const message = rows.length === 1 ? rows[0].name + ' ' + t('is deleted for good.') : rows.length + ' ' + t('items are deleted for good.');
+            this.confirm(t('Delete forever?'), message + ' ' + t('This cannot be undone.'), t('Delete forever'), true).then(() =>
+                Promise.all(rows.map((row) => this.post('deleteForever', { trashId: row.trashId }).catch(() => null))).then(() => { this.clearSelection(); this.loadMain(); this.loadRail(); }));
+        },
+        deleteForeverSelected() { this.deleteForeverRows(this.selectedRows); },
+        emptyTrash() {
+            this.confirm(t('Empty the trash?'), t('Everything in the trash of this drive is deleted for good. This cannot be undone.'), t('Empty trash'), true).then(() =>
+                this.post('emptyTrash', { driveId: this.driveId }).then(() => { this.loadMain(); this.loadRail(); }));
+        },
+        toggleFavorite(row) {
+            const on = !row.favorite;
+            this.post('favorite', { driveId: this.rowDriveId(row), path: row.path, favorite: on ? 'true' : 'false' }).then(() => {
+                const listed = this.rows.find((item) => item.path === row.path && this.rowDriveId(item) === this.rowDriveId(row));
+                if (listed) listed.favorite = on;
+                if (this.detail.item && this.detail.path === row.path) this.detail.item.favorite = on;
+                if (this.view === 'favorites') this.loadMain();
+            });
+        },
+        favoriteSelected(on) {
+            const rows = this.selectedRows;
+            Promise.all(rows.map((row) => moqui.request(this.url('favorite'), { method: 'POST', params: { driveId: this.rowDriveId(row), path: row.path, favorite: on ? 'true' : 'false' } })
+                .catch(() => null))).then(() => {
+                    moqui.notifyMessages([{ type: 'success', message: rows.length + ' ' + t('added to favorites') }]);
+                    this.clearSelection();
+                    this.loadMain();
+                });
+        },
+        openTags(row) {
+            if (!row) return;
+            this.tagsDialog = { open: true, row, names: (row.tags || []).map((tag) => tag.tagName), input: '', saving: false };
+        },
+        addTagInput() {
+            const name = String(this.tagsDialog.input || '').trim();
+            if (name && !this.tagsDialog.names.some((item) => item.toLowerCase() === name.toLowerCase())) this.tagsDialog.names.push(name);
+            this.tagsDialog.input = '';
+        },
+        saveTags() {
+            const dialog = this.tagsDialog;
+            this.addTagInput();
+            dialog.saving = true;
+            this.post('tags', { driveId: this.rowDriveId(dialog.row), path: dialog.row.path, tagNamesJson: JSON.stringify(dialog.names) }).then(() => {
+                dialog.saving = false;
+                dialog.open = false;
+                this.loadMain();
+                this.loadRail();
+                if (this.detail.path === dialog.row.path) this.loadDetail(this.detail.driveId, this.detail.path, this.detail.tab);
+            }, () => { dialog.saving = false; });
+        },
+        answerShare(row, answer) {
+            this.post('answerShare', { shareId: row.shareId, answer }).then(() => { this.loadMain(); this.loadRail(); });
+        },
+        fetchMirror() {
+            this.fetching = true;
+            this.post('fetchMirror', { driveId: this.driveId }).then(() => { this.fetching = false; this.loadMain(); }, () => { this.fetching = false; });
+        },
+
+        // ---- sharing ----
+        openShare(row) {
+            if (!row) return;
+            const target = Object.assign({ driveId: this.rowDriveId(row) }, row);
+            this.share = { open: true, row: target, withValue: null, permission: 'RspView', expire: '', note: '', saving: false, linkLabel: '', linkPermission: 'RspView',
+                linkPassword: '', linkExpire: '', linkSaving: false, newLink: null, shareList: [], linkList: [] };
+            this.loadShares();
+        },
+        loadShares() {
+            const row = this.share.row;
+            moqui.request(this.url('detail'), { params: { driveId: row.driveId, path: row.path } }).then((result) => {
+                const json = result.json || {};
+                this.share.shareList = json.shareList || [];
+                this.share.linkList = json.linkList || [];
+            }, () => {});
+        },
+        sharePeople() {
+            const share = this.share;
+            if (!share.withValue || share.saving) return;
+            share.saving = true;
+            this.post('share', { driveId: share.row.driveId, path: share.row.path, shareWith: share.withValue, permissionEnumId: share.permission,
+                expireDate: share.expire || '', note: share.note || '' }).then(() => {
+                share.saving = false;
+                share.withValue = null;
+                share.note = '';
+                this.loadShares();
+                this.afterShareChange();
+            }, () => { share.saving = false; });
+        },
+        shareLink() {
+            const share = this.share;
+            if (share.linkSaving) return;
+            share.linkSaving = true;
+            this.post('share', { driveId: share.row.driveId, path: share.row.path, isLink: 'Y', permissionEnumId: share.linkPermission, linkLabel: share.linkLabel || '',
+                password: share.linkPassword || '', expireDate: share.linkExpire || '' }).then((json) => {
+                share.linkSaving = false;
+                share.newLink = json.linkPath ? window.location.origin + json.linkPath : null;
+                share.linkPassword = '';
+                this.loadShares();
+                this.afterShareChange();
+            }, () => { share.linkSaving = false; });
+        },
+        revokeShare(row) {
+            this.confirm(row.isLink || row.linkLabel !== undefined && row.hasPassword !== undefined ? t('Revoke the link?') : t('Stop sharing?'),
+                t('Those who had it can no longer open it.'), t('Revoke'), true).then(() =>
+                this.post('revokeShare', { shareId: row.shareId }).then(() => { if (this.share.open) this.loadShares(); this.afterShareChange(); if (this.view === 'sharedByMe') this.loadMain(); }));
+        },
+        afterShareChange() {
+            if (this.detail.item) this.loadDetail(this.detail.driveId, this.detail.path, this.detail.tab);
+            if (this.view === 'drive') this.loadMain();
+        },
+
+        // ---- uploads ----
+        pickFiles() { this.clickPicker('filePicker'); },
+        pickFolder() { this.clickPicker('folderPicker'); },
+        clickPicker(ref) {
+            const picker = this.$refs[ref];
+            const input = picker && picker.$el && picker.$el.querySelector('input[type=file]');
+            if (!input) return;
+            if (ref === 'folderPicker') { input.setAttribute('webkitdirectory', ''); input.setAttribute('directory', ''); }
+            input.click();
+        },
+        onPicked(files) {
+            const list = Array.isArray(files) ? files : (files ? [files] : []);
+            this.picked = null;
+            this.pickedFolder = null;
+            if (list.length) this.startUpload(list.map((file) => ({ file, relativePath: file.webkitRelativePath || file.name })));
+        },
+        hasFiles(event) { return !!(event && event.dataTransfer && Array.from(event.dataTransfer.types || []).includes('Files')); },
+        onDragEnter(event) { if (!this.hasFiles(event) || !this.canUploadHere) return; this.dragDepth += 1; this.dragOver = true; },
+        onDragOver(event) { if (this.hasFiles(event) && this.canUploadHere) this.dragOver = true; },
+        onDragLeave() { this.dragDepth = Math.max(0, this.dragDepth - 1); if (!this.dragDepth) this.dragOver = false; },
+        onDrop(event) {
+            this.dragOver = false;
+            this.dragDepth = 0;
+            if (this.draggedRows) return;
+            if (!this.hasFiles(event)) return;
+            if (!this.canUploadHere) { moqui.notifyMessages(null, t('You may not upload to this folder')); return; }
+            const items = Array.from((event.dataTransfer && event.dataTransfer.items) || []);
+            const entries = items.map((item) => (item.webkitGetAsEntry ? item.webkitGetAsEntry() : null)).filter((entry) => entry);
+            if (!entries.length) {
+                const files = Array.from((event.dataTransfer && event.dataTransfer.files) || []);
+                if (files.length) this.startUpload(files.map((file) => ({ file, relativePath: file.name })));
+                return;
+            }
+            // a dropped folder: every file under it, with its path
+            const collected = [];
+            const walk = (entry, prefix) => new Promise((resolve) => {
+                if (entry.isFile) entry.file((file) => { collected.push({ file, relativePath: prefix + file.name }); resolve(); }, () => resolve());
+                else if (entry.isDirectory) {
+                    const reader = entry.createReader();
+                    const all = [];
+                    const readMore = () => reader.readEntries((batch) => {
+                        if (!batch.length) Promise.all(all.map((child) => walk(child, prefix + entry.name + '/'))).then(() => resolve());
+                        else { all.push(...batch); readMore(); }
+                    }, () => resolve());
+                    readMore();
+                } else resolve();
+            });
+            Promise.all(entries.map((entry) => walk(entry, ''))).then(() => { if (collected.length) this.startUpload(collected); });
+        },
+        startUpload(entries) {
+            if (!this.canUploadHere) { moqui.notifyMessages(null, t('You may not upload to this folder')); return; }
+            const driveId = this.driveId, path = this.path;
+            const names = entries.map((entry) => entry.relativePath || entry.file.name);
+            this.post('uploadCheck', { driveId, path, nameListJson: JSON.stringify(names) }).then((json) => {
+                const list = json.conflictList || [];
+                if (!list.length) return this.sendUpload(driveId, path, entries, 'replace', '');
+                // a file drop (upload only) never replaces: the new ones get free names
+                if (!this.canWriteHere) return this.sendUpload(driveId, path, entries, 'keepBoth', '');
+                return new Promise((resolve) => { this.conflicts = { open: true, list, note: '', resolve }; }).then((policy) => {
+                    if (policy) this.sendUpload(driveId, path, entries, policy, this.conflicts.note || '');
+                });
+            }, () => {});
+        },
+        resolveConflicts(policy) {
+            const resolve = this.conflicts.resolve;
+            this.conflicts.open = false;
+            this.conflicts.resolve = null;
+            if (resolve) resolve(policy);
+        },
+        sendUpload(driveId, path, entries, policy, note) {
+            const form = new FormData();
+            form.append('driveId', driveId);
+            form.append('path', path || '');
+            form.append('conflictPolicy', policy);
+            if (note) form.append('versionNote', note);
+            const folderUpload = entries.some((entry) => String(entry.relativePath || '').includes('/'));
+            entries.forEach((entry) => {
+                form.append('contentFile', entry.file, entry.file.name);
+                if (folderUpload) form.append('relativePath', entry.relativePath || entry.file.name);
+            });
+            if (moqui.sessionToken) form.append('moquiSessionToken', moqui.sessionToken);
+            const total = entries.reduce((sum, entry) => sum + (entry.file.size || 0), 0);
+            this.uploads.unshift({ id: ++this.uploadSeq, label: entries.length === 1 ? entries[0].file.name : entries.length + ' ' + t('files'), total, loaded: 0,
+                state: 'sending', message: '' });
+            // the tracked row (reactive), changed as the upload goes
+            const batch = this.uploads[0];
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', this.url('upload'));
+            xhr.setRequestHeader('Accept', 'application/json');
+            if (moqui.sessionToken) xhr.setRequestHeader('X-CSRF-Token', moqui.sessionToken);
+            xhr.upload.onprogress = (event) => { if (event.lengthComputable) { batch.loaded = event.loaded; batch.total = event.total; } };
+            xhr.onload = () => {
+                let json = {};
+                try { json = JSON.parse(xhr.responseText || '{}'); } catch (err) { json = {}; }
+                const token = xhr.getResponseHeader('X-CSRF-Token');
+                if (token && moqui.onSessionToken) moqui.onSessionToken(token);
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    batch.state = 'done';
+                    batch.message = ((json.messageInfos || [])[0] || {}).message || t('Uploaded');
+                    moqui.notifyMessages(json.messageInfos, json.errors);
+                } else {
+                    batch.state = 'failed';
+                    batch.message = json.errors || t('The upload failed');
+                    moqui.notifyMessages(null, batch.message);
+                }
+                if (this.driveId === driveId && this.path === path) this.loadMain();
+                this.loadRail();
+                setTimeout(() => { this.uploads = this.uploads.filter((item) => item !== batch || item.state === 'sending'); }, 8000);
+            };
+            xhr.onerror = () => { batch.state = 'failed'; batch.message = t('The upload failed: no connection'); };
+            xhr.send(form);
+        },
+        // rows dragged onto a folder of the list move into it
+        onRowDragStart(row, event) {
+            if (!this.canWriteHere) return;
+            const rows = this.selected[this.rowKey(row)] ? this.selectedRows : [row];
+            this.draggedRows = rows;
+            if (event.dataTransfer) { event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', rows.map((item) => item.name).join('\n')); }
+            const clear = () => { setTimeout(() => { this.draggedRows = null; }, 0); document.removeEventListener('dragend', clear); };
+            document.addEventListener('dragend', clear);
+        },
+        onRowDragOver(row, event) {
+            if (!this.draggedRows || !row.isDirectory || this.draggedRows.includes(row)) return;
+            event.preventDefault();
+            if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+        },
+        onRowDrop(row, event) {
+            const rows = this.draggedRows;
+            if (!rows || !row.isDirectory || rows.includes(row)) return;
+            event.preventDefault();
+            event.stopPropagation();
+            this.draggedRows = null;
+            this.post('moveCopy', { mode: 'move', driveId: this.driveId, pathListJson: JSON.stringify(rows.map((item) => item.path)), toDriveId: this.driveId, toPath: row.path })
+                .then(() => { this.clearSelection(); this.loadMain(); });
+        },
+
+        // ---- search ----
+        runSearch() {
+            const text = String(this.searchInput || '').trim();
+            if (!text) { this.clearSearch(); return; }
+            const query = { q: text };
+            if (this.view === 'drive' && this.searchInFolder) Object.assign(query, { in: 'folder', drive: this.driveId, path: this.path || null });
+            this.openUrl(query);
+        },
+        clearSearchInput() { this.searchInput = ''; },
+        clearSearch() {
+            this.searchInput = '';
+            if (this.params.in === 'folder' && this.params.drive) this.openDrive(this.params.drive, this.params.path);
+            else this.openDrive(this.rail.personalDriveId);
+        },
+        focusSearch() { const el = document.getElementById('FilesSearch'); if (el && el.focus) { el.focus(); return true; } return false; },
+
+        // ---- the page ----
+        confirm(title, message, okLabel, danger) {
+            return new Promise((resolve) => {
+                this.confirmResolve = resolve;
+                this.confirmBox = { open: true, title, message, okLabel: okLabel || t('OK'), danger: !!danger };
+            });
+        },
+        confirmOk() { this.confirmBox.open = false; const resolve = this.confirmResolve; this.confirmResolve = null; if (resolve) resolve(); },
+        anyDialog() { return this.preview.open || this.nameDialog.open || this.editor.open || this.move.open || this.share.open || this.tagsDialog.open || this.conflicts.open || this.diff.open || this.confirmBox.open; },
+        inField(event) {
+            const target = event && event.target;
+            if (!target) return false;
+            const tag = String(target.tagName || '').toUpperCase();
+            return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || !!target.isContentEditable;
+        },
+        moveFocus(step) {
+            const count = this.shownRows.length;
+            if (!count) return false;
+            const across = this.mode === 'grid' && !this.isPhone && Math.abs(step) > 1 ? step : step;
+            this.focusIndex = Math.max(0, Math.min(count - 1, (this.focusIndex < 0 ? (step > 0 ? -1 : count) : this.focusIndex) + across));
+            this.$nextTick(() => {
+                const items = this.$refs.scroller ? this.$refs.scroller.querySelectorAll(this.mode === 'grid' && !this.isPhone ? '.q-card' : '.q-item') : [];
+                const offset = this.mode === 'grid' && !this.isPhone ? 0 : (this.isPhone ? 0 : 1);
+                const el = items[this.focusIndex + offset];
+                if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest' });
+            });
+            return true;
+        },
+        focusedRow() { return this.focusIndex >= 0 ? this.shownRows[this.focusIndex] : null; },
+        gridColumns() {
+            const width = this.$q.screen.width;
+            if (width >= 1920) return 6;
+            if (width >= 1024) return 4;
+            if (width >= 600) return 3;
+            return 2;
+        },
+        registerKeys() {
+            if (!moqui.keymap || !moqui.keymap.registerScope) return;
+            const guard = (run) => (event) => (this.subActive || this.inField(event) || this.anyDialog()) ? false : run(event);
+            const key = (keys, label, run, action) => ({ keys, label, action: action || keys, run: guard((event) => run(event) !== false) });
+            this.unregisterKeys = moqui.keymap.registerScope('Files', [
+                key('Down', t('Next item'), () => this.moveFocus(this.mode === 'grid' && !this.isPhone ? this.gridColumns() : 1), 'down'),
+                key('Up', t('Previous item'), () => this.moveFocus(this.mode === 'grid' && !this.isPhone ? -this.gridColumns() : -1), 'up'),
+                key('Right', t('Next item in the grid'), () => (this.mode === 'grid' ? this.moveFocus(1) : false), 'right'),
+                key('Left', t('Previous item in the grid'), () => (this.mode === 'grid' ? this.moveFocus(-1) : false), 'left'),
+                key('Enter', t('Open'), () => { const row = this.focusedRow(); if (!row) return false; this.openRow(row); return true; }, 'open'),
+                key('Space', t('Preview'), () => { const row = this.focusedRow(); if (!row || row.isDirectory) return false; this.openPreview(row); return true; }, 'preview'),
+                key('x', t('Select the item'), () => { const row = this.focusedRow(); if (!row) return false; this.checkRow(row, this.focusIndex); return true; }),
+                key('Delete', t('Move to the trash'), () => {
+                    if (!this.canWriteHere) return false;
+                    const rows = this.selectedRows.length ? this.selectedRows : (this.focusedRow() ? [this.focusedRow()] : []);
+                    if (!rows.length) return false;
+                    this.trashRows(rows);
+                    return true;
+                }, 'trash'),
+                key('F2', t('Rename'), () => { const row = this.focusedRow() || this.selectedRows[0]; if (!row || !this.canWriteHere) return false; this.openRename(row); return true; }, 'rename'),
+                key('Mod+A', t('Select all'), () => { const next = {}; this.shownRows.forEach((row) => { next[this.rowKey(row)] = true; }); this.selected = next; return true; }, 'selectAll'),
+                key('/', t('Search'), () => this.focusSearch(), 'search'),
+                key('Esc', t('Clear the selection'), () => { if (!this.selectedKeys.length && !this.detailOpen && !this.railOpen) return false;
+                    if (this.railOpen) this.railOpen = false; else if (this.selectedKeys.length) this.clearSelection(); else this.detailOpen = false; return true; }, 'clear'),
+                key('i', t('Show or hide the details'), () => { this.toggleDetail(); return true; }, 'details'),
+                key('g r', t('Go to Recent'), () => { this.openView('recent'); return true; }),
+                key('g s', t('Go to Shared with me'), () => { this.openView('shared'); return true; }),
+                key('g m', t('Go to My files'), () => { this.openDrive(this.rail.personalDriveId); return true; })
+            ]);
+        },
+        measure() {
+            const box = this.$el && this.$el.querySelector ? this.$el.querySelector('.boss-files-frame') : null;
+            if (!box || !box.getBoundingClientRect) return;
+            const top = box.getBoundingClientRect().top + (window.scrollY || 0);
+            const footer = document.querySelector('.q-footer');
+            this.height = Math.max(this.isPhone ? 440 : 480, window.innerHeight - top - (footer ? footer.offsetHeight : 0) - 6);
+            this.$nextTick(() => {
+                const over = document.documentElement.scrollHeight - window.innerHeight;
+                if (over > 0 && over < 80 && this.height - over >= (this.isPhone ? 440 : 480)) this.height -= over;
+            });
+        },
+
+        // ---- words ----
+        driveIcon(drive) {
+            if (drive.isMirror) return 'sym_o_lock';
+            if (String(drive.storage || '').startsWith('git')) return 'sym_o_history';
+            return 'sym_o_folder_shared';
+        },
+        driveKindText(drive) {
+            if (drive.isMirror) return t('A read-only mirror');
+            if (String(drive.storage || '').startsWith('git')) return t('Version-controlled: every change is a commit');
+            return t('Shared drive');
+        },
+        usageText(drive) {
+            if (!drive || drive.usedBytes == null) return '';
+            return this.sizeText(drive.usedBytes) + (drive.quotaBytes ? ' ' + t('of') + ' ' + this.sizeText(drive.quotaBytes) + ' ' + t('used') : ' ' + t('used'));
+        },
+        sizeText(size) {
+            if (size == null || size === '') return '';
+            const n = Number(size) || 0;
+            if (n >= 1073741824) return (n / 1073741824).toFixed(1) + ' GB';
+            if (n >= 1048576) return (n / 1048576).toFixed(1) + ' MB';
+            if (n >= 1024) return Math.round(n / 1024) + ' KB';
+            return n + ' B';
+        },
+        shortDate(millis) {
+            if (!millis) return '';
+            const d = new Date(Number(millis));
+            const now = new Date();
+            if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+            if (d.getFullYear() === now.getFullYear()) return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+            return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+        },
+        longDate(millis) {
+            if (!millis) return '';
+            const d = new Date(Number(millis));
+            return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+        }
+    },
+    mounted() {
+        moqui.registerScreenForm && moqui.registerScreenForm(this);
+        this.measure();
+        this.onResize = () => this.measure();
+        window.addEventListener('resize', this.onResize);
+        this.registerKeys();
+        this.loadRail().then(() => { this.applyParams(); this.$nextTick(() => this.measure()); });
+        setTimeout(() => this.measure(), 300);
+    },
+    beforeUnmount() {
+        if (moqui.unregisterScreenForm) moqui.unregisterScreenForm(this);
+        window.removeEventListener('resize', this.onResize);
+        if (this.unregisterKeys) this.unregisterKeys();
+    }
+};
+</script>

@@ -642,6 +642,95 @@ along with this software (see the LICENSE.md file). If not, see
         ]]></script></actions>
     </service>
 
+    <service verb="attach" noun="DriveFiles">
+        <description>Attach from Files (design-drawers-commons.md §12 AttachFromFiles): the drive files the user picked (itemList of
+            {driveId, path}), each read through FileServices after ironstone.DriveServices.check#ItemAccess, so only a file the
+            user may open is used. For an email draft (emailMessageId) each is copied where the mail client keeps a message's
+            files (dbresource://email/account/message/, the only place save#Draft takes a file from) and added to the draft's
+            attachments; without a draft (an internal message) each is copied under the user's compose folder for send#Compose.
+            A file over maxAttachBytes (25 MB by default) or a folder is not copied: a view link is made for it
+            (FileServices.share#Resource, which needs the user to be allowed to share it) and linkList gives its name and
+            linkPath to put in the message. Each item stands alone: one that fails is named in failedList.</description>
+        <in-parameters>
+            <parameter name="emailMessageId"/>
+            <parameter name="itemList" type="List" required="true"/>
+            <parameter name="maxAttachBytes" type="Long" default="26214400"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="attachmentList" type="List"/>
+            <parameter name="uploadList" type="List"/>
+            <parameter name="linkList" type="List"/>
+            <parameter name="failedList" type="List"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            uploadList = []; linkList = []; failedList = []; attachmentList = null
+            const safe = (name) => String(name || 'attachment').replace(/[\/\\?#%:*"<>|]/g, '_').substring(0, 120)
+            const token = () => Math.random().toString(36).substring(2, 10) + Date.now().toString(36)
+            let draft = null
+            let existing = null
+            if (emailMessageId) {
+                draft = ec.service.sync().name('ironstone.ComposeServices.check#DraftAccess').parameter('emailMessageId', emailMessageId).call()
+                if (ec.message.hasError()) return
+                existing = Array.from(ec.entity.find('moqui.basic.email.EmailMessageAttachment').condition('emailMessageId', emailMessageId).list())
+                        .map((row) => ({attachmentLocation: row.attachmentLocation, fileName: row.fileName, fileSize: row.fileSize, contentType: row.contentType,
+                            contentId: row.contentId, isInline: row.isInline}))
+            } else if (!ec.user.userId) { ec.message.addError('No user'); return }
+            const before = existing ? existing.length : 0
+            // each picked item in a transaction of its own for what may be refused (a file the user may not open or share),
+            // so one refused does not stop the others
+            const own = (name, parameters) => {
+                ec.message.pushErrors()
+                try {
+                    const out = ec.service.sync().name(name).parameters(parameters).requireNewTransaction(true).call()
+                    return ec.message.hasError() ? {why: ec.message.getErrorsString()} : {out: out}
+                } finally { ec.message.clearErrors(); ec.message.popErrors() }
+            }
+            for (const item of Array.from(itemList || [])) {
+                const label = item && item.path ? String(item.path).split('/').pop() : '?'
+                ec.message.pushErrors()
+                try {
+                    if (!item || !item.driveId || !item.path) throw new Error(L('No file chosen'))
+                    const found = own('ironstone.DriveServices.get#ItemForUser', {driveId: item.driveId, path: item.path})
+                    if (!found.out || !found.out.resource) throw new Error(found.why || L('File not found'))
+                    const resource = found.out.resource
+                    if (resource.isDirectory || (resource.size != null && Number(resource.size) > Number(maxAttachBytes || 26214400))) {
+                        const made = own('org.moqui.impl.FileServices.share#Resource', {driveId: item.driveId, path: item.path,
+                            isLink: 'Y', permissionEnumId: 'RspView', linkLabel: L('Sent by email')})
+                        if (!made.out) throw new Error(resource.isDirectory ? L('A folder is sent as a link, and you may not share this one')
+                                : L('Too large to attach, and you may not share it by link'))
+                        const link = made.out
+                        linkList.push({name: resource.name, linkPath: link.linkPath, size: resource.size ?? null, isDirectory: resource.isDirectory === true})
+                        continue
+                    }
+                    const location = draft ? `dbresource://email/${draft.emailAccountId}/${emailMessageId}/${token()}-${safe(resource.name)}`
+                            : `dbresource://ironstone/compose/${ec.user.userId}/${token()}/${safe(resource.name)}`
+                    const stream = ec.resource.getLocationReference(resource.location).openStream()
+                    try { ec.resource.getLocationReference(location).putStream(stream) } finally { if (stream && stream.close) stream.close() }
+                    const entry = {name: resource.name, size: resource.size ?? null, contentType: resource.contentType ?? null}
+                    if (draft) existing.push({attachmentLocation: location, fileName: resource.name, fileSize: resource.size ?? null, contentType: resource.contentType ?? null})
+                    else uploadList.push(Object.assign({location: location}, entry))
+                } catch (err) {
+                    const why = err && err.message ? err.message : String(err)
+                    ec.logger.warn(`Attach from Files: ${label} not attached: ${why}`)
+                    failedList.push({name: label, error: why})
+                } finally {
+                    ec.message.clearErrors()
+                    ec.message.popErrors()
+                }
+            }
+            if (draft) {
+                if (existing.length > before) {
+                    ec.service.sync().name('org.moqui.impl.EmailClientServices.save#Draft').parameters({emailMessageId: emailMessageId, attachmentList: existing}).call()
+                    if (ec.message.hasError()) return
+                }
+                attachmentList = Array.from(ec.entity.find('moqui.basic.email.EmailMessageAttachment').condition('emailMessageId', emailMessageId)
+                        .orderBy('emailMessageAttachmentId').list()).map((row) => ({id: row.emailMessageAttachmentId, name: row.fileName, size: row.fileSize ?? null,
+                            contentType: row.contentType ?? null}))
+            }
+        ]]></script></actions>
+    </service>
+
     <service verb="remove" noun="ComposeAttachment">
         <description>Take a file off an email draft (emailMessageAttachmentId of a draft the user may send from); its file
             is deleted when the draft keeps it under dbresource://email/.</description>

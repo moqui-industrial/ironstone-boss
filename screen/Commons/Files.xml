@@ -12,11 +12,362 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for Files: design-drawers-commons.md §9, split archetype, qvue, scope new. -->
+<!-- Commons Files (design-drawers-commons.md §9 Files; style-guide §3.8 Split, §4.8 .qvue; impl-drawers-commons.md M8): the
+    drives the user may open, as a browser. The component is Files.qvue next to this file: the rail (My files, the shared
+    drives, Records, Shared with me, Shared by me, Recent, Favorites, the tags, Trash, the open drive's storage), the folder
+    as a list or a grid with breadcrumbs, sort, type filter and search, uploads (files or a folder, by drop or pick, with the
+    replace, keep both or skip question and progress), new folders and text files, rename, move and copy, download and zip,
+    trash and restore, favorites, tags, the share dialog (people and groups, links with a password and expiry), the details
+    pane (preview, details, sharing, versions with compare and restore, activity) and the Files key scope; its subscreens
+    Drives, DriveSettings and Shares show in its place. The view is in the URL (drive, path, view, tag, q, file), so a view is
+    a link. The data and every change go through the JSON transitions below, each a service of org.moqui.impl.FileServices
+    (which checks the drive's members and shares, R21) behind service/ironstone/DriveServices.xml check#ItemAccess (the
+    records drive shows only the records the user may see, R5). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Files" default-menu-index="6">
+        default-menu-title="Files" default-menu-index="6" render-modes="vue,qvue" server-static="vue,qvue">
+
+    <parameter name="drive"/>
+    <parameter name="path"/>
+    <parameter name="view"/>
+    <parameter name="tag"/>
+    <parameter name="q"/>
+    <parameter name="file"/>
+
+    <!-- ========== Reads ========== -->
+
+    <!-- the rail: drives with their storage, tags, shares waiting -->
+    <transition name="filesData" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.DriveServices.get#FilesData').call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {driveList: out.driveList, personalDriveId: out.personalDriveId,
+                recordsDriveId: out.recordsDriveId, tagList: out.tagList, pendingShareCount: out.pendingShareCount, isAdmin: out.isAdmin,
+                userId: ec.user.userId})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- a folder of a drive -->
+    <transition name="folder" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.DriveServices.list#FolderView').parameters({driveId: driveId || '', path: path || ''}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {fileList: out.fileList, folder: out.folder, drive: out.drive,
+                breadcrumbList: out.breadcrumbList, record: out.record, hiddenCount: out.hiddenCount})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- recent, favorites, shared with me, shared by me, a tag, a search, the trash of a drive -->
+    <transition name="rows" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.DriveServices.find#FileRows').parameters({view: view || 'recent', driveId: driveId || null,
+                path: path || null, tagId: tagId || null, text: text || null, fileType: fileType || null, modifiedPeriod: modifiedPeriod || null,
+                modifiedByUserId: modifiedByUserId || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {fileList: out.fileList, drive: out.drive, usedIndex: out.usedIndex})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- the details pane of one file or folder -->
+    <transition name="detail" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.DriveServices.get#ItemDetail').parameters({driveId: driveId || '', path: path || ''}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {item: out.item, drive: out.drive, access: out.access, shareList: out.shareList,
+                linkList: out.linkList, record: out.record})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="versions" method="get" read-only="true">
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.DriveServices.check#ItemAccess').parameters({driveId: driveId || '', path: path || ''}).call()
+            const out = ec.message.hasError() ? null : ec.service.sync().name('org.moqui.impl.FileServices.get#Versions').parameters({driveId: driveId, path: path || ''}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {versionList: out.versionList})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- the line diff of two versions of a text file (an empty version is the current text), a moqui-diff table -->
+    <transition name="diff" method="get" read-only="true">
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.DriveServices.check#ItemAccess').parameters({driveId: driveId || '', path: path || ''}).call()
+            const out = ec.message.hasError() ? null : ec.service.sync().name('org.moqui.impl.FileServices.get#VersionDiff').parameters({driveId: driveId,
+                path: path || '', fromVersion: fromVersion || null, toVersion: toVersion || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {diff: out.diff})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="activity" method="get" read-only="true">
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.DriveServices.check#ItemAccess').parameters({driveId: driveId || '', path: path || ''}).call()
+            const out = ec.message.hasError() ? null : ec.service.sync().name('org.moqui.impl.FileServices.get#Activity').parameters({driveId: driveId,
+                path: path || ''}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {activityList: out.activityList})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- what a preview shows: the kind (image, pdf, text, none) and a text file's first characters; the open is recent -->
+    <transition name="preview" method="get" read-only="true">
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.DriveServices.check#ItemAccess').parameters({driveId: driveId || '', path: path || ''}).call()
+            const out = ec.message.hasError() ? null : ec.service.sync().name('org.moqui.impl.FileServices.get#Preview').parameters({driveId: driveId,
+                path: path || '', size: 64}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {kind: out.kind, text: out.text, contentType: out.contentType})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- an image's thumbnail (PNG, made once per version and size) -->
+    <transition name="thumb" method="get" read-only="true">
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.DriveServices.check#ItemAccess').parameters({driveId: driveId || '', path: path || ''}).call()
+            const out = ec.message.hasError() ? null : ec.service.sync().name('org.moqui.impl.FileServices.get#Preview').parameters({driveId: driveId,
+                path: path || '', size: Math.max(16, Math.min(Number(size) || 256, 2048))}).call()
+            if (!ec.message.hasError() && out.previewLocation) ec.web.sendResourceResponse(out.previewLocation, true)
+            else ec.web.sendJsonResponse({})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- a file (inline only a picture, a PDF, audio or video: no script of an uploaded file runs here), a past version of it,
+        or a folder as a zip -->
+    <transition name="download" method="get" read-only="true">
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.DriveServices.check#ItemAccess').parameters({driveId: driveId || '', path: path || ''}).call()
+            const info = ec.message.hasError() ? null : ec.service.sync().name('org.moqui.impl.FileServices.get#ResourceInfo').parameters({driveId: driveId,
+                path: path || '', versionName: versionName || null, opened: true}).call()
+            let location = null, inlineOk = false
+            if (!ec.message.hasError()) {
+                const resource = info.resource
+                if (resource.isDirectory) {
+                    const zip = ec.service.sync().name('org.moqui.impl.FileServices.download#Zip').parameters({driveId: driveId, path: path}).call()
+                    if (!ec.message.hasError()) location = ec.service.sync().name('ironstone.DriveServices.get#DownloadLocation')
+                            .parameters({location: zip.zipLocation, fileName: zip.zipFilename}).call().downloadLocation
+                } else {
+                    location = ec.service.sync().name('ironstone.DriveServices.get#DownloadLocation').parameters({location: resource.location,
+                        fileName: resource.name}).call().downloadLocation
+                    const type = String(resource.contentType || '')
+                    inlineOk = /^(image\/(png|jpeg|gif|webp|bmp)|application\/pdf|audio\/|video\/)/.test(type)
+                }
+            }
+            if (!ec.message.hasError() && location) ec.web.sendResourceResponse(location, String(inline) === 'true' && inlineOk)
+            else ec.web.sendJsonResponse({})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- the selection as one zip -->
+    <transition name="downloadZip" method="get" read-only="true">
+        <actions><script><![CDATA[
+            let paths = []
+            try { paths = JSON.parse(pathListJson || '[]') } catch (err) { paths = [] }
+            ec.service.sync().name('ironstone.DriveServices.check#ItemAccess').parameters({driveId: driveId || '', pathList: paths}).call()
+            const zip = ec.message.hasError() ? null : ec.service.sync().name('org.moqui.impl.FileServices.download#Zip').parameters({driveId: driveId,
+                pathList: paths}).call()
+            const location = ec.message.hasError() ? null : ec.service.sync().name('ironstone.DriveServices.get#DownloadLocation')
+                    .parameters({location: zip.zipLocation, fileName: zip.zipFilename}).call().downloadLocation
+            if (!ec.message.hasError() && location) ec.web.sendResourceResponse(location, false)
+            else ec.web.sendJsonResponse({})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- a text file's whole text, for the editor -->
+    <transition name="text" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.DriveServices.get#ItemText').parameters({driveId: driveId || '', path: path || ''}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {text: out.text, versionName: out.versionName, canWrite: out.canWrite})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- the people and groups of the share dialog and the drive members: [{value, label}] -->
+    <transition name="shareTargets" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.DriveServices.search#ShareTargets').parameter('term', term || '').call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? [] : (out.optionList || []))
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- the names of an upload that are there already -->
+    <transition name="uploadCheck" read-only="true">
+        <actions><script><![CDATA[
+            let names = []
+            try { names = JSON.parse(nameListJson || '[]') } catch (err) { names = [] }
+            const out = ec.service.sync().name('ironstone.DriveServices.check#UploadNames').parameters({driveId: driveId || '', path: path || '', nameList: names}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {conflictList: out.conflictList})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+
+    <!-- ========== Writes ========== -->
+
+    <transition name="upload">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.DriveServices.upload#Files').parameters({driveId: driveId || '', path: path || '',
+                contentFile: contentFile || null, relativePath: relativePath || null, conflictPolicy: conflictPolicy || 'replace', versionNote: versionNote || null}).call()
+            if (ec.message.hasError()) { ec.web.sendJsonResponse({}); return }
+            const infos = [{type: 'success', message: out.message}]
+            for (const row of Array.from(out.uploadedList || [])) if (row.outcome === 'failed') infos.push({type: 'warning', message: row.name + ': ' + row.error})
+            ec.web.sendJsonResponse({uploadedList: out.uploadedList, messageInfos: infos})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="newFolder">
+        <actions><script><![CDATA[
+            const target = [String(path || ''), String(name || '')].filter((part) => part).join('/')
+            ec.service.sync().name('ironstone.DriveServices.check#ItemAccess').parameters({driveId: driveId || '', path: target}).call()
+            const out = ec.message.hasError() ? null : ec.service.sync().name('org.moqui.impl.FileServices.create#Folder').parameters({driveId: driveId,
+                path: path || '', name: name || ''}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {newPath: out.newPath, messageInfos: [{type: 'success',
+                message: ec.resource.expand('Folder ${name} made', '', {name: name})}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- a new text or markdown file, or an edit of one (replace true, path the file) -->
+    <transition name="saveText">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.DriveServices.create#TextFile').parameters({driveId: driveId || '', path: path || '',
+                name: name || null, text: text ?? '', versionNote: versionNote || null, replace: String(replace) === 'true'}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {newPath: out.newPath, versionName: out.versionName, messageInfos: [{type: 'success',
+                message: String(replace) === 'true' ? ec.l10n.localize('Saved') : ec.resource.expand('${name} made', '', {name: name})}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="rename">
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.DriveServices.check#ItemAccess').parameters({driveId: driveId || '', path: path || ''}).call()
+            const out = ec.message.hasError() ? null : ec.service.sync().name('org.moqui.impl.FileServices.rename#Resource').parameters({driveId: driveId,
+                path: path || '', newName: newName || ''}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {newPath: out.newPath, messageInfos: [{type: 'success', message: ec.l10n.localize('Renamed')}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- move or copy (mode) the selection into a folder of the same drive or another -->
+    <transition name="moveCopy">
+        <actions><script><![CDATA[
+            let paths = []
+            try { paths = JSON.parse(pathListJson || '[]') } catch (err) { paths = [] }
+            const L = (text) => ec.l10n.localize(text)
+            ec.service.sync().name('ironstone.DriveServices.check#ItemAccess').parameters({driveId: driveId || '', pathList: paths}).call()
+            if (!ec.message.hasError()) ec.service.sync().name('ironstone.DriveServices.check#ItemAccess').parameters({driveId: toDriveId || driveId || '', path: toPath || ''}).call()
+            let rows = []
+            if (!ec.message.hasError()) {
+                if (mode === 'copy') rows = ec.service.sync().name('org.moqui.impl.FileServices.copy#Resource').parameters({driveId: driveId, pathList: paths,
+                    toDriveId: toDriveId || driveId, toPath: toPath || '', conflictPolicy: 'keepBoth'}).call().copiedList || []
+                else rows = ec.service.sync().name('org.moqui.impl.FileServices.move#Resource').parameters({driveId: driveId, pathList: paths,
+                    toDriveId: toDriveId || driveId, toPath: toPath || '', conflictPolicy: 'keepBoth'}).call().movedList || []
+            }
+            if (ec.message.hasError()) { ec.web.sendJsonResponse({}); return }
+            const done = Array.from(rows).filter((row) => row.outcome === 'moved' || row.outcome === 'copied' || row.outcome === 'unchanged')
+            const infos = [{type: done.length ? 'success' : 'warning', message: ec.resource.expand(mode === 'copy' ? 'Copied ${count} of ${total}' : 'Moved ${count} of ${total}', '',
+                {count: done.length, total: rows.length})}]
+            for (const row of Array.from(rows)) if (row.outcome === 'failed') infos.push({type: 'warning', message: row.path + ': ' + L(row.error || 'failed')})
+            ec.web.sendJsonResponse({resultList: rows, messageInfos: infos})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="trash">
+        <actions><script><![CDATA[
+            let paths = []
+            try { paths = JSON.parse(pathListJson || '[]') } catch (err) { paths = [] }
+            ec.service.sync().name('ironstone.DriveServices.check#ItemAccess').parameters({driveId: driveId || '', pathList: paths}).call()
+            const out = ec.message.hasError() ? null : ec.service.sync().name('org.moqui.impl.FileServices.trash#Resource').parameters({driveId: driveId,
+                pathList: paths}).call()
+            if (ec.message.hasError()) { ec.web.sendJsonResponse({}); return }
+            const trashed = Array.from(out.trashList || []).filter((row) => row.outcome === 'trashed')
+            const infos = [{type: trashed.length ? 'success' : 'warning', message: trashed.length === 1 ? ec.resource.expand('${name} moved to the trash', '',
+                {name: String(trashed[0].path).split('/').pop()}) : ec.resource.expand('${count} items moved to the trash', '', {count: trashed.length})}]
+            for (const row of Array.from(out.trashList || [])) if (row.outcome === 'failed') infos.push({type: 'warning', message: row.path + ': ' + row.error})
+            ec.web.sendJsonResponse({trashList: out.trashList, messageInfos: infos})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="restore">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('org.moqui.impl.FileServices.restore#Resource').parameter('trashId', trashId || '').call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {driveId: out.driveId, path: out.path, messageInfos: [{type: 'success',
+                message: ec.resource.expand('${name} restored', '', {name: String(out.path || '').split('/').pop()})}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="deleteForever">
+        <actions><script><![CDATA[
+            ec.service.sync().name('org.moqui.impl.FileServices.delete#TrashForever').parameter('trashId', trashId || '').call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: ec.l10n.localize('Deleted for good')}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="emptyTrash">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('org.moqui.impl.FileServices.empty#Trash').parameter('driveId', driveId || '').call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {deletedCount: out.deletedCount, messageInfos: [{type: 'success',
+                message: ec.resource.expand('Trash emptied: ${count} deleted for good', '', {count: out.deletedCount})}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="favorite">
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.DriveServices.check#ItemAccess').parameters({driveId: driveId || '', path: path || ''}).call()
+            if (!ec.message.hasError()) ec.service.sync().name('org.moqui.impl.FileServices.set#Favorite').parameters({driveId: driveId, path: path || '',
+                favorite: String(favorite) !== 'false'}).call()
+            ec.web.sendJsonResponse({})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="tags">
+        <actions><script><![CDATA[
+            let names = []
+            try { names = JSON.parse(tagNamesJson || '[]') } catch (err) { names = [] }
+            ec.service.sync().name('ironstone.DriveServices.check#ItemAccess').parameters({driveId: driveId || '', path: path || ''}).call()
+            const out = ec.message.hasError() ? null : ec.service.sync().name('org.moqui.impl.FileServices.set#Tags').parameters({driveId: driveId,
+                path: path || '', tagNameList: names}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {tagList: out.tagList})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- share with a person or a group (who is told), or make a link (its address answered once) -->
+    <transition name="share">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.DriveServices.share#Item').parameters({driveId: driveId || '', path: path || '',
+                shareWith: shareWith || null, isLink: isLink || 'N', permissionEnumId: permissionEnumId || 'RspView',
+                expireDate: expireDate ? ec.l10n.parseTimestamp(String(expireDate).length <= 10 ? expireDate + ' 23:59' : String(expireDate), 'yyyy-MM-dd HH:mm') : null,
+                password: password || null, linkLabel: linkLabel || null, note: note || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {shareId: out.shareId, linkPath: out.linkPath, notifiedUserIds: out.notifiedUserIds,
+                messageInfos: [{type: 'success', message: out.message}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="revokeShare">
+        <actions><script><![CDATA[
+            ec.service.sync().name('org.moqui.impl.FileServices.revoke#Share').parameter('shareId', shareId || '').call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: ec.l10n.localize('Sharing ended')}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="answerShare">
+        <actions><script><![CDATA[
+            ec.service.sync().name(answer === 'decline' ? 'org.moqui.impl.FileServices.decline#Share' : 'org.moqui.impl.FileServices.accept#Share')
+                    .parameter('shareId', shareId || '').call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: ec.l10n.localize(answer === 'decline' ? 'Declined' : 'Accepted')}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="restoreVersion">
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.DriveServices.check#ItemAccess').parameters({driveId: driveId || '', path: path || ''}).call()
+            const out = ec.message.hasError() ? null : ec.service.sync().name('org.moqui.impl.FileServices.restore#Version').parameters({driveId: driveId,
+                path: path || '', versionName: versionName || '', versionNote: versionNote || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {newVersionName: out.newVersionName, messageInfos: [{type: 'success',
+                message: ec.l10n.localize('Restored as the newest version')}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- administrators: fetch a mirror now -->
+    <transition name="fetchMirror">
+        <actions><script><![CDATA[
+            if (!ec.user.isInGroup('ADMIN')) ec.message.addError(ec.l10n.localize('Only an administrator fetches a mirror'))
+            const access = ec.message.hasError() ? null : ec.service.sync().name('org.moqui.impl.FileServices.get#DriveAccess').parameter('driveId', driveId || '').call()
+            if (access && (!access.drive || access.level < 1 || !access.drive.repositoryId)) ec.message.addError(ec.l10n.localize('Drive not found'))
+            if (!ec.message.hasError()) ec.service.sync().name('org.moqui.impl.GitServices.fetch#GitRepository').parameter('repositoryId', access.drive.repositoryId).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: ec.l10n.localize('Fetched')}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+
     <widgets>
-        <label text="Placeholder: Folders, recent, favorites, shared with me, records and trash; detail sidebar with sharing, versions, comments and activity; upload and preview." type="p"/>
-        <subscreens-active/>
+        <render-mode>
+            <text type="qvue" location="component://ironstone-boss/screen/Commons/Files.qvue" template="false"/>
+            <text type="html,qvt"><![CDATA[<p class="m-muted">Files is a .qvue screen: open it under /qapps.</p>]]></text>
+        </render-mode>
     </widgets>
 </screen>

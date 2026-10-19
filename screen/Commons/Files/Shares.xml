@@ -12,10 +12,108 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for Shares: design-drawers-commons.md §9, list archetype, xml, scope new. -->
+<!-- Shares (design-drawers-commons.md §9 Shares; style-guide §3.2 List, §3.3 boxes on one page): what is shared with the user
+    (IncomingShares, waiting ones first, with Accept and Decline), what the user shared with people (OutgoingShares) and the
+    user's links (Links: label, permission, password, expiry, opened count and last opened; a link's address is shown only
+    when it is made), each with Stop sharing or Revoke. Through org.moqui.impl.FileServices get#Shares, accept#Share,
+    decline#Share and revoke#Share, which answer only the user's own shares and those of drives the user manages. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Shares" default-menu-index="1">
+        default-menu-title="Shares" default-menu-index="2">
+
+    <transition name="answerShare">
+        <actions><script><![CDATA[
+            ec.service.sync().name(answer === 'decline' ? 'org.moqui.impl.FileServices.decline#Share' : 'org.moqui.impl.FileServices.accept#Share')
+                    .parameter('shareId', shareId || '').call()
+            if (!ec.message.hasError()) ec.message.addMessage(ec.l10n.localize(answer === 'decline' ? 'Declined' : 'Accepted: it is in Shared with me'), 'success')
+        ]]></script></actions>
+        <default-response url="."/>
+    </transition>
+    <transition name="revokeShare">
+        <service-call name="org.moqui.impl.FileServices.revoke#Share" in-map="{shareId:shareId}"/>
+        <actions><if condition="!ec.message.hasError()"><message type="success">Sharing ended</message></if></actions>
+        <default-response url="."/>
+    </transition>
+
+    <actions>
+        <service-call name="ironstone.DriveServices.get#SharesData" out-map="sharesOut"/>
+        <script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            incomingList = Array.from(sharesOut.incomingList || [])
+            outgoingList = Array.from(sharesOut.outgoingList || [])
+            linkList = Array.from(sharesOut.linkList || []).map((link) => Object.assign({}, link, {passwordText: link.hasPassword ? L('Yes') : L('No'),
+                openedText: String(link.openedCount || 0) + (link.lastOpenedText ? ' · ' + L('last') + ' ' + link.lastOpenedText : '')}))
+        ]]></script>
+    </actions>
     <widgets>
-        <label text="Placeholder: Outgoing shares and links with expiry and revoke; incoming shares to accept." type="p"/>
+        <container style="row items-center q-mb-sm">
+            <label type="h5" text="Shares" style="q-my-none"/>
+            <container style="col"/>
+            <link url="//Commons/Files" link-type="anchor" text="Back to Files" icon="sym_o_folder"/>
+        </container>
+
+        <container-box><box-header title="Shared with me"/><box-body-nopad>
+            <form-list name="IncomingShares" list="incomingList" skip-form="true" paginate="false">
+                <field name="name"><default-field title="Item"><link url="${url}" url-type="plain" link-type="anchor" text="${name}"/></default-field></field>
+                <field name="createdByName"><default-field title="From"><display/></default-field></field>
+                <field name="permissionLabel"><default-field title="May"><display/></default-field></field>
+                <field name="createdText"><default-field title="Received"><display/></default-field></field>
+                <field name="stateLabel"><default-field title=""><display style="text-caption ${pending ? 'text-warning' : 'm-muted'}"/></default-field></field>
+                <field name="actions" align="right"><conditional-field condition="pending" title="">
+                    <link url="answerShare" link-type="hidden-form-link" text="Accept" icon="sym_o_check" parameter-map="{shareId:shareId, answer:'accept'}"/>
+                    <link url="answerShare" link-type="hidden-form-link" text="Decline" btn-type="secondary" parameter-map="{shareId:shareId, answer:'decline'}"/>
+                </conditional-field><default-field title=""><display text=""/></default-field></field>
+                <columns type="mobile">
+                    <column><field-ref name="name"/><field-ref name="createdByName"/></column>
+                    <column><field-ref name="stateLabel"/><field-ref name="actions"/></column>
+                </columns>
+            </form-list>
+            <section name="NoIncoming" condition="!incomingList.length"><widgets>
+                <label type="p" text="Nothing is shared with you yet" style="m-muted q-pa-sm q-mb-none"/>
+            </widgets></section>
+        </box-body-nopad></container-box>
+
+        <container-box><box-header title="Shared by me"/><box-body-nopad>
+            <form-list name="OutgoingShares" list="outgoingList" skip-form="true" paginate="false">
+                <field name="name"><default-field title="Item"><link url="${url}" url-type="plain" link-type="anchor" text="${name}"/></default-field></field>
+                <field name="withText"><default-field title="With"><display/></default-field></field>
+                <field name="permissionLabel"><default-field title="May"><display/></default-field></field>
+                <field name="expireText"><default-field title="Until"><display/></default-field></field>
+                <field name="createdText"><default-field title="Shared"><display/></default-field></field>
+                <field name="stateLabel"><default-field title=""><display style="text-caption m-muted"/></default-field></field>
+                <field name="revoke" align="right"><default-field title="">
+                    <link url="revokeShare" link-type="hidden-form-link" icon="sym_o_person_remove" text="" tooltip="Stop sharing" style="m-btn-flat"
+                            confirmation="Stop sharing ${name} with ${withText}?" parameter-map="{shareId:shareId}"/>
+                </default-field></field>
+                <columns type="mobile">
+                    <column><field-ref name="name"/><field-ref name="withText"/></column>
+                    <column><field-ref name="permissionLabel"/><field-ref name="revoke"/></column>
+                </columns>
+            </form-list>
+            <section name="NoOutgoing" condition="!outgoingList.length"><widgets>
+                <label type="p" text="You have not shared anything with people yet" style="m-muted q-pa-sm q-mb-none"/>
+            </widgets></section>
+        </box-body-nopad></container-box>
+
+        <container-box><box-header title="Links"/><box-body-nopad>
+            <form-list name="Links" list="linkList" skip-form="true" paginate="false">
+                <field name="name"><default-field title="Item"><link url="${url}" url-type="plain" link-type="anchor" text="${name}"/></default-field></field>
+                <field name="linkLabel"><default-field title="Label"><display/></default-field></field>
+                <field name="permissionLabel"><default-field title="Visitors may"><display/></default-field></field>
+                <field name="passwordText"><default-field title="Password"><display/></default-field></field>
+                <field name="expireText"><default-field title="Until"><display/></default-field></field>
+                <field name="openedText"><default-field title="Opened"><display/></default-field></field>
+                <field name="revoke" align="right"><default-field title="">
+                    <link url="revokeShare" link-type="hidden-form-link" icon="sym_o_link_off" text="" tooltip="Revoke" style="m-btn-flat"
+                            confirmation="Revoke this link to ${name}? Anyone who has it can no longer open it." parameter-map="{shareId:shareId}"/>
+                </default-field></field>
+                <columns type="mobile">
+                    <column><field-ref name="name"/><field-ref name="linkLabel"/></column>
+                    <column><field-ref name="openedText"/><field-ref name="revoke"/></column>
+                </columns>
+            </form-list>
+            <section name="NoLinks" condition="!linkList.length"><widgets>
+                <label type="p" text="No links yet: make one in an item's Share dialog" style="m-muted q-pa-sm q-mb-none"/>
+            </widgets></section>
+        </box-body-nopad></container-box>
     </widgets>
 </screen>

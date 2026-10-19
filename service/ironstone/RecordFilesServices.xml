@@ -79,6 +79,11 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="fileCount" type="Integer"/>
             <parameter name="typeOptions" type="List"/>
             <parameter name="defaultTypeId"/>
+            <parameter name="recordsDriveId"/>
+            <parameter name="recordFolderPath"/>
+            <parameter name="filesUrl"/>
+            <parameter name="extraList" type="List"><description>The other files and folders of the record's folder in the records
+                drive (no content row: written there by another process, or a content folder whose row is gone)</description></parameter>
         </out-parameters>
         <actions>
             <service-call name="ironstone.ChatterServices.get#RecordInfo" out-map="recordOut"
@@ -87,6 +92,10 @@ along with this software (see the LICENSE.md file). If not, see
             <service-call name="ironstone.RecordFilesServices.get#ContentType" in-map="{info:recordOut.info}" out-map="typeOut"/>
             <script><![CDATA[
                 visible = true
+                extraList = []
+                recordsDriveId = null
+                recordFolderPath = null
+                filesUrl = null
                 fileList = []
                 fileCount = 0
                 typeOptions = []
@@ -195,8 +204,41 @@ along with this software (see the LICENSE.md file). If not, see
                         dateFull: dateMillis == null ? '' : fmt(dateMillis, 'yyyy-MM-dd HH:mm'), size: size, sizeText: sizeText(size), mimeType: mimeType,
                         isImage: isImage, isPdf: isPdf, icon: isImage ? 'sym_o_image' : isPdf ? 'sym_o_picture_as_pdf'
                             : /\.(txt|md|csv|html?|xml|json)$/.test(lower) ? 'sym_o_description' : 'sym_o_draft',
-                        canRemove: (!!row.userId && row.userId === ec.user.userId) || mayUpdate})
+                        canRemove: (!!row.userId && row.userId === ec.user.userId) || mayUpdate, location: location || null})
                 }
+
+                // the record's folder in the records drive (Files, M8): each file's path there for its versions, and the folder's
+                // other files; a drive that cannot be read is logged and the content rows stand alone
+                ec.message.pushErrors()
+                try {
+                    const folder = ec.service.sync().name('ironstone.DriveServices.get#RecordFolder').parameters({recordEntityName: entityName,
+                        recordId: recordId, locationList: fileList.map((file) => file.location).filter((location) => location)}).call()
+                    if (folder.driveId) {
+                        recordsDriveId = folder.driveId
+                        recordFolderPath = folder.folderPath
+                        for (const file of fileList) file.drivePath = file.location ? (folder.drivePathByLocation[file.location] ?? null) : null
+                        if (folder.folderPath) {
+                            filesUrl = `/qapps/Commons/Files?drive=${encodeURIComponent(folder.driveId)}&path=${encodeURIComponent(folder.folderPath)}`
+                            const rowPaths = fileList.map((file) => file.drivePath).filter((path) => path)
+                            const listing = ec.service.sync().name('ironstone.DriveServices.list#FolderView').parameters({driveId: folder.driveId,
+                                path: folder.folderPath}).requireNewTransaction(true).call()
+                            if (!ec.message.hasError()) for (const child of Array.from(listing.fileList || [])) {
+                                if (rowPaths.includes(child.path)) continue
+                                if (child.isDirectory && rowPaths.some((path) => path.startsWith(child.path + '/'))) continue
+                                extraList.push({name: child.name, drivePath: child.path, isDirectory: child.isDirectory === true, size: child.size ?? null,
+                                    sizeText: sizeText(child.size), byName: child.modifiedByName || null, dateText: whenText(child.modified), icon: child.icon || 'sym_o_draft',
+                                    url: child.isDirectory ? `/qapps/Commons/Files?drive=${encodeURIComponent(folder.driveId)}&path=${encodeURIComponent(child.path)}` : null})
+                            }
+                        }
+                    }
+                } catch (err) {
+                    ec.logger.warn(`Record files of ${entityName} ${recordId}: the records drive was not read: ${err && err.message ? err.message : err}`)
+                } finally {
+                    if (ec.message.hasError()) ec.logger.warn(`Record files of ${entityName} ${recordId}: the records drive: ${ec.message.getErrorsString()}`)
+                    ec.message.clearErrors()
+                    ec.message.popErrors()
+                }
+                for (const file of fileList) delete file.location
             ]]></script>
         </actions>
     </service>
@@ -370,6 +412,275 @@ along with this software (see the LICENSE.md file). If not, see
                     }
                 }
                 message = ec.resource.expand('Removed ${fileName}', '', {fileName: fileName})
+            ]]></script>
+        </actions>
+    </service>
+
+    <!-- ========== The record's folder in the records drive (Files, M8) ========== -->
+
+    <service verb="check" noun="RecordDrivePath" allow-remote="false">
+        <description>A path of the records drive that is in the record's own folder, for the versions, downloads and new
+            versions of the record's files: the record must be one the user may see (get#RecordInfo, R5) and the path in the
+            folder ironstone.DriveServices.get#RecordFolder finds for it; with requireChange the user must be the one who added
+            the file (its content row's userId) or one the record's authorization lets update the record.</description>
+        <in-parameters>
+            <parameter name="recordEntityName" required="true"/>
+            <parameter name="recordId" required="true"/>
+            <parameter name="drivePath" required="true"/>
+            <parameter name="requireChange" type="Boolean" default="false"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="driveId"/>
+            <parameter name="rootLocation"/>
+            <parameter name="folderPath"/>
+            <parameter name="contentRow" type="Map"/>
+            <parameter name="canChange" type="Boolean"/>
+            <parameter name="recordName"/>
+        </out-parameters>
+        <actions>
+            <service-call name="ironstone.ChatterServices.get#RecordInfo" out-map="recordOut"
+                    in-map="{recordEntityName:recordEntityName, recordId:recordId, requireVisible:true}"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <service-call name="ironstone.RecordFilesServices.get#ContentType" in-map="{info:recordOut.info}" out-map="typeOut"/>
+            <script><![CDATA[
+                const clean = (text) => String(text == null ? '' : text).split('/').filter((part) => part && part !== '.').join('/')
+                const L = (text) => ec.l10n.localize(text)
+                contentRow = null
+                canChange = false
+                recordName = `${recordOut.typeLabel || recordOut.info.recordTypeName} ${recordOut.title || recordId}`
+                const entityName = recordOut.info.recordEntityName
+                const content = typeOut.contentType
+                const rows = content ? Array.from(ec.entity.find(content.entityName).condition(content.keyField, recordId).list()) : []
+                const folder = ec.service.sync().name('ironstone.DriveServices.get#RecordFolder').parameters({recordEntityName: entityName, recordId: recordId,
+                    locationList: rows.map((row) => row.contentLocation).filter((location) => location)}).call()
+                const path = clean(drivePath)
+                if (!folder.driveId || !folder.folderPath || String(drivePath).split('/').includes('..') || !(path === folder.folderPath || path.startsWith(folder.folderPath + '/'))) {
+                    ec.message.addError(L('Not a file of this record')); return
+                }
+                driveId = folder.driveId
+                rootLocation = folder.rootLocation
+                folderPath = folder.folderPath
+                const row = rows.find((item) => String(item.contentLocation || '') === `${folder.rootLocation}/${path}`)
+                contentRow = row ? row.getMap() : null
+                canChange = (!!contentRow && !!contentRow.userId && contentRow.userId === ec.user.userId) || ec.artifactExecution.isPermitted(entityName, 'AT_ENTITY', 'update')
+                if (requireChange && !canChange) ec.message.addError(ec.resource.expand('You may not change the files of ${recordName}', '', {recordName: recordName}))
+            ]]></script>
+        </actions>
+    </service>
+
+    <service verb="get" noun="RecordFileVersions">
+        <description>The versions of a file of the record (FileServices.get#Versions on the records drive), newest first.</description>
+        <in-parameters>
+            <parameter name="recordEntityName" required="true"/>
+            <parameter name="recordId" required="true"/>
+            <parameter name="drivePath" required="true"/>
+        </in-parameters>
+        <out-parameters><parameter name="versionList" type="List"/><parameter name="canChange" type="Boolean"/></out-parameters>
+        <actions>
+            <service-call name="ironstone.RecordFilesServices.check#RecordDrivePath" out-map="pathOut"
+                    in-map="{recordEntityName:recordEntityName, recordId:recordId, drivePath:drivePath}"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <service-call name="ironstone.DriveServices.check#ItemAccess" in-map="{driveId:pathOut.driveId, path:drivePath}"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <service-call name="org.moqui.impl.FileServices.get#Versions" in-map="{driveId:pathOut.driveId, path:drivePath}" out-map="versionsOut"/>
+            <set field="versionList" from="versionsOut.versionList || []"/>
+            <set field="canChange" from="pathOut.canChange"/>
+        </actions>
+    </service>
+
+    <service verb="get" noun="RecordDriveFile">
+        <description>A file of the record's folder to send (a past version with versionName): its location and name, after
+            check#RecordDrivePath and FileServices.get#ResourceInfo; inlineAllowed only for a raster image or a PDF.</description>
+        <in-parameters>
+            <parameter name="recordEntityName" required="true"/>
+            <parameter name="recordId" required="true"/>
+            <parameter name="drivePath" required="true"/>
+            <parameter name="versionName"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="location"/>
+            <parameter name="fileName"/>
+            <parameter name="inlineAllowed" type="Boolean"/>
+        </out-parameters>
+        <actions>
+            <service-call name="ironstone.RecordFilesServices.check#RecordDrivePath" out-map="pathOut"
+                    in-map="{recordEntityName:recordEntityName, recordId:recordId, drivePath:drivePath}"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <service-call name="ironstone.DriveServices.check#ItemAccess" in-map="{driveId:pathOut.driveId, path:drivePath}"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <service-call name="org.moqui.impl.FileServices.get#ResourceInfo" out-map="infoOut"
+                    in-map="{driveId:pathOut.driveId, path:drivePath, versionName:(versionName || null), opened:true}"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <script><![CDATA[
+                const resource = infoOut.resource
+                if (resource.isDirectory) { ec.message.addError(ec.l10n.localize('Not a file of this record')); return }
+                fileName = resource.name
+                location = ec.service.sync().name('ironstone.DriveServices.get#DownloadLocation').parameters({location: resource.location, fileName: fileName}).call().downloadLocation
+                inlineAllowed = /\.(png|jpe?g|gif|webp|pdf)$/i.test(fileName)
+            ]]></script>
+        </actions>
+    </service>
+
+    <service verb="upload" noun="RecordFileVersion">
+        <description>A new version of a file of the record: the uploaded file is written over it (whatever its own name) in the
+            records drive, which keeps the one before as a version (FileServices.upload#Resource as one change set, with the
+            version note). The record must be visible and the user may change its files (check#RecordDrivePath requireChange);
+            the drive is read only for its members, so the upload is made for the user after these checks.</description>
+        <in-parameters>
+            <parameter name="recordEntityName" required="true"/>
+            <parameter name="recordId" required="true"/>
+            <parameter name="drivePath" required="true"/>
+            <parameter name="contentFile" type="Object" required="true"/>
+            <parameter name="versionNote"/>
+        </in-parameters>
+        <out-parameters><parameter name="versionName"/><parameter name="message"/></out-parameters>
+        <actions>
+            <service-call name="ironstone.RecordFilesServices.check#RecordDrivePath" out-map="pathOut"
+                    in-map="{recordEntityName:recordEntityName, recordId:recordId, drivePath:drivePath, requireChange:true}"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <service-call name="ironstone.DriveServices.check#ItemAccess" in-map="{driveId:pathOut.driveId, path:drivePath}"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <script><![CDATA[
+                const file = Array.isArray(contentFile) ? contentFile[0] : contentFile
+                if (!file || typeof file !== 'object') { ec.message.addError(ec.l10n.localize('Choose the file of the new version')); return }
+                const slash = drivePath.lastIndexOf('/')
+                const name = drivePath.slice(slash + 1)
+                const out = ec.service.sync().name('org.moqui.impl.FileServices.upload#Resource').parameters({driveId: pathOut.driveId,
+                    path: drivePath.slice(0, slash), fileList: [file], relativePathList: [name], conflictPolicy: 'replace', versionNote: versionNote || null,
+                    asInternal: true}).disableAuthz().call()
+                if (ec.message.hasError()) return
+                const row = Array.from(out.uploadedList || [])[0]
+                if (!row || row.outcome === 'failed') { ec.message.addError(ec.resource.expand('${name} was not saved: ${why}', '', {name: name, why: row ? row.error : '?'})); return }
+                versionName = out.versionName ?? null
+                message = ec.resource.expand('A new version of ${name}', '', {name: name})
+            ]]></script>
+        </actions>
+    </service>
+
+    <service verb="restore" noun="RecordFileVersion">
+        <description>A past version of a file of the record written back as its newest version (the history stays), with the
+            note "Restored version x". The same checks as upload#RecordFileVersion.</description>
+        <in-parameters>
+            <parameter name="recordEntityName" required="true"/>
+            <parameter name="recordId" required="true"/>
+            <parameter name="drivePath" required="true"/>
+            <parameter name="versionName" required="true"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions>
+            <service-call name="ironstone.RecordFilesServices.check#RecordDrivePath" out-map="pathOut"
+                    in-map="{recordEntityName:recordEntityName, recordId:recordId, drivePath:drivePath, requireChange:true}"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <service-call name="ironstone.DriveServices.check#ItemAccess" in-map="{driveId:pathOut.driveId, path:drivePath}"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <service-call name="org.moqui.impl.FileServices.get#ResourceInfo" out-map="infoOut"
+                    in-map="{driveId:pathOut.driveId, path:drivePath, versionName:versionName}"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <script><![CDATA[
+                const slash = drivePath.lastIndexOf('/')
+                const name = drivePath.slice(slash + 1)
+                const short = String(versionName).length === 40 ? String(versionName).slice(0, 10) : String(versionName)
+                // the version's bytes by its name (location#version reads the current bytes through a reference)
+                const location = String(infoOut.resource.location)
+                const bytes = ec.resource.getVersionBytes(location.slice(0, location.indexOf('#') > 0 ? location.indexOf('#') : location.length), versionName)
+                if (bytes == null) { ec.message.addError(ec.l10n.localize('That version is not there')); return }
+                const out = ec.service.sync().name('org.moqui.impl.FileServices.upload#Resource').parameters({driveId: pathOut.driveId,
+                    path: drivePath.slice(0, slash), fileList: [bytes], relativePathList: [name], conflictPolicy: 'replace',
+                    versionNote: ec.resource.expand('Restored version ${version}', '', {version: short}), asInternal: true}).disableAuthz().call()
+                if (ec.message.hasError()) return
+                const row = Array.from(out.uploadedList || [])[0]
+                if (!row || row.outcome === 'failed') { ec.message.addError(ec.resource.expand('${name} was not restored: ${why}', '', {name: name, why: row ? row.error : '?'})); return }
+                message = ec.resource.expand('Version ${version} of ${name} restored', '', {version: short, name: name})
+            ]]></script>
+        </actions>
+    </service>
+
+    <service verb="add" noun="RecordFilesFromDrive">
+        <description>Add files the user picked in Files (itemList of {driveId, path}) to the record, as copies: for each a
+            content row of the record's type with contentTypeEnumId and description, its file in the record's folder as the
+            record type's own save#*ContentFile lays it out (content_id/name; an asset maintenance record's folder itself).
+            Each file is read through FileServices after ironstone.DriveServices.check#ItemAccess, so only a file the user may
+            open is copied; each stands alone (one that fails is named in failedList). The record must be visible and the user
+            may add files to it (the content entity's create permission).</description>
+        <in-parameters>
+            <parameter name="recordEntityName" required="true"/>
+            <parameter name="recordId" required="true"/>
+            <parameter name="itemList" type="List" required="true"/>
+            <parameter name="contentTypeEnumId"/>
+            <parameter name="description"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="createdList" type="List"/>
+            <parameter name="failedList" type="List"/>
+            <parameter name="message"/>
+        </out-parameters>
+        <actions>
+            <service-call name="ironstone.ChatterServices.get#RecordInfo" out-map="recordOut"
+                    in-map="{recordEntityName:recordEntityName, recordId:recordId, requireVisible:true}"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <service-call name="ironstone.RecordFilesServices.get#ContentType" in-map="{info:recordOut.info}" out-map="typeOut"/>
+            <script><![CDATA[
+                createdList = []
+                failedList = []
+                const L = (text) => ec.l10n.localize(text)
+                const content = typeOut.contentType
+                const entityName = recordOut.info.recordEntityName
+                const recordName = `${recordOut.typeLabel || recordOut.info.recordTypeName} ${recordOut.title || recordId}`
+                if (!content || !content.idField) { ec.message.addError(ec.resource.expand('${recordName} takes no files from Files', '', {recordName: recordName})); return }
+                if (!ec.artifactExecution.isPermitted(content.entityName, 'AT_ENTITY', 'create')) {
+                    ec.message.addError(ec.resource.expand('You may not add files to ${recordName}', '', {recordName: recordName})); return }
+                const rows = Array.from(ec.entity.find(content.entityName).condition(content.keyField, recordId).list())
+                const folder = ec.service.sync().name('ironstone.DriveServices.get#RecordFolder').parameters({recordEntityName: entityName, recordId: recordId,
+                    locationList: rows.map((row) => row.contentLocation).filter((location) => location)}).call()
+                const root = folder.rootLocation || String(ec.user.getPreference('mantle.content.root') || 'dbresource://mantle/content').replace(/\/+$/, '')
+                if (!folder.folderPath) { ec.message.addError(ec.resource.expand('${recordName} has no folder for files yet: upload a file first', '', {recordName: recordName})); return }
+                const safe = (name) => String(name || 'file').replace(/[\/\\?#%:*"<>|]/g, '_').slice(0, 160)
+                // each file the user may open, read in a transaction of its own (a file that is refused does not stop the others)
+                const readable = (item) => {
+                    ec.message.pushErrors()
+                    try {
+                        const out = ec.service.sync().name('ironstone.DriveServices.get#ItemForUser').parameters({driveId: item.driveId, path: item.path})
+                                .requireNewTransaction(true).call()
+                        return ec.message.hasError() ? {why: ec.message.getErrorsString()} : {resource: out.resource}
+                    } finally { ec.message.clearErrors(); ec.message.popErrors() }
+                }
+                for (const item of Array.from(itemList || [])) {
+                    const label = item && item.path ? String(item.path).split('/').pop() : '?'
+                    ec.message.pushErrors()
+                    try {
+                        if (!item || !item.driveId || !item.path) throw new Error(L('No file chosen'))
+                        const found = readable(item)
+                        if (!found.resource) throw new Error(found.why || L('File not found'))
+                        const info = {resource: found.resource}
+                        if (info.resource.isDirectory) throw new Error(L('A folder is not added; choose its files'))
+                        const created = ec.service.sync().name('create#' + content.entityName).parameters({[content.keyField]: recordId,
+                            [content.typeField]: contentTypeEnumId || null, description: description || null, contentDate: ec.user.nowTimestamp,
+                            userId: ec.user.userId}).call()
+                        if (ec.message.hasError()) throw new Error(ec.message.getErrorsString())
+                        const rowId = created[content.idField]
+                        const name = safe(info.resource.name)
+                        const target = `${root}/${folder.folderPath}/content_${rowId}/${name}`
+                        const stream = ec.resource.getLocationReference(info.resource.location).openStream()
+                        try { ec.resource.getLocationReference(target).putStream(stream) } finally { if (stream && stream.close) stream.close() }
+                        ec.service.sync().name('update#' + content.entityName).parameters({[content.idField]: rowId, contentLocation: target}).call()
+                        if (ec.message.hasError()) throw new Error(ec.message.getErrorsString())
+                        createdList.push({fileName: info.resource.name, contentId: rowId})
+                    } catch (err) {
+                        const why = err && err.message ? err.message : String(err)
+                        ec.logger.warn(`Record files of ${entityName} ${recordId}: ${label} from Files was not added: ${why}`)
+                        failedList.push({fileName: label, error: why})
+                    } finally {
+                        ec.message.clearErrors()
+                        ec.message.popErrors()
+                    }
+                }
+                if (!createdList.length) {
+                    ec.message.addError(ec.resource.expand('No file was added to ${recordName}: ${why}', '', {recordName: recordName,
+                        why: failedList.map((failed) => failed.fileName + ': ' + failed.error).join('; ')}))
+                    return
+                }
+                message = createdList.length === 1 ? ec.resource.expand('Added ${fileName} to ${recordName}', '', {fileName: createdList[0].fileName, recordName: recordName})
+                        : ec.resource.expand('Added ${count} files to ${recordName}', '', {count: createdList.length, recordName: recordName})
             ]]></script>
         </actions>
     </service>

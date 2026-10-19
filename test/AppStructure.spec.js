@@ -4,8 +4,8 @@
 // "Placeholder:" label. Every other screen under the Commons, Comms and Insights roots and in screen/Shared (the screens
 // built there and the ones moved from the first SimpleScreens port) renders the same way, on the demo records of
 // data/BossDemoData.xml and data/BossMailDemoData.xml, and shows them; a .qvue screen (render-modes vue,qvue: Shared/Chatter,
-// Shared/RecordFiles, Comms/Inbox/Mail, Comms/Inbox/Compose, Comms/Chat, Comms/Panel/Chat, Comms/Settings/Rules, Commons/Knowledge and
-// Commons/Notes) renders in qvue,
+// Shared/RecordFiles, Comms/Inbox/Mail, Comms/Inbox/Compose, Comms/Chat, Comms/Panel/Chat, Comms/Settings/Rules, Commons/Knowledge,
+// Commons/Notes and Commons/Files) renders in qvue,
 // its component.
 // Run: ./moq test ironstone-boss
 const base = "component://ironstone-boss/screen"
@@ -90,6 +90,12 @@ const demoRecords = {
     "Commons/Knowledge/Spaces": { text: "Team handbook" },
     "Commons/Knowledge/SpaceDetail": { parameters: { wikiSpaceId: "BOSSKB" }, text: "Policies/Security" },
     "Commons/Knowledge/Review": { text: "Release process" },
+    // M8: Files (a .qvue screen: its component), the drives with one drive's settings and members, the shares (the files demo of
+    // data/BossFilesDemoData.xml)
+    "Commons/Files": { text: "BossFiles" },
+    "Commons/Files/Drives": { text: "Team" },
+    "Commons/Files/DriveSettings": { parameters: { driveId: "BOSS_DEMO_TEAM" }, text: "Joe Developer" },
+    "Commons/Files/Shares": { text: "Photos for the family" },
     // M5: the Inbox (the default subscreen Inbox/Mail, a .qvue screen like Compose) and MessageDetail on a message of the mail
     // demo (data/BossMailDemoData.xml) that no spec changes
     "Comms/Inbox": { text: "Inbox" },
@@ -158,8 +164,8 @@ feature("every placeholder screen renders in qvt without errors, with its menu",
     },
     then({ failures }) {
         // fewer as the milestones replace them (129 after M4, 114 after M10 and the Comms mail settings, 110 after M9's
-        // Knowledge and Notes; M8's Files take more)
-        placeholders.length >= 107
+        // Knowledge and Notes, 104 after M8's Files and Shares and the public page moved out of Commons)
+        placeholders.length >= 104
         failures.join("\n") == ""
     },
 })

@@ -63,6 +63,7 @@ along with this software (see the LICENSE.md file). If not, see
         <palette-source group="Records" label="Records" icon="sym_o_search" service="ironstone.PaletteServices.search#Records" sequence="10"/>
         <palette-source group="People" label="People" icon="sym_o_person" prefix="@" service="ironstone.PaletteServices.search#People" sequence="20"/>
         <palette-source group="Pages" label="Pages and files" icon="sym_o_description" service="ironstone.PaletteServices.search#Pages" sequence="40"/>
+        <palette-source group="Files" label="Files" icon="sym_o_folder" service="ironstone.DriveServices.search#PaletteFiles" sequence="45"/>
         <palette-source group="Events" label="Events" icon="sym_o_event" service="ironstone.PaletteServices.search#Events" sequence="50"/>
 
         <!-- Today: the requests assigned to the user with a response due, beside the tasks, activities and events -->

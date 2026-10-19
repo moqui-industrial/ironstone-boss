@@ -1,0 +1,329 @@
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- PublicShare (design-drawers-commons.md §9 PublicShare), the component PublicShare.xml serves in the qvue render mode in the
+    public shell (WebrootPublic.qvt.js): a visitor who is not signed in, at /s/<token>. What the route's token check answered is
+    $root.context (the item's name, folder or file, permission, whether a password is needed, the sharer's name, the note and
+    the expiry); the transitions are under $root.basePath. The page opens the link first (open: the password when it has one,
+    and the opening is counted), keeps the grant it gets for this tab, then shows the shared file (preview, download) or the
+    folder (breadcrumbs, its files with picture previews, a file or a folder as a zip) and, for a link that takes files, the
+    file drop with the visitor's name. A grant that ran out asks for the password again; an error is said in a sentence.
+    Brand color names and Quasar classes only (style-guide §4.8, §5). -->
+<template><div class="boss-public-share q-py-md">
+    <q-card flat bordered class="q-mb-md">
+        <q-card-section class="row items-center no-wrap q-gutter-x-md">
+            <q-icon :name="share.isDirectory ? 'sym_o_folder_shared' : 'sym_o_draft'" size="40px" color="primary"></q-icon>
+            <div class="col" style="min-width:0">
+                <div class="text-caption m-muted">{{t('Shared with you')}}</div>
+                <div class="text-h6 ellipsis">{{share.linkLabel || share.name || t('Shared files')}}</div>
+                <div class="text-body2 m-muted">
+                    <span v-if="share.linkLabel && share.name && share.name !== share.linkLabel">{{share.name}} · </span>
+                    <span v-if="share.sharerName">{{t('by')}} {{share.sharerName}}</span>
+                    <span v-if="share.expireDate"> · {{t('available until')}} {{longDate(share.expireDate)}}</span>
+                </div>
+            </div>
+        </q-card-section>
+        <q-card-section v-if="share.note" class="q-pt-none"><div class="text-body2" style="white-space:pre-wrap">{{share.note}}</div></q-card-section>
+    </q-card>
+
+    <!-- the password -->
+    <q-card v-if="state === 'password'" flat bordered style="max-width:440px" class="q-mx-auto">
+        <q-card-section>
+            <div class="text-subtitle1 q-mb-sm">{{t('This link has a password')}}</div>
+            <div @keydown.enter.prevent="openLink"><m-text-line v-model="password" name="sharePassword" id="SharePassword" type="password" :label="t('Password')"></m-text-line></div>
+            <div v-if="passwordError" class="text-negative text-body2 q-mt-xs">{{passwordError}}</div>
+            <q-btn unelevated no-caps color="primary" class="q-mt-md" icon="sym_o_lock_open" :label="t('Open')" :loading="opening" :disable="!password" @click="openLink"></q-btn>
+        </q-card-section>
+    </q-card>
+
+    <div v-else-if="state === 'loading'" class="q-pa-xl text-center"><q-spinner size="32px" color="primary"></q-spinner></div>
+
+    <q-banner v-else-if="state === 'error'" rounded class="m-tonal text-negative">
+        <template v-slot:avatar><q-icon name="sym_o_error"></q-icon></template>
+        {{error}}
+        <template v-slot:action><q-btn flat no-caps :label="t('Try again')" @click="start"></q-btn></template>
+    </q-banner>
+
+    <template v-else-if="state === 'ready'">
+        <!-- the file drop -->
+        <q-card v-if="canUpload" flat bordered class="q-mb-md">
+            <q-card-section>
+                <div class="text-subtitle1">{{uploadOnly ? t('Send files') : t('Add files')}}</div>
+                <div class="text-body2 m-muted q-mb-sm">{{uploadOnly ? t('The files you send go to the person who shared this link; you will not see the others.') : t('Add files to this folder.')}}</div>
+                <m-text-line v-model="uploaderName" name="uploaderName" :label="t('Your name')" style="max-width:360px"></m-text-line>
+                <div class="q-mt-sm q-pa-lg text-center rounded-borders cursor-pointer" :class="dragOver ? 'text-primary' : 'm-muted'" style="border:2px dashed"
+                        @dragover.prevent="dragOver = true" @dragleave="dragOver = false" @drop.prevent="onDrop" @click="pickFiles">
+                    <q-icon name="sym_o_upload_file" size="40px"></q-icon>
+                    <div class="text-body1">{{t('Drop files here, or choose them')}}</div>
+                </div>
+                <div class="hidden"><m-file ref="picker" v-model="picked" name="dropFiles" multiple @update:model-value="onPicked"></m-file></div>
+                <q-linear-progress v-if="uploading" :value="uploadTotal ? uploadLoaded / uploadTotal : 0" rounded size="6px" color="primary" class="q-mt-sm"></q-linear-progress>
+                <q-list v-if="sent.length" dense class="q-mt-sm">
+                    <q-item v-for="(item, index) in sent" :key="index" class="q-px-none">
+                        <q-item-section avatar style="min-width:30px"><q-icon :name="item.outcome === 'failed' ? 'sym_o_error' : 'sym_o_check_circle'"
+                                :color="item.outcome === 'failed' ? 'negative' : 'positive'" size="20px"></q-icon></q-item-section>
+                        <q-item-section><q-item-label>{{item.name}}</q-item-label>
+                            <q-item-label caption>{{item.outcome === 'failed' ? (item.error || t('Not sent')) : t('Sent')}}</q-item-label></q-item-section>
+                    </q-item>
+                </q-list>
+            </q-card-section>
+        </q-card>
+
+        <!-- one file -->
+        <q-card v-if="!uploadOnly && !share.isDirectory && files.length" flat bordered>
+            <q-card-section class="text-center">
+                <img v-if="isPicture(files[0])" :src="fileUrl(files[0], true)" :alt="files[0].name" style="max-width:100%;max-height:60vh" class="rounded-borders">
+                <q-card v-else-if="textPreview != null" flat bordered class="text-left q-pa-md scroll" style="max-height:50vh">
+                    <div class="text-body2" style="white-space:pre-wrap;font-family:ui-monospace,monospace">{{textPreview}}</div></q-card>
+                <q-icon v-else :name="iconOf(files[0])" size="72px" color="primary"></q-icon>
+                <div class="text-subtitle1 q-mt-sm">{{files[0].name}}</div>
+                <div class="text-caption m-muted">{{[sizeText(files[0].size), longDate(files[0].modified)].filter((part) => part).join(' · ')}}</div>
+                <div class="row justify-center q-gutter-sm q-mt-md">
+                    <q-btn unelevated no-caps color="primary" icon="sym_o_download" :label="t('Download')" @click="download(files[0])"></q-btn>
+                    <q-btn v-if="isPdf(files[0])" unelevated no-caps class="m-btn-tonal" icon="sym_o_open_in_new" :label="t('Open')" type="a" :href="fileUrl(files[0], true)" target="_blank"></q-btn>
+                </div>
+            </q-card-section>
+        </q-card>
+
+        <!-- the folder -->
+        <q-card v-else-if="!uploadOnly" flat bordered>
+            <div class="row items-center no-wrap q-px-md q-py-sm q-gutter-x-xs">
+                <div class="col row items-center no-wrap" style="min-width:0;overflow:hidden">
+                    <template v-for="(crumb, index) in crumbs" :key="index">
+                        <q-icon v-if="index" name="sym_o_chevron_right" size="18px" class="m-muted"></q-icon>
+                        <q-btn flat dense no-caps :class="index === crumbs.length - 1 ? 'text-weight-medium' : 'm-muted'" :disable="index === crumbs.length - 1"
+                                @click="openFolder(crumb.path)"><span class="ellipsis">{{crumb.name}}</span></q-btn>
+                    </template>
+                </div>
+                <q-btn unelevated dense no-caps class="m-btn-tonal" icon="sym_o_folder_zip" :label="$q.screen.lt.sm ? undefined : t('Download all')"
+                        :aria-label="t('Download all')" @click="downloadFolder"></q-btn>
+            </div>
+            <q-separator></q-separator>
+            <div v-if="loadingFiles" class="q-pa-lg text-center"><q-spinner color="primary"></q-spinner></div>
+            <div v-else-if="!files.length" class="q-pa-lg text-center m-muted">{{t('This folder is empty')}}</div>
+            <q-list v-else separator>
+                <q-item v-for="file in files" :key="file.path" clickable @click="openFile(file)">
+                    <q-item-section avatar style="min-width:48px">
+                        <img v-if="isPicture(file)" :src="fileUrl(file, true)" :alt="file.name" loading="lazy" style="width:40px;height:40px;object-fit:cover" class="rounded-borders">
+                        <q-icon v-else :name="iconOf(file)" size="28px" :color="file.isDirectory ? 'primary' : undefined"></q-icon>
+                    </q-item-section>
+                    <q-item-section style="min-width:0"><q-item-label class="ellipsis">{{file.name}}</q-item-label>
+                        <q-item-label caption>{{file.isDirectory ? t('Folder') : [sizeText(file.size), shortDate(file.modified)].filter((part) => part).join(' · ')}}</q-item-label></q-item-section>
+                    <q-item-section side @click.stop>
+                        <q-btn flat round dense :icon="file.isDirectory ? 'sym_o_folder_zip' : 'sym_o_download'" :aria-label="t('Download')" @click="download(file)">
+                            <q-tooltip>{{file.isDirectory ? t('Download as zip') : t('Download')}}</q-tooltip></q-btn>
+                    </q-item-section>
+                </q-item>
+            </q-list>
+        </q-card>
+    </template>
+
+    <!-- a picture over the page -->
+    <m-dialog v-model="viewer.open" :title="viewer.file ? viewer.file.name : ''" width="1000">
+        <div v-if="viewer.file" class="text-center">
+            <img :src="fileUrl(viewer.file, true)" :alt="viewer.file.name" style="max-width:100%;max-height:72vh">
+            <div class="row justify-center q-mt-sm"><q-btn flat no-caps color="primary" icon="sym_o_download" :label="t('Download')" @click="download(viewer.file)"></q-btn></div>
+        </div>
+    </m-dialog>
+</div></template>
+
+<script>
+const t = (text) => (moqui.l10n && moqui.l10n.localize ? moqui.l10n.localize(text) : text);
+module.exports = {
+    name: 'BossPublicShare',
+    data() {
+        return { state: 'loading', error: null, password: '', passwordError: null, opening: false, grant: null, shareInfo: null, files: [], uploadOnly: false,
+            path: '', loadingFiles: false, textPreview: null, uploaderName: '', dragOver: false, picked: null, uploading: false, uploadLoaded: 0, uploadTotal: 0, sent: [],
+            viewer: { open: false, file: null } };
+    },
+    computed: {
+        base() { return this.$root.basePath || ''; },
+        share() { return Object.assign({}, this.$root.context || {}, this.shareInfo || {}); },
+        canUpload() { return this.share.isDirectory && (this.share.permissionEnumId === 'RspUpload' || this.share.permissionEnumId === 'RspEdit'); },
+        grantKey() { return 'ironstone.share.grant.' + String(this.base).split('/').pop().slice(0, 12); },
+        crumbs() {
+            const list = [{ name: this.share.name || t('Shared files'), path: '' }];
+            let at = '';
+            for (const part of this.path ? this.path.split('/') : []) { at = at ? at + '/' + part : part; list.push({ name: part, path: at }); }
+            return list;
+        }
+    },
+    methods: {
+        t,
+        url(name) { return this.base + '/' + name; },
+        start() {
+            this.state = 'loading';
+            this.error = null;
+            let kept = null;
+            try { kept = sessionStorage.getItem(this.grantKey); } catch (err) { kept = null; }
+            if (kept && this.share.needsPassword) { this.grant = kept; this.loadFiles(''); return; }
+            if (this.share.needsPassword) { this.state = 'password'; this.$nextTick(() => this.focusPassword()); return; }
+            this.openLink();
+        },
+        focusPassword() { setTimeout(() => { const el = document.getElementById('SharePassword'); if (el && el.focus) el.focus(); }, 100); },
+        openLink() {
+            if (this.opening) return;
+            this.opening = true;
+            this.passwordError = null;
+            const params = this.password ? { password: this.password } : {};
+            moqui.request(this.url('open'), { method: 'POST', params }).then((result) => {
+                this.opening = false;
+                const json = result.json || {};
+                if (!json.passwordOk) {
+                    this.state = 'password';
+                    if (this.password) this.passwordError = t('The password is not right');
+                    this.focusPassword();
+                    return;
+                }
+                this.grant = json.grant || null;
+                this.shareInfo = json.share || null;
+                this.password = '';
+                try { if (this.grant && this.share.needsPassword) sessionStorage.setItem(this.grantKey, this.grant); } catch (err) { /* no storage */ }
+                this.loadFiles('');
+            }, (err) => {
+                this.opening = false;
+                const text = (err && err.json && err.json.errors) || '';
+                if (this.share.needsPassword && /password/i.test(text)) { this.state = 'password'; this.passwordError = t('The password is not right'); this.focusPassword(); return; }
+                this.fail(text);
+            });
+        },
+        fail(text) {
+            this.state = 'error';
+            this.error = text && !/^\s*</.test(text) ? text : t('This link cannot be opened now. It may have expired or been revoked; ask the person who shared it.');
+        },
+        params(extra) { return Object.assign(this.grant ? { grant: this.grant } : {}, extra || {}); },
+        loadFiles(path) {
+            this.loadingFiles = true;
+            moqui.request(this.url('files'), { params: this.params({ path: path || '' }) }).then((result) => {
+                const json = result.json || {};
+                this.files = json.fileList || [];
+                this.uploadOnly = !!json.uploadOnly;
+                this.path = path || '';
+                this.loadingFiles = false;
+                this.state = 'ready';
+                // one shared text file: its first part on the page
+                const only = this.files[0];
+                if (!this.share.isDirectory && only && this.isText(only) && (only.size == null || only.size < 200000))
+                    moqui.request(this.fileUrl(only, false), { accept: 'text/plain' }).then((answer) => {
+                        this.textPreview = String(answer.text || '').slice(0, 4000);
+                    }, () => { this.textPreview = null; });
+            }, (err) => {
+                this.loadingFiles = false;
+                const text = (err && err.json && err.json.errors) || '';
+                // the grant ran out (an hour): the password again
+                if (this.share.needsPassword && /password/i.test(text)) {
+                    try { sessionStorage.removeItem(this.grantKey); } catch (error) { /* no storage */ }
+                    this.grant = null;
+                    this.state = 'password';
+                    return;
+                }
+                this.fail(text);
+            });
+        },
+        openFolder(path) { this.loadFiles(path); },
+        openFile(file) {
+            if (file.isDirectory) { this.openFolder(file.path); return; }
+            if (this.isPicture(file)) { this.viewer = { open: true, file }; return; }
+            if (this.isPdf(file)) { window.open(this.fileUrl(file, true), '_blank', 'noopener'); return; }
+            this.download(file);
+        },
+        fileUrl(file, inline) { return this.url('download') + '?' + moqui.objToSearch(this.params({ path: file.path || '', inline: inline ? 'true' : 'false' })); },
+        download(file) {
+            const link = document.createElement('a');
+            link.href = this.fileUrl(file, false);
+            link.setAttribute('download', '');
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        },
+        downloadFolder() { this.download({ path: this.path, isDirectory: true }); },
+        isPicture(file) { return !file.isDirectory && /^image\/(png|jpeg|gif|webp|bmp)$/.test(String(file.contentType || '')); },
+        isText(file) { return !file.isDirectory && (/^text\//.test(String(file.contentType || '')) || /\.(md|txt|csv|json)$/i.test(String(file.name || ''))); },
+        isPdf(file) { return !file.isDirectory && String(file.contentType || '') === 'application/pdf'; },
+        iconOf(file) {
+            if (file.isDirectory) return 'sym_o_folder';
+            const type = String(file.contentType || '');
+            if (type.startsWith('image/')) return 'sym_o_image';
+            if (type === 'application/pdf') return 'sym_o_picture_as_pdf';
+            if (type.startsWith('video/')) return 'sym_o_movie';
+            if (type.startsWith('audio/')) return 'sym_o_music_note';
+            if (type.startsWith('text/')) return 'sym_o_description';
+            return 'sym_o_draft';
+        },
+        pickFiles() {
+            const input = this.$refs.picker && this.$refs.picker.$el && this.$refs.picker.$el.querySelector('input[type=file]');
+            if (input) input.click();
+        },
+        onPicked(files) {
+            const list = Array.isArray(files) ? files : (files ? [files] : []);
+            this.picked = null;
+            if (list.length) this.send(list);
+        },
+        onDrop(event) {
+            this.dragOver = false;
+            const files = Array.from((event.dataTransfer && event.dataTransfer.files) || []);
+            if (files.length) this.send(files);
+        },
+        send(files) {
+            if (this.uploading) return;
+            const form = new FormData();
+            if (this.grant) form.append('grant', this.grant);
+            if (!this.uploadOnly && this.path) form.append('path', this.path);
+            if (this.uploaderName) form.append('uploaderName', this.uploaderName);
+            files.forEach((file) => form.append('contentFile', file, file.name));
+            if (moqui.sessionToken) form.append('moquiSessionToken', moqui.sessionToken);
+            this.uploading = true;
+            this.uploadLoaded = 0;
+            this.uploadTotal = files.reduce((sum, file) => sum + (file.size || 0), 0);
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', this.url('upload'));
+            xhr.setRequestHeader('Accept', 'application/json');
+            if (moqui.sessionToken) xhr.setRequestHeader('X-CSRF-Token', moqui.sessionToken);
+            xhr.upload.onprogress = (event) => { if (event.lengthComputable) { this.uploadLoaded = event.loaded; this.uploadTotal = event.total; } };
+            xhr.onload = () => {
+                this.uploading = false;
+                let json = {};
+                try { json = JSON.parse(xhr.responseText || '{}'); } catch (err) { json = {}; }
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    this.sent = (json.uploadedList || []).concat(this.sent).slice(0, 50);
+                    if (!this.uploadOnly) this.loadFiles(this.path);
+                } else {
+                    const text = json.errors || t('The files were not sent');
+                    if (this.$q.notify) this.$q.notify({ type: 'negative', message: text });
+                }
+            };
+            xhr.onerror = () => { this.uploading = false; if (this.$q.notify) this.$q.notify({ type: 'negative', message: t('The files were not sent: no connection') }); };
+            xhr.send(form);
+        },
+        sizeText(size) {
+            if (size == null || size === '') return '';
+            const n = Number(size) || 0;
+            if (n >= 1073741824) return (n / 1073741824).toFixed(1) + ' GB';
+            if (n >= 1048576) return (n / 1048576).toFixed(1) + ' MB';
+            if (n >= 1024) return Math.round(n / 1024) + ' KB';
+            return n + ' B';
+        },
+        shortDate(millis) { return millis ? new Date(Number(millis)).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : ''; },
+        longDate(millis) {
+            if (!millis) return '';
+            const d = new Date(Number(millis));
+            return d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) + ' ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+        }
+    },
+    mounted() {
+        // dark when the visitor's system is, as the public shell has no preference to read
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches && this.$q.dark && !this.$q.dark.isActive) this.$q.dark.set(true);
+        this.start();
+    }
+};
+</script>

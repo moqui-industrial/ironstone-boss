@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- DriveSettings (design-drawers-commons.md §9 Drives: DriveSettings, DriveMembers; style-guide §3.9 Settings): one drive's
+    name, description and quota, its storage (read only: for a version-controlled drive the repository, branch and head commit,
+    for a disk drive the path to clone from, for a mirror the URL, the interval, the last fetch and its error, with Fetch now),
+    its members with their permission (view, edit, manage), export (a folder drive as a zip, a database repository as a bare
+    repository on disk) and archive. Those who manage the drive change it; members see it. Through
+    org.moqui.impl.FileServices (update#Drive, add#DriveMember, remove#DriveMember, archive#Drive, export#Drive). -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Drive" default-menu-include="false">
+
+    <parameter name="driveId" required="true"/>
+
+    <transition name="updateDrive">
+        <service-call name="org.moqui.impl.FileServices.update#Drive" in-map="{driveId:driveId, driveName:driveName, description:(description || ''),
+                quotaBytes:(quotaMb &amp;&amp; Number(quotaMb) &gt; 0 ? Math.round(Number(quotaMb) * 1048576) : null), clearQuota:!(quotaMb &amp;&amp; Number(quotaMb) &gt; 0),
+                remoteUrl:(remoteUrl || null), fetchIntervalMinutes:(fetchIntervalMinutes ? Number(fetchIntervalMinutes) : null)}"/>
+        <actions><if condition="!ec.message.hasError()"><message type="success">Saved</message></if></actions>
+        <default-response url="." parameter-map="{driveId:driveId}"/>
+    </transition>
+    <transition name="addMember">
+        <actions><script><![CDATA[
+            const value = String(memberValue || '')
+            const userId = value.startsWith('group:') ? null : (value.startsWith('user:') ? value.slice(5) : (value || null))
+            const userGroupId = value.startsWith('group:') ? value.slice(6) : (memberUserGroupId || null)
+            if (!userId && !userGroupId) { ec.message.addValidationError(null, 'memberValue', null, ec.l10n.localize('Choose a user or a user group'), null); return }
+            ec.service.sync().name('org.moqui.impl.FileServices.add#DriveMember').parameters({driveId: driveId, userId: userId, userGroupId: userId ? null : userGroupId,
+                permissionEnumId: permissionEnumId || 'RdpView'}).call()
+            if (!ec.message.hasError()) ec.message.addMessage(ec.l10n.localize('Member saved'), 'success')
+        ]]></script></actions>
+        <default-response url="." parameter-map="{driveId:driveId}"/>
+    </transition>
+    <transition name="removeMember">
+        <service-call name="org.moqui.impl.FileServices.remove#DriveMember" in-map="{driveId:driveId, driveMemberId:driveMemberId}"/>
+        <actions><if condition="!ec.message.hasError()"><message type="success">Member removed</message></if></actions>
+        <default-response url="." parameter-map="{driveId:driveId}"/>
+    </transition>
+    <transition name="archiveDrive">
+        <service-call name="org.moqui.impl.FileServices.archive#Drive" in-map="{driveId:driveId, archived:(archived != 'false')}"/>
+        <actions><if condition="!ec.message.hasError()"><message type="success">${archived != 'false' ? 'Drive archived: it is read only' : 'Drive back in use'}</message></if></actions>
+        <default-response url="." parameter-map="{driveId:driveId}"/>
+    </transition>
+    <!-- a folder drive as a zip download -->
+    <transition name="exportZip" method="get">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('org.moqui.impl.FileServices.export#Drive').parameter('driveId', driveId || '').call()
+            const access = ec.message.hasError() ? null : ec.service.sync().name('org.moqui.impl.FileServices.get#DriveAccess').parameter('driveId', driveId).call()
+            if (!ec.message.hasError() && out.exportLocation) {
+                const name = String(access.drive.driveName || 'drive').replace(/[\\/*?"<>|#%]/g, '_').replace(/:/g, '_') + '.zip'
+                ec.web.sendResourceResponse(ec.service.sync().name('ironstone.DriveServices.get#DownloadLocation').parameters({location: out.exportLocation,
+                    fileName: name}).call().downloadLocation, false)
+            } else ec.web.sendJsonResponse({})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- a version-controlled drive: where the bare repository is -->
+    <transition name="exportGit">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('org.moqui.impl.FileServices.export#Drive').parameter('driveId', driveId || '').call()
+            if (!ec.message.hasError() && out.exportPath) ec.message.addMessage(ec.resource.expand('A bare repository to clone is at ${path} on the server', '',
+                {path: out.exportPath}), 'success')
+        ]]></script></actions>
+        <default-response url="." parameter-map="{driveId:driveId}"/>
+    </transition>
+    <transition name="fetchMirror">
+        <actions><script><![CDATA[
+            if (!ec.user.isInGroup('ADMIN')) { ec.message.addError(ec.l10n.localize('Only an administrator fetches a mirror')); return }
+            const access = ec.service.sync().name('org.moqui.impl.FileServices.get#DriveAccess').parameter('driveId', driveId || '').call()
+            if (!access.drive || !access.drive.repositoryId) { ec.message.addError(ec.l10n.localize('Drive not found')); return }
+            ec.service.sync().name('org.moqui.impl.GitServices.fetch#GitRepository').parameter('repositoryId', access.drive.repositoryId).call()
+            if (!ec.message.hasError()) ec.message.addMessage(ec.l10n.localize('Fetched'), 'success')
+        ]]></script></actions>
+        <default-response url="." parameter-map="{driveId:driveId}"/>
+    </transition>
+    <transition name="searchMembers" read-only="true">
+        <actions>
+            <service-call name="ironstone.DriveServices.search#ShareTargets" in-map="{term:term}" out-map="found"/>
+            <script>ec.web.sendJsonResponse(Array.from(found.optionList || []).map((option) =&gt; ({value: option.value, label: option.label})))</script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+
+    <actions>
+        <service-call name="ironstone.DriveServices.get#DriveSettings" in-map="{driveId:driveId}" out-map="settings"/>
+        <script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            drive = settings.drive || {}
+            canManage = (settings.level || 0) >= 3 && drive.driveKindEnumId !== 'RdkRecords'
+            isPersonal = drive.driveKindEnumId === 'RdkPersonal'
+            isMirror = drive.repositoryKind === 'remote' || drive.driveKindEnumId === 'RdkMirror'
+            isAdmin = settings.isAdmin === true
+            memberList = Array.from(settings.memberList || [])
+            const STORAGE = {folder: L('Folder: each file keeps its own versions'), 'git-db': L('Version-controlled in the database'),
+                'git-local': L('Version-controlled on disk'), 'git-remote': L('Read-only mirror')}
+            storageText = STORAGE[drive.storage] || drive.storage || ''
+            titleText = isPersonal ? L('My files') : (drive.driveName || driveId)
+            quotaMb = drive.quotaBytes != null ? String(Math.round(Number(drive.quotaBytes) / 104857.6) / 10) : ''
+            const fmt = (millis) => millis ? ec.l10n.format(new Date(Number(millis)), 'yyyy-MM-dd HH:mm') : ''
+            facts = [{label: L('Storage'), value: storageText}, {label: L('Owner'), value: settings.ownerName || ''},
+                {label: L('Created'), value: fmt(drive.createdDate)}]
+            if (drive.repositoryId) facts.push({label: L('Repository'), value: drive.repositoryId + (drive.branch ? ' · ' + drive.branch : '')})
+            if (drive.headCommitId) facts.push({label: L('Head commit'), value: String(drive.headCommitId).slice(0, 10)})
+            if (drive.storage === 'git-local') facts.push({label: L('Clone from'), value: 'runtime/git/' + drive.repositoryId})
+            if (isMirror) {
+                facts.push({label: L('Mirror of'), value: drive.remoteUrl || ''})
+                facts.push({label: L('Last fetch'), value: fmt(drive.lastFetchDate) || L('Not fetched yet')})
+                if (drive.lastFetchError) facts.push({label: L('Last fetch error'), value: drive.lastFetchError})
+            }
+            if (drive.archivedDate) facts.push({label: L('Archived'), value: fmt(drive.archivedDate)})
+            facts = facts.filter((fact) => fact.value)
+        ]]></script>
+    </actions>
+    <widgets>
+        <container style="row items-center q-mb-sm q-gutter-sm">
+            <link url="../Drives" link-type="anchor" text="Drives" icon="sym_o_arrow_back"/>
+            <label type="h5" text="${titleText}" style="q-my-none"/>
+            <label type="span" text="Archived" style="text-caption text-warning" condition="drive.archivedDate"/>
+            <container style="col"/>
+            <link url="//Commons/Files" text="Open in Files" icon="sym_o_folder_open" parameter-map="{drive:driveId}"/>
+        </container>
+
+        <container-row>
+            <row-col md="6">
+                <container-box><box-header title="Settings"/><box-body>
+                    <section name="EditDrive" condition="canManage &amp;&amp; !isPersonal"><widgets>
+                        <form-single name="DriveSettingsForm" transition="updateDrive" map="drive">
+                            <field name="driveId"><default-field><hidden/></default-field></field>
+                            <field name="driveName"><default-field title="Name"><text-line size="40"/></default-field></field>
+                            <field name="description"><default-field title="Description"><text-area rows="2" cols="50"/></default-field></field>
+                            <field name="quotaMb" from="quotaMb"><default-field title="Quota in MB (empty for none)"><text-line size="10"/></default-field></field>
+                            <field name="remoteUrl"><conditional-field condition="isMirror" title="Mirror of (HTTPS URL)"><text-line size="60"/></conditional-field>
+                                <default-field><ignored/></default-field></field>
+                            <field name="fetchIntervalMinutes"><conditional-field condition="isMirror" title="Fetch every (minutes)"><text-line size="6"/></conditional-field>
+                                <default-field><ignored/></default-field></field>
+                            <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                        </form-single>
+                    </widgets><fail-widgets>
+                        <label type="p" text="${drive.description || ''}" condition="drive.description"/>
+                    </fail-widgets></section>
+                    <form-list name="DriveFacts" list="facts" skip-form="true" skip-header="true" paginate="false">
+                        <field name="label"><default-field title=""><display style="text-caption m-muted"/></default-field></field>
+                        <field name="value"><default-field title=""><display/></default-field></field>
+                    </form-list>
+                </box-body></container-box>
+            </row-col>
+            <row-col md="6">
+                <section name="Members" condition="!isPersonal &amp;&amp; drive.driveKindEnumId != 'RdkRecords'"><widgets>
+                    <container-box><box-header title="Members"/><box-toolbar>
+                        <container-dialog id="AddMemberDialog" button-text="Add" icon="sym_o_person_add" width="520" title="Add a member" condition="canManage">
+                            <form-single name="AddMember" transition="addMember">
+                                <field name="driveId"><default-field><hidden/></default-field></field>
+                                <field name="memberValue"><default-field title="Person or group">
+                                    <drop-down allow-empty="true"><dynamic-options transition="searchMembers" server-search="true" min-length="1"/></drop-down></default-field></field>
+                                <field name="permissionEnumId"><default-field title="May"><radio no-current-selected-key="RdpEdit">
+                                    <option key="RdpView" text="View"/><option key="RdpEdit" text="Edit (add, change, share)"/><option key="RdpManage" text="Manage the drive and its members"/>
+                                </radio></default-field></field>
+                                <field name="submitButton"><default-field title="Add"><submit/></default-field></field>
+                            </form-single>
+                        </container-dialog>
+                    </box-toolbar><box-body-nopad>
+                        <form-list name="MemberList" list="memberList" skip-form="true" paginate="false">
+                            <field name="name"><default-field title="Member"><display/></default-field></field>
+                            <field name="permissionLabel"><default-field title="May"><display/></default-field></field>
+                            <field name="change" align="right"><conditional-field condition="canManage" title="">
+                                <link url="addMember" link-type="hidden-form-link" text="Make viewer" btn-type="secondary"
+                                        parameter-map="{driveId:driveId, memberValue:(userId ? 'user:' + userId : 'group:' + userGroupId), permissionEnumId:'RdpView'}"
+                                        condition="permissionEnumId != 'RdpView'"/>
+                                <link url="addMember" link-type="hidden-form-link" text="Make editor" btn-type="secondary"
+                                        parameter-map="{driveId:driveId, memberValue:(userId ? 'user:' + userId : 'group:' + userGroupId), permissionEnumId:'RdpEdit'}"
+                                        condition="permissionEnumId != 'RdpEdit'"/>
+                                <link url="addMember" link-type="hidden-form-link" text="Make manager" btn-type="secondary"
+                                        parameter-map="{driveId:driveId, memberValue:(userId ? 'user:' + userId : 'group:' + userGroupId), permissionEnumId:'RdpManage'}"
+                                        condition="permissionEnumId != 'RdpManage'"/>
+                                <link url="removeMember" link-type="hidden-form-link" icon="sym_o_person_remove" text="" tooltip="Remove" style="m-btn-flat"
+                                        confirmation="Remove ${name} from this drive?" parameter-map="{driveId:driveId, driveMemberId:driveMemberId}"/>
+                            </conditional-field><default-field title=""><display text=""/></default-field></field>
+                        </form-list>
+                        <section name="NoMembers" condition="!memberList.length"><widgets>
+                            <label type="p" text="Only the owner so far" style="m-muted q-pa-sm q-mb-none"/>
+                        </widgets></section>
+                    </box-body-nopad></container-box>
+                </widgets></section>
+
+                <section name="DriveActions" condition="canManage &amp;&amp; !isPersonal"><widgets>
+                    <container-box><box-header title="Export and archive"/><box-body>
+                        <container style="row q-gutter-sm">
+                            <link url="exportZip" link-type="anchor-button" text="Download as zip" icon="sym_o_download" parameter-map="{driveId:driveId}"
+                                    condition="drive.storage == 'folder'"/>
+                            <link url="exportGit" link-type="hidden-form-link" text="Export the repository" icon="sym_o_archive" parameter-map="{driveId:driveId}"
+                                    condition="drive.storage == 'git-db' || drive.storage == 'git-local'"/>
+                            <link url="fetchMirror" link-type="hidden-form-link" text="Fetch now" icon="sym_o_sync" parameter-map="{driveId:driveId}"
+                                    condition="isMirror &amp;&amp; isAdmin"/>
+                            <link url="archiveDrive" link-type="hidden-form-link" text="Archive" icon="sym_o_archive" btn-type="danger"
+                                    confirmation="Archive ${titleText}? It becomes read only and leaves the rail; you can bring it back here."
+                                    parameter-map="{driveId:driveId, archived:'true'}" condition="!drive.archivedDate"/>
+                            <link url="archiveDrive" link-type="hidden-form-link" text="Bring back" icon="sym_o_unarchive"
+                                    parameter-map="{driveId:driveId, archived:'false'}" condition="drive.archivedDate"/>
+                        </container>
+                    </box-body></container-box>
+                </widgets></section>
+            </row-col>
+        </container-row>
+    </widgets>
+</screen>

@@ -19,7 +19,9 @@ along with this software (see the LICENSE.md file). If not, see
     A box with the files (name, type chip, size, who and when, description), each previewed on a click (an image here, a PDF
     in a tab, anything else downloads), downloaded or removed; Upload opens the drop zone with the file picker (several at
     once), the type (the record's content type enumeration) and a description. Files dropped anywhere on the box go into the
-    upload. "Link an existing file" waits for Files and drives (M8). Chatter's Add on its attachments strip asks this panel to
+    upload. With Files and drives (M8) the record's folder is in the records drive: each file's Versions (download a version,
+    restore it, upload a new version with a note), the folder's other files, Add from Files (the drive picker: copies of the
+    files picked) and Open in Files. Chatter's Add on its attachments strip asks this panel to
     open its upload (the document event m-record-files-add), and after a change this panel says so (m-record-files-changed),
     so Chatter's strip and timeline follow. -->
 <template><div class="m-record-files-panel">
@@ -27,10 +29,10 @@ along with this software (see the LICENSE.md file). If not, see
         <template v-slot:toolbar>
             <q-btn v-if="state === 'ready' && canUpload" dense flat no-caps color="primary" icon="sym_o_upload" :label="t('Upload')"
                     @click="uploadOpen = !uploadOpen"></q-btn>
-            <span v-if="state === 'ready' && hasContent">
-                <q-btn dense flat round size="sm" icon="sym_o_add_link" disable :aria-label="t('Link an existing file')"></q-btn>
-                <q-tooltip>{{t('Link an existing file: comes with Files and drives')}}</q-tooltip>
-            </span>
+            <q-btn v-if="state === 'ready' && hasContent && canUpload && recordsDriveId" dense flat round size="sm" icon="sym_o_add_link" :aria-label="t('Add from Files')"
+                    @click="openPicker"><q-tooltip>{{t('Add from Files')}}</q-tooltip></q-btn>
+            <q-btn v-if="state === 'ready' && filesUrl" dense flat round size="sm" icon="sym_o_folder_open" :aria-label="t('Open in Files')" @click="go(filesUrl)">
+                <q-tooltip>{{t('Open in Files')}}</q-tooltip></q-btn>
         </template>
 
         <div v-if="state === 'loading'" class="q-gutter-y-sm">
@@ -83,6 +85,8 @@ along with this software (see the LICENSE.md file). If not, see
                         <div class="row no-wrap">
                             <q-btn v-if="file.hasFile" flat round dense size="sm" icon="sym_o_download" :aria-label="t('Download')" @click="download(fileUrl(file, false))">
                                 <q-tooltip>{{t('Download')}}</q-tooltip></q-btn>
+                            <q-btn v-if="file.drivePath" flat round dense size="sm" icon="sym_o_history" :aria-label="t('Versions')" @click="openVersions(file)">
+                                <q-tooltip>{{t('Versions')}}</q-tooltip></q-btn>
                             <q-btn v-if="file.canRemove" flat round dense size="sm" color="negative" icon="sym_o_delete" :aria-label="t('Remove')"
                                     :data-confirm="t('Remove') + ' ' + file.fileName + '?'" @click="remove(file)">
                                 <q-tooltip>{{t('Remove')}}</q-tooltip></q-btn>
@@ -93,8 +97,92 @@ along with this software (see the LICENSE.md file). If not, see
             <div v-else-if="hasContent && !uploadOpen" class="text-body2 m-muted q-pa-xs">
                 {{canUpload ? t('No files yet. Drop files here or use Upload.') : t('No files yet.')}}
             </div>
+
+            <!-- the other files of the record's folder in the records drive -->
+            <template v-if="extraList.length">
+                <div class="text-caption m-muted q-mt-sm">{{t('Also in the record\'s folder')}}</div>
+                <q-list dense separator>
+                    <q-item v-for="item in extraList" :key="item.drivePath" class="q-px-xs">
+                        <q-item-section avatar class="m-record-file-icon"><q-icon :name="item.isDirectory ? 'sym_o_folder' : item.icon"></q-icon></q-item-section>
+                        <q-item-section>
+                            <q-item-label class="ellipsis">
+                                <a href="#" class="text-primary" @click.prevent="item.isDirectory ? go(item.url) : download(driveUrl(item.drivePath, null, false))">{{item.name}}</a></q-item-label>
+                            <q-item-label caption class="ellipsis">{{[item.sizeText, item.byName, item.dateText].filter((part) => part).join(' · ')}}</q-item-label>
+                        </q-item-section>
+                        <q-item-section v-if="!item.isDirectory" side><q-btn flat round dense size="sm" icon="sym_o_history" :aria-label="t('Versions')"
+                                @click="openVersions({ fileName: item.name, drivePath: item.drivePath, canRemove: false })"><q-tooltip>{{t('Versions')}}</q-tooltip></q-btn></q-item-section>
+                    </q-item>
+                </q-list>
+            </template>
         </div>
     </m-container-box>
+
+    <!-- a file's versions: download, restore, a new version -->
+    <m-dialog v-model="versions.open" :title="t('Versions') + ' · ' + (versions.file ? versions.file.fileName : '')" width="560">
+        <div v-if="versions.loading" class="q-pa-md text-center"><q-spinner></q-spinner></div>
+        <q-list v-else dense separator>
+            <q-item v-for="version in versions.list" :key="version.versionName" class="q-px-none">
+                <q-item-section>
+                    <q-item-label class="row items-center no-wrap"><span class="text-weight-medium">{{version.shortName}}</span>
+                        <q-chip v-if="version.isCurrent" dense square class="m-tonal text-primary q-ml-sm">{{t('Current')}}</q-chip></q-item-label>
+                    <q-item-label caption>{{whenFull(version.versionDate)}}<span v-if="version.userName"> · {{version.userName}}</span></q-item-label>
+                    <q-item-label v-if="version.note" class="text-body2">{{version.note}}</q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                    <div class="row no-wrap">
+                        <q-btn flat round dense size="sm" icon="sym_o_download" :aria-label="t('Download this version')" @click="download(driveUrl(versions.file.drivePath, version.versionName, false))">
+                            <q-tooltip>{{t('Download this version')}}</q-tooltip></q-btn>
+                        <q-btn v-if="versions.canChange && !version.isCurrent" flat round dense size="sm" icon="sym_o_restore" :aria-label="t('Restore this version')"
+                                :data-confirm="t('Restore this version as the newest one?')" @click="restoreVersion(version)"><q-tooltip>{{t('Restore this version')}}</q-tooltip></q-btn>
+                    </div>
+                </q-item-section>
+            </q-item>
+            <q-item v-if="!versions.list.length" class="q-px-none"><q-item-section class="text-body2 m-muted">{{t('This file keeps no versions.')}}</q-item-section></q-item>
+        </q-list>
+        <template v-if="versions.canChange">
+            <q-separator class="q-my-sm"></q-separator>
+            <div class="text-subtitle2">{{t('Upload a new version')}}</div>
+            <files-done :key="'version' + versions.key" :done="afterVersion">
+                <m-form :action="action('uploadVersion')" :fields-initial="versionInitial" v-slot="formProps">
+                    <m-file v-model="formProps.fields.contentFile" name="contentFile" :label="t('File')" class="q-mt-xs"></m-file>
+                    <m-text-line v-model="formProps.fields.versionNote" name="versionNote" :label="t('What changed (optional)')" class="q-mt-xs"></m-text-line>
+                    <q-btn type="submit" dense unelevated no-caps color="primary" icon="sym_o_upload" :label="t('Upload')" class="q-mt-sm"></q-btn>
+                </m-form>
+            </files-done>
+        </template>
+    </m-dialog>
+
+    <!-- Add from Files: the drives, a folder or a search, the files to copy to the record -->
+    <m-dialog v-model="picker.open" :title="t('Add from Files')" width="640">
+        <div class="row items-center q-gutter-xs">
+            <q-chip v-for="drive in picker.drives" :key="drive.driveId" dense square clickable :class="picker.driveId === drive.driveId && !picker.searching ? 'm-tonal text-primary' : ''"
+                    @click="pickerOpen(drive.driveId, '')">{{drive.driveName}}</q-chip>
+        </div>
+        <div class="q-mt-xs" @keydown.enter.prevent="pickerSearch"><m-text-line v-model="picker.text" name="pickerText" :label="t('Search files')"></m-text-line></div>
+        <div v-if="!picker.searching" class="row items-center no-wrap q-mt-xs" style="overflow:hidden">
+            <template v-for="(crumb, index) in picker.crumbs" :key="index">
+                <q-icon v-if="index" name="sym_o_chevron_right" size="16px" class="m-muted"></q-icon>
+                <q-btn flat dense no-caps size="sm" @click="pickerOpen(picker.driveId, crumb.path)">{{crumb.name}}</q-btn>
+            </template>
+        </div>
+        <q-list dense bordered separator class="q-mt-xs rounded-borders" style="max-height:320px;overflow:auto">
+            <q-item v-if="picker.loading"><q-item-section class="text-center"><q-spinner></q-spinner></q-item-section></q-item>
+            <q-item v-for="row in picker.rows" :key="(row.driveId || picker.driveId) + '/' + row.path" clickable @click="pickerClick(row)">
+                <q-item-section side @click.stop><q-checkbox v-if="!row.isDirectory" dense size="sm" :model-value="!!picker.chosen[pickerKey(row)]"
+                        @update:model-value="pickerToggle(row)"></q-checkbox></q-item-section>
+                <q-item-section avatar style="min-width:30px"><q-icon :name="row.icon || (row.isDirectory ? 'sym_o_folder' : 'sym_o_draft')" size="20px"></q-icon></q-item-section>
+                <q-item-section><q-item-label class="ellipsis">{{row.recordTitle || row.name}}</q-item-label>
+                    <q-item-label v-if="picker.searching && row.driveName" caption class="ellipsis">{{row.driveName}}{{row.folderPath ? ' / ' + row.folderPath : ''}}</q-item-label></q-item-section>
+                <q-item-section v-if="row.isDirectory" side><q-icon name="sym_o_chevron_right" size="18px"></q-icon></q-item-section>
+            </q-item>
+            <q-item v-if="!picker.loading && !picker.rows.length"><q-item-section class="text-caption m-muted">{{t('No files here')}}</q-item-section></q-item>
+        </q-list>
+        <div class="row items-center q-mt-md q-gutter-sm">
+            <q-btn unelevated no-caps color="primary" :label="pickerCount ? t('Add') + ' ' + pickerCount : t('Add')" :disable="!pickerCount" :loading="picker.saving" @click="pickerAdd"></q-btn>
+            <q-btn flat no-caps :label="t('Cancel')" @click="picker.open = false"></q-btn>
+            <span class="text-caption m-muted">{{t('Copies are added; the files stay where they are.')}}</span>
+        </div>
+    </m-dialog>
 
     <m-dialog v-model="preview.open" :title="preview.name" width="900">
         <div class="text-center"><img v-if="preview.src" :src="preview.src" :alt="preview.name" style="max-width:100%;max-height:70vh"></div>
@@ -120,7 +208,9 @@ module.exports = {
         return {
             state: 'loading', record: null, hasContent: false, canUpload: false, files: [], fileCount: 0, typeOptions: [], defaultTypeId: null,
             uploadOpen: false, uploadKey: 0, dragOver: false, pendingFiles: null, preview: { open: false, src: '', name: '', download: '' },
-            loggedHidden: false, requestSeq: 0
+            loggedHidden: false, requestSeq: 0, recordsDriveId: null, filesUrl: null, extraList: [],
+            versions: { open: false, file: null, list: [], loading: false, canChange: false, key: 0 },
+            picker: { open: false, drives: [], driveId: null, path: '', crumbs: [], rows: [], loading: false, text: '', searching: false, chosen: {}, saving: false }
         };
     },
     computed: {
@@ -136,7 +226,9 @@ module.exports = {
         common() { return { recordEntity: this.recordEntity, recordId: this.recordId }; },
         uploadInitial() {
             return Object.assign({ contentFile: this.pendingFiles || [], contentTypeEnumId: this.defaultTypeId || '', description: '' }, this.common);
-        }
+        },
+        versionInitial() { return Object.assign({ contentFile: null, versionNote: '', drivePath: this.versions.file ? this.versions.file.drivePath : '' }, this.common); },
+        pickerCount() { return Object.keys(this.picker.chosen).filter((key) => this.picker.chosen[key]).length; }
     },
     watch: {
         panelKey() { this.state = 'loading'; this.files = []; this.loggedHidden = false; this.load(); }
@@ -163,6 +255,9 @@ module.exports = {
                 this.fileCount = json.fileCount || 0;
                 this.typeOptions = json.typeOptions || [];
                 this.defaultTypeId = json.defaultTypeId || null;
+                this.recordsDriveId = json.recordsDriveId || null;
+                this.filesUrl = json.filesUrl || null;
+                this.extraList = json.extraList || [];
                 if (this.panel.upload && this.state === 'loading') this.uploadOpen = this.canUpload;
                 this.state = 'ready';
             }, (err) => {
@@ -210,6 +305,93 @@ module.exports = {
             document.body.appendChild(link);
             link.click();
             link.remove();
+        },
+        go(target) { if (target) this.$root.setUrl(target); },
+        driveUrl(drivePath, versionName, inline) {
+            const params = Object.assign({ drivePath, inline: inline ? 'true' : 'false' }, this.common);
+            if (versionName) params.versionName = versionName;
+            return this.url('driveDownload') + '?' + moqui.objToSearch(params);
+        },
+        whenFull(millis) {
+            if (!millis) return '';
+            const d = new Date(Number(millis));
+            return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+        },
+        // ---- versions ----
+        openVersions(file) {
+            this.versions = { open: true, file, list: [], loading: true, canChange: false, key: this.versions.key + 1 };
+            moqui.request(this.url('versions'), { params: Object.assign({ drivePath: file.drivePath }, this.common) }).then((result) => {
+                const json = result.json || {};
+                this.versions.list = json.versionList || [];
+                this.versions.canChange = !!json.canChange && file.canRemove !== false;
+                this.versions.loading = false;
+            }, (err) => { this.versions.loading = false; moqui.handleAjaxError(err); });
+        },
+        afterVersion() { const file = this.versions.file; this.load(); this.changed(); if (file) this.openVersions(file); },
+        restoreVersion(version) {
+            const file = this.versions.file;
+            moqui.request(this.url('restoreVersion'), { method: 'POST', params: Object.assign({ drivePath: file.drivePath, versionName: version.versionName }, this.common) })
+                .then((result) => {
+                    const json = result.json || {};
+                    moqui.notifyMessages(json.messageInfos, json.errors);
+                    this.openVersions(file);
+                    this.load();
+                    this.changed();
+                }, moqui.handleAjaxError);
+        },
+        // ---- Add from Files ----
+        openPicker() {
+            this.picker = { open: true, drives: [], driveId: null, path: '', crumbs: [], rows: [], loading: true, text: '', searching: false, chosen: {}, saving: false };
+            moqui.request(this.url('pickerData')).then((result) => {
+                const json = result.json || {};
+                this.picker.drives = (json.driveList || []).filter((drive) => !drive.isRecords);
+                this.picker.rows = json.recentList || [];
+                this.picker.searching = true;
+                this.picker.loading = false;
+                if (json.personalDriveId && !this.picker.rows.length) this.pickerOpen(json.personalDriveId, '');
+            }, () => { this.picker.loading = false; });
+        },
+        pickerOpen(driveId, path) {
+            this.picker.driveId = driveId;
+            this.picker.path = path || '';
+            this.picker.searching = false;
+            this.picker.loading = true;
+            moqui.request(this.url('pickerFolder'), { params: { driveId, path: path || '' } }).then((result) => {
+                const json = result.json || {};
+                this.picker.rows = (json.fileList || []).map((row) => Object.assign({ driveId }, row));
+                this.picker.crumbs = (json.breadcrumbList || []).filter((crumb) => !crumb.view);
+                this.picker.loading = false;
+            }, () => { this.picker.loading = false; this.picker.rows = []; });
+        },
+        pickerSearch() {
+            const text = String(this.picker.text || '').trim();
+            if (!text) return;
+            this.picker.searching = true;
+            this.picker.loading = true;
+            moqui.request(this.url('pickerSearch'), { params: { text } }).then((result) => {
+                this.picker.rows = ((result.json || {}).fileList || []).filter((row) => !row.isDirectory);
+                this.picker.loading = false;
+            }, () => { this.picker.loading = false; });
+        },
+        pickerKey(row) { return (row.driveId || this.picker.driveId) + '\n' + row.path; },
+        pickerToggle(row) { const key = this.pickerKey(row); this.picker.chosen = Object.assign({}, this.picker.chosen, { [key]: !this.picker.chosen[key] }); },
+        pickerClick(row) { if (row.isDirectory) this.pickerOpen(row.driveId || this.picker.driveId, row.path); else this.pickerToggle(row); },
+        pickerAdd() {
+            const items = Object.keys(this.picker.chosen).filter((key) => this.picker.chosen[key]).map((key) => {
+                const at = key.indexOf('\n');
+                return { driveId: key.slice(0, at), path: key.slice(at + 1) };
+            });
+            if (!items.length) return;
+            this.picker.saving = true;
+            moqui.request(this.url('addFromFiles'), { method: 'POST', params: Object.assign({ itemsJson: JSON.stringify(items), contentTypeEnumId: this.defaultTypeId || '' }, this.common) })
+                .then((result) => {
+                    const json = result.json || {};
+                    moqui.notifyMessages(json.messageInfos, json.errors);
+                    this.picker.saving = false;
+                    this.picker.open = false;
+                    this.load();
+                    this.changed();
+                }, (err) => { this.picker.saving = false; moqui.handleAjaxError(err); });
         },
         // files dropped on the box go into the upload form, opened for them
         onDragOver(event) {

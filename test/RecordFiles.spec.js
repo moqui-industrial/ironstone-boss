@@ -4,7 +4,9 @@
 // dispatcher to Mantle's create#RequestContent and create#WorkEffortContent (each saving its file), several files at once,
 // each standing alone; download answers the file, inline only for a picture or a PDF; remove takes the row and the file away.
 // A record type without a content entity is refused with a clear error, and a record the user may not see shows nothing and
-// takes no file (IronStone R5).
+// takes no file (IronStone R5). With Files and drives (M8) the record's folder is in the records drive: each file's path there,
+// the folder's other files, a file's versions, a new version with its note, a restore, a past version's download, files added
+// from Files as copies; none of it for a record the user may not see, nor for a path outside the record's folder.
 // Run: ./moq test ironstone-boss --spec RecordFiles
 const commons = "component://ironstone-boss/screen/Commons.xml"
 const request = { recordEntity: "mantle.request.Request", recordId: "BOSS_DEMO_REQUEST" }
@@ -31,6 +33,7 @@ spec({
     setupSpec() {
         login("john.doe")
         sys(() => call("ironstone.DemoServices.load#ChatterDemo", {}))
+        sys(() => call("ironstone.FilesDemoServices.load#FilesDemo", {}))
     },
 })
 
@@ -171,6 +174,100 @@ feature("a record the user may not see shows no files and takes none", {
         data.json.visible === false
         data.json.fileList === undefined
         refused.status == 500
+        rows == 0
+    },
+})
+
+feature("the request's folder in the records drive: each file's place there, the folder's other files, a file's versions", {
+    when() {
+        const data = call_("filesData", request)
+        const options = fileNamed(data, "calendar-options.txt")
+        return { data, options, versions: call_("versions", Object.assign({ drivePath: options.drivePath }, request)) }
+    },
+    then({ data, options, versions }) {
+        data.json.recordsDriveId == "BOSS_RECORDS"
+        data.json.recordFolderPath == "request/BOSS_DEMO_REQUEST"
+        data.json.filesUrl == "/qapps/Commons/Files?drive=BOSS_RECORDS&path=request%2FBOSS_DEMO_REQUEST"
+        options.drivePath == "request/BOSS_DEMO_REQUEST/content_BOSS_DEMO_RC_OPTIONS/calendar-options.txt"
+        options.location === undefined
+        data.json.extraList.some((item) => item.name === "signed-quote.txt" && item.drivePath === "request/BOSS_DEMO_REQUEST/signed-quote.txt")
+        !data.json.extraList.some((item) => item.name === "calendar-options.txt")
+        versions.status == 200
+        versions.json.versionList.length >= 2
+        versions.json.versionList.some((version) => version.note === "Marked the option we chose")
+        versions.json.canChange
+    },
+})
+
+feature("a new version of a record's file with its note, a past one restored, a past one downloaded", {
+    when() {
+        const drivePath = "request/BOSS_DEMO_REQUEST/content_BOSS_DEMO_RC_OPTIONS/calendar-options.txt"
+        const uploaded = call_("uploadVersion", Object.assign({ drivePath, versionNote: "Prices of 2027", contentFile: uploadedFile("whatever-name.txt", "Calendar options, 2027 prices\n") }, request), "post")
+        const afterUpload = call_("versions", Object.assign({ drivePath }, request))
+        const old = afterUpload.json.versionList[1]
+        const oldText = ec.screen.makeTest().rootScreen(commons).render("RecordFiles/driveDownload", Object.assign({ drivePath, versionName: old.versionName }, request), null)
+        const restored = call_("restoreVersion", Object.assign({ drivePath, versionName: old.versionName }, request), "post")
+        const afterRestore = call_("versions", Object.assign({ drivePath }, request))
+        const current = sys(() => ec.resource.getLocationReference("dbresource://mantle/content/" + drivePath).getText())
+        return { uploaded, afterUpload, old, oldText, restored, afterRestore, current }
+    },
+    then({ uploaded, afterUpload, old, oldText, restored, afterRestore, current }) {
+        uploaded.status == 200
+        message(uploaded) == "A new version of calendar-options.txt"
+        afterUpload.json.versionList[0].note == "Prices of 2027"
+        afterUpload.json.versionList[0].userName == "John Doe"
+        oldText.status == 200
+        !String(oldText.output).includes("2027 prices")
+        restored.status == 200
+        afterRestore.json.versionList.length == afterUpload.json.versionList.length + 1
+        afterRestore.json.versionList[0].note.startsWith("Restored version")
+        current == String(oldText.output)
+    },
+})
+
+feature("Add from Files: a copy of a drive file on the record, with its content row", {
+    when() {
+        const driveId = sys(() => call("org.moqui.impl.FileServices.ensure#PersonalDrive", {})).driveId
+        const before = list("mantle.request.RequestContent", { requestId: "BOSS_DEMO_REQUEST" }).length
+        const added = call_("addFromFiles", Object.assign({ itemsJson: JSON.stringify([{ driveId, path: "Documents/Budget 2027.csv" }]), contentTypeEnumId: "RqCntInternal" }, request), "post")
+        const rows = list("mantle.request.RequestContent", { requestId: "BOSS_DEMO_REQUEST" })
+        const row = rows.find((item) => String(item.contentLocation || "").endsWith("/Budget 2027.csv"))
+        const picker = call_("pickerFolder", Object.assign({ driveId, path: "Documents" }, request))
+        return { before, added, after: rows.length, row, picker, text: row ? sys(() => ec.resource.getLocationReference(row.contentLocation).getText()) : null }
+    },
+    then({ before, added, after, row, picker, text }) {
+        added.status == 200
+        message(added) == "Added Budget 2027.csv to Request Set up the shared team calendar"
+        after == before + 1
+        row.contentLocation.startsWith("dbresource://mantle/content/request/BOSS_DEMO_REQUEST/content_")
+        row.userId == "EX_JOHN_DOE"
+        row.contentTypeEnumId == "RqCntInternal"
+        text.startsWith("month,income")
+        picker.json.fileList.some((item) => item.name === "Budget 2027.csv")
+    },
+})
+
+feature("the record folder's versions and files: refused outside the record's folder, and for a record the user may not see", {
+    allowMessageErrors: true,
+    when() {
+        const outside = call_("versions", Object.assign({ drivePath: "request/OTHER_REQUEST/content_X/x.txt" }, request))
+        const climb = call_("driveDownload", Object.assign({ drivePath: "request/BOSS_DEMO_REQUEST/../BOSS_OTHER/x.txt" }, request))
+        sys(() => {
+            if (!list("mantle.party.Party", { partyId: "BOSS_TEST_FILES_PRIVATE" }).length)
+                call("create#mantle.party.Party", { partyId: "BOSS_TEST_FILES_PRIVATE", partyTypeEnumId: "PtyPerson", privateOwnerUserId: "ORG_ZIZI_JD" })
+        })
+        const hidden = { recordEntity: "mantle.party.Party", recordId: "BOSS_TEST_FILES_PRIVATE" }
+        const hiddenVersions = call_("versions", Object.assign({ drivePath: "party/BOSS_TEST_FILES_PRIVATE/content_X/x.txt" }, hidden))
+        const driveId = sys(() => call("org.moqui.impl.FileServices.ensure#PersonalDrive", {})).driveId
+        const hiddenAdd = call_("addFromFiles", Object.assign({ itemsJson: JSON.stringify([{ driveId, path: "Documents/Welcome.txt" }]) }, hidden), "post")
+        return { outside, climb, hiddenVersions, hiddenAdd, rows: list("mantle.party.PartyContent", { partyId: "BOSS_TEST_FILES_PRIVATE" }).length }
+    },
+    then({ outside, climb, hiddenVersions, hiddenAdd, rows }) {
+        outside.status == 500
+        outside.errors.includes("Not a file of this record")
+        climb.status == 500
+        hiddenVersions.status == 500
+        hiddenAdd.status == 500
         rows == 0
     },
 })

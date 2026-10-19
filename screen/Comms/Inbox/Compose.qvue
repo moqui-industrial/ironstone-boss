@@ -20,7 +20,8 @@ along with this software (see the LICENSE.md file). If not, see
     closes it after the send) or the page. From is an identity of a mail account the user may send from, or the Internal
     identity; the recipients are chips (addresses for email, people and mailboxes for an internal message); the body is
     m-rich-text with the plain-text toggle, the signature of the identity, the quoted message apart, text blocks (the button,
-    or / at the start of a word), files (drop or pick), Send (Ctrl+Enter) with the undo hold, Schedule send, Send and
+    or / at the start of a word), files (drop or pick, or Attach from Files: the drive picker, copies attached, a link put in
+    the message for a file over 25 MB or a folder), Send (Ctrl+Enter) with the undo hold, Schedule send, Send and
     archive, Discard. Email drafts save on the server every few seconds; an internal message keeps its draft in this browser
     until it is sent. Brand color names and Quasar classes only (style-guide §4.8, §5). -->
 <template><div class="m-compose">
@@ -101,6 +102,7 @@ along with this software (see the LICENSE.md file). If not, see
                         </q-list>
                     </q-btn-dropdown>
                     <q-btn flat round dense icon="sym_o_attach_file" :aria-label="t('Attach files')" @click="pickFiles"><q-tooltip>{{t('Attach files')}}</q-tooltip></q-btn>
+                    <q-btn flat round dense icon="sym_o_add_to_drive" :aria-label="t('Attach from Files')" @click="openPicker"><q-tooltip>{{t('Attach from Files')}}</q-tooltip></q-btn>
                     <q-btn flat round dense icon="sym_o_text_snippet" :aria-label="t('Text blocks')"><q-tooltip>{{t('Text blocks')}} (/)</q-tooltip>
                         <q-menu v-model="blocksOpen" @before-show="loadBlocks" anchor="top left" self="bottom left">
                             <div class="q-pa-sm" style="width:320px;max-width:90vw">
@@ -139,6 +141,40 @@ along with this software (see the LICENSE.md file). If not, see
         <div class="row items-end q-gutter-sm">
             <div class="col"><m-date-time v-model="scheduleCustom" name="scheduleAt" type="date-time" :label="t('Pick a date and time')"></m-date-time></div>
             <q-btn unelevated no-caps color="primary" :label="t('Schedule')" :disable="!scheduleCustom" @click="schedule(parseDateTime(scheduleCustom))"></q-btn>
+        </div>
+    </m-dialog>
+
+    <!-- AttachFromFiles: the drives, a folder or a search, the files to attach -->
+    <m-dialog v-model="picker.open" :title="t('Attach from Files')" width="640">
+        <div class="row items-center q-gutter-xs">
+            <q-chip v-for="drive in picker.drives" :key="drive.driveId" dense square clickable :class="picker.driveId === drive.driveId && !picker.searching ? 'm-tonal text-primary' : ''"
+                    @click="pickerOpen(drive.driveId, '')">{{drive.driveName}}</q-chip>
+        </div>
+        <div class="q-mt-xs" @keydown.enter.prevent="pickerSearch"><m-text-line v-model="picker.text" name="pickerText" :label="t('Search files')"></m-text-line></div>
+        <div v-if="!picker.searching" class="row items-center no-wrap q-mt-xs" style="overflow:hidden">
+            <template v-for="(crumb, index) in picker.crumbs" :key="index">
+                <q-icon v-if="index" name="sym_o_chevron_right" size="16px" class="m-muted"></q-icon>
+                <q-btn flat dense no-caps size="sm" @click="pickerOpen(picker.driveId, crumb.path)">{{crumb.name}}</q-btn>
+            </template>
+        </div>
+        <div v-else class="text-caption m-muted q-mt-xs">{{picker.text ? t('Found') : t('Recent files')}}</div>
+        <q-list dense bordered separator class="q-mt-xs rounded-borders" style="max-height:320px;overflow:auto">
+            <q-item v-if="picker.loading"><q-item-section class="text-center"><q-spinner></q-spinner></q-item-section></q-item>
+            <q-item v-for="row in picker.rows" :key="pickerKey(row)" clickable @click="pickerClick(row)">
+                <q-item-section side @click.stop><q-checkbox v-if="!row.isDirectory || row.path" dense size="sm" :model-value="!!picker.chosen[pickerKey(row)]"
+                        @update:model-value="pickerToggle(row)"></q-checkbox></q-item-section>
+                <q-item-section avatar style="min-width:30px"><q-icon :name="row.icon || (row.isDirectory ? 'sym_o_folder' : 'sym_o_draft')" size="20px"></q-icon></q-item-section>
+                <q-item-section><q-item-label class="ellipsis">{{row.recordTitle || row.name}}</q-item-label>
+                    <q-item-label caption class="ellipsis">{{pickerCaption(row)}}</q-item-label></q-item-section>
+                <q-item-section v-if="row.isDirectory" side><q-icon name="sym_o_chevron_right" size="18px"></q-icon></q-item-section>
+            </q-item>
+            <q-item v-if="!picker.loading && !picker.rows.length"><q-item-section class="text-caption m-muted">{{t('No files here')}}</q-item-section></q-item>
+        </q-list>
+        <div class="row items-center q-mt-md q-gutter-sm">
+            <q-btn unelevated no-caps color="primary" icon="sym_o_attach_file" :label="pickerCount ? t('Attach') + ' ' + pickerCount : t('Attach')" :disable="!pickerCount"
+                    :loading="picker.saving" @click="pickerAttach"></q-btn>
+            <q-btn flat no-caps :label="t('Cancel')" @click="picker.open = false"></q-btn>
+            <span class="text-caption m-muted">{{t('Over 25 MB, or a folder: a link to it goes in the message')}}</span>
         </div>
     </m-dialog>
 
@@ -191,7 +227,8 @@ module.exports = {
             uid: composeCount, query: {}, state: 'loading', error: null, draft: this.emptyDraft(), identities: [], me: {}, undoSeconds: 10, kind: 'new',
             adding: { to: null, cc: null, bcc: null }, showCc: false, showBcc: false, showQuote: false, dragOver: false, uploading: false, picked: null,
             sending: false, sent: false, savedAt: null, saving: false, dirty: false, saveTimer: null, scheduleOpen: false, scheduleCustom: '', discardOpen: false,
-            blocksOpen: false, blocks: [], blockSearch: '', slashPending: false, signature: null, loadedOnce: false, pageLayoutOverride: null
+            blocksOpen: false, blocks: [], blockSearch: '', slashPending: false, signature: null, loadedOnce: false, pageLayoutOverride: null,
+            picker: { open: false, drives: [], driveId: null, path: '', crumbs: [], rows: [], loading: false, text: '', searching: false, chosen: {}, saving: false }
         };
     },
     computed: {
@@ -245,6 +282,7 @@ module.exports = {
                 { key: 'tomorrowPm', label: t('Tomorrow afternoon'), icon: 'sym_o_light_mode', at: at(1, 13) },
                 { key: 'monday', label: t('Monday morning'), icon: 'sym_o_next_week', at: at(toMonday, 8) }];
         },
+        pickerCount() { return Object.keys(this.picker.chosen).filter((key) => this.picker.chosen[key]).length; },
         draftStorageKey() { return 'ironstone.compose.' + (this.dockKey || ('page.' + (this.query.contactListId || this.query.replyToCommEventId || 'new'))); }
     },
     watch: {
@@ -500,6 +538,84 @@ module.exports = {
             }, moqui.handleAjaxError);
         },
         removeUpload(file) { this.draft.uploads = this.draft.uploads.filter((item) => item !== file); },
+
+        // ---- Attach from Files ----
+        openPicker() {
+            this.picker = { open: true, drives: [], driveId: null, path: '', crumbs: [], rows: [], loading: true, text: '', searching: true, chosen: {}, saving: false };
+            moqui.request(this.url('pickerData')).then((result) => {
+                const json = result.json || {};
+                this.picker.drives = json.driveList || [];
+                this.picker.rows = json.recentList || [];
+                this.picker.loading = false;
+                if (json.personalDriveId && !this.picker.rows.length) this.pickerOpen(json.personalDriveId, '');
+            }, () => { this.picker.loading = false; });
+        },
+        pickerOpen(driveId, path) {
+            Object.assign(this.picker, { driveId, path: path || '', searching: false, loading: true });
+            moqui.request(this.url('pickerFolder'), { params: { driveId, path: path || '' } }).then((result) => {
+                const json = result.json || {};
+                this.picker.rows = (json.fileList || []).map((row) => Object.assign({ driveId }, row));
+                this.picker.crumbs = (json.breadcrumbList || []).filter((crumb) => !crumb.view);
+                this.picker.loading = false;
+            }, () => { this.picker.loading = false; this.picker.rows = []; });
+        },
+        pickerSearch() {
+            const text = String(this.picker.text || '').trim();
+            if (!text) return;
+            Object.assign(this.picker, { searching: true, loading: true });
+            moqui.request(this.url('pickerSearch'), { params: { text } }).then((result) => {
+                this.picker.rows = (result.json || {}).fileList || [];
+                this.picker.loading = false;
+            }, () => { this.picker.loading = false; });
+        },
+        pickerKey(row) { return (row.driveId || this.picker.driveId) + '\n' + row.path; },
+        pickerCaption(row) {
+            if (row.isDirectory) return t('Folder: sent as a link');
+            const parts = [];
+            if (this.picker.searching && row.driveName) parts.push(row.driveName + (row.folderPath ? ' / ' + row.folderPath : ''));
+            if (row.size != null) parts.push(this.sizeText(row.size));
+            return parts.join(' · ');
+        },
+        pickerToggle(row) { const key = this.pickerKey(row); this.picker.chosen = Object.assign({}, this.picker.chosen, { [key]: !this.picker.chosen[key] }); },
+        pickerClick(row) { if (row.isDirectory) this.pickerOpen(row.driveId || this.picker.driveId, row.path); else this.pickerToggle(row); },
+        pickerAttach() {
+            const items = Object.keys(this.picker.chosen).filter((key) => this.picker.chosen[key]).map((key) => {
+                const at = key.indexOf('\n');
+                return { driveId: key.slice(0, at), path: key.slice(at + 1) };
+            });
+            if (!items.length) return;
+            const run = () => {
+                this.picker.saving = true;
+                const params = { itemsJson: JSON.stringify(items) };
+                if (this.mode === 'email' && this.draft.emailMessageId) params.emailMessageId = this.draft.emailMessageId;
+                return moqui.request(this.url('attachFromFiles'), { method: 'POST', params }).then((result) => {
+                    const json = result.json || {};
+                    this.picker.saving = false;
+                    this.picker.open = false;
+                    if (json.messageInfos && json.messageInfos.length) moqui.notifyMessages(json.messageInfos, json.errors);
+                    if (this.mode === 'email' && json.attachmentList) this.draft.attachments = json.attachmentList;
+                    if (this.mode !== 'email') this.draft.uploads = this.draft.uploads.concat(json.uploadList || []);
+                    this.insertLinks(json.linkList || []);
+                }, (err) => { this.picker.saving = false; moqui.handleAjaxError(err); });
+            };
+            // an email draft first, so the files have their message
+            if (this.mode === 'email' && !this.draft.emailMessageId) return this.save(true).then(() => { if (this.draft.emailMessageId) return run(); });
+            return run();
+        },
+        // the links of what was too large to attach, at the end of the body
+        insertLinks(links) {
+            if (!links.length) return;
+            const origin = window.location.origin;
+            const escape = (text) => String(text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            if (this.draft.plain) {
+                this.draft.body = String(this.draft.body || '') + '\n\n' + links.map((link) => link.name + ': ' + origin + link.linkPath).join('\n');
+                return;
+            }
+            const html = '<p>' + links.map((link) => '<a href="' + escape(origin + link.linkPath) + '">' + escape(link.name) + '</a>').join('<br>') + '</p>';
+            const editor = this.$refs.editor && this.$refs.editor.editor;
+            if (editor && editor.chain) editor.chain().focus('end').insertContent(html).run();
+            else this.draft.body = String(this.draft.body || '') + html;
+        },
         sizeText(size) {
             const n = Number(size) || 0;
             if (n >= 1048576) return (n / 1048576).toFixed(1) + ' MB';

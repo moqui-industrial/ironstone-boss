@@ -154,4 +154,47 @@ along with this software (see the LICENSE.md file). If not, see
         duplicate" is kept in a PartySetting of each party (a comma list of the other party ids), until Mantle records it. -->
     <moqui.security.UserGroup userGroupId="BOSS_CONTACT_ADMIN" description="Contact admins (IronStone): edit and delete directory contacts, review duplicates"/>
     <mantle.party.PartySettingType partySettingTypeId="BossNotDuplicates" description="Not duplicates of (IronStone Contacts): party ids, comma separated"/>
+
+    <!-- Files (design-drawers-commons.md §9 Records, impl-drawers-commons.md M8, R25): the Records drive, a view over the record
+        attachment folders Mantle's save#*ContentFile services write under the mantle.content.root preference (the default
+        dbresource://mantle/content; a deployment that moves the root changes rootLocation too). Every user may view it (the
+        ALL_USERS member row), and ironstone.DriveServices.check#ItemAccess lets a user into a record's folder only when the
+        record is one the user may see (R5, R28), so the drive shows each user only their records; it is read only (files are
+        added from a record's Files panel). The folders are mapped explicitly, since they follow no naming rule: CommunicationEvent
+        is capitalised, a work effort of any type (task, project, event) is under work, an asset maintenance record's files are
+        under asset/<assetId>/maintenance/<id>, a facility's are written by BOSS's RecordFiles (no Mantle pair) and its
+        certifications by Mantle. Payment methods and employments are left out on purpose; wiki page attachments are under
+        each space's own root, not here. -->
+    <moqui.resource.ResourceDrive driveId="BOSS_RECORDS" driveName="Records" driveKindEnumId="RdkRecords" rootLocation="dbresource://mantle/content"
+            description="The files of records: parties, orders, requests, tasks and events, messages and more"/>
+    <moqui.resource.ResourceDriveMember driveMemberId="BOSS_RECORDS_ALL_USERS" driveId="BOSS_RECORDS" userGroupId="ALL_USERS"
+            permissionEnumId="RdpView" fromDate="1767225600000"/>
+    <moqui.resource.ResourceDriveRecordFolder driveId="BOSS_RECORDS" folderPath="party" recordEntityName="mantle.party.Party" idField="partyId"
+            label="People and organizations" sequenceNum="10"/>
+    <moqui.resource.ResourceDriveRecordFolder driveId="BOSS_RECORDS" folderPath="order" recordEntityName="mantle.order.OrderHeader" idField="orderId"
+            label="Orders" sequenceNum="20"/>
+    <moqui.resource.ResourceDriveRecordFolder driveId="BOSS_RECORDS" folderPath="request" recordEntityName="mantle.request.Request" idField="requestId"
+            label="Requests" sequenceNum="30"/>
+    <moqui.resource.ResourceDriveRecordFolder driveId="BOSS_RECORDS" folderPath="work" recordEntityName="mantle.work.effort.WorkEffort"
+            idField="workEffortId" label="Tasks, projects and events" sequenceNum="40"/>
+    <moqui.resource.ResourceDriveRecordFolder driveId="BOSS_RECORDS" folderPath="CommunicationEvent"
+            recordEntityName="mantle.party.communication.CommunicationEvent" idField="communicationEventId" label="Messages" sequenceNum="50"/>
+    <moqui.resource.ResourceDriveRecordFolder driveId="BOSS_RECORDS" folderPath="facility" recordEntityName="mantle.facility.Facility"
+            idField="facilityId" label="Facilities" sequenceNum="60"/>
+    <moqui.resource.ResourceDriveRecordFolder driveId="BOSS_RECORDS" folderPath="asset" recordEntityName="mantle.product.asset.Asset"
+            idField="assetId" label="Assets" sequenceNum="70"/>
+    <moqui.resource.ResourceDriveRecordFolder driveId="BOSS_RECORDS" folderPath="asset/*/maintenance"
+            recordEntityName="mantle.product.maintenance.AssetMaintenance" idField="assetMaintenanceId" label="Asset maintenance" sequenceNum="75"/>
+    <moqui.resource.ResourceDriveRecordFolder driveId="BOSS_RECORDS" folderPath="invoice" recordEntityName="mantle.account.invoice.Invoice"
+            idField="invoiceId" label="Invoices" sequenceNum="80"/>
+    <moqui.resource.ResourceDriveRecordFolder driveId="BOSS_RECORDS" folderPath="payment" recordEntityName="mantle.account.payment.Payment"
+            idField="paymentId" label="Payments" sequenceNum="85"/>
+    <moqui.resource.ResourceDriveRecordFolder driveId="BOSS_RECORDS" folderPath="shipment" recordEntityName="mantle.shipment.Shipment"
+            idField="shipmentId" label="Shipments" sequenceNum="90"/>
+    <moqui.resource.ResourceDriveRecordFolder driveId="BOSS_RECORDS" folderPath="agreement" recordEntityName="mantle.party.agreement.Agreement"
+            idField="agreementId" label="Agreements" sequenceNum="95"/>
+    <moqui.resource.ResourceDriveRecordFolder driveId="BOSS_RECORDS" folderPath="product" recordEntityName="mantle.product.Product"
+            idField="productId" label="Products" sequenceNum="100"/>
+    <moqui.resource.ResourceDriveRecordFolder driveId="BOSS_RECORDS" folderPath="productCategory"
+            recordEntityName="mantle.product.category.ProductCategory" idField="productCategoryId" label="Product categories" sequenceNum="105"/>
 </entity-facade-xml>

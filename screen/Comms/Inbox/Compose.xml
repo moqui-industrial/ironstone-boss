@@ -73,6 +73,23 @@ along with this software (see the LICENSE.md file). If not, see
         ]]></script></actions>
         <default-response type="none"/>
     </transition>
+    <!-- Attach from Files: copies of the picked drive files on the draft (or for an internal message), links for what is too large -->
+    <transition name="attachFromFiles">
+        <actions><script><![CDATA[
+            let items = []
+            try { items = JSON.parse(itemsJson || '[]') } catch (err) { items = [] }
+            const out = ec.service.sync().name('ironstone.ComposeServices.attach#DriveFiles').parameters({emailMessageId: emailMessageId || null, itemList: items}).call()
+            if (ec.message.hasError()) { ec.web.sendJsonResponse({}); return }
+            const infos = []
+            for (const failed of Array.from(out.failedList || [])) infos.push({type: 'warning', message: failed.name + ': ' + failed.error})
+            if (Array.from(out.linkList || []).length) infos.push({type: 'info', message: ec.l10n.localize('Too large to attach: a link to it is in the message')})
+            ec.web.sendJsonResponse({attachmentList: out.attachmentList, uploadList: out.uploadList, linkList: out.linkList, messageInfos: infos})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition-include name="pickerData" location="component://ironstone-boss/template/FilePickerTransitions.xml"/>
+    <transition-include name="pickerFolder" location="component://ironstone-boss/template/FilePickerTransitions.xml"/>
+    <transition-include name="pickerSearch" location="component://ironstone-boss/template/FilePickerTransitions.xml"/>
     <transition name="removeAttachment">
         <actions><script><![CDATA[
             const out = ec.service.sync().name('ironstone.ComposeServices.remove#ComposeAttachment').parameters({emailMessageId: emailMessageId || '',

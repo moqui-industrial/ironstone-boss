@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- Drives (design-drawers-commons.md §9 Drives; style-guide §3.2 List, §3.11 Dialog): the drives the user may open with their
+    storage, members, used of quota and the user's permission, New drive (a folder drive, or version-controlled in the
+    database or on disk, with members and a quota) and, for administrators, Add mirror (a read-only drive over a git URL).
+    A drive's name opens it in Files; Settings opens its settings and members (DriveSettings). Through
+    org.moqui.impl.FileServices (get#UserDrives, create#Drive), which check who may do what (R21). -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Drives" default-menu-index="1">
+
+    <transition name="createDrive">
+        <service-call name="ironstone.DriveServices.create#SharedDrive" in-map="{driveName:driveName, description:description, storage:(storage || 'folder'),
+                quotaMb:(quotaMb || null), memberUserIds:(memberUserIds || null), memberPermissionEnumId:(memberPermissionEnumId || 'RdpEdit')}" out-map="createOut"/>
+        <actions><if condition="!ec.message.hasError()"><message type="success">${createOut.message}</message></if></actions>
+        <default-response url="."/>
+    </transition>
+    <transition name="createMirror">
+        <service-call name="ironstone.DriveServices.create#SharedDrive" in-map="{driveName:driveName, description:description, storage:'mirror',
+                remoteUrl:remoteUrl, branch:(branch || null), username:(username || null), accessToken:(accessToken || null),
+                fetchIntervalMinutes:(fetchIntervalMinutes ? Number(fetchIntervalMinutes) : null), memberUserIds:(memberUserIds || null),
+                memberPermissionEnumId:'RdpView'}" out-map="createOut"/>
+        <actions><if condition="!ec.message.hasError()"><message type="success">${createOut.message}</message></if></actions>
+        <default-response url="."/>
+    </transition>
+    <!-- the users of the members drop-down -->
+    <transition name="searchUsers" read-only="true">
+        <actions>
+            <service-call name="ironstone.ChatterServices.search#Users" in-map="{term:term}" out-map="found"/>
+            <script>ec.web.sendJsonResponse(Array.from(found.userList || []).filter((user) =&gt; user.value !== ec.user.userId).map((user) =&gt; ({value: user.value, label: user.label})))</script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+
+    <actions>
+        <service-call name="ironstone.DriveServices.get#DrivesData" out-map="drivesOut"/>
+        <script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            isAdmin = drivesOut.isAdmin === true
+            driveList = Array.from(drivesOut.driveList || []).map((drive) => Object.assign({}, drive, {
+                shownName: drive.isPersonal ? L('My files') : drive.driveName,
+                membersText: drive.isPersonal ? L('Only you') : (drive.isRecords ? L('Everyone, each their own records') : String(drive.memberCount || 0)),
+                stateText: drive.archivedDate ? L('Archived') : (drive.isMirror && drive.lastFetchError ? L('Last fetch failed') + ': ' + drive.lastFetchError
+                    : (drive.usedPercent != null && drive.usedPercent >= 90 ? L('Nearly full') : '')),
+                stateStyle: drive.archivedDate ? 'm-muted' : 'text-warning'}))
+            const order = (drive) => drive.isPersonal ? 0 : (drive.isRecords ? 2 : 1)
+            driveList.sort((left, right) => order(left) - order(right) || String(left.shownName).localeCompare(String(right.shownName)))
+        ]]></script>
+    </actions>
+    <widgets>
+        <container style="row items-center q-mb-sm q-gutter-sm">
+            <label type="h5" text="Drives" style="q-my-none"/>
+            <container style="col"/>
+            <container-dialog id="NewDriveDialog" button-text="New drive" icon="sym_o_add" width="600" title="New shared drive">
+                <form-single name="NewDrive" transition="createDrive" focus-field="driveName">
+                    <field name="driveName"><default-field title="Name"><text-line size="40"/></default-field></field>
+                    <field name="description"><default-field title="Description"><text-area rows="2" cols="50"/></default-field></field>
+                    <field name="storage"><default-field title="Storage"><radio no-current-selected-key="folder">
+                        <option key="folder" text="Folder: each file keeps its own versions"/>
+                        <option key="gitDb" text="Version-controlled in the database: every change is a commit, and it is in the backup"/>
+                        <option key="gitLocal" text="Version-controlled on disk: a git repository on the server that can be cloned"/>
+                    </radio></default-field></field>
+                    <field name="memberUserIds"><default-field title="Members">
+                        <drop-down allow-multiple="true" allow-empty="true"><dynamic-options transition="searchUsers" server-search="true" min-length="1"/></drop-down>
+                    </default-field></field>
+                    <field name="memberPermissionEnumId"><default-field title="Members may"><radio no-current-selected-key="RdpEdit">
+                        <option key="RdpView" text="View"/><option key="RdpEdit" text="Edit (add, change, share)"/><option key="RdpManage" text="Manage the drive"/></radio>
+                    </default-field></field>
+                    <field name="quotaMb"><default-field title="Quota in MB (empty for none)"><text-line size="10"/></default-field></field>
+                    <field name="submitButton"><default-field title="Create"><submit/></default-field></field>
+                </form-single>
+            </container-dialog>
+            <container-dialog id="NewMirrorDialog" button-text="Add mirror" icon="sym_o_lock" width="600" title="Add a read-only mirror" condition="isAdmin">
+                <form-single name="NewMirror" transition="createMirror" focus-field="driveName">
+                    <field name="driveName"><default-field title="Name"><text-line size="40"/></default-field></field>
+                    <field name="remoteUrl"><default-field title="HTTPS URL of the git repository"><text-line size="60"/></default-field></field>
+                    <field name="branch"><default-field title="Branch (main when empty)"><text-line size="20"/></default-field></field>
+                    <field name="username"><default-field title="User name (optional)"><text-line size="30"/></default-field></field>
+                    <field name="accessToken"><default-field title="Access token (optional)"><password size="40"/></default-field></field>
+                    <field name="fetchIntervalMinutes"><default-field title="Fetch every (minutes)"><text-line size="6" default-value="60"/></default-field></field>
+                    <field name="memberUserIds"><default-field title="Who may view it">
+                        <drop-down allow-multiple="true" allow-empty="true"><dynamic-options transition="searchUsers" server-search="true" min-length="1"/></drop-down>
+                    </default-field></field>
+                    <field name="submitButton"><default-field title="Add mirror"><submit/></default-field></field>
+                </form-single>
+            </container-dialog>
+        </container>
+
+        <container-box><box-header title="Your drives"/><box-body-nopad>
+            <form-list name="DriveList" list="driveList" skip-form="true" paginate="false">
+                <field name="shownName"><default-field title="Name">
+                    <link url="//Commons/Files" link-type="anchor" text="${shownName}" parameter-map="{drive:driveId}"/></default-field></field>
+                <field name="storageLabel"><default-field title="Storage"><display/></default-field></field>
+                <field name="membersText"><default-field title="Members"><display/></default-field></field>
+                <field name="usedText"><default-field title="Used"><display/></default-field></field>
+                <field name="levelLabel"><default-field title="You"><display style="text-caption"/></default-field></field>
+                <field name="stateText"><default-field title=""><display style="text-caption ${stateStyle}"/></default-field></field>
+                <field name="settings" align="right"><conditional-field condition="!isRecords" title="">
+                    <link url="../DriveSettings" link-type="anchor" text="Settings" parameter-map="{driveId:driveId}"/>
+                </conditional-field><default-field title=""><display text=""/></default-field></field>
+                <columns type="mobile">
+                    <column><field-ref name="shownName"/><field-ref name="storageLabel"/></column>
+                    <column><field-ref name="usedText"/><field-ref name="settings"/></column>
+                </columns>
+            </form-list>
+        </box-body-nopad></container-box>
+        <label type="p" style="text-caption m-muted q-mt-sm"
+                text="My files and Records are always there. A shared drive's owner and its managers change its members, quota and settings; an archived drive is read only and leaves the rail."/>
+    </widgets>
+</screen>

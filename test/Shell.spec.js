@@ -65,7 +65,7 @@ feature("shellData lists Commons and Comms with their providers and the IronSton
         commonsKindUrls[5] == "/qapps/Commons/QuickCreate?kind=request"
         commonsRequiresRecord == [false, true, false, false, false, false]
         commonsIcons == ["sym_o_task_alt", "sym_o_pending_actions", "sym_o_event", "sym_o_sticky_note_2", "sym_o_person", "sym_o_support"]
-        sources == ["IdLookup", "Records", "People", "Pages", "Events"]
+        sources == ["IdLookup", "Records", "People", "Pages", "Files", "Events"]
         peoplePrefix == "@"
         idPattern.length > 0
         types == ["MantleParty", "MantleTask", "MantleEvent", "MantleRequest", "MantleProject", "MantleWikiPage", "MantleCommunicationEvent"]
