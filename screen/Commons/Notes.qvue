@@ -1,0 +1,501 @@
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- Commons Notes (design-drawers-commons.md §10 Notes), the component Notes.xml serves in the qvue render mode. The list (from
+    1024 px a column beside the note; below it the list, or the note with a back arrow): New note (made at once, typing starts
+    in it), the search line, the tags as chips with their counts, then the notes, pinned first and then the latest changed,
+    each with its title, the start of its text, when it changed, its tags and a pin. The note: its title (the first heading,
+    else its name), the save state (Saved, Saving, Not saved; it saves itself a moment after typing stops), Pin, History and
+    the menu (Save a named version, Move to a space, Copy link, Delete), its tags, the markdown text area with its preview, and
+    the tasks, events and requests it is linked to. A note moved to a space becomes a page there with its history. Notes have
+    no review and no publish (design §10). Keys: n new note, / search, Ctrl+S save now. -->
+<template><div class="boss-notes">
+    <m-screen-context record-entity="moqui.resource.wiki.WikiPage" :record-id="note ? note.wikiPageId : ''" :title="note ? note.title : t('Notes')"></m-screen-context>
+
+    <div class="row no-wrap items-start">
+        <!-- ===== the list ===== -->
+        <div v-if="wide || !selectedId" :class="wide ? 'col-auto q-pr-md' : 'col-12'"
+                :style="wide ? {width: '320px', position: 'sticky', top: '58px', maxHeight: 'calc(100vh - 66px)', overflowY: 'auto'} : {}">
+            <div class="row items-center no-wrap q-mb-sm">
+                <div class="col text-h6">{{t('Notes')}}</div>
+                <q-btn unelevated no-caps color="primary" icon="sym_o_add" :label="t('New note')" :loading="creating" @click="newNote">
+                    <q-tooltip>{{t('New note')}} (n)</q-tooltip></q-btn>
+            </div>
+            <m-text-line id="boss-notes-search" name="notesSearch" v-model="searchText" :label="t('Search notes')"></m-text-line>
+            <div v-if="tags.length" class="row q-gutter-xs q-mt-xs">
+                <q-chip dense square clickable :class="!tag ? 'm-tonal text-primary' : ''" @click="setTag(null)">{{t('All')}} · {{totalCount}}</q-chip>
+                <q-chip v-for="item in tags" :key="item.name" dense square clickable :class="tag === item.name ? 'm-tonal text-primary' : ''"
+                        icon="sym_o_label" @click="setTag(item.name)">{{item.name}} · {{item.count}}</q-chip>
+            </div>
+            <q-linear-progress v-if="loadingList" indeterminate color="primary" size="2px" class="q-mt-xs"></q-linear-progress>
+            <q-list class="q-mt-sm" separator>
+                <q-item v-for="item in notes" :key="item.wikiPageId" clickable class="rounded-borders q-px-sm"
+                        :class="item.wikiPageId === selectedId ? (dark ? 'bg-grey-9' : 'bg-blue-1') : ''" @click="select(item.wikiPageId)">
+                    <q-item-section>
+                        <q-item-label class="text-weight-medium ellipsis">{{item.title}}</q-item-label>
+                        <q-item-label v-if="item.snippet" caption lines="2">{{item.snippet}}</q-item-label>
+                        <q-item-label caption class="row items-center no-wrap">
+                            <span>{{item.whenText}}</span>
+                            <span v-for="name in item.tags" :key="name" class="q-ml-sm text-primary ellipsis">#{{name}}</span>
+                        </q-item-label>
+                    </q-item-section>
+                    <q-item-section side top>
+                        <q-btn flat dense round size="sm" :icon="item.pinned ? 'push_pin' : 'sym_o_keep'" :color="item.pinned ? 'primary' : undefined"
+                                :aria-label="item.pinned ? t('Unpin') : t('Pin')" @click.stop="togglePin(item)"><q-tooltip>{{item.pinned ? t('Unpin') : t('Pin to the top')}}</q-tooltip></q-btn>
+                    </q-item-section>
+                </q-item>
+            </q-list>
+            <div v-if="ready && !notes.length" class="text-center q-pa-lg">
+                <q-icon name="sym_o_sticky_note_2" size="40px" class="m-muted"></q-icon>
+                <div class="text-body2 m-muted q-mt-sm">{{searchText || tag ? t('No notes match') : t('No notes yet. New note starts one.')}}</div>
+                <q-btn v-if="searchText || tag" flat dense no-caps color="primary" :label="t('Clear filters')" @click="clearFilters"></q-btn>
+            </div>
+        </div>
+
+        <!-- ===== the note ===== -->
+        <div v-if="wide || selectedId" class="col" style="min-width:0">
+            <div v-if="!selectedId" class="text-center q-pa-xl m-muted">
+                <q-icon name="sym_o_edit_note" size="48px"></q-icon>
+                <div class="text-body1 q-mt-sm">{{t('Choose a note, or start a new one')}}</div>
+            </div>
+            <div v-else-if="loadingNote && !note" class="q-pa-md">
+                <q-skeleton type="text" width="40%" class="text-h5"></q-skeleton>
+                <q-skeleton type="rect" height="260px" class="q-mt-md"></q-skeleton>
+            </div>
+            <div v-else-if="notFound" class="q-pa-lg text-center">
+                <q-btn v-if="!wide" flat dense round icon="arrow_back" class="float-left" @click="back"></q-btn>
+                <q-icon name="sym_o_visibility_off" size="48px" class="m-muted"></q-icon>
+                <div class="text-h6 q-mt-sm">{{t('This note is not available')}}</div>
+                <div class="text-body2 m-muted">{{t('It may have been deleted or moved to a space.')}}</div>
+            </div>
+            <template v-else-if="note">
+                <div class="row items-start no-wrap q-mb-xs">
+                    <q-btn v-if="!wide" flat dense round icon="arrow_back" class="q-mr-xs" @click="back"><q-tooltip>{{t('All notes')}}</q-tooltip></q-btn>
+                    <div class="col" style="min-width:0">
+                        <div :class="phone ? 'text-h6' : 'text-h5'" class="ellipsis">{{liveTitle}}</div>
+                        <div class="text-caption m-muted">{{stateText}}</div>
+                    </div>
+                    <div class="row items-center no-wrap q-gutter-x-xs col-auto">
+                        <q-btn flat dense round :icon="note.pinned ? 'push_pin' : 'sym_o_keep'" :color="note.pinned ? 'primary' : undefined" @click="togglePin(note)">
+                            <q-tooltip>{{note.pinned ? t('Unpin') : t('Pin to the top')}}</q-tooltip></q-btn>
+                        <q-btn v-if="!phone" unelevated dense no-caps class="m-btn-tonal q-px-sm" icon="sym_o_history" :label="t('History')" @click="openHistory"></q-btn>
+                        <q-btn flat dense round icon="more_vert">
+                            <q-menu auto-close>
+                                <q-list dense style="min-width:220px">
+                                    <q-item clickable @click="openNamed"><q-item-section avatar><q-icon name="sym_o_bookmark_add"></q-icon></q-item-section><q-item-section>{{t('Save a named version')}}</q-item-section></q-item>
+                                    <q-item v-if="phone" clickable @click="openHistory"><q-item-section avatar><q-icon name="sym_o_history"></q-icon></q-item-section><q-item-section>{{t('History')}}</q-item-section></q-item>
+                                    <q-item clickable @click="openMove"><q-item-section avatar><q-icon name="sym_o_drive_file_move"></q-icon></q-item-section><q-item-section>{{t('Move to a space')}}</q-item-section></q-item>
+                                    <q-item clickable @click="copyLink"><q-item-section avatar><q-icon name="sym_o_link"></q-icon></q-item-section><q-item-section>{{t('Copy link')}}</q-item-section></q-item>
+                                    <q-separator></q-separator>
+                                    <q-item clickable class="text-negative" @click="confirmDelete"><q-item-section avatar><q-icon name="sym_o_delete" color="negative"></q-icon></q-item-section><q-item-section>{{t('Delete')}}</q-item-section></q-item>
+                                </q-list>
+                            </q-menu>
+                        </q-btn>
+                    </div>
+                </div>
+
+                <!-- the tags -->
+                <div class="row items-center q-gutter-xs q-mb-sm">
+                    <q-chip v-for="name in note.tags" :key="name" dense square removable icon="sym_o_label" class="m-tonal text-primary" @remove="removeTag(name)">{{name}}</q-chip>
+                    <div style="width:180px"><m-text-line id="boss-notes-tag" name="newTag" v-model="newTag" :label="t('Add a tag')" @keyup.enter="addTag"></m-text-line></div>
+                </div>
+
+                <q-banner v-if="conflict" dense rounded class="q-mb-sm" :class="dark ? 'bg-grey-9' : 'bg-orange-1'">
+                    <template v-slot:avatar><q-icon name="sym_o_warning" color="warning"></q-icon></template>
+                    {{conflict}}. {{t('Your text is kept here and not saved.')}}
+                    <template v-slot:action>
+                        <q-btn flat dense no-caps color="primary" :label="t('Load the saved text')" @click="reloadNote(true)"></q-btn>
+                        <q-btn flat dense no-caps color="negative" :label="t('Save mine anyway')" @click="saveNow(null, true)"></q-btn>
+                    </template>
+                </q-banner>
+
+                <m-text-area id="boss-notes-editor" name="pageText" v-model="text" editor-type="md" rows="18" :label="t('Note (Markdown)')"></m-text-area>
+
+                <!-- the records it is linked to -->
+                <div class="q-mt-md">
+                    <div class="text-caption text-weight-medium m-muted">{{t('Linked tasks and requests')}}</div>
+                    <div class="row items-center q-gutter-xs q-mt-xs">
+                        <q-chip v-for="record in note.records" :key="record.recordEntityName + record.recordId" dense square removable :icon="record.icon || 'sym_o_description'"
+                                clickable @click="record.url && go(record.url)" @remove="unlinkRecord(record)">{{record.typeLabel}} · {{record.title}}</q-chip>
+                        <span v-if="!note.records.length" class="text-body2 m-muted">{{t('None yet')}}</span>
+                    </div>
+                    <div class="q-mt-xs" style="max-width:420px">
+                        <m-drop-down id="boss-notes-record" name="linkRecord" :model-value="linkRecordValue" server-search :server-min-length="2" allow-empty
+                                :options-url="url('searchRecords')" :label="t('Link a task, event or request (id or words)')" @update:model-value="linkRecord"></m-drop-down>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- ===== dialogs ===== -->
+    <m-dialog v-model="named.open" :title="t('Save a named version')" width="480">
+        <div class="q-gutter-y-sm">
+            <m-text-line id="boss-notes-versionnote" name="versionNote" v-model="named.note" :label="t('What this version is')" @keyup.enter="saveNamed"></m-text-line>
+            <div class="row justify-end q-gutter-sm">
+                <q-btn flat no-caps :label="t('Cancel')" v-close-popup></q-btn>
+                <q-btn unelevated no-caps color="primary" :label="t('Save version')" :disable="!String(named.note || '').trim()" @click="saveNamed"></q-btn>
+            </div>
+        </div>
+    </m-dialog>
+
+    <m-dialog v-model="move.open" :title="t('Move to a space')" width="560">
+        <div class="q-gutter-y-sm">
+            <div class="text-body2">{{t('The note becomes a page of the space, with its history, and leaves your notes.')}}</div>
+            <m-drop-down id="boss-notes-movespace" name="toWikiSpaceId" :model-value="move.spaceId" :options="move.spaceOptions" :label="t('Space')"
+                    @update:model-value="moveSpaceChanged"></m-drop-down>
+            <m-drop-down id="boss-notes-moveparent" name="toParentPath" v-model="move.parentPath" :options="move.options" allow-empty :label="t('Under')"></m-drop-down>
+            <m-text-line id="boss-notes-movename" name="toPageName" v-model="move.name" :label="t('Page name')"></m-text-line>
+            <div class="row justify-end q-gutter-sm">
+                <q-btn flat no-caps :label="t('Cancel')" v-close-popup></q-btn>
+                <q-btn unelevated no-caps color="primary" :label="t('Move')" :disable="!move.spaceId" :loading="move.busy" @click="submitMove"></q-btn>
+            </div>
+        </div>
+    </m-dialog>
+
+    <m-dialog v-model="history.open" :title="t('History') + (note ? ': ' + liveTitle : '')" width="900">
+        <div v-if="history.loading" class="q-gutter-y-sm"><q-skeleton v-for="n in 3" :key="n" type="text"></q-skeleton></div>
+        <template v-else>
+            <div v-if="diff.open" class="q-mb-md">
+                <div class="row items-center q-mb-xs">
+                    <div class="col text-subtitle2">{{t('Changes from')}} {{diff.fromShort}} {{t('to')}} {{diff.toShort}}</div>
+                    <q-chip dense square class="m-tonal text-positive">+{{(diff.stats || {}).insertions || 0}}</q-chip>
+                    <q-chip dense square class="m-tonal text-negative">−{{(diff.stats || {}).deletions || 0}}</q-chip>
+                    <q-btn flat dense round icon="close" size="sm" @click="diff.open = false"></q-btn>
+                </div>
+                <q-linear-progress v-if="diff.loading" indeterminate color="primary" size="2px"></q-linear-progress>
+                <div v-else-if="diff.html" class="scroll" style="max-height:45vh" v-html="diff.html"></div>
+            </div>
+            <q-list dense bordered separator class="rounded-borders">
+                <q-item v-for="version in history.versions" :key="version.versionName" dense>
+                    <q-item-section>
+                        <q-item-label><span class="text-weight-medium">{{version.shortName}}</span><span class="m-muted"> · {{version.dateText}}</span>
+                            <q-chip v-if="version.isCurrent" dense square class="m-tonal text-primary q-my-none">{{t('current')}}</q-chip></q-item-label>
+                        <q-item-label v-if="version.note" caption>{{version.note}}</q-item-label>
+                    </q-item-section>
+                    <q-item-section side>
+                        <div class="row no-wrap">
+                            <q-btn v-if="version.previousVersionName" flat dense no-caps size="sm" color="primary" :label="t('Changes')" @click="compare(version.previousVersionName, version.versionName)"></q-btn>
+                            <q-btn v-if="history.canRestore && !version.isCurrent" flat dense no-caps size="sm" color="primary" :label="t('Restore')" @click="restore(version)"></q-btn>
+                        </div>
+                    </q-item-section>
+                </q-item>
+            </q-list>
+        </template>
+    </m-dialog>
+
+    <m-dialog v-model="confirmBox.open" :title="confirmBox.title" width="480">
+        <div class="text-body2 q-mb-md">{{confirmBox.text}}</div>
+        <div class="row justify-end q-gutter-sm">
+            <q-btn flat no-caps :label="t('Cancel')" v-close-popup></q-btn>
+            <q-btn unelevated no-caps :color="confirmBox.danger ? 'negative' : 'primary'" :label="confirmBox.okLabel" :loading="confirmBox.busy" @click="runConfirm"></q-btn>
+        </div>
+    </m-dialog>
+</div></template>
+
+<script>
+const AUTOSAVE_MS = 2500;
+module.exports = {
+    name: 'BossNotes',
+    data() {
+        return {
+            ready: false, notes: [], tags: [], totalCount: 0, tag: null, searchText: '', loadingList: false, listSeq: 0, creating: false,
+            note: null, loadingNote: false, notFound: false, noteSeq: 0, text: '', savedText: '', baseVersion: null, saving: false, saveFailed: false,
+            savedAt: '', conflict: null, newTag: '', linkRecordValue: null,
+            named: { open: false, note: '' },
+            move: { open: false, spaceId: null, spaceOptions: [], parentPath: '', options: [], name: '', busy: false },
+            history: { open: false, loading: false, versions: [], canRestore: false },
+            diff: { open: false, loading: false, html: '', stats: {}, fromShort: '', toShort: '' },
+            confirmBox: { open: false, title: '', text: '', okLabel: '', danger: false, busy: false, run: null }
+        };
+    },
+    computed: {
+        phone() { return this.$q.screen.lt.sm; },
+        wide() { return this.$q.screen.gt.sm; },
+        dark() { return this.$q.dark.isActive; },
+        pathList() { return this.$root.currentPathList || []; },
+        nIndex() { return this.pathList.indexOf('Notes'); },
+        screenPath() { return this.$root.basePath + '/' + (this.nIndex >= 0 ? this.pathList.slice(0, this.nIndex + 1) : ['Commons', 'Notes']).join('/'); },
+        linkPath() { return this.$root.linkBasePath + '/' + (this.nIndex >= 0 ? this.pathList.slice(0, this.nIndex + 1) : ['Commons', 'Notes']).join('/'); },
+        selectedId() { return (this.$root.currentParameters || {}).wikiPageId || null; },
+        dirty() { return !!this.note && this.text !== this.savedText; },
+        liveTitle() {
+            const heading = String(this.text || '').match(/^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$/m);
+            return heading ? heading[1].replace(/[*_`]/g, '').trim() : (this.note ? this.note.pageName : '');
+        },
+        stateText() {
+            if (this.conflict) return this.t('Not saved: changed elsewhere');
+            if (this.saving) return this.t('Saving…');
+            if (this.saveFailed) return this.t('Not saved, trying again when you type');
+            if (this.dirty) return this.t('Not saved yet');
+            if (this.savedAt) return this.t('Saved') + ' ' + this.savedAt;
+            const change = this.note && this.note.lastChange;
+            return change ? this.t('Saved') + ' ' + this.relative(change.millis, change.dateText) : this.t('Saved');
+        }
+    },
+    watch: {
+        '$root.currentParameters': { handler() { this.openSelected(); }, deep: true },
+        searchText() { clearTimeout(this.searchTimer); this.searchTimer = setTimeout(() => this.loadList(), 300); },
+        text() {
+            if (!this.note || this.conflict) return;
+            clearTimeout(this.saveTimer);
+            if (this.dirty) this.saveTimer = setTimeout(() => this.saveNow(null, false), AUTOSAVE_MS);
+        }
+    },
+    methods: {
+        t(text) { return moqui.l10n && moqui.l10n.localize ? moqui.l10n.localize(text) : text; },
+        url(name) { return this.screenPath + '/' + name; },
+        request(name, params, method) {
+            return moqui.request(this.url(name), { method: method || 'GET', params: params || {} }).then((result) => {
+                const json = result.json || {};
+                if (json.messageInfos && json.messageInfos.length) moqui.notifyMessages(json.messageInfos);
+                return json;
+            }, (err) => { moqui.handleAjaxError(err); throw err; });
+        },
+        post(name, params) { return this.request(name, params, 'POST'); },
+        go(url) { if (url) this.$root.setUrl(url); },
+        relative(millis, otherwise) {
+            if (millis == null) return otherwise || '';
+            const minutes = Math.floor((Date.now() - Number(millis)) / 60000);
+            if (minutes < 1) return this.t('just now');
+            if (minutes < 60) return minutes + ' ' + this.t('min ago');
+            if (minutes < 1440) return Math.floor(minutes / 60) + ' ' + this.t('h ago');
+            return otherwise || '';
+        },
+        select(id) {
+            if (id === this.selectedId) return;
+            this.flush().then(() => this.$root.setUrl(this.linkPath + '?' + moqui.objToSearch({ wikiPageId: id })));
+        },
+        back() { this.flush().then(() => this.$root.setUrl(this.linkPath)); },
+        setTag(name) { this.tag = name; this.loadList(); },
+        clearFilters() { this.tag = null; this.searchText = ''; this.loadList(); },
+        // ===== the list =====
+        loadList() {
+            const seq = ++this.listSeq;
+            this.loadingList = true;
+            return moqui.request(this.url('notes'), { params: { text: this.searchText || '', tag: this.tag || '' } }).then((result) => {
+                if (seq !== this.listSeq) return;
+                const json = result.json || {};
+                this.notes = json.noteList || [];
+                this.tags = json.tagList || [];
+                this.totalCount = json.totalCount || 0;
+                if (this.tag && !this.tags.some((item) => item.name === this.tag)) this.tag = null;
+                this.loadingList = false;
+                this.ready = true;
+            }, (err) => { if (seq === this.listSeq) { this.loadingList = false; this.ready = true; } moqui.handleAjaxError(err); });
+        },
+        newNote() {
+            if (this.creating) return true;
+            this.creating = true;
+            this.flush().then(() => this.post('createNote', {})).then((json) => {
+                this.creating = false;
+                this.loadList();
+                this.$root.setUrl(this.linkPath + '?' + moqui.objToSearch({ wikiPageId: json.wikiPageId }));
+                this.focusEditor = true;
+            }, () => { this.creating = false; });
+            return true;
+        },
+        // ===== the note =====
+        openSelected() {
+            const id = this.selectedId;
+            if (!id) { this.note = null; this.notFound = false; return; }
+            if (this.note && this.note.wikiPageId === id) return;
+            // what is typed in the note open now is saved first
+            this.flush().then(() => this.loadNote(id));
+        },
+        loadNote(id) {
+            const seq = ++this.noteSeq;
+            this.loadingNote = true;
+            this.conflict = null;
+            this.saveFailed = false;
+            this.savedAt = '';
+            moqui.request(this.url('note'), { params: { wikiPageId: id } }).then((result) => {
+                if (seq !== this.noteSeq) return;
+                const page = (result.json || {}).page;
+                this.loadingNote = false;
+                if (!page) { this.notFound = true; this.note = null; return; }
+                this.notFound = false;
+                this.note = page;
+                this.savedText = page.text || '';
+                this.text = this.savedText;
+                this.baseVersion = page.currentVersionName || null;
+                if (this.focusEditor) {
+                    this.focusEditor = false;
+                    this.$nextTick(() => { const el = document.getElementById('boss-notes-editor'); if (el && el.focus) el.focus(); });
+                }
+            }, () => { if (seq !== this.noteSeq) return; this.loadingNote = false; this.note = null; this.notFound = true; });
+        },
+        reloadNote(discard) {
+            if (!this.note) return;
+            if (discard) { this.savedText = this.text; this.conflict = null; }
+            const id = this.note.wikiPageId;
+            this.note = null;
+            this.loadNote(id);
+        },
+        // save what is typed: on idle, before leaving the note, Ctrl+S, or a named version
+        saveNow(versionNote, force) {
+            clearTimeout(this.saveTimer);
+            if (!this.note || this.saving) return Promise.resolve();
+            if (!this.dirty && !versionNote) return Promise.resolve();
+            const note = this.note;
+            const text = this.text;
+            this.saving = true;
+            return this.post('saveNote', { wikiPageId: note.wikiPageId, pageText: text, versionNote: versionNote || '', baseVersionName: this.baseVersion || '',
+                force: force ? 'true' : 'false' }).then((json) => {
+                this.saving = false;
+                if (json.conflict) { this.conflict = json.conflictText || this.t('This note was saved elsewhere'); return; }
+                this.conflict = null;
+                this.saveFailed = false;
+                this.savedText = text;
+                if (json.currentVersionName) this.baseVersion = json.currentVersionName;
+                this.savedAt = json.savedText || '';
+                const item = this.notes.find((row) => row.wikiPageId === note.wikiPageId);
+                if (item) { item.title = this.liveTitle; item.whenText = json.savedText || item.whenText; }
+                if (this.text !== text && this.note === note) this.saveTimer = setTimeout(() => this.saveNow(null, false), AUTOSAVE_MS);
+            }, () => { this.saving = false; this.saveFailed = true; });
+        },
+        flush() { return this.dirty && !this.conflict ? this.saveNow(null, false).catch(() => {}) : Promise.resolve(); },
+        openNamed() { this.named = { open: true, note: '' }; },
+        saveNamed() {
+            const note = String(this.named.note || '').trim();
+            if (!note) return;
+            this.named.open = false;
+            this.saveNow(note, false);
+        },
+        togglePin(item) {
+            const pinned = !item.pinned;
+            this.post('setPinned', { wikiPageId: item.wikiPageId, pinned: pinned ? 'true' : 'false' }).then(() => {
+                item.pinned = pinned;
+                if (this.note && this.note.wikiPageId === item.wikiPageId) this.note.pinned = pinned;
+                this.loadList();
+            }, () => {});
+        },
+        addTag() {
+            const name = String(this.newTag || '').trim();
+            if (!name || !this.note) return;
+            const tags = this.note.tags.concat(this.note.tags.some((known) => known.toLowerCase() === name.toLowerCase()) ? [] : [name]);
+            this.post('setTags', { wikiPageId: this.note.wikiPageId, tags: tags.join(',') }).then((json) => {
+                this.note.tags = json.tagList || tags;
+                this.newTag = '';
+                this.loadList();
+            }, () => {});
+        },
+        removeTag(name) {
+            const tags = this.note.tags.filter((known) => known !== name);
+            this.post('setTags', { wikiPageId: this.note.wikiPageId, tags: tags.join(',') }).then((json) => { this.note.tags = json.tagList || tags; this.loadList(); }, () => {});
+        },
+        linkRecord(value) {
+            if (!value || !this.note) return;
+            this.post('linkRecord', { wikiPageId: this.note.wikiPageId, record: value }).then(() => {
+                this.linkRecordValue = null;
+                this.flush().then(() => this.reloadNote(false));
+            }, () => { this.linkRecordValue = null; });
+        },
+        unlinkRecord(record) {
+            this.post('unlinkRecord', { wikiPageId: this.note.wikiPageId, recordEntityName: record.recordEntityName, recordId: record.recordId })
+                .then(() => { this.note.records = this.note.records.filter((item) => item !== record); }, () => {});
+        },
+        copyLink() {
+            const link = window.location.origin + this.linkPath + '?' + moqui.objToSearch({ wikiPageId: this.note.wikiPageId });
+            const done = () => moqui.notifyMessages([{ type: 'success', message: this.t('Link copied') }]);
+            if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(link).then(done, () => moqui.notifyMessages([{ type: 'info', message: link }]));
+            else moqui.notifyMessages([{ type: 'info', message: link }]);
+        },
+        confirmDelete() {
+            const note = this.note;
+            this.confirmBox = { open: true, title: this.t('Delete the note'), text: this.t('Delete') + ' ' + this.liveTitle + '? ' + this.t('Its history goes too.'),
+                okLabel: this.t('Delete'), danger: true, busy: false, run: () => this.post('deleteNote', { wikiPageId: note.wikiPageId }).then(() => {
+                    this.note = null;
+                    this.savedText = this.text;
+                    this.loadList();
+                    this.$root.setUrl(this.linkPath);
+                }) };
+        },
+        runConfirm() {
+            const box = this.confirmBox;
+            if (!box.run || box.busy) return;
+            box.busy = true;
+            Promise.resolve().then(() => box.run()).then(() => { box.busy = false; box.open = false; }, () => { box.busy = false; });
+        },
+        // ===== Move to a space =====
+        openMove() {
+            this.move = { open: true, spaceId: null, spaceOptions: [], parentPath: '', options: [], name: this.note.pageName, busy: false };
+            this.request('moveTargets').then((json) => {
+                this.move.spaceOptions = (json.spaceList || []).map((space) => ({ value: space.wikiSpaceId, label: space.description }));
+            }, () => {});
+        },
+        moveSpaceChanged(id) {
+            this.move.spaceId = id;
+            this.move.parentPath = '';
+            this.request('pageOptions', { wikiSpaceId: id }).then((json) => { this.move.options = json.optionList || []; }, () => { this.move.options = []; });
+        },
+        submitMove() {
+            if (!this.move.spaceId || this.move.busy) return;
+            this.move.busy = true;
+            this.flush().then(() => this.post('moveNote', { wikiPageId: this.note.wikiPageId, toWikiSpaceId: this.move.spaceId, toParentPath: this.move.parentPath || '',
+                toPageName: this.move.name || '' })).then(() => {
+                this.move.open = false;
+                this.note = null;
+                this.loadList();
+                this.$root.setUrl(this.linkPath);
+            }, () => { this.move.busy = false; });
+        },
+        // ===== history =====
+        openHistory() {
+            this.history = { open: true, loading: true, versions: [], canRestore: false };
+            this.diff = { open: false, loading: false, html: '', stats: {}, fromShort: '', toShort: '' };
+            this.flush().then(() => this.request('history', { wikiPageId: this.note.wikiPageId })).then((json) => {
+                this.history.versions = json.versionList || [];
+                this.history.canRestore = !!json.canRestore;
+                this.history.loading = false;
+            }, () => { this.history.loading = false; });
+        },
+        compare(fromVersion, toVersion) {
+            this.diff = { open: true, loading: true, html: '', stats: {}, fromShort: '', toShort: '' };
+            this.request('diff', { wikiPageId: this.note.wikiPageId, fromVersionName: fromVersion || '', toVersionName: toVersion || '' }).then((json) => {
+                this.diff = { open: true, loading: false, html: json.html || '', stats: json.stats || {}, fromShort: json.fromShort || '', toShort: json.toShort || '' };
+            }, () => { this.diff.open = false; });
+        },
+        restore(version) {
+            this.post('restoreVersion', { wikiPageId: this.note.wikiPageId, versionName: version.versionName }).then(() => {
+                this.history.open = false;
+                this.savedText = this.text;
+                this.reloadNote(false);
+                this.loadList();
+            }, () => {});
+        },
+        keyBindings() {
+            const quiet = () => !this.named.open && !this.move.open && !this.history.open && !this.confirmBox.open;
+            return [
+                { keys: 'n', label: this.t('Notes: new note'), action: 'notesNew', when: quiet, run: () => this.newNote() },
+                { keys: '/', label: this.t('Notes: search'), action: 'notesSearch', when: quiet, run: () => { const el = document.getElementById('boss-notes-search'); if (el) el.focus(); return true; } },
+                { keys: 'Mod+S', label: this.t('Notes: save now'), action: 'notesSave', when: () => !!this.note, run: () => { this.saveNow(null, false); return true; } }
+            ];
+        },
+        beforeUnload(event) { if (this.dirty) { this.saveNow(null, false); event.preventDefault(); event.returnValue = ''; } }
+    },
+    mounted() {
+        if (moqui.keymap && moqui.keymap.registerScope) this.keysOff = moqui.keymap.registerScope('notes', this.keyBindings());
+        window.addEventListener('beforeunload', this.beforeUnload);
+        this.loadList();
+        this.openSelected();
+    },
+    beforeUnmount() {
+        this.flush();
+        if (this.keysOff) this.keysOff();
+        window.removeEventListener('beforeunload', this.beforeUnload);
+        clearTimeout(this.searchTimer);
+        clearTimeout(this.saveTimer);
+    }
+};
+</script>

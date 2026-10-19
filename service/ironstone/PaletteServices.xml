@@ -52,13 +52,21 @@ along with this software (see the LICENSE.md file). If not, see
             }
             if (type === 'MantleWorkEffort') type = workEffortTypeEnumId === 'WetEvent' ? 'MantleEvent' : workEffortTypeEnumId === 'WetTask' ? 'MantleTask'
                 : workEffortTypeEnumId === 'WetProject' ? 'MantleProject' : null
+            // a wiki page review (topics WikiPageReview, WikiPageReviewDecision) opens its page on the review's compare
+            if (!type && recordEntityName === 'moqui.resource.wiki.WikiPageReview') {
+                const review = ec.entity.find('moqui.resource.wiki.WikiPageReview').condition('wikiPageReviewId', id).one()
+                url = review ? '/qapps/Commons/Knowledge?wikiPageId=' + encodeURIComponent(review.wikiPageId) + '&review=' + q : null
+                icon = 'sym_o_rate_review'
+                return
+            }
             const links = {
                 MantleParty: ['/qapps/Commons/Contacts/ContactDetail?partyId=' + q, partyTypeEnumId === 'PtyOrganization' ? 'sym_o_corporate_fare' : 'sym_o_person'],
                 MantleTask: ['/qapps/Commons/Tasks/TaskDetail?workEffortId=' + q, 'sym_o_task_alt'],
                 MantleEvent: ['/qapps/Commons/Calendar/EventDetail?workEffortId=' + q, 'sym_o_event'],
                 MantleRequest: ['/qapps/Commons/Requests/RequestDetail?requestId=' + q, 'sym_o_support'],
-                // TODO: the Knowledge screen's parameter for a page once it is built (M9)
-                MantleWikiPage: ['/qapps/Commons/Knowledge?wikiPageId=' + q, 'sym_o_description'],
+                // a page of the user's own notes opens in Notes
+                MantleWikiPage: [(String(ec.entity.find('moqui.resource.wiki.WikiPage').condition('wikiPageId', id).selectField('wikiSpaceId').one()?.wikiSpaceId || '')
+                    === 'NOTES_' + ec.user.userId ? '/qapps/Commons/Notes?wikiPageId=' : '/qapps/Commons/Knowledge?wikiPageId=') + q, 'sym_o_description'],
                 MantleCommunicationEvent: ['/qapps/Comms/Inbox/MessageDetail?communicationEventId=' + q, 'sym_o_mail'],
                 // no project screen in Commons: the Projects app's comes with its design
                 MantleProject: [null, 'sym_o_assignment']
@@ -136,9 +144,11 @@ along with this software (see the LICENSE.md file). If not, see
     </service>
 
     <service verb="search" noun="Pages">
-        <description>The palette's Pages and files group: the framework wiki pages whose path has the text, in the spaces the
-            user may view and not restricted from the user (as org.moqui.impl.WikiServices.get#UserWikiSpaces and
-            get#UserSpaceWikiPages decide); to Commons/Knowledge. Files and drives join with M8.</description>
+        <description>The palette's Pages and files group: org.moqui.impl.WikiServices.search#WikiPages (the search documents on
+            WikiPage, MantleWikiPage, for the title and text when search is available, else the page paths), which leaves out
+            the spaces and restricted pages the user may not view; another user's notes are left out too (an administrator
+            may view them), the user's own notes are in. Each to Commons/Knowledge, a note to Commons/Notes. Files and drives
+            join with M8.</description>
         <in-parameters>
             <parameter name="text" required="true"/>
             <parameter name="limit" type="Integer" default="5"/>
@@ -146,37 +156,20 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="idMatch" type="Boolean"/>
         </in-parameters>
         <out-parameters><parameter name="rows" type="List"/></out-parameters>
-        <actions>
-            <set field="rows" from="[]"/>
-            <service-call name="org.moqui.impl.WikiServices.get#UserWikiSpaces" in-map="{userId:ec.user.userId}" out-map="spaces"/>
-            <set field="spaceIds" from="Array.from(new Set((spaces.wikiSpaceAndUserList ?? []).map((space) => space.wikiSpaceId)))"/>
-            <if condition="spaceIds.length == 0"><return/></if>
-            <entity-find entity-name="moqui.resource.wiki.WikiPageAndUser" list="pageList" limit="100">
-                <econdition field-name="wikiSpaceId" operator="in" from="spaceIds"/>
-                <econdition field-name="pagePath" operator="like" value="%${text}%" ignore-case="true"/>
-                <econditions combine="or">
-                    <econdition field-name="restrictView" value="N"/>
-                    <econdition field-name="restrictView" from="null"/>
-                    <econditions>
-                        <econdition field-name="userId" from="ec.user.userId"/>
-                        <econdition field-name="restrictView" value="Y"/>
-                        <econdition field-name="allowView" value="Y"/>
-                    </econditions>
-                </econditions>
-                <order-by field-name="pagePath"/>
-            </entity-find>
-            <script><![CDATA[
-                const seen = new Set()
-                for (const page of pageList) {
-                    if (seen.has(page.wikiPageId) || rows.length >= (limit || 5)) continue
-                    seen.add(page.wikiPageId)
-                    const path = String(page.pagePath || '')
-                    const name = path.substring(path.lastIndexOf('/') + 1).replace(/[-_]/g, ' ')
-                    const link = ec.service.sync().name('ironstone.PaletteServices.get#RecordLink').parameters({docType: 'MantleWikiPage', id: page.wikiPageId}).call()
-                    rows.push({title: name || path, subtitle: page.wikiSpaceId + ' · ' + path, icon: link.icon, url: link.url})
-                }
-            ]]></script>
-        </actions>
+        <actions><script><![CDATA[
+            rows = []
+            const out = ec.service.sync().name('org.moqui.impl.WikiServices.search#WikiPages').parameters({text: text, limit: Math.max(20, (limit || 5) * 4)}).call() || {}
+            const mine = ec.user.userId ? 'NOTES_' + ec.user.userId : null
+            for (const page of Array.from(out.pageList || [])) {
+                if (rows.length >= (limit || 5)) break
+                const isNotes = String(page.wikiSpaceId).startsWith('NOTES_')
+                if (isNotes && page.wikiSpaceId !== mine) continue
+                const path = String(page.pagePath || '')
+                rows.push({title: page.title || page.pageName || path, subtitle: (isNotes ? ec.l10n.localize('My notes') : (page.spaceDescription || page.wikiSpaceId))
+                        + (path ? ' · ' + path : ''), icon: isNotes ? 'sym_o_sticky_note_2' : 'sym_o_description',
+                    url: (isNotes ? '/qapps/Commons/Notes?wikiPageId=' : '/qapps/Commons/Knowledge?wikiPageId=') + encodeURIComponent(page.wikiPageId)})
+            }
+        ]]></script></actions>
     </service>
 
     <service verb="search" noun="Events">

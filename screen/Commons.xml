@@ -74,6 +74,7 @@ along with this software (see the LICENSE.md file). If not, see
         <notification-topic topic="EventInvitation"/>
         <notification-topic topic="EventInvitationResponse"/>
         <notification-topic topic="WikiPageReview"/>
+        <notification-topic topic="WikiPageReviewDecision"/>
         <notification-topic topic="FileShare"/>
 
         <keymap>

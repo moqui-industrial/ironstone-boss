@@ -1,0 +1,1283 @@
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- Commons Knowledge (design-drawers-commons.md §10 Knowledge), the component Knowledge.xml serves in the qvue render mode. The
+    side pane (from 1024 px a column, below it a drawer over the page): the space, the search line, New page, the space's home and
+    its page tree (each node's pages loaded as it opens; a page dragged onto another goes before, inside or after it), the recent
+    pages, Reviews, Spaces and My notes. The main pane: the breadcrumb and title with the chips (restricted, published or draft,
+    in review, read only), the last change, the actions (Edit or Save, History, Publish this version, Request review, and the
+    menu: new page under this one, rename, move, copy link, watch, delete), the banners of a review, an old version and a save
+    that met another, the page rendered from its markdown (relative links from the page's parent, [[path]] and wiki:SPACE/path
+    links to the Knowledge screen as index#WikiPageLinks reads them, a link to a page not made yet in negative, headings with
+    their outline on the right from 1440 px), or the markdown text area with its preview and a version note; under the page its
+    backlinks and links not made yet, tags, linked tasks and requests, files, and Chatter. The History dialog lists the versions
+    (notes, who, when, current, published, moved from), compares two with the server's diff, views, restores and publishes one;
+    a review opens there on its compare with Approve and Request changes. Keys: e edit, Ctrl+S save, / search, n new page,
+    h history. Colors are brand color names and Quasar classes only (style-guide §4.8). -->
+<template><div class="boss-knowledge">
+    <m-screen-context record-entity="moqui.resource.wiki.WikiPage" :record-id="contextRecordId" :title="contextTitle"></m-screen-context>
+
+    <template v-if="!subActive">
+    <div class="row no-wrap items-start">
+        <!-- ===== the side pane: a column from 1024 px, a drawer over the page below ===== -->
+        <div v-if="!wide && sideOpen" class="fixed-full bg-black" style="opacity:.35;z-index:3000" @click="sideOpen = false"></div>
+        <div v-if="wide || sideOpen" :class="wide ? 'col-auto q-pr-md' : 'fixed-left q-pa-md shadow-8 scroll ' + (dark ? 'bg-dark' : 'bg-white')"
+                :style="wide ? {width: '280px', position: 'sticky', top: '58px', maxHeight: 'calc(100vh - 66px)', overflowY: 'auto'} : {width: 'min(320px, 86vw)', zIndex: 3001}">
+            <div class="row items-center no-wrap q-mb-sm">
+                <div class="col">
+                    <m-drop-down id="boss-knowledge-space" name="knowledgeSpace" :model-value="spaceId" :options="spaceOptions" :label="t('Space')"
+                            @update:model-value="openSpace"></m-drop-down>
+                </div>
+                <q-btn flat dense round icon="sym_o_settings" class="q-ml-xs" @click="go(spacesUrl)"><q-tooltip>{{t('Spaces and their settings')}}</q-tooltip></q-btn>
+                <q-btn v-if="!wide" flat dense round icon="close" @click="sideOpen = false"></q-btn>
+            </div>
+            <m-text-line id="boss-knowledge-search" name="knowledgeSearch" v-model="searchText" :label="t('Search pages')"
+                    @keyup.enter="runSearch(true)"></m-text-line>
+            <q-btn v-if="space && space.canUpdate" unelevated dense no-caps class="m-btn-tonal full-width q-mt-sm" icon="sym_o_add" :label="t('New page')"
+                    @click="openNewPage(null)"><q-tooltip>{{t('New page')}} (n)</q-tooltip></q-btn>
+
+            <!-- the search results, in place of the tree while there is a search -->
+            <template v-if="search.active">
+                <div class="row items-center q-mt-md">
+                    <div class="col text-caption text-weight-medium m-muted">{{t('Search results')}}</div>
+                    <q-btn flat dense no-caps size="sm" color="primary" :label="t('Clear')" @click="clearSearch"></q-btn>
+                </div>
+                <q-linear-progress v-if="search.loading" indeterminate color="primary" size="2px"></q-linear-progress>
+                <q-list dense>
+                    <q-item v-for="hit in search.results" :key="hit.wikiSpaceId + '/' + hit.pagePath" clickable dense class="rounded-borders" @click="openHit(hit)">
+                        <q-item-section>
+                            <q-item-label class="ellipsis">{{hit.title}}</q-item-label>
+                            <q-item-label caption class="ellipsis">{{hit.spaceDescription}} · {{hit.pagePath || t('Home')}}</q-item-label>
+                        </q-item-section>
+                    </q-item>
+                </q-list>
+                <div v-if="!search.loading && !search.results.length" class="text-caption m-muted q-pa-xs">{{t('No pages match')}}</div>
+            </template>
+
+            <template v-else>
+                <!-- the space's home, then its tree -->
+                <q-list dense class="q-mt-sm">
+                    <q-item clickable dense class="rounded-borders q-px-xs" :class="dropHint.key === '' ? (dark ? 'bg-grey-8' : 'bg-blue-1') : ''"
+                            @click="openPath('')" @dragover.prevent="dragOverHome" @dragleave="dragLeave({key: ''})" @drop.prevent="dropOnHome">
+                        <q-item-section avatar style="min-width:28px"><q-icon name="sym_o_home" size="xs" :color="isCurrent('') ? 'primary' : undefined"></q-icon></q-item-section>
+                        <q-item-section :class="isCurrent('') ? 'text-primary text-weight-medium' : ''">{{space ? space.description : t('Home')}}</q-item-section>
+                        <q-item-section v-if="space && space.restrictView" side><q-icon name="sym_o_lock" size="14px"><q-tooltip>{{t('Members only')}}</q-tooltip></q-icon></q-item-section>
+                    </q-item>
+                </q-list>
+                <q-tree v-if="treeNodes.length" :nodes="treeNodes" node-key="key" label-key="label" dense no-transition class="q-ml-xs boss-knowledge-tree"
+                        :selected="selectedKey" @update:selected="onSelect" v-model:expanded="expandedKeys" @lazy-load="onLazyLoad">
+                    <template v-slot:default-header="prop">
+                        <div class="row items-center no-wrap full-width relative-position q-py-xs" :draggable="canDrag(prop.node)"
+                                :class="dropHint.key === prop.node.key && dropHint.position === 'inside' ? (dark ? 'bg-grey-8 rounded-borders' : 'bg-blue-1 rounded-borders') : ''"
+                                @dragstart="dragStart($event, prop.node)" @dragend="dragEnd" @dragover.prevent="dragOver($event, prop.node)"
+                                @dragleave="dragLeave(prop.node)" @drop.prevent.stop="dropOn($event, prop.node)">
+                            <div v-if="dropHint.key === prop.node.key && dropHint.position === 'before'" class="absolute-top bg-primary" style="height:2px"></div>
+                            <div v-if="dropHint.key === prop.node.key && dropHint.position === 'after'" class="absolute-bottom bg-primary" style="height:2px"></div>
+                            <span class="ellipsis" :class="prop.node.key === selectedKey ? 'text-primary text-weight-medium' : ''">{{prop.node.label}}</span>
+                            <q-icon v-if="prop.node.restricted" name="sym_o_lock" size="14px" class="q-ml-xs m-muted"><q-tooltip>{{t('Restricted')}}</q-tooltip></q-icon>
+                        </div>
+                    </template>
+                </q-tree>
+                <div v-else-if="treeReady && spaceId" class="text-caption m-muted q-pa-sm">{{t('No pages under the home page yet')}}</div>
+                <div v-if="space && space.canUpdate && treeNodes.length > 1 && wide" class="text-caption m-muted q-px-xs q-pt-xs">{{t('Drag a page to move it')}}</div>
+
+                <template v-if="recent.length">
+                    <div class="text-caption text-weight-medium m-muted q-mt-md q-px-xs">{{t('Recent')}}</div>
+                    <q-list dense>
+                        <q-item v-for="item in recent" :key="item.wikiPageId" clickable dense class="rounded-borders q-px-xs" @click="go(item.url)">
+                            <q-item-section>
+                                <q-item-label class="ellipsis">{{item.title}}</q-item-label>
+                                <q-item-label caption class="ellipsis">{{item.spaceDescription}} · {{item.kindText}} {{item.whenText}}</q-item-label>
+                            </q-item-section>
+                        </q-item>
+                    </q-list>
+                </template>
+            </template>
+
+            <q-separator class="q-my-sm"></q-separator>
+            <q-list dense>
+                <q-item clickable dense class="rounded-borders q-px-xs" @click="go(reviewUrl)">
+                    <q-item-section avatar style="min-width:28px"><q-icon name="sym_o_rate_review" size="xs"></q-icon></q-item-section>
+                    <q-item-section>{{t('Reviews')}}</q-item-section>
+                    <q-item-section v-if="reviewCount" side><q-badge color="primary" :label="reviewCount"></q-badge></q-item-section>
+                </q-item>
+                <q-item clickable dense class="rounded-borders q-px-xs" @click="go(spacesUrl)">
+                    <q-item-section avatar style="min-width:28px"><q-icon name="sym_o_folder_shared" size="xs"></q-icon></q-item-section>
+                    <q-item-section>{{t('Spaces')}}</q-item-section>
+                </q-item>
+                <q-item clickable dense class="rounded-borders q-px-xs" @click="go(notesUrl)">
+                    <q-item-section avatar style="min-width:28px"><q-icon name="sym_o_sticky_note_2" size="xs"></q-icon></q-item-section>
+                    <q-item-section>{{t('My notes')}}</q-item-section>
+                </q-item>
+            </q-list>
+        </div>
+
+        <!-- ===== the page ===== -->
+        <div class="col" style="min-width:0">
+            <div v-if="!ready || (loadingPage && !page)" class="q-pa-md">
+                <q-skeleton type="text" width="40%" class="text-h5"></q-skeleton>
+                <q-skeleton type="text" width="25%"></q-skeleton>
+                <q-skeleton type="rect" height="240px" class="q-mt-md"></q-skeleton>
+            </div>
+
+            <div v-else-if="!spaceOptions.length && !page" class="q-pa-lg text-center">
+                <q-icon name="sym_o_menu_book" size="48px" class="m-muted"></q-icon>
+                <div class="text-h6 q-mt-sm">{{t('No spaces yet')}}</div>
+                <div class="text-body2 m-muted q-mb-md">{{t('A space holds the pages of a team, a project or a help center.')}}</div>
+                <q-btn unelevated no-caps color="primary" icon="sym_o_add" :label="t('Create a space')" @click="go(spacesUrl + '?_openDialog=NewSpaceDialog')"></q-btn>
+            </div>
+
+            <div v-else-if="notAvailable" class="q-pa-lg text-center">
+                <q-btn v-if="!wide" flat dense round icon="menu" class="float-left" @click="sideOpen = true"></q-btn>
+                <q-icon name="sym_o_visibility_off" size="48px" class="m-muted"></q-icon>
+                <div class="text-h6 q-mt-sm">{{t('This page is not available')}}</div>
+                <div class="text-body2 m-muted q-mb-md">{{t('It may have been deleted or moved, or you may not have access to it.')}}</div>
+                <q-btn unelevated no-caps class="m-btn-tonal" icon="sym_o_home" :label="t('Go to the space home')" @click="openPath('')"></q-btn>
+            </div>
+
+            <template v-else-if="page">
+                <!-- the title row -->
+                <div class="row items-start q-mb-xs" :class="phone ? 'q-col-gutter-y-xs' : 'no-wrap'">
+                    <div class="row no-wrap items-start" :class="phone ? 'col-12' : 'col'" style="min-width:0">
+                        <q-btn v-if="!wide" flat dense round icon="menu" class="q-mr-xs" @click="sideOpen = true"><q-tooltip>{{t('Pages')}}</q-tooltip></q-btn>
+                        <div class="col" style="min-width:0">
+                            <div class="text-caption m-muted ellipsis">
+                                <template v-for="(crumb, index) in page.breadcrumbs" :key="'crumb' + index">
+                                    <a href="#" class="text-primary" style="text-decoration:none" @click.prevent="openPage(page.wikiSpaceId, crumb.pagePath)">{{crumb.label}}</a><span class="q-mx-xs">/</span>
+                                </template>
+                            </div>
+                            <div class="row items-center no-wrap" style="min-width:0">
+                                <div class="ellipsis" :class="phone ? 'text-h6' : 'text-h5'">{{page.title}}</div>
+                            </div>
+                            <div class="row items-center q-gutter-x-xs q-mt-xs">
+                                <q-chip v-if="page.restricted" dense square icon="sym_o_lock" class="m-tonal text-warning">{{page.restrictView ? t('Restricted page') : t('Members only')}}
+                                    <q-tooltip>{{page.restrictView ? t('Only the people named on this page may read it') : t('Only the members of this space may read it')}}</q-tooltip></q-chip>
+                                <template v-if="!page.isNotes && page.exists">
+                                    <q-chip v-if="page.isPublished" dense square icon="sym_o_public" class="m-tonal text-positive">{{t('Published')}} {{page.publishedShort}}</q-chip>
+                                    <q-chip v-else-if="page.publishedVersionName" dense square icon="sym_o_edit_note" class="m-tonal text-info">{{t('Draft')}} · {{t('published')}} {{page.publishedShort}}</q-chip>
+                                    <q-chip v-else dense square icon="sym_o_edit_note" class="m-tonal">{{t('Draft')}}</q-chip>
+                                </template>
+                                <q-chip v-if="openReviews.length" dense square icon="sym_o_rate_review" class="m-tonal text-primary" clickable @click="openReviewCompare(openReviews[0])">
+                                    {{t('In review')}}<q-tooltip>{{reviewChipText}}</q-tooltip></q-chip>
+                                <q-chip v-if="page.exists && !page.canUpdate" dense square icon="sym_o_visibility" class="m-tonal">{{page.readOnly ? t('Read-only mirror') : t('Read only')}}</q-chip>
+                                <q-chip v-if="page.isNotes" dense square icon="sym_o_sticky_note_2" class="m-tonal">{{t('Note')}}</q-chip>
+                            </div>
+                            <div v-if="lastChangeText" class="text-caption m-muted q-mt-xs">{{lastChangeText}}</div>
+                        </div>
+                    </div>
+                    <!-- the actions -->
+                    <div class="row items-center no-wrap q-gutter-x-xs" :class="phone ? 'col-12 justify-end' : 'col-auto q-pl-sm'">
+                        <template v-if="editing">
+                            <span class="text-caption m-muted q-mr-xs">{{editStateText}}</span>
+                            <q-btn flat dense no-caps :label="t('Cancel')" @click="cancelEdit"></q-btn>
+                            <q-btn unelevated no-caps color="primary" icon="sym_o_save" :label="t('Save')" :loading="saving" @click="save(false)">
+                                <q-tooltip>{{t('Save a new version')}} (Ctrl+S)</q-tooltip></q-btn>
+                        </template>
+                        <template v-else-if="page.exists">
+                            <q-btn v-if="canEdit" unelevated no-caps color="primary" icon="sym_o_edit" :label="t('Edit')" @click="startEdit"><q-tooltip>{{t('Edit')}} (e)</q-tooltip></q-btn>
+                            <q-btn v-if="!phone" unelevated dense no-caps class="m-btn-tonal q-px-sm" icon="sym_o_history" :label="t('History')" @click="openHistory()">
+                                <q-tooltip>{{t('History')}} (h)</q-tooltip></q-btn>
+                            <q-btn v-if="canPublish && wide" unelevated dense no-caps class="m-btn-tonal q-px-sm" icon="sym_o_public" :label="t('Publish')" @click="publishCurrent">
+                                <q-tooltip>{{t('Publish this version')}}</q-tooltip></q-btn>
+                            <q-btn v-if="canRequestReview && wide" unelevated dense no-caps class="m-btn-tonal q-px-sm" icon="sym_o_rate_review" :label="t('Request review')"
+                                    @click="openRequestReview"></q-btn>
+                            <q-btn flat dense round icon="more_vert">
+                                <q-menu auto-close>
+                                    <q-list dense style="min-width:220px">
+                                        <q-item v-if="phone" clickable @click="openHistory()"><q-item-section avatar><q-icon name="sym_o_history"></q-icon></q-item-section><q-item-section>{{t('History')}}</q-item-section></q-item>
+                                        <q-item v-if="canPublish && !wide" clickable @click="publishCurrent"><q-item-section avatar><q-icon name="sym_o_public"></q-icon></q-item-section><q-item-section>{{t('Publish this version')}}</q-item-section></q-item>
+                                        <q-item v-if="canRequestReview && !wide" clickable @click="openRequestReview"><q-item-section avatar><q-icon name="sym_o_rate_review"></q-icon></q-item-section><q-item-section>{{t('Request review')}}</q-item-section></q-item>
+                                        <q-item v-if="space && space.canUpdate && page.wikiSpaceId === spaceId" clickable @click="openNewPage(page.pagePath)"><q-item-section avatar><q-icon name="sym_o_add"></q-icon></q-item-section><q-item-section>{{t('New page under this one')}}</q-item-section></q-item>
+                                        <q-item v-if="canEdit && !page.isRoot && page.wikiPageId" clickable @click="openRename"><q-item-section avatar><q-icon name="sym_o_edit_square"></q-icon></q-item-section><q-item-section>{{t('Rename')}}</q-item-section></q-item>
+                                        <q-item v-if="canEdit && !page.isRoot && page.wikiPageId" clickable @click="openMove"><q-item-section avatar><q-icon name="sym_o_drive_file_move"></q-icon></q-item-section><q-item-section>{{t('Move to…')}}</q-item-section></q-item>
+                                        <q-item clickable @click="copyLink"><q-item-section avatar><q-icon name="sym_o_link"></q-icon></q-item-section><q-item-section>{{t('Copy link')}}</q-item-section></q-item>
+                                        <q-item v-if="page.wikiPageId && !page.isNotes" clickable @click="toggleWatch"><q-item-section avatar><q-icon :name="page.following ? 'sym_o_visibility_off' : 'sym_o_visibility'"></q-icon></q-item-section>
+                                            <q-item-section>{{page.following ? t('Stop watching') : t('Watch this page')}}</q-item-section></q-item>
+                                        <q-separator v-if="canEdit && !page.isRoot && page.wikiPageId"></q-separator>
+                                        <q-item v-if="canEdit && !page.isRoot && page.wikiPageId" clickable class="text-negative" @click="confirmDelete"><q-item-section avatar><q-icon name="sym_o_delete" color="negative"></q-icon></q-item-section><q-item-section>{{t('Delete')}}</q-item-section></q-item>
+                                    </q-list>
+                                </q-menu>
+                            </q-btn>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- a review open on the page -->
+                <q-banner v-for="review in openReviews" :key="review.wikiPageReviewId" dense rounded class="q-mb-sm" :class="dark ? 'bg-grey-9' : 'bg-blue-1'">
+                    <template v-slot:avatar><q-icon name="sym_o_rate_review" color="primary"></q-icon></template>
+                    <div class="text-body2">{{reviewText(review)}}</div>
+                    <div v-if="review.note" class="text-caption m-muted">“{{review.note}}”</div>
+                    <template v-slot:action>
+                        <q-btn flat dense no-caps color="primary" :label="t('See the changes')" @click="openReviewCompare(review)"></q-btn>
+                        <q-btn v-if="review.canDecide" flat dense no-caps color="positive" :label="t('Approve and publish')" @click="decide(review, 'approve')"></q-btn>
+                        <q-btn v-if="review.canDecide" flat dense no-caps color="primary" :label="t('Request changes')" @click="openChanges(review)"></q-btn>
+                        <q-btn v-if="review.canCancel" flat dense no-caps color="primary" :label="t('Cancel request')" @click="cancelReview(review)"></q-btn>
+                    </template>
+                </q-banner>
+
+                <!-- an old version -->
+                <q-banner v-if="page.viewingOld" dense rounded class="q-mb-sm" :class="dark ? 'bg-grey-9' : 'bg-orange-1'">
+                    <template v-slot:avatar><q-icon name="sym_o_history" color="warning"></q-icon></template>
+                    {{t('You are reading version')}} {{page.viewShort}}, {{t('not the current text')}}.
+                    <template v-slot:action>
+                        <q-btn flat dense no-caps color="primary" :label="t('Back to the current version')" @click="openPage(page.wikiSpaceId, page.pagePath)"></q-btn>
+                        <q-btn flat dense no-caps color="primary" :label="t('Compare with the current')" @click="openHistory(page.versionName, '')"></q-btn>
+                        <q-btn v-if="page.canUpdate && page.wikiPageId" flat dense no-caps color="primary" :label="t('Restore this version')" @click="confirmRestore({versionName: page.versionName, shortName: page.viewShort})"></q-btn>
+                    </template>
+                </q-banner>
+
+                <!-- a save that met someone else's -->
+                <q-banner v-if="conflict" dense rounded class="q-mb-sm" :class="dark ? 'bg-grey-9' : 'bg-orange-1'">
+                    <template v-slot:avatar><q-icon name="sym_o_warning" color="warning"></q-icon></template>
+                    {{conflict}}. {{t('Your text is kept here.')}}
+                    <template v-slot:action>
+                        <q-btn flat dense no-caps color="primary" :label="t('Compare')" @click="openHistory()"></q-btn>
+                        <q-btn flat dense no-caps color="negative" :label="t('Save mine anyway')" @click="save(true)"></q-btn>
+                    </template>
+                </q-banner>
+
+                <div class="row no-wrap items-start">
+                    <div class="col" style="min-width:0">
+                        <!-- the editor -->
+                        <template v-if="editing">
+                            <m-text-area id="boss-knowledge-editor" name="pageText" v-model="editText" editor-type="md" rows="20" :label="t('Text (Markdown)')"></m-text-area>
+                            <div class="row items-center q-col-gutter-sm q-mt-xs">
+                                <div class="col-12 col-sm"><m-text-line id="boss-knowledge-note" name="versionNote" v-model="versionNote" :label="t('Version note (optional)')"
+                                        @keyup.enter="save(false)"></m-text-line></div>
+                            </div>
+                            <div class="text-caption m-muted q-mt-xs">{{t('Ctrl+S saves a new version. Link a page with [text](Page name), [[Page/Child]] or [text](wiki:SPACE/Page); a link from a page goes from where the page is.')}}</div>
+                        </template>
+
+                        <!-- a page not made yet -->
+                        <div v-else-if="!page.exists" class="q-pa-lg text-center">
+                            <q-icon name="sym_o_note_add" size="40px" class="m-muted"></q-icon>
+                            <div class="text-subtitle1 q-mt-sm">{{t('This page has not been made yet')}}</div>
+                            <div class="text-body2 m-muted q-mb-md">{{page.wikiSpaceId}} / {{page.pagePath}}</div>
+                            <q-btn v-if="page.canUpdate" unelevated no-caps color="primary" icon="sym_o_add" :label="t('Create this page')" @click="createMissing(page.wikiSpaceId, page.pagePath)"></q-btn>
+                        </div>
+
+                        <!-- the rendered page -->
+                        <template v-else>
+                            <div v-if="!String(page.text || '').trim()" class="text-body2 m-muted q-py-md">{{page.canUpdate ? t('This page is empty. Edit it to write the first words.') : t('This page is empty.')}}</div>
+                            <div ref="body" class="m-rich-text-content boss-knowledge-body text-body1 q-mt-sm" style="padding:0;max-height:none;overflow:visible;cursor:auto"
+                                    v-html="renderedHtml" @click="bodyClick"></div>
+                        </template>
+                    </div>
+                    <!-- the outline, from 1440 px -->
+                    <div v-if="showOutline && outline.length > 1 && !editing" class="col-auto q-pl-lg" style="width:220px;position:sticky;top:64px">
+                        <div class="text-caption text-weight-medium m-muted q-mb-xs">{{t('On this page')}}</div>
+                        <q-list dense>
+                            <q-item v-for="entry in outline" :key="entry.id" clickable dense class="rounded-borders" :style="{paddingLeft: (4 + (entry.level - outlineTop) * 12) + 'px'}"
+                                    @click="scrollTo(entry.id)">
+                                <q-item-section><q-item-label class="ellipsis text-body2">{{entry.text}}</q-item-label></q-item-section>
+                            </q-item>
+                        </q-list>
+                    </div>
+                </div>
+
+                <!-- under the page -->
+                <div v-if="!editing && page.exists" class="row q-mt-md">
+                    <div class="col-12 col-md-6">
+                        <m-container-box :title="t('Linked from') + (page.backlinks.length ? ' (' + page.backlinks.length + ')' : '')">
+                            <q-list v-if="page.backlinks.length" dense>
+                                <q-item v-for="link in page.backlinks" :key="link.wikiPageId" clickable dense class="rounded-borders q-px-xs" @click="openPage(link.wikiSpaceId, link.pagePath)">
+                                    <q-item-section avatar style="min-width:28px"><q-icon name="sym_o_link" size="xs"></q-icon></q-item-section>
+                                    <q-item-section>
+                                        <q-item-label class="ellipsis">{{link.pageName}}</q-item-label>
+                                        <q-item-label caption class="ellipsis">{{link.wikiSpaceId === page.wikiSpaceId ? (link.pagePath || t('Home')) : link.spaceDescription + ' · ' + (link.pagePath || t('Home'))}}</q-item-label>
+                                    </q-item-section>
+                                </q-item>
+                            </q-list>
+                            <div v-else class="text-body2 m-muted">{{t('No pages link here yet')}}</div>
+                            <template v-if="missingLinks.length">
+                                <div class="text-caption text-weight-medium m-muted q-mt-sm">{{t('Links to pages not made yet')}}</div>
+                                <q-list dense>
+                                    <q-item v-for="link in missingLinks" :key="link.toWikiSpaceId + '/' + link.toPagePath" dense class="q-px-xs">
+                                        <q-item-section avatar style="min-width:28px"><q-icon name="sym_o_link_off" size="xs" color="negative"></q-icon></q-item-section>
+                                        <q-item-section><q-item-label class="ellipsis">{{link.linkText || link.toPagePath}}</q-item-label>
+                                            <q-item-label caption class="ellipsis">{{link.toWikiSpaceId}} / {{link.toPagePath}}</q-item-label></q-item-section>
+                                        <q-item-section v-if="canCreateIn(link.toWikiSpaceId)" side>
+                                            <q-btn flat dense no-caps size="sm" color="primary" :label="t('Create')" @click="createMissing(link.toWikiSpaceId, link.toPagePath)"></q-btn></q-item-section>
+                                    </q-item>
+                                </q-list>
+                            </template>
+                        </m-container-box>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <m-container-box :title="t('Tags and records')">
+                            <div class="row items-center q-gutter-xs">
+                                <q-chip v-for="tag in page.tags" :key="tag" dense square :removable="page.canUpdate && !!page.wikiPageId" class="m-tonal text-primary"
+                                        @remove="removeTag(tag)">{{tag}}</q-chip>
+                                <span v-if="!page.tags.length && !page.canUpdate" class="text-body2 m-muted">{{t('No tags')}}</span>
+                            </div>
+                            <div v-if="page.canUpdate && page.wikiPageId" class="row items-center no-wrap q-mt-xs">
+                                <div class="col"><m-text-line id="boss-knowledge-tag" name="newTag" v-model="newTag" :label="t('Add a tag')" @keyup.enter="addTag"></m-text-line></div>
+                                <q-btn flat dense round icon="sym_o_add" color="primary" class="q-ml-xs" :disable="!String(newTag || '').trim()" @click="addTag"><q-tooltip>{{t('Add the tag')}}</q-tooltip></q-btn>
+                            </div>
+                            <div class="text-caption text-weight-medium m-muted q-mt-md">{{t('Linked tasks and requests')}}</div>
+                            <q-list v-if="page.records.length" dense>
+                                <q-item v-for="record in page.records" :key="record.recordEntityName + record.recordId" dense class="q-px-xs" :clickable="!!record.url" @click="record.url && go(record.url)">
+                                    <q-item-section avatar style="min-width:28px"><q-icon :name="record.icon || 'sym_o_description'" size="xs"></q-icon></q-item-section>
+                                    <q-item-section><q-item-label class="ellipsis">{{record.title}}</q-item-label><q-item-label caption>{{record.typeLabel}}</q-item-label></q-item-section>
+                                    <q-item-section v-if="page.canUpdate" side>
+                                        <q-btn flat dense round size="sm" icon="sym_o_link_off" @click.stop="unlinkRecord(record)"><q-tooltip>{{t('Unlink')}}</q-tooltip></q-btn></q-item-section>
+                                </q-item>
+                            </q-list>
+                            <div v-else class="text-body2 m-muted">{{t('None yet')}}</div>
+                            <div v-if="page.canUpdate && page.wikiPageId" class="q-mt-xs">
+                                <m-drop-down id="boss-knowledge-record" name="linkRecord" :model-value="linkRecordValue" server-search :server-min-length="2" allow-empty
+                                        :options-url="url('searchRecords')" :label="t('Link a task, event or request (id or words)')" @update:model-value="linkRecord"></m-drop-down>
+                            </div>
+                        </m-container-box>
+                    </div>
+                    <div class="col-12">
+                        <m-container-box :title="t('Files') + (page.attachments.length ? ' (' + page.attachments.length + ')' : '')">
+                            <template v-slot:toolbar>
+                                <q-btn v-if="page.canUpdate && page.wikiPageId" dense flat no-caps color="primary" icon="sym_o_upload" :label="t('Add files')" @click="uploadOpen = !uploadOpen"></q-btn>
+                            </template>
+                            <div v-if="uploadOpen && page.canUpdate" class="row items-center no-wrap q-mb-sm">
+                                <div class="col"><m-file id="boss-knowledge-upload" name="attachmentFile" v-model="uploadFiles" multiple :label="t('Files to add')"></m-file></div>
+                                <q-btn unelevated dense no-caps color="primary" class="q-ml-sm q-px-sm" :label="t('Upload')" :loading="uploading" :disable="!uploadList.length" @click="upload"></q-btn>
+                            </div>
+                            <q-list v-if="page.attachments.length" dense separator>
+                                <q-item v-for="file in page.attachments" :key="file.filename" dense class="q-px-xs">
+                                    <q-item-section avatar style="min-width:28px"><q-icon :name="file.isImage ? 'sym_o_image' : 'sym_o_draft'" size="xs"></q-icon></q-item-section>
+                                    <q-item-section>
+                                        <q-item-label class="ellipsis"><a href="#" class="text-primary" @click.prevent="openFile(file)">{{file.filename}}</a></q-item-label>
+                                        <q-item-label caption>{{[file.sizeText, file.dateText].filter((part) => part).join(' · ')}}</q-item-label>
+                                    </q-item-section>
+                                    <q-item-section side>
+                                        <div class="row no-wrap">
+                                            <q-btn flat round dense size="sm" icon="sym_o_download" @click="download(fileUrl(file, false))"><q-tooltip>{{t('Download')}}</q-tooltip></q-btn>
+                                            <q-btn v-if="page.canUpdate" flat round dense size="sm" color="negative" icon="sym_o_delete" @click="confirmRemoveFile(file)"><q-tooltip>{{t('Remove')}}</q-tooltip></q-btn>
+                                        </div>
+                                    </q-item-section>
+                                </q-item>
+                            </q-list>
+                            <div v-else-if="!uploadOpen" class="text-body2 m-muted">{{t('No files on this page')}}</div>
+                        </m-container-box>
+                    </div>
+                </div>
+
+                <!-- Chatter: comments, activities and followers of the page (a note has none) -->
+                <div v-if="page.wikiPageId && !page.isNotes && !editing && page.exists" class="q-mt-sm">
+                    <m-chatter id="boss-knowledge-chatter" record-entity="moqui.resource.wiki.WikiPage" :record-id="page.wikiPageId" default-tab="log"></m-chatter>
+                </div>
+            </template>
+        </div>
+    </div>
+    </template>
+
+    <m-subscreens-active></m-subscreens-active>
+
+    <!-- ===== dialogs ===== -->
+    <m-dialog v-model="history.open" :title="t('History') + (page ? ': ' + page.title : '')" width="980">
+        <div v-if="history.loading" class="q-gutter-y-sm"><q-skeleton v-for="n in 4" :key="n" type="text"></q-skeleton></div>
+        <template v-else>
+            <!-- a review's compare -->
+            <q-banner v-if="history.review" dense rounded class="q-mb-sm" :class="dark ? 'bg-grey-9' : 'bg-blue-1'">
+                <template v-slot:avatar><q-icon name="sym_o_rate_review" color="primary"></q-icon></template>
+                {{reviewText(history.review)}}
+                <div v-if="history.review.note" class="text-caption m-muted">“{{history.review.note}}”</div>
+                <template v-slot:action>
+                    <q-btn v-if="history.review.canDecide" flat dense no-caps color="positive" :label="t('Approve and publish')" @click="decide(history.review, 'approve')"></q-btn>
+                    <q-btn v-if="history.review.canDecide" flat dense no-caps color="primary" :label="t('Request changes')" @click="openChanges(history.review)"></q-btn>
+                    <q-btn v-if="history.review.canCancel" flat dense no-caps color="primary" :label="t('Cancel request')" @click="cancelReview(history.review)"></q-btn>
+                </template>
+            </q-banner>
+
+            <!-- the compare -->
+            <div v-if="diff.open" class="q-mb-md">
+                <div class="row items-center q-mb-xs">
+                    <div class="col text-subtitle2">{{t('Changes from')}} {{diff.fromShort}} {{t('to')}} {{diff.toShort || t('the current version')}}</div>
+                    <q-chip dense square class="m-tonal text-positive">+{{(diff.stats || {}).insertions || 0}}</q-chip>
+                    <q-chip dense square class="m-tonal text-negative">−{{(diff.stats || {}).deletions || 0}}</q-chip>
+                    <q-btn flat dense round icon="close" size="sm" @click="diff.open = false"><q-tooltip>{{t('Close the compare')}}</q-tooltip></q-btn>
+                </div>
+                <q-linear-progress v-if="diff.loading" indeterminate color="primary" size="2px"></q-linear-progress>
+                <div v-else-if="diff.html" class="scroll rounded-borders" style="max-height:45vh" v-html="diff.html"></div>
+                <div v-else class="text-body2 m-muted">{{t('No differences')}}</div>
+            </div>
+
+            <div class="row items-center q-mb-xs">
+                <div class="col text-caption m-muted">{{historyCaption}}</div>
+                <q-btn unelevated dense no-caps class="m-btn-tonal q-px-sm" icon="sym_o_compare_arrows" :label="t('Compare the two chosen')"
+                        :disable="history.picked.length !== 2" @click="comparePicked"></q-btn>
+            </div>
+            <q-list dense bordered separator class="rounded-borders">
+                <q-item v-for="version in history.versions" :key="version.versionName" dense :class="history.picked.includes(version.versionName) ? (dark ? 'bg-grey-8' : 'bg-blue-1') : ''">
+                    <q-item-section side>
+                        <q-btn flat dense round size="sm" :icon="history.picked.includes(version.versionName) ? 'check_box' : 'check_box_outline_blank'"
+                                :aria-label="t('Choose to compare')" @click="pick(version)"><q-tooltip>{{t('Choose to compare')}}</q-tooltip></q-btn>
+                    </q-item-section>
+                    <q-item-section>
+                        <q-item-label>
+                            <span class="text-weight-medium">{{version.shortName}}</span>
+                            <span class="m-muted"> · {{version.dateText}} · {{version.userName || t('unknown')}}</span>
+                            <q-chip v-if="version.isCurrent" dense square class="m-tonal text-primary q-my-none">{{t('current')}}</q-chip>
+                            <q-chip v-if="version.isPublished" dense square class="m-tonal text-positive q-my-none">{{t('published')}}</q-chip>
+                        </q-item-label>
+                        <q-item-label v-if="version.note || version.movedFrom" caption>
+                            {{version.note}}<span v-if="version.movedFrom">{{version.note ? ' · ' : ''}}{{t('moved from')}} {{version.movedFrom}}</span>
+                        </q-item-label>
+                    </q-item-section>
+                    <q-item-section side>
+                        <div class="row no-wrap items-center">
+                            <q-btn v-if="version.previousVersionName" flat dense no-caps size="sm" color="primary" :label="t('Changes')" @click="compare(version.previousVersionName, version.versionName)"></q-btn>
+                            <q-btn flat dense no-caps size="sm" color="primary" :label="t('Read')" @click="viewVersion(version)"></q-btn>
+                            <q-btn v-if="(history.canRestore && !version.isCurrent) || (history.canPublish && !version.isPublished)" flat dense round size="sm" icon="more_vert">
+                                <q-menu auto-close>
+                                    <q-list dense style="min-width:200px">
+                                        <q-item v-if="!version.isCurrent" clickable @click="compare(version.versionName, '')"><q-item-section>{{t('Compare with the current')}}</q-item-section></q-item>
+                                        <q-item v-if="history.canRestore && !version.isCurrent" clickable @click="confirmRestore(version)"><q-item-section>{{t('Restore as the newest version')}}</q-item-section></q-item>
+                                        <q-item v-if="history.canPublish && !version.isPublished" clickable @click="publishVersion(version)"><q-item-section>{{t('Publish this version')}}</q-item-section></q-item>
+                                    </q-list>
+                                </q-menu>
+                            </q-btn>
+                        </div>
+                    </q-item-section>
+                </q-item>
+            </q-list>
+            <div v-if="!history.versions.length" class="text-body2 m-muted q-pa-sm">{{t('This page keeps no versions')}}</div>
+        </template>
+    </m-dialog>
+
+    <m-dialog v-model="newPage.open" :title="t('New page')" width="560">
+        <div class="q-gutter-y-sm">
+            <m-text-line id="boss-knowledge-newname" name="pageName" v-model="newPage.name" :label="t('Name')" @keyup.enter="createPage"></m-text-line>
+            <m-drop-down id="boss-knowledge-newparent" name="parentPath" v-model="newPage.parentPath" :options="newPage.options" allow-empty :label="t('Under')"></m-drop-down>
+            <div class="text-caption m-muted">{{t("Letters, digits, spaces and . , ' - _ : ( ) ! ? The name is part of the page's address, so links can name it.")}}</div>
+            <div class="row justify-end q-gutter-sm">
+                <q-btn flat no-caps :label="t('Cancel')" v-close-popup></q-btn>
+                <q-btn unelevated no-caps color="primary" :label="t('Create and edit')" :disable="!String(newPage.name || '').trim()" :loading="newPage.busy" @click="createPage"></q-btn>
+            </div>
+        </div>
+    </m-dialog>
+
+    <m-dialog v-model="rename.open" :title="t('Rename')" width="480">
+        <div class="q-gutter-y-sm">
+            <m-text-line id="boss-knowledge-rename" name="pageName" v-model="rename.name" :label="t('New name')" @keyup.enter="submitRename"></m-text-line>
+            <div class="text-caption m-muted">{{t('Links to the old name keep working.')}}</div>
+            <div class="row justify-end q-gutter-sm">
+                <q-btn flat no-caps :label="t('Cancel')" v-close-popup></q-btn>
+                <q-btn unelevated no-caps color="primary" :label="t('Rename')" :disable="!String(rename.name || '').trim()" :loading="rename.busy" @click="submitRename"></q-btn>
+            </div>
+        </div>
+    </m-dialog>
+
+    <m-dialog v-model="move.open" :title="t('Move') + (page ? ': ' + page.title : '')" width="560">
+        <div class="q-gutter-y-sm">
+            <m-drop-down id="boss-knowledge-movespace" name="toWikiSpaceId" :model-value="move.spaceId" :options="moveSpaceOptions" :label="t('To the space')"
+                    @update:model-value="moveSpaceChanged"></m-drop-down>
+            <m-drop-down id="boss-knowledge-moveparent" name="toParentPath" v-model="move.parentPath" :options="move.options" allow-empty :label="t('Under')"></m-drop-down>
+            <m-text-line id="boss-knowledge-movename" name="toPageName" v-model="move.name" :label="t('Name')"></m-text-line>
+            <m-text-line id="boss-knowledge-movenote" name="versionNote" v-model="move.note" :label="t('Note (optional)')"></m-text-line>
+            <div class="text-caption m-muted">{{t('The pages under it and its files move too, with their history; links to the old place keep working.')}}</div>
+            <div class="row justify-end q-gutter-sm">
+                <q-btn flat no-caps :label="t('Cancel')" v-close-popup></q-btn>
+                <q-btn unelevated no-caps color="primary" :label="t('Move')" :loading="move.busy" :disable="!move.spaceId" @click="submitMove"></q-btn>
+            </div>
+        </div>
+    </m-dialog>
+
+    <m-dialog v-model="reviewRequest.open" :title="t('Request review')" width="560">
+        <div class="q-gutter-y-sm">
+            <div class="text-body2">{{t('Version')}} {{page && page.currentShort}}{{page && page.publishedShort ? ' · ' + t('compared with the published') + ' ' + page.publishedShort : ''}}</div>
+            <m-drop-down id="boss-knowledge-reviewers" name="reviewerUserIds" v-model="reviewRequest.reviewers" multiple server-search :options-url="url('searchUsers')"
+                    :label="t('Reviewers (none: anyone who may edit the page)')"></m-drop-down>
+            <m-date-time id="boss-knowledge-due" name="dueDate" type="date" v-model="reviewRequest.dueDate" :label="t('Due (optional)')"></m-date-time>
+            <m-text-area id="boss-knowledge-reviewnote" name="note" v-model="reviewRequest.note" rows="3" :label="t('Note to the reviewers')"></m-text-area>
+            <div class="row justify-end q-gutter-sm">
+                <q-btn flat no-caps :label="t('Cancel')" v-close-popup></q-btn>
+                <q-btn unelevated no-caps color="primary" :label="t('Request review')" :loading="reviewRequest.busy" @click="submitReviewRequest"></q-btn>
+            </div>
+        </div>
+    </m-dialog>
+
+    <m-dialog v-model="changes.open" :title="t('Request changes')" width="520">
+        <div class="q-gutter-y-sm">
+            <m-text-area id="boss-knowledge-changes" name="decisionNote" v-model="changes.note" rows="4" :label="t('What should change')"></m-text-area>
+            <div class="row justify-end q-gutter-sm">
+                <q-btn flat no-caps :label="t('Cancel')" v-close-popup></q-btn>
+                <q-btn unelevated no-caps color="primary" :label="t('Send')" :disable="!String(changes.note || '').trim()" :loading="changes.busy" @click="submitChanges"></q-btn>
+            </div>
+        </div>
+    </m-dialog>
+
+    <m-dialog v-model="confirmBox.open" :title="confirmBox.title" width="480">
+        <div class="text-body2 q-mb-md">{{confirmBox.text}}</div>
+        <div class="row justify-end q-gutter-sm">
+            <q-btn flat no-caps :label="t('Cancel')" v-close-popup></q-btn>
+            <q-btn unelevated no-caps :color="confirmBox.danger ? 'negative' : 'primary'" :label="confirmBox.okLabel" :loading="confirmBox.busy" @click="runConfirm"></q-btn>
+        </div>
+    </m-dialog>
+
+    <m-dialog v-model="preview.open" :title="preview.name" width="900">
+        <div class="text-center"><img v-if="preview.src" :src="preview.src" :alt="preview.name" style="max-width:100%;max-height:70vh"></div>
+    </m-dialog>
+</div></template>
+
+<script>
+// [[path]] and [[path|text]] as markdown links to wiki:path, outside fenced code and code spans (as index#WikiPageLinks reads them)
+const WIKI_LINK = /\[\[([^\]|\n]+)(?:\|([^\]\n]+))?\]\]/g;
+const expandWikiLinks = (text) => {
+    const out = [];
+    let fence = null;
+    for (const line of String(text || '').split('\n')) {
+        const open = line.match(/^ {0,3}(`{3,}|~{3,})/);
+        if (fence) {
+            if (open && open[1][0] === fence[0] && open[1].length >= fence.length) fence = null;
+            out.push(line);
+            continue;
+        }
+        if (open) { fence = open[1]; out.push(line); continue; }
+        out.push(line.split(/(`[^`\n]*`)/).map((piece, index) => index % 2 ? piece : piece.replace(WIKI_LINK, (all, path, label) =>
+            '[' + String(label || path).replace(/[[\]]/g, '').trim() + '](wiki:' + String(path).trim().split('/').map((part) => encodeURIComponent(part.trim())).join('/') + ')')).join(''));
+    }
+    return out.join('\n');
+};
+const decodePart = (part) => { try { return decodeURIComponent(String(part).replace(/\+/g, ' ')); } catch (err) { return part; } };
+const normalizeParts = (parts) => {
+    const out = [];
+    for (const part of parts) {
+        if (!part || part === '.') continue;
+        if (part === '..') { if (!out.length) return null; out.pop(); continue; }
+        out.push(part);
+    }
+    return out;
+};
+const slug = (text) => String(text || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '').substring(0, 60) || 'section';
+
+module.exports = {
+    name: 'BossKnowledge',
+    data() {
+        return {
+            ready: false, spaces: [], spaceId: null, recent: [], reviewCount: 0, me: {}, sideOpen: false,
+            page: null, loadingPage: false, notAvailable: false, loadedKey: '', pageSeq: 0, renderedHtml: '', outline: [], libsReady: false,
+            treeCache: {}, treeNodes: [], expandedKeys: [], treeReady: false, treeSpaceId: null,
+            drag: null, dropHint: { key: null, position: null },
+            searchText: '', search: { active: false, loading: false, results: [], seq: 0 },
+            editing: false, editText: '', versionNote: '', baseVersion: null, saving: false, conflict: null, savedAt: '',
+            newTag: '', linkRecordValue: null, uploadOpen: false, uploadFiles: [], uploading: false,
+            history: { open: false, loading: false, versions: [], picked: [], canRestore: false, canPublish: false, storage: null, review: null },
+            diff: { open: false, loading: false, html: '', stats: {}, fromShort: '', toShort: '' },
+            newPage: { open: false, name: '', parentPath: '', options: [], busy: false },
+            rename: { open: false, name: '', busy: false },
+            move: { open: false, spaceId: null, parentPath: '', options: [], name: '', note: '', busy: false },
+            reviewRequest: { open: false, reviewers: [], dueDate: '', note: '', busy: false },
+            changes: { open: false, review: null, note: '', busy: false },
+            confirmBox: { open: false, title: '', text: '', okLabel: '', danger: false, busy: false, run: null },
+            preview: { open: false, src: '', name: '' },
+            handledReviewKey: '', handledEditKey: ''
+        };
+    },
+    computed: {
+        phone() { return this.$q.screen.lt.sm; },
+        wide() { return this.$q.screen.gt.sm; },
+        showOutline() { return this.$q.screen.gt.md; },
+        dark() { return this.$q.dark.isActive; },
+        locale() { return String((moqui.config && moqui.config.locale) || 'en-US').replace('_', '-'); },
+        pathList() { return this.$root.currentPathList || []; },
+        kIndex() { return this.pathList.indexOf('Knowledge'); },
+        // a subscreen (Spaces, SpaceDetail, Review) in the path: it shows in place of the page
+        subActive() { return this.kIndex >= 0 && this.pathList.length > this.kIndex + 1; },
+        screenPath() { return this.$root.basePath + '/' + (this.kIndex >= 0 ? this.pathList.slice(0, this.kIndex + 1) : ['Commons', 'Knowledge']).join('/'); },
+        linkPath() { return this.$root.linkBasePath + '/' + (this.kIndex >= 0 ? this.pathList.slice(0, this.kIndex + 1) : ['Commons', 'Knowledge']).join('/'); },
+        spacesUrl() { return this.linkPath + '/Spaces'; },
+        reviewUrl() { return this.linkPath + '/Review'; },
+        notesUrl() { return this.$root.linkBasePath + '/Commons/Notes'; },
+        params() { return this.$root.currentParameters || {}; },
+        space() { return this.spaces.find((space) => space.wikiSpaceId === this.spaceId) || null; },
+        spaceOptions() { return this.spaces.map((space) => ({ value: space.wikiSpaceId, label: space.description })); },
+        moveSpaceOptions() {
+            const list = this.spaces.filter((space) => space.canUpdate).map((space) => ({ value: space.wikiSpaceId, label: space.description }));
+            if (this.page && this.page.isNotes && this.me.notesSpaceId && !list.some((item) => item.value === this.me.notesSpaceId))
+                list.unshift({ value: this.me.notesSpaceId, label: this.t('My notes') });
+            return list;
+        },
+        selectedKey() { return this.page && this.page.wikiSpaceId === this.spaceId && this.page.pagePath ? this.page.pagePath : null; },
+        canEdit() { return !!(this.page && this.page.exists && this.page.canUpdate && !this.page.viewingOld); },
+        canPublish() { return !!(this.page && this.page.exists && this.page.canUpdate && !this.page.isNotes && this.page.wikiPageId && !this.page.isPublished && this.page.currentVersionName && !this.page.viewingOld); },
+        canRequestReview() { return !!(this.page && this.page.exists && this.page.canUpdate && !this.page.isNotes && this.page.wikiPageId && !this.page.viewingOld); },
+        openReviews() { return this.page ? (this.page.reviews || []).filter((review) => review.statusId === 'WprRequested') : []; },
+        reviewChipText() { return this.openReviews.map((review) => this.reviewText(review)).join(' · '); },
+        missingLinks() {
+            if (!this.page) return [];
+            const seen = new Set();
+            return (this.page.links || []).filter((link) => {
+                const key = link.toWikiSpaceId + '/' + link.toPagePath;
+                if (link.found || seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
+        },
+        lastChangeText() {
+            const change = this.page && this.page.lastChange;
+            if (!change) return '';
+            const parts = [this.t('Changed') + ' ' + this.relative(change.millis) + (change.userName ? ' ' + this.t('by') + ' ' + change.userName : '')];
+            if (change.versionShort) parts.push(this.t('version') + ' ' + change.versionShort);
+            if (change.note) parts.push('“' + change.note + '”');
+            if (this.page.versionCount > 1) parts.push(this.page.versionCount + ' ' + this.t('versions'));
+            return parts.join(' · ');
+        },
+        editDirty() { return this.editing && this.page && this.editText !== this.page.text; },
+        editStateText() { return this.saving ? this.t('Saving…') : this.editDirty ? this.t('Not saved yet') : (this.savedAt ? this.t('Saved') + ' ' + this.savedAt : ''); },
+        historyCaption() {
+            const count = this.history.versions.length;
+            const where = this.history.storage === 'git' ? this.t('commits in git') : this.t('versions in database files');
+            return count + ' ' + where + ' · ' + this.t('choose two to compare them');
+        },
+        outlineTop() { return this.outline.reduce((low, entry) => Math.min(low, entry.level), 6); },
+        uploadList() { return Array.isArray(this.uploadFiles) ? this.uploadFiles : (this.uploadFiles ? [this.uploadFiles] : []); },
+        contextRecordId() { return this.page && this.page.wikiPageId ? this.page.wikiPageId : ''; },
+        contextTitle() { return this.page ? this.page.title : this.t('Knowledge'); }
+    },
+    watch: {
+        // the page is in the URL: another page, version or review does not remount the screen
+        '$root.currentParameters': { handler() { if (!this.subActive && this.ready) this.loadCurrent(); }, deep: true },
+        subActive(active) { if (!active && this.ready) { this.loadCurrent(true); this.loadSetup(); } },
+        searchText(text) {
+            clearTimeout(this.searchTimer);
+            if (!String(text || '').trim()) { if (this.search.active) this.clearSearch(); return; }
+            this.searchTimer = setTimeout(() => this.runSearch(false), 350);
+        },
+        dark() { this.renderPage(); },
+        'history.open'(open) { if (!open) { this.diff.open = false; this.history.review = null; } }
+    },
+    methods: {
+        t(text) { return moqui.l10n && moqui.l10n.localize ? moqui.l10n.localize(text) : text; },
+        url(name) { return this.screenPath + '/' + name; },
+        request(name, params, method) {
+            return moqui.request(this.url(name), { method: method || 'GET', params: params || {} }).then((result) => {
+                const json = result.json || {};
+                if (json.messageInfos && json.messageInfos.length) moqui.notifyMessages(json.messageInfos);
+                return json;
+            }, (err) => { moqui.handleAjaxError(err); throw err; });
+        },
+        post(name, params) { return this.request(name, params, 'POST'); },
+        go(url) { this.sideOpen = false; if (url && this.confirmLeave()) this.$root.setUrl(url); },
+        pageUrl(spaceId, path, extra) {
+            const query = Object.assign({ wikiSpaceId: spaceId }, path ? { pagePath: path } : {}, extra || {});
+            return this.linkPath + '?' + moqui.objToSearch(query);
+        },
+        openPage(spaceId, path, extra) { this.go(this.pageUrl(spaceId, path, extra)); },
+        // a page of the space of the side pane (its home and tree)
+        openPath(path) { this.openPage(this.spaceId, path); },
+        openSpace(id) { if (id && id !== this.spaceId) this.openPage(id, ''); },
+        openHit(hit) { this.openPage(hit.wikiSpaceId, hit.pagePath); },
+        isCurrent(path) { return !!this.page && this.page.wikiSpaceId === this.spaceId && (this.page.pagePath || '') === path; },
+        relative(millis) {
+            if (millis == null) return '';
+            const minutes = Math.floor((Date.now() - Number(millis)) / 60000);
+            if (minutes < 1) return this.t('just now');
+            if (minutes < 60) return minutes + ' ' + this.t('min ago');
+            if (minutes < 1440) return Math.floor(minutes / 60) + ' ' + this.t('h ago');
+            if (minutes < 2880) return this.t('yesterday');
+            if (minutes < 10080) return Math.floor(minutes / 1440) + ' ' + this.t('days ago');
+            try { return new Intl.DateTimeFormat(this.locale, { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(Number(millis))); }
+            catch (err) { return ''; }
+        },
+        confirmLeave() {
+            if (!this.editDirty) return true;
+            if (!window.confirm(this.t('Leave without saving your changes?'))) return false;
+            this.editing = false;
+            return true;
+        },
+        // ===== loading =====
+        loadSetup() {
+            return this.request('setup', { wikiSpaceId: this.params.wikiSpaceId || '' }).then((json) => {
+                this.spaces = json.spaceList || [];
+                this.recent = json.recentList || [];
+                this.reviewCount = json.reviewCount || 0;
+                this.me = json.me || {};
+                if (!this.spaceId) this.spaceId = json.defaultWikiSpaceId || null;
+                this.ready = true;
+            }, () => { this.ready = true; });
+        },
+        loadLibs() {
+            if (this.libsReady) return Promise.resolve();
+            return Promise.all([
+                moqui.loadScript('/libs/marked/marked.umd.min.js', null, () => !!window.marked),
+                moqui.loadScript('/libs/dompurify/purify.min.js', null, () => !!window.DOMPurify)
+            ]).then(() => { this.libsReady = true; });
+        },
+        currentKey() {
+            const p = this.params;
+            return [p.wikiPageId || '', p.wikiSpaceId || '', p.pagePath || '', p.versionName || ''].join('|');
+        },
+        loadCurrent(force) {
+            if (this.subActive) return;
+            const key = this.currentKey();
+            if (!force && key === this.loadedKey && this.page) { this.afterLoad(); return; }
+            const p = this.params;
+            const query = p.wikiPageId ? { wikiPageId: p.wikiPageId } : { wikiSpaceId: p.wikiSpaceId || this.spaceId || '', pagePath: p.pagePath || '' };
+            if (p.versionName) query.versionName = p.versionName;
+            if (!query.wikiPageId && !query.wikiSpaceId) { this.page = null; return; }
+            const seq = ++this.pageSeq;
+            this.loadingPage = true;
+            this.editing = false;
+            this.conflict = null;
+            moqui.request(this.url('page'), { params: query }).then((result) => {
+                if (seq !== this.pageSeq) return;
+                const page = (result.json || {}).page;
+                this.loadingPage = false;
+                this.loadedKey = key;
+                if (!page) { this.notAvailable = true; this.page = null; return; }
+                this.notAvailable = false;
+                this.page = page;
+                if (!page.isNotes && page.wikiSpaceId !== this.spaceId) this.spaceId = page.wikiSpaceId;
+                if (!page.isNotes) this.ensureTree(page.wikiSpaceId).then(() => this.expandTo(page.pagePath));
+                else this.ensureTree(this.spaceId);
+                this.renderPage();
+                this.afterLoad();
+            }, (err) => {
+                if (seq !== this.pageSeq) return;
+                this.loadingPage = false;
+                this.loadedKey = key;
+                this.page = null;
+                this.notAvailable = true;
+                if (err && err.status && err.status >= 500) console.info('Knowledge: the page did not load', err.json || err.status);
+                if (this.spaceId) this.ensureTree(this.spaceId);
+            });
+        },
+        // what the URL asks for besides the page: a review's compare, edit
+        afterLoad() {
+            const p = this.params;
+            const page = this.page;
+            if (!page) return;
+            const reviewKey = (p.review || '') + '|' + (page.wikiPageId || '');
+            if (p.review && reviewKey !== this.handledReviewKey) {
+                this.handledReviewKey = reviewKey;
+                const open = this.openReviews;
+                const review = p.review === 'open' ? (open.find((item) => item.canDecide) || open.find((item) => item.canCancel) || open[0])
+                    : open.find((item) => item.wikiPageReviewId === p.review);
+                if (review) this.openReviewCompare(review);
+                else if (p.review !== 'open') moqui.notifyMessages([{ type: 'info', message: this.t('This review was decided already') }]);
+            }
+            // edit=Y (a page just made) opens the editor once for the page the URL names
+            if (p.edit === 'Y' && this.canEdit && !this.editing && this.handledEditKey !== this.loadedKey) {
+                this.handledEditKey = this.loadedKey;
+                this.startEdit();
+            }
+        },
+        reloadPage() { this.loadCurrent(true); },
+        // ===== the rendered page =====
+        renderPage() {
+            const page = this.page;
+            if (!page || !page.exists) { this.renderedHtml = ''; this.outline = []; return; }
+            this.loadLibs().then(() => {
+                if (page !== this.page) return;
+                let html = '';
+                try { html = window.marked.parse(expandWikiLinks(page.text || ''), { gfm: true }); }
+                catch (err) { console.warn('Knowledge: the markdown did not render', err); html = '<pre></pre>'; }
+                const doc = new DOMParser().parseFromString('<div id="boss-k-root">' + html + '</div>', 'text/html');
+                const rootEl = doc.getElementById('boss-k-root');
+                // the first heading is the title of the title row
+                const first = rootEl.firstElementChild;
+                if (first && /^H1$/.test(first.tagName) && first.textContent.trim() === String(page.title || '').trim()) first.remove();
+                const outline = [];
+                const used = new Set();
+                rootEl.querySelectorAll('h1,h2,h3,h4,h5,h6').forEach((heading) => {
+                    let id = 'k-' + slug(heading.textContent);
+                    while (used.has(id)) id += '-1';
+                    used.add(id);
+                    heading.setAttribute('id', id);
+                    const level = Number(heading.tagName.substring(1));
+                    if (level >= 4) heading.setAttribute('class', 'text-subtitle1 text-weight-medium q-mt-md q-mb-xs');
+                    if (level <= 4) outline.push({ id, level, text: heading.textContent.trim() });
+                });
+                const byTarget = new Map();
+                for (const link of page.links || []) byTarget.set(decodePart(link.linkTarget || ''), link);
+                rootEl.querySelectorAll('a[href]').forEach((anchor) => {
+                    const href = anchor.getAttribute('href') || '';
+                    if (href.startsWith('#')) { anchor.setAttribute('data-anchor', href.substring(1)); return; }
+                    const known = byTarget.get(decodePart(href));
+                    const target = known ? { wikiSpaceId: known.toWikiSpaceId, pagePath: known.toPagePath || '', found: !!known.found } : this.resolveTarget(href, page);
+                    if (target) {
+                        anchor.setAttribute('href', this.pageUrl(target.wikiSpaceId, target.pagePath));
+                        anchor.setAttribute('data-wiki-space', target.wikiSpaceId);
+                        anchor.setAttribute('data-wiki-path', target.pagePath);
+                        if (target.found === false) {
+                            anchor.setAttribute('class', 'text-negative');
+                            anchor.setAttribute('title', this.t('This page has not been made yet'));
+                        }
+                    } else if (/^(https?:|mailto:)/i.test(href)) {
+                        anchor.setAttribute('target', '_blank');
+                        anchor.setAttribute('rel', 'noopener noreferrer');
+                    }
+                });
+                // an image of the page's files: ![](name) or ![](_attachments/name)
+                const files = new Set((page.attachments || []).map((file) => file.filename));
+                rootEl.querySelectorAll('img[src]').forEach((image) => {
+                    const src = decodePart(image.getAttribute('src') || '').replace(/^\.\//, '').replace(/^_attachments\//, '');
+                    if (files.has(src)) image.setAttribute('src', this.fileUrl({ filename: src }, true));
+                });
+                rootEl.querySelectorAll('table').forEach((table) => {
+                    const wrapper = doc.createElement('div');
+                    // Quasar's markup table classes but q-markup-table and q-table__card, whose backgrounds are white: the page's is
+                    // right in light and dark
+                    wrapper.setAttribute('class', 'q-table__container q-table--horizontal-separator q-table--flat q-table--bordered q-table--dense rounded-borders scroll q-my-sm'
+                        + (this.dark ? ' q-table--dark' : ''));
+                    table.setAttribute('class', 'q-table');
+                    table.parentNode.insertBefore(wrapper, table);
+                    wrapper.appendChild(table);
+                });
+                this.renderedHtml = window.DOMPurify.sanitize(rootEl.innerHTML, { ADD_ATTR: ['target'] });
+                this.outline = outline;
+            }, (err) => {
+                console.warn('Knowledge: the markdown libraries did not load', err);
+                const div = document.createElement('div');
+                div.textContent = page.text || '';
+                this.renderedHtml = '<pre style="white-space:pre-wrap">' + div.innerHTML + '</pre>';
+                this.outline = [];
+            });
+        },
+        // a link target as index#WikiPageLinks reads it: wiki:SPACE/path or wiki:path, or a path from the page's parent; null for a URL
+        resolveTarget(raw, page) {
+            const target = String(raw || '').replace(/[?#].*$/, '');
+            if (!target) return null;
+            let spaceId = page.wikiSpaceId;
+            let parts;
+            if (/^wiki:/i.test(target)) {
+                parts = target.substring(5).split('/').map(decodePart).filter((part) => part);
+                const spaceIds = this.spaces.map((space) => space.wikiSpaceId).concat(this.me.notesSpaceId ? [this.me.notesSpaceId] : []);
+                if (parts.length > 1 && spaceIds.includes(parts[0])) spaceId = parts.shift();
+                parts = normalizeParts(parts);
+            } else {
+                if (/^[a-z][a-z0-9+.-]*:/i.test(target) || target.startsWith('/') || target.startsWith('\\')) return null;
+                const parent = page.parentPath ? page.parentPath.split('/') : [];
+                parts = normalizeParts(parent.concat(target.split('/').map(decodePart)));
+            }
+            if (parts == null) return null;
+            if (parts.length) parts[parts.length - 1] = parts[parts.length - 1].replace(/\.(md|markdown|html?|txt)$/i, '');
+            return { wikiSpaceId: spaceId, pagePath: parts.join('/') };
+        },
+        bodyClick(event) {
+            const anchor = event.target && event.target.closest ? event.target.closest('a') : null;
+            if (!anchor) return;
+            if (anchor.hasAttribute('data-anchor')) { event.preventDefault(); this.scrollTo(anchor.getAttribute('data-anchor')); return; }
+            if (anchor.hasAttribute('data-wiki-space') && !event.ctrlKey && !event.metaKey) {
+                event.preventDefault();
+                this.openPage(anchor.getAttribute('data-wiki-space'), anchor.getAttribute('data-wiki-path') || '');
+            }
+        },
+        scrollTo(id) {
+            const body = this.$refs.body;
+            const el = body && body.querySelector ? body.querySelector('[id="' + String(id).replace(/"/g, '') + '"]') : null;
+            if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        },
+        // ===== the tree =====
+        ensureTree(spaceId) {
+            if (!spaceId) return Promise.resolve();
+            if (this.treeSpaceId === spaceId && this.treeCache['']) return Promise.resolve();
+            this.treeSpaceId = spaceId;
+            this.treeCache = {};
+            this.expandedKeys = [];
+            this.treeReady = false;
+            return this.fetchChildren('').then(() => { this.treeReady = true; this.rebuildTree(); });
+        },
+        fetchChildren(path) {
+            const spaceId = this.treeSpaceId;
+            return moqui.request(this.url('children'), { params: { wikiSpaceId: spaceId, pagePath: path } }).then((result) => {
+                if (spaceId !== this.treeSpaceId) return [];
+                const list = (result.json || {}).childList || [];
+                this.treeCache[path] = list;
+                return list;
+            }, () => { delete this.treeCache[path]; return []; });
+        },
+        buildNodes(path) {
+            return (this.treeCache[path] || []).map((child) => {
+                const loaded = Object.prototype.hasOwnProperty.call(this.treeCache, child.pagePath);
+                const node = { key: child.pagePath, label: child.name, wikiPageId: child.wikiPageId, restricted: !!child.restricted };
+                if (loaded) node.children = this.buildNodes(child.pagePath);
+                else if (child.hasChildren) node.lazy = true;
+                else node.children = [];
+                return node;
+            });
+        },
+        rebuildTree() { this.treeNodes = this.buildNodes(''); },
+        onLazyLoad({ node, done, fail }) {
+            this.fetchChildren(node.key).then(() => done(this.buildNodes(node.key)), () => fail());
+        },
+        expandTo(path) {
+            const parts = String(path || '').split('/').filter((part) => part);
+            const ancestors = [];
+            for (let i = 1; i < parts.length; i++) ancestors.push(parts.slice(0, i).join('/'));
+            let chain = Promise.resolve();
+            for (const ancestor of ancestors) chain = chain.then(() => (this.treeCache[ancestor] ? null : this.fetchChildren(ancestor)));
+            return chain.then(() => {
+                this.rebuildTree();
+                const keys = new Set(this.expandedKeys);
+                ancestors.forEach((key) => keys.add(key));
+                this.expandedKeys = Array.from(keys);
+            });
+        },
+        refreshTree() {
+            const paths = Object.keys(this.treeCache);
+            return Promise.all(paths.map((path) => this.fetchChildren(path))).then(() => this.rebuildTree());
+        },
+        onSelect(key) { if (key) this.openPath(key); },
+        canDrag(node) { return !!(this.space && this.space.canUpdate && node.wikiPageId && this.wide); },
+        dragStart(event, node) {
+            if (!this.canDrag(node)) { event.preventDefault(); return; }
+            this.drag = { key: node.key, wikiPageId: node.wikiPageId };
+            if (event.dataTransfer) { event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', node.key); }
+        },
+        dragEnd() { this.drag = null; this.dropHint = { key: null, position: null }; },
+        dragOver(event, node) {
+            if (!this.drag || node.key === this.drag.key || String(node.key).startsWith(this.drag.key + '/')) { this.dropHint = { key: null, position: null }; return; }
+            const rect = event.currentTarget.getBoundingClientRect();
+            const y = event.clientY - rect.top;
+            const position = y < rect.height * 0.28 ? 'before' : y > rect.height * 0.72 ? 'after' : 'inside';
+            if (this.dropHint.key !== node.key || this.dropHint.position !== position) this.dropHint = { key: node.key, position };
+        },
+        dragOverHome() { if (this.drag) this.dropHint = { key: '', position: 'inside' }; },
+        dragLeave(node) { if (this.dropHint.key === node.key) this.dropHint = { key: null, position: null }; },
+        dropOn(event, node) {
+            const hint = this.dropHint;
+            const drag = this.drag;
+            this.dragEnd();
+            if (!drag || hint.key !== node.key) return;
+            this.dropPage(drag, node.key, hint.position);
+        },
+        dropOnHome() {
+            const drag = this.drag;
+            this.dragEnd();
+            if (drag) this.dropPage(drag, '', 'inside');
+        },
+        dropPage(drag, target, position) {
+            this.post('dropPage', { wikiPageId: drag.wikiPageId, targetPagePath: target, position }).then((json) => {
+                const moved = json.pagePath && json.pagePath !== json.oldPagePath;
+                moqui.notifyMessages([{ type: 'success', message: moved ? this.t('Moved to') + ' ' + json.pagePath : this.t('Order saved') }]);
+                this.refreshTree().then(() => {
+                    if (moved) this.expandTo(json.pagePath);
+                    if (moved && this.page && this.page.wikiPageId === drag.wikiPageId) this.openPage(json.wikiSpaceId, json.pagePath);
+                });
+            }, () => {});
+        },
+        // ===== search =====
+        runSearch(now) {
+            const text = String(this.searchText || '').trim();
+            if (!text) { this.clearSearch(); return; }
+            const seq = ++this.search.seq;
+            this.search.active = true;
+            this.search.loading = true;
+            moqui.request(this.url('search'), { params: { text } }).then((result) => {
+                if (seq !== this.search.seq) return;
+                this.search.results = (result.json || {}).pageList || [];
+                this.search.loading = false;
+                if (now && this.search.results.length === 1) this.openHit(this.search.results[0]);
+            }, () => { if (seq === this.search.seq) this.search.loading = false; });
+        },
+        clearSearch() { this.searchText = ''; this.search = { active: false, loading: false, results: [], seq: this.search.seq + 1 }; },
+        focusSearch() {
+            if (!this.wide) this.sideOpen = true;
+            this.$nextTick(() => { const el = document.getElementById('boss-knowledge-search'); if (el) el.focus(); });
+            return true;
+        },
+        // ===== edit =====
+        startEdit() {
+            if (!this.canEdit) return;
+            this.editing = true;
+            this.editText = this.page.text || '';
+            this.versionNote = '';
+            this.baseVersion = this.page.currentVersionName || null;
+            this.conflict = null;
+            this.savedAt = '';
+            this.$nextTick(() => { const el = document.getElementById('boss-knowledge-editor'); if (el && el.focus) el.focus(); });
+        },
+        cancelEdit() {
+            if (this.editDirty && !window.confirm(this.t('Discard your changes?'))) return;
+            this.editing = false;
+            this.conflict = null;
+        },
+        save(force) {
+            if (!this.editing || this.saving || !this.page) return true;
+            this.saving = true;
+            const page = this.page;
+            this.post('savePage', { wikiPageId: page.wikiPageId || '', wikiSpaceId: page.wikiSpaceId, pagePath: page.pagePath, pageText: this.editText,
+                versionNote: this.versionNote || '', baseVersionName: this.baseVersion || '', force: force ? 'true' : 'false' }).then((json) => {
+                this.saving = false;
+                if (json.conflict) { this.conflict = json.conflictText || this.t('This page was saved by someone else since you opened it'); return; }
+                this.conflict = null;
+                this.savedAt = json.savedText || '';
+                this.editing = false;
+                this.reloadPage();
+            }, () => { this.saving = false; });
+            return true;
+        },
+        // ===== tags, records, files, watch =====
+        addTag() {
+            const tag = String(this.newTag || '').trim();
+            if (!tag || !this.page) return;
+            const tags = this.page.tags.concat(this.page.tags.some((known) => known.toLowerCase() === tag.toLowerCase()) ? [] : [tag]);
+            this.post('setTags', { wikiPageId: this.page.wikiPageId, tags: tags.join(',') }).then((json) => { this.page.tags = json.tagList || tags; this.newTag = ''; }, () => {});
+        },
+        removeTag(tag) {
+            const tags = this.page.tags.filter((known) => known !== tag);
+            this.post('setTags', { wikiPageId: this.page.wikiPageId, tags: tags.join(',') }).then((json) => { this.page.tags = json.tagList || tags; }, () => {});
+        },
+        linkRecord(value) {
+            if (!value || !this.page) return;
+            this.post('linkRecord', { wikiPageId: this.page.wikiPageId, record: value }).then(() => { this.linkRecordValue = null; this.reloadPage(); }, () => { this.linkRecordValue = null; });
+        },
+        unlinkRecord(record) {
+            this.post('unlinkRecord', { wikiPageId: this.page.wikiPageId, recordEntityName: record.recordEntityName, recordId: record.recordId })
+                .then(() => { this.page.records = this.page.records.filter((item) => item !== record); }, () => {});
+        },
+        fileUrl(file, inline) {
+            return this.url('attachment') + '?' + moqui.objToSearch({ wikiPageId: this.page ? this.page.wikiPageId : '', filename: file.filename, inline: inline ? 'true' : 'false' });
+        },
+        openFile(file) {
+            if (file.isImage) this.preview = { open: true, src: this.fileUrl(file, true), name: file.filename };
+            else if (/\.pdf$/i.test(file.filename)) window.open(this.fileUrl(file, true), '_blank', 'noopener');
+            else this.download(this.fileUrl(file, false));
+        },
+        download(href) {
+            const link = document.createElement('a');
+            link.href = href;
+            link.setAttribute('download', '');
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        },
+        upload() {
+            if (!this.uploadList.length || !this.page) return;
+            const data = new FormData();
+            data.append('wikiPageId', this.page.wikiPageId);
+            this.uploadList.forEach((file) => data.append('attachmentFile', file));
+            this.uploading = true;
+            this.post('uploadAttachment', data).then(() => { this.uploading = false; this.uploadFiles = []; this.uploadOpen = false; this.reloadPage(); },
+                () => { this.uploading = false; });
+        },
+        confirmRemoveFile(file) {
+            this.ask(this.t('Remove the file'), this.t('Remove') + ' ' + file.filename + '?', this.t('Remove'), true,
+                () => this.post('deleteAttachment', { wikiPageId: this.page.wikiPageId, filename: file.filename }).then(() => this.reloadPage()));
+        },
+        toggleWatch() {
+            const follow = !this.page.following;
+            this.post('followPage', { wikiPageId: this.page.wikiPageId, follow: follow ? 'true' : 'false' }).then((json) => { this.page.following = !!json.following; }, () => {});
+        },
+        copyLink() {
+            const page = this.page;
+            const link = window.location.origin + this.$root.linkBasePath + '/Commons/Knowledge?' + moqui.objToSearch(page.wikiPageId ? { wikiPageId: page.wikiPageId }
+                : { wikiSpaceId: page.wikiSpaceId, pagePath: page.pagePath });
+            const done = () => moqui.notifyMessages([{ type: 'success', message: this.t('Link copied') }]);
+            if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(link).then(done, () => moqui.notifyMessages([{ type: 'info', message: link }]));
+            else moqui.notifyMessages([{ type: 'info', message: link }]);
+        },
+        // ===== new page, rename, move, delete =====
+        openNewPage(parentPath) {
+            if (!this.space || !this.space.canUpdate) return true;
+            this.newPage = { open: true, name: '', parentPath: parentPath || '', options: [{ value: '', label: this.t('Top level') }], busy: false };
+            this.request('pageOptions', { wikiSpaceId: this.spaceId }).then((json) => { this.newPage.options = json.optionList || this.newPage.options; }, () => {});
+            this.$nextTick(() => setTimeout(() => { const el = document.getElementById('boss-knowledge-newname'); if (el) el.focus(); }, 150));
+            return true;
+        },
+        createPage() {
+            const name = String(this.newPage.name || '').trim();
+            if (!name || this.newPage.busy) return;
+            this.newPage.busy = true;
+            this.post('createPage', { wikiSpaceId: this.spaceId, parentPath: this.newPage.parentPath || '', pageName: name }).then((json) => {
+                this.newPage.open = false;
+                this.newPage.busy = false;
+                this.refreshTree();
+                this.openPage(this.spaceId, json.pagePath, { edit: 'Y' });
+            }, () => { this.newPage.busy = false; });
+        },
+        createMissing(spaceId, path) {
+            const parts = String(path || '').split('/').filter((part) => part);
+            const name = parts.pop() || '';
+            this.post('createPage', { wikiSpaceId: spaceId, parentPath: parts.join('/'), pageName: name }).then((json) => {
+                if (spaceId === this.spaceId) this.refreshTree();
+                this.openPage(spaceId, json.pagePath, { edit: 'Y' });
+            }, () => {});
+        },
+        canCreateIn(spaceId) { const space = this.spaces.find((item) => item.wikiSpaceId === spaceId); return !!(space && space.canUpdate); },
+        openRename() { this.rename = { open: true, name: this.page.pageName, busy: false }; },
+        submitRename() {
+            const name = String(this.rename.name || '').trim();
+            if (!name || this.rename.busy) return;
+            this.rename.busy = true;
+            this.post('renamePage', { wikiPageId: this.page.wikiPageId, pageName: name }).then((json) => {
+                this.rename.open = false;
+                this.refreshTree();
+                this.openPage(json.wikiSpaceId, json.pagePath);
+            }, () => { this.rename.busy = false; });
+        },
+        openMove() {
+            const page = this.page;
+            this.move = { open: true, spaceId: page.isNotes ? null : page.wikiSpaceId, parentPath: page.parentPath || '', options: [], name: page.pageName, note: '', busy: false };
+            if (this.move.spaceId) this.loadMoveOptions();
+        },
+        moveSpaceChanged(id) { this.move.spaceId = id; this.move.parentPath = ''; this.loadMoveOptions(); },
+        loadMoveOptions() {
+            const exclude = this.move.spaceId === this.page.wikiSpaceId ? this.page.pagePath : '';
+            this.request('pageOptions', { wikiSpaceId: this.move.spaceId, excludePagePath: exclude }).then((json) => { this.move.options = json.optionList || []; }, () => { this.move.options = []; });
+        },
+        submitMove() {
+            if (this.move.busy || !this.move.spaceId) return;
+            this.move.busy = true;
+            this.post('movePage', { wikiPageId: this.page.wikiPageId, toWikiSpaceId: this.move.spaceId, toParentPath: this.move.parentPath || '',
+                toPageName: this.move.name || '', versionNote: this.move.note || '' }).then((json) => {
+                this.move.open = false;
+                this.treeCache = {};
+                this.treeSpaceId = null;
+                this.openPage(json.wikiSpaceId, json.pagePath);
+            }, () => { this.move.busy = false; });
+        },
+        confirmDelete() {
+            const page = this.page;
+            this.ask(this.t('Delete the page'), this.t('Delete') + ' ' + page.title + '? ' + this.t('Its history, files and tags go too; its comments stay.'), this.t('Delete'), true,
+                () => this.post('deletePage', { wikiPageId: page.wikiPageId }).then((json) => { this.refreshTree(); this.openPage(json.wikiSpaceId, json.parentPath || ''); }));
+        },
+        ask(title, text, okLabel, danger, run) { this.confirmBox = { open: true, title, text, okLabel, danger, busy: false, run }; },
+        runConfirm() {
+            const box = this.confirmBox;
+            if (!box.run || box.busy) return;
+            box.busy = true;
+            Promise.resolve().then(() => box.run()).then(() => { box.busy = false; box.open = false; }, () => { box.busy = false; });
+        },
+        // ===== history, compare, restore, publish =====
+        openHistory(fromVersion, toVersion) {
+            if (!this.page || !this.page.exists) return true;
+            this.history = Object.assign({}, this.history, { open: true, loading: true, versions: [], picked: [], review: null });
+            this.diff = { open: false, loading: false, html: '', stats: {}, fromShort: '', toShort: '' };
+            const page = this.page;
+            const loaded = this.request('history', page.wikiPageId ? { wikiPageId: page.wikiPageId } : { wikiSpaceId: page.wikiSpaceId, pagePath: page.pagePath }).then((json) => {
+                this.history.versions = json.versionList || [];
+                this.history.canRestore = !!json.canRestore;
+                this.history.canPublish = !!json.canPublish;
+                this.history.storage = json.storage;
+                this.history.loading = false;
+            }, () => { this.history.loading = false; });
+            if (fromVersion !== undefined) loaded.then(() => this.compare(fromVersion, toVersion || ''));
+            return loaded;
+        },
+        pick(version) {
+            const picked = this.history.picked.filter((name) => name !== version.versionName);
+            if (picked.length === this.history.picked.length) picked.push(version.versionName);
+            this.history.picked = picked.slice(-2);
+        },
+        comparePicked() {
+            const order = this.history.versions.map((version) => version.versionName);
+            const [first, second] = this.history.picked.slice().sort((a, b) => order.indexOf(b) - order.indexOf(a));
+            this.compare(first, second);
+        },
+        compare(fromVersion, toVersion) {
+            const page = this.page;
+            this.diff = { open: true, loading: true, html: '', stats: {}, fromShort: '', toShort: '' };
+            const query = Object.assign(page.wikiPageId ? { wikiPageId: page.wikiPageId } : { wikiSpaceId: page.wikiSpaceId, pagePath: page.pagePath },
+                { fromVersionName: fromVersion || '', toVersionName: toVersion || '' });
+            this.request('diff', query).then((json) => {
+                this.diff = { open: true, loading: false, html: json.html || '', stats: json.stats || {}, fromShort: json.fromShort || '', toShort: toVersion ? (json.toShort || '') : '' };
+            }, () => { this.diff.open = false; });
+        },
+        viewVersion(version) {
+            this.history.open = false;
+            if (version.isCurrent) this.openPage(this.page.wikiSpaceId, this.page.pagePath);
+            else this.openPage(this.page.wikiSpaceId, this.page.pagePath, { versionName: version.versionName });
+        },
+        confirmRestore(version) {
+            this.ask(this.t('Restore a version'), this.t('Restore version') + ' ' + version.shortName + ' ' + this.t('as the newest version? Nothing in the history is lost.'),
+                this.t('Restore'), false, () => this.post('restoreVersion', { wikiPageId: this.page.wikiPageId, versionName: version.versionName }).then(() => {
+                    this.history.open = false;
+                    this.openPage(this.page.wikiSpaceId, this.page.pagePath);
+                    this.reloadPage();
+                }));
+        },
+        publishVersion(version) {
+            this.post('publishVersion', { wikiPageId: this.page.wikiPageId, versionName: version.versionName }).then(() => {
+                this.openHistory();
+                this.reloadPage();
+            }, () => {});
+        },
+        publishCurrent() {
+            this.ask(this.t('Publish this version'), this.t('Publish version') + ' ' + this.page.currentShort + '? ' + this.t('It is the version a public or help-center view shows.'),
+                this.t('Publish'), false, () => this.post('publishVersion', { wikiPageId: this.page.wikiPageId, versionName: this.page.currentVersionName }).then(() => this.reloadPage()));
+        },
+        // ===== review =====
+        reviewText(review) {
+            const version = this.t('version') + ' ' + (review.shortVersionName || review.versionName);
+            const due = review.dueText ? ' · ' + this.t('due') + ' ' + review.dueText : '';
+            if (review.canDecide && review.reviewerUserId) return review.requestedByName + ' ' + this.t('asked you to review') + ' ' + version + due;
+            if (review.canDecide) return review.requestedByName + ' ' + this.t('asked for a review of') + ' ' + version + due;
+            if (review.isRequester) return this.t('You asked') + ' ' + review.reviewerText + ' ' + this.t('to review') + ' ' + version + due;
+            return this.t('In review by') + ' ' + review.reviewerText + ': ' + version + due;
+        },
+        openReviewCompare(review) {
+            this.openHistory(review.baseVersionName || null, review.versionName).then(() => { this.history.review = review; });
+        },
+        openRequestReview() {
+            this.reviewRequest = { open: true, reviewers: [], dueDate: '', note: '', busy: false };
+        },
+        submitReviewRequest() {
+            if (this.reviewRequest.busy) return;
+            this.reviewRequest.busy = true;
+            const reviewers = Array.isArray(this.reviewRequest.reviewers) ? this.reviewRequest.reviewers : (this.reviewRequest.reviewers ? [this.reviewRequest.reviewers] : []);
+            this.post('requestReview', { wikiPageId: this.page.wikiPageId, versionName: this.page.currentVersionName || '', reviewerUserIds: reviewers.join(','),
+                dueDate: this.reviewRequest.dueDate || '', note: this.reviewRequest.note || '' }).then(() => {
+                this.reviewRequest.open = false;
+                this.reloadPage();
+            }, () => { this.reviewRequest.busy = false; });
+        },
+        decide(review, decision) {
+            this.post('decideReview', { wikiPageReviewId: review.wikiPageReviewId, decision }).then(() => {
+                this.history.open = false;
+                this.reviewCount = Math.max(0, this.reviewCount - 1);
+                this.reloadPage();
+            }, () => {});
+        },
+        openChanges(review) { this.changes = { open: true, review, note: '', busy: false }; },
+        submitChanges() {
+            const note = String(this.changes.note || '').trim();
+            if (!note || this.changes.busy) return;
+            this.changes.busy = true;
+            this.post('decideReview', { wikiPageReviewId: this.changes.review.wikiPageReviewId, decision: 'changes', decisionNote: note }).then(() => {
+                this.changes.open = false;
+                this.history.open = false;
+                this.reviewCount = Math.max(0, this.reviewCount - 1);
+                this.reloadPage();
+            }, () => { this.changes.busy = false; });
+        },
+        cancelReview(review) {
+            this.ask(this.t('Cancel the review request'), this.t('Withdraw the request for a review of version') + ' ' + (review.shortVersionName || review.versionName) + '?',
+                this.t('Cancel request'), false, () => this.post('cancelReview', { wikiPageReviewId: review.wikiPageReviewId }).then(() => { this.history.open = false; this.reloadPage(); }));
+        },
+        // ===== keys =====
+        anyDialog() { return this.history.open || this.newPage.open || this.rename.open || this.move.open || this.reviewRequest.open || this.changes.open || this.confirmBox.open; },
+        keyBindings() {
+            const when = () => !this.subActive && !this.anyDialog();
+            return [
+                { keys: 'e', label: this.t('Knowledge: edit the page'), action: 'knowledgeEdit', when: () => when() && !this.editing && this.canEdit, run: () => { this.startEdit(); return true; } },
+                { keys: 'Mod+S', label: this.t('Knowledge: save a new version'), action: 'knowledgeSave', when: () => !this.subActive && this.editing, run: () => this.save(false) },
+                { keys: '/', label: this.t('Knowledge: search pages'), action: 'knowledgeSearch', when, run: () => this.focusSearch() },
+                { keys: 'n', label: this.t('Knowledge: new page'), action: 'knowledgeNew', when: () => when() && !this.editing && !!(this.space && this.space.canUpdate), run: () => this.openNewPage(null) },
+                { keys: 'h', label: this.t('Knowledge: history'), action: 'knowledgeHistory', when: () => when() && !this.editing && !!(this.page && this.page.exists), run: () => { this.openHistory(); return true; } }
+            ];
+        },
+        beforeUnload(event) { if (this.editDirty) { event.preventDefault(); event.returnValue = ''; } }
+    },
+    mounted() {
+        if (moqui.keymap && moqui.keymap.registerScope) this.keysOff = moqui.keymap.registerScope('knowledge', this.keyBindings());
+        window.addEventListener('beforeunload', this.beforeUnload);
+        this.loadSetup().then(() => { if (!this.subActive) this.loadCurrent(true); });
+        this.loadLibs().catch(() => {});
+    },
+    beforeUnmount() {
+        if (this.keysOff) this.keysOff();
+        window.removeEventListener('beforeunload', this.beforeUnload);
+        clearTimeout(this.searchTimer);
+    }
+};
+</script>

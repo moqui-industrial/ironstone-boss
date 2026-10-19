@@ -12,11 +12,283 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for Knowledge: design-drawers-commons.md §10, editor archetype, qvue, scope parity. -->
+<!-- Commons Knowledge (design-drawers-commons.md §10 Knowledge; style-guide §3.13 Editor, §4.8 .qvue; impl-drawers-commons.md M9):
+    the spaces and their page trees beside the page, read and edited, with its history, compare, review, links, tags, files
+    and Chatter, and its subscreens Spaces, SpaceDetail and Review. The component is Knowledge.qvue next to this file; while a
+    subscreen is in the path it shows only that subscreen. Its state is in the URL (wikiSpaceId and pagePath, or wikiPageId
+    from a link elsewhere; versionName for an old version; review for a review's compare; edit). Every read and change goes
+    through the JSON transitions below, each a service of service/ironstone/KnowledgeServices.xml, which asks the wiki's
+    own access rule first (WikiServices.get#WikiPageAccess, get#WikiViewScope): a page the user may not view is "not found",
+    a change the user may not make is refused. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Knowledge" default-menu-index="7">
+        default-menu-title="Knowledge" default-menu-index="7"
+        render-modes="vue,qvue" server-static="vue,qvue">
+
+    <parameter name="wikiSpaceId"/>
+    <parameter name="pagePath"/>
+    <parameter name="wikiPageId"/>
+
+    <!-- ========== Reads ========== -->
+
+    <!-- the side pane: spaces, the space to open, recent pages, reviews waiting, the user -->
+    <transition name="setup" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.KnowledgeServices.get#KnowledgeSetup').parameter('wikiSpaceId', wikiSpaceId || null).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {spaceList: out.spaceList, defaultWikiSpaceId: out.defaultWikiSpaceId,
+                recentList: out.recentList, reviewCount: out.reviewCount, me: out.me, failedParts: out.failedParts})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- the pages under a page of the tree (pagePath empty: the space's top pages) -->
+    <transition name="children" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.KnowledgeServices.get#PageChildren').parameters({wikiSpaceId: wikiSpaceId || '',
+                pagePath: pagePath || ''}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {childList: out.childList})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- the page, or a version of it -->
+    <transition name="page" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.KnowledgeServices.get#PageView').parameters({wikiPageId: wikiPageId || null,
+                wikiSpaceId: wikiSpaceId || null, pagePath: pagePath || '', versionName: versionName || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {page: out.page, failedParts: out.failedParts})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="history" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.KnowledgeServices.get#History').parameters({wikiPageId: wikiPageId || null,
+                wikiSpaceId: wikiSpaceId || null, pagePath: pagePath || ''}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {versionList: out.versionList, historyList: out.historyList,
+                currentVersionName: out.currentVersionName, publishedVersionName: out.publishedVersionName, storage: out.storage,
+                canRestore: out.canRestore, canPublish: out.canPublish})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="diff" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.KnowledgeServices.get#VersionDiff').parameters({wikiPageId: wikiPageId || null,
+                wikiSpaceId: wikiSpaceId || null, pagePath: pagePath || '', fromVersionName: fromVersionName || null,
+                toVersionName: toVersionName || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {fromVersionName: out.fromVersionName, toVersionName: out.toVersionName,
+                fromShort: out.fromShort, toShort: out.toShort, html: out.html, stats: out.stats})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- the search line: pages of the spaces the user may view, in one space or all -->
+    <transition name="search" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.KnowledgeServices.search#Pages').parameters({text: text || '', wikiSpaceId: wikiSpaceId || null,
+                scope: 'knowledge'}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {pageList: out.pageList, usedIndex: out.usedIndex})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- the parent pages a page may go under in a space (Move, New page) -->
+    <transition name="pageOptions" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.KnowledgeServices.get#SpacePageOptions').parameters({wikiSpaceId: wikiSpaceId || '',
+                excludePagePath: excludePagePath || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {optionList: out.optionList, canUpdate: out.canUpdate})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- the reviewers drop-down: [{value, label}] -->
+    <transition name="searchUsers" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.ChatterServices.search#Users').parameters({term: term || '', limit: 12}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? [] : Array.from(out.userList || []).map((user) => ({value: user.value, label: user.label})))
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- the tasks, events and requests a page may link to: [{value (entity|id), label}] -->
+    <transition name="searchRecords" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.KnowledgeServices.search#LinkRecords').parameter('term', term || '').call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? [] : (out.optionList || []))
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- a file of the page, inline for an image or a PDF when asked, else as a download -->
+    <transition name="attachment" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.KnowledgeServices.get#Attachment').parameters({wikiPageId: wikiPageId || '',
+                filename: filename || ''}).call()
+            if (ec.message.hasError()) ec.web.sendJsonResponse({})
+            else ec.web.sendResourceResponse(out.location, String(inline) === 'true' && out.inlineAllowed)
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+
+    <!-- ========== Writes ========== -->
+
+    <transition name="savePage">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.KnowledgeServices.save#Page').parameters({wikiPageId: wikiPageId || null,
+                wikiSpaceId: wikiSpaceId || null, pagePath: pagePath || '', pageText: pageText ?? '', versionNote: versionNote || null,
+                baseVersionName: baseVersionName || null, force: String(force) === 'true'}).call()
+            if (ec.message.hasError()) { ec.web.sendJsonResponse({}); return }
+            const message = out.conflict ? null : out.versionName ? ec.resource.expand('Saved as version ${name}', '', {name: String(out.versionName).length > 12
+                    ? String(out.versionName).substring(0, 10) : out.versionName}) : ec.l10n.localize('No changes to save')
+            ec.web.sendJsonResponse({wikiPageId: out.wikiPageId, wikiSpaceId: out.wikiSpaceId, pagePath: out.pagePath, versionName: out.versionName,
+                currentVersionName: out.currentVersionName, conflict: out.conflict, conflictText: out.conflictText, savedText: out.savedText,
+                messageInfos: message ? [{type: 'success', message: message}] : []})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="createPage">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.KnowledgeServices.create#Page').parameters({wikiSpaceId: wikiSpaceId || '',
+                parentPath: parentPath || '', pageName: pageName || '', pageText: pageText || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {wikiPageId: out.wikiPageId, pagePath: out.pagePath,
+                messageInfos: [{type: 'success', message: ec.resource.expand('Page ${name} created', '', {name: pageName})}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="renamePage">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.KnowledgeServices.rename#Page').parameters({wikiPageId: wikiPageId || '', pageName: pageName || ''}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {wikiSpaceId: out.wikiSpaceId, pagePath: out.pagePath,
+                messageInfos: [{type: 'success', message: ec.l10n.localize('Renamed')}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="movePage">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.KnowledgeServices.move#Page').parameters({wikiPageId: wikiPageId || '',
+                toWikiSpaceId: toWikiSpaceId || null, toParentPath: toParentPath || '', toPageName: toPageName || null, versionNote: versionNote || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {wikiSpaceId: out.wikiSpaceId, pagePath: out.pagePath, replayed: out.replayed,
+                versionCount: out.versionCount, messageInfos: [{type: 'success', message: out.replayed ? ec.resource.expand('Moved, with its ${count} versions',
+                    '', {count: out.versionCount}) : ec.l10n.localize('Moved')}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- a page dropped on the tree: before, after or inside another page -->
+    <transition name="dropPage">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.KnowledgeServices.drop#Page').parameters({wikiPageId: wikiPageId || '',
+                targetPagePath: targetPagePath || '', position: position || 'inside'}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {wikiSpaceId: out.wikiSpaceId, pagePath: out.pagePath, oldPagePath: out.oldPagePath})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="deletePage">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.KnowledgeServices.delete#Page').parameter('wikiPageId', wikiPageId || '').call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {wikiSpaceId: out.wikiSpaceId, parentPath: out.parentPath,
+                messageInfos: [{type: 'success', message: ec.l10n.localize('Page deleted')}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="publishVersion">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.KnowledgeServices.publish#Version').parameters({wikiPageId: wikiPageId || '',
+                versionName: versionName || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {publishedVersionName: out.publishedVersionName,
+                messageInfos: [{type: 'success', message: ec.l10n.localize('Published')}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="restoreVersion">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.KnowledgeServices.restore#Version').parameters({wikiPageId: wikiPageId || '',
+                versionName: versionName || '', versionNote: versionNote || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {newVersionName: out.newVersionName,
+                messageInfos: [{type: 'success', message: ec.l10n.localize('Restored as the newest version')}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="requestReview">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.KnowledgeServices.request#Review').parameters({wikiPageId: wikiPageId || '',
+                versionName: versionName || null, reviewerUserIds: reviewerUserIds || null, dueDate: dueDate || null, note: note || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {wikiPageReviewId: out.wikiPageReviewId, wikiPageReviewIdList: out.wikiPageReviewIdList,
+                messageInfos: [{type: 'success', message: ec.l10n.localize('Review requested')}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="decideReview">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.KnowledgeServices.decide#Review').parameters({wikiPageReviewId: wikiPageReviewId || '',
+                decision: decision || '', decisionNote: decisionNote || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {statusId: out.statusId, publishedVersionName: out.publishedVersionName,
+                messageInfos: [{type: 'success', message: ec.l10n.localize(out.statusId === 'WprApproved' ? 'Approved and published' : 'Changes requested')}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="cancelReview">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.KnowledgeServices.cancel#Review').parameters({wikiPageReviewId: wikiPageReviewId || '',
+                note: note || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {statusId: out.statusId, messageInfos: [{type: 'success', message: ec.l10n.localize('Review request cancelled')}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="setTags">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.KnowledgeServices.set#PageTags').parameters({wikiPageId: wikiPageId || '', tags: tags || ''}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {tagList: out.tagList})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="setPinned">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.KnowledgeServices.set#PagePinned').parameters({wikiPageId: wikiPageId || '',
+                pinned: String(pinned) === 'true'}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {pinned: out.pinned})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="uploadAttachment">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.KnowledgeServices.upload#Attachment').parameters({wikiPageId: wikiPageId || '',
+                attachmentFile: attachmentFile || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {filenameList: out.filenameList,
+                messageInfos: [{type: 'success', message: ec.resource.expand('${count} added', '', {count: (out.filenameList || []).length})}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="deleteAttachment">
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.KnowledgeServices.delete#Attachment').parameters({wikiPageId: wikiPageId || '', filename: filename || ''}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: ec.l10n.localize('Removed')}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="followPage">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.KnowledgeServices.follow#Page').parameters({wikiPageId: wikiPageId || '',
+                follow: String(follow) !== 'false'}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {following: out.following,
+                messageInfos: [{type: 'success', message: ec.l10n.localize(out.following ? 'Watching this page' : 'Stopped watching this page')}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="linkRecord">
+        <actions><script><![CDATA[
+            // the drop-down's value is entity|id
+            const value = String(record || '')
+            const bar = value.indexOf('|')
+            const entityName = bar > 0 ? value.substring(0, bar) : ''
+            const id = bar > 0 ? value.substring(bar + 1) : ''
+            ec.service.sync().name('ironstone.KnowledgeServices.link#PageRecord').parameters({wikiPageId: wikiPageId || '',
+                recordEntityName: recordEntityName || entityName || '', recordId: recordId || id || ''}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: ec.l10n.localize('Linked')}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="unlinkRecord">
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.KnowledgeServices.unlink#PageRecord').parameters({wikiPageId: wikiPageId || '',
+                recordEntityName: recordEntityName || '', recordId: recordId || ''}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+
     <widgets>
-        <label text="Placeholder: Spaces, page tree and the page: read, co-edit, history and compare, comments, review and publish, links to records." type="p"/>
-        <subscreens-active/>
+        <render-mode><text type="qvue" location="component://ironstone-boss/screen/Commons/Knowledge.qvue" template="false"/></render-mode>
     </widgets>
 </screen>

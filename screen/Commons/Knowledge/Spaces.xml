@@ -12,10 +12,99 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for Spaces: design-drawers-commons.md §10, list archetype, xml, scope parity. -->
+<!-- Knowledge Spaces (design-drawers-commons.md §10 Spaces; style-guide §3.2 List, §3.11 Dialog): the spaces the user may read
+    (ironstone.KnowledgeServices.get#SpaceList over WikiServices.get#WikiViewScope; the notes spaces are in Notes), with New space
+    (create#WikiSpace: database files, or a git repository in the database or on disk; a read-only mirror of a git URL for
+    administrators) and Clone (clone#WikiSpace, with or without the history), each opening the new space; a row's settings are
+    SpaceDetail. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Spaces" default-menu-index="1">
+
+    <transition name="createSpace">
+        <service-call name="ironstone.KnowledgeServices.create#Space" in-map="{wikiSpaceId:wikiSpaceId, description:description, storage:(storage || 'db'),
+                remoteUrl:remoteUrl, restrictView:(restrictView == 'Y' ? 'Y' : 'N'), restrictUpdate:(restrictUpdate == 'Y' ? 'Y' : 'N')}" out-map="createOut"/>
+        <actions><if condition="!ec.message.hasError()"><message type="success">Space ${description} created</message></if></actions>
+        <default-response url=".."><parameter name="wikiSpaceId" from="createOut.wikiSpaceId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="cloneSpace">
+        <service-call name="ironstone.KnowledgeServices.clone#Space" in-map="{baseWikiSpaceId:baseWikiSpaceId, wikiSpaceId:wikiSpaceId,
+                description:description, storage:(storage || 'db'), copyHistory:(copyHistory == 'Y'), copyAttachments:(copyAttachments != 'N')}" out-map="cloneOut"/>
+        <actions><if condition="!ec.message.hasError()"><message type="success">Space ${wikiSpaceId} cloned${cloneOut.versionCount ? ' with ' + cloneOut.versionCount + ' versions' : ''}</message></if></actions>
+        <default-response url=".."><parameter name="wikiSpaceId" from="cloneOut.wikiSpaceId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="spaceDetail"><default-response url="../SpaceDetail"/></transition>
+    <transition name="openSpace"><default-response url=".."/></transition>
+
+    <actions>
+        <service-call name="ironstone.KnowledgeServices.get#SpaceList" out-map="listOut"/>
+        <set field="spaceList" from="listOut.spaceList || []"/>
+        <set field="isAdmin" from="!!listOut.isAdmin"/>
+        <set field="spaceOptions" from="spaceList.map((space) =&gt; ({key: space.wikiSpaceId, text: space.description + ' (' + space.wikiSpaceId + ')'}))"/>
+    </actions>
     <widgets>
-        <label text="Placeholder: Wiki spaces: create, clone, members, visibility, public URL." type="p"/>
+        <container style="row items-center q-mb-sm q-gutter-x-sm">
+            <label type="h5" text="Spaces" style="q-my-none"/>
+            <container style="col"/>
+            <container-dialog id="CloneSpaceDialog" button-text="Clone" icon="sym_o_content_copy" width="600" title="Clone a space" condition="spaceList.length">
+                <form-single name="CloneSpace" transition="cloneSpace" focus-field="wikiSpaceId">
+                    <field name="baseWikiSpaceId"><default-field title="Copy of"><drop-down><list-options list="spaceOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                    <field name="wikiSpaceId"><default-field title="Short id" tooltip="3 to 8 letters and digits, starting with a letter: part of each page's address"><text-line size="10" maxlength="8"/></default-field></field>
+                    <field name="description"><default-field title="Name"><text-line size="40"/></default-field></field>
+                    <field name="storage"><default-field title="Keep its pages in"><radio no-current-selected-key="db">
+                        <option key="db" text="Database files: each save keeps the version before it as a small difference"/>
+                        <option key="gitdb" text="A git repository in the database: each save is a commit"/>
+                        <option key="gitlocal" text="A git repository on the server's disk"/></radio></default-field></field>
+                    <field name="copyHistory"><default-field title="History"><check><option key="Y" text="Copy every version (slower; without it each page is copied as it is now)"/></check></default-field></field>
+                    <field name="copyAttachments"><default-field title="Files"><radio no-current-selected-key="Y"><option key="Y" text="Copy the pages' files"/><option key="N" text="Leave them out"/></radio></default-field></field>
+                    <field name="submitButton"><default-field title="Clone"><submit/></default-field></field>
+                </form-single>
+            </container-dialog>
+            <container-dialog id="NewSpaceDialog" button-text="New space" icon="add" width="600" title="New space">
+                <form-single name="NewSpace" transition="createSpace" focus-field="description">
+                    <field name="description"><default-field title="Name"><text-line size="40"/></default-field></field>
+                    <field name="wikiSpaceId"><default-field title="Short id" tooltip="3 to 8 letters and digits, starting with a letter: part of each page's address"><text-line size="10" maxlength="8"/></default-field></field>
+                    <field name="storage"><conditional-field condition="isAdmin" title="Keep its pages in"><radio no-current-selected-key="db">
+                            <option key="db" text="Database files (the default): each save keeps the version before it as a small difference"/>
+                            <option key="gitdb" text="A git repository in the database: each save is a commit"/>
+                            <option key="gitlocal" text="A git repository on the server's disk"/>
+                            <option key="mirror" text="A read-only mirror of a git URL, fetched every hour"/></radio></conditional-field>
+                        <default-field title="Keep its pages in"><radio no-current-selected-key="db">
+                            <option key="db" text="Database files (the default): each save keeps the version before it as a small difference"/>
+                            <option key="gitdb" text="A git repository in the database: each save is a commit"/>
+                            <option key="gitlocal" text="A git repository on the server's disk"/></radio></default-field></field>
+                    <field name="remoteUrl"><default-field title="Git URL"><text-line size="50"/><visible-when field="storage" value="mirror"/></default-field></field>
+                    <field name="restrictView"><default-field title="Who may read"><radio no-current-selected-key="N">
+                        <option key="N" text="Everyone"/><option key="Y" text="Only its members"/></radio></default-field></field>
+                    <field name="restrictUpdate"><default-field title="Who may edit"><radio no-current-selected-key="N">
+                        <option key="N" text="Everyone who may read"/><option key="Y" text="Only members who may edit"/></radio></default-field></field>
+                    <field name="submitButton"><default-field title="Create"><submit/></default-field></field>
+                </form-single>
+            </container-dialog>
+        </container>
+
+        <container-box><box-header title="Your spaces"/><box-body-nopad>
+            <form-list name="SpaceList" list="spaceList" skip-form="true" paginate="false">
+                <field name="description"><default-field title="Space">
+                    <link url="openSpace" link-type="anchor" text="${description}" parameter-map="{wikiSpaceId:wikiSpaceId}"/></default-field></field>
+                <field name="wikiSpaceId"><default-field title="Id"><display style="text-caption m-muted"/></default-field></field>
+                <field name="pageCount" align="right"><default-field title="Pages"><display/></default-field></field>
+                <field name="visibilityText"><default-field title="Access"><display style="text-caption"/></default-field></field>
+                <field name="storageText"><default-field title="Kept in"><display style="text-caption"/></default-field></field>
+                <field name="youText"><default-field title="You"><display style="text-caption m-muted"/></default-field></field>
+                <field name="settings" align="right"><default-field title="">
+                    <link url="spaceDetail" link-type="anchor" text="${canAdmin ? 'Settings' : 'Details'}" parameter-map="{wikiSpaceId:wikiSpaceId}"/></default-field></field>
+                <form-list-column><field-ref name="description"/><field-ref name="wikiSpaceId"/></form-list-column>
+                <form-list-column><field-ref name="pageCount"/></form-list-column>
+                <form-list-column><field-ref name="visibilityText"/><field-ref name="youText"/></form-list-column>
+                <form-list-column><field-ref name="storageText"/></form-list-column>
+                <form-list-column><field-ref name="settings"/></form-list-column>
+            </form-list>
+            <section name="NoSpaces" condition="!spaceList.length"><widgets>
+                <label type="p" text="No spaces yet · New space makes the first one" style="m-muted q-pa-sm q-mb-none"/>
+            </widgets></section>
+        </box-body-nopad></container-box>
+        <label type="p" text="Your personal notes are in Notes, not here: only you read them." style="text-caption m-muted q-mx-sm"/>
     </widgets>
 </screen>

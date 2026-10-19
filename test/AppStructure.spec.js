@@ -4,7 +4,8 @@
 // "Placeholder:" label. Every other screen under the Commons, Comms and Insights roots and in screen/Shared (the screens
 // built there and the ones moved from the first SimpleScreens port) renders the same way, on the demo records of
 // data/BossDemoData.xml and data/BossMailDemoData.xml, and shows them; a .qvue screen (render-modes vue,qvue: Shared/Chatter,
-// Shared/RecordFiles, Comms/Inbox/Mail, Comms/Inbox/Compose, Comms/Chat, Comms/Panel/Chat and Comms/Settings/Rules) renders in qvue,
+// Shared/RecordFiles, Comms/Inbox/Mail, Comms/Inbox/Compose, Comms/Chat, Comms/Panel/Chat, Comms/Settings/Rules, Commons/Knowledge and
+// Commons/Notes) renders in qvue,
 // its component.
 // Run: ./moq test ironstone-boss
 const base = "component://ironstone-boss/screen"
@@ -82,6 +83,13 @@ const demoRecords = {
     "Commons/Tasks": { text: "Review the open support requests" },
     "Commons/Tasks/List": { text: "Plan the office move" },
     "Commons/Tasks/TaskDetail": { parameters: { workEffortId: "BOSS_DEMO_TASK" }, text: "Review the open support requests" },
+    // M9: Knowledge and Notes (.qvue screens: their components) and Knowledge's Spaces, SpaceDetail and Review on the knowledge
+    // demo (data/BossKnowledgeDemoData.xml; test/Knowledge.spec.js, KnowledgeReview.spec.js and Notes.spec.js call their transitions)
+    "Commons/Knowledge": { text: "BossKnowledge" },
+    "Commons/Notes": { text: "BossNotes" },
+    "Commons/Knowledge/Spaces": { text: "Team handbook" },
+    "Commons/Knowledge/SpaceDetail": { parameters: { wikiSpaceId: "BOSSKB" }, text: "Policies/Security" },
+    "Commons/Knowledge/Review": { text: "Release process" },
     // M5: the Inbox (the default subscreen Inbox/Mail, a .qvue screen like Compose) and MessageDetail on a message of the mail
     // demo (data/BossMailDemoData.xml) that no spec changes
     "Comms/Inbox": { text: "Inbox" },
@@ -149,8 +157,9 @@ feature("every placeholder screen renders in qvt without errors, with its menu",
         return { failures }
     },
     then({ failures }) {
-        // fewer as the milestones replace them (129 after M4, 114 after M10 and the Comms mail settings)
-        placeholders.length >= 114
+        // fewer as the milestones replace them (129 after M4, 114 after M10 and the Comms mail settings, 110 after M9's
+        // Knowledge and Notes; M8's Files take more)
+        placeholders.length >= 107
         failures.join("\n") == ""
     },
 })

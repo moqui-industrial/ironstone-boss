@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- A space's settings (design-drawers-commons.md §10 Spaces SpaceSettings and SpaceMembers; style-guide §3.9 Settings): its name,
+    public URLs and who may read and edit it (allow any HTML for system administrators only), its storage as made (read only:
+    for git the repository, its branch and newest commit), its members with what each may do (WikiSpaceUser: read, edit,
+    administer), and its restricted pages with the people who may read or edit each (WikiPageUser). An administrator of the
+    space changes them (ironstone.KnowledgeServices update#SpaceSettings, store#SpaceMember, remove#SpaceMember,
+    set#PageRestriction, store#PageMember, remove#PageMember); any other user who may read the space sees them. Archiving a
+    space is not offered: WikiSpace has no archived state. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Space" default-menu-include="false">
+
+    <parameter name="wikiSpaceId" required="true"/>
+
+    <transition name="updateSettings">
+        <service-call name="ironstone.KnowledgeServices.update#SpaceSettings" in-map="{wikiSpaceId:wikiSpaceId, description:description,
+                publicPageUrl:(publicPageUrl || ''), publicAttachmentUrl:(publicAttachmentUrl || ''), restrictView:restrictView, restrictUpdate:restrictUpdate,
+                allowAnyHtml:(allowAnyHtml || null)}"/>
+        <actions><if condition="!ec.message.hasError()"><message type="success">Settings saved</message></if></actions>
+        <default-response url="."><parameter name="wikiSpaceId"/></default-response>
+    </transition>
+    <transition name="storeMember">
+        <service-call name="ironstone.KnowledgeServices.store#SpaceMember" in-map="{wikiSpaceId:wikiSpaceId, userId:userId, permission:(permission || 'view')}"/>
+        <default-response url="."><parameter name="wikiSpaceId"/></default-response>
+    </transition>
+    <transition name="removeMember">
+        <service-call name="ironstone.KnowledgeServices.remove#SpaceMember" in-map="{wikiSpaceId:wikiSpaceId, userId:userId}"/>
+        <default-response url="."><parameter name="wikiSpaceId"/></default-response>
+    </transition>
+    <!-- a page restricted, or opened up again: by its path in the space -->
+    <transition name="restrictPage">
+        <actions><script><![CDATA[
+            const ref = ec.service.sync().name('ironstone.KnowledgeServices.get#PageRef').parameters({wikiPageId: wikiPageId || null,
+                wikiSpaceId: wikiPageId ? null : wikiSpaceId, pagePath: pagePath || '', need: 'admin'}).call()
+            if (!ec.message.hasError() && ref?.found && !ref.wikiPageId) ec.message.addError(ec.l10n.localize('Save the page once before restricting it'))
+            if (!ec.message.hasError()) ec.service.sync().name('ironstone.KnowledgeServices.set#PageRestriction').parameters({wikiPageId: ref.wikiPageId,
+                restrictView: restrictView === 'Y' ? 'Y' : 'N', restrictUpdate: restrictUpdate === 'Y' ? 'Y' : 'N'}).call()
+            if (!ec.message.hasError()) ec.message.addMessage(ec.l10n.localize(restrictView === 'Y' || restrictUpdate === 'Y' ? 'Page restricted' : 'Page open to the space again'), 'success')
+        ]]></script></actions>
+        <default-response url="."><parameter name="wikiSpaceId"/></default-response>
+    </transition>
+    <transition name="storePageMember">
+        <service-call name="ironstone.KnowledgeServices.store#PageMember" in-map="{wikiPageId:wikiPageId, userId:userId, permission:(permission || 'view')}"/>
+        <default-response url="."><parameter name="wikiSpaceId"/></default-response>
+    </transition>
+    <transition name="removePageMember">
+        <service-call name="ironstone.KnowledgeServices.remove#PageMember" in-map="{wikiPageId:wikiPageId, userId:userId}"/>
+        <default-response url="."><parameter name="wikiSpaceId"/></default-response>
+    </transition>
+    <transition name="searchUsers" read-only="true">
+        <actions>
+            <service-call name="ironstone.ChatterServices.search#Users" in-map="{term:term}" out-map="found"/>
+            <script>ec.web.sendJsonResponse(Array.from(found.userList || []).map((user) =&gt; ({value: user.value, label: user.label})))</script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="openSpace"><default-response url=".."/></transition>
+    <transition name="spaces"><default-response url="../Spaces"/></transition>
+
+    <actions>
+        <!-- a space the user may not read is "not available" (its error is not shown) -->
+        <script><![CDATA[
+            ec.message.pushErrors()
+            try {
+                detail = ec.service.sync().name('ironstone.KnowledgeServices.get#SpaceDetail').parameter('wikiSpaceId', wikiSpaceId || '').call() || {}
+                if (ec.message.hasError()) detail = {}
+            } finally { ec.message.clearErrors(); ec.message.popErrors() }
+        ]]></script>
+        <set field="space" from="detail.space || null"/>
+        <set field="memberList" from="detail.memberList || []"/>
+        <set field="restrictedPageList" from="detail.restrictedPageList || []"/>
+        <set field="canAdmin" from="!!space?.canAdmin"/>
+        <script><![CDATA[
+            pageOptions = []
+            if (space) {
+                const out = ec.service.sync().name('ironstone.KnowledgeServices.get#SpacePageOptions').parameter('wikiSpaceId', wikiSpaceId).call()
+                pageOptions = Array.from(out?.optionList || []).filter((option) => option.value).map((option) => ({key: option.value, text: option.label}))
+            }
+            permissionOptions = [{key: 'view', text: ec.l10n.localize('Read')}, {key: 'edit', text: ec.l10n.localize('Edit')},
+                {key: 'admin', text: ec.l10n.localize('Administer')}]
+        ]]></script>
+    </actions>
+    <widgets>
+        <section name="SpaceFound" condition="space"><widgets>
+            <container style="row items-center q-mb-sm q-gutter-x-sm">
+                <container style="col">
+                    <link url="spaces" link-type="anchor" text="Spaces" style="text-caption"/>
+                    <label type="h5" text="${space.description || space.wikiSpaceId}" style="q-my-none"/>
+                    <label type="div" text="${space.wikiSpaceId} · ${space.storageText}" style="text-caption m-muted"/>
+                </container>
+                <link url="openSpace" text="Open the space" icon="sym_o_menu_book" parameter-map="{wikiSpaceId:wikiSpaceId}"/>
+            </container>
+
+            <container-row>
+                <row-col md="6">
+                    <container-box><box-header title="Settings"/><box-body>
+                        <section name="SettingsForm" condition="canAdmin"><widgets>
+                            <form-single name="SpaceSettings" transition="updateSettings" map="space">
+                                <field name="wikiSpaceId"><default-field><hidden/></default-field></field>
+                                <field name="description"><default-field title="Name"><text-line size="40"/></default-field></field>
+                                <field name="restrictView"><default-field title="Who may read"><radio>
+                                    <option key="N" text="Everyone"/><option key="Y" text="Only its members"/></radio></default-field></field>
+                                <field name="restrictUpdate"><default-field title="Who may edit"><radio>
+                                    <option key="N" text="Everyone who may read"/><option key="Y" text="Only members who may edit"/></radio></default-field></field>
+                                <field name="publicPageUrl"><default-field title="Public page URL" tooltip="Where a help center shows the published pages"><text-line size="50"/></default-field></field>
+                                <field name="publicAttachmentUrl"><default-field title="Public file URL"><text-line size="50"/></default-field></field>
+                                <field name="allowAnyHtml"><conditional-field condition="space.isAdminGroup" title="HTML pages">
+                                    <radio><option key="N" text="Clean the HTML of HTML pages (safe)"/><option key="Y" text="Allow any HTML (only for trusted editors)"/></radio></conditional-field>
+                                    <default-field><ignored/></default-field></field>
+                                <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                            </form-single>
+                        </widgets><fail-widgets>
+                            <label type="p" text="${space.restrictView == 'Y' ? 'Only its members read this space' : 'Everyone reads this space'}; ${space.restrictUpdate == 'Y' ? 'members who may edit write in it' : 'everyone who reads it may edit'}." style="text-body2"/>
+                            <label type="p" text="Public page URL: ${space.publicPageUrl}" condition="space.publicPageUrl" style="text-body2"/>
+                            <label type="p" text="An administrator of the space changes its settings." style="text-caption m-muted"/>
+                        </fail-widgets></section>
+                    </box-body></container-box>
+
+                    <container-box><box-header title="Storage"/><box-body>
+                        <label type="p" text="${space.storageText}" style="text-body2 q-mb-xs"/>
+                        <label type="p" text="Branch ${space.branch}${space.headCommit ? ' · newest commit ' + space.headCommit : ''}${space.headNote ? ': ' + space.headNote : ''}"
+                                condition="space.storage == 'git'" style="text-caption m-muted q-mb-xs"/>
+                        <label type="p" text="Fetched from ${space.remoteUrl}" condition="space.remoteUrl" style="text-caption m-muted q-mb-xs"/>
+                        <label type="p" text="Where a space keeps its pages is chosen when it is made. Clone it to keep a copy elsewhere." style="text-caption m-muted"/>
+                    </box-body></container-box>
+                </row-col>
+                <row-col md="6">
+                    <container-box><box-header title="Members"/><box-body-nopad>
+                        <form-list name="Members" list="memberList" skip-form="true" paginate="false">
+                            <field name="name"><default-field title="Who"><display text="${name}${isMe ? ' (you)' : ''}"/></default-field></field>
+                            <field name="permissionText"><conditional-field condition="canAdmin" title="May">
+                                    <container-dialog id="MemberDialog" button-text="${permissionText}" width="440" title="${name}">
+                                        <form-single name="MemberForm" transition="storeMember">
+                                            <field name="wikiSpaceId" from="wikiSpaceId"><default-field><hidden/></default-field></field>
+                                            <field name="userId" from="userId"><default-field><hidden/></default-field></field>
+                                            <field name="permission" from="permission"><default-field title="May"><radio>
+                                                <option key="view" text="Read"/><option key="edit" text="Read and edit"/><option key="admin" text="Administer the space"/></radio></default-field></field>
+                                            <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                                        </form-single>
+                                    </container-dialog></conditional-field>
+                                <default-field title="May"><display/></default-field></field>
+                            <field name="remove" align="right"><conditional-field condition="canAdmin" title="">
+                                    <link url="removeMember" link-type="hidden-form-link" icon="sym_o_person_remove" text="" tooltip="Remove" style="m-btn-flat"
+                                            confirmation="Remove ${name} from the space?" parameter-map="{wikiSpaceId:wikiSpaceId, userId:userId}"/></conditional-field>
+                                <default-field title=""><display text=""/></default-field></field>
+                        </form-list>
+                        <section name="NoMembers" condition="!memberList.length"><widgets>
+                            <label type="p" text="No members: everyone reads and edits as the settings say" style="m-muted q-pa-sm q-mb-none"/>
+                        </widgets></section>
+                    </box-body-nopad></container-box>
+                    <section name="AddMember" condition="canAdmin"><widgets>
+                        <container-box><box-header title="Add a member"/><box-body>
+                            <form-single name="AddMember" transition="storeMember">
+                                <field name="wikiSpaceId"><default-field><hidden/></default-field></field>
+                                <field name="userId"><default-field title="User">
+                                    <drop-down allow-empty="true"><dynamic-options transition="searchUsers" server-search="true" min-length="1"/></drop-down></default-field></field>
+                                <field name="permission"><default-field title="May"><radio no-current-selected-key="view">
+                                    <option key="view" text="Read"/><option key="edit" text="Read and edit"/><option key="admin" text="Administer"/></radio></default-field></field>
+                                <field name="submitButton"><default-field title="Add"><submit/></default-field></field>
+                            </form-single>
+                        </box-body></container-box>
+                    </widgets></section>
+                </row-col>
+            </container-row>
+
+            <container-box><box-header title="Restricted pages"/><box-body-nopad>
+                <form-list name="RestrictedPages" list="restrictedPageList" skip-form="true" paginate="false">
+                    <field name="pagePath"><default-field title="Page">
+                        <link url="openSpace" link-type="anchor" text="${pagePath || 'Home'}" parameter-map="{wikiSpaceId:wikiSpaceId, pagePath:pagePath}"/></default-field></field>
+                    <field name="restrictText" from="(restrictView ? 'Read' : '') + (restrictView &amp;&amp; restrictUpdate ? ' and edit' : (restrictUpdate ? 'Edit' : '')) + ' by the people named'">
+                        <default-field title="Restricted"><display/></default-field></field>
+                    <field name="usersText"><default-field title="People"><display style="text-caption"/></default-field></field>
+                    <field name="actions" align="right"><conditional-field condition="canAdmin" title="">
+                            <container-dialog id="PageMemberDialog" button-text="Add a person" width="460" title="${pagePath}">
+                                <form-single name="PageMemberForm" transition="storePageMember">
+                                    <field name="wikiSpaceId" from="wikiSpaceId"><default-field><hidden/></default-field></field>
+                                    <field name="wikiPageId" from="wikiPageId"><default-field><hidden/></default-field></field>
+                                    <field name="userId"><default-field title="User">
+                                        <drop-down allow-empty="true"><dynamic-options transition="searchUsers" server-search="true" min-length="1"/></drop-down></default-field></field>
+                                    <field name="permission"><default-field title="May"><radio no-current-selected-key="view">
+                                        <option key="view" text="Read"/><option key="edit" text="Read and edit"/></radio></default-field></field>
+                                    <field name="submitButton"><default-field title="Add"><submit/></default-field></field>
+                                </form-single>
+                            </container-dialog>
+                            <link url="restrictPage" link-type="hidden-form-link" text="Open to the space" confirmation="Let everyone who reads the space read and edit ${pagePath}?"
+                                    parameter-map="{wikiSpaceId:wikiSpaceId, wikiPageId:wikiPageId, restrictView:'N', restrictUpdate:'N'}"/></conditional-field>
+                        <default-field title=""><display text=""/></default-field></field>
+                    <form-list-column><field-ref name="pagePath"/><field-ref name="restrictText"/></form-list-column>
+                    <form-list-column><field-ref name="usersText"/></form-list-column>
+                    <form-list-column><field-ref name="actions"/></form-list-column>
+                </form-list>
+                <section name="NoRestricted" condition="!restrictedPageList.length"><widgets>
+                    <label type="p" text="No restricted pages: every page is read and edited as the space is" style="m-muted q-pa-sm q-mb-none"/>
+                </widgets></section>
+            </box-body-nopad></container-box>
+            <section name="RestrictForm" condition="canAdmin &amp;&amp; pageOptions.length"><widgets>
+                <container-box><box-header title="Restrict a page"/><box-body>
+                    <form-single name="RestrictPage" transition="restrictPage">
+                        <field name="wikiSpaceId"><default-field><hidden/></default-field></field>
+                        <field name="pagePath"><default-field title="Page"><drop-down><list-options list="pageOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                        <field name="restrictView"><default-field title="Read"><radio no-current-selected-key="Y">
+                            <option key="Y" text="Only the people named on the page"/><option key="N" text="As the space"/></radio></default-field></field>
+                        <field name="restrictUpdate"><default-field title="Edit"><radio no-current-selected-key="Y">
+                            <option key="Y" text="Only the people named who may edit"/><option key="N" text="As the space"/></radio></default-field></field>
+                        <field name="submitButton"><default-field title="Restrict"><submit/></default-field></field>
+                    </form-single>
+                </box-body></container-box>
+            </widgets></section>
+        </widgets><fail-widgets>
+            <container style="q-pa-lg text-center">
+                <label type="h6" text="This space is not available"/>
+                <label type="p" text="It may have been deleted, or you may not have access to it." style="m-muted"/>
+                <link url="spaces" text="All spaces"/>
+            </container>
+        </fail-widgets></section>
+    </widgets>
+</screen>

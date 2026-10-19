@@ -12,10 +12,103 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for Review: design-drawers-commons.md §10, list archetype, xml, scope new. -->
+<!-- Knowledge Review (design-drawers-commons.md §10 Review; style-guide §3.2 List): page versions waiting for a review, from
+    ironstone.KnowledgeServices.find#Reviews over WikiServices.find#WikiPageReviews (only pages the user may read): To do (the
+    user's to decide), Requested by me, and All, open or of any status. A row opens the page on the review's compare (the
+    requested version against the one published when it was asked); Approve publishes the version, Request changes sends a
+    note back to the requester (decide#WikiPageReview, which checks the review is the user's to decide), and the requester
+    may cancel. The tray's Notifications tab decides the same reviews (topic WikiPageReview). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Review" default-menu-index="2">
+
+    <parameter name="filter"/>
+    <parameter name="status"/>
+
+    <transition name="decideReview">
+        <service-call name="ironstone.KnowledgeServices.decide#Review" in-map="{wikiPageReviewId:wikiPageReviewId, decision:decision,
+                decisionNote:decisionNote}" out-map="decideOut"/>
+        <actions><if condition="!ec.message.hasError()">
+            <message type="success">${decideOut.statusId == 'WprApproved' ? 'Approved and published' : 'Changes requested'}</message></if></actions>
+        <default-response url="."><parameter name="filter"/><parameter name="status"/></default-response>
+    </transition>
+    <transition name="cancelReview">
+        <service-call name="ironstone.KnowledgeServices.cancel#Review" in-map="{wikiPageReviewId:wikiPageReviewId}"/>
+        <actions><if condition="!ec.message.hasError()"><message type="success">Review request cancelled</message></if></actions>
+        <default-response url="."><parameter name="filter"/><parameter name="status"/></default-response>
+    </transition>
+    <transition name="openPage"><default-response url=".."/></transition>
+
+    <actions>
+        <set field="filter" from="['toDo', 'requested', 'all'].includes(filter) ? filter : 'toDo'"/>
+        <set field="status" from="status == 'any' ? 'any' : 'open'"/>
+        <service-call name="ironstone.KnowledgeServices.find#Reviews" in-map="{filter:filter, statusId:(status == 'any' ? 'any' : 'WprRequested')}" out-map="found"/>
+        <set field="reviewList" from="found.reviewList || []"/>
+        <service-call name="ironstone.KnowledgeServices.find#Reviews" in-map="{filter:'toDo'}" out-map="toDoOut"/>
+        <set field="toDoCount" from="toDoOut.reviewCount || 0"/>
+        <set field="filterLabel" from="{toDo:'to review', requested:'you asked to have reviewed', all:'in review'}[filter]"/>
+    </actions>
     <widgets>
-        <label text="Placeholder: Pages with a version awaiting review." type="p"/>
+        <container style="row items-center q-mb-sm">
+            <label type="h5" text="Reviews" style="q-my-none"/>
+        </container>
+        <container style="row items-center q-gutter-sm q-mb-sm">
+            <link url="." link-type="anchor-button" btn-type="primary" text="To do${toDoCount ? ' · ' + toDoCount : ''}" condition="filter == 'toDo'"
+                    parameter-map="{filter:'toDo', status:status}"/>
+            <link url="." link-type="anchor-button" text="To do${toDoCount ? ' · ' + toDoCount : ''}" condition="filter != 'toDo'"
+                    parameter-map="{filter:'toDo', status:status}"/>
+            <link url="." link-type="anchor-button" btn-type="primary" text="Requested by me" condition="filter == 'requested'"
+                    parameter-map="{filter:'requested', status:status}"/>
+            <link url="." link-type="anchor-button" text="Requested by me" condition="filter != 'requested'" parameter-map="{filter:'requested', status:status}"/>
+            <link url="." link-type="anchor-button" btn-type="primary" text="All" condition="filter == 'all'" parameter-map="{filter:'all', status:status}"/>
+            <link url="." link-type="anchor-button" text="All" condition="filter != 'all'" parameter-map="{filter:'all', status:status}"/>
+            <container style="col"/>
+            <link url="." link-type="anchor" text="${status == 'any' ? 'Only open ones' : 'Decided ones too'}"
+                    parameter-map="{filter:filter, status:(status == 'any' ? 'open' : 'any')}"/>
+        </container>
+
+        <container-box><box-header title="Pages ${filterLabel}"/><box-body-nopad>
+            <form-list name="ReviewList" list="reviewList" skip-form="true" paginate="false">
+                <field name="pageName"><default-field title="Page">
+                    <link url="openPage" link-type="anchor" text="${pageName}" parameter-map="{wikiPageId:wikiPageId, review:wikiPageReviewId}"/></default-field></field>
+                <field name="spaceDescription"><default-field title="Space"><display style="text-caption m-muted"/></default-field></field>
+                <field name="shortVersionName"><default-field title="Version"><display text="${shortVersionName}${baseVersionName ? ' (published ' + (String(baseVersionName).length &gt; 12 ? String(baseVersionName).substring(0, 10) : baseVersionName) + ')' : ''}"/></default-field></field>
+                <field name="requestedByName"><default-field title="Asked by"><display/></default-field></field>
+                <field name="reviewerText"><default-field title="Reviewer"><display/></default-field></field>
+                <field name="requestedText"><default-field title="Since"><display style="text-caption"/></default-field></field>
+                <field name="dueText"><conditional-field condition="overdue" title="Due"><label text="${dueText}" style="text-warning text-weight-medium"/></conditional-field>
+                    <default-field title="Due"><display/></default-field></field>
+                <field name="statusDescription"><conditional-field condition="statusId == 'WprApproved'" title="Status">
+                        <label text="${statusDescription}" style="text-positive"/></conditional-field>
+                    <conditional-field condition="statusId == 'WprChangesRequested'" title="Status"><label text="${statusDescription}" style="text-warning"/></conditional-field>
+                    <default-field title="Status"><display/></default-field></field>
+                <field name="note"><default-field title="Note"><display text="${note || decisionNote || ''}" style="text-caption"/></default-field></field>
+                <field name="actions" align="right"><default-field title="">
+                    <link url="decideReview" link-type="hidden-form-link" text="Approve" btn-type="success" condition="canDecide"
+                            confirmation="Approve version ${shortVersionName} of ${pageName} and publish it?"
+                            parameter-map="{wikiPageReviewId:wikiPageReviewId, decision:'approve', filter:filter, status:status}"/>
+                    <container-dialog id="ChangesDialog" button-text="Request changes" width="520" title="Request changes: ${pageName}" condition="canDecide">
+                        <form-single name="ChangesForm" transition="decideReview">
+                            <field name="wikiPageReviewId" from="wikiPageReviewId"><default-field><hidden/></default-field></field>
+                            <field name="decision"><default-field><hidden default-value="changes"/></default-field></field>
+                            <field name="filter" from="filter"><default-field><hidden/></default-field></field>
+                            <field name="status" from="status"><default-field><hidden/></default-field></field>
+                            <field name="decisionNote"><default-field title="What should change"><text-area rows="4" cols="50"/></default-field></field>
+                            <field name="submitButton"><default-field title="Send"><submit/></default-field></field>
+                        </form-single>
+                    </container-dialog>
+                    <link url="cancelReview" link-type="hidden-form-link" text="Cancel request" condition="canCancel"
+                            confirmation="Withdraw the request for a review of ${pageName}?" parameter-map="{wikiPageReviewId:wikiPageReviewId, filter:filter, status:status}"/>
+                </default-field></field>
+                <form-list-column><field-ref name="pageName"/><field-ref name="spaceDescription"/></form-list-column>
+                <form-list-column><field-ref name="shortVersionName"/><field-ref name="statusDescription"/></form-list-column>
+                <form-list-column><field-ref name="requestedByName"/><field-ref name="reviewerText"/></form-list-column>
+                <form-list-column><field-ref name="requestedText"/><field-ref name="dueText"/></form-list-column>
+                <form-list-column><field-ref name="note"/></form-list-column>
+                <form-list-column><field-ref name="actions"/></form-list-column>
+            </form-list>
+            <section name="NoReviews" condition="!reviewList.length"><widgets>
+                <label type="p" text="Nothing ${filterLabel}" style="m-muted q-pa-sm q-mb-none"/>
+            </widgets></section>
+        </box-body-nopad></container-box>
     </widgets>
 </screen>
