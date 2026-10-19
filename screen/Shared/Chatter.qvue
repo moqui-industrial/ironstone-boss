@@ -20,7 +20,8 @@ along with this software (see the LICENSE.md file). If not, see
     Top to bottom: the compose bar (Send message, Log note, Schedule activity as tabs; buttons that open one below 600 px), the
     followers line, the planned activities (Mark done opens the MarkDone dialog, Edit inline, Cancel), the attachments strip
     (Add opens the page's RecordFiles upload, or the RecordFiles panel in a dialog when the page has none), and the timeline
-    newest first in pages with Load more, its filter chips and a search over the entries loaded. Discuss opens the record's
+    newest first in pages with Load more, its filter chips and a search over the entries loaded; a note's author edits it in
+    place (marked "(edited)" after) and its author or an admin deletes it from the entry's menu. Discuss opens the record's
     chat room in Comms Chat (made on first use); the room's messages are in the timeline as chat entries. Forms are m-form with the m-*
     inputs; each sits in a chatter-done scope, whose mSubmitHide (the hook m-form calls after an answer without errors) resets
     that form and reloads what it changed. Brand color names only, no style colors (style-guide §4.8, §5). -->
@@ -118,7 +119,8 @@ along with this software (see the LICENSE.md file). If not, see
             <div class="row items-center no-wrap q-mb-sm">
                 <q-icon name="sym_o_group" size="xs" class="m-muted q-mr-xs"></q-icon>
                 <div class="row no-wrap q-gutter-x-xs">
-                    <m-avatar v-for="follower in followers.slice(0, 5)" :key="follower.userId" :name="follower.name" size="22px" tooltip></m-avatar>
+                    <m-avatar v-for="follower in followers.slice(0, 5)" :key="follower.userId" :name="follower.name" :image="faceUrl(follower.partyId, follower.hasImage)"
+                            size="22px" tooltip></m-avatar>
                 </div>
                 <span class="text-caption m-muted q-ml-xs ellipsis">{{followerText}}</span>
                 <q-space></q-space>
@@ -131,7 +133,7 @@ along with this software (see the LICENSE.md file). If not, see
                             <div class="text-subtitle2">{{t('Followers')}}</div>
                             <q-list dense>
                                 <q-item v-for="follower in followers" :key="follower.userId" class="q-px-none">
-                                    <q-item-section avatar><m-avatar :name="follower.name" size="24px"></m-avatar></q-item-section>
+                                    <q-item-section avatar><m-avatar :name="follower.name" :image="faceUrl(follower.partyId, follower.hasImage)" size="24px"></m-avatar></q-item-section>
                                     <q-item-section><q-item-label>{{follower.name}}</q-item-label>
                                         <q-item-label caption>{{follower.kindsText || t('nothing')}}</q-item-label></q-item-section>
                                     <q-item-section v-if="follower.canRemove" side>
@@ -243,10 +245,11 @@ along with this software (see the LICENSE.md file). If not, see
             </div>
             <q-timeline v-if="shownEntries.length" layout="dense" color="primary" class="q-my-none m-chatter-timeline">
                 <q-timeline-entry v-for="entry in shownEntries" :key="entry.key" :icon="entry.icon" :color="entry.color">
-                    <template v-slot:subtitle><span>{{entry.dateText}}<q-tooltip>{{entry.dateFull}}</q-tooltip></span></template>
+                    <template v-slot:subtitle><span>{{entry.dateText}}<q-tooltip>{{entry.dateFull}}</q-tooltip></span><span v-if="entry.edited"
+                            class="q-ml-xs m-chatter-edited">{{t('(edited)')}}<q-tooltip>{{entry.editedText}}</q-tooltip></span></template>
                     <template v-slot:title>
                         <div class="row items-center no-wrap text-body2">
-                            <m-avatar :name="entry.authorName || ''" size="24px" class="q-mr-sm"></m-avatar>
+                            <m-avatar :name="entry.authorName || ''" :image="faceUrl(entry.authorPartyId, entry.authorImage)" size="24px" class="q-mr-sm"></m-avatar>
                             <div class="col ellipsis">
                                 <span class="text-weight-medium">{{entry.authorName || (entry.kind === 'change' ? t('System') : t('Someone'))}}</span>
                                 <span class="m-muted"> · {{entry.kindLabel}}</span>
@@ -271,6 +274,12 @@ along with this software (see the LICENSE.md file). If not, see
                                         <q-item v-if="entry.kind === 'file'" clickable @click="openFile(entry)">
                                             <q-item-section avatar><q-icon name="sym_o_download" size="xs"></q-icon></q-item-section>
                                             <q-item-section>{{t('Open the file')}}</q-item-section></q-item>
+                                        <q-item v-if="entry.canEdit" clickable @click="startEditEntry(entry)">
+                                            <q-item-section avatar><q-icon name="sym_o_edit" size="xs"></q-icon></q-item-section>
+                                            <q-item-section>{{t('Edit')}}</q-item-section></q-item>
+                                        <q-item v-if="entry.canDelete" clickable :data-confirm="t('Delete this note?')" @click="deleteEntry(entry)">
+                                            <q-item-section avatar><q-icon name="sym_o_delete" size="xs" color="negative"></q-icon></q-item-section>
+                                            <q-item-section class="text-negative">{{t('Delete')}}</q-item-section></q-item>
                                         <q-item v-if="entry.canUnlink && entry.communicationEventId" clickable
                                                 :data-confirm="t('Take this off the record?')" @click="unlink(entry)">
                                             <q-item-section avatar><q-icon name="sym_o_link_off" size="xs" color="negative"></q-icon></q-item-section>
@@ -286,7 +295,19 @@ along with this software (see the LICENSE.md file). If not, see
                             <m-link v-else-if="entry.url" :href="entry.url">{{entry.title}}</m-link>
                             <span v-else>{{entry.title}}</span>
                         </div>
-                        <div v-if="entry.bodyHtml" class="m-rich-text-content text-body2 m-chatter-body" style="padding:0;cursor:auto" v-html="entry.bodyHtml"></div>
+                        <div v-if="entry.bodyHtml && editingEntry !== entry.key" class="m-rich-text-content text-body2 m-chatter-body" style="padding:0;cursor:auto" v-html="entry.bodyHtml"></div>
+                        <!-- edit a note in place: its author only (Mantle's update#RecordNote checks it) -->
+                        <chatter-done v-if="editingEntry === entry.key" :key="'editEntry' + formKeys.editEntry" :done="afterEditEntry" class="q-mt-xs">
+                            <m-form :action="action('editEntry')" :fields-initial="editEntryFields" v-slot="formProps">
+                                <m-rich-text v-model="formProps.fields.body" name="body" light rows="2" autofocus :placeholder="t('The note… @ to mention')"
+                                        :mention-url="url('searchUsers')"></m-rich-text>
+                                <div class="row items-center q-gutter-sm q-mt-xs">
+                                    <q-btn type="submit" dense unelevated no-caps color="primary" icon="sym_o_check" :label="t('Save')"></q-btn>
+                                    <q-btn dense flat no-caps :label="t('Cancel')" @click="editingEntry = null"></q-btn>
+                                    <span class="text-caption m-muted">{{t('Only people newly mentioned are told')}}</span>
+                                </div>
+                            </m-form>
+                        </chatter-done>
                         <div v-if="entry.quotedHtml">
                             <q-btn flat dense size="sm" no-caps icon="sym_o_more_horiz" :label="openQuotes[entry.key] ? t('Hide quoted text') : t('Show quoted text')"
                                     class="m-muted" @click="toggleQuote(entry)"></q-btn>
@@ -389,8 +410,8 @@ module.exports = {
             uid: chatterCount, state: 'loading', record: null, me: {}, canMessage: false, canSchedule: false, mayUpdate: false,
             followers: [], isFollowing: false, myKinds: [], planned: [], files: [], fileCount: 0, parties: [], dataFailed: [],
             entries: [], hasMore: false, nextBeforeDate: null, nextSeenKeys: [], timelineFailed: [], loadingTimeline: false, filter: 'all', search: '',
-            tab: null, composeOpen: false, formKeys: { message: 0, log: 0, activity: 0, kinds: 0, followers: 0, edit: 0, reply: 0, done: 0 },
-            replyTo: null, replyFields: {}, editing: null, editFields: {}, editOptions: [], openQuotes: {},
+            tab: null, composeOpen: false, formKeys: { message: 0, log: 0, activity: 0, kinds: 0, followers: 0, edit: 0, reply: 0, done: 0, editEntry: 0 },
+            replyTo: null, replyFields: {}, editing: null, editFields: {}, editOptions: [], openQuotes: {}, editingEntry: null, editEntryFields: {},
             markDone: { open: false, activity: null, fields: {} }, preview: { open: false, src: '', name: '', download: '' },
             filesDialog: { open: false, url: null, panel: null }, emailDialog: { open: false, url: null, key: 0, title: '' }, busy: { follow: false }, loggedHidden: false, requestSeq: 0, panelWidth: 0
         };
@@ -464,6 +485,8 @@ module.exports = {
     methods: {
         t(text) { return moqui.l10n && moqui.l10n.localize ? moqui.l10n.localize(text) : text; },
         url(name) { return this.base + '/' + name; },
+        // the face image of a party that has one (the avatar transition checks the party); none: the initials
+        faceUrl(partyId, hasImage) { return partyId && hasImage ? this.url('avatar') + '?' + moqui.objToSearch({ partyId: partyId }) : undefined; },
         // an m-form action is a path under the web app (m-form puts appRootPath before it)
         action(name) {
             const rootPath = this.$root.appRootPath || '';
@@ -480,6 +503,7 @@ module.exports = {
             this.files = [];
             this.replyTo = null;
             this.editing = null;
+            this.editingEntry = null;
             this.loggedHidden = false;
         },
         load() {
@@ -577,6 +601,7 @@ module.exports = {
         afterFollowers() { this.formKeys.kinds += 1; this.formKeys.followers += 1; this.reloadData(); },
         afterEdit() { this.editing = null; this.reloadData(); this.notifyToday(); },
         afterReply() { this.replyTo = null; this.formKeys.reply += 1; this.loadTimeline(false); },
+        afterEditEntry() { this.editingEntry = null; this.formKeys.editEntry += 1; this.loadTimeline(false); },
         afterMarkDone() {
             this.markDone.open = false;
             this.markDone.activity = null;
@@ -620,7 +645,8 @@ module.exports = {
             this.markDone.open = true;
         },
         hasActions(entry) {
-            return !!(entry.canReply || entry.emailReply || entry.threadUrl || entry.url || entry.kind === 'file' || (entry.canUnlink && entry.communicationEventId));
+            return !!(entry.canReply || entry.emailReply || entry.threadUrl || entry.url || entry.kind === 'file' || entry.canEdit || entry.canDelete ||
+                (entry.canUnlink && entry.communicationEventId));
         },
         startReply(entry) {
             this.replyFields = Object.assign({ parentCommEventId: entry.communicationEventId, recordUrl: this.recordUrl, body: '' }, this.common);
@@ -628,6 +654,19 @@ module.exports = {
             this.replyTo = entry.key;
         },
         toggleQuote(entry) { this.openQuotes = Object.assign({}, this.openQuotes, { [entry.key]: !this.openQuotes[entry.key] }); },
+        // a note's text in its editor, in place of the text shown
+        startEditEntry(entry) {
+            this.replyTo = null;
+            this.editEntryFields = Object.assign({ communicationEventId: entry.communicationEventId, recordUrl: this.recordUrl, body: entry.editBody || '' }, this.common);
+            this.formKeys.editEntry += 1;
+            this.editingEntry = entry.key;
+        },
+        // the data-confirm of the menu item asked first; the entry leaves the timeline once deleted
+        deleteEntry(entry) {
+            this.post('deleteEntry', { communicationEventId: entry.communicationEventId }).then((json) => {
+                if (json.deleted) this.entries = this.entries.filter((item) => item.key !== entry.key);
+            }, () => {});
+        },
         unlink(entry) {
             this.post('unlink', { communicationEventId: entry.communicationEventId }).then((json) => { if (json.unlinked) this.loadTimeline(false); }, () => {});
         },

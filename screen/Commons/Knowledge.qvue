@@ -16,7 +16,8 @@ along with this software (see the LICENSE.md file). If not, see
     its page tree (each node's pages loaded as it opens; a page dragged onto another goes before, inside or after it), the recent
     pages, Reviews, Spaces and My notes. The main pane: the breadcrumb and title with the chips (restricted, published or draft,
     in review, read only), the last change, the actions (Edit or Save, History, Publish this version, Request review, and the
-    menu: new page under this one, rename, move, copy link, watch, delete), the banners of a review, an old version and a save
+    menu: new page under this one, rename, move, duplicate (with the pages under it, here or in another space), copy link, watch,
+    delete), the banners of a review, an old version and a save
     that met another, the page rendered from its markdown by the framework's m-markdown (relative links from the page's parent,
     [[path]] and wiki:SPACE/path links to the Knowledge screen as index#WikiPageLinks reads them, opened in place, a link to a
     page not made yet in negative, the page's files as its images, headings with their outline on the right from 1440 px), or
@@ -201,6 +202,7 @@ along with this software (see the LICENSE.md file). If not, see
                                         <q-item v-if="space && space.canUpdate && page.wikiSpaceId === spaceId" clickable @click="openNewPage(page.pagePath)"><q-item-section avatar><q-icon name="sym_o_add"></q-icon></q-item-section><q-item-section>{{t('New page under this one')}}</q-item-section></q-item>
                                         <q-item v-if="canEdit && !page.isRoot && page.wikiPageId" clickable @click="openRename"><q-item-section avatar><q-icon name="sym_o_edit_square"></q-icon></q-item-section><q-item-section>{{t('Rename')}}</q-item-section></q-item>
                                         <q-item v-if="canEdit && !page.isRoot && page.wikiPageId" clickable @click="openMove"><q-item-section avatar><q-icon name="sym_o_drive_file_move"></q-icon></q-item-section><q-item-section>{{t('Move to…')}}</q-item-section></q-item>
+                                        <q-item v-if="canDuplicate" clickable @click="openDuplicate"><q-item-section avatar><q-icon name="sym_o_content_copy"></q-icon></q-item-section><q-item-section>{{t('Duplicate…')}}</q-item-section></q-item>
                                         <q-item clickable @click="copyLink"><q-item-section avatar><q-icon name="sym_o_link"></q-icon></q-item-section><q-item-section>{{t('Copy link')}}</q-item-section></q-item>
                                         <q-item v-if="page.wikiPageId && !page.isNotes" clickable @click="toggleWatch"><q-item-section avatar><q-icon :name="page.following ? 'sym_o_visibility_off' : 'sym_o_visibility'"></q-icon></q-item-section>
                                             <q-item-section>{{page.following ? t('Stop watching') : t('Watch this page')}}</q-item-section></q-item>
@@ -491,6 +493,23 @@ along with this software (see the LICENSE.md file). If not, see
         </div>
     </m-dialog>
 
+    <m-dialog v-model="duplicate.open" :title="t('Duplicate') + (page ? ': ' + page.title : '')" width="560">
+        <div class="q-gutter-y-sm">
+            <m-drop-down id="boss-knowledge-dupspace" name="toWikiSpaceId" :model-value="duplicate.spaceId" :options="duplicateSpaceOptions" :label="t('To the space')"
+                    @update:model-value="duplicateSpaceChanged"></m-drop-down>
+            <m-drop-down id="boss-knowledge-dupparent" name="toParentPath" v-model="duplicate.parentPath" :options="duplicate.options" allow-empty :label="t('Under')"></m-drop-down>
+            <m-text-line id="boss-knowledge-dupname" name="toPageName" v-model="duplicate.name" :label="t('Name of the copy')" @keyup.enter="submitDuplicate"></m-text-line>
+            <m-check id="boss-knowledge-dupchildren" name="withChildren" v-model="duplicate.withChildren" true-value="Y" false-value="N"
+                    :single-label="t('With the pages under it')"></m-check>
+            <div class="text-caption m-muted">{{t('The copy has the text and files of the page as it is now; its history starts with the copy.')}}</div>
+            <div class="row justify-end q-gutter-sm">
+                <q-btn flat no-caps :label="t('Cancel')" v-close-popup></q-btn>
+                <q-btn unelevated no-caps color="primary" :label="t('Duplicate')" :loading="duplicate.busy"
+                        :disable="!duplicate.spaceId || !String(duplicate.name || '').trim()" @click="submitDuplicate"></q-btn>
+            </div>
+        </div>
+    </m-dialog>
+
     <m-dialog v-model="reviewRequest.open" :title="t('Request review')" width="560">
         <div class="q-gutter-y-sm">
             <div class="text-body2">{{t('Version')}} {{page && page.currentShort}}{{page && page.publishedShort ? ' · ' + t('compared with the published') + ' ' + page.publishedShort : ''}}</div>
@@ -549,6 +568,7 @@ module.exports = {
             newPage: { open: false, name: '', parentPath: '', options: [], busy: false },
             rename: { open: false, name: '', busy: false },
             move: { open: false, spaceId: null, parentPath: '', options: [], name: '', note: '', busy: false },
+            duplicate: { open: false, spaceId: null, parentPath: '', options: [], name: '', withChildren: 'N', busy: false },
             reviewRequest: { open: false, reviewers: [], dueDate: '', note: '', busy: false },
             changes: { open: false, review: null, note: '', busy: false },
             confirmOpen: false,
@@ -576,6 +596,14 @@ module.exports = {
         spaceOptions() { return this.spaces.map((space) => ({ value: space.wikiSpaceId, label: space.description })); },
         moveSpaceOptions() {
             const list = this.spaces.filter((space) => space.canUpdate).map((space) => ({ value: space.wikiSpaceId, label: space.description }));
+            if (this.page && this.page.isNotes && this.me.notesSpaceId && !list.some((item) => item.value === this.me.notesSpaceId))
+                list.unshift({ value: this.me.notesSpaceId, label: this.t('My notes') });
+            return list;
+        },
+        // Duplicate: a page the user may view, with text, not a space's home page, into a space the user may add pages to
+        canDuplicate() { return !!(this.page && this.page.exists && !this.page.isRoot && this.page.wikiPageId && !this.page.viewingOld && this.duplicateSpaceOptions.length); },
+        duplicateSpaceOptions() {
+            const list = this.spaces.filter((space) => space.canUpdate && !space.readOnly).map((space) => ({ value: space.wikiSpaceId, label: space.description }));
             if (this.page && this.page.isNotes && this.me.notesSpaceId && !list.some((item) => item.value === this.me.notesSpaceId))
                 list.unshift({ value: this.me.notesSpaceId, label: this.t('My notes') });
             return list;
@@ -1053,6 +1081,32 @@ module.exports = {
                 this.openPage(json.wikiSpaceId, json.pagePath);
             }, () => { this.move.busy = false; });
         },
+        openDuplicate() {
+            const page = this.page;
+            const own = this.duplicateSpaceOptions.some((item) => item.value === page.wikiSpaceId);
+            this.duplicate = { open: true, spaceId: own ? page.wikiSpaceId : (this.duplicateSpaceOptions[0] || {}).value || null, parentPath: own ? (page.parentPath || '') : '',
+                options: [], name: this.t('Copy of') + ' ' + page.pageName, withChildren: 'N', busy: false };
+            if (this.duplicate.spaceId) this.loadDuplicateOptions();
+            this.$nextTick(() => setTimeout(() => { const el = document.getElementById('boss-knowledge-dupname'); if (el) el.focus(); }, 150));
+        },
+        duplicateSpaceChanged(id) { this.duplicate.spaceId = id; this.duplicate.parentPath = ''; this.loadDuplicateOptions(); },
+        loadDuplicateOptions() {
+            this.request('pageOptions', { wikiSpaceId: this.duplicate.spaceId }).then((json) => { this.duplicate.options = json.optionList || []; },
+                () => { this.duplicate.options = []; });
+        },
+        submitDuplicate() {
+            const name = String(this.duplicate.name || '').trim();
+            if (this.duplicate.busy || !this.duplicate.spaceId || !name) return;
+            this.duplicate.busy = true;
+            this.post('duplicatePage', { wikiPageId: this.page.wikiPageId, toWikiSpaceId: this.duplicate.spaceId, toParentPath: this.duplicate.parentPath || '',
+                toPageName: name, withChildren: this.duplicate.withChildren === 'Y' ? 'true' : 'false' }).then((json) => {
+                this.duplicate.open = false;
+                this.duplicate.busy = false;
+                this.treeCache = {};
+                this.treeSpaceId = null;
+                this.openPage(json.wikiSpaceId, json.pagePath);
+            }, () => { this.duplicate.busy = false; });
+        },
         confirmDelete() {
             const page = this.page;
             this.ask(this.t('Delete the page'), this.t('Delete') + ' ' + page.title + '? ' + this.t('Its history, files and tags go too; its comments stay.'), this.t('Delete'), true,
@@ -1173,7 +1227,7 @@ module.exports = {
                 this.t('Cancel request'), false, () => this.post('cancelReview', { wikiPageReviewId: review.wikiPageReviewId }).then(() => { this.history.open = false; this.reloadPage(); }));
         },
         // ===== keys =====
-        anyDialog() { return this.history.open || this.newPage.open || this.rename.open || this.move.open || this.reviewRequest.open || this.changes.open || this.confirmOpen; },
+        anyDialog() { return this.history.open || this.newPage.open || this.rename.open || this.move.open || this.duplicate.open || this.reviewRequest.open || this.changes.open || this.confirmOpen; },
         keyBindings() {
             const when = () => !this.subActive && !this.anyDialog();
             return [

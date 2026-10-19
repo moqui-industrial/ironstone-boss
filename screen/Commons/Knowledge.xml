@@ -165,6 +165,22 @@ along with this software (see the LICENSE.md file). If not, see
         ]]></script></actions>
         <default-response type="none"/>
     </transition>
+    <!-- Duplicate page: a copy of the page (and with withChildren the pages under it) under a new name, here or in another space -->
+    <transition name="duplicatePage">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.KnowledgeServices.duplicate#Page').parameters({wikiPageId: wikiPageId || '',
+                toWikiSpaceId: toWikiSpaceId || null, toParentPath: toParentPath || '', toPageName: toPageName || '',
+                withChildren: String(withChildren) === 'true' || withChildren === 'Y'}).call()
+            if (ec.message.hasError()) { ec.web.sendJsonResponse({}); return }
+            const failed = Array.from(out.failedPaths || [])
+            const infos = [{type: 'success', message: out.pageCount > 1 ? ec.resource.expand('Copied, with ${count} pages under it', '', {count: out.pageCount - 1})
+                : ec.l10n.localize('Copied')}]
+            if (failed.length) infos.push({type: 'warning', message: ec.resource.expand('Not copied: ${list}', '', {list: failed.join(', ')})})
+            ec.web.sendJsonResponse({wikiPageId: out.wikiPageId, wikiSpaceId: out.wikiSpaceId, pagePath: out.pagePath, pageCount: out.pageCount,
+                failedPaths: failed, messageInfos: infos})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
     <!-- a page dropped on the tree: before, after or inside another page -->
     <transition name="dropPage">
         <actions><script><![CDATA[

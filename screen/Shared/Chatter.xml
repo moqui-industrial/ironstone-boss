@@ -71,6 +71,16 @@ along with this software (see the LICENSE.md file). If not, see
         </actions>
         <default-response type="none"/>
     </transition>
+    <!-- the face image of an author or follower the user may see (ironstone.ContactServices.get#ContactAvatar: the entity
+        filters, and a personal contact only its owner's), inline; 404 without one, so m-avatar shows the initials -->
+    <transition name="avatar" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const out = partyId ? ec.service.sync().name('ironstone.ContactServices.get#ContactAvatar').parameters({partyId: partyId}).call() : null
+            if (out?.contentLocation) ec.web.sendResourceResponse(out.contentLocation, true)
+            else ec.web.sendJsonError(404, ec.l10n.localize('No picture'))
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
     <!-- a file of the record (its contentKey), inline for an image or a PDF when asked, else as a download -->
     <transition name="downloadFile" method="get" read-only="true">
         <actions><script><![CDATA[
@@ -128,6 +138,23 @@ along with this software (see the LICENSE.md file). If not, see
                 communicationEventId: communicationEventId}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {unlinked: out.unlinked,
                 messageInfos: [{type: out.unlinked ? 'success' : 'warning', message: out.message}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- a note's author changes its text; its author or a user in the ADMIN group deletes it (no replies) -->
+    <transition name="editEntry">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.ChatterServices.edit#Entry').parameters({recordEntityName: recordEntity, recordId: recordId,
+                communicationEventId: communicationEventId, body: body, recordUrl: recordUrl || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {mentionedUserIds: out.mentionedUserIds, messageInfos: [{type: 'success', message: out.message}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="deleteEntry">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.ChatterServices.delete#Entry').parameters({recordEntityName: recordEntity, recordId: recordId,
+                communicationEventId: communicationEventId}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {deleted: out.deleted, messageInfos: [{type: 'success', message: out.message}]})
         ]]></script></actions>
         <default-response type="none"/>
     </transition>

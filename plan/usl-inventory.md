@@ -7,7 +7,8 @@ Per-service inventory of the mr-mantle-usl component, for tracking service-level
 - Test services (`PaymentTestServices.xml`, `OrderTestServices.xml`), service ECAs (`*.secas.xml`), and the REST API definition (`mantle.rest.xml`) are excluded.
 - The **Designed in** column is filled when a design file is reviewed with the IronStone screen path(s) whose form summaries call the service (blank when no screen calls it); the **Implemented in** column is filled during implementation with the screens that call it. See [design-doc-guide.md](design-doc-guide.md) §9.
 - **Implemented in** was filled on Oct 19, 2026 from the drawers-commons build (the Commons, Comms, `Shared`, `PublicShare` and `Unsubscribe` screens): each screen whose transitions, actions or forms call the service, directly or through the `ironstone.*` services of `service/ironstone/` (followed from one to the next, but not into Mantle's own calls, so `save#*ContentFile`, which `create#*Content` calls, stays blank). A screen that includes a `template/` record (ContactRecord, ConsentRecord) has that record's calls, so the contact record's are on both `Commons/Contacts/ContactDetail` and `Commons/Contacts/List`; a `.qvue` screen goes by its `.xml` path; a service the shell calls through a BOSS theme value names the value, and `Unsubscribe` includes its token route's check. The other apps' screens from the first port (Sales/Reports, Projects/Timesheets) are not counted.
-- **Added** tables, at the end of Party, Request and Work and as the Marketing section: the services Mantle gained during that build that a built screen calls (99 of the 138 new ones; the rest are not listed yet). Their **Designed in** is blank until design-drawers-commons, which names most of them in its form summaries and §19, is reviewed again.
+- **Added** tables, at the end of Party, Request and Work and as the Marketing section: the services Mantle gained during that build that a built screen calls (102 of the 143 new ones; the rest are not listed yet).
+- **Implemented in** of the design gaps closed on Oct 19, 2026 (Chatter edit and delete, the contact info card, EventDetail's linked records, the Account photo, Duplicate page): `update#RequestComment` and `delete#RequestComment` are reached from Chatter through Mantle's `update#RecordNote` and `delete#RecordNote` for a note on a request, and are filled with `Shared/Chatter`, which edits and deletes notes on every record (the Commons hosts, RequestDetail among them). Their **Designed in** is blank until design-drawers-commons, which names most of them in its form summaries and §19, is reviewed again.
 
 ## Account (162 services)
 
@@ -464,7 +465,7 @@ Added in the drawers-commons build (Oct 18–19, 2026), called by built screens:
 | TaxServices | get#RecipientTaxInfo |  |  |
 | TaxServices | get#PayerTaxInfo |  |  |
 
-## Party (86 services, 57 added)
+## Party (86 services, 59 added)
 
 | Service XML | Service | Designed in | Implemented in |
 | --- | --- | --- | --- |
@@ -479,7 +480,7 @@ Added in the drawers-commons build (Oct 18–19, 2026), called by built screens:
 | CommunicationServices | create#CommunicationEventContent | Shared/RecordFiles | Shared/RecordFiles |
 | CommunicationServices | update#CommunicationEventContent |  |  |
 | CommunicationServices | save#CommunicationEventContentFile | Shared/RecordFiles |  |
-| ContactServices | get#PartyContactInfo | Commons/Contacts/ContactDetail; Comms/Inbox | Commons/Settings/Account; Comms/Inbox/Mail |
+| ContactServices | get#PartyContactInfo | Commons/Contacts/ContactDetail; Comms/Inbox | Commons/Contacts/ContactDetail; Commons/Contacts/List; Commons/Settings/Account; Comms/Inbox/Mail |
 | ContactServices | get#PartyContactInfoList |  |  |
 | ContactServices | get#PartyDefaultBilling |  |  |
 | ContactServices | store#PartyContactInfo | Commons/Contacts/ContactDetail; Commons/Settings/Account | Commons/Contacts/ContactDetail; Commons/Contacts/List; Commons/Settings/Account |
@@ -536,7 +537,7 @@ Added in the drawers-commons build (Oct 18–19, 2026), called by built screens:
 | PartyServices | lookup#PartyBadge |  |  |
 | PartyServices | scan#PartyBadge |  |  |
 | PartyServices | get#PartyContentLocation |  |  |
-| PartyServices | create#PartyContent | Commons/Contacts/ContactDetail; Commons/Settings/Account; Shared/RecordFiles | Commons/Contacts/ContactDetail; Commons/Contacts/List; Shared/RecordFiles |
+| PartyServices | create#PartyContent | Commons/Contacts/ContactDetail; Commons/Settings/Account; Shared/RecordFiles | Commons/Contacts/ContactDetail; Commons/Contacts/List; Commons/Settings/Account; Shared/RecordFiles |
 | PartyServices | update#PartyContent |  |  |
 | PartyServices | save#PartyContentFile | Shared/RecordFiles |  |
 | PartyServices | get#PartySettingValue |  |  |
@@ -571,6 +572,8 @@ Added in the drawers-commons build (Oct 18–19, 2026), called by built screens:
 | CommunicationServices | send#EmailDraft |  | Comms/Inbox/Compose |
 | CommunicationServices | get#RecordTimeline |  | Shared/Chatter |
 | CommunicationServices | log#RecordNote |  | Commons/QuickCreate; Shared/Chatter |
+| CommunicationServices | update#RecordNote |  | Shared/Chatter |
+| CommunicationServices | delete#RecordNote |  | Shared/Chatter |
 | CommunicationServices | notify#RecordMention |  | Shared/Chatter |
 | CommunicationServices | notify#RecordFollowers |  | Commons/Knowledge; Commons/Notes |
 | CommunicationServices | follow#Record |  | Commons/Knowledge; Shared/Chatter |
@@ -740,8 +743,8 @@ Added in the drawers-commons build (Oct 18–19, 2026), called by built screens:
 | RequestServices | create#ContactRequestReCaptcha |  |  |
 | RequestServices | replace#RequestParty | Commons/Requests/RequestDetail | Commons/Requests/RequestDetail |
 | RequestServices | add#RequestComment | Commons/Requests/RequestDetail | Commons/Requests/RequestDetail |
-| RequestServices | update#RequestComment | Commons/Requests/RequestDetail |  |
-| RequestServices | delete#RequestComment | Commons/Requests/RequestDetail |  |
+| RequestServices | update#RequestComment | Commons/Requests/RequestDetail | Shared/Chatter |
+| RequestServices | delete#RequestComment | Commons/Requests/RequestDetail | Shared/Chatter |
 | RequestServices | get#RequestContentLocation |  |  |
 | RequestServices | create#RequestContent | Commons/Requests/RequestDetail; Shared/RecordFiles | Shared/RecordFiles |
 | RequestServices | update#RequestContent |  |  |
@@ -845,7 +848,7 @@ Added in the drawers-commons build (Oct 18–19, 2026), called by built screens:
 | ShipmentServices | update#ShipmentContent |  |  |
 | ShipmentServices | save#ShipmentContentFile | Shared/RecordFiles |  |
 
-## Work (87 services, 30 added)
+## Work (87 services, 31 added)
 
 | Service XML | Service | Designed in | Implemented in |
 | --- | --- | --- | --- |
@@ -968,7 +971,8 @@ Added in the drawers-commons build (Oct 18–19, 2026), called by built screens:
 | EventServices | book#Resource |  | Commons/Calendar; Commons/Calendar/EventDetail; Commons/Calendar/Schedules; Commons/Calendar/Schedules/ResourceDetail |
 | EventServices | cancel#ResourceBooking |  | Commons/Calendar/EventDetail; Commons/Calendar/Schedules; Commons/Calendar/Schedules/ResourceDetail |
 | EventServices | store#WorkEffortReminders |  | Commons/Calendar; Commons/Calendar/EventDetail |
-| WorkEffortServices | link#WorkEffortRecord |  | Commons/Calendar; Commons/Panel/Today; Commons/QuickCreate; Commons/Requests/RequestDetail; Commons/Tasks/List; Commons/Tasks/TaskDetail; Shared/Chatter |
+| WorkEffortServices | link#WorkEffortRecord |  | Commons/Calendar; Commons/Calendar/EventDetail; Commons/Panel/Today; Commons/QuickCreate; Commons/Requests/RequestDetail; Commons/Tasks/List; Commons/Tasks/TaskDetail; Shared/Chatter |
+| WorkEffortServices | unlink#WorkEffortRecord |  | Commons/Calendar/EventDetail |
 | WorkEffortServices | get#UserTodayItems |  | Commons/Home; Commons/Panel/Today |
 | WorkEffortServices | snooze#UserTodayItem |  | Commons/Panel/Today; Commons/Tasks/List; Commons/Tasks/TaskDetail |
 
@@ -976,5 +980,5 @@ Added in the drawers-commons build (Oct 18–19, 2026), called by built screens:
 
 | Service XML | Service | Designed in | Implemented in |
 | --- | --- | --- | --- |
-| GeneralServices | lookup#ById | Commons/Calendar/EventDetail; Commons/Knowledge; Comms/Inbox; Comms/Chat | Commons; Commons/Knowledge; Commons/Notes; Comms/Chat; Comms/Inbox/Mail; Comms/Inbox/MessageDetail; Shared/Chatter |
+| GeneralServices | lookup#ById | Commons/Calendar/EventDetail; Commons/Knowledge; Comms/Inbox; Comms/Chat | Commons; Commons/Calendar/EventDetail; Commons/Knowledge; Commons/Notes; Comms/Chat; Comms/Inbox/Mail; Comms/Inbox/MessageDetail; Shared/Chatter |
 | GeneralServices | search#MantleFiltered |  |  |

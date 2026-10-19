@@ -4,7 +4,9 @@
 // and the files; the panel data has its planned call, followers, files and parties. Log note with a mention notifies the user
 // mentioned; Send message writes an internal message filed on the request; Reply answers a note; Schedule activity puts the
 // activity in the planned list and in john.doe's Today; Mark done with feedback closes it with a Comment and schedules the
-// next; Edit and Cancel; Follow and Unfollow and Add followers; the record card and the user search. A record the user may
+// next; Edit and Cancel; Follow and Unfollow and Add followers; the record card and the user search. A note's author edits
+// it (marked edited, only the users newly mentioned notified) and deletes it; another user (joe.developer) may do neither, an
+// admin deletes another's note, and a note with replies stays until they go. A record the user may
 // not see (another user's personal contact) shows nothing and every write on it is refused (IronStone R5), and an activity
 // that is not on the record cannot be changed. The record screens render with the chatter and record-files elements, and
 // the shell data gives every BOSS app root its Chatter and RecordFiles panels.
@@ -14,6 +16,11 @@ const commons = "component://ironstone-boss/screen/Commons.xml"
 const request = { recordEntity: "mantle.request.Request", recordId: "BOSS_DEMO_REQUEST" }
 const requestUrl = "/qapps/Commons/Requests/RequestDetail?requestId=BOSS_DEMO_REQUEST"
 let scheduledId, nextId
+const shared = { recordEntity: "mantle.request.Request", recordId: "BOSS_TEST_CHATTER_SHARED" }
+function as(username, run) {
+    login(username)
+    try { return run() } finally { login("john.doe") }
+}
 
 // a transition of the panel as the component calls it: the status, the errors and the JSON
 function call_(name, parameters, method) {
@@ -387,6 +394,123 @@ feature("Unlink takes a message off the request; the message stays", {
     },
 })
 
+feature("the author edits a note: the new text, the timeline marks it edited, and only the user newly mentioned is notified", {
+    when() {
+        const mentions = (userId) => list("moqui.security.user.NotificationMessageByUser", { userId, topic: "ChatterMention" }).length
+        const logged = post("logNote", { body: '<p>The rooms, <span data-mention-id="ORG_ZIZI_JD">@Joe Developer</span>.</p>', recordUrl: requestUrl })
+        const id = logged.json.communicationEventId
+        const before = { joe: mentions("ORG_ZIZI_JD"), bob: mentions("ORG_ZIZI_BD") }
+        const before0 = entryOf(get("timeline").json.entryList || [], `ce-${id}`)
+        const edited = post("editEntry", { communicationEventId: id, recordUrl: requestUrl,
+            body: '<p>The rooms B and C, <span data-mention-id="ORG_ZIZI_JD">@Joe Developer</span> and <span data-mention-id="ORG_ZIZI_BD">@Bob</span>.</p>' })
+        return { id, before0, edited, before, after: { joe: mentions("ORG_ZIZI_JD"), bob: mentions("ORG_ZIZI_BD") },
+            comm: one("mantle.party.communication.CommunicationEvent", { communicationEventId: id }), entry: entryOf(get("timeline").json.entryList || [], `ce-${id}`) }
+    },
+    then({ before0, edited, before, after, comm, entry }) {
+        before0.canEdit
+        before0.canDelete
+        !before0.edited
+        before0.editBody.includes("The rooms")
+        edited.status == 200
+        edited.errors == ""
+        message(edited) == "Note changed; 1 newly mentioned"
+        comm.body.includes("The rooms B and C")
+        comm.editedDate != null
+        comm.fromPartyId == "EX_JOHN_DOE"
+        after.joe == before.joe
+        after.bob == before.bob + 1
+        entry.edited
+        entry.editedText.startsWith("Edited ")
+        entry.bodyHtml.includes("The rooms B and C")
+    },
+})
+
+feature("the author deletes a note: it leaves the timeline and the request", {
+    when() {
+        const id = post("logNote", { body: "<p>A note to delete.</p>" }).json.communicationEventId
+        const deleted = post("deleteEntry", { communicationEventId: id })
+        return { deleted, comm: one("mantle.party.communication.CommunicationEvent", { communicationEventId: id }),
+            link: one("mantle.request.RequestCommEvent", { requestId: "BOSS_DEMO_REQUEST", communicationEventId: id }),
+            shown: (get("timeline").json.entryList || []).some((entry) => entry.key === `ce-${id}`) }
+    },
+    then({ deleted, comm, link, shown }) {
+        deleted.status == 200
+        deleted.json.deleted
+        message(deleted) == "Note deleted"
+        comm == null
+        link == null
+        !shown
+    },
+})
+
+feature("joe.developer, who sees the request, may neither edit nor delete john.doe's note; john.doe, an admin, deletes joe's note but may not edit it", {
+    allowMessageErrors: true,
+    when() {
+        sys(() => {
+            if (!one("mantle.request.Request", { requestId: "BOSS_TEST_CHATTER_SHARED" })) {
+                call("create#mantle.request.Request", { requestId: "BOSS_TEST_CHATTER_SHARED", requestTypeEnumId: "RqtSupport", statusId: "ReqSubmitted",
+                    requestName: "Chatter edit test", filedByPartyId: "EX_JOHN_DOE", requestDate: ec.user.nowTimestamp })
+                for (const partyId of ["EX_JOHN_DOE", "ORG_ZIZI_JD"]) call("create#mantle.request.RequestParty", { requestId: "BOSS_TEST_CHATTER_SHARED",
+                    partyId, roleTypeId: "Reporter", fromDate: ec.user.nowTimestamp })
+            }
+        })
+        const johnNote = post("logNote", { body: "<p>John's note.</p>" }, shared).json.communicationEventId
+        const joe = as("joe.developer", () => {
+            const entries = call_("timeline", shared).json.entryList || []
+            const own = post("logNote", { body: "<p>Joe's note.</p>" }, shared).json.communicationEventId
+            return { entry: entryOf(entries, `ce-${johnNote}`), own,
+                edit: post("editEntry", { communicationEventId: johnNote, body: "<p>Joe was here.</p>" }, shared),
+                remove: post("deleteEntry", { communicationEventId: johnNote }, shared) }
+        })
+        const joeEntry = entryOf(call_("timeline", shared).json.entryList || [], `ce-${joe.own}`)
+        const johnEdit = post("editEntry", { communicationEventId: joe.own, body: "<p>John was here.</p>" }, shared)
+        const johnDelete = post("deleteEntry", { communicationEventId: joe.own }, shared)
+        return { joe, joeEntry, johnEdit, johnDelete, johnNoteRow: one("mantle.party.communication.CommunicationEvent", { communicationEventId: johnNote }),
+            joeNoteRow: one("mantle.party.communication.CommunicationEvent", { communicationEventId: joe.own }) }
+    },
+    then({ joe, joeEntry, johnEdit, johnDelete, johnNoteRow, joeNoteRow }) {
+        joe.entry.key != null
+        !joe.entry.canEdit
+        !joe.entry.canDelete
+        joe.edit.status == 500
+        joe.edit.json.errors.includes("You may change only your own notes")
+        joe.remove.status == 500
+        joe.remove.json.errors.includes("You may delete only your own notes")
+        johnNoteRow.body.includes("John's note")
+        !joeEntry.canEdit
+        joeEntry.canDelete
+        johnEdit.status == 500
+        johnEdit.json.errors.includes("You may change only your own notes")
+        johnDelete.status == 200
+        johnDelete.json.deleted
+        joeNoteRow == null
+    },
+})
+
+feature("a note with a reply is not deleted until the reply is", {
+    allowMessageErrors: true,
+    when() {
+        const id = post("logNote", { body: "<p>A note to answer.</p>" }).json.communicationEventId
+        const replyId = post("reply", { parentCommEventId: id, body: "<p>An answer.</p>" }).json.communicationEventId
+        const entries = get("timeline").json.entryList || []
+        const refused = post("deleteEntry", { communicationEventId: id })
+        const reply = post("deleteEntry", { communicationEventId: replyId })
+        const note = post("deleteEntry", { communicationEventId: id })
+        return { entry: entryOf(entries, `ce-${id}`), replyEntry: entryOf(entries, `ce-${replyId}`), refused, reply, note,
+            gone: one("mantle.party.communication.CommunicationEvent", { communicationEventId: id }) == null }
+    },
+    then({ entry, replyEntry, refused, reply, note, gone }) {
+        entry.canEdit
+        !entry.canDelete
+        replyEntry.canDelete
+        refused.status == 500
+        refused.json.errors.includes("This note has replies")
+        reply.json.deleted
+        note.json.deleted
+        gone
+    },
+})
+
 feature("a record the user may not see, another user's personal contact: the panel shows nothing and every write is refused", {
     allowMessageErrors: true,
     when() {
@@ -402,11 +526,12 @@ feature("a record the user may not see, another user's personal contact: the pan
             note: post("logNote", { body: "<p>Should not be written</p>" }, hidden),
             message: post("sendMessage", { toUserIds: "ORG_ZIZI_JD", subject: "Private contact", body: "<p>No</p>" }, hidden),
             activity: post("scheduleActivity", { activityType: "todo", workEffortName: "Private contact to-do", dueDate: "2026-12-01 10:00" }, hidden),
-            follow: post("follow", {}, hidden), before, after: notes(),
+            follow: post("follow", {}, hidden), edit: post("editEntry", { communicationEventId: "BOSS_DEMO_CE_NOTE1", body: "<p>No</p>" }, hidden),
+            remove: post("deleteEntry", { communicationEventId: "BOSS_DEMO_CE_NOTE1" }, hidden), before, after: notes(),
             activities: list("mantle.work.effort.WorkEffort", { workEffortName: "Private contact to-do" }).length,
             followers: list("mantle.party.communication.RecordFollower", { recordId: "BOSS_TEST_CHATTER_PRIVATE" }).length }
     },
-    then({ data, timeline, card, note, message, activity, follow, before, after, activities, followers }) {
+    then({ data, timeline, card, note, message, activity, follow, edit, remove, before, after, activities, followers }) {
         data.status == 200
         data.json.visible === false
         data.json.record === undefined
@@ -417,6 +542,8 @@ feature("a record the user may not see, another user's personal contact: the pan
         message.status == 500
         activity.status == 500
         follow.status == 500
+        edit.status == 500
+        remove.status == 500
         after == before
         activities == 0
         followers == 0

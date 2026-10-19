@@ -6,7 +6,8 @@
 // email), made optional and removed (the removed outside address told by email); the user's reminders; meeting rooms and
 // equipment booked at once or requested by the policy, a clash refused, a booking cancelled; a new time that clashes with a
 // booking of its room refused, then kept anyway; Duplicate and Export .ics; Cancel event telling the attendees; an answer with
-// a note; a link to a changed instance by its series and start opens the instance.
+// a note; a link to a changed instance by its series and start opens the instance; the linked records as record cards, linked by
+// an id (lookup#ById) and taken off, a record the user may not see left out, and Joe Developer may not change them.
 // Joe Developer gets "not available" for john.doe's family birthday and may not change john.doe's events (IronStone R5, R28).
 // Run: ./moq test ironstone-boss --spec EventDetail
 const webroot = "component://webroot/screen/webroot.xml"
@@ -336,6 +337,60 @@ feature("Cancel event tells the attendees; an attendee answers with a note", {
         answer.errors == ""
         joe.statusId == "WeptTentative"
         joe.comments == "Late by ten minutes"
+    },
+})
+
+feature("linked records: the sync linked to a request found by its id and to Mary, shown as record cards with who linked them; Joe sees neither and changes nothing", {
+    when() {
+        sys(() => {
+            if (!one("mantle.request.Request", { requestId: "BOSS_TEST_EVENT_LINK" })) call("create#mantle.request.Request", { requestId: "BOSS_TEST_EVENT_LINK",
+                requestTypeEnumId: "RqtSupport", statusId: "ReqSubmitted", requestName: "Book the sync room", filedByPartyId: "EX_JOHN_DOE", requestDate: ec.user.nowTimestamp })
+        })
+        const str = ec.screen.makeTest().rootScreen(commons).render("Calendar/EventDetail/searchRecords", { workEffortId: "BOSS_DEMO_EV_SYNC", term: "BOSS_TEST_EVENT_LINK" }, null)
+        let options = []
+        try { options = JSON.parse(String(str.output || "[]")) } catch (err) { options = [] }
+        ec.message.clearErrors()
+        const linkRequest = detailPost("linkRecord", { workEffortId: "BOSS_DEMO_EV_SYNC", record: "mantle.request.Request|BOSS_TEST_EVENT_LINK" })
+        const linkMary = detailPost("linkRecord", { workEffortId: "BOSS_DEMO_EV_SYNC", recordEntityName: "mantle.party.Party", recordId: "BOSS_DEMO_PC_MARY" })
+        // Joe Developer's personal contact is not john.doe's to link
+        const linkSam = detailPost("linkRecord", { workEffortId: "BOSS_DEMO_EV_SYNC", recordEntityName: "mantle.party.Party", recordId: "BOSS_DEMO_PC_SAM" })
+        const self = detailPost("linkRecord", { workEffortId: "BOSS_DEMO_EV_SYNC", recordEntityName: "mantle.work.effort.WorkEffort", recordId: "BOSS_DEMO_EV_SYNC" })
+        const list = detail("BOSS_DEMO_EV_SYNC").linkedRecordList
+        const shown = render("apps/Commons/Calendar/EventDetail", { workEffortId: "BOSS_DEMO_EV_SYNC" })
+        const joe = as("joe.developer", () => ({ shown: render("apps/Commons/Calendar/EventDetail", { workEffortId: "BOSS_DEMO_EV_SYNC" }),
+            unlink: detailPost("unlinkRecord", { workEffortId: "BOSS_DEMO_EV_SYNC", recordEntityName: "mantle.party.Party", recordId: "BOSS_DEMO_PC_MARY" }),
+            link: detailPost("linkRecord", { workEffortId: "BOSS_DEMO_EV_SYNC", recordEntityName: "mantle.party.Party", recordId: "BOSS_DEMO_PC_SAM" }) }))
+        const unlinkMary = detailPost("unlinkRecord", { workEffortId: "BOSS_DEMO_EV_SYNC", recordEntityName: "mantle.party.Party", recordId: "BOSS_DEMO_PC_MARY" })
+        const unlinkRequest = detailPost("unlinkRecord", { workEffortId: "BOSS_DEMO_EV_SYNC", recordEntityName: "mantle.request.Request", recordId: "BOSS_TEST_EVENT_LINK" })
+        return { options, linkRequest, linkMary, linkSam, self, list, shown, joe, unlinkMary, unlinkRequest,
+            requestJoin: one("mantle.request.RequestWorkEffort", { requestId: "BOSS_TEST_EVENT_LINK", workEffortId: "BOSS_DEMO_EV_SYNC" }),
+            records: all("mantle.work.effort.WorkEffortRecord", { workEffortId: "BOSS_DEMO_EV_SYNC", recordEntityName: "mantle.party.Party" }) }
+    },
+    then({ options, linkRequest, linkMary, linkSam, self, list, shown, joe, unlinkMary, unlinkRequest, requestJoin, records }) {
+        options.some((option) => option.value === "mantle.request.Request|BOSS_TEST_EVENT_LINK" && option.label.includes("Book the sync room"))
+        linkRequest.errors == ""
+        linkMary.errors == ""
+        linkSam.errors != ""
+        self.errors.includes("not linked to itself")
+        list.some((item) => item.recordEntityName === "mantle.request.Request" && item.recordId === "BOSS_TEST_EVENT_LINK" && item.canRemove
+            && item.linkEntityName === "mantle.request.RequestWorkEffort")
+        list.find((item) => item.recordId === "BOSS_DEMO_PC_MARY").linkedText.endsWith("by John Doe")
+        !list.some((item) => item.recordId === "BOSS_DEMO_PC_SAM")
+        shown.errors == ""
+        !shown.broken
+        shown.output.includes('<m-record-card record-entity="mantle.request.Request" record-id="BOSS_TEST_EVENT_LINK" card-url="/apps/Commons/Chatter/recordCard"')
+        shown.output.includes('record-id="BOSS_DEMO_PC_MARY"')
+        shown.output.includes("Linked records")
+        shown.output.includes("Link to a record")
+        !joe.shown.output.includes("BOSS_DEMO_PC_MARY")
+        !joe.shown.output.includes("BOSS_TEST_EVENT_LINK")
+        !joe.shown.output.includes("Link to a record")
+        joe.unlink.errors != ""
+        joe.link.errors != ""
+        unlinkMary.errors == ""
+        unlinkRequest.errors == ""
+        requestJoin == null
+        records.length == 0
     },
 })
 

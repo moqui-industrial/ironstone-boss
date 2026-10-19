@@ -25,7 +25,10 @@ along with this software (see the LICENSE.md file). If not, see
             values of its When and Overview, the recurrence editor's fields (of its series), the user's reminders, the
             calendars it may go in, the people's free/busy at its time (get#FreeBusy: busy, tentative or free), the meeting
             rooms with their availability then, the attendees who have not had the latest invitation (pendingInvites), the
-            records it is on, and what the user may do.</description>
+            records it is on (linkedRecordList: its request, task, page and other records through RequestWorkEffort,
+            WikiPageWorkEffort or WorkEffortRecord, and the work efforts of its WorkEffortAssoc rows other than the instances of a
+            series, each one the user may see: get#RecordLinkInfo checkOnly; when and by whom it was linked, and whether the
+            user may take it off), and what the user may do.</description>
         <in-parameters>
             <parameter name="workEffortId" required="true"/>
             <parameter name="instanceStart"/>
@@ -170,16 +173,111 @@ along with this software (see the LICENSE.md file). If not, see
                     pendingInvites = pending.size
                     for (const attendee of event.attendees) attendee.pendingInvite = pending.has(attendee.partyId)
                 })
-                // the records it is on
+                // the records it is on, each one the user may see (a record the user may not see is left out, its id too)
                 linkedRecordList = []
                 attempt('linked records', () => {
                     const seen = new Set()
-                    const add = (recordEntityName, recordId) => { const key = recordEntityName + '|' + recordId; if (seen.has(key)) return; seen.add(key); linkedRecordList.push({recordEntityName, recordId}) }
-                    for (const link of ec.entity.find('mantle.request.RequestWorkEffort').condition('workEffortId', workEffortId).list()) add('mantle.request.Request', link.requestId)
-                    for (const link of ec.entity.find('mantle.work.effort.WorkEffortRecord').condition('workEffortId', workEffortId).orderBy('linkedDate').list()) add(link.recordEntityName, link.recordId)
+                    const userNames = {}
+                    const userName = (userId) => {
+                        if (!userId) return null
+                        if (userNames[userId] === undefined) {
+                            const account = ec.entity.find('moqui.security.UserAccount').condition('userId', userId).useCache(true).disableAuthz().one()
+                            userNames[userId] = account ? (account.userFullName || account.username) : null
+                        }
+                        return userNames[userId]
+                    }
+                    const add = (recordEntityName, recordId, linkEntityName, link) => {
+                        const key = recordEntityName + '|' + recordId
+                        if (seen.has(key) || (recordEntityName === 'mantle.work.effort.WorkEffort' && recordId === workEffortId)) return
+                        seen.add(key)
+                        ec.message.pushErrors()
+                        let shown = false
+                        try {
+                            shown = ec.service.sync().name('mantle.party.CommunicationServices.get#RecordLinkInfo').parameters({recordEntityName: recordEntityName,
+                                recordId: recordId, checkOnly: true}).call()?.recordVisible === true
+                        } catch (err) { shown = false } finally { ec.message.clearErrors(); ec.message.popErrors() }
+                        if (!shown) return
+                        const linkedMillis = toMillis(link?.linkedDate ?? link?.fromDate)
+                        const by = userName(link?.linkedByUserId)
+                        linkedRecordList.push({recordEntityName, recordId, linkEntityName, linkKey: linkEntityName + '|' + recordEntityName + '|' + recordId,
+                            linkedText: linkedMillis != null ? (by ? ec.resource.expand('Linked ${date} by ${name}', '', {date: ec.l10n.format(new Date(linkedMillis), 'yyyy-MM-dd'), name: by})
+                                : ec.resource.expand('Linked ${date}', '', {date: ec.l10n.format(new Date(linkedMillis), 'yyyy-MM-dd')})) : null,
+                            canRemove: canEdit && linkEntityName !== 'mantle.work.effort.WorkEffortAssoc'})
+                    }
+                    for (const link of ec.entity.find('mantle.request.RequestWorkEffort').condition('workEffortId', workEffortId).list())
+                        add('mantle.request.Request', link.requestId, 'mantle.request.RequestWorkEffort', link)
+                    for (const link of ec.entity.find('mantle.work.effort.WikiPageWorkEffort').condition('workEffortId', workEffortId).list())
+                        add('moqui.resource.wiki.WikiPage', link.wikiPageId, 'mantle.work.effort.WikiPageWorkEffort', link)
+                    for (const link of ec.entity.find('mantle.work.effort.WorkEffortRecord').condition('workEffortId', workEffortId).orderBy('linkedDate').list())
+                        add(link.recordEntityName, link.recordId, 'mantle.work.effort.WorkEffortRecord', link)
+                    // the work efforts it is associated with, both ways, other than a series' instances
+                    for (const assoc of ec.entity.find('mantle.work.effort.WorkEffortAssoc').condition(cf.makeCondition([
+                            cf.makeCondition('workEffortId', 'equals', workEffortId), cf.makeCondition('toWorkEffortId', 'equals', workEffortId)], 'or'))
+                            .condition(cf.makeCondition('workEffortAssocTypeEnumId', 'not-equals', 'WeatRecurrenceInstance'))
+                            .condition(cf.makeConditionDate('fromDate', 'thruDate', null)).orderBy('fromDate').list())
+                        add('mantle.work.effort.WorkEffort', assoc.workEffortId === workEffortId ? assoc.toWorkEffortId : assoc.workEffortId,
+                            'mantle.work.effort.WorkEffortAssoc', assoc)
                 })
             ]]></script>
         </actions>
+    </service>
+
+    <service verb="link" noun="EventRecord">
+        <description>Puts the event on a record (EventDetail's LinkedRecords, the record picked by an id through
+            mantle.GeneralServices.lookup#ById or the search index, ironstone.InboxServices.search#LinkRecords): for a user who
+            may change the event (get#EventAccessInfo, edit), a record the user may see, through
+            mantle.work.WorkEffortServices.link#WorkEffortRecord (the record's own join, RequestWorkEffort or WikiPageWorkEffort,
+            else a WorkEffortRecord, which checks the record under the user's filters). record is "entity|id" as the picker
+            answers, or recordEntityName and recordId.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="record"/>
+            <parameter name="recordEntityName"/>
+            <parameter name="recordId"/>
+        </in-parameters>
+        <out-parameters><parameter name="created" type="Boolean"/><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            created = false
+            const L = (text) => ec.l10n.localize(text)
+            let entityName = recordEntityName || null
+            let id = recordId || null
+            if (!entityName && record) {
+                const text = String(record)
+                const at = text.lastIndexOf('|')
+                if (at > 0) { entityName = text.substring(0, at); id = text.substring(at + 1) }
+            }
+            if (!entityName || !id) { ec.message.addError(L('Choose the record to link')); return }
+            ec.service.sync().name('ironstone.CalendarServices.get#EventAccessInfo').parameters({workEffortId: workEffortId, need: 'edit'}).call()
+            if (ec.message.hasError()) return
+            if (entityName === 'mantle.work.effort.WorkEffort' && id === workEffortId) { ec.message.addError(L('An event is not linked to itself')); return }
+            const out = ec.service.sync().name('mantle.work.WorkEffortServices.link#WorkEffortRecord').parameters({workEffortId: workEffortId,
+                recordEntityName: entityName, recordId: id}).call()
+            if (ec.message.hasError()) return
+            created = !!out?.created
+            message = created ? L('Linked') : L('It was linked already')
+        ]]></script></actions>
+    </service>
+
+    <service verb="unlink" noun="EventRecord">
+        <description>Takes the event off a record (mantle.work.WorkEffortServices.unlink#WorkEffortRecord: the own join row or the
+            WorkEffortRecord), for a user who may change the event; the record stays. A work effort association is the plan's
+            (Projects) and stays.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="recordEntityName" required="true"/>
+            <parameter name="recordId" required="true"/>
+        </in-parameters>
+        <out-parameters><parameter name="unlinked" type="Boolean"/><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            unlinked = false
+            ec.service.sync().name('ironstone.CalendarServices.get#EventAccessInfo').parameters({workEffortId: workEffortId, need: 'edit'}).call()
+            if (ec.message.hasError()) return
+            const out = ec.service.sync().name('mantle.work.WorkEffortServices.unlink#WorkEffortRecord').parameters({workEffortId: workEffortId,
+                recordEntityName: recordEntityName, recordId: recordId}).call()
+            if (ec.message.hasError()) return
+            unlinked = !!out?.unlinked
+            message = ec.l10n.localize(unlinked ? 'Taken off the record' : 'It was not linked')
+        ]]></script></actions>
     </service>
 
     <service verb="save" noun="EventOverview">

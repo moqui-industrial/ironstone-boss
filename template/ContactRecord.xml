@@ -230,7 +230,9 @@ along with this software (see the LICENSE.md file). If not, see
                     expiredText = showExpired == 'Y' ? L('Hide expired') : ec.resource.expand('Show expired (${count})', '', {count: rec.expiredCount || 0})
                     const anchor = (href, text, cls) => '<a href="' + enc(href) + '" class="m-link-text' + (cls ? ' ' + cls : '') + '">' + enc(text) + '</a>'
                     const mLink = (href, text, cls) => '<m-link href="' + enc(href) + '"' + (cls ? ' class="' + cls + '"' : '') + '>' + enc(text) + '</m-link>'
-                    contactMechList = (rec.contactMechList || []).map((mech) => Object.assign({}, mech, {linkHtml: mech.href && !mech.expired ? anchor(mech.href, mech.value) : null,
+                    // each kind's primary one (Mantle's get#PartyContactInfo) first and in bold
+                    contactMechList = (rec.contactMechList || []).map((mech) => Object.assign({}, mech, {linkHtml: mech.href && !mech.expired
+                            ? anchor(mech.href, mech.value, mech.isPrimary ? 'text-weight-medium' : '') : null,
                             detailText: [mech.typeLabel, mech.purposeText].filter((part) => part).join(' · ')}))
                     addressList = rec.addressList || []
                     organizationList = rec.organizationList || []
@@ -415,7 +417,8 @@ along with this software (see the LICENSE.md file). If not, see
                                             </box-body>
                                         </container-box>
 
-                                        <!-- emails, phones, websites, other: one row per address with its purposes -->
+                                        <!-- emails, phones, websites, other: one row per address with its purposes, each kind's primary one first
+                                            (ironstone.ContactServices.get#ContactRecord over mantle.party.ContactServices.get#PartyContactInfo) -->
                                         <container-box><box-header title="Contact info"/>
                                             <box-toolbar>
                                                 <render-mode><text type="qvt"><![CDATA[<m-link href="${showExpiredUrl}" class="q-mr-sm text-caption">${showExpired == 'Y' || rec.expiredCount ? expiredText : ''}</m-link>]]></text></render-mode>
@@ -455,9 +458,9 @@ along with this software (see the LICENSE.md file). If not, see
                                                     <field name="value"><conditional-field condition="linkHtml" title="Address or number">
                                                             <render-mode><text type="qvt"><![CDATA[${linkHtml}]]></text></render-mode>
                                                         </conditional-field>
-                                                        <default-field title="Address or number"><display style="${expired ? 'text-strike m-muted' : ''}"/></default-field></field>
+                                                        <default-field title="Address or number"><display style="${expired ? 'text-strike m-muted' : (isPrimary ? 'text-weight-medium' : '')}"/></default-field></field>
                                                     <field name="detailText"><default-field title="Purpose"><display style="text-caption m-muted"/></default-field></field>
-                                                    <field name="rowActions" align="right"><conditional-field condition="canEdit &amp;&amp; !expired" title="">
+                                                    <field name="rowActions" align="right"><conditional-field condition="canEdit &amp;&amp; !expired &amp;&amp; !readOnly" title="">
                                                         <container style="row no-wrap justify-end items-center">
                                                             <container-dialog id="ContactInfoEditDialog" button-text="" icon="sym_o_edit" width="520" title="Change ${typeLabel}" tooltip="Change">
                                                                 <form-single name="ContactInfoEdit" transition="contactInfoStore">
@@ -545,7 +548,7 @@ along with this software (see the LICENSE.md file). If not, see
                                             </box-toolbar>
                                             <box-body-nopad>
                                                 <form-list name="ContactAddressList" list="addressList" skip-form="true" paginate="false" skip-header="true">
-                                                    <field name="oneLine"><default-field title="Address"><display style="${expired ? 'text-strike m-muted' : ''}"/></default-field></field>
+                                                    <field name="oneLine"><default-field title="Address"><display style="${expired ? 'text-strike m-muted' : (isPrimary ? 'text-weight-medium' : '')}"/></default-field></field>
                                                     <field name="purposeText"><default-field title="Purpose"><display style="text-caption m-muted"/></default-field></field>
                                                     <field name="rowActions" align="right"><conditional-field condition="canEdit &amp;&amp; !expired" title="">
                                                         <container style="row no-wrap justify-end items-center">

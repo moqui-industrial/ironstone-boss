@@ -631,6 +631,163 @@ along with this software (see the LICENSE.md file). If not, see
         ]]></script></actions>
     </service>
 
+    <service verb="duplicate" noun="Page">
+        <description>Duplicate page (Knowledge's menu; design §10 Clone): a copy of a page the user may view, with its text and
+            files and, with withChildren, the pages under it the user may view (each under the copy of its parent, by the same
+            name), as new pages at toParentPath/toPageName in toWikiSpaceId (the page's space by default), a space the user may
+            add pages to (WikiServices.update#WikiPage checks it). Each copy starts its own history, its first version noted with
+            the page it was copied from. Each page is copied in a transaction of its own (copy#Page), so one that fails is
+            logged and named in failedPaths, with the pages under it, and the others are kept; the first one failing refuses
+            the whole. The framework's clone#WikiPage keeps the page's name, copies no pages under it and writes the files at
+            the source's path, so this reads each page through get#WikiPageInfo and writes it through update#WikiPage.</description>
+        <in-parameters>
+            <parameter name="wikiPageId" required="true"/>
+            <parameter name="toWikiSpaceId"/>
+            <parameter name="toParentPath"/>
+            <parameter name="toPageName" required="true"/>
+            <parameter name="withChildren" type="Boolean" default="false"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="wikiPageId"/>
+            <parameter name="wikiSpaceId"/>
+            <parameter name="pagePath"/>
+            <parameter name="pageCount" type="Integer"/>
+            <parameter name="failedPaths" type="List"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            pageCount = 0
+            failedPaths = []
+            const L = (text) => ec.l10n.localize(text)
+            const MAX_PAGES = 500
+            const src = ec.service.sync().name('ironstone.KnowledgeServices.get#PageRef').parameters({wikiPageId: wikiPageId, need: 'view'}).call()
+            if (ec.message.hasError() || !src?.found) return
+            const srcPath = src.pagePath || ''
+            if (!srcPath) { ec.message.addError(L('The home page of a space is copied with its space (Spaces, Clone)')); return }
+            if (!src.exists) { ec.message.addError(L('This page has no text yet to copy')); return }
+            const spaceId = toWikiSpaceId || src.wikiSpaceId
+            const name = String(toPageName || '').replace(/\s+/g, ' ').trim()
+            if (!name || !/^[\w.\-,':()!? ]+$/.test(name) || name === '.' || name === '..' || name.length > 100) {
+                ec.message.addError(L("A page name has letters, digits, spaces and . , ' - _ : ( ) ! ? only"))
+                return
+            }
+            let parent = String(toParentPath || '').split('/').map((part) => part.trim()).filter((part) => part).join('/')
+            if (parent === spaceId) parent = ''
+            // the place for the copy, which the user must see; whether they may add pages there is update#WikiPage's to say
+            const parentRef = ec.service.sync().name('ironstone.KnowledgeServices.get#PageRef').parameters({wikiSpaceId: spaceId,
+                pagePath: parent, need: 'view'}).call()
+            if (ec.message.hasError() || !parentRef?.found) return
+            if (parent && !parentRef.exists) { ec.message.addError(L('The parent page has not been made yet')); return }
+            if (!parentRef.access?.canUpdate) {
+                ec.message.addError(parentRef.access?.readOnly ? L('This space is a read-only mirror') : L('You may not add pages to this space')); return }
+            parent = parentRef.pagePath || ''
+            const path = (parent ? parent + '/' : '') + name
+            if (withChildren && spaceId === src.wikiSpaceId && (path === srcPath || path.startsWith(srcPath + '/'))) {
+                ec.message.addError(L('A page is not copied under itself with the pages under it')); return }
+            const taken = () => { ec.message.addError(ec.resource.expand('There is a page ${path} already', '', {path: path})) }
+            if (ec.entity.find('moqui.resource.wiki.WikiPage').condition('wikiSpaceId', spaceId).condition('pagePath', path).one() != null) return taken()
+            const file = ec.service.sync().name('org.moqui.impl.WikiServices.get#WikiPageFile').parameters({wikiSpaceId: spaceId, pagePath: path}).call()
+            if (ec.message.hasError()) return
+            if (file?.exists) return taken()
+
+            // the pages to copy, top down: the page, then those under it the user may view (get#PageChildren)
+            const pages = [{fromPath: srcPath, toParent: parent, toName: name, toPath: path}]
+            if (withChildren) {
+                const queue = [[srcPath, path]]
+                while (queue.length && pages.length < MAX_PAGES) {
+                    const [from, to] = queue.shift()
+                    const kids = ec.service.sync().name('ironstone.KnowledgeServices.get#PageChildren').parameters({wikiSpaceId: src.wikiSpaceId,
+                        pagePath: from}).call()?.childList || []
+                    if (ec.message.hasError()) return
+                    for (const kid of kids) {
+                        if (pages.length >= MAX_PAGES) break
+                        const kidPath = to + '/' + kid.name
+                        pages.push({fromPath: kid.pagePath, toParent: to, toName: kid.name, toPath: kidPath})
+                        if (kid.hasChildren) queue.push([kid.pagePath, kidPath])
+                    }
+                }
+                if (pages.length >= MAX_PAGES) ec.logger.warn(`Knowledge: duplicate of ${src.wikiSpaceId}/${srcPath} stops at ${MAX_PAGES} pages`)
+            }
+            // each copy's first version names the page it was copied from
+            const noteOf = (fromPath) => ec.resource.expand('Copied from ${space}/${path}', '', {space: src.wikiSpaceId, path: fromPath}).substring(0, 255)
+            const failedUnder = []
+            for (const [index, item] of pages.entries()) {
+                // a page under one that failed is not copied either
+                if (failedUnder.some((failed) => item.toPath.startsWith(failed + '/'))) { failedPaths.push(item.fromPath); continue }
+                ec.message.pushErrors()
+                let out = null
+                let why = null
+                try {
+                    out = ec.service.sync().name('ironstone.KnowledgeServices.copy#Page').parameters({fromWikiSpaceId: src.wikiSpaceId,
+                        fromPagePath: item.fromPath, toWikiSpaceId: spaceId, toParentPath: item.toParent, toPageName: item.toName, versionNote: noteOf(item.fromPath)})
+                            .requireNewTransaction(true).call()
+                    if (ec.message.hasError()) why = ec.message.getErrorsString()
+                } catch (err) {
+                    why = err && err.message ? err.message : String(err)
+                } finally {
+                    ec.message.clearErrors()
+                    ec.message.popErrors()
+                }
+                if (why) {
+                    if (index === 0) { ec.message.addError(why); return }
+                    ec.logger.error(`Knowledge: page ${src.wikiSpaceId}/${item.fromPath} was not copied to ${spaceId}/${item.toPath}, it and the pages under it are left out: ${why}`)
+                    failedPaths.push(item.fromPath)
+                    failedUnder.push(item.toPath)
+                    continue
+                }
+                for (const fileName of Array.from(out?.failedFiles || [])) failedPaths.push(item.fromPath + '/' + fileName)
+                if (index === 0) { wikiPageId = out.wikiPageId; pagePath = out.pagePath }
+                pageCount++
+            }
+            wikiSpaceId = spaceId
+        ]]></script></actions>
+    </service>
+    <service verb="copy" noun="Page" allow-remote="false">
+        <description>One page of duplicate#Page: the text of a page the user may view (WikiServices.get#WikiPageInfo checks it) as
+            a new page (WikiServices.update#WikiPage, which checks the user may add it), with its files (a file that is not
+            copied is logged and named in failedFiles).</description>
+        <in-parameters>
+            <parameter name="fromWikiSpaceId" required="true"/>
+            <parameter name="fromPagePath" required="true"/>
+            <parameter name="toWikiSpaceId" required="true"/>
+            <parameter name="toParentPath"/>
+            <parameter name="toPageName" required="true"/>
+            <parameter name="versionNote"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="wikiPageId"/>
+            <parameter name="pagePath"/>
+            <parameter name="failedFiles" type="List"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            failedFiles = []
+            const info = ec.service.sync().name('org.moqui.impl.WikiServices.get#WikiPageInfo').parameters({wikiSpaceId: fromWikiSpaceId,
+                pagePath: fromPagePath}).call()
+            if (ec.message.hasError()) return
+            const text = info?.pageReference?.exists ? (info.pageReference.getText() ?? '') : ''
+            const saved = ec.service.sync().name('org.moqui.impl.WikiServices.update#WikiPage').parameters({wikiSpaceId: toWikiSpaceId,
+                pageName: toPageName, parentPath: toParentPath || null, wikiType: info.wikiType || 'md', pageText: text, versionNote: versionNote || null}).call()
+            if (ec.message.hasError()) return
+            wikiPageId = saved.wikiPageId
+            pagePath = saved.pagePath
+            for (const attachment of Array.from(info.attachmentList || [])) {
+                ec.message.pushErrors()
+                try {
+                    const target = ec.service.sync().name('org.moqui.impl.WikiServices.get#WikiPageAttachment').parameters({wikiPageId: wikiPageId,
+                        filename: attachment.filename}).call()?.attachmentReference
+                    if (ec.message.hasError()) throw new Error(ec.message.getErrorsString())
+                    if (target == null || attachment.resourceReference == null) throw new Error('no place for the file')
+                    target.copyFrom(attachment.resourceReference)
+                } catch (err) {
+                    ec.logger.warn(`Knowledge: file ${attachment.filename} of ${fromWikiSpaceId}/${fromPagePath} was not copied to ${toWikiSpaceId}/${pagePath}: ${err && err.message ? err.message : err}`)
+                    failedFiles.push(attachment.filename)
+                } finally {
+                    ec.message.clearErrors()
+                    ec.message.popErrors()
+                }
+            }
+        ]]></script></actions>
+    </service>
+
     <service verb="rename" noun="Page">
         <description>A new name for a page, in the same place (WikiServices.move#WikiPage, which keeps its history and leaves an
             alias at the old path, so links to it keep working).</description>

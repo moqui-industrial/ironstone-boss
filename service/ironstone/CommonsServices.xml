@@ -15,7 +15,8 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- What the IronStone Commons screens of M2 show and do beyond the Mantle and framework services they call
     (design-drawers-commons.md §4, §5, §11): the Today items as the TodayPanel and Home show them, the notifications as the
     NotificationsPanel and the Notifications center show them, the quick actions on them, the notification topic settings,
-    the key map overrides, the appearance preferences and the first-run setup card. Everything is the current user's own:
+    the key map overrides, the appearance preferences, the first-run setup card and the user's photo (Settings/Account; the
+    face image m-avatar shows: a PartyContent PcntFaceImage of the user's party). Everything is the current user's own:
     a quick action on a task checks that the user may change it, and the notifications are read only through
     org.moqui.impl.NotificationServices or for ec.user.userId. -->
 <services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
@@ -595,6 +596,76 @@ along with this software (see the LICENSE.md file). If not, see
                 else delete states[name]
             }
             ec.user.setPreference('COMMONS_SETUP', JSON.stringify(states))
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== My photo (Settings/Account) ========== -->
+
+    <service verb="upload" noun="MyPhoto">
+        <description>The user's photo, the face image of their own party (never another's: the party is the user account's):
+            a PNG, JPEG, GIF or WebP file of at most 5 MB, stored by mantle.party.PartyServices.create#PartyContent as PcntFaceImage. It takes
+            the place of the photo before, whose rows and files are removed (remove#MyPhoto keepPartyContentId).</description>
+        <in-parameters>
+            <parameter name="contentFile" type="org.apache.commons.fileupload2.core.FileItem" required="true"/>
+        </in-parameters>
+        <out-parameters><parameter name="partyContentId"/></out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const partyId = ec.user.userAccount?.partyId
+            if (!partyId) { ec.message.addError(L('Your account has no contact record to hold a photo')); return }
+            const name = String(contentFile.getName ? contentFile.getName() : contentFile.name || '').replace(/^.*[\/\\]/, '')
+            const type = String(contentFile.contentType || contentFile.getContentType?.() || '')
+            // the file is served by its name's type, so the name is an image's, and the type sent, when there is one, too
+            if (!/\.(png|jpe?g|gif|webp)$/i.test(name) || (type && !/^image\/(png|jpe?g|pjpeg|gif|webp)$/i.test(type))) {
+                ec.message.addError(L('Choose an image file: PNG, JPEG, GIF or WebP')); return }
+            if (Number(contentFile.size ?? contentFile.getSize?.() ?? 0) > 5 * 1024 * 1024) { ec.message.addError(L('The photo may be at most 5 MB')); return }
+            partyContentId = ec.service.sync().name('mantle.party.PartyServices.create#PartyContent').parameters({partyId: partyId,
+                partyContentTypeEnumId: 'PcntFaceImage', contentFile: contentFile, contentDate: ec.user.nowTimestamp, description: name}).call()?.partyContentId
+            if (ec.message.hasError() || !partyContentId) return
+            ec.service.sync().name('ironstone.CommonsServices.remove#MyPhoto').parameter('keepPartyContentId', partyContentId).call()
+        ]]></script></actions>
+    </service>
+    <service verb="remove" noun="MyPhoto">
+        <description>Removes the user's photo: the PcntFaceImage PartyContent rows of the user's own party, and their files under
+            the party's content folder (a file that cannot be deleted is logged; its row is gone), but keepPartyContentId (the
+            photo just uploaded). The initials show in its place.</description>
+        <in-parameters><parameter name="keepPartyContentId"/></in-parameters>
+        <out-parameters><parameter name="removedCount" type="Integer"/></out-parameters>
+        <actions><script><![CDATA[
+            removedCount = 0
+            const partyId = ec.user.userAccount?.partyId
+            if (!partyId) return
+            const folder = `/party/${partyId}/content_`
+            for (const content of ec.entity.find('mantle.party.PartyContent').condition('partyId', partyId)
+                    .condition('partyContentTypeEnumId', 'PcntFaceImage').list()) {
+                if (keepPartyContentId && content.partyContentId === keepPartyContentId) continue
+                const location = content.contentLocation ? String(content.contentLocation) : null
+                ec.service.sync().name('delete#mantle.party.PartyContent').parameter('partyContentId', content.partyContentId).call()
+                if (ec.message.hasError()) return
+                removedCount++
+                if (!location || !location.includes(folder + content.partyContentId + '/')) continue
+                try {
+                    const ref = ec.resource.getLocationReference(location)
+                    if (ref && ref.getExists()) ref.delete()
+                } catch (err) {
+                    ec.logger.warn(`The photo of party ${partyId}: the row of ${location} is removed, the file was not: ${err}`)
+                }
+            }
+        ]]></script></actions>
+    </service>
+    <service verb="get" noun="MyPhoto" allow-remote="false">
+        <description>The location of the user's photo (the latest PcntFaceImage of their party), null without one.</description>
+        <out-parameters><parameter name="contentLocation"/><parameter name="partyContentId"/></out-parameters>
+        <actions><script><![CDATA[
+            contentLocation = null
+            partyContentId = null
+            const partyId = ec.user.userAccount?.partyId
+            if (!partyId) return
+            const rows = ec.entity.find('mantle.party.PartyContent').condition('partyId', partyId).condition('partyContentTypeEnumId', 'PcntFaceImage')
+                    .orderBy('-contentDate,-partyContentId').limit(1).list()
+            if (!rows.length) return
+            contentLocation = rows[0].contentLocation || null
+            partyContentId = rows[0].partyContentId
         ]]></script></actions>
     </service>
 </services>

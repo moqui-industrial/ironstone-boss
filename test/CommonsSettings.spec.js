@@ -1,7 +1,8 @@
 // Commons Home's setup card and the Commons settings (screen/Commons/Home.xml, screen/Commons/Settings/*;
 // impl-drawers-commons.md M2): NotificationSettings lists the topics by inbox and saves john.doe's in-app, email and daily
 // digest choice (NotificationTopicUser.digest); Preferences saves the appearance and a key binding into the KEYMAP preference
-// and resets it; the setup card's Done and Dismiss are kept in COMMONS_SETUP; Account changes only the signed-in user.
+// and resets it; the setup card's Done and Dismiss are kept in COMMONS_SETUP; Account changes only the signed-in user, and
+// its photo (the face image of the user's own party) is uploaded, replaced and removed, and shown by m-avatar in Chatter.
 // Run: ./moq test ironstone-boss --spec CommonsSettings
 const webroot = "component://webroot/screen/webroot.xml"
 const commons = "component://ironstone-boss/screen/Commons.xml"
@@ -24,6 +25,20 @@ function sys(run) {
     try { return run() } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
 }
 const one = (entityName, fields) => sys(() => ec.entity.find(entityName).condition(fields).one())
+const faces = (partyId) => sys(() => Array.from(ec.entity.find("mantle.party.PartyContent").condition("partyId", partyId)
+        .condition("partyContentTypeEnumId", "PcntFaceImage").list()))
+function get(path, parameters) {
+    const str = ec.screen.makeTest().rootScreen(commons).render(path, parameters || {}, null)
+    const output = String(str.output || "")
+    ec.message.clearErrors()
+    let json = null
+    try { json = JSON.parse(output) } catch (err) { json = null }
+    return { status: str.status, output, json: json || {} }
+}
+function as(username, run) {
+    login(username)
+    try { return run() } finally { login("john.doe") }
+}
 
 spec({
     setupSpec() { login("john.doe") },
@@ -142,6 +157,61 @@ feature("Account changes the signed-in user only, whatever user the request name
         page.output.includes("Where you are signed in")
     },
     cleanup() { sys(() => call("update#mantle.party.Person", { partyId: "EX_JOHN_DOE", firstName: "John" })) },
+})
+
+feature("Account photo: john.doe's own face image, whatever party the request names; replaced by a new one, a text file refused, removed; shown in Chatter", {
+    when() {
+        const png = "\u0089PNG fake image bytes for the spec"
+        const joeBefore = faces("ORG_ZIZI_JD").length
+        const first = post("Settings/Account/uploadPhoto", { partyId: "ORG_ZIZI_JD", contentFile: uploadedFile("john.png", png, "image/png") })
+        const firstRows = faces("EX_JOHN_DOE")
+        const second = post("Settings/Account/uploadPhoto", { contentFile: uploadedFile("john2.jpg", png, "image/jpeg") })
+        const secondRows = faces("EX_JOHN_DOE")
+        const refused = post("Settings/Account/uploadPhoto", { contentFile: uploadedFile("notes.txt", "text", "text/plain") })
+        const disguised = post("Settings/Account/uploadPhoto", { contentFile: uploadedFile("page.png", "<svg/>", "image/svg+xml") })
+        const page = render("Settings/Account")
+        const photo = get("Settings/Account/myPhoto")
+        // Chatter: a note by john.doe has his face image, which the panel's avatar transition serves
+        const request = { recordEntity: "mantle.request.Request", recordId: "BOSS_DEMO_REQUEST" }
+        const noteId = post("Chatter/logNote", Object.assign({ body: "<p>With my photo.</p>" }, request)).json.communicationEventId
+        const entry = (get("Chatter/timeline", request).json.entryList || []).find((item) => item.key === `ce-${noteId}`) || {}
+        const avatar = get("Chatter/avatar", { partyId: "EX_JOHN_DOE" })
+        // Joe Developer removes his photo, not john.doe's
+        const joeRemove = as("joe.developer", () => post("Settings/Account/removePhoto", { partyId: "EX_JOHN_DOE" }))
+        const afterJoe = faces("EX_JOHN_DOE").length
+        const removed = post("Settings/Account/removePhoto", {})
+        const noPhoto = get("Settings/Account/myPhoto")
+        const pageAfter = render("Settings/Account")
+        sys(() => call("ironstone.ChatterServices.delete#Entry", Object.assign({ communicationEventId: noteId, recordEntityName: request.recordEntity }, request)))
+        return { joeBefore, first, firstRows, second, secondRows, refused, disguised, page, photo, entry, avatar, joeRemove, afterJoe, removed, noPhoto, pageAfter,
+            joeAfter: faces("ORG_ZIZI_JD").length, johnAfter: faces("EX_JOHN_DOE").length }
+    },
+    then({ joeBefore, first, firstRows, second, secondRows, refused, disguised, page, photo, entry, avatar, joeRemove, afterJoe, removed, noPhoto, pageAfter, joeAfter, johnAfter }) {
+        first.errors == ""
+        firstRows.length == 1
+        firstRows[0].description == "john.png"
+        second.errors == ""
+        secondRows.length == 1
+        secondRows[0].description == "john2.jpg"
+        refused.errors.includes("Choose an image file")
+        disguised.errors.includes("Choose an image file")
+        page.status == 200
+        !page.broken
+        page.output.includes("Change photo")
+        page.output.includes("myPhoto?v=" + secondRows[0].partyContentId)
+        page.output.includes("Remove photo")
+        photo.status == 200
+        entry.authorImage
+        avatar.status == 200
+        joeRemove.errors == ""
+        afterJoe == 1
+        removed.errors == ""
+        noPhoto.status == 404
+        pageAfter.output.includes("Add a photo")
+        !pageAfter.output.includes("Remove photo")
+        joeAfter == joeBefore
+        johnAfter == 0
+    },
 })
 
 feature("the settings index links every settings page", {

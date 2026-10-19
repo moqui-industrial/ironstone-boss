@@ -279,7 +279,9 @@ along with this software (see the LICENSE.md file). If not, see
     <service verb="get" noun="ContactRecord">
         <description>What the contact record shows of a party the user may see (check#ContactAccess), for template/ContactRecord.xml:
             the names, the access, the roles, the contact information other than addresses with their purposes (the expired
-            ones too with showExpired), the addresses, a person's organizations and titles, the relationships, the books and
+            ones too with showExpired), the addresses, each kind's primary one first (isPrimary: the email, phone, website and
+            address mantle.party.ContactServices.get#PartyContactInfo answers for the Primary purposes, a phone or email the
+            primary address names included as a row of its own, read only), a person's organizations and titles, the relationships, the books and
             groups the party is in among the user's books, the notes, the employee directory card (organization, position,
             manager), and for a personal contact the books of its banner. Nothing for a party the user may not see.</description>
         <in-parameters>
@@ -361,6 +363,27 @@ along with this software (see the LICENSE.md file). If not, see
                 return {roleTypeId: role.roleTypeId, description: roleType ? (roleType.description || role.roleTypeId) : role.roleTypeId}
             })
 
+            // the primary email, phone, website and address as Mantle's contact info has them (get#PartyContactInfo: the latest
+            // of each kind's Primary purpose; a phone or email the primary address names when the party has no primary one); a
+            // failure is logged and the rows show without
+            const primary = {}
+            ec.message.pushErrors()
+            try {
+                const info = ec.service.sync().name('mantle.party.ContactServices.get#PartyContactInfo').parameters({partyId: partyId,
+                    postalContactMechPurposeId: 'PostalPrimary', telecomContactMechPurposeId: 'PhonePrimary', emailContactMechPurposeId: 'EmailPrimary',
+                    webContactMechPurposeId: 'WebUrlPrimary'}).call()
+                if (ec.message.hasError()) throw new Error(ec.message.getErrorsString())
+                if (info?.postalContactMechId && info.postalAddress) primary.postal = info.postalContactMechId
+                if (info?.telecomContactMechId && info.telecomNumber) primary.phone = {contactMechId: info.telecomContactMechId, telecomNumber: info.telecomNumber}
+                if (info?.emailContactMechId && info.emailAddress) primary.email = {contactMechId: info.emailContactMechId, value: String(info.emailAddress)}
+                if (info?.webContactMechId && info.webAddress) primary.web = {contactMechId: info.webContactMechId, value: String(info.webAddress)}
+            } catch (err) {
+                ec.logger.warn(`Contact ${partyId}: the primary contact information was not read, the rows show without it: ${err && err.message ? err.message : err}`)
+            } finally {
+                ec.message.clearErrors()
+                ec.message.popErrors()
+            }
+
             // contact information: one row per address or number with its purposes
             let infoFind = ec.entity.find('mantle.party.contact.PartyContactMechInfo').condition('partyId', partyId)
                     .condition(cf.makeCondition('contactMechTypeEnumId', 'not-equals', 'CmtPostalAddress')).orderBy('contactMechTypeEnumId,fromDate')
@@ -402,6 +425,28 @@ along with this software (see the LICENSE.md file). If not, see
             }
             for (const entry of contactMechList) entry.purposeText = entry.purposeList.filter((p) => entry.expired || !p.expired)
                     .map((p) => p.description).filter((text) => text).join(', ')
+            // the primary of each kind first; one the party has only through its primary address is a row of its own, read only
+            for (const kind of ['email', 'phone', 'web']) {
+                const main = primary[kind]
+                if (!main) continue
+                let entry = contactMechList.find((mech) => mech.contactMechId === main.contactMechId)
+                if (entry == null) {
+                    const tn = main.telecomNumber
+                    const value = kind === 'phone' ? [tn.countryCode ? '+' + tn.countryCode : null, tn.areaCode, tn.contactNumber].filter((part) => part).join(' ') : main.value
+                    entry = {contactMechId: main.contactMechId, kind: kind, kindLabel: kindLabels[kind], typeLabel: kindLabels[kind],
+                        contactMechTypeEnumId: {email: 'CmtEmailAddress', phone: 'CmtTelecomNumber', web: 'CmtWebAddress'}[kind], value: value,
+                        infoString: kind === 'phone' ? null : value, telecom: kind === 'phone' ? {countryCode: tn.countryCode ?? null, areaCode: tn.areaCode ?? null,
+                            contactNumber: tn.contactNumber ?? null} : null, purposeList: [], purposeText: L('Of the primary address'), expired: false,
+                        allowSolicitation: null, readOnly: true,
+                        href: kind === 'email' ? 'mailto:' + value : kind === 'phone' ? 'tel:' + String(value).replace(/[^\d+]/g, '') : (/^https?:\/\//i.test(value) ? value : null)}
+                    contactMechList.push(entry)
+                }
+                entry.isPrimary = true
+            }
+            const kindOrder = {email: 0, phone: 1, web: 2, other: 3}
+            contactMechList = contactMechList.map((entry, index) => ({entry, index})).sort((a, b) => (kindOrder[a.entry.kind] - kindOrder[b.entry.kind])
+                    || ((b.entry.isPrimary ? 1 : 0) - (a.entry.isPrimary ? 1 : 0)) || (a.index - b.index)).map((item) => item.entry)
+            for (const entry of contactMechList) { entry.isPrimary = !!entry.isPrimary; entry.readOnly = !!entry.readOnly }
 
             // addresses
             let addressFind = ec.entity.find('mantle.party.contact.PartyContactMechPostalAddress').condition('partyId', partyId).orderBy('fromDate')
@@ -429,6 +474,9 @@ along with this software (see the LICENSE.md file). If not, see
             }
             for (const entry of addressList) entry.purposeText = entry.purposeList.filter((p) => entry.expired || !p.expired)
                     .map((p) => p.description).filter((text) => text).join(', ')
+            for (const entry of addressList) entry.isPrimary = !!primary.postal && entry.contactMechId === primary.postal
+            addressList = addressList.map((entry, index) => ({entry, index})).sort((a, b) => ((b.entry.isPrimary ? 1 : 0) - (a.entry.isPrimary ? 1 : 0))
+                    || (a.index - b.index)).map((item) => item.entry)
 
             // relationships, both ways, to parties the user may see; a person's organizations and titles among them
             relationshipList = []
@@ -507,8 +555,8 @@ along with this software (see the LICENSE.md file). If not, see
             record.personalBookText = accessOut.isPersonal ? bookList.filter((book) => book.isOwner).map((book) => book.contactBookName).join(', ') : null
             record.favoriteBookId = (bookList.find((book) => book.isDefault) || bookList.find((book) => book.isOwner) || {}).contactBookId || null
             record.isFavorite = bookList.some((book) => book.isDefault && book.isFavorite)
-            record.primaryEmail = (contactMechList.find((mech) => mech.kind === 'email' && !mech.expired
-                    && mech.purposeList.some((p) => p.contactMechPurposeId === 'EmailPrimary')) || contactMechList.find((mech) => mech.kind === 'email' && !mech.expired) || {}).value || null
+            record.primaryEmail = (contactMechList.find((mech) => mech.kind === 'email' && mech.isPrimary && !mech.expired)
+                    || contactMechList.find((mech) => mech.kind === 'email' && !mech.expired) || {}).value || null
             const org0 = organizationList[0]
             record.subtitle = isOrg ? L('Organization') : [org0 ? org0.jobTitle : null, org0 ? org0.organizationName : null].filter((part) => part).join(' · ')
         ]]></script></actions>

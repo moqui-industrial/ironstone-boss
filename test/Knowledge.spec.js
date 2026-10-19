@@ -475,3 +475,56 @@ feature("the screens render: Knowledge as its component, and in it the review li
         requested.output.includes("Release process")
     },
 })
+
+feature("Duplicate: a page with the pages under it, under a new name in the same space, and one into another space with its file; refusals", {
+    allowMessageErrors: true,
+    when() {
+        const policies = pageId("BOSSKB", "Policies")
+        const office = pageId("BOSSKB", "Office")
+        const tree = post("duplicatePage", { wikiPageId: policies, toWikiSpaceId: "BOSSKB", toParentPath: "Office", toPageName: `Policies copy ${RUN}`, withChildren: "true" })
+        const base = `Office/Policies copy ${RUN}`
+        const copied = names(get("children", { wikiSpaceId: "BOSSKB", pagePath: base }))
+        const travel = page({ wikiSpaceId: "BOSSKB", pagePath: `${base}/Travel` })
+        const travelSource = page({ wikiSpaceId: "BOSSKB", pagePath: "Policies/Travel" })
+        const history = get("history", { wikiPageId: pageId("BOSSKB", `${base}/Travel`) })
+        const single = post("duplicatePage", { wikiPageId: office, toWikiSpaceId: "BOSSENG", toPageName: `Office copy ${RUN}` })
+        const singleFile = call_("Knowledge/attachment", { wikiPageId: pageId("BOSSENG", `Office copy ${RUN}`), filename: "floor-plan.txt" }, null)
+        // Joe Developer may not read the restricted Security page, so his copy is without it
+        const joe = as("joe.developer", () => ({
+            tree: post("duplicatePage", { wikiPageId: policies, toParentPath: "Office", toPageName: `Joe policies ${RUN}`, withChildren: "true" }),
+            members: post("duplicatePage", { wikiPageId: office, toWikiSpaceId: "BOSSLEAD", toPageName: `Joe office ${RUN}` }),
+            restricted: post("duplicatePage", { wikiPageId: pageId("BOSSKB", "Policies/Security"), toPageName: `Joe security ${RUN}` }) }))
+        const joeCopied = names(get("children", { wikiSpaceId: "BOSSKB", pagePath: `Office/Joe policies ${RUN}` }))
+        const bob = as("bob.developer", () => post("duplicatePage", { wikiPageId: office, toPageName: `Bob office ${RUN}` }))
+        return { tree, copied, travel, travelSource, history, single, singleFile, joe, joeCopied, bob,
+            taken: post("duplicatePage", { wikiPageId: office, toPageName: "Onboarding" }),
+            underItself: post("duplicatePage", { wikiPageId: policies, toParentPath: "Policies", toPageName: "Again", withChildren: "true" }),
+            home: post("duplicatePage", { wikiPageId: pageId("BOSSKB", ""), toPageName: "Home copy" }),
+            badName: post("duplicatePage", { wikiPageId: office, toPageName: "a/b" }) }
+    },
+    then({ tree, copied, travel, travelSource, history, single, singleFile, joe, joeCopied, bob, taken, underItself, home, badName }) {
+        tree.status == 200
+        tree.errors == ""
+        tree.json.pageCount == 4
+        tree.json.failedPaths.length == 0
+        tree.json.pagePath == `Office/Policies copy ${RUN}`
+        copied == ["Expenses", "Security", "Travel"]
+        travel.text == travelSource.text
+        history.json.versionList.length == 1
+        history.json.versionList[0].note.includes("Copied from BOSSKB/Policies/Travel")
+        single.errors == ""
+        single.json.wikiSpaceId == "BOSSENG"
+        singleFile.status == 200
+        singleFile.output.includes("Floor plan of the office")
+        joe.tree.errors == ""
+        joe.tree.json.pageCount == 3
+        joeCopied == ["Expenses", "Travel"]
+        joe.members.errors.includes("Page not found")
+        joe.restricted.errors.includes("Page not found")
+        bob.errors.includes("You may not add pages to this space")
+        taken.errors.includes("There is a page Onboarding already")
+        underItself.errors.includes("not copied under itself")
+        home.errors.includes("copied with its space")
+        badName.errors.includes("A page name has")
+    },
+})

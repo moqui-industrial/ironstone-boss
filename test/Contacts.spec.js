@@ -332,6 +332,65 @@ feature("john.doe edits his personal contact Mary: an email with a purpose, a ch
     },
 })
 
+feature("the contact info shows each kind's primary first, as Mantle's get#PartyContactInfo has it, with a phone of the primary address; never to another user", {
+    when() {
+        const ID = "BOSS_TEST_PRIMARY"
+        sys(() => {
+            if (!one("mantle.party.Party", { partyId: ID })) {
+                const create = (entityName, fields) => call("create#" + entityName, fields)
+                create("mantle.party.Party", { partyId: ID, pseudoId: ID, partyTypeEnumId: "PtyPerson", privateOwnerUserId: "EX_JOHN_DOE", disabled: "N" })
+                create("mantle.party.Person", { partyId: ID, firstName: "Prim", lastName: "Ary" })
+                const mech = (id, type, info) => create("mantle.party.contact.ContactMech", { contactMechId: id, contactMechTypeEnumId: type, infoString: info || null })
+                const pcm = (id, purpose, fromDate) => create("mantle.party.contact.PartyContactMech", { partyId: ID, contactMechId: id,
+                    contactMechPurposeId: purpose, fromDate })
+                // the other email first, the primary one after it
+                mech("BOSS_TEST_PRIM_EM2", "CmtEmailAddress", "prim.other@example.com")
+                pcm("BOSS_TEST_PRIM_EM2", "EmailOther", "2026-10-01 09:00:00")
+                mech("BOSS_TEST_PRIM_EM1", "CmtEmailAddress", "prim.main@example.com")
+                pcm("BOSS_TEST_PRIM_EM1", "EmailPrimary", "2026-10-02 09:00:00")
+                // a phone only through the primary address
+                mech("BOSS_TEST_PRIM_TN", "CmtTelecomNumber")
+                create("mantle.party.contact.TelecomNumber", { contactMechId: "BOSS_TEST_PRIM_TN", countryCode: "1", areaCode: "555", contactNumber: "010-0199" })
+                mech("BOSS_TEST_PRIM_PA2", "CmtPostalAddress")
+                create("mantle.party.contact.PostalAddress", { contactMechId: "BOSS_TEST_PRIM_PA2", address1: "9 Side Road", city: "Springfield", countryGeoId: "USA" })
+                pcm("BOSS_TEST_PRIM_PA2", "PostalHome", "2026-10-01 09:00:00")
+                mech("BOSS_TEST_PRIM_PA1", "CmtPostalAddress")
+                create("mantle.party.contact.PostalAddress", { contactMechId: "BOSS_TEST_PRIM_PA1", address1: "1 Main Street", city: "Springfield", countryGeoId: "USA",
+                    telecomContactMechId: "BOSS_TEST_PRIM_TN" })
+                pcm("BOSS_TEST_PRIM_PA1", "PostalPrimary", "2026-10-02 09:00:00")
+            }
+        })
+        // the service as the screen calls it (its explicit personal-contact condition holds with authorization off too), and the screen
+        const rec = sys(() => call("ironstone.ContactServices.get#ContactRecord", { partyId: ID }))
+        const shown = detail(ID)
+        const joe = as("joe.developer", () => ({ rec: sys(() => call("ironstone.ContactServices.get#ContactRecord", { partyId: ID })), shown: detail(ID) }))
+        return { rec, shown, joe }
+    },
+    then({ rec, shown, joe }) {
+        rec.found
+        rec.contactMechList.filter((mech) => mech.kind === "email").map((mech) => mech.value) == ["prim.main@example.com", "prim.other@example.com"]
+        rec.contactMechList.find((mech) => mech.value === "prim.main@example.com").isPrimary
+        !rec.contactMechList.find((mech) => mech.value === "prim.other@example.com").isPrimary
+        rec.contactMechList.find((mech) => mech.kind === "phone").value == "+1 555 010-0199"
+        rec.contactMechList.find((mech) => mech.kind === "phone").isPrimary
+        rec.contactMechList.find((mech) => mech.kind === "phone").readOnly
+        rec.contactMechList.find((mech) => mech.kind === "phone").purposeText == "Of the primary address"
+        rec.addressList.map((address) => address.address1) == ["1 Main Street", "9 Side Road"]
+        rec.addressList[0].isPrimary
+        rec.record.primaryEmail == "prim.main@example.com"
+        shown.status == 200
+        !shown.broken
+        shown.output.indexOf("prim.main@example.com") < shown.output.indexOf("prim.other@example.com")
+        shown.output.indexOf("1 Main Street") < shown.output.indexOf("9 Side Road")
+        shown.output.includes("text-weight-medium")
+        shown.output.includes("+1 555 010-0199")
+        !joe.rec.found
+        joe.rec.contactMechList == null
+        joe.shown.output.includes("is not available")
+        !joe.shown.output.includes("prim.main@example.com")
+    },
+})
+
 feature("john.doe as a contact admin edits a directory party; the star of his default book", {
     when() {
         const add = post("Contacts/ContactDetail/contactInfoStore", { partyId: PAT, kind: "web", webAddress: "quinnco.example", webPurposeId: "WebUrlPrimary" })

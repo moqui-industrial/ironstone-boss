@@ -120,14 +120,25 @@ Each finding was verified in the code. Each resolution is now part of the design
 | M11 Consent and unsubscribe | mr-moqui, Mantle, BOSS | Consent, Unsubscribe | done Oct 19 (the List-Unsubscribe headers on the wire wait for the framework) |
 
 **Inventories.** The **Implemented in** columns of `ss-inventory.md` and `usl-inventory.md` are filled as of Oct 19 for
-M0–M11 (each file's notes give the rules): 100 of the 101 SimpleScreens forms designed here and the 5 `—` ones, and
-148 Mantle services, 99 of them new in Mantle and listed in **Added** tables. Still blank: wiki `ClonePage` (page
-clone is not built); the designed services no built screen calls, either reached only inside Mantle
+M0–M11 and the design gaps closed after it (each file's notes give the rules): the 101 SimpleScreens forms designed here
+and the 5 `—` ones, and the Mantle services the built screens call, 102 of the 143 new in Mantle listed in **Added**
+tables. Still blank: the designed services no built screen calls, either reached only inside Mantle
 (`save#*ContentFile`, `find#PartyCommunicationEvents`, `create#Person`, `create#Organization`, `create#EmailAddress`,
 `create#TelecomNumber`) or replaced (`search#Party` by `find#Party`, `add#TaskComment` and `add#WikiPageComment` by
-Chatter's `log#RecordNote`, `remove#WorkEffortParty` by `remove#EventAttendee`) or not used (`update#RequestComment`
-and `delete#RequestComment`, as Chatter does not edit an entry, and `find#PartyHasDuplicates`); the Calls screens
-(`later`); and the other apps' rows.
+Chatter's `log#RecordNote`, `remove#WorkEffortParty` by `remove#EventAttendee`) or not used (`find#PartyHasDuplicates`);
+the Calls screens (`later`); and the other apps' rows.
+
+**Design gaps closed, Oct 19.** Chatter edits a note in place (its author; marked "(edited)" through the new
+`CommunicationEvent.editedDate`; only the users newly mentioned are notified) and deletes one (its author or the ADMIN
+group, not while it has replies) through Mantle's new `update#RecordNote` and `delete#RecordNote`, which take a request's
+comments through `update#RequestComment` and `delete#RequestComment` (now checked: the comment's join, its author, ADMIN to
+delete). The contact info card puts each kind's primary first as `get#PartyContactInfo` has it. EventDetail lists its
+linked records as record cards with who linked them, links one by its id or a search and takes one off. Settings/Account
+uploads, changes and removes the user's photo (`create#PartyContent`, `PcntFaceImage`), which Chatter's avatars show.
+Knowledge has Duplicate page (with the pages under it, here or in another space) over `get#WikiPageInfo` and
+`update#WikiPage`, since the framework's `clone#WikiPage` keeps the name, copies no pages under it and writes the files at
+the source's path. Framework needs: the header's account avatar (and `m-avatar` with only a `user-id`) has no way to find
+the user's face image.
 
 ### M0 — Foundations (mr-moqui, BOSS)
 
@@ -530,7 +541,8 @@ Built Oct 19:
   - A moved or renamed page keeps an alias at its old path, so links still find it.
   - Deleting a page removes Mantle's joins first (a SECA on `delete#WikiPage`).
   - Knowledge/SpaceDetail is a screen beyond the design (settings, members, restricted pages).
-  - Not built: a resizable side pane, favorites, export and print, page clone, presence; space members are users only.
+  - Not built: a resizable side pane, favorites, export and print, presence; space members are users only. Page clone
+    (Duplicate) came Oct 19, with the gaps above.
 
 ### M10 — Chat and presence (mr-moqui, Mantle, BOSS)
 

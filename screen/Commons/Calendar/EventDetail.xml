@@ -20,7 +20,10 @@ along with this software (see the LICENSE.md file). If not, see
     all day and the time zone, Repeat with daily, weekly on days, monthly, yearly and its end, Where with the meeting rooms and
     equipment booked and free then, Details with the description, calendar and who sees it), Attendees (required or optional,
     their answers and whether they are free then, add people or email addresses, Send invitations), Reminders (the user's
-    own), Files and Chatter, which is the right column of the overview from 1440 px and a tab below. A change to a repeating
+    own), Files and Chatter, which is the right column of the overview from 1440 px and a tab below. The Details box lists the
+    records the event is on as record cards (m-record-card over the Chatter panel's recordCard, mantle.GeneralServices.lookup#ById),
+    with when and by whom each was linked; an editor takes one off or links another, found by its id (lookup#ById) or the
+    search index. A change to a repeating
     event asks which events (this, this and following, all) and whether to tell the attendees. An event the user may not see
     is "not available" (ironstone.CalendarServices.get#EventAccessInfo: IronStone R5, R28); one the user may not change shows
     the same layout read-only. -->
@@ -162,6 +165,33 @@ along with this software (see the LICENSE.md file). If not, see
         <default-response url="."><parameter name="workEffortId"/><parameter name="instanceStart"/></default-response>
         <error-response url="."/>
     </transition>
+    <!-- LinkedRecords: put the event on a record the user may see, or take it off one -->
+    <transition name="linkRecord">
+        <actions>
+            <service-call name="ironstone.EventServices.link#EventRecord" out-map="linkOut" in-map="{workEffortId:workEffortId, record:record,
+                    recordEntityName:recordEntityName, recordId:recordId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(linkOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="instanceStart"/><parameter name="tab"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="unlinkRecord">
+        <actions>
+            <service-call name="ironstone.EventServices.unlink#EventRecord" out-map="unlinkOut" in-map="{workEffortId:workEffortId,
+                    recordEntityName:recordEntityName, recordId:recordId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(unlinkOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="instanceStart"/><parameter name="tab"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <!-- the records the event may go on: an id (lookup#ById) or the search index, each one the user may see -->
+    <transition name="searchRecords" read-only="true">
+        <actions>
+            <service-call name="ironstone.InboxServices.search#LinkRecords" in-map="{term:term}" out-map="found"/>
+            <script>ec.web.sendJsonResponse(Array.from(found.optionList || []).map((option) =&gt; ({value: option.value, label: option.label})))</script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
     <!-- the event as an .ics download -->
     <transition name="exportIcs" read-only="true">
         <actions><script><![CDATA[
@@ -267,8 +297,9 @@ along with this software (see the LICENSE.md file). If not, see
             // a new time that another booking of its rooms or equipment clashes with is refused (Mantle's check#ResourceBookings):
             // the When offers to change it anyway, the bookings kept
             hasBookings = roomRows.length > 0 || equipmentRows.length > 0
-            linkedRecordsHtml = linkedRecordList.map((record) => '<m-record-card record-entity="' + enc(record.recordEntityName) + '" record-id="' + enc(record.recordId)
-                    + '" card-url="/apps/Commons/Chatter/recordCard" class="q-mb-xs"></m-record-card>').join('')
+            // the record cards of the records it is on (the Chatter panel's recordCard: lookup#ById and the record's screen)
+            linkedRecordList = linkedRecordList.map((record) => Object.assign({}, record, {cardHtml: '<m-record-card record-entity="' + enc(record.recordEntityName)
+                    + '" record-id="' + enc(record.recordId) + '" card-url="/apps/Commons/Chatter/recordCard" dense></m-record-card>'}))
             descriptionText = event.description || ''
             reminderOptions = [{key: '0', text: L('At the start')}, {key: '5', text: L('5 minutes before')}, {key: '10', text: L('10 minutes before')},
                 {key: '15', text: L('15 minutes before')}, {key: '30', text: L('30 minutes before')}, {key: '60', text: L('1 hour before')},
@@ -518,9 +549,33 @@ along with this software (see the LICENSE.md file). If not, see
                                         <label type="p" text="No description" style="m-muted" condition="!descriptionText"/>
                                         <label type="p" text="Who sees it: ${event.visibilityLabel}" style="text-caption m-muted q-mb-none"/>
                                     </fail-widgets></section>
-                                    <section name="LinkedRecords" condition="linkedRecordList.length"><widgets>
-                                        <label type="div" text="On" style="text-caption m-muted q-mt-sm"/>
-                                        <render-mode><text type="qvt"><![CDATA[${linkedRecordsHtml}]]></text></render-mode>
+                                    <!-- LinkedRecords: the records it is on, as record cards; an editor links or takes off one -->
+                                    <section name="LinkedRecords" condition="linkedRecordList.length || canEdit"><widgets>
+                                        <label type="div" text="Linked records" style="text-caption m-muted q-mt-sm q-mb-xs"/>
+                                        <section-iterate name="LinkedRecordItems" list="linkedRecordList" entry="linked"><widgets>
+                                            <container style="row items-center no-wrap q-mb-xs m-event-linked">
+                                                <container style="col">
+                                                    <render-mode><text type="qvt"><![CDATA[${linked.cardHtml}]]></text></render-mode>
+                                                    <label type="div" text="${linked.linkedText}" style="text-caption m-muted q-mt-xs" condition="linked.linkedText"/>
+                                                </container>
+                                                <link url="unlinkRecord" link-type="hidden-form-link" icon="sym_o_link_off" text="" tooltip="Take the event off this record"
+                                                        style="m-btn-flat q-ml-xs" condition="linked.canRemove" confirmation="Take the event off this record?"
+                                                        parameter-map="{workEffortId:workEffortId, instanceStart:instanceStart, tab:tab, recordEntityName:linked.recordEntityName, recordId:linked.recordId}"/>
+                                            </container>
+                                        </widgets></section-iterate>
+                                        <label type="p" text="Not on any record yet" style="m-muted text-caption q-mb-xs" condition="!linkedRecordList.length"/>
+                                        <section name="LinkRecordAdd" condition="canEdit"><widgets>
+                                            <form-single name="EventLinkRecord" transition="linkRecord">
+                                                <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                                <field name="instanceStart"><default-field><hidden/></default-field></field>
+                                                <field name="tab" from="tab"><default-field><hidden/></default-field></field>
+                                                <field name="record"><default-field title="Link to a record (an id or a name)">
+                                                    <drop-down allow-empty="true"><dynamic-options transition="searchRecords" server-search="true" min-length="2"/></drop-down>
+                                                </default-field></field>
+                                                <field name="submitButton"><default-field title="Link"><submit/></default-field></field>
+                                                <field-layout><field-row-big><field-ref name="record"/><field-ref name="submitButton"/></field-row-big></field-layout>
+                                            </form-single>
+                                        </widgets></section>
                                     </widgets></section>
                                 </box-body></container-box>
                             </container>

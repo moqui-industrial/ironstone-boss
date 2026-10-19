@@ -22,7 +22,9 @@ along with this software (see the LICENSE.md file). If not, see
     mantle.party.CommunicationServices.get#RecordLinkInfo with checkRecord): a read answers visible false and nothing else, a
     write is refused with the lookup's error. Every write on an entry or an activity also checks that it is on this record. An
     activity changes only by its owner or a current assignee (as the Today panel's quick actions); unlinking a message and
-    removing another user as a follower need the sender, or a user the record's own authorization lets update it. -->
+    removing another user as a follower need the sender, or a user the record's own authorization lets update it. A note or
+    comment is changed by its author and deleted by its author or a user in the ADMIN group (Mantle's update#RecordNote and
+    delete#RecordNote check it again). -->
 <services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
 
     <!-- ========== The record ========== -->
@@ -297,9 +299,13 @@ along with this software (see the LICENSE.md file). If not, see
                             .parameters({recordEntityName: entityName, recordId: recordId}).call()
                     if (ec.message.hasError()) return
                     const kindNames = [['notifyMessages', 'messages'], ['notifyNotes', 'notes'], ['notifyActivities', 'activities'], ['notifyChanges', 'changes']]
-                    for (const follower of Array.from(out.followerList || [])) {
+                    const followers = Array.from(out.followerList || [])
+                    const faces = ec.service.sync().name('ironstone.ChatterServices.get#FaceImageParties').parameter('partyIdList',
+                            followers.map((follower) => follower.partyId)).call()?.partyIdList || []
+                    for (const follower of followers) {
                         const kinds = kindNames.filter(([field]) => follower[field] === 'Y').map(([, kind]) => kind)
                         followerList.push({userId: follower.userId, partyId: follower.partyId, name: follower.userFullName || follower.username || follower.userId,
+                            hasImage: !!follower.partyId && faces.includes(follower.partyId),
                             kinds: kinds, kindsText: kinds.map((kind) => L(kind)).join(', '),
                             canRemove: follower.userId === ec.user.userId || mayUpdate})
                         if (follower.userId === ec.user.userId) myKinds = kinds
@@ -392,6 +398,22 @@ along with this software (see the LICENSE.md file). If not, see
         </actions>
     </service>
 
+    <service verb="get" noun="FaceImageParties" allow-remote="false">
+        <description>Which of the parties have a face image (PartyContent PcntFaceImage), so the panel asks the avatar transition
+            only for those; the transition checks the party again (ironstone.ContactServices.get#ContactAvatar).</description>
+        <in-parameters><parameter name="partyIdList" type="List"/></in-parameters>
+        <out-parameters><parameter name="partyIdList" type="List"/></out-parameters>
+        <actions><script><![CDATA[
+            const ids = Array.from(new Set(Array.from(partyIdList || []).filter((id) => id).map((id) => String(id))))
+            partyIdList = []
+            if (!ids.length) return
+            const found = new Set()
+            for (const row of ec.entity.find('mantle.party.PartyContent').condition('partyId', 'in', ids).condition('partyContentTypeEnumId', 'PcntFaceImage')
+                    .selectField('partyId').list()) found.add(row.partyId)
+            partyIdList = ids.filter((id) => found.has(id))
+        ]]></script></actions>
+    </service>
+
     <service verb="clean" noun="Html" allow-remote="false">
         <description>HTML as an allow-html="safe" parameter keeps it (the framework's ammonia list plus data-mention-id): the body
             of a message or note before the panel shows it.</description>
@@ -405,7 +427,9 @@ along with this software (see the LICENSE.md file). If not, see
             newest first: each entry's key, kind, icon and color, the author's name, what it is (Email, Message, Note, Call done,
             a change, a file), when (dateText, and dateMillis), its title, its body as safe HTML
             with quoted text apart (quotedHtml, collapsed in the panel), the delivery status of an email, its attachments, the
-            thread's Inbox link, and which actions apply (reply here, reply by email, unlink); a message of the record's chat room
+            thread's Inbox link, and which actions apply (reply here, reply by email, unlink, and for a note edit, for its author,
+            with its text as editBody, and delete, for its author or the ADMIN group while it has no replies), and whether a note
+            was edited (edited, editedText); a message of the record's chat room
             links to it in Comms Chat. kinds is all, messages, notes, activities, changes or files. The next page is asked with
             beforeDate and seenKeys, the nextBeforeDate and nextSeenKeys of this one (get#RecordTimeline's cursor, which neither
             skips nor repeats entries of the same date).</description>
@@ -520,8 +544,14 @@ along with this software (see the LICENSE.md file). If not, see
                 // the names of the authors and recipients, under the user's filters (a hidden contact is "Someone")
                 const partyIds = Array.from(new Set(entries.flatMap((entry) => [entry.authorPartyId, entry.toPartyId]).filter((id) => id)))
                 const names = {}
-                if (partyIds.length) for (const party of ec.entity.find('mantle.party.PartyDetail').condition('partyId', 'in', partyIds).list())
+                if (partyIds.length) for (const party of ec.entity.find('mantle.party.PartyDetail').condition('partyId', 'in', partyIds).list()) {
+                    // a personal contact of another user is not named (it shows as Someone)
+                    if (party.privateOwnerUserId && party.privateOwnerUserId !== ec.user.userId) continue
                     names[party.partyId] = (ec.resource.expand('PartyNameOnlyTemplate', '', party) || '').trim() || party.partyId
+                }
+                // the authors with a face image (the avatar transition shows it, checking the party again)
+                const faceIds = new Set(ec.service.sync().name('ironstone.ChatterServices.get#FaceImageParties')
+                        .parameter('partyIdList', Object.keys(names)).call()?.partyIdList || [])
                 const userNames = {}
                 const userName = (userId) => {
                     if (!userId) return null
@@ -543,6 +573,19 @@ along with this software (see the LICENSE.md file). If not, see
                 const myPartyId = ec.user.userAccount?.partyId || null
                 const mayUpdate = ec.artifactExecution.isPermitted(entityName, 'AT_ENTITY', 'update')
                 const canMessage = ec.artifactExecution.isPermitted('mantle.party.communication.CommunicationEvent', 'AT_ENTITY', 'create')
+                const isAdmin = !!ec.user.userId && ec.user.isInGroup('ADMIN')
+                // the notes of this page that have replies, which are not deleted until their replies are
+                const noteIds = entries.filter((entry) => entry.communicationEventId && entry.communicationEventTypeId === 'Comment')
+                        .map((entry) => entry.communicationEventId)
+                const repliedIds = new Set()
+                if (noteIds.length) {
+                    const cf = ec.entity.conditionFactory
+                    for (const reply of ec.entity.find('mantle.party.communication.CommunicationEvent').condition(cf.makeCondition([
+                            cf.makeCondition('parentCommEventId', 'in', noteIds), cf.makeCondition('rootCommEventId', 'in', noteIds)], 'or'))
+                            .selectField('communicationEventId').selectField('parentCommEventId').selectField('rootCommEventId').list()) {
+                        for (const id of [reply.parentCommEventId, reply.rootCommEventId]) if (id && id !== reply.communicationEventId) repliedIds.add(id)
+                    }
+                }
                 const messageTypes = {Email: ['sym_o_mail', 'info', 'Email'], Message: ['sym_o_chat', 'primary', 'Message'],
                     Phone: ['sym_o_call', 'secondary', 'Phone call'], Call: ['sym_o_videocam', 'secondary', 'Call'],
                     FaceToFace: ['sym_o_groups', 'secondary', 'Meeting'], Letter: ['sym_o_markunread_mailbox', 'info', 'Letter'],
@@ -574,8 +617,9 @@ along with this software (see the LICENSE.md file). If not, see
                     const decorated = {kind: entry.kind, dateMillis: dateMillis, dateText: whenText(dateMillis),
                         dateFull: dateMillis == null ? '' : fmt(dateMillis, 'yyyy-MM-dd HH:mm'), authorPartyId: entry.authorPartyId || null,
                         authorName: authorName, isMine: !!myPartyId && entry.authorPartyId === myPartyId, title: entry.title || null,
+                        authorImage: !!entry.authorPartyId && faceIds.has(entry.authorPartyId),
                         bodyHtml: null, quotedHtml: null, status: null, attachments: [], canReply: false, emailReply: false, canUnlink: false,
-                        threadUrl: null, toName: null}
+                        threadUrl: null, toName: null, edited: false, editedText: null, canEdit: false, canDelete: false, editBody: null}
                     let searchText = [authorName, entry.title].filter((part) => part).join(' ')
                     if (entry.kind === 'message' || (entry.kind === 'note' && entry.communicationEventId)) {
                         const type = entry.communicationEventTypeId
@@ -590,6 +634,16 @@ along with this software (see the LICENSE.md file). If not, see
                             threadUrl: entry.kind === 'message' ? '/qapps/Comms/Inbox/MessageDetail?communicationEventId=' +
                                 encodeURIComponent(entry.rootCommEventId || entry.communicationEventId) : null})
                         if (type === 'Email' && entry.statusId) decorated.status = {label: statusOf(entry.statusId), color: statusColors[entry.statusId] || 'grey-7'}
+                        // a note's author changes it, and its author or the ADMIN group deletes it while it has no replies
+                        const isNote = type === 'Comment'
+                        const mine = !!myPartyId && entry.fromPartyId === myPartyId
+                        const editedMillis = toMillis(entry.editedDate)
+                        decorated.edited = editedMillis != null
+                        decorated.editedText = editedMillis != null ? ec.resource.expand('Edited ${when}', '', {when: fmt(editedMillis, 'yyyy-MM-dd HH:mm')}) : null
+                        decorated.canEdit = isNote && mine && canMessage
+                        decorated.canDelete = isNote && (mine || isAdmin) && !repliedIds.has(entry.communicationEventId)
+                        const bodyIsHtml = /html/i.test(entry.contentType || '') || (!entry.contentType && /<\/?(p|br|div|span|strong|em|ul|ol|li|a|blockquote)\b/i.test(String(entry.body || '')))
+                        decorated.editBody = decorated.canEdit && entry.body != null ? (bodyIsHtml ? clean(String(entry.body)) : '<p>' + textHtml(String(entry.body)) + '</p>') : null
                         decorated.attachments = Array.from(entry.attachments || []).filter((item) => item.contentLocation)
                                 .map((item) => ({id: item.communicationEventContentId, name: item.fileName || L('attachment')}))
                         searchText += ' ' + parts.text
@@ -822,6 +876,57 @@ along with this software (see the LICENSE.md file). If not, see
             <set field="unlinked" from="!!unlinkOut.unlinked"/>
             <set field="message" from="unlinked ? ec.resource.expand('Taken off ${recordName}', '', {recordName:recordOut.title})
                     : ec.l10n.localize('It stays: the record is its sender or a recipient, or it is in a thread filed here')"/>
+        </actions>
+    </service>
+
+    <service verb="edit" noun="Entry">
+        <description>Edit a note in the timeline: its author changes the text of a note or comment on the record
+            (mantle.party.CommunicationServices.update#RecordNote, which checks it is the author's and on this record, marks it
+            edited, and notifies only the users mentioned now and not before: data-mention-id userIds of the rich text).</description>
+        <in-parameters>
+            <parameter name="recordEntityName" required="true"/>
+            <parameter name="recordId" required="true"/>
+            <parameter name="communicationEventId" required="true"/>
+            <parameter name="body" required="true" allow-html="safe"/>
+            <parameter name="recordUrl"/>
+        </in-parameters>
+        <out-parameters><parameter name="mentionedUserIds" type="List"/><parameter name="message"/></out-parameters>
+        <actions>
+            <service-call name="ironstone.ChatterServices.get#RecordInfo" out-map="recordOut"
+                    in-map="{recordEntityName:recordEntityName, recordId:recordId, requireVisible:true}"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <if condition="!String(body).replace(/&lt;[^&gt;]*&gt;/g, '').replace(/&amp;nbsp;/g, ' ').trim()">
+                <return error="true" message="Write the note first, or delete it"/></if>
+            <service-call name="ironstone.ChatterServices.get#UserIdsParties" in-map="{html:body}" out-map="mentionsOut"/>
+            <service-call name="ironstone.ChatterServices.check#RecordUrl" in-map="{recordUrl:recordUrl, fallbackUrl:recordOut.url}" out-map="urlOut"/>
+            <service-call name="mantle.party.CommunicationServices.update#RecordNote" out-map="noteOut" in-map="{recordEntityName:recordOut.info.recordEntityName,
+                    recordId:recordId, communicationEventId:communicationEventId, body:body, contentType:'text/html',
+                    mentionUserIds:mentionsOut.userIdList, recordUrl:urlOut.recordUrl}"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <set field="mentionedUserIds" from="noteOut.mentionedUserIds || []"/>
+            <set field="message" from="mentionedUserIds.length ? ec.resource.expand('Note changed; ${count} newly mentioned', '', {count:mentionedUserIds.length}) : ec.l10n.localize('Note changed')"/>
+        </actions>
+    </service>
+
+    <service verb="delete" noun="Entry">
+        <description>Delete a note in the timeline: its author, or a user in the ADMIN group, deletes a note or comment on the
+            record that has no replies (mantle.party.CommunicationServices.delete#RecordNote, which checks both; its links and
+            attachments go too).</description>
+        <in-parameters>
+            <parameter name="recordEntityName" required="true"/>
+            <parameter name="recordId" required="true"/>
+            <parameter name="communicationEventId" required="true"/>
+        </in-parameters>
+        <out-parameters><parameter name="deleted" type="Boolean"/><parameter name="message"/></out-parameters>
+        <actions>
+            <service-call name="ironstone.ChatterServices.get#RecordInfo" out-map="recordOut"
+                    in-map="{recordEntityName:recordEntityName, recordId:recordId, requireVisible:true}"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <service-call name="mantle.party.CommunicationServices.delete#RecordNote" out-map="deleteOut" in-map="{recordEntityName:recordOut.info.recordEntityName,
+                    recordId:recordId, communicationEventId:communicationEventId}"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <set field="deleted" from="!!deleteOut.deleted"/>
+            <set field="message" from="ec.l10n.localize('Note deleted')"/>
         </actions>
     </service>
 
