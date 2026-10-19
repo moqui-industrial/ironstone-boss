@@ -92,16 +92,17 @@ list of root element ids the framework exposes as `assistReach`, not a layout ch
 | Quick create `+` | A `q-menu` of kinds; each opens `Commons/QuickCreate?kind=…` (or Comms' composer) in a dialog, prefilled from the screen context | `<shell-providers><quick-create>` of Commons (task, event, note, contact, request, and activity when a record is in context), Comms (email, chat message, call) and any app |
 | Today | Badge: tasks and activities due today plus overdue; opens the tray panel on Today | `shellCounts.today` from `mantle.party.PartyServices.get#ShellCounts` (new, §19), which the framework finds through the theme value `STRT_SHELL_COUNTS_SERVICE`, over the notification WebSocket topic `shellCounts`; the screen `Commons/Panel/Today` |
 | Chat | Badge: unread rooms and mentions; presence dot; opens the tray panel on Chat | `shellCounts.chat`; the screen `Comms/Panel/Chat` |
-| Inbox count | Badge: unread mail across accounts, including internal messages and the mailbox posts delivered to the Inbox (§12), each counted once per user; a link to `Comms/Inbox`, not a panel (initial-design: "async things get a count") | `shellCounts.mail` |
+| Inbox count | Badge: unread mail across accounts, including internal messages and the mailbox posts delivered to the Inbox (§12), each counted once per user; a link to `Comms/Inbox` (the theme value `STRT_INBOX_SCREEN`), not a panel (initial-design: "async things get a count") | `shellCounts.mail` |
 | Notifications | Badge: unread notifications plus approvals waiting; opens the tray panel on Notifications | `shellCounts.notifications`; the screen `Commons/Panel/Notifications` |
 | Documentation `?` | As today | Framework |
 | Theme plugins | As today; the My Account counters widget retires | Theme data |
-| Account | Avatar with presence dot; menu: name and user name, **status** (online, away, do not disturb, invisible, custom text with clear-at), Preferences (`Commons/Settings/Preferences`), Account (`Commons/Settings/Account`), dark mode, the `STRT_HEADER_ACCOUNT_COMP` plugins, re-login, log out | Framework; `UserStatus` (§1.8) |
+| Account | Avatar with presence dot; menu: name and user name, **status** (online, away, do not disturb, invisible, custom text with clear-at), Preferences (`Commons/Settings/Preferences`), Account (`Commons/Settings/Account`) (both `<account-menu-item>` providers of Commons), dark mode, the `STRT_HEADER_ACCOUNT_COMP` plugins, re-login, log out | Framework; `UserStatus` (§1.8) |
 | Assist | Toggles the Assist drawer; Ctrl+Shift+A; shown once the Phase 13 port lands (§1.3) | Framework |
 
 The theme values that name the BOSS screens for the framework frames are seeded by BOSS in
 `data/BossSetupData.xml`: `STRT_TRAY_TODAY`, `STRT_TRAY_CHAT`, `STRT_TRAY_NOTIFICATIONS`,
-`STRT_QUICK_CREATE`, `STRT_CHATTER_SCREEN`, `STRT_RECORD_FILES_SCREEN` (these two are how
+`STRT_QUICK_CREATE`, `STRT_INBOX_SCREEN` (the Inbox count's link, `Comms/Inbox`), `STRT_CHATTER_SCREEN`,
+`STRT_RECORD_FILES_SCREEN` (these two are how
 the `chatter` and `record-files` elements of style-guide §8 find their Mantle-aware screens,
 §15 and §9; each holds a subscreen name, `Chatter` or `RecordFiles`, that every BOSS app root
 mounts hidden from `Shared/`, so the element loads it under the current app with that app's authz and
@@ -181,7 +182,9 @@ and files** (Commons: wiki pages, files and drives by name), **Events** (upcomin
 "New event", "Create sales order", "Receive shipment"), **Screens** (by menu title), **Saved
 finds** (`moqui.screen.form.FormListFind` the user may run). An id pattern goes straight to
 `mantle.GeneralServices.lookup#ById`, as QuickLookup does. Prefixes narrow a search: `>` actions,
-`@` people, `#` rooms, `:` screens; otherwise everything is searched and the groups are capped at
+`@` people, `#` rooms, `:` screens; otherwise everything is searched (the groups the client has, Screens, Saved finds and
+Actions, before the ones the server answers, so rows do not move; Commons' id pattern is
+`\S*\d\S*|[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+`) and the groups are capped at
 five rows each with "more" opening the owning app's list with the text as its find. The palette
 retires `Base/QuickSearch`, `Base/Search` and `Base/QuickLookup`; the full search page survives
 as `Commons/Search` only as the "more" target for Records. Every group but Recent, Screens,
@@ -240,7 +243,8 @@ listing the keys active now, and `Commons/Settings/Preferences` lets the user ch
 Esc closes the top-most dialog, menu or drawer, `?` help, `g` then a letter for the go-to set
 (`g i` Inbox, `g c` Contacts, `g k` Tasks, `g l` Calendar, `g f` Files, `g n` Notes, `g h` the
 app's Home; Gmail's chords where it has them, so the Inbox scope's `g t` Sent, `g s`, `g d` and
-`g a` shadow nothing global) and `c` compose or create in the current app. A screen's scope
+`g a` shadow nothing global) and `c` compose or create in the current app. An app's `<keymap>` scope other than
+`global` is on only while that app is the current one. A screen's scope
 wins over the global set while it has focus, and a text input swallows single letters. Inside a
 rich-text editor (Compose, the
 Knowledge and Notes editor) Ctrl+K inserts a link, as Gmail and Google Docs do, and the palette
@@ -1870,7 +1874,7 @@ bare `entity-find`.
 | --- | --- | --- | --- | --- |
 | Shell elements (style-guide §8) | shell item | `m-qapps-root`: launcher, search button, quick create, Today, Chat, Inbox count, Notifications, Assist toggle; badges from a `shellCounts` object | all | the elements of §1.2; the account menu gains status and the Preferences and Account links; the counts come from the service named by the theme value `STRT_SHELL_COUNTS_SERVICE`, empty when it is not set |
 | Tray panel frame (style-guide §2.4) | shell item | A right panel in the canvas; tabs from `STRT_TRAY_TODAY`, `STRT_TRAY_CHAT`, `STRT_TRAY_NOTIFICATIONS`; open state, tab and scroll kept in the root; Esc closes; full width below 600 px; a per-tab WebSocket topic refreshes it | §4 panels | §1.4 |
-| Shell providers | XML Screen element | `<shell-providers>` in an app root: `<quick-create label icon screen parameter-map>`, `<today-source service>`, `<palette-action label icon screen>`, `<palette-type doc-type>`, `<palette-source group service prefix id-pattern sequence>` (a palette group: the service takes `text`, `limit` and `docTypes` and returns rows of title, subtitle, icon and link), `<notification-topic topic>`, `<keymap scope>`; aggregated by a `shellData` webroot transition, fetched once per page load, for the apps the user may open, with their menu titles to depth two (the palette's Screens group), the shell theme values and the first counts; menu data stays per path, and an app root that fails is logged and left out | every app | §1.2, §1.5 |
+| Shell providers | XML Screen element | `<shell-providers>` in an app root: `<quick-create label icon screen parameter-map>`, `<today-source service>`, `<palette-action label icon screen>`, `<palette-type doc-type>`, `<palette-source group service prefix id-pattern sequence>` (a palette group: the service takes `text`, `limit` and `docTypes` and returns rows of title, subtitle, icon and link), `<notification-topic topic>`, `<keymap scope>`, `<account-menu-item label icon screen sequence>`; a `<quick-create>` with no `screen` opens `STRT_QUICK_CREATE` with its `kind`; aggregated by a `shellData` webroot transition, fetched once per page load, for the apps the user may open, with their menu titles to depth two (the palette's Screens group), the shell theme values and the first counts; menu data stays per path, and an app root that fails is logged and left out | every app | §1.2, §1.5 |
 | Screen context | XML Screen element | `<context record-entity record-id title selection-form/>`; the root exposes `screenContext` {path, parameters, record, selection, filters, forms}, bound on the client over the screen's actions data since screens are server-static | every detail, 360, list | §1.6 |
 | Assist drawer | shell item | The Phase 13 port of the Java panel into a right `q-drawer` with the inputs of §1.3: screen context, canvas placement, running tasks, the reach list `assistReach`, agent entry point for chat rooms | all | §1.3; until the port the slot is reserved without a toggle, and the screen context and `assistReach` come first |
 | Palette | shell item | `q-dialog` with the groups of §1.5, prefixes, Recent, Ctrl+K; the groups beyond Recent, Screens, Saved finds and Actions from the `<palette-source>` providers | all | §1.5 |

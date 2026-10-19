@@ -457,7 +457,9 @@ The content of a tray panel tab or a quick-create dialog: narrow, scannable, act
   quick-create dialog is a `form-single` of six or fewer fields with the context link shown as a
   chip.
 - Rules: 400 px wide; nothing opens a second panel; every item links to its record in the canvas;
-  counts refresh through the notification WebSocket, not polling.
+  counts refresh through the notification WebSocket, not polling. The tray is 400 px inside a wide viewport, so a panel
+  screen lays itself out for that width and uses no viewport breakpoint columns (`col-md-*` and the like), which follow
+  the window and not the panel.
 
 ## 4. Widget guide
 
@@ -807,12 +809,12 @@ crosscut design's roll-up is the work list.
 | Item | Kind | Proposed as | Stub spec | Used by |
 | --- | --- | --- | --- | --- |
 | Material Symbols | Icon set | Built Oct 18, 2026: the outlined font at weight 400 (npm `@material-symbols/font-400`, Apache-2.0) through `libs/refresh.mjs` with a manifest and license-review line; Quasar's `icon-set/material-symbols-outlined.umd.prod.js`, set as the icon set when the app is created; `menu-image-type="icon"` renders a Quasar icon name through `q-icon` (`m-menu-icon`, and the app list) and keeps `fa fa-*` as a class | §5.6 | Every screen, the shell |
-| Shell: launcher, search button, quick create, Today, Chat, Inbox count, Notifications, Assist toggle | Shell item | `m-qapps-root` changes of §2.2; badges fed by a `shellCounts` object the notification WebSocket updates | §2.2, §2.8 | All |
-| Tray panel | Shell item | A right panel in the canvas with tabs whose content screens are theme values (`STRT_TRAY_TODAY`, `STRT_TRAY_CHAT`, `STRT_TRAY_NOTIFICATIONS`) so BOSS supplies them; open state and tab kept in the root; Esc closes | §2.4 | Commons, Comms, every app through providers |
-| Shell providers | XML Screen element | `<shell-providers>` in an app root screen with `<quick-create label icon screen parameter-map>`, `<today-source service>`, `<palette-action label screen>`, `<palette-type doc-type>`, `<notification-topic>`; the menu data aggregates them for the apps the user may open | §2.7 | Every app |
-| Screen context | XML Screen element | `<context record-entity="…" record-id="${id}" title="${…}" selection-form="…"/>`; the root exposes `screenContext` {path, parameters, record, selection, filters, forms}; quick create, Chatter, Today and Assist read it | §2.5 | Every detail, 360, list |
+| Shell: launcher, search button, quick create, Today, Chat, Inbox count, Notifications, Assist toggle | Shell item | Built Oct 19, 2026, except the Assist toggle (Phase 13), the presence dot and status (Comms chat): `m-qapps-root` changes of §2.2; badges fed by a `shellCounts` object the notification WebSocket updates | §2.2, §2.8 | All |
+| Tray panel | Shell item | Built Oct 19, 2026 (`m-shell-tray`): A right panel in the canvas with tabs whose content screens are theme values (`STRT_TRAY_TODAY`, `STRT_TRAY_CHAT`, `STRT_TRAY_NOTIFICATIONS`) so BOSS supplies them; open state and tab kept in the root; Esc closes | §2.4 | Commons, Comms, every app through providers |
+| Shell providers | XML Screen element | Built Oct 19, 2026, with `<palette-source>` and `<account-menu-item>` (design-drawers-commons §19): `<shell-providers>` in an app root screen with `<quick-create label icon screen parameter-map>`, `<today-source service>`, `<palette-action label screen>`, `<palette-type doc-type>`, `<notification-topic>`; the menu data aggregates them for the apps the user may open | §2.7 | Every app |
+| Screen context | XML Screen element | Built Oct 19, 2026 (`m-screen-context`): `<context record-entity="…" record-id="${id}" title="${…}" selection-form="…"/>`; the root exposes `screenContext` {path, parameters, record, selection, filters, forms}; quick create, Chatter, Today and Assist read it | §2.5 | Every detail, 360, list |
 | Assist drawer | Shell item | Right `q-drawer`, resizable; the port of the Java Assist panel (`js/assist`) into it, with `screen_use` over the canvas; the context above is its input | §2.5 | All |
-| Palette | Shell item | `q-dialog` with grouped results from the search index, saved finds, provider actions, screen titles and recent screens; Ctrl+K | §2.4 | All |
+| Palette | Shell item | Built Oct 19, 2026 (`m-shell-palette`, the `shellSearch` transition): `q-dialog` with grouped results from the search index, saved finds, provider actions, screen titles and recent screens; Ctrl+K | §2.4 | All |
 | Presence and status | Shell item + data | A user status (online, away, do not disturb, custom text) in the account menu and on avatars; a `UserStatus` record and a WebSocket topic | §2.2 | Comms chat, Commons contacts |
 | `number-card` | XML Screen element | `<number-card title value delta delta-good="up|down" icon link size>` as a `q-card flat bordered` with `text-overline` label and `text-h5` value; a `<dashboard>` container that lays cards and widgets in a responsive grid and later allows user arrangement | §3.1, §3.4, §3.12 | Landings, 360s, Insights |
 | `status-bar` | XML Screen element | `<status-bar status-id="${statusId}" status-type-id="…" transition="…"/>`: the status flow as a row of stage chips, current filled, next as the primary action calling the transition; colors from the status color map | §3.3, §5.2 | Every detail |

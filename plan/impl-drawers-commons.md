@@ -1,6 +1,7 @@
 # IronStone BOSS — Header, drawers, Commons & Comms implementation
 
-Oct 18, 2026 — plan; Step 0 done (the review corrections are in design-drawers-commons.md)
+Oct 18, 2026 — plan; Step 0 done (the review corrections are in design-drawers-commons.md); Oct 19 — M0 and M1 built,
+the Mantle parts of M2–M5a under way ahead of their screens (status in §5)
 
 How [design-drawers-commons.md](design-drawers-commons.md) gets built: the review of that design against mr-moqui and
 Mantle as they stand (findings R1–R27, each with the resolution now written into the design), the rules every step
@@ -104,12 +105,12 @@ Each finding was verified in the code. Each resolution is now part of the design
 
 | Milestone | Repos | Screens | Status |
 | --- | --- | --- | --- |
-| M0 Foundations | mr-moqui, BOSS | the moved screens | not started |
-| M1 Shell framework | mr-moqui, Mantle, BOSS | header, tray frame, palette, quick-create frame | not started |
-| M2 Today, notifications, quick create | mr-moqui, Mantle, BOSS | TodayPanel, NotificationsPanel, Notifications, QuickCreate, Commons Home, Settings, Account, Preferences, NotificationSettings | not started |
-| M3 Record links, Chatter, record files | mr-moqui, Mantle, BOSS | Chatter, RecordFiles | not started |
-| M4 Contacts | mr-moqui, Mantle, BOSS | Contacts, ContactDetail, ContactImport, Duplicates, ContactBooks | not started |
-| M5 Mail (M5a–M5f) | mr-moqui, Mantle, BOSS | Inbox, Compose, MessageDetail, Comms Home, MailAccounts, Identities, Rules, OutOfOffice, TextBlocks | not started |
+| M0 Foundations | mr-moqui, BOSS | the moved screens | done Oct 18 |
+| M1 Shell framework | mr-moqui, Mantle, BOSS | header, tray frame, palette, quick-create frame | done Oct 19 |
+| M2 Today, notifications, quick create | mr-moqui, Mantle, BOSS | TodayPanel, NotificationsPanel, Notifications, QuickCreate, Commons Home, Settings, Account, Preferences, NotificationSettings | Mantle under way |
+| M3 Record links, Chatter, record files | mr-moqui, Mantle, BOSS | Chatter, RecordFiles | Mantle done |
+| M4 Contacts | mr-moqui, Mantle, BOSS | Contacts, ContactDetail, ContactImport, Duplicates, ContactBooks | Mantle done (vCard waits for its tool) |
+| M5 Mail (M5a–M5f) | mr-moqui, Mantle, BOSS | Inbox, Compose, MessageDetail, Comms Home, MailAccounts, Identities, Rules, OutOfOffice, TextBlocks | M5a Mantle done |
 | M6 Tasks and requests | BOSS | Tasks, TaskDetail, Requests, RequestDetail | not started |
 | M7 Calendar and schedules | mr-moqui, Mantle, BOSS | Calendar, EventDetail, Schedules, ResourceDetail, Calendars | not started |
 | M8 Files and drives | mr-moqui, BOSS | Files, Drives, Shares, PublicShare | not started |
@@ -129,6 +130,11 @@ Each finding was verified in the code. Each resolution is now part of the design
   ScheduledReportDetail) render and pass lint, with a minimal JS conversion. Each one is redesigned in its own milestone.
 
 Done: AppStructure passes, the 8 lint failures are gone, and the icons show in the drawer.
+
+Built Oct 18: mr-moqui 0fa00fc (failure tolerance, Material Symbols `@material-symbols/font-400` with Quasar's icon set,
+loaded only when the theme has the font, `m-menu-icon`), BOSS 1fce896 (the moved screens, `data/BossDemoData.xml`,
+AppStructure renders every screen with its demo record), MrSimpleScreens e26a723. An existing database needs a load for
+the new theme stylesheet rows.
 
 ### M1 — Shell framework (mr-moqui; Mantle; BOSS seed and providers)
 
@@ -178,6 +184,24 @@ Done: AppStructure passes, the 8 lint failures are gone, and the icons show in t
   of R3; notification topics) and in `Comms.xml` (email, chat message, Messages and rooms). The kinds point at
   placeholders until M2.
 - Delete `template/SearchTransitions.xml`. `Commons/Search` stays as the "more" target.
+
+Built Oct 19: mr-moqui 9644e18 (server side) and 6d7563c (client), BOSS 48c7bae, Mantle ed89ca2 and 660bf52 (search
+roles and links on the work documents), all tests passing (gate3_browser runs the shell and the tray in Chromium).
+What the build added or settled beyond the design, now in design §1 and §19:
+- **More shell pieces:** the `STRT_INBOX_SCREEN` theme value (the Inbox count's link) and `<account-menu-item>`
+  (Preferences and Account come from Commons). A quick-create kind without `screen` opens `STRT_QUICK_CREATE` with its
+  `kind`.
+- **Transitions:** the webroot transitions `shellSearch` (the palette sources, each run as the app root that registered
+  it, so that app's authz and entity filters apply) and `shellCounts` (the counts poll while the socket is down).
+- **Palette order:** Screens, Saved finds and Actions come before the provider groups, so rows do not move when the
+  server answers.
+- **Commons' id lookup pattern:** `\S*\d\S*|[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+`.
+- **Key scopes:** a keymap scope other than `global` is on only in its own app.
+- **Quick create:** a form in the dialog that submits without errors closes it (`mSubmitHide`), so a quick-create
+  screen's transition answers with JSON `messageInfos` rather than a redirect.
+- **Not built yet:** the `activity` kind (M3), the Messages and rooms source (M5), the presence dot and status (M10).
+  The breadcrumbs still start with Applications and repeat the app title. `template/SearchTransitions.xml` stays,
+  because Sales/Reports includes it.
 
 ### M2 — Today, notifications, quick create (mr-moqui, Mantle, BOSS)
 
