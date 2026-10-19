@@ -46,9 +46,10 @@ feature("shellData lists Commons and Comms with their providers and the IronSton
             types: commons.paletteTypes || [], commonsKeys: keysOf(commons), commonsKeyUrl: ((commons.keymaps || [])[0] || { keys: [{}] }).keys[1].url,
             account: (commons.accountMenuItems || []).map((item) => item.url), topics: commons.notificationTopics || [],
             commsKinds: (comms.quickCreate || []).map((kind) => kind.kind), commsKindUrls: (comms.quickCreate || []).map((kind) => kind.url),
-            commsKeys: keysOf(comms) }
+            commsKeys: keysOf(comms), todaySources: (commons.todaySources || []).map((source) => source.service),
+            counts: (found.json && found.json.counts) || null }
     },
-    then({ status, text, shell, appNames, commonsTitle, commonsKinds, commonsKindUrls, commonsIcons, sources, peoplePrefix, idPattern, types,
+    then({ status, text, shell, counts, todaySources, appNames, commonsTitle, commonsKinds, commonsKindUrls, commonsIcons, sources, peoplePrefix, idPattern, types,
             commonsKeys, commonsKeyUrl, account, topics, commsKinds, commsKindUrls, commsKeys }) {
         status == 200
         text.startsWith("{")
@@ -76,9 +77,18 @@ feature("shellData lists Commons and Comms with their providers and the IronSton
         shell.trayChat == "/qapps/Comms/Panel/Chat"
         shell.trayNotifications == "/qapps/Commons/Panel/Notifications"
         shell.quickCreate == "/qapps/Commons/QuickCreate"
-        shell.inboxScreen == "/qapps/Comms/Inbox"
+        shell.mailScreen == "/qapps/Comms/Inbox"
+        shell.messagesScreen == "/qapps/Comms/Inbox?view=internal"
         shell.chatterScreen == "Chatter"
         shell.recordFilesScreen == "RecordFiles"
+        // the counts come from mantle.party.PartyServices.get#ShellCounts, the theme's STRT_SHELL_COUNTS_SERVICE
+        counts != null
+        typeof counts.today == "number"
+        typeof counts.notifications == "number"
+        typeof counts.email == "number"
+        typeof counts.messages == "number"
+        typeof counts.updates == "number"
+        todaySources == ["mantle.request.RequestServices.get#UserTodayRequests"]
     },
 })
 

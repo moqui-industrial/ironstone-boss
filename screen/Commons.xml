@@ -57,6 +57,9 @@ along with this software (see the LICENSE.md file). If not, see
         <palette-source group="Pages" label="Pages and files" icon="sym_o_description" service="ironstone.PaletteServices.search#Pages" sequence="40"/>
         <palette-source group="Events" label="Events" icon="sym_o_event" service="ironstone.PaletteServices.search#Events" sequence="50"/>
 
+        <!-- Today: the requests assigned to the user with a response due, beside the tasks, activities and events -->
+        <today-source service="mantle.request.RequestServices.get#UserTodayRequests" label="Requests"/>
+
         <notification-topic topic="ChatterMention"/>
         <notification-topic topic="WorkEffortReminder"/>
         <notification-topic topic="WikiPageReview"/>

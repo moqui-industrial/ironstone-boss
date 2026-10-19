@@ -130,10 +130,15 @@ along with this software (see the LICENSE.md file). If not, see
             resourceValue="Commons/Panel/Notifications"/>
     <moqui.screen.ScreenThemeResource screenThemeId="DEFAULT_QUASAR" sequenceNum="303" resourceTypeEnumId="STRT_QUICK_CREATE"
             resourceValue="Commons/QuickCreate"/>
-    <moqui.screen.ScreenThemeResource screenThemeId="DEFAULT_QUASAR" sequenceNum="304" resourceTypeEnumId="STRT_INBOX_SCREEN"
+    <moqui.screen.ScreenThemeResource screenThemeId="DEFAULT_QUASAR" sequenceNum="304" resourceTypeEnumId="STRT_MAIL_SCREEN"
             resourceValue="Comms/Inbox"/>
+    <!-- the Messages count opens the Inbox on the Internal account (design-drawers-commons.md §1.2, §12) -->
+    <moqui.screen.ScreenThemeResource screenThemeId="DEFAULT_QUASAR" sequenceNum="308" resourceTypeEnumId="STRT_MESSAGES_SCREEN"
+            resourceValue="Comms/Inbox?view=internal"/>
     <moqui.screen.ScreenThemeResource screenThemeId="DEFAULT_QUASAR" sequenceNum="305" resourceTypeEnumId="STRT_CHATTER_SCREEN"
             resourceValue="Chatter"/>
     <moqui.screen.ScreenThemeResource screenThemeId="DEFAULT_QUASAR" sequenceNum="306" resourceTypeEnumId="STRT_RECORD_FILES_SCREEN"
             resourceValue="RecordFiles"/>
+    <moqui.screen.ScreenThemeResource screenThemeId="DEFAULT_QUASAR" sequenceNum="307" resourceTypeEnumId="STRT_SHELL_COUNTS_SERVICE"
+            resourceValue="mantle.party.PartyServices.get#ShellCounts"/>
 </entity-facade-xml>
