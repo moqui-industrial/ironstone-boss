@@ -2,8 +2,25 @@
 <!-- No copyright or license for configuration file, details here are not considered a creative work. -->
 <moqui-conf xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/moqui-conf-3.xsd">
     <screen-facade>
+        <!-- the IronStone apps, each a root under the apps screen mounted by its own name, so a design path such as
+            Commons/Tasks is the URL /qapps/Commons/Tasks -->
         <screen location="component://webroot/screen/webroot/apps.xml">
-            <subscreens-item name="boss" menu-title="IronStone BOSS" menu-index="20" location="component://ironstone-boss/screen/boss.xml"/>
+            <subscreens-item name="Commons" menu-title="IronStone Commons" menu-index="20" location="component://ironstone-boss/screen/Commons.xml"/>
+            <subscreens-item name="Comms" menu-title="IronStone Comms" menu-index="21" location="component://ironstone-boss/screen/Comms.xml"/>
+            <subscreens-item name="Sales" menu-title="IronStone Sales" menu-index="30" location="component://ironstone-boss/screen/Sales.xml"/>
+            <subscreens-item name="Marketing" menu-title="IronStone Marketing" menu-index="31" location="component://ironstone-boss/screen/Marketing.xml"/>
+            <subscreens-item name="CustomerService" menu-title="IronStone Customer Service" menu-index="32" location="component://ironstone-boss/screen/CustomerService.xml"/>
+            <subscreens-item name="Commerce" menu-title="IronStone Commerce" menu-index="33" location="component://ironstone-boss/screen/Commerce.xml"/>
+            <subscreens-item name="Products" menu-title="IronStone Products" menu-index="40" location="component://ironstone-boss/screen/Products.xml"/>
+            <subscreens-item name="Purchasing" menu-title="IronStone Purchasing" menu-index="41" location="component://ironstone-boss/screen/Purchasing.xml"/>
+            <subscreens-item name="Warehouse" menu-title="IronStone Warehouse" menu-index="42" location="component://ironstone-boss/screen/Warehouse.xml"/>
+            <subscreens-item name="Manufacturing" menu-title="IronStone Manufacturing" menu-index="43" location="component://ironstone-boss/screen/Manufacturing.xml"/>
+            <subscreens-item name="Maintenance" menu-title="IronStone Maintenance" menu-index="44" location="component://ironstone-boss/screen/Maintenance.xml"/>
+            <subscreens-item name="Accounting" menu-title="IronStone Accounting" menu-index="50" location="component://ironstone-boss/screen/Accounting.xml"/>
+            <subscreens-item name="People" menu-title="IronStone People" menu-index="51" location="component://ironstone-boss/screen/People.xml"/>
+            <subscreens-item name="Projects" menu-title="IronStone Projects" menu-index="52" location="component://ironstone-boss/screen/Projects.xml"/>
+            <subscreens-item name="Insights" menu-title="IronStone Insights" menu-index="60" location="component://ironstone-boss/screen/Insights.xml"/>
+            <subscreens-item name="Admin" menu-title="IronStone Admin" menu-index="61" location="component://ironstone-boss/screen/Admin.xml"/>
         </screen>
     </screen-facade>
 </moqui-conf>

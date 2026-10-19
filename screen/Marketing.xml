@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- IronStone Marketing: root of the app for marketing staff (initial-design.md app table); its sections follow
+    design-marketing.md when that file is written. Authorized for ADMIN by BOSS_MARKETING in data/BossSetupData.xml. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="IronStone Marketing" menu-image="sym_o_campaign" menu-image-type="icon">
+
+    <always-actions>
+        <set field="appRoot" value="Marketing"/>
+
+        <service-call name="mantle.party.PartyServices.setup#UserOrganizationInfo" out-map="context"/>
+    </always-actions>
+
+    <subscreens default-item="Home" always-use-full-path="true"/>
+
+    <widgets><subscreens-panel id="marketing-panel" type="popup"/></widgets>
+</screen>
