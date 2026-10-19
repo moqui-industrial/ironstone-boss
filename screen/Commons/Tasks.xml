@@ -22,6 +22,8 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="taskDetail"><default-response url="TaskDetail"/></transition>
 
+    <actions><!-- the user's own, as in My Account, whose root screen set partyId -->
+        <set field="partyId" from="ec.user.userAccount.partyId"/></actions>
     <widgets>
         <!-- <label text="My Open Tasks" type="h3"/> -->
         <container-dialog id="NewTaskContainer" button-text="New Task">

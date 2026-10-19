@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<entity-facade-xml type="demo">
+    <!-- M0: one record of john.doe (EX_JOHN_DOE) for each screen moved from the first SimpleScreens port that opens on a
+        record, so the screens have content and test/AppStructure.spec.js renders them with a real id. -->
+
+    <!-- Commons Requests and Requests/RequestDetail -->
+    <mantle.request.Request requestId="BOSS_DEMO_REQUEST" requestTypeEnumId="RqtSupport" statusId="ReqSubmitted"
+            requestName="Set up the shared team calendar" priority="3" requestDate="2026-10-01 09:00:00"
+            requestResolutionEnumId="RrUnresolved" filedByPartyId="EX_JOHN_DOE"
+            description="The team needs one calendar for meetings and time off, with everyone able to add events."/>
+    <mantle.request.RequestParty requestId="BOSS_DEMO_REQUEST" partyId="EX_JOHN_DOE" roleTypeId="Reporter" fromDate="2026-10-01 09:00:00"/>
+    <mantle.request.RequestParty requestId="BOSS_DEMO_REQUEST" partyId="EX_JOHN_DOE" roleTypeId="Assignee" fromDate="2026-10-01 09:00:00"/>
+    <mantle.request.RequestParty requestId="BOSS_DEMO_REQUEST" partyId="ORG_ACME_BA" roleTypeId="Customer" fromDate="2026-10-01 09:00:00"/>
+
+    <!-- Commons Calendar and Calendar/EventDetail -->
+    <mantle.work.effort.WorkEffort workEffortId="BOSS_DEMO_EVENT" workEffortTypeEnumId="WetEvent" purposeEnumId="WepMeeting"
+            statusId="WeInPlanning" resolutionEnumId="WerUnresolved" priority="5" ownerPartyId="EX_JOHN_DOE"
+            workEffortName="Weekly team meeting" description="Plans for the week and open requests."
+            estimatedStartDate="2026-10-21 10:00:00" estimatedWorkDuration="1" timeUomId="TF_hr"/>
+    <mantle.work.effort.WorkEffortParty workEffortId="BOSS_DEMO_EVENT" partyId="EX_JOHN_DOE" roleTypeId="Assignee"
+            fromDate="2026-10-01 09:00:00" statusId="WeptAssigned"/>
+
+    <!-- Commons Tasks and Tasks/TaskDetail -->
+    <mantle.work.effort.WorkEffort workEffortId="BOSS_DEMO_TASK" workEffortTypeEnumId="WetTask" purposeEnumId="WepTask"
+            statusId="WeInPlanning" resolutionEnumId="WerUnresolved" priority="4" ownerPartyId="EX_JOHN_DOE"
+            workEffortName="Review the open support requests" description="Answer or assign each open request."
+            estimatedCompletionDate="2026-10-23 17:00:00" estimatedWorkTime="2" remainingWorkTime="2" timeUomId="TF_hr"/>
+    <mantle.work.effort.WorkEffortParty workEffortId="BOSS_DEMO_TASK" partyId="EX_JOHN_DOE" roleTypeId="Assignee"
+            fromDate="2026-10-01 09:00:00" statusId="WeptAssigned"/>
+
+    <!-- Comms Inbox and Inbox/MessageDetail -->
+    <mantle.party.communication.CommunicationEvent communicationEventId="BOSS_DEMO_MESSAGE" communicationEventTypeId="Message"
+            statusId="CeReceived" fromPartyId="ORG_ACME_BA" toPartyId="EX_JOHN_DOE" entryDate="2026-10-15 14:30:00"
+            subject="Question about the team calendar" contentType="text/plain"
+            body="Can people outside the team see the events on the shared calendar?"/>
+
+    <!-- Insights ReportBuilder (Datasets, DatasetDetail and its FieldList, DatasetView) and Reports, for ADMIN -->
+    <moqui.entity.document.DataDocument dataDocumentId="BOSS_DEMO_PRODUCTS" documentName="Products"
+            primaryEntityName="mantle.product.Product">
+        <fields fieldSeqId="01" fieldPath="productId"/>
+        <fields fieldSeqId="02" fieldPath="productName"/>
+        <fields fieldSeqId="03" fieldPath="productTypeEnumId"/>
+    </moqui.entity.document.DataDocument>
+    <moqui.entity.document.DataDocumentUserGroup dataDocumentId="BOSS_DEMO_PRODUCTS" userGroupId="ADMIN"/>
+
+    <!-- Insights ScheduledReports and ScheduledReports/ScheduledReportDetail: a saved find of the Commons Tasks list,
+        scheduled weekly and paused by its past thruDate, so the scheduled screen job never sends it -->
+    <moqui.screen.form.FormListFind formListFindId="BOSS_DEMO_MY_TASKS" description="Open tasks by priority"
+            orderByField="priority" formLocation="component://ironstone-boss/screen/Commons/Tasks.xml.form_list$MyTasks">
+        <users userId="EX_JOHN_DOE"/>
+    </moqui.screen.form.FormListFind>
+    <moqui.screen.ScreenScheduled screenScheduledId="BOSS_DEMO_MY_TASKS" screenPath="/apps/Commons/Tasks"
+            formListFindId="BOSS_DEMO_MY_TASKS" renderMode="xlsx" noResultsAbort="Y" cronExpression="0 0 6 ? * MON"
+            fromDate="2026-01-05 00:00:00" thruDate="2026-02-02 00:00:00" emailTemplateId="SCREEN_RENDER"
+            emailSubject="Open tasks" userId="EX_JOHN_DOE"/>
+</entity-facade-xml>

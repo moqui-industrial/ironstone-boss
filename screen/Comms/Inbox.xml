@@ -26,6 +26,8 @@ along with this software (see the LICENSE.md file). If not, see
     <transition-include name="searchPartyList" location="component://SimpleScreens/template/party/PartyForms.xml"/>
 
     <actions>
+        <!-- the user's own, as in My Account, whose root screen set partyId -->
+        <set field="partyId" from="ec.user.userAccount.partyId"/>
         <if condition="toCurrentUser == 'true'"><set field="toPartyId" from="ec.user.userAccount.partyId"/></if>
         <!-- <entity-find-one entity-name="mantle.party.PartyDetail" value-field="party"/> -->
         <entity-find entity-name="mantle.party.communication.CommunicationEventAndPurpose" list="commEventList">

@@ -21,6 +21,8 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="createRequest"><service-call name="mantle.request.RequestServices.create#Request"/>
         <default-response url="."/></transition>
 
+    <actions><!-- the user's own, as in My Account, whose root screen set partyId -->
+        <set field="partyId" from="ec.user.userAccount.partyId"/></actions>
     <widgets>
         <container-dialog id="NewRequestContainer" button-text="New Request">
             <form-single name="NewRequestForm" transition="createRequest">
@@ -76,8 +78,8 @@ along with this software (see the LICENSE.md file). If not, see
             <row-actions>
                 <entity-find entity-name="mantle.request.RequestParty" list="partyList">
                     <date-filter/><econdition field-name="requestId"/></entity-find>
-                <set field="customerRp" from="partyList.find({ it.roleTypeId == 'Customer' })"/>
-                <set field="assigneeRp" from="partyList.find({ it.roleTypeId == 'Assignee' })"/>
+                <set field="customerRp" from="partyList.find(it => it.roleTypeId == 'Customer')"/>
+                <set field="assigneeRp" from="partyList.find(it => it.roleTypeId == 'Assignee')"/>
             </row-actions>
             <field name="findPartyId"><header-field><ignored/></header-field></field>
             <field name="facilityId"><header-field><ignored/></header-field><default-field><ignored/></default-field></field>

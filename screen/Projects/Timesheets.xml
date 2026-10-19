@@ -39,6 +39,8 @@ along with this software (see the LICENSE.md file). If not, see
     </subscreens>
 
     <actions>
+        <!-- the user's own, as in My Account, whose root screen set partyId -->
+        <set field="partyId" from="ec.user.userAccount.partyId"/>
         <entity-find entity-name="mantle.work.time.TimeEntry" list="timeEntryList">
             <search-form-inputs default-order-by="-fromDate"/>
             <econdition field-name="partyId"/>
