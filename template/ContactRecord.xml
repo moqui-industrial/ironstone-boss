@@ -98,11 +98,14 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="contactDelete">
         <actions>
-            <service-call name="ironstone.ContactServices.delete#Contacts" in-map="{partyId:partyId}" out-map="deleteOut"/>
-            <if condition="!ec.message.hasError() &amp;&amp; deleteOut.deletedCount">
+            <!-- removed when nothing refers to it, else disabled and out of its books (mantle.party.ContactBookServices.delete#Contacts:
+                the owner of a personal contact, CONTACT_ADMIN for the directory); one that may not be deleted is a warning -->
+            <service-call name="mantle.party.ContactBookServices.delete#Contacts" in-map="{partyId:partyId}" out-map="deleteOut"/>
+            <set field="deletedCount" from="(deleteOut?.removedCount || 0) + (deleteOut?.disabledCount || 0)"/>
+            <if condition="!ec.message.hasError() &amp;&amp; deletedCount">
                 <message type="success">Contact deleted</message></if>
         </actions>
-        <conditional-response url="//Commons/Contacts" condition="deleteOut?.deletedCount"/>
+        <conditional-response url="//Commons/Contacts" condition="deletedCount"/>
         <default-response url="."/>
     </transition>
     <!-- a vCard of the contact, as a download -->
@@ -124,8 +127,9 @@ along with this software (see the LICENSE.md file). If not, see
         ]]></script></actions>
         <default-response type="none"/>
     </transition>
-    <!-- the parties of the pickers (merge with, link to, relationships, organization): those the user may see, by name or
-        email (mantle.party.PartyServices.find#Party); organizationsOnly and directoryOnly narrow them -->
+    <!-- the parties of the pickers (merge with, link to, relationships, organization): those the user may see, by name (first
+        and last in either order), email, phone or organization (mantle.party.PartyServices.find#Party anyField);
+        organizationsOnly and directoryOnly narrow them -->
     <transition name="contactSearch" read-only="true">
         <actions><script><![CDATA[
             const words = term ? String(term).trim() : ''
@@ -134,7 +138,7 @@ along with this software (see the LICENSE.md file). If not, see
                 const base = {pageSize: 20, orderByField: 'firstName,organizationName'}
                 if (organizationsOnly === 'Y') base.partyTypeEnumId = 'PtyOrganization'
                 if (directoryOnly === 'Y') base.personalContacts = 'exclude'
-                const params = words.includes('@') ? Object.assign({emailAddress: words, leadingWildcard: true}, base) : Object.assign({combinedName: words}, base)
+                const params = Object.assign({anyField: words, leadingWildcard: words.includes('@')}, base)
                 const found = ec.service.sync().name('mantle.party.PartyServices.find#Party').parameters(params).call()
                 const ids = Array.from(found?.partyIdList || []).filter((id) => id !== excludePartyId)
                 const rows = ec.service.sync().name('ironstone.ContactServices.get#ContactRows').parameters({partyIdList: ids}).call()?.rowList || []

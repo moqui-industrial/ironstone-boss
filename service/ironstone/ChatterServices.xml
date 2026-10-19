@@ -29,10 +29,11 @@ along with this software (see the LICENSE.md file). If not, see
 
     <service verb="get" noun="RecordInfo" allow-remote="false">
         <description>The record of a Chatter or RecordFiles panel, found under the user's filters
-            (mantle.party.CommunicationServices.get#RecordLinkInfo with checkRecord): the link info, its title, type label, BOSS
-            screen (ironstone.PaletteServices.get#RecordLink, null when Commons and Comms have none) and icon. A record the user may
-            not see is logged; with requireVisible its error stays (a write is refused), otherwise visible is false and the error
-            is cleared (a read answers nothing).</description>
+            (mantle.party.CommunicationServices.get#RecordLinkInfo with checkOnly, which answers recordVisible without an error):
+            the link info, its title (a wiki page's first heading, else its name), type label, BOSS screen
+            (ironstone.PaletteServices.get#RecordLink, null when Commons and Comms have none) and icon. A record the user may not
+            see is logged; with requireVisible it is an error (a write is refused), otherwise visible is false (a read answers
+            nothing).</description>
         <in-parameters>
             <parameter name="recordEntityName"/>
             <parameter name="recordId"/>
@@ -54,15 +55,16 @@ along with this software (see the LICENSE.md file). If not, see
                 if (requireVisible) ec.message.addError(ec.l10n.localize('No record given'))
                 return
             }
-            // in a transaction of its own: a record that is not found is an error there, which must not roll back the read
-            // that asked (a read answers visible false)
+            // checkOnly: a record the user may not see is recordVisible false, no error (an error would mark the read's transaction
+            // rollback-only); any other error is logged as not visible
             ec.message.pushErrors()
             let out = null
             let why = null
             try {
                 out = ec.service.sync().name('mantle.party.CommunicationServices.get#RecordLinkInfo')
-                        .parameters({recordEntityName: recordEntityName, recordId: recordId, checkRecord: true}).requireNewTransaction(true).call()
+                        .parameters({recordEntityName: recordEntityName, recordId: recordId, checkOnly: true}).call()
                 if (ec.message.hasError()) why = ec.message.getErrorsString()
+                else if (out?.recordVisible !== true) why = out?.notVisibleReason || `${recordEntityName} ${recordId} not found`
             } catch (err) {
                 why = err && err.message ? err.message : String(err)
             } finally {
@@ -84,14 +86,32 @@ along with this software (see the LICENSE.md file). If not, see
                 const party = ec.entity.find('mantle.party.PartyDetail').condition('partyId', recordId).one()
                 title = party ? (ec.resource.expand('PartyNameOnlyTemplate', '', party) || '').trim() : ''
                 typeLabel = L(record.partyTypeEnumId === 'PtyOrganization' ? 'Organization' : 'Person')
+            } else if (entityName === 'moqui.resource.wiki.WikiPage') {
+                // a wiki page by its title: the first heading of its text, else its name (the last part of its path)
+                const path = String(record.pagePath || '')
+                title = path ? path.substring(path.lastIndexOf('/') + 1) : ''
+                ec.message.pushErrors()
+                try {
+                    const page = ec.service.sync().name('org.moqui.impl.WikiServices.get#WikiPageInfoById').parameters({wikiPageId: recordId}).call()
+                    if (!path && page?.wikiSpace) title = page.wikiSpace.description || page.wikiSpace.wikiSpaceId || ''
+                    const text = page?.pageReference?.exists ? (page.pageReference.getText() ?? '') : ''
+                    const heading = String(text).match(/^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$/m)
+                    if (heading) title = heading[1].replace(/[*_`]/g, '').trim()
+                } catch (err) {
+                    ec.logger.warn(`Chatter: the title of wiki page ${recordId} not read: ${err && err.message ? err.message : err}`)
+                } finally {
+                    ec.message.clearErrors()
+                    ec.message.popErrors()
+                }
+                typeLabel = L('Page')
             } else {
                 const nameFields = ['requestName', 'workEffortName', 'orderName', 'productName', 'categoryName', 'facilityName', 'assetName',
-                    'subject', 'pageName', 'shipmentId', 'description']
+                    'subject', 'shipmentId', 'description']
                 const field = nameFields.find((name) => record[name])
                 title = field ? String(record[field]) : ''
                 const types = {'mantle.request.Request': 'Request', 'mantle.order.OrderHeader': 'Order', 'mantle.account.invoice.Invoice': 'Invoice',
                     'mantle.account.payment.Payment': 'Payment', 'mantle.shipment.Shipment': 'Shipment', 'mantle.product.Product': 'Product',
-                    'mantle.facility.Facility': 'Facility', 'mantle.product.asset.Asset': 'Asset', 'moqui.resource.wiki.WikiPage': 'Page',
+                    'mantle.facility.Facility': 'Facility', 'mantle.product.asset.Asset': 'Asset',
                     'mantle.party.communication.CommunicationEvent': 'Message', 'mantle.party.agreement.Agreement': 'Agreement'}
                 let type = types[entityName] || null
                 if (entityName === 'mantle.work.effort.WorkEffort') type = record.workEffortTypeEnumId === 'WetEvent' ? 'Event'
@@ -383,22 +403,27 @@ along with this software (see the LICENSE.md file). If not, see
     <service verb="get" noun="Timeline">
         <description>A page of the record's timeline (mantle.party.CommunicationServices.get#RecordTimeline) as the panel shows it,
             newest first: each entry's key, kind, icon and color, the author's name, what it is (Email, Message, Note, Call done,
-            a change, a file), when (dateText, and dateMillis for the next page's beforeDate), its title, its body as safe HTML
+            a change, a file), when (dateText, and dateMillis), its title, its body as safe HTML
             with quoted text apart (quotedHtml, collapsed in the panel), the delivery status of an email, its attachments, the
             thread's Inbox link, and which actions apply (reply here, reply by email, unlink); a message of the record's chat room
-            links to it in Comms Chat. kinds is all, messages, notes, activities, changes or files.</description>
+            links to it in Comms Chat. kinds is all, messages, notes, activities, changes or files. The next page is asked with
+            beforeDate and seenKeys, the nextBeforeDate and nextSeenKeys of this one (get#RecordTimeline's cursor, which neither
+            skips nor repeats entries of the same date).</description>
         <in-parameters>
             <parameter name="recordEntityName" required="true"/>
             <parameter name="recordId" required="true"/>
             <parameter name="kinds"/>
-            <parameter name="beforeDate"><description>Epoch millis of the oldest entry shown</description></parameter>
+            <parameter name="beforeDate"><description>Epoch millis: the nextBeforeDate of the page before</description></parameter>
+            <parameter name="seenKeys"><description>The nextSeenKeys of the page before, comma separated (or a list)</description></parameter>
             <parameter name="pageSize" type="Integer" default="25"/>
         </in-parameters>
         <out-parameters>
             <parameter name="entryList" type="List"/>
             <parameter name="hasMore" type="Boolean"/>
-            <parameter name="nextBeforeDate" type="Long"><description>The beforeDate of the next page: the oldest entry of
-                this page, shown or not</description></parameter>
+            <parameter name="nextBeforeDate" type="Long"><description>The beforeDate of the next page (epoch millis): the date
+                of the last entry of this page, shown or not</description></parameter>
+            <parameter name="nextSeenKeys" type="List"><description>The seenKeys of the next page: the entries of this page and
+                the ones before it whose date is nextBeforeDate</description></parameter>
             <parameter name="failedSources" type="List"/>
         </out-parameters>
         <actions>
@@ -409,6 +434,7 @@ along with this software (see the LICENSE.md file). If not, see
                 entryList = []
                 hasMore = false
                 nextBeforeDate = null
+                nextSeenKeys = []
                 failedSources = []
                 const L = (text) => ec.l10n.localize(text)
                 const info = recordOut.info
@@ -416,11 +442,13 @@ along with this software (see the LICENSE.md file). If not, see
                 const kindValues = ['messages', 'notes', 'activities', 'changes', 'files']
                 const wanted = kinds && kindValues.includes(String(kinds)) ? [String(kinds)] : null
                 const beforeMillis = beforeDate != null && /^\d+$/.test(String(beforeDate)) ? Number(String(beforeDate)) : null
+                const seen = seenKeys == null ? [] : (Array.isArray(seenKeys) ? seenKeys : String(seenKeys).split(',')).map((key) => String(key).trim()).filter((key) => key)
                 const out = ec.service.sync().name('mantle.party.CommunicationServices.get#RecordTimeline').parameters({recordEntityName: entityName,
                     recordId: recordId, kinds: wanted, pageSize: pageSize || 25, beforeDate: beforeMillis == null ? null : new Date(beforeMillis),
-                    chatRoomUrl: '/qapps/Comms/Chat'}).call()
+                    seenKeys: beforeMillis == null ? null : seen, chatRoomUrl: '/qapps/Comms/Chat'}).call()
                 if (ec.message.hasError()) return
                 hasMore = !!out.hasMore
+                nextSeenKeys = Array.from(out.nextSeenKeys || []).map((key) => String(key))
                 const sourceLabels = {communicationEvents: 'messages and notes', notes: 'notes', activities: 'activities', auditLog: 'changes',
                     content: 'files', attachments: 'attachments', authors: 'authors', chatRoom: 'chat messages'}
                 failedSources = Array.from(out.failedSources || []).map((name) => L(sourceLabels[name] || name))
@@ -534,9 +562,11 @@ along with this software (see the LICENSE.md file). If not, see
                     return JSON.stringify(key)
                 }
 
+                // the cursor of the next page (get#RecordTimeline's), else the oldest entry of this one
+                nextBeforeDate = toMillis(out.nextBeforeDate)
                 for (const entry of entries) {
                     const dateMillis = toMillis(entry.date)
-                    if (dateMillis != null && (nextBeforeDate == null || dateMillis < nextBeforeDate)) nextBeforeDate = dateMillis
+                    if (out.nextBeforeDate == null && dateMillis != null && (nextBeforeDate == null || dateMillis < nextBeforeDate)) nextBeforeDate = dateMillis
                     // a field set when the record was made is no change, except its status ("Set to Submitted")
                     const isStatus = /statusId$/i.test(entry.fieldName || '')
                     if (entry.kind === 'change' && (entry.oldValue == null || entry.oldValue === '') && !isStatus) continue

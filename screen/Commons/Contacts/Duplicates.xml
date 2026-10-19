@@ -15,10 +15,11 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- Duplicates (design-drawers-commons.md §6 Duplicates; style-guide §3.2 List): the candidate duplicate pairs of the directory,
     grouped by reason (same email, same phone, same name, same address, same identification), from the duplicate scan
     (mantle.party.DuplicateServices.check#AllPartyDuplicates, run on demand here; find#PartyDuplicates for each flagged
-    party) and a same-name pass (ironstone.ContactServices.get#DuplicatePairs); DuplicateFind narrows by reason, book and
-    minimum score. Each pair opens the Compare dialog (Contacts/Compare: both records side by side, the field-level choice,
-    Merge) or is marked Not a duplicate. Personal contacts never appear: the duplicate services skip them and the pairs are
-    directory parties only. For contact admins (BOSS_CONTACT_ADMIN or ADMIN). -->
+    party, with what matched and how alike the names are: ironstone.ContactServices.get#DuplicatePairs); DuplicateFind
+    narrows by reason, book and minimum score. Each pair opens the Compare dialog (Contacts/Compare: both records side by
+    side, the field-level choice, Merge) or is marked Not a duplicate (mark#PartyNotDuplicate). Personal contacts never
+    appear: the duplicate services skip them and the pairs are directory parties only. For contact admins (the CONTACT_ADMIN
+    permission: BOSS_CONTACT_ADMIN or ADMIN). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Duplicates" default-menu-index="3">
 
@@ -28,7 +29,8 @@ along with this software (see the LICENSE.md file). If not, see
 
     <transition name="runScan">
         <actions><script><![CDATA[
-            if (!(ec.user.isInGroup('BOSS_CONTACT_ADMIN') || ec.user.isInGroup('ADMIN'))) { ec.message.addError(ec.l10n.localize('Only contact admins review duplicates')); return }
+            if (!(ec.user.hasPermission('CONTACT_ADMIN') || ec.user.isInGroup('BOSS_CONTACT_ADMIN') || ec.user.isInGroup('ADMIN'))) {
+                ec.message.addError(ec.l10n.localize('Only contact admins review duplicates')); return }
             ec.service.sync().name('mantle.party.DuplicateServices.check#AllPartyDuplicates').call()
             if (!ec.message.hasError()) ec.message.addMessage(ec.l10n.localize('The duplicate scan is done'), 'success')
         ]]></script></actions>
@@ -43,7 +45,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
 
     <actions>
-        <set field="isContactAdmin" from="ec.user.isInGroup('BOSS_CONTACT_ADMIN') || ec.user.isInGroup('ADMIN')"/>
+        <set field="isContactAdmin" from="ec.user.hasPermission('CONTACT_ADMIN') || ec.user.isInGroup('BOSS_CONTACT_ADMIN') || ec.user.isInGroup('ADMIN')"/>
         <if condition="isContactAdmin">
             <service-call name="ironstone.ContactServices.get#DuplicatePairs" in-map="{reason:reason}" out-map="dupOut"/>
             <service-call name="mantle.party.ContactBookServices.get#UserContactBooks" out-map="booksOut"/>

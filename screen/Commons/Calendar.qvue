@@ -1323,7 +1323,19 @@ module.exports = {
                 this.preview = null;
                 this.chipPreview = null;
                 this.reload();
-            }, (err) => { this.preview = null; this.chipPreview = null; moqui.handleAjaxError(err); });
+            }, (err) => {
+                this.preview = null;
+                this.chipPreview = null;
+                // a room or equipment of the event is booked by another event at the new time: keep the change anyway?
+                const json = err && err.json && typeof err.json === 'object' ? err.json : null;
+                if (kind !== 'cancel' && json && json.bookingClash && !payload.allowConflicts) {
+                    this.$q.dialog({ title: this.t('Booked then'), message: String(json.errors || ''), cancel: { label: this.t('Keep the old time'), flat: true, noCaps: true },
+                        ok: { label: this.t('Change anyway'), color: 'primary', unelevated: true, noCaps: true }, persistent: true })
+                        .onOk(() => this.doChange(kind, Object.assign({}, payload, { allowConflicts: 'Y' }), scope, notify));
+                    return;
+                }
+                moqui.handleAjaxError(err);
+            });
         },
         // ===== search =====
         runSearch(now) {

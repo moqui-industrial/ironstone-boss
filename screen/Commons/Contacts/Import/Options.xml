@@ -27,7 +27,7 @@ along with this software (see the LICENSE.md file). If not, see
             const current = ec.service.sync().name('ironstone.ContactServices.get#ImportDraft').parameters({importId: importId}).call()
             if (!current?.found) { ec.message.addError(L('This import is not available; start again from the file')); return }
             const personal = asPersonal !== 'N'
-            const admin = ec.user.isInGroup('BOSS_CONTACT_ADMIN') || ec.user.isInGroup('ADMIN')
+            const admin = ec.user.hasPermission('CONTACT_ADMIN') || ec.user.isInGroup('BOSS_CONTACT_ADMIN') || ec.user.isInGroup('ADMIN')
             if (!personal && !admin) { ec.message.addValidationError(null, 'asPersonal', null, L('Only contact admins import into the directory'), null); return }
             if (!['skip', 'update', 'create'].includes(duplicatePolicy)) { ec.message.addValidationError(null, 'duplicatePolicy', null, L('Choose what to do with duplicates'), null); return }
             const books = ec.service.sync().name('mantle.party.ContactBookServices.get#UserContactBooks').call()?.contactBookList || []
@@ -55,7 +55,7 @@ along with this software (see the LICENSE.md file). If not, see
         <script><![CDATA[
             const L = (text) => ec.l10n.localize(text)
             const books = Array.from(booksOut.contactBookList || []).filter((book) => ['CbpEdit', 'CbpManage'].includes(book.permissionEnumId))
-            isContactAdmin = ec.user.isInGroup('BOSS_CONTACT_ADMIN') || ec.user.isInGroup('ADMIN')
+            isContactAdmin = ec.user.hasPermission('CONTACT_ADMIN') || ec.user.isInGroup('BOSS_CONTACT_ADMIN') || ec.user.isInGroup('ADMIN')
             bookOptions = books.map((book) => ({key: book.contactBookId, text: book.contactBookName + (book.isOwner ? ' · ' + L('yours') : ' · ' + L('shared'))}))
             const defaultBook = books.find((book) => book.isOwner && book.isDefault) || books.find((book) => book.isOwner)
             const saved = draft.options || {}

@@ -49,7 +49,7 @@ along with this software (see the LICENSE.md file). If not, see
         const reasons = {email: L('same email'), phone: L('same phone and name'), name: L('same name'), file: L('an earlier row')}
         previewRows = Array.from(out.rowList || []).map((row) => ({rowNumber: row.rowNumber, name: row.name || L('(no name)'), action: row.action,
             actionLabel: actions[row.action] || row.action, actionStyle: row.action === 'create' ? 'text-positive' : (row.action === 'update' ? 'text-primary' : 'm-muted'),
-            matchedPartyId: row.matchedPartyId || null, matchedText: row.matchedPartyId ? String(row.matchedName || row.matchedPartyId).replace(row.matchedPartyId + ': ', '') + ' · ' + (reasons[row.matchReason] || row.matchReason || '')
+            matchedPartyId: row.matchedPartyId || null, matchedText: row.matchedPartyId ? String(row.matchedName || row.matchedPseudoId || row.matchedPartyId) + ' · ' + (reasons[row.matchReason] || row.matchReason || '')
                 : (row.matchedRowNumber ? ec.resource.expand('Row ${n} of the file', '', {n: row.matchedRowNumber}) : ''),
             problemText: Array.from(row.problems || []).join('; ')}))
         counts = {rowCount: out.rowCount || 0, createCount: out.createCount || 0, updateCount: out.updateCount || 0, skipCount: out.skipCount || 0,

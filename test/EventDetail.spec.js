@@ -3,8 +3,10 @@
 // (data/BossCalendarDemoData.xml, loaded again here). The screen renders the weekly sync's instance with its header, repeat and
 // tabs, and Joe Developer's planning with john.doe's RSVP; When and Overview save by scope, a changed instance shows itself; the
 // repeat editor writes the RRULE; attendees are invited (a user by notification, an outside address as a new personal contact by
-// email), made optional and removed; the user's reminders; meeting rooms and equipment booked at once or requested by the policy,
-// a clash refused, a booking cancelled; Duplicate and Export .ics; Cancel event telling the attendees; an answer with a note.
+// email), made optional and removed (the removed outside address told by email); the user's reminders; meeting rooms and
+// equipment booked at once or requested by the policy, a clash refused, a booking cancelled; a new time that clashes with a
+// booking of its room refused, then kept anyway; Duplicate and Export .ics; Cancel event telling the attendees; an answer with
+// a note; a link to a changed instance by its series and start opens the instance.
 // Joe Developer gets "not available" for john.doe's family birthday and may not change john.doe's events (IronStone R5, R28).
 // Run: ./moq test ironstone-boss --spec EventDetail
 const webroot = "component://webroot/screen/webroot.xml"
@@ -55,9 +57,6 @@ spec({
     setupSpec() {
         login("john.doe")
         sys(() => call("ironstone.CalendarDemoServices.load#CalendarDemo", {}))
-        // an invitation by email goes from the organizer's address: john.doe's, as the demo has it (CommonsSettings saves his
-        // account without one)
-        sys(() => call("update#moqui.security.UserAccount", { userId: "EX_JOHN_DOE", emailAddress: "john.doe@moqui.org" }))
         login("john.doe")
         D = ec.l10n.format(ec.user.nowTimestamp, "yyyy-MM-dd")
     },
@@ -176,14 +175,16 @@ feature("attendees: Joe invited at once by notification, an outside address made
         const optional = detailPost("setOptional", { workEffortId: made.meeting, partyId: outside.partyId, optional: "Y" })
         const optionalRow = current("mantle.work.effort.WorkEffortParty", { workEffortId: made.meeting, partyId: outside.partyId })[0] || {}
         const again = detailPost("sendInvitations", { workEffortId: made.meeting })
+        const emailsBefore = sys(() => ec.entity.find("moqui.basic.email.EmailMessage").condition("toAddresses", "like", "%pat.outside@example.org%").count())
         const removed = detailPost("removeAttendee", { workEffortId: made.meeting, partyId: outside.partyId })
+        const cancelEmails = sys(() => ec.entity.find("moqui.basic.email.EmailMessage").condition("toAddresses", "like", "%pat.outside@example.org%").count()) - emailsBefore
         const organizer = detailPost("removeAttendee", { workEffortId: made.meeting, partyId: "EX_JOHN_DOE" })
         const bad = detailPost("addAttendees", { workEffortId: made.meeting, emails: "not-an-address" })
-        return { added, outside, email, optional, optionalRow, again, removed, organizer, bad, told: notices("ORG_ZIZI_JD", "EventInvitation").length - before,
+        return { added, outside, email, optional, optionalRow, again, removed, cancelEmails, organizer, bad, told: notices("ORG_ZIZI_JD", "EventInvitation").length - before,
             joe: current("mantle.work.effort.WorkEffortParty", { workEffortId: made.meeting, partyId: "ORG_ZIZI_JD" })[0] || {},
             outsideRows: current("mantle.work.effort.WorkEffortParty", { workEffortId: made.meeting, partyId: outside.partyId }).length }
     },
-    then({ added, outside, email, optional, optionalRow, again, removed, organizer, bad, told, joe, outsideRows }) {
+    then({ added, outside, email, optional, optionalRow, again, removed, cancelEmails, organizer, bad, told, joe, outsideRows }) {
         added.errors == ""
         told == 1
         joe.statusId == "WeptOffered"
@@ -196,6 +197,7 @@ feature("attendees: Joe invited at once by notification, an outside address made
         optionalRow.expectationEnumId == "WepeInvRequested"
         again.errors == ""
         removed.errors == ""
+        cancelEmails == 1
         outsideRows == 0
         organizer.errors.includes("organizer stays")
         bad.errors.includes("not an email address")
@@ -251,6 +253,45 @@ feature("rooms and equipment: Maple booked at once, the Board room requested (Bo
         mapleRow == null
         facts.rooms.find((room) => room.facilityId === "BOSS_DEMO_ROOM_BOARD").statusLabel == "Pending approval"
         facts.equipment[0].statusLabel == "Booked"
+    },
+})
+
+feature("a new time that clashes with another booking of its room is refused; with allowConflicts it is kept and the booking stays", {
+    when() {
+        // the planning has the Maple room on D+2 from 13:00
+        const id = quickEvent("BOSS_TEST detail room move", day(5) + " 10:00", day(5) + " 11:00")
+        const booked = detailPost("bookResource", { workEffortId: id, facilityId: "BOSS_DEMO_ROOM_MAPLE" })
+        const shown = render("apps/Commons/Calendar/EventDetail", { workEffortId: id })
+        const move = { workEffortId: id, scope: "all", workEffortName: "BOSS_TEST detail room move", allDay: "N", startDate: day(2), startTime: "13:00",
+            endDate: day(2), endTime: "14:00", moquiFormName: "EventWhen" }
+        const refused = detailPost("saveOverview", move)
+        const afterRefused = one("mantle.work.effort.WorkEffort", { workEffortId: id })
+        const kept = detailPost("saveOverview", Object.assign({ allowConflicts: "Y" }, move))
+        return { booked, shown, refused, afterRefused, kept, after: one("mantle.work.effort.WorkEffort", { workEffortId: id }),
+            room: one("mantle.work.effort.WorkEffortFacility", { workEffortId: id, facilityId: "BOSS_DEMO_ROOM_MAPLE" }) || {} }
+    },
+    then({ booked, shown, refused, afterRefused, kept, after, room }) {
+        booked.errors == ""
+        shown.output.includes("Change it even when a room or equipment is booked then")
+        refused.errors.includes("Maple meeting room is booked then")
+        userText(afterRefused.estimatedStartDate) == day(5) + " 10:00"
+        kept.errors == ""
+        userText(after.estimatedStartDate) == day(2) + " 13:00"
+        room.statusId == "WefAssigned"
+    },
+})
+
+feature("a link to a changed instance, by its series and the instance's start, opens the instance", {
+    when() {
+        return { moved: render("apps/Commons/Calendar/EventDetail", { workEffortId: "BOSS_DEMO_EV_SYNC", instanceStart: day(7) + " 10:00" }),
+            generated: render("apps/Commons/Calendar/EventDetail", { workEffortId: "BOSS_DEMO_EV_SYNC", instanceStart: day(21) + " 10:00" }) }
+    },
+    then({ moved, generated }) {
+        moved.errors == ""
+        moved.output.includes("Changed instance")
+        moved.output.includes("Open the series")
+        !generated.output.includes("Changed instance")
+        generated.output.includes("Team sync")
     },
 })
 

@@ -225,7 +225,7 @@ along with this software (see the LICENSE.md file). If not, see
             // the decoration: type, status, customer and assignee
             const ids = page.map((item) => item.id)
             const statusIdsShown = Array.from(new Set(page.map((item) => item.row.statusId).filter((id) => id)))
-            const colors = ec.service.sync().name('ironstone.StatusServices.get#StatusColors').parameters({statusIdList: statusIdsShown}).call()?.colors || {}
+            const colors = ec.service.sync().name('org.moqui.impl.StatusServices.get#StatusColors').parameters({statusIdList: statusIdsShown}).call()?.colors || {}
             const statusLabel = (id) => { const item = id ? ec.entity.find('moqui.basic.StatusItem').condition('statusId', id).useCache(true).one() : null; return item ? (item.description || id) : (id || '') }
             const enumLabel = (id) => { const item = id ? ec.entity.find('moqui.basic.Enumeration').condition('enumId', id).useCache(true).one() : null; return item ? (item.description || id) : (id || '') }
             const byRole = {}
@@ -288,16 +288,17 @@ along with this software (see the LICENSE.md file). If not, see
 
     <service verb="get" noun="RequestDetail">
         <description>What RequestDetail shows of a request the user may see (found false, or visible false: "not available"):
-            the request with its type, status, priority, customer, assignee, reporter and dates, the status bar (Draft,
-            Submitted, Reviewed, In Progress, Completed as the stages, with the transitions the user may take: Submit for a
-            draft the user raised, Cancel for an open request the user raised), the parties, the tasks linked by
+            the request with its type, status, priority, customer, assignee, reporter and dates, what its status-bar shows (the
+            stages Draft, Submitted, Reviewed, In Progress and Completed, and allowedStatusIds, the transitions the user may take:
+            Submit for a draft the user raised, Cancel for an open request the user raised), the parties, the tasks linked by
             RequestWorkEffort (decorated as task rows) and the actions that apply.</description>
         <in-parameters><parameter name="requestId" required="true"/></in-parameters>
         <out-parameters>
             <parameter name="found" type="Boolean"/>
             <parameter name="visible" type="Boolean"/>
             <parameter name="request" type="Map"/>
-            <parameter name="statusBar" type="Map"/>
+            <parameter name="stageStatusIds" type="List"/>
+            <parameter name="allowedStatusIds" type="List"/>
             <parameter name="partyList" type="List"/>
             <parameter name="taskList" type="List"/>
             <parameter name="canSubmit" type="Boolean"/>
@@ -332,11 +333,13 @@ along with this software (see the LICENSE.md file). If not, see
                 const roleName = (id) => { const role = id ? ec.entity.find('mantle.party.RoleType').condition('roleTypeId', id).useCache(true).one() : null; return role ? (role.description || id) : (id || '') }
                 const partyName = (party) => party ? (party.organizationName || [party.firstName, party.lastName].filter((name) => name).join(' ') || party.pseudoId || party.partyId) : null
 
-                const allowed = []
-                if (canSubmit) allowed.push('ReqSubmitted')
-                if (canCancel) allowed.push('ReqCancelled')
-                statusBar = ec.service.sync().name('ironstone.StatusServices.get#StatusBar').parameters({statusId: row.statusId, statusFlowId: 'Default',
-                    stageStatusIds: ['ReqDraft', 'ReqSubmitted', 'ReqReviewed', 'ReqInProgress', 'ReqCompleted'], allowedToStatusIds: allowed}).call() || {}
+                // the status-bar: the stages, and the requester's Submit and Cancel
+                stageStatusIds = ['ReqDraft', 'ReqSubmitted', 'ReqReviewed', 'ReqInProgress', 'ReqCompleted']
+                allowedStatusIds = []
+                if (canSubmit) allowedStatusIds.push('ReqSubmitted')
+                if (canCancel) allowedStatusIds.push('ReqCancelled')
+                const statusColor = row.statusId ? (ec.service.sync().name('org.moqui.impl.StatusServices.get#StatusColors')
+                        .parameters({statusIdList: [row.statusId]}).call()?.colors?.[row.statusId] || 'grey-7') : 'grey-7'
 
                 const seenRoles = new Set()
                 const rps = Array.from(ec.entity.find('mantle.request.RequestParty').condition('requestId', requestId)
@@ -361,7 +364,7 @@ along with this software (see the LICENSE.md file). If not, see
                 const statusItem = row.statusId ? ec.entity.find('moqui.basic.StatusItem').condition('statusId', row.statusId).useCache(true).one() : null
                 const priority = row.priority ?? null
                 request = Object.assign({}, row, {typeLabel: enumLabel(row.requestTypeEnumId), resolutionLabel: enumLabel(row.requestResolutionEnumId),
-                    statusLabel: statusItem ? statusItem.description : (row.statusId || ''), statusColor: statusBar?.current?.color || 'grey-7',
+                    statusLabel: statusItem ? statusItem.description : (row.statusId || ''), statusColor: statusColor,
                     priorityText: priority == null ? '' : (priority <= 3 ? L('High') : priority <= 6 ? L('Normal') : L('Low')) + ' (' + priority + ')',
                     customerPartyId: customer?.partyId || null, customerName: customer ? nameOf(customer.partyId) : '',
                     assigneePartyId: assignee?.partyId || null, assigneeName: assignee ? nameOf(assignee.partyId) : '',
@@ -486,17 +489,6 @@ along with this software (see the LICENSE.md file). If not, see
                     in-map="{requestId:requestId, body:String(body).trim(), contentType:'text/plain'}"/>
             <if condition="ec.message.hasError()"><return/></if>
             <set field="communicationEventId" from="commentOut.communicationEventId"/>
-            <if condition="!communicationEventId">
-                <!-- add#RequestComment declares no out-parameters: the newest comment of the user on the request -->
-                <entity-find entity-name="mantle.request.RequestCommEvent" list="joinList"><econdition field-name="requestId"/></entity-find>
-                <entity-find entity-name="mantle.party.communication.CommunicationEvent" list="commentList" limit="1">
-                    <econdition field-name="communicationEventId" operator="in" from="Array.from(joinList).map((join) => join.communicationEventId).concat(['_NA_'])"/>
-                    <econdition field-name="fromPartyId" from="ec.user.userAccount?.partyId"/>
-                    <econdition field-name="communicationEventTypeId" value="Comment"/>
-                    <order-by field-name="-entryDate"/><order-by field-name="-communicationEventId"/>
-                </entity-find>
-                <set field="communicationEventId" from="commentList?.[0]?.communicationEventId"/>
-            </if>
             <set field="message" from="ec.l10n.localize('Comment added')"/>
         </actions>
     </service>

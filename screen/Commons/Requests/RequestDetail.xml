@@ -14,7 +14,7 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- RequestDetail (design-drawers-commons.md §8 RequestDetail, Context passed; style-guide §3.3 Detail): one request as Commons
     shows it (service/ironstone/RequestServices.xml get#RequestDetail). The header has the name, the status as a row of stage
-    chips (template/StatusBar.xml) with the requester's next action (Submit a draft; Cancel one's own), Comment, Reassign for
+    chips (the framework's status-bar) with the requester's next action (Submit a draft; Cancel one's own), Comment, Reassign for
     the assignee, Edit of one's own draft and Attach. The tabs: Overview (name, type, priority, customer, description, dates,
     people), Conversation (Chatter: notes, messages and the comments of add#RequestComment, which are Comment communication
     events joined by RequestCommEvent; the right column of the overview from 1440 px, a tab below), Tasks (the work efforts of
@@ -114,9 +114,9 @@ along with this software (see the LICENSE.md file). If not, see
             canEdit = !!detail.canEdit
             canReassign = !!detail.canReassign
             canAddTask = !!detail.canAddTask
-            statusBar = detail.statusBar
-            statusBarParameters = {requestId: requestId, tab: tab}
-            statusBarTitle = request.requestName || requestId
+            // the status-bar: the stages and the requester's Submit and Cancel
+            stageStatusIds = detail.stageStatusIds || []
+            allowedStatusIds = detail.allowedStatusIds || []
             partyList = detail.partyList || []
             taskList = detail.taskList || []
             captionText = [L('Request') + ' ' + requestId, request.typeLabel, request.filedByName ? L('raised by') + ' ' + request.filedByName : null,
@@ -164,10 +164,11 @@ along with this software (see the LICENSE.md file). If not, see
                 <container style="col-12 col-md">
                     <label text="${request.requestName || requestId}" type="h5" style="q-my-none"/>
                     <label text="${captionText}" type="div" style="text-caption m-muted q-mb-xs"/>
-                    <section-include name="StatusBarStages" location="component://ironstone-boss/template/StatusBar.xml"/>
+                    <status-bar id="RequestStatusBar" status-id="${request.statusId}" stages="${stageStatusIds}" allowed-status-ids="${allowedStatusIds}"
+                            transition="changeStatus" parameter-name="toStatusId" parameter-map="{requestId:requestId, tab:tab}"
+                            title="${request.requestName || requestId}"/>
                 </container>
                 <container style="col-12 col-md-auto row items-center q-gutter-y-xs m-request-actions">
-                    <section-include name="StatusBarActions" location="component://ironstone-boss/template/StatusBar.xml"/>
                     <container-dialog id="RequestCommentDialog" button-text="Comment" icon="sym_o_add_comment" width="560" title="Comment on ${request.requestName || requestId}">
                         <form-single name="RequestComment" transition="addComment" focus-field="body">
                             <field name="requestId"><default-field><hidden/></default-field></field>

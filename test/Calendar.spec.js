@@ -3,8 +3,10 @@
 // calendar demo (data/BossCalendarDemoData.xml, CalendarDemoServices.load#CalendarDemo, loaded again here so the dates are
 // from today in john.doe's time zone). The rail's calendars and defaults; the events of a day, a week, a month and the
 // agenda, with the calendars turned off, declined invitations and the tasks (the Tasks list's Calendar link, showTasks=Y);
-// the quick event; a move and a resize, notifying the attendees; a recurring event changed as this event, this and following
-// and all events, and cancelled the same ways; the answer to an invitation; the popover; the search and Find a time. Joe
+// the quick event; a move and a resize, notifying the attendees; a move onto another booking of its room refused, then kept
+// anyway; a recurring event changed as this event, this and following and all events (mantle.work.EventServices
+// update#EventOccurrence), and cancelled the same ways (one instance as an EXDATE of its series); the answer to an
+// invitation; the popover; the search and Find a time. Joe
 // Developer may not see john.doe's family event nor change john.doe's events (IronStone R5, R28). Authorization stays on.
 // Run: ./moq test ironstone-boss --spec Calendar
 const commons = "component://ironstone-boss/screen/Commons.xml"
@@ -264,6 +266,32 @@ feature("a single event moves and resizes; with notify the attendee gets the upd
     },
 })
 
+feature("a move onto another booking of its room is refused and offered to keep anyway; kept, the booking stays and the clash is named", {
+    when() {
+        // the Maple room is the planning's on D+2 from 13:00 to 14:00
+        const created = post("createEvent", { workEffortName: "BOSS_TEST room clash", start: day(5) + " 13:00", end: day(5) + " 14:00",
+            facilityId: "BOSS_DEMO_ROOM_MAPLE" })
+        const id = created.json.workEffortId
+        const refused = post("moveEvent", { workEffortId: id, start: day(2) + " 13:30", end: day(2) + " 14:30", allDay: "N" })
+        const afterRefused = one("mantle.work.effort.WorkEffort", { workEffortId: id })
+        const kept = post("moveEvent", { workEffortId: id, start: day(2) + " 13:30", end: day(2) + " 14:30", allDay: "N", allowConflicts: "Y" })
+        const warnings = (kept.json.messageInfos || []).filter((info) => info.type === "warning").map((info) => info.message)
+        return { created, refused, afterRefused, kept, warnings, after: one("mantle.work.effort.WorkEffort", { workEffortId: id }),
+            room: one("mantle.work.effort.WorkEffortFacility", { workEffortId: id, facilityId: "BOSS_DEMO_ROOM_MAPLE" }) || {} }
+    },
+    then({ created, refused, afterRefused, kept, warnings, after, room }) {
+        created.errors == ""
+        refused.status == 500
+        refused.json.bookingClash == true
+        refused.errors.includes("Maple meeting room is booked then: Release planning")
+        userText(afterRefused.estimatedStartDate) == day(5) + " 13:00"
+        kept.errors == ""
+        warnings.some((text) => text.includes("Maple meeting room (Release planning)"))
+        userText(after.estimatedStartDate) == day(2) + " 13:30"
+        room.statusId == "WefAssigned"
+    },
+})
+
 feature("a weekly series changes as this event, this and following, and all events", {
     when() {
         const created = post("createEvent", { workEffortName: "BOSS_TEST weekly review", start: day(1) + " 09:00", end: day(1) + " 09:30", repeat: "weekly",
@@ -324,17 +352,24 @@ feature("an instance, the following ones and a whole series cancel; the attendee
         const before = notices("ORG_ZIZI_JD", "EventInvitation").length
         const one_ = post("cancelEvent", { workEffortId: series, instanceStart: day(15) + " 09:00", scope: "this", notify: "Y" })
         const afterOne = events(day(0), day(20)).json.eventList || []
+        // one instance is left out of the series (an EXDATE, UTC), not made an event of its own
+        const exdate = new Date(millisOf(day(15) + " 09:00")).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "")
+        const exdates = String((one("mantle.work.effort.WorkEffortRecurrence", { workEffortId: series }) || {}).exdates || "")
+        const instanceRows = all("mantle.work.effort.WorkEffortAssoc", { workEffortId: series, workEffortAssocTypeEnumId: "WeatRecurrenceInstance" })
+                .filter((assoc) => userText(assoc.fromDate) === day(15) + " 09:00").length
         const quick = made.quick
         const whole = post("cancelEvent", { workEffortId: quick, instanceStart: day(4) + " 15:00", scope: "all", notify: "Y" })
         const quickRow = one("mantle.work.effort.WorkEffort", { workEffortId: quick })
         return { one_, whole, starts: afterOne.filter((event) => event.recurringEventId === series || event.workEffortId === series).map((event) => event.start),
             quickRow, told: notices("ORG_ZIZI_JD", "EventInvitation").length - before,
-            quickShown: byId(events(day(0), day(20)), quick).length }
+            quickShown: byId(events(day(0), day(20)), quick).length, exdate, exdates, instanceRows }
     },
-    then({ one_, whole, starts, quickRow, told, quickShown }) {
+    then({ one_, whole, starts, quickRow, told, quickShown, exdate, exdates, instanceRows }) {
         one_.errors == ""
         message(one_).startsWith("Event cancelled")
         !starts.includes(day(15) + " 09:00")
+        exdates.split(",").includes(exdate)
+        instanceRows == 0
         starts.includes(day(1) + " 09:00")
         whole.errors == ""
         quickRow.statusId == "WeCancelled"

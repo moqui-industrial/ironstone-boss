@@ -20,13 +20,15 @@ along with this software (see the LICENSE.md file). If not, see
 <services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
 
     <service verb="load" noun="CommonsDemo" authenticate="anonymous-all" allow-remote="false">
-        <description>Stores john.doe's (EX_JOHN_DOE) demo Today and notifications, dated from now in the session's time zone
-            (the server's in a data load, the user's when a user runs it):
+        <description>Stores john.doe's (EX_JOHN_DOE) demo Today and notifications, dated from now in john.doe's time zone in a
+            data load (the user's when a user runs it), so each shows at its time of day; a load on a later day moves them and keeps
+            one Assignee row per party:
             - BOSS_DEMO_TODAY_OVERDUE, a task due two days ago at 17:00 on Bob Acme's party (WorkEffortRecord): Overdue;
             - BOSS_DEMO_TODAY_CALL, a call (WepPhoneCall) due today at 11:00 on the demo request (RequestWorkEffort): Due today;
             - BOSS_DEMO_TODAY_DUE, a task due today at 17:00 that Joe Developer is also assigned: Due today;
             - BOSS_DEMO_TODAY_MEETING, a meeting today at 15:00 for 30 minutes (from 14:00 an hour from now): Later today;
-            - the demo request's response due today at 16:00, which the Requests today source lists;
+            - the demo request's response due today at 16:00, which the Requests today source lists, and the times of day of the
+              demo request, event and message of data/BossDemoData.xml;
             - notifications in the Notifications inbox (a mention, a reminder, a chat mention, an invitation read yesterday
               and an approval waiting on the BossDemoApproval topic) and in the Updates inbox (a followed-record note, an
               invitation answer, and one read two days ago).</description>
@@ -40,99 +42,124 @@ along with this software (see the LICENSE.md file). If not, see
                 ec.logger.warn('The Commons demo needs the party EX_JOHN_DOE (mantle-usl demo data); nothing loaded')
                 return
             }
-            const toMillis = (value) => {
-                if (value == null || value === '') return null
-                if (typeof value === 'number') return value
-                if (value instanceof Date) return value.getTime()
-                const text = String(value)
-                return /^-?\d+$/.test(text) ? Number(text) : Date.parse(text)
-            }
-            const pattern = 'yyyy-MM-dd HH:mm:ss.SSS'
-            const nowMillis = toMillis(ec.user.nowTimestamp)
-            const dayText = (millis) => ec.l10n.format(String(millis), 'yyyy-MM-dd')
-            const at = (text, time) => toMillis(ec.l10n.parseTimestamp(text + ' ' + time + ':00.000', pattern))
-            const todayText = dayText(nowMillis)
-            const todayStart = at(todayText, '00:00')
-            // a day is 23 to 25 hours, so 12 hours before a day's start is in the day before and 30 hours after it in the next
-            const daysFrom = (text, days) => {
-                let millis = at(text, '00:00')
-                for (let i = 0; i < Math.abs(days); i++) millis = at(dayText(millis + (days < 0 ? -12 : 30) * 3600000), '00:00')
-                return dayText(millis)
-            }
-            const twoDaysAgo = daysFrom(todayText, -2)
-            const store = (entityName, fields) => {
-                ec.service.sync().name('store#' + entityName).parameters(fields).disableAuthz().call()
-            }
-            const fromDate = new Date(todayStart - 7 * 86400000)
-
-            // the work efforts and john.doe's rows on them
-            const workEffort = (id, fields, assignees) => {
-                store('mantle.work.effort.WorkEffort', Object.assign({workEffortId: id, statusId: fields.workEffortTypeEnumId === 'WetEvent' ? 'WeInPlanning' : 'WeApproved',
-                    resolutionEnumId: 'WerUnresolved', ownerPartyId: partyId, timeUomId: 'TF_hr'}, fields))
-                for (const assignee of assignees) {
-                    store('mantle.work.effort.WorkEffortParty', {workEffortId: id, partyId: assignee, roleTypeId: 'Assignee', fromDate: fromDate,
-                        statusId: 'WeptAssigned', snoozedThruDate: null})
+            // john.doe's time zone for every time of day here, whatever the server's is (a data load has no user), as the calendar
+            // demo has it; the user's own when a user runs it
+            const account = ec.entity.find('moqui.security.UserAccount').condition('userId', userId).disableAuthz().one()
+            const zone = account?.timeZone || 'US/Central'
+            const signedIn = !!ec.user.userId
+            const previousZone = ec.user.timeZone
+            if (!signedIn && zone !== previousZone) ec.user.setTimeZone(zone)
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try {
+                const toMillis = (value) => {
+                    if (value == null || value === '') return null
+                    if (typeof value === 'number') return value
+                    if (value instanceof Date) return value.getTime()
+                    const text = String(value)
+                    return /^-?\d+$/.test(text) ? Number(text) : Date.parse(text)
                 }
-                workEffortIdList.push(id)
-            }
-            workEffort('BOSS_DEMO_TODAY_OVERDUE', {workEffortTypeEnumId: 'WetTask', purposeEnumId: 'WepTask', priority: 3,
-                workEffortName: 'Send the signed service agreement to Bob Acme', description: 'The agreement for the team calendar setup, signed on both pages.',
-                estimatedCompletionDate: new Date(at(twoDaysAgo, '17:00')), estimatedWorkTime: 1, remainingWorkTime: 1}, [partyId])
-            store('mantle.work.effort.WorkEffortRecord', {workEffortId: 'BOSS_DEMO_TODAY_OVERDUE', recordEntityName: 'mantle.party.Party',
-                recordId: 'ORG_ACME_BA', linkedByUserId: userId, linkedDate: fromDate})
-            workEffort('BOSS_DEMO_TODAY_CALL', {workEffortTypeEnumId: 'WetTask', purposeEnumId: 'WepPhoneCall', priority: 4,
-                workEffortName: 'Call Bob Acme about who may see the shared calendar', estimatedCompletionDate: new Date(at(todayText, '11:00'))}, [partyId])
-            store('mantle.request.RequestWorkEffort', {requestId: 'BOSS_DEMO_REQUEST', workEffortId: 'BOSS_DEMO_TODAY_CALL'})
-            workEffort('BOSS_DEMO_TODAY_DUE', {workEffortTypeEnumId: 'WetTask', purposeEnumId: 'WepTask', priority: 5,
-                workEffortName: 'Compare the calendar options for the team', description: 'Two or three options with their cost and how they share.',
-                estimatedCompletionDate: new Date(at(todayText, '17:00')), estimatedWorkTime: 2, remainingWorkTime: 2}, [partyId, 'ORG_ZIZI_JD'])
-            // the meeting starts at 15:00, or an hour from now (on the half hour) once that is past
-            let meetingStart = at(todayText, '15:00')
-            if (nowMillis > at(todayText, '14:00')) meetingStart = Math.ceil((nowMillis + 3600000) / 1800000) * 1800000
-            workEffort('BOSS_DEMO_TODAY_MEETING', {workEffortTypeEnumId: 'WetEvent', purposeEnumId: 'WepMeeting', priority: 5,
-                workEffortName: 'Calendar setup review', description: 'Go over the options and pick one.',
-                estimatedStartDate: new Date(meetingStart), estimatedCompletionDate: new Date(meetingStart + 1800000), estimatedWorkDuration: 0.5}, [partyId, 'ORG_ZIZI_JD'])
-            // the demo request (BossDemoData.xml) has a response due today, for the Requests today source
-            store('mantle.request.Request', {requestId: 'BOSS_DEMO_REQUEST', responseRequiredDate: new Date(at(todayText, '16:00'))})
+                const pattern = 'yyyy-MM-dd HH:mm:ss.SSS'
+                const nowMillis = toMillis(ec.user.nowTimestamp)
+                const dayText = (millis) => ec.l10n.format(String(millis), 'yyyy-MM-dd')
+                const at = (text, time) => toMillis(ec.l10n.parseTimestamp(text + ' ' + time + ':00.000', pattern))
+                const todayText = dayText(nowMillis)
+                const todayStart = at(todayText, '00:00')
+                // a day is 23 to 25 hours, so 12 hours before a day's start is in the day before and 30 hours after it in the next
+                const daysFrom = (text, days) => {
+                    let millis = at(text, '00:00')
+                    for (let i = 0; i < Math.abs(days); i++) millis = at(dayText(millis + (days < 0 ? -12 : 30) * 3600000), '00:00')
+                    return dayText(millis)
+                }
+                const twoDaysAgo = daysFrom(todayText, -2)
+                const store = (entityName, fields) => {
+                    ec.service.sync().name('store#' + entityName).parameters(fields).disableAuthz().call()
+                }
+                const fromDate = new Date(todayStart - 7 * 86400000)
 
-            // the notifications: the message and john.doe's row, read or not
-            const hours = (count) => new Date(nowMillis - count * 3600000)
-            const notification = (id, fields, viewedDate) => {
-                const sentDate = fields.sentDate
-                store('moqui.security.user.NotificationMessage', Object.assign({notificationMessageId: id, showAlert: 'N', typeString: 'info'}, fields,
-                    {messageJson: fields.messageJson ? JSON.stringify(fields.messageJson) : null}))
-                store('moqui.security.user.NotificationMessageUser', {notificationMessageId: id, userId: userId, sentDate: sentDate,
-                    viewedDate: viewedDate || null})
-                notificationMessageIdList.push(id)
+                // the work efforts and john.doe's rows on them: one Assignee row per party whatever the day of the load (its
+                // fromDate is a key: a load on a later day keeps the first row's, and the rows earlier loads added on other days go)
+                const workEffort = (id, fields, assignees) => {
+                    // written as a value, not through store#: a load on a later day puts the item back as it was, done or not, which
+                    // the status flow would not allow (Complete to Approved)
+                    const value = ec.entity.makeValue('mantle.work.effort.WorkEffort')
+                    for (const [field, fieldValue] of Object.entries(Object.assign({workEffortId: id, statusId: fields.workEffortTypeEnumId === 'WetEvent' ? 'WeInPlanning' : 'WeApproved',
+                            resolutionEnumId: 'WerUnresolved', ownerPartyId: partyId, timeUomId: 'TF_hr'}, fields))) value.set(field, fieldValue)
+                    value.createOrUpdate()
+                    for (const assignee of assignees) {
+                        const rows = Array.from(ec.entity.find('mantle.work.effort.WorkEffortParty').condition('workEffortId', id).condition('partyId', assignee)
+                                .condition('roleTypeId', 'Assignee').orderBy('fromDate').list())
+                        for (const extra of rows.slice(1)) extra.delete()
+                        store('mantle.work.effort.WorkEffortParty', {workEffortId: id, partyId: assignee, roleTypeId: 'Assignee',
+                            fromDate: rows.length ? rows[0].fromDate : fromDate, thruDate: null, statusId: 'WeptAssigned', snoozedThruDate: null})
+                    }
+                    workEffortIdList.push(id)
+                }
+                workEffort('BOSS_DEMO_TODAY_OVERDUE', {workEffortTypeEnumId: 'WetTask', purposeEnumId: 'WepTask', priority: 3,
+                    workEffortName: 'Send the signed service agreement to Bob Acme', description: 'The agreement for the team calendar setup, signed on both pages.',
+                    estimatedCompletionDate: new Date(at(twoDaysAgo, '17:00')), estimatedWorkTime: 1, remainingWorkTime: 1}, [partyId])
+                store('mantle.work.effort.WorkEffortRecord', {workEffortId: 'BOSS_DEMO_TODAY_OVERDUE', recordEntityName: 'mantle.party.Party',
+                    recordId: 'ORG_ACME_BA', linkedByUserId: userId, linkedDate: fromDate})
+                workEffort('BOSS_DEMO_TODAY_CALL', {workEffortTypeEnumId: 'WetTask', purposeEnumId: 'WepPhoneCall', priority: 4,
+                    workEffortName: 'Call Bob Acme about who may see the shared calendar', estimatedCompletionDate: new Date(at(todayText, '11:00'))}, [partyId])
+                store('mantle.request.RequestWorkEffort', {requestId: 'BOSS_DEMO_REQUEST', workEffortId: 'BOSS_DEMO_TODAY_CALL'})
+                workEffort('BOSS_DEMO_TODAY_DUE', {workEffortTypeEnumId: 'WetTask', purposeEnumId: 'WepTask', priority: 5,
+                    workEffortName: 'Compare the calendar options for the team', description: 'Two or three options with their cost and how they share.',
+                    estimatedCompletionDate: new Date(at(todayText, '17:00')), estimatedWorkTime: 2, remainingWorkTime: 2}, [partyId, 'ORG_ZIZI_JD'])
+                // the meeting starts at 15:00, or an hour from now (on the half hour) once that is past
+                let meetingStart = at(todayText, '15:00')
+                if (nowMillis > at(todayText, '14:00')) meetingStart = Math.ceil((nowMillis + 3600000) / 1800000) * 1800000
+                workEffort('BOSS_DEMO_TODAY_MEETING', {workEffortTypeEnumId: 'WetEvent', purposeEnumId: 'WepMeeting', priority: 5,
+                    workEffortName: 'Calendar setup review', description: 'Go over the options and pick one.',
+                    estimatedStartDate: new Date(meetingStart), estimatedCompletionDate: new Date(meetingStart + 1800000), estimatedWorkDuration: 0.5}, [partyId, 'ORG_ZIZI_JD'])
+                // the demo request (BossDemoData.xml) has a response due today, for the Requests today source; it, the demo event and
+                // the demo message of the data file get their times of day here, in john.doe's zone (a data file's times load as UTC)
+                store('mantle.request.Request', {requestId: 'BOSS_DEMO_REQUEST', requestDate: new Date(at('2026-10-01', '09:00')),
+                    responseRequiredDate: new Date(at(todayText, '16:00'))})
+                store('mantle.work.effort.WorkEffort', {workEffortId: 'BOSS_DEMO_EVENT', estimatedStartDate: new Date(at('2026-10-21', '10:00'))})
+                store('mantle.party.communication.CommunicationEvent', {communicationEventId: 'BOSS_DEMO_MESSAGE', entryDate: new Date(at('2026-10-15', '14:30'))})
+
+                // the notifications: the message and john.doe's row, read or not
+                const hours = (count) => new Date(nowMillis - count * 3600000)
+                const notification = (id, fields, viewedDate) => {
+                    const sentDate = fields.sentDate
+                    store('moqui.security.user.NotificationMessage', Object.assign({notificationMessageId: id, showAlert: 'N', typeString: 'info'}, fields,
+                        {messageJson: fields.messageJson ? JSON.stringify(fields.messageJson) : null}))
+                    store('moqui.security.user.NotificationMessageUser', {notificationMessageId: id, userId: userId, sentDate: sentDate,
+                        viewedDate: viewedDate || null})
+                    notificationMessageIdList.push(id)
+                }
+                const request = {recordEntityName: 'mantle.request.Request', recordId: 'BOSS_DEMO_REQUEST'}
+                notification('BOSS_DEMO_NM_MENTION', Object.assign({topic: 'ChatterMention', reasonEnumId: 'NrMention', actorUserId: 'ORG_ZIZI_JD',
+                    appName: 'Commons', sentDate: hours(2), titleText: 'Joe Developer mentioned you on Request BOSS_DEMO_REQUEST: can the contractors see it too?',
+                    messageJson: {recordName: 'Set up the shared team calendar', authorName: 'Joe Developer', summary: 'can the contractors see it too?'}}, request))
+                notification('BOSS_DEMO_NM_REMINDER', {topic: 'WorkEffortReminder', reasonEnumId: 'NrReminder', appName: 'Commons', sentDate: hours(0.5),
+                    recordEntityName: 'mantle.work.effort.WorkEffort', recordId: 'BOSS_DEMO_TODAY_DUE',
+                    titleText: 'Reminder: Compare the calendar options for the team, due today',
+                    messageJson: {workEffortId: 'BOSS_DEMO_TODAY_DUE', workEffortName: 'Compare the calendar options for the team', whenText: 'due today'}})
+                notification('BOSS_DEMO_NM_CHAT', {topic: 'ChatMention', reasonEnumId: 'NrMention', actorUserId: 'ORG_ZIZI_BD', appName: 'Comms',
+                    sentDate: hours(5), titleText: 'Bob Developer mentioned you in Team: lunch on Friday?', linkText: '/qapps/Comms/Chat?chatRoomId=BOSS_DEMO_CHAT_TEAM&eventSeq=4',
+                    messageJson: {roomName: 'Team', authorName: 'Bob Developer', summary: 'lunch on Friday?'}})
+                notification('BOSS_DEMO_NM_INVITE', {topic: 'EventInvitation', reasonEnumId: 'NrAssignment', actorUserId: 'ORG_ZIZI_JD', appName: 'Commons',
+                    sentDate: hours(26), recordEntityName: 'mantle.work.effort.WorkEffort', recordId: 'BOSS_DEMO_EVENT',
+                    titleText: 'Joe Developer invited you to Weekly team meeting',
+                    messageJson: {workEffortId: 'BOSS_DEMO_EVENT', workEffortName: 'Weekly team meeting', organizerName: 'Joe Developer'}}, hours(20))
+                notification('BOSS_DEMO_NM_APPROVAL', Object.assign({topic: 'BossDemoApproval', reasonEnumId: 'NrApproval', actorUserId: 'ORG_ZIZI_JD',
+                    appName: 'Commons', sentDate: hours(3), titleText: 'Approve the shared calendar subscription: USD 120.00 a year',
+                    messageJson: {summary: 'Shared calendar subscription for the team', amount: '120.00', currencyUomId: 'USD', requestedByName: 'Joe Developer'}}, request))
+                notification('BOSS_DEMO_NM_FOLLOW', Object.assign({topic: 'RecordFollow', reasonEnumId: 'NrComment', actorUserId: 'ORG_ZIZI_JD', appName: 'Commons',
+                    sentDate: hours(4), titleText: 'Joe Developer on Request BOSS_DEMO_REQUEST: added the meeting room calendar to the list',
+                    messageJson: {recordName: 'Set up the shared team calendar', authorName: 'Joe Developer', summary: 'added the meeting room calendar to the list'}}, request))
+                notification('BOSS_DEMO_NM_ANSWER', {topic: 'EventInvitationResponse', reasonEnumId: 'NrSystem', actorUserId: 'ORG_ZIZI_BD', appName: 'Commons',
+                    sentDate: hours(6), recordEntityName: 'mantle.work.effort.WorkEffort', recordId: 'BOSS_DEMO_EVENT',
+                    titleText: 'Bob Developer accepted Weekly team meeting',
+                    messageJson: {workEffortId: 'BOSS_DEMO_EVENT', workEffortName: 'Weekly team meeting', responderName: 'Bob Developer', responseText: 'accepted'}})
+                notification('BOSS_DEMO_NM_UPDATE_OLD', Object.assign({topic: 'RecordFollow', reasonEnumId: 'NrComment', actorUserId: 'ORG_ZIZI_BD', appName: 'Commons',
+                    sentDate: hours(50), titleText: 'Bob Developer on Request BOSS_DEMO_REQUEST: the old calendar export is attached',
+                    messageJson: {recordName: 'Set up the shared team calendar', authorName: 'Bob Developer', summary: 'the old calendar export is attached'}}, request), hours(48))
+            } finally {
+                if (!wasDisabled) ec.artifactExecution.enableAuthz()
+                if (!signedIn && zone !== previousZone) ec.user.setTimeZone(previousZone || null)
             }
-            const request = {recordEntityName: 'mantle.request.Request', recordId: 'BOSS_DEMO_REQUEST'}
-            notification('BOSS_DEMO_NM_MENTION', Object.assign({topic: 'ChatterMention', reasonEnumId: 'NrMention', actorUserId: 'ORG_ZIZI_JD',
-                appName: 'Commons', sentDate: hours(2), titleText: 'Joe Developer mentioned you on Request BOSS_DEMO_REQUEST: can the contractors see it too?',
-                messageJson: {recordName: 'Set up the shared team calendar', authorName: 'Joe Developer', summary: 'can the contractors see it too?'}}, request))
-            notification('BOSS_DEMO_NM_REMINDER', {topic: 'WorkEffortReminder', reasonEnumId: 'NrReminder', appName: 'Commons', sentDate: hours(0.5),
-                recordEntityName: 'mantle.work.effort.WorkEffort', recordId: 'BOSS_DEMO_TODAY_DUE',
-                titleText: 'Reminder: Compare the calendar options for the team, due today',
-                messageJson: {workEffortId: 'BOSS_DEMO_TODAY_DUE', workEffortName: 'Compare the calendar options for the team', whenText: 'due today'}})
-            notification('BOSS_DEMO_NM_CHAT', {topic: 'ChatMention', reasonEnumId: 'NrMention', actorUserId: 'ORG_ZIZI_BD', appName: 'Comms',
-                sentDate: hours(5), titleText: 'Bob Developer mentioned you in Team: lunch on Friday?', linkText: '/qapps/Comms/Chat?chatRoomId=BOSS_DEMO_CHAT_TEAM&eventSeq=4',
-                messageJson: {roomName: 'Team', authorName: 'Bob Developer', summary: 'lunch on Friday?'}})
-            notification('BOSS_DEMO_NM_INVITE', {topic: 'EventInvitation', reasonEnumId: 'NrAssignment', actorUserId: 'ORG_ZIZI_JD', appName: 'Commons',
-                sentDate: hours(26), recordEntityName: 'mantle.work.effort.WorkEffort', recordId: 'BOSS_DEMO_EVENT',
-                titleText: 'Joe Developer invited you to Weekly team meeting',
-                messageJson: {workEffortId: 'BOSS_DEMO_EVENT', workEffortName: 'Weekly team meeting', organizerName: 'Joe Developer'}}, hours(20))
-            notification('BOSS_DEMO_NM_APPROVAL', Object.assign({topic: 'BossDemoApproval', reasonEnumId: 'NrApproval', actorUserId: 'ORG_ZIZI_JD',
-                appName: 'Commons', sentDate: hours(3), titleText: 'Approve the shared calendar subscription: USD 120.00 a year',
-                messageJson: {summary: 'Shared calendar subscription for the team', amount: '120.00', currencyUomId: 'USD', requestedByName: 'Joe Developer'}}, request))
-            notification('BOSS_DEMO_NM_FOLLOW', Object.assign({topic: 'RecordFollow', reasonEnumId: 'NrComment', actorUserId: 'ORG_ZIZI_JD', appName: 'Commons',
-                sentDate: hours(4), titleText: 'Joe Developer on Request BOSS_DEMO_REQUEST: added the meeting room calendar to the list',
-                messageJson: {recordName: 'Set up the shared team calendar', authorName: 'Joe Developer', summary: 'added the meeting room calendar to the list'}}, request))
-            notification('BOSS_DEMO_NM_ANSWER', {topic: 'EventInvitationResponse', reasonEnumId: 'NrSystem', actorUserId: 'ORG_ZIZI_BD', appName: 'Commons',
-                sentDate: hours(6), recordEntityName: 'mantle.work.effort.WorkEffort', recordId: 'BOSS_DEMO_EVENT',
-                titleText: 'Bob Developer accepted Weekly team meeting',
-                messageJson: {workEffortId: 'BOSS_DEMO_EVENT', workEffortName: 'Weekly team meeting', responderName: 'Bob Developer', responseText: 'accepted'}})
-            notification('BOSS_DEMO_NM_UPDATE_OLD', Object.assign({topic: 'RecordFollow', reasonEnumId: 'NrComment', actorUserId: 'ORG_ZIZI_BD', appName: 'Commons',
-                sentDate: hours(50), titleText: 'Bob Developer on Request BOSS_DEMO_REQUEST: the old calendar export is attached',
-                messageJson: {recordName: 'Set up the shared team calendar', authorName: 'Bob Developer', summary: 'the old calendar export is attached'}}, request), hours(48))
         ]]></script></actions>
     </service>
 
@@ -142,7 +169,8 @@ along with this software (see the LICENSE.md file). If not, see
             call done, a status change, two files (a text file and a picture of the calendar) and two followers (john.doe and
             Joe Developer), with the planned call of load#CommonsDemo; on the task (BOSS_DEMO_TASK) a note, an email to send in
             two days, a to-do done and a file; on the event (BOSS_DEMO_EVENT) a note, a to-do in three days and an agenda. The
-            past entries have fixed dates in October 2026, the planned ones are dated from the load; nothing notifies anyone.
+            past entries have fixed dates in October 2026, the planned ones are dated from the load, each at its time of day in
+            john.doe's time zone (the user's when a user runs it); nothing notifies anyone.
             Only BOSS_DEMO_* records are written; loading again moves the planned dates.</description>
         <out-parameters><parameter name="communicationEventIdList" type="List"/><parameter name="workEffortIdList" type="List"/></out-parameters>
         <actions><script><![CDATA[
@@ -169,6 +197,12 @@ along with this software (see the LICENSE.md file). If not, see
                 for (let i = 0; i < days; i++) text = dayText(toMillis(ts(text + ' 00:00')) + 30 * 3600000)
                 return ts(text + ' ' + time)
             }
+            // john.doe's time zone for the times of day, whatever the server's is (a data load has no user), as the calendar demo
+            const account = ec.entity.find('moqui.security.UserAccount').condition('userId', 'EX_JOHN_DOE').disableAuthz().one()
+            const zone = account?.timeZone || 'US/Central'
+            const signedIn = !!ec.user.userId
+            const previousZone = ec.user.timeZone
+            if (!signedIn && zone !== previousZone) ec.user.setTimeZone(zone)
             const wasDisabled = ec.artifactExecution.disableAuthz()
             try {
                 const store = (entityName, fields) => ec.service.sync().name('store#' + entityName).parameters(fields).call()
@@ -260,6 +294,7 @@ along with this software (see the LICENSE.md file). If not, see
                     'work/BOSS_DEMO_EVENT', 'agenda.txt', {text: 'Weekly team meeting\n\n1. Calendar rollout\n2. Open requests\n3. Anything else\n'})
             } finally {
                 if (!wasDisabled) ec.artifactExecution.enableAuthz()
+                if (!signedIn && zone !== previousZone) ec.user.setTimeZone(previousZone || null)
             }
         ]]></script></actions>
     </service>
@@ -300,11 +335,18 @@ along with this software (see the LICENSE.md file). If not, see
             - the requests BOSS_DEMO_REQ_DRAFT (a draft john.doe raised), BOSS_DEMO_REQ_ASSIGNED (raised by Joe Developer, in
               progress, assigned to john.doe), BOSS_DEMO_REQ_WATCH (raised by Joe Developer, reviewed, john.doe a watcher) and
               BOSS_DEMO_REQ_DONE (john.doe's, completed).
-            Only BOSS_DEMO_* records are written; loading again moves their dates.</description>
+            The times of day are in john.doe's time zone (the user's when a user runs it). Only BOSS_DEMO_* records are written;
+            loading again moves their dates.</description>
         <out-parameters><parameter name="workEffortIdList" type="List"/><parameter name="requestIdList" type="List"/></out-parameters>
         <actions><script><![CDATA[
             workEffortIdList = []
             requestIdList = []
+            // john.doe's time zone for the times of day, whatever the server's is (a data load has no user), as the calendar demo
+            const account = ec.entity.find('moqui.security.UserAccount').condition('userId', 'EX_JOHN_DOE').disableAuthz().one()
+            const zone = account?.timeZone || 'US/Central'
+            const signedIn = !!ec.user.userId
+            const previousZone = ec.user.timeZone
+            if (!signedIn && zone !== previousZone) ec.user.setTimeZone(zone)
             const wasDisabled = ec.artifactExecution.disableAuthz()
             try {
                 if (ec.entity.find('mantle.party.Party').condition('partyId', 'EX_JOHN_DOE').one() == null) {
@@ -399,6 +441,7 @@ along with this software (see the LICENSE.md file). If not, see
                     priority: 4, requestDate: inDays(-10, '09:30')}, [[john, 'Reporter']])
             } finally {
                 if (!wasDisabled) ec.artifactExecution.enableAuthz()
+                if (!signedIn && zone !== previousZone) ec.user.setTimeZone(previousZone || null)
             }
         ]]></script></actions>
     </service>

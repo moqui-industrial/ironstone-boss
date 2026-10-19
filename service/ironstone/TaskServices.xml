@@ -330,7 +330,7 @@ along with this software (see the LICENSE.md file). If not, see
             }
 
             const statusIds = Array.from(new Set(tasks.map((task) => task.statusId).filter((id) => id)))
-            const colors = ec.service.sync().name('ironstone.StatusServices.get#StatusColors').parameters({statusIdList: statusIds}).call()?.colors || {}
+            const colors = ec.service.sync().name('org.moqui.impl.StatusServices.get#StatusColors').parameters({statusIdList: statusIds}).call()?.colors || {}
             const statusLabel = (id) => {
                 const item = id ? ec.entity.find('moqui.basic.StatusItem').condition('statusId', id).useCache(true).one() : null
                 return item ? (item.description || id) : (id || '')
@@ -780,8 +780,8 @@ along with this software (see the LICENSE.md file). If not, see
 
     <service verb="get" noun="TaskDetail">
         <description>What TaskDetail shows of a task the user may see (found false, or visible false: "not available"): the task
-            decorated as a list row, its description, status bar (In Planning, In Progress, Complete as the stages, with the
-            transitions the user may take), purpose, project and parent, the owner, the assignees and watchers, the records it
+            decorated as a list row, its description, what its status-bar shows (statusFlowId, the stages In Planning, In Progress
+            and Complete, and allowedStatusIds, the statuses the user may move it to), purpose, project and parent, the owner, the assignees and watchers, the records it
             is on, the sub-tasks (decorated), the user's time entries on it with the open one, the totals, and the actions
             that apply: canUpdate (owner or assignee), canDelete (the owner, with no time logged and no sub-tasks), and the
             add to today of the row.</description>
@@ -790,7 +790,9 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="found" type="Boolean"/>
             <parameter name="visible" type="Boolean"/>
             <parameter name="task" type="Map"/>
-            <parameter name="statusBar" type="Map"/>
+            <parameter name="statusFlowId"/>
+            <parameter name="stageStatusIds" type="List"/>
+            <parameter name="allowedStatusIds" type="List"/>
             <parameter name="partyList" type="List"/>
             <parameter name="linkedRecordList" type="List"/>
             <parameter name="subTaskList" type="List"/>
@@ -827,13 +829,13 @@ along with this software (see the LICENSE.md file). If not, see
                     task.parentName = parent ? (parent.workEffortName || parent.workEffortId) : workEffort.parentWorkEffortId
                     task.parentUrl = parent && parent.workEffortTypeEnumId === 'WetTask' ? '/qapps/Commons/Tasks/TaskDetail?workEffortId=' + encodeURIComponent(parent.workEffortId) : null
                 }
-                // the status bar: the Commons stages, the transitions of the flow the user may take
-                let statusFlowId = workEffort.statusFlowId || null
+                // the status-bar: the Commons stages, the transitions of the flow the user may take (its own flow, else its project's)
+                statusFlowId = workEffort.statusFlowId || null
                 if (!statusFlowId && workEffort.rootWorkEffortId) statusFlowId = ec.entity.find('mantle.work.effort.WorkEffort')
                         .condition('workEffortId', workEffort.rootWorkEffortId).one()?.statusFlowId || null
-                statusBar = ec.service.sync().name('ironstone.StatusServices.get#StatusBar').parameters({statusId: workEffort.statusId,
-                    statusFlowId: statusFlowId || 'Default', stageStatusIds: ['WeInPlanning', 'WeInProgress', 'WeComplete'],
-                    allowedToStatusIds: canUpdate ? ['WeInPlanning', 'WeInProgress', 'WeOnHold', 'WeComplete', 'WeCancelled'] : []}).call() || {}
+                statusFlowId = statusFlowId || 'Default'
+                stageStatusIds = ['WeInPlanning', 'WeInProgress', 'WeComplete']
+                allowedStatusIds = canUpdate ? ['WeInPlanning', 'WeInProgress', 'WeOnHold', 'WeComplete', 'WeCancelled'] : []
 
                 // the parties: owner, assignees, watchers and the others
                 partyList = []

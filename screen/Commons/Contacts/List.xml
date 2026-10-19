@@ -112,10 +112,12 @@ along with this software (see the LICENSE.md file). If not, see
         <actions><script><![CDATA[
             const ids = String(selectedPartyIds || '').split(',').map((id) => id.trim()).filter((id) => id)
             if (!ids.length) { ec.message.addError(ec.l10n.localize('Select one or more contacts first')); return }
-            const out = ec.service.sync().name('ironstone.ContactServices.delete#Contacts').parameters({partyIdList: ids}).call()
+            // each on its own (mantle.party.ContactBookServices.delete#Contacts): removed when nothing refers to it, else disabled and
+            // out of its books; one that may not be deleted is a warning and the rest go
+            const out = ec.service.sync().name('mantle.party.ContactBookServices.delete#Contacts').parameters({partyIdList: ids}).call()
             if (!ec.message.hasError()) {
-                ec.message.addMessage(ec.resource.expand('${count} deleted', '', {count: out?.deletedCount || 0}), 'success')
-                if (ids.includes(partyId)) partyId = null
+                ec.message.addMessage(ec.resource.expand('${count} deleted', '', {count: (out?.removedCount || 0) + (out?.disabledCount || 0)}), 'success')
+                if (partyId && !(out?.failedPartyIdList || []).includes(partyId) && ids.includes(partyId)) partyId = null
             }
         ]]></script></actions>
         <default-response url="."/>
@@ -149,7 +151,7 @@ along with this software (see the LICENSE.md file). If not, see
             hasMore = !!out.hasMore
             shownCount = rows.length
             filtered = !!(findText || findLetter || findGroupId)
-            isContactAdmin = ec.user.isInGroup('BOSS_CONTACT_ADMIN') || ec.user.isInGroup('ADMIN')
+            isContactAdmin = ec.user.hasPermission('CONTACT_ADMIN') || ec.user.isInGroup('BOSS_CONTACT_ADMIN') || ec.user.isInGroup('ADMIN')
 
             // side by side the first row fills the main pane; stacked, no selection shows the list alone
             recordPartyId = partyId || (rows.length ? rows[0].partyId : null)

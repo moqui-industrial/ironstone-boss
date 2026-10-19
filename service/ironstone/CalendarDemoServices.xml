@@ -192,9 +192,9 @@ along with this software (see the LICENSE.md file). If not, see
                 store('mantle.work.effort.WorkEffortAssetAssign', {workEffortId: 'BOSS_DEMO_EV_WORKSHOP', assetId: 'BOSS_DEMO_PROJECTOR', fromDate: since,
                     thruDate: null, statusId: 'WeaaAssigned'})
 
-                // the invitations sent are the latest: their digest is the event's now (send#EventInvitations)
+                // the invitations sent are the latest: their digest is the event's now (mantle.work.EventServices.get#InvitationDigest)
                 for (const id of ['BOSS_DEMO_EV_SYNC', 'BOSS_DEMO_EV_SYNC_MOVED', 'BOSS_DEMO_EV_VENDOR', 'BOSS_DEMO_EV_PLANNING']) {
-                    const digest = ec.service.sync().name('ironstone.EventServices.get#InvitationDigest').parameters({workEffortId: id}).disableAuthz().call()?.digest
+                    const digest = ec.service.sync().name('mantle.work.EventServices.get#InvitationDigest').parameters({workEffortId: id}).disableAuthz().call()?.digest
                     for (const row of ec.entity.find('mantle.work.effort.WorkEffortParty').condition('workEffortId', id).disableAuthz().list())
                         if (row.invitationSentDate != null) { row.set('invitationDigest', digest); row.update() }
                 }

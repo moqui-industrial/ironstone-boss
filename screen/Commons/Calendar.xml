@@ -115,19 +115,36 @@ along with this software (see the LICENSE.md file). If not, see
         ]]></script></actions>
         <default-response type="none"/>
     </transition>
+    <!-- a move or resize (mantle.work.EventServices.update#EventOccurrence): a clash with another booking of its room or
+        equipment is refused and answered with bookingClash, and the calendar offers to keep the change anyway (allowConflicts Y) -->
     <transition name="moveEvent">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.CalendarServices.update#EventOccurrence').parameters({workEffortId: workEffortId || '',
-                instanceStart: instanceStart || null, scope: scope || 'all', start: start || null, end: end || null, allDay: allDay || null,
-                notify: notify || 'N'}).call()
-            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {targetWorkEffortId: out.targetWorkEffortId, messageInfos: [{type: 'success', message: out.message}]})
+            const id = workEffortId || ''
+            ec.service.sync().name('ironstone.CalendarServices.get#EventAccessInfo').parameters({workEffortId: id, need: 'edit'}).call()
+            if (ec.message.hasError()) { ec.web.sendJsonResponse({}); return }
+            const theScope = scope || 'all'
+            // the notifications open the event: an instance changed on its own by the series and the instance's start
+            const eventUrl = '/qapps/Commons/Calendar/EventDetail?workEffortId=' + encodeURIComponent(id)
+                    + (instanceStart && theScope !== 'all' ? '&instanceStart=' + encodeURIComponent(instanceStart) : '')
+            const out = ec.service.sync().name('mantle.work.EventServices.update#EventOccurrence').parameters({workEffortId: id,
+                instanceStart: instanceStart || null, scope: theScope, start: start || null, end: end || null, allDay: allDay || null,
+                notify: notify || 'N', eventUrl: eventUrl, allowConflicts: allowConflicts === 'Y' || allowConflicts === 'true'}).call()
+            if (ec.message.hasError()) { ec.web.sendJsonResponse({bookingClash: / is booked then: /.test(ec.message.getErrorsString())}); return }
+            const clashes = Array.from(out.conflictList || [])
+            ec.web.sendJsonResponse({targetWorkEffortId: out.targetWorkEffortId, messageInfos: [{type: 'success', message: out.message}].concat(clashes.length
+                ? [{type: 'warning', message: ec.resource.expand('Booked then too: ${list}', '', {list: Array.from(new Set(clashes.map((clash) =>
+                    clash.resourceName + ' (' + clash.workEffortName + ')'))).join(', ')})}] : [])})
         ]]></script></actions>
         <default-response type="none"/>
     </transition>
     <transition name="cancelEvent">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.CalendarServices.cancel#EventOccurrence').parameters({workEffortId: workEffortId || '',
-                instanceStart: instanceStart || null, scope: scope || 'all', notify: notify || 'N'}).call()
+            const id = workEffortId || ''
+            ec.service.sync().name('ironstone.CalendarServices.get#EventAccessInfo').parameters({workEffortId: id, need: 'edit'}).call()
+            if (ec.message.hasError()) { ec.web.sendJsonResponse({}); return }
+            const out = ec.service.sync().name('mantle.work.EventServices.cancel#EventOccurrence').parameters({workEffortId: id,
+                instanceStart: instanceStart || null, scope: scope || 'all', notify: notify || 'N',
+                eventUrl: '/qapps/Commons/Calendar/EventDetail?workEffortId=' + encodeURIComponent(id)}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: out.message}]})
         ]]></script></actions>
         <default-response type="none"/>

@@ -2,54 +2,18 @@
 // by scope, search and letter; the contact record (template/ContactRecord.xml) of a directory party, a personal contact and an employee,
 // with its tabs; editing a personal contact's information, names, notes, organization and relationships, and a directory party only by
 // a contact admin; the bulk actions (add to group and book, remove from book, export vCard and CSV, merge two, delete); Duplicates with
-// Compare, Merge and Not a duplicate; New contact opening the record, Link to a directory party, the contact's picture. Privacy (impl R7):
-// Joe Developer's personal contacts (the demo's Sam Secret, and the spec's Sasha Hidden with the same email and phone as the spec's
-// duplicate pair Kim and Kimberly Lund) never show to john.doe through the list (every scope, the search by name, email and phone), the
-// record by id, its transitions, the palette's People source, Compare or Duplicates; john.doe's personal contacts never show to Joe
-// Developer. The
-// demo is data/BossDemoData.xml (M4). Authorization stays on, as for a browser request.
+// Compare, Merge and Not a duplicate (Mantle's PartyNotDuplicate); New contact opening the record, Link to a directory party,
+// the contact's picture. Privacy (impl R7): Joe Developer's personal contact Sam Secret (the demo's, with the same email and
+// phone as the demo's duplicate pair Pat and Patricia Quinn) never shows to john.doe through the list (every scope, the search
+// by name, email and phone), the record by id, its transitions, the palette's People source, Compare or Duplicates; john.doe's
+// personal contacts never show to Joe Developer. The demo is data/BossDemoData.xml (M4). Authorization stays on, as for a
+// browser request.
 // Run: ./moq test ironstone-boss --spec Contacts
 const webroot = "component://webroot/screen/webroot.xml"
 const commons = "component://ironstone-boss/screen/Commons.xml"
 const MARY = "BOSS_DEMO_PC_MARY", ROBIN = "BOSS_DEMO_PC_ROBIN", TOM = "BOSS_DEMO_PC_TOM", PIPES = "BOSS_DEMO_PC_PIPES", SAM = "BOSS_DEMO_PC_SAM"
-// the spec's own duplicates, as the demo's Pat Quinn pair (a run of every component merges that one in CrmMiscServices), and Joe
-// Developer's personal contact with their email and phone
-const PAT = "BOSS_SPEC_DUP_A", PATRICIA = "BOSS_SPEC_DUP_B", QUINN_ORG = "BOSS_SPEC_ORG_A", QUINN_LLC = "BOSS_SPEC_ORG_B", SECRET = "BOSS_SPEC_SECRET"
-const specParties = `<entity-facade-xml>
-    <mantle.party.Party partyId="${PAT}" pseudoId="${PAT}" partyTypeEnumId="PtyPerson" disabled="N" hasDuplicates="Y"/>
-    <mantle.party.Person partyId="${PAT}" firstName="Kim" lastName="Lund"/>
-    <mantle.party.PartyRole partyId="${PAT}" roleTypeId="Customer"/>
-    <mantle.party.contact.ContactMech contactMechId="${PAT}_EM" contactMechTypeEnumId="CmtEmailAddress" infoString="kim.lund@lund.example"/>
-    <mantle.party.contact.PartyContactMech partyId="${PAT}" contactMechId="${PAT}_EM" contactMechPurposeId="EmailPrimary" fromDate="2026-10-01 09:00:00"/>
-    <mantle.party.contact.ContactMech contactMechId="${PAT}_TN" contactMechTypeEnumId="CmtTelecomNumber"/>
-    <mantle.party.contact.TelecomNumber contactMechId="${PAT}_TN" countryCode="1" areaCode="555" contactNumber="010-0151"/>
-    <mantle.party.contact.PartyContactMech partyId="${PAT}" contactMechId="${PAT}_TN" contactMechPurposeId="PhonePrimary" fromDate="2026-10-01 09:00:00"/>
-    <mantle.party.Party partyId="${PATRICIA}" pseudoId="${PATRICIA}" partyTypeEnumId="PtyPerson" disabled="N" hasDuplicates="Y" comments="Met at the spring fair."/>
-    <mantle.party.Person partyId="${PATRICIA}" firstName="Kimberly" lastName="Lund" nickname="Kim"/>
-    <mantle.party.PartyRole partyId="${PATRICIA}" roleTypeId="Customer"/>
-    <mantle.party.contact.ContactMech contactMechId="${PATRICIA}_EM" contactMechTypeEnumId="CmtEmailAddress" infoString="kim.lund@lund.example"/>
-    <mantle.party.contact.PartyContactMech partyId="${PATRICIA}" contactMechId="${PATRICIA}_EM" contactMechPurposeId="EmailPrimary" fromDate="2026-10-02 09:00:00"/>
-    <mantle.party.contact.ContactMech contactMechId="${PATRICIA}_TN" contactMechTypeEnumId="CmtTelecomNumber"/>
-    <mantle.party.contact.TelecomNumber contactMechId="${PATRICIA}_TN" countryCode="1" areaCode="555" contactNumber="010-0151"/>
-    <mantle.party.contact.PartyContactMech partyId="${PATRICIA}" contactMechId="${PATRICIA}_TN" contactMechPurposeId="PhoneWork" fromDate="2026-10-02 09:00:00"/>
-    <mantle.party.contact.ContactMech contactMechId="${PATRICIA}_PA" contactMechTypeEnumId="CmtPostalAddress"/>
-    <mantle.party.contact.PostalAddress contactMechId="${PATRICIA}_PA" address1="7 Fair Lane" city="Springfield" stateProvinceGeoId="USA_IL" postalCode="62702" countryGeoId="USA"/>
-    <mantle.party.contact.PartyContactMech partyId="${PATRICIA}" contactMechId="${PATRICIA}_PA" contactMechPurposeId="PostalWork" fromDate="2026-10-02 09:00:00"/>
-    <mantle.party.Party partyId="${QUINN_ORG}" pseudoId="${QUINN_ORG}" partyTypeEnumId="PtyOrganization" disabled="N"/>
-    <mantle.party.Organization partyId="${QUINN_ORG}" organizationName="Lund Labs"/>
-    <mantle.party.PartyRole partyId="${QUINN_ORG}" roleTypeId="Customer"/>
-    <mantle.party.Party partyId="${QUINN_LLC}" pseudoId="${QUINN_LLC}" partyTypeEnumId="PtyOrganization" disabled="N"/>
-    <mantle.party.Organization partyId="${QUINN_LLC}" organizationName="Lund Labs Inc"/>
-    <mantle.party.PartyRole partyId="${QUINN_LLC}" roleTypeId="Customer"/>
-    <mantle.party.Party partyId="${SECRET}" pseudoId="${SECRET}" partyTypeEnumId="PtyPerson" privateOwnerUserId="ORG_ZIZI_JD" disabled="N"/>
-    <mantle.party.Person partyId="${SECRET}" firstName="Sasha" lastName="Hidden"/>
-    <mantle.party.contact.ContactMech contactMechId="${SECRET}_EM" contactMechTypeEnumId="CmtEmailAddress" infoString="kim.lund@lund.example"/>
-    <mantle.party.contact.PartyContactMech partyId="${SECRET}" contactMechId="${SECRET}_EM" contactMechPurposeId="EmailPrimary" fromDate="2026-10-01 09:00:00"/>
-    <mantle.party.contact.ContactMech contactMechId="${SECRET}_TN" contactMechTypeEnumId="CmtTelecomNumber"/>
-    <mantle.party.contact.TelecomNumber contactMechId="${SECRET}_TN" countryCode="1" areaCode="555" contactNumber="010-0151"/>
-    <mantle.party.contact.PartyContactMech partyId="${SECRET}" contactMechId="${SECRET}_TN" contactMechPurposeId="PhoneMobile" fromDate="2026-10-01 09:00:00"/>
-    <mantle.party.contact.ContactBookParty contactBookId="BOSS_DEMO_BOOK_JOE" partyId="${SECRET}" fromDate="2026-10-01 09:00:00"/>
-</entity-facade-xml>`
+// the demo's duplicates: Pat and Patricia Quinn (the same email and phone), Quinn Consulting and Quinn Consulting LLC
+const PAT = "BOSS_DEMO_DUP_A", PATRICIA = "BOSS_DEMO_DUP_B", QUINN_ORG = "BOSS_DEMO_DUP_ORG_A", QUINN_LLC = "BOSS_DEMO_DUP_ORG_B"
 
 function render(path, parameters) {
     const str = ec.screen.makeTest().rootScreen(webroot).renderMode("qvt").render(path, Object.assign({ lastStandalone: "true" }, parameters || {}), null)
@@ -89,10 +53,7 @@ function as(username, run) {
 }
 
 spec({
-    setupSpec() {
-        login("john.doe")
-        sys(() => ec.entity.makeDataLoader().xmlText(specParties).load())
-    },
+    setupSpec() { login("john.doe") },
 })
 
 feature("the split renders the side list and the first row's record, with the scopes, letters and bulk actions", {
@@ -125,7 +86,7 @@ feature("each scope lists its contacts: #scope", {
     where: [
         // the directory is large after other specs: narrowed by a name
         { scope: "all", text: "Doe", has: [MARY, "EX_JOHN_DOE"], hasNot: [SAM] },
-        { scope: "all", text: "Lund", has: [PAT, PATRICIA, QUINN_ORG], hasNot: [SECRET] },
+        { scope: "all", text: "Quinn", has: [PAT, PATRICIA, QUINN_ORG], hasNot: [SAM] },
         { scope: "directory", text: "Doe", has: ["EX_JOHN_DOE"], hasNot: [MARY, SAM] },
         { scope: "directory", text: "Developer", has: ["ORG_ZIZI_JD", "ORG_ZIZI_BD"], hasNot: [SAM] },
         { scope: "mine", has: [MARY, ROBIN, TOM, PIPES, "ORG_ACME_BA"], hasNot: [PAT, SAM, "ORG_ZIZI_JD"] },
@@ -160,9 +121,12 @@ feature("a book's group chips narrow the list: Family is Mary only", {
 
 feature("the search finds by #what, and never Joe Developer's personal contact with the same email and phone", {
     where: [
-        { what: "name", text: "Lund", has: [PAT, PATRICIA, QUINN_ORG, QUINN_LLC] },
-        { what: "email", text: "kim.lund@lund", has: [PAT, PATRICIA] },
-        { what: "phone", text: "010-0151", has: [PAT, PATRICIA] },
+        { what: "name", text: "Quinn", has: [PAT, PATRICIA, QUINN_ORG, QUINN_LLC] },
+        { what: "first and last name", text: "Patricia Quinn", has: [PATRICIA] },
+        { what: "last and first name", text: "Quinn, Pat", has: [PAT, PATRICIA] },
+        { what: "email", text: "pat.quinn@quinn", has: [PAT, PATRICIA] },
+        { what: "phone", text: "010-0142", has: [PAT, PATRICIA] },
+        { what: "phone as typed", text: "+1 (555) 010-0142", has: [PAT, PATRICIA] },
         { what: "organization", text: "Pipes and Sons", has: [TOM, PIPES] },
         { what: "the other user's contact's name", text: "Secret", has: [] },
     ],
@@ -172,9 +136,19 @@ feature("the search finds by #what, and never Joe Developer's personal contact w
         shown.errors == ""
         has.filter((id) => !rows.includes(id)) == []
         !rows.includes(SAM)
-        !rows.includes(SECRET)
         !shown.output.includes("Sam Secret")
-        !shown.output.includes("Sasha Hidden")
+    },
+})
+
+feature("the count of a search is the parties found, one find of the directory and the people of an organization of that name", {
+    when() {
+        const quinn = list({ scope: "directory", text: "Quinn Consulting" })
+        return { quinn, rows: rowsOf(quinn.output) }
+    },
+    then({ quinn, rows }) {
+        // the two organizations and Pat Quinn, a contact of Quinn Consulting
+        rows.sort() == [PAT, QUINN_ORG, QUINN_LLC].sort()
+        quinn.output.includes("3 contacts")
     },
 })
 
@@ -243,8 +217,8 @@ feature("another user's personal contact is never available to john.doe: the rec
         const favorite = post("Contacts/ContactDetail/contactFavorite", { partyId: SAM, isFavorite: "Y" })
         const peopleRows = (json) => ((json.groups || []).find((group) => group.group === "People") || { rows: [] }).rows.map((row) => String(row.url))
         const people = peopleRows(shellJson("shellSearch", { text: "Secret", groups: "People", limit: "20" }))
-        const peopleByEmail = peopleRows(shellJson("shellSearch", { text: "kim.lund@lund.example", groups: "People", limit: "20" }))
-        const compare = render("apps/Commons/Contacts/Compare", { partyId: SECRET, otherPartyId: PAT })
+        const peopleByEmail = peopleRows(shellJson("shellSearch", { text: "pat.quinn@quinnco.example", groups: "People", limit: "20" }))
+        const compare = render("apps/Commons/Contacts/Compare", { partyId: SAM, otherPartyId: PAT })
         const duplicates = render("apps/Commons/Contacts/Duplicates", {})
         return { record, inSplit, edit, update, exported, bulk, favorite, people, peopleByEmail, compare, duplicates,
             sam: one("mantle.party.Person", { partyId: SAM }), samEmails: current("mantle.party.contact.PartyContactMechInfo", { partyId: SAM }).length,
@@ -262,12 +236,12 @@ feature("another user's personal contact is never available to john.doe: the rec
         !bulk.output.includes("Secret")
         favorite.errors.includes("not found")
         people.length == 0
-        peopleByEmail.filter((url) => url.includes(SECRET)) == []
+        peopleByEmail.filter((url) => url.includes(SAM)) == []
         peopleByEmail.filter((url) => url.includes(PAT)).length == 1
         compare.output.includes("not found")
-        !compare.output.includes("Sasha Hidden")
-        !duplicates.output.includes("Sasha Hidden")
-        !duplicates.output.includes(SECRET)
+        !compare.output.includes("Sam Secret")
+        !duplicates.output.includes("Sam Secret")
+        !duplicates.output.includes(SAM)
         sam.firstName == "Sam"
         samEmails == 2
         samInJohnsBook == 0
@@ -452,19 +426,20 @@ feature("Duplicates groups the pairs by reason, runs the scan on demand, and lea
         !before.broken
         before.output.includes("Same email · ")
         before.output.includes("Same name · ")
-        before.output.includes("Kimberly Lund")
-        before.output.includes("Lund Labs Inc")
-        !before.output.includes("Sasha Hidden")
+        before.output.includes("Patricia Quinn")
+        before.output.includes("Quinn Consulting LLC")
+        // the names as alike as Mantle scores them
+        before.output.includes("names 100% alike")
         !before.output.includes("Sam Secret")
         scan.errors == ""
-        after.output.includes("Kimberly Lund")
-        !after.output.includes("Sasha Hidden")
-        byEmail.output.includes("Kimberly Lund")
-        !byEmail.output.includes("Lund Labs Inc")
+        after.output.includes("Patricia Quinn")
+        !after.output.includes("Sam Secret")
+        byEmail.output.includes("Patricia Quinn")
+        !byEmail.output.includes("Quinn Consulting LLC")
     },
 })
 
-feature("Compare shows both side by side with the field choice; Merge keeps Kim Lund with Kimberly's first name and her address", {
+feature("Compare shows both side by side with the field choice; Merge keeps Pat Quinn with Patricia's first name and her address", {
     when() {
         const compare = render("apps/Commons/Contacts/Compare", { partyId: PAT, otherPartyId: PATRICIA, returnTo: "duplicates" })
         const merged = post("Contacts/Compare/mergeContacts", { partyId: PAT, otherPartyId: PATRICIA, returnTo: "duplicates", keepPartyId: PAT,
@@ -476,30 +451,54 @@ feature("Compare shows both side by side with the field choice; Merge keeps Kim 
     then({ compare, merged, after, pat, patricia, patAddresses }) {
         compare.errors == ""
         compare.output.includes("Side by side")
-        compare.output.includes("Keep Kim Lund (BOSS_SPEC_DUP_A)")
+        compare.output.includes("Keep Pat Quinn (BOSS_DEMO_DUP_A)")
         compare.output.includes("Not a duplicate")
         compare.output.includes("pick_firstName")
         merged.errors == ""
         merged.status == 302
         patricia.disabled == "Y"
         patricia.mergedToPartyId == PAT
-        pat.firstName == "Kimberly"
-        pat.comments == "Met at the spring fair."
+        pat.firstName == "Patricia"
+        pat.comments == "Met at the October trade show."
         patAddresses.length == 1
         !after.output.includes(PATRICIA)
     },
 })
 
-feature("Not a duplicate keeps a pair out of the list", {
+feature("Not a duplicate keeps a pair out of the list (Mantle's PartyNotDuplicate), and the scan leaves it out", {
     when() {
         const marked = post("Contacts/Duplicates/notDuplicate", { partyId: QUINN_ORG, otherPartyId: QUINN_LLC })
         const after = render("apps/Commons/Contacts/Duplicates", {})
-        return { marked, after, setting: one("mantle.party.PartySetting", { partyId: QUINN_ORG, partySettingTypeId: "BossNotDuplicates" }) }
+        const scan = post("Contacts/Duplicates/runScan", {})
+        return { marked, after, scan, again: render("apps/Commons/Contacts/Duplicates", {}),
+            decision: one("mantle.party.PartyNotDuplicate", { partyId: QUINN_ORG, otherPartyId: QUINN_LLC }) }
     },
-    then({ marked, after, setting }) {
+    then({ marked, after, scan, again, decision }) {
         marked.errors == ""
-        setting.settingValue == QUINN_LLC
-        !after.output.includes("Lund Labs Inc")
+        decision.decidedByUserId == "EX_JOHN_DOE"
+        !after.output.includes("Quinn Consulting LLC")
+        scan.errors == ""
+        !again.output.includes("Quinn Consulting LLC")
+    },
+})
+
+feature("an old BOSS not-a-duplicate setting moves to PartyNotDuplicate on a load, and the setting goes", {
+    when() {
+        sys(() => ec.entity.makeDataLoader().xmlText(`<entity-facade-xml>
+            <mantle.party.PartySettingType partySettingTypeId="BossNotDuplicates" description="Not duplicates of (IronStone Contacts)"/>
+            <mantle.party.PartySetting partyId="ORG_ACME_BA" partySettingTypeId="BossNotDuplicates" settingValue="ORG_ACME_SA,NO_SUCH_PARTY"/>
+        </entity-facade-xml>`).load())
+        const out = sys(() => call("ironstone.ContactServices.migrate#NotDuplicateSettings", {}))
+        const [low, high] = ["ORG_ACME_BA", "ORG_ACME_SA"].sort()
+        return { out, decision: one("mantle.party.PartyNotDuplicate", { partyId: low, otherPartyId: high }),
+            setting: one("mantle.party.PartySetting", { partyId: "ORG_ACME_BA", partySettingTypeId: "BossNotDuplicates" }),
+            type: one("mantle.party.PartySettingType", { partySettingTypeId: "BossNotDuplicates" }) }
+    },
+    then({ out, decision, setting, type }) {
+        out.migratedCount == 1
+        decision != null
+        setting == null
+        type == null
     },
 })
 
@@ -556,21 +555,29 @@ feature("a picture for a contact: an image is its face image, shown as the avata
     },
 })
 
-feature("delete: john.doe's personal contact goes; his own party and another user's contact do not", {
+feature("delete: john.doe's personal contact goes; a directory party with history is disabled; his own party and another user's contact stay", {
     when() {
         const self = post("Contacts/List/bulkDelete", { selectedPartyIds: "EX_JOHN_DOE" })
         const deleted = post("Contacts/List/bulkDelete", { selectedPartyIds: `${TOM},${SAM}` })
+        // Pat Quinn has john.doe's email of the Contacts demo: kept, disabled (mantle.party.ContactBookServices.delete#Contact)
+        const directory = post("Contacts/List/bulkDelete", { selectedPartyIds: PAT })
         const mine = rowsOf(list({ scope: "mine" }).output)
-        return { self, deleted, mine, tom: one("mantle.party.Party", { partyId: TOM }), sam: one("mantle.party.Party", { partyId: SAM }),
-            john: one("mantle.party.Party", { partyId: "EX_JOHN_DOE" }), tomBooks: current("mantle.party.contact.ContactBookParty", { partyId: TOM }).length }
+        return { self, deleted, directory, mine, tom: one("mantle.party.Party", { partyId: TOM }), sam: one("mantle.party.Party", { partyId: SAM }),
+            pat: one("mantle.party.Party", { partyId: PAT }), john: one("mantle.party.Party", { partyId: "EX_JOHN_DOE" }),
+            tomBooks: current("mantle.party.contact.ContactBookParty", { partyId: TOM }).length,
+            patBooks: current("mantle.party.contact.ContactBookParty", { partyId: PAT }).length }
     },
-    then({ self, deleted, mine, tom, sam, john, tomBooks }) {
+    then({ self, deleted, directory, mine, tom, sam, pat, john, tomBooks, patBooks }) {
         self.errors == ""
         john.disabled != "Y"
         deleted.errors == ""
-        tom.disabled == "Y"
+        // nothing refers to Tom: removed
+        tom == null
         tomBooks == 0
         sam.disabled != "Y"
         !mine.includes(TOM)
+        directory.errors == ""
+        pat.disabled == "Y"
+        patBooks == 0
     },
 })

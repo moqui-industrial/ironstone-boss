@@ -34,6 +34,12 @@ function as(username, run) {
     login(username)
     try { return run() } finally { login("john.doe") }
 }
+// the stages of the framework's status-bar (m-status-bar :bar, as get#StatusBar answered it): statusId to "state color"
+const stagesOf = (output) => Object.fromEntries(Array.from(output.matchAll(/\{'statusId':'([^']+)','label':'(?:[^'\\]|\\.)*','color':'([^']*)','state':'(\w+)'\}/g))
+        .map((match) => [match[1], match[3] + " " + match[2]]))
+// the transitions of the status-bar: label to "next", "danger" or "other"
+const transitionsOf = (output) => Object.fromEntries(Array.from(output.matchAll(/'label':'((?:[^'\\]|\\.)*)','color':'[^']*','isNext':(true|false),'isDanger':(true|false)/g))
+        .map((match) => [match[1], match[2] === "true" ? "next" : match[3] === "true" ? "danger" : "other"]))
 const one = (entityName, fields) => sys(() => ec.entity.find(entityName).condition(fields).one())
 const all = (entityName, fields) => sys(() => Array.from(ec.entity.find(entityName).condition(fields).list()))
 const current = (entityName, fields) => sys(() => Array.from(ec.entity.find(entityName).condition(fields)
@@ -325,12 +331,13 @@ feature("TaskDetail renders the task with its stage chips, the next status as th
         overview.errors == ""
         !overview.broken
         overview.output.includes("Plan the office move")
-        overview.output.includes('data-stage="WeInPlanning" data-state="done"')
-        overview.output.includes('data-stage="WeInProgress" data-state="current"')
-        overview.output.includes('data-stage="WeComplete" data-state="todo"')
-        // the next status, Complete, is the primary action; Hold and Cancel are the others
-        overview.output.includes("Complete")
-        overview.output.includes("Hold")
+        stagesOf(overview.output) == { WeInPlanning: "done grey-7", WeInProgress: "current primary", WeComplete: "todo positive" }
+        // the next status, Complete, is the primary action; Hold and Cancel are the others, Cancel in the danger color
+        transitionsOf(overview.output).Complete == "next"
+        transitionsOf(overview.output).Hold == "other"
+        transitionsOf(overview.output).Cancel == "danger"
+        overview.output.includes("changeStatus")
+        overview.output.includes('parameter-name="toStatusId"')
         overview.output.includes("Reassign")
         overview.output.includes("Convert to request")
         overview.output.includes("Office move")
@@ -379,7 +386,7 @@ feature("TaskDetail's status action completes a task along the flow; reassign, s
     then({ begun, afterBegin, shownInProgress, completed, afterComplete, approved, reopened, due, sub, subTask, subDone, subAfter, reassigned, assignees, after }) {
         begun.errors == ""
         afterBegin == "WeInProgress"
-        shownInProgress.includes('data-stage="WeInProgress" data-state="current"')
+        stagesOf(shownInProgress).WeInProgress == "current primary"
         completed.errors == ""
         afterComplete.statusId == "WeComplete"
         afterComplete.resolutionEnumId == "WerCompleted"

@@ -91,19 +91,45 @@ feature("the demo request's timeline has its notes, the email with its quoted te
     },
 })
 
-feature("the timeline pages by beforeDate: the next page has the older entries, none again", {
+feature("the timeline pages by its cursor (beforeDate and seenKeys): the next page has the older entries, none again and none left out", {
     when() {
         const first = get("timeline", { pageSize: 3 })
-        const second = get("timeline", { pageSize: 3, beforeDate: first.json.nextBeforeDate })
-        return { first, second, firstKeys: (first.json.entryList || []).map((entry) => entry.key), secondKeys: (second.json.entryList || []).map((entry) => entry.key) }
+        const second = get("timeline", { pageSize: 3, beforeDate: first.json.nextBeforeDate, seenKeys: (first.json.nextSeenKeys || []).join(",") })
+        // every page to the end, against the whole timeline in one page
+        const paged = []
+        let page = first
+        for (let i = 0; i < 50 && page.status === 200; i++) {
+            paged.push(...(page.json.entryList || []).map((entry) => entry.key))
+            if (!page.json.hasMore || !page.json.nextBeforeDate) break
+            page = get("timeline", { pageSize: 3, beforeDate: page.json.nextBeforeDate, seenKeys: (page.json.nextSeenKeys || []).join(",") })
+        }
+        const whole = (get("timeline", { pageSize: 200 }).json.entryList || []).map((entry) => entry.key)
+        return { first, second, firstKeys: (first.json.entryList || []).map((entry) => entry.key), secondKeys: (second.json.entryList || []).map((entry) => entry.key),
+            paged, whole }
     },
-    then({ first, second, firstKeys, secondKeys }) {
+    then({ first, second, firstKeys, secondKeys, paged, whole }) {
         first.status == 200
         first.json.hasMore
         firstKeys.length == 3
+        first.json.nextSeenKeys.length > 0
         secondKeys.length > 0
         secondKeys.every((key) => !firstKeys.includes(key))
-        second.json.entryList.every((entry) => entry.dateMillis < first.json.nextBeforeDate)
+        second.json.entryList.every((entry) => entry.dateMillis <= first.json.nextBeforeDate)
+        new Set(paged).size == paged.length
+        paged.slice().sort() == whole.slice().sort()
+    },
+})
+
+feature("a wiki page's Chatter has the page's title, its first heading", {
+    when() {
+        const page = sys(() => ec.entity.find("moqui.resource.wiki.WikiPage").condition("wikiSpaceId", "BOSSKB").condition("pagePath", "Onboarding/First week").one())
+        return { page, data: call_("chatterData", { recordEntity: "moqui.resource.wiki.WikiPage", recordId: page?.wikiPageId || "" }) }
+    },
+    then({ page, data }) {
+        page != null
+        data.json.visible
+        data.json.record.title == "Your first week"
+        data.json.record.typeLabel == "Page"
     },
 })
 

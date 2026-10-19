@@ -14,7 +14,9 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <entity-facade-xml type="demo">
     <!-- M0: one record of john.doe (EX_JOHN_DOE) for each screen moved from the first SimpleScreens port that opens on a
-        record, so the screens have content and test/AppStructure.spec.js renders them with a real id. -->
+        record, so the screens have content and test/AppStructure.spec.js renders them with a real id. A time here loads as
+        UTC: the request's date, the event's start and the message's date are set again at their time of day in john.doe's
+        zone by load#CommonsDemo below. -->
 
     <!-- Commons Requests and Requests/RequestDetail -->
     <mantle.request.Request requestId="BOSS_DEMO_REQUEST" requestTypeEnumId="RqtSupport" statusId="ReqSubmitted"
@@ -86,7 +88,8 @@ along with this software (see the LICENSE.md file). If not, see
         Developer edits it); Joe Developer's own personal contact Sam Secret, which john.doe must never see (it has the
         same email and phone as the duplicate pair below, so the duplicate scan would pair it if it did not skip personal
         contacts); two directory people who look like duplicates (Pat Quinn and Patricia Quinn: same email, phone and address,
-        flagged as the scan leaves them) and two organizations with the same name (Quinn Consulting, Quinn Consulting LLC);
+        flagged as the scan leaves them) and two organizations with the same name but for the LLC (Quinn Consulting, Quinn
+        Consulting LLC, flagged too: Mantle's name match leaves out the legal suffix);
         Bob Developer as Joe Developer's manager, for the directory card. The import specs read data/demo/contacts-google.csv
         and data/demo/contacts.vcf. -->
     <mantle.party.contact.ContactBook contactBookId="BOSS_DEMO_BOOK_JD" contactBookName="My Contacts" ownerUserId="EX_JOHN_DOE"
@@ -183,10 +186,12 @@ along with this software (see the LICENSE.md file). If not, see
     <mantle.party.contact.PostalAddress contactMechId="BOSS_DEMO_DUP_B_PA" address1="400 Main Street" city="Springfield" stateProvinceGeoId="USA_IL"
             postalCode="62704" countryGeoId="USA"/>
     <mantle.party.contact.PartyContactMech partyId="BOSS_DEMO_DUP_B" contactMechId="BOSS_DEMO_DUP_B_PA" contactMechPurposeId="PostalWork" fromDate="2026-10-02 09:00:00"/>
-    <mantle.party.Party partyId="BOSS_DEMO_DUP_ORG_A" pseudoId="BOSS_DEMO_DUP_ORG_A" partyTypeEnumId="PtyOrganization" disabled="N"/>
+    <mantle.party.Party partyId="BOSS_DEMO_DUP_ORG_A" pseudoId="BOSS_DEMO_DUP_ORG_A" partyTypeEnumId="PtyOrganization" disabled="N" hasDuplicates="Y"
+            lastDupCheckDate="2026-10-18 02:00:00"/>
     <mantle.party.Organization partyId="BOSS_DEMO_DUP_ORG_A" organizationName="Quinn Consulting"/>
     <mantle.party.PartyRole partyId="BOSS_DEMO_DUP_ORG_A" roleTypeId="Customer"/>
-    <mantle.party.Party partyId="BOSS_DEMO_DUP_ORG_B" pseudoId="BOSS_DEMO_DUP_ORG_B" partyTypeEnumId="PtyOrganization" disabled="N"/>
+    <mantle.party.Party partyId="BOSS_DEMO_DUP_ORG_B" pseudoId="BOSS_DEMO_DUP_ORG_B" partyTypeEnumId="PtyOrganization" disabled="N" hasDuplicates="Y"
+            lastDupCheckDate="2026-10-18 02:00:00"/>
     <mantle.party.Organization partyId="BOSS_DEMO_DUP_ORG_B" organizationName="Quinn Consulting LLC"/>
     <mantle.party.PartyRole partyId="BOSS_DEMO_DUP_ORG_B" roleTypeId="Customer"/>
     <mantle.party.PartyRelationship partyRelationshipId="BOSS_DEMO_DUP_A_ORG" relationshipTypeEnumId="PrtContact" fromPartyId="BOSS_DEMO_DUP_A"

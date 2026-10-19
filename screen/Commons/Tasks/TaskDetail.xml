@@ -14,7 +14,7 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- TaskDetail (design-drawers-commons.md §8 TaskDetail, Context passed; style-guide §3.3 Detail): one task as Commons shows it
     (service/ironstone/TaskServices.xml get#TaskDetail). The header has the name, the status as a row of stage chips with the
-    next status as the primary action (template/StatusBar.xml, until the framework's status-bar), the due date, the priority
+    next status as the primary action and Hold and Cancel beside it (the framework's status-bar), the due date, the priority
     and the assignees, and the actions: Reassign, Set due, Add to Today, and in More Clone, Convert to request and Delete
     (own, with no time logged). The tabs: Overview (description, purpose, project, the records the task is on, its people),
     Sub-tasks (the children, add one), Time (the user's entries, clock in and out, add time), Files (record files) and
@@ -173,10 +173,10 @@ along with this software (see the LICENSE.md file). If not, see
             canUpdate = !!detail.canUpdate
             canDelete = !!detail.canDelete
             parentTaskId = workEffortId
-            // the status bar (template/StatusBar.xml)
-            statusBar = detail.statusBar
-            statusBarParameters = {workEffortId: workEffortId, tab: tab}
-            statusBarTitle = task.workEffortName
+            // the status-bar: the stages and the statuses the user may move the task to
+            statusFlowId = detail.statusFlowId || 'Default'
+            stageStatusIds = detail.stageStatusIds || []
+            allowedStatusIds = detail.allowedStatusIds || []
             subTaskList = detail.subTaskList || []
             timeEntryList = detail.timeEntryList || []
             openTimeEntry = detail.openTimeEntry
@@ -231,10 +231,11 @@ along with this software (see the LICENSE.md file). If not, see
                 <container style="col-12 col-md">
                     <label text="${task.workEffortName}" type="h5" style="q-my-none ${task.isDone ? 'm-muted' : ''}"/>
                     <label text="${captionText}" type="div" style="text-caption m-muted q-mb-xs"/>
-                    <section-include name="StatusBarStages" location="component://ironstone-boss/template/StatusBar.xml"/>
+                    <status-bar id="TaskStatusBar" status-id="${task.statusId}" status-flow-id="${statusFlowId}" stages="${stageStatusIds}"
+                            allowed-status-ids="${allowedStatusIds}" transition="changeStatus" parameter-name="toStatusId"
+                            parameter-map="{workEffortId:workEffortId, tab:tab}" title="${task.workEffortName}"/>
                 </container>
                 <container style="col-12 col-md-auto row items-center q-gutter-y-xs m-task-actions">
-                    <section-include name="StatusBarActions" location="component://ironstone-boss/template/StatusBar.xml"/>
                     <container-dialog id="TaskReassignDialog" button-text="Reassign" icon="sym_o_person_add" width="480" title="Assign ${task.workEffortName} to"
                             condition="canUpdate">
                         <form-single name="TaskReassign" transition="reassign">

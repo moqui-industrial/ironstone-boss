@@ -24,6 +24,12 @@ function post(path, parameters) {
     ec.message.clearErrors()
     return { status: str.status, errors: str.errorMessages.join(" | "), json: json || {}, output }
 }
+// the stages of the framework's status-bar (m-status-bar :bar, as get#StatusBar answered it): statusId to "state color"
+const stagesOf = (output) => Object.fromEntries(Array.from(output.matchAll(/\{'statusId':'([^']+)','label':'(?:[^'\\]|\\.)*','color':'([^']*)','state':'(\w+)'\}/g))
+        .map((match) => [match[1], match[3] + " " + match[2]]))
+// the transitions of the status-bar: label to "next", "danger" or "other"
+const transitionsOf = (output) => Object.fromEntries(Array.from(output.matchAll(/'label':'((?:[^'\\]|\\.)*)','color':'[^']*','isNext':(true|false),'isDanger':(true|false)/g))
+        .map((match) => [match[1], match[2] === "true" ? "next" : match[3] === "true" ? "danger" : "other"]))
 function get(path, parameters) {
     const str = ec.screen.makeTest().rootScreen(commons).render(path, parameters || {}, null)
     let json = null
@@ -176,12 +182,12 @@ feature("RequestDetail renders the request with its stage chips, the requester's
         draft.errors == ""
         !draft.broken
         draft.output.includes("Order a second monitor")
-        draft.output.includes('data-stage="ReqDraft" data-state="current"')
-        draft.output.includes("Submit")
+        stagesOf(draft.output).ReqDraft == "current grey-7"
+        transitionsOf(draft.output).Submit == "next"
+        transitionsOf(draft.output).Cancel == "danger"
         draft.output.includes("RequestEditDialog")
         // john.doe is the assignee of Joe's request: reassign, no submit or cancel (it is not his)
-        assigned.output.includes('data-stage="ReqInProgress" data-state="current"')
-        assigned.output.includes('data-stage="ReqSubmitted" data-state="done"')
+        stagesOf(assigned.output) == { ReqDraft: "done grey-7", ReqSubmitted: "done info", ReqReviewed: "done info", ReqInProgress: "current primary", ReqCompleted: "todo positive" }
         assigned.output.includes("RequestReassignDialog")
         !assigned.output.includes("changeStatus")
         !assigned.output.includes("RequestEditDialog")

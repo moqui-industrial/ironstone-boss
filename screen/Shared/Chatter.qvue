@@ -388,7 +388,7 @@ module.exports = {
         return {
             uid: chatterCount, state: 'loading', record: null, me: {}, canMessage: false, canSchedule: false, mayUpdate: false,
             followers: [], isFollowing: false, myKinds: [], planned: [], files: [], fileCount: 0, parties: [], dataFailed: [],
-            entries: [], hasMore: false, nextBeforeDate: null, timelineFailed: [], loadingTimeline: false, filter: 'all', search: '',
+            entries: [], hasMore: false, nextBeforeDate: null, nextSeenKeys: [], timelineFailed: [], loadingTimeline: false, filter: 'all', search: '',
             tab: null, composeOpen: false, formKeys: { message: 0, log: 0, activity: 0, kinds: 0, followers: 0, edit: 0, reply: 0, done: 0 },
             replyTo: null, replyFields: {}, editing: null, editFields: {}, editOptions: [], openQuotes: {},
             markDone: { open: false, activity: null, fields: {} }, preview: { open: false, src: '', name: '', download: '' },
@@ -537,7 +537,11 @@ module.exports = {
         loadTimeline(more) {
             const seq = this.requestSeq;
             const params = this.params({ kinds: this.filter, pageSize: 25 });
-            if (more && this.nextBeforeDate) params.beforeDate = this.nextBeforeDate;
+            // the cursor of the page before: its last date and the entries of that date already shown
+            if (more && this.nextBeforeDate) {
+                params.beforeDate = this.nextBeforeDate;
+                if (this.nextSeenKeys.length) params.seenKeys = this.nextSeenKeys.join(',');
+            }
             this.loadingTimeline = true;
             moqui.request(this.url('timeline'), { params }).then((result) => {
                 if (seq !== this.requestSeq) return;
@@ -550,6 +554,7 @@ module.exports = {
                 } else this.entries = list;
                 this.hasMore = !!json.hasMore && !!json.nextBeforeDate;
                 this.nextBeforeDate = json.nextBeforeDate || null;
+                this.nextSeenKeys = json.nextSeenKeys || [];
                 this.timelineFailed = json.failedSources || [];
             }, (err) => { this.loadingTimeline = false; moqui.handleAjaxError(err); });
         },

@@ -123,14 +123,19 @@ feature("the setup card keeps Done and Dismiss, and goes when every item is", {
 
 feature("Account changes the signed-in user only, whatever user the request names", {
     when() {
-        const saved = post("Settings/Account/updateAccount", { userId: "ORG_ZIZI_JD", partyId: "ORG_ZIZI_JD", firstName: "Johnny", lastName: "Doe", timeZone: "US/Central" })
-        return { saved, john: one("mantle.party.Person", { partyId: "EX_JOHN_DOE" }), joe: one("mantle.party.Person", { partyId: "ORG_ZIZI_JD" }),
-            page: render("Settings/Account") }
+        // the form posts every field of the account, its email address too (left out, the account would lose it)
+        const email = one("moqui.security.UserAccount", { userId: "EX_JOHN_DOE" }).emailAddress
+        const saved = post("Settings/Account/updateAccount", { userId: "ORG_ZIZI_JD", partyId: "ORG_ZIZI_JD", firstName: "Johnny", lastName: "Doe",
+            emailAddress: email, timeZone: "US/Central" })
+        return { saved, email, john: one("mantle.party.Person", { partyId: "EX_JOHN_DOE" }), joe: one("mantle.party.Person", { partyId: "ORG_ZIZI_JD" }),
+            account: one("moqui.security.UserAccount", { userId: "EX_JOHN_DOE" }), page: render("Settings/Account") }
     },
-    then({ saved, john, joe, page }) {
+    then({ saved, email, john, joe, account, page }) {
         saved.errors == ""
         john.firstName == "Johnny"
         joe.firstName == "Joe"
+        email != null
+        account.emailAddress == email
         page.status == 200
         page.errors == ""
         page.output.includes("Two-factor sign-in")

@@ -38,8 +38,14 @@ along with this software (see the LICENSE.md file). If not, see
         <actions>
             <service-call name="ironstone.EventServices.save#EventOverview" out-map="saveOut" in-map="{workEffortId:workEffortId, instanceStart:instanceStart,
                     scope:scope, workEffortName:workEffortName, allDay:allDay, startDate:startDate, startTime:startTime, endDate:endDate, endTime:endTime,
-                    location:location, infoUrl:infoUrl, description:description, visibilityEnumId:visibilityEnumId, calendarId:calendarId, notify:notify}"/>
-            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if>
+                    location:location, infoUrl:infoUrl, description:description, visibilityEnumId:visibilityEnumId, calendarId:calendarId, notify:notify,
+                    allowConflicts:allowConflicts}"/>
+            <if condition="!ec.message.hasError()"><script><![CDATA[
+                ec.message.addMessage(saveOut.message, 'success')
+                const clashes = Array.from(saveOut.conflictList || [])
+                if (clashes.length) ec.message.addMessage(ec.resource.expand('Booked then too: ${list}', '', {list: Array.from(new Set(clashes.map((clash) =>
+                        clash.resourceName + ' (' + clash.workEffortName + ')'))).join(', ')}), 'warning')
+            ]]></script></if>
         </actions>
         <!-- an instance changed on its own, or a new series from here on: that event is shown -->
         <conditional-response url="." condition="saveOut?.targetWorkEffortId &amp;&amp; saveOut.targetWorkEffortId != workEffortId">
@@ -83,8 +89,13 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="removeAttendee">
         <actions>
-            <service-call name="ironstone.EventServices.remove#Attendee" out-map="removeOut" in-map="{workEffortId:workEffortId, partyId:partyId}"/>
-            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(removeOut.message, 'success')</script></if>
+            <!-- the organizer stays; a removed attendee who had the invitation is told (mantle.work.EventServices.remove#EventAttendee) -->
+            <service-call name="ironstone.CalendarServices.get#EventAccessInfo" in-map="{workEffortId:workEffortId, need:'edit'}"/>
+            <if condition="!ec.message.hasError()">
+                <service-call name="mantle.work.EventServices.remove#EventAttendee" out-map="removeOut" in-map="{workEffortId:workEffortId, partyId:partyId,
+                        eventUrl:('/qapps/Commons/Calendar/EventDetail?workEffortId=' + encodeURIComponent(workEffortId))}"/>
+                <if condition="!ec.message.hasError()"><script>ec.message.addMessage(ec.l10n.localize(removeOut.notified ? 'Removed from the event and told' : 'Removed from the event'), 'success')</script></if>
+            </if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/><parameter name="instanceStart"/><parameter name="tab" value="attendees"/></default-response>
         <error-response url="."/>
@@ -140,9 +151,13 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="cancelEvent">
         <actions>
-            <service-call name="ironstone.CalendarServices.cancel#EventOccurrence" out-map="cancelOut" in-map="{workEffortId:workEffortId, instanceStart:instanceStart,
-                    scope:(scope || 'all'), notify:notify}"/>
-            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(cancelOut.message, 'success')</script></if>
+            <!-- one instance of a repeating event is left out of its series (an EXDATE), this and following end the series before it -->
+            <service-call name="ironstone.CalendarServices.get#EventAccessInfo" in-map="{workEffortId:workEffortId, need:'edit'}"/>
+            <if condition="!ec.message.hasError()">
+                <service-call name="mantle.work.EventServices.cancel#EventOccurrence" out-map="cancelOut" in-map="{workEffortId:workEffortId, instanceStart:instanceStart,
+                        scope:(scope || 'all'), notify:notify, eventUrl:('/qapps/Commons/Calendar/EventDetail?workEffortId=' + encodeURIComponent(workEffortId))}"/>
+                <if condition="!ec.message.hasError()"><script>ec.message.addMessage(cancelOut.message, 'success')</script></if>
+            </if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/><parameter name="instanceStart"/></default-response>
         <error-response url="."/>
@@ -167,6 +182,15 @@ along with this software (see the LICENSE.md file). If not, see
 
     <actions>
         <set field="tab" from="['overview', 'attendees', 'reminders', 'files', 'chatter'].includes(tab) ? tab : 'overview'"/>
+        <!-- a series and the start of one of its instances that was changed on its own (the link of a notification about that
+            instance): the instance's event -->
+        <if condition="instanceStart"><script><![CDATA[
+            const match = /^(\d{4}-\d{2}-\d{2})([ T](\d{2}):(\d{2}))?/.exec(String(instanceStart))
+            const keyTs = match ? ec.l10n.parseTimestamp(match[1] + ' ' + (match[3] ? match[3] + ':' + match[4] : '00:00') + ':00.000', 'yyyy-MM-dd HH:mm:ss.SSS') : null
+            const changed = keyTs == null ? null : ec.entity.find('mantle.work.effort.WorkEffortAssoc').condition('workEffortId', workEffortId)
+                    .condition('workEffortAssocTypeEnumId', 'WeatRecurrenceInstance').condition('fromDate', keyTs).list()[0]
+            if (changed) { workEffortId = changed.toWorkEffortId; instanceStart = null }
+        ]]></script></if>
         <service-call name="ironstone.EventServices.get#EventDetail" in-map="{workEffortId:workEffortId, instanceStart:instanceStart}" out-map="detail"/>
         <set field="recordFound" from="!!detail.visible"/>
         <script><![CDATA[
@@ -240,6 +264,9 @@ along with this software (see the LICENSE.md file). If not, see
             const bookingHtml = (item) => '<q-chip dense square class="q-ma-none m-tonal text-' + enc(item.statusColor) + '">' + enc(item.statusLabel) + '</q-chip>'
             roomRows = roomList.filter((room) => !room.legacy).map((room) => Object.assign({}, room, {statusHtml: bookingHtml(room)}))
             equipmentRows = equipmentList.map((item) => Object.assign({}, item, {statusHtml: bookingHtml(item)}))
+            // a new time that another booking of its rooms or equipment clashes with is refused (Mantle's check#ResourceBookings):
+            // the When offers to change it anyway, the bookings kept
+            hasBookings = roomRows.length > 0 || equipmentRows.length > 0
             linkedRecordsHtml = linkedRecordList.map((record) => '<m-record-card record-entity="' + enc(record.recordEntityName) + '" record-id="' + enc(record.recordId)
                     + '" card-url="/apps/Commons/Chatter/recordCard" class="q-mb-xs"></m-record-card>').join('')
             descriptionText = event.description || ''
@@ -367,12 +394,15 @@ along with this software (see the LICENSE.md file). If not, see
                                             <field name="notify" from="notifyDefault"><conditional-field condition="hasAttendees" title="">
                                                 <check><option key="Y" text="Send an update to the attendees"/></check></conditional-field>
                                                 <default-field><hidden/></default-field></field>
+                                            <field name="allowConflicts" from="''"><conditional-field condition="hasBookings" title="">
+                                                <check><option key="Y" text="Change it even when a room or equipment is booked then"/></check></conditional-field>
+                                                <default-field><hidden/></default-field></field>
                                             <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
                                             <field-layout>
                                                 <field-ref name="workEffortName"/><field-ref name="allDay"/>
                                                 <field-row><field-ref name="startDate"/><field-ref name="startTime"/></field-row>
                                                 <field-row><field-ref name="endDate"/><field-ref name="endTime"/></field-row>
-                                                <field-ref name="scope"/><field-ref name="notify"/><field-ref name="submitButton"/>
+                                                <field-ref name="scope"/><field-ref name="notify"/><field-ref name="allowConflicts"/><field-ref name="submitButton"/>
                                             </field-layout>
                                         </form-single>
                                         <label type="p" text="Times are in your time zone, ${event.timeZone || ''}; all-day events end on their last day." style="text-caption m-muted q-mb-none q-mt-sm"/>

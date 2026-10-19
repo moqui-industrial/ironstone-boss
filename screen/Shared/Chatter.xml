@@ -44,13 +44,14 @@ along with this software (see the LICENSE.md file). If not, see
         ]]></script></actions>
         <default-response type="none"/>
     </transition>
-    <!-- a page of the timeline: kinds (all, messages, notes, activities, changes, files), beforeDate (epoch millis) -->
+    <!-- a page of the timeline: kinds (all, messages, notes, activities, changes, files), and for the next page beforeDate (epoch
+        millis) and seenKeys (comma separated), the nextBeforeDate and nextSeenKeys of the page before -->
     <transition name="timeline" method="get" read-only="true">
         <actions><script><![CDATA[
             const out = ec.service.sync().name('ironstone.ChatterServices.get#Timeline').parameters({recordEntityName: recordEntity || '',
-                recordId: recordId || '', kinds: kinds || null, beforeDate: beforeDate || null, pageSize: pageSize || null}).call()
+                recordId: recordId || '', kinds: kinds || null, beforeDate: beforeDate || null, seenKeys: seenKeys || null, pageSize: pageSize || null}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {entryList: out.entryList, hasMore: out.hasMore, nextBeforeDate: out.nextBeforeDate,
-                failedSources: out.failedSources})
+                nextSeenKeys: out.nextSeenKeys, failedSources: out.failedSources})
         ]]></script></actions>
         <default-response type="none"/>
     </transition>

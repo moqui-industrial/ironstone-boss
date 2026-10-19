@@ -158,18 +158,15 @@ along with this software (see the LICENSE.md file). If not, see
                 })
                 if (!roomOptions.length) roomOptions = rooms.map((room) => ({value: room.facilityId, label: room.facilityName || room.facilityId}))
                 if (!equipmentOptions.length) equipmentOptions = assets.map((asset) => ({value: asset.assetId, label: asset.assetName || asset.assetId}))
-                // the attendees who have not had the latest invitation: none sent, or the event changed since (the digest of
-                // mantle.work.EventServices.send#EventInvitations)
+                // the attendees who have not had the latest invitation: none sent, or the event changed since
+                // (mantle.work.EventServices.get#InvitationDigest; get#EventAccessInfo let the user see the event, by the record
+                // visibility rule too, so its own view check is not asked again)
                 pendingInvites = 0
                 attempt('invitations', () => {
-                    const row = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', workEffortId).one()
-                    const digest = ec.service.sync().name('ironstone.EventServices.get#InvitationDigest').parameters({workEffortId: workEffortId}).call()?.digest
-                    const pending = new Set()
-                    for (const party of ec.entity.find('mantle.work.effort.WorkEffortParty').condition('workEffortId', workEffortId)
-                            .condition(cf.makeConditionDate('fromDate', 'thruDate', null)).list()) {
-                        if (party.partyId === row.ownerPartyId || party.partyId === myPartyId) continue
-                        if (party.invitationSentDate == null || party.invitationDigest !== digest) pending.add(party.partyId)
-                    }
+                    const digest = ec.service.sync().name('mantle.work.EventServices.get#InvitationDigest').parameters({workEffortId: workEffortId})
+                            .disableAuthz().call()
+                    if (ec.message.hasError()) return
+                    const pending = new Set(Array.from(digest?.pendingPartyIdList || []))
                     pendingInvites = pending.size
                     for (const attendee of event.attendees) attendee.pendingInvite = pending.has(attendee.partyId)
                 })
@@ -185,46 +182,13 @@ along with this software (see the LICENSE.md file). If not, see
         </actions>
     </service>
 
-    <service verb="get" noun="InvitationDigest" allow-remote="false">
-        <description>The digest of what an event's invitation tells (its name, time, place, rooms, recurrence and whether it is
-            cancelled), computed as mantle.work.EventServices.send#EventInvitations computes it to find the attendees whose
-            invitation is not the latest (WorkEffortParty.invitationDigest); Mantle has no service for it, so this copy must
-            follow it.</description>
-        <in-parameters><parameter name="workEffortId" required="true"/></in-parameters>
-        <out-parameters><parameter name="digest"/></out-parameters>
-        <actions><script><![CDATA[
-            const cf = ec.entity.conditionFactory
-            const toMillis = (value) => {
-                if (value == null || value === '') return null
-                const text = String(value)
-                return /^-?\d+$/.test(text) ? Number(text) : Date.parse(text)
-            }
-            const dayTextOf = (value) => {
-                if (value == null || value === '') return null
-                const text = String(value)
-                if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.substring(0, 10)
-                return new Date(toMillis(value)).toISOString().substring(0, 10)
-            }
-            const row = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', workEffortId).one()
-            if (row == null) { digest = null; return }
-            const recurrence = ec.entity.find('mantle.work.effort.WorkEffortRecurrence').condition('workEffortId', workEffortId).one()
-            const roomIds = Array.from(ec.entity.find('mantle.work.effort.WorkEffortFacility').condition('workEffortId', workEffortId)
-                    .condition(cf.makeCondition('statusId', 'not-equals', 'WefRequestDenied', true)).list()).map((room) => room.facilityId).sort()
-            const digestText = JSON.stringify([row.workEffortName ?? null, toMillis(row.actualStartDate || row.estimatedStartDate),
-                toMillis(row.actualCompletionDate || row.estimatedCompletionDate), dayTextOf(row.allDayStart), dayTextOf(row.allDayEnd),
-                row.location ?? null, row.facilityId ?? null, roomIds, recurrence?.rrule ?? null, recurrence?.exdates ?? null,
-                recurrence?.rdates ?? null, row.statusId === 'WeCancelled'])
-            let hash = 0x811c9dc5
-            for (let i = 0; i < digestText.length; i++) { hash ^= digestText.charCodeAt(i); hash = Math.imul(hash, 0x01000193) >>> 0 }
-            digest = hash.toString(16).padStart(8, '0')
-        ]]></script></actions>
-    </service>
-
     <service verb="save" noun="EventOverview">
         <description>The When and Overview of EventDetail: name, all day, start and end (a date and a time each), location, join
-            link (infoUrl), description and visibility, by scope for a recurring event (ironstone.CalendarServices.update#EventOccurrence:
+            link (infoUrl), description and visibility, by scope for a recurring event (mantle.work.EventServices.update#EventOccurrence:
             this, following or all); a new calendar puts the event (its series) in that calendar in place of the user's other
-            ones (add#CalendarEvent, remove#CalendarEvent). With notify Y the attendees get the update.</description>
+            ones (add#CalendarEvent, remove#CalendarEvent). With notify Y the attendees get the update. A new time that clashes
+            with another booking of the event's room or equipment is refused unless allowConflicts (the booking stays, and
+            conflictList names the clashes).</description>
         <in-parameters>
             <parameter name="workEffortId" required="true"/>
             <parameter name="instanceStart"/>
@@ -241,8 +205,13 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="visibilityEnumId"/>
             <parameter name="calendarId"/>
             <parameter name="notify"/>
+            <parameter name="allowConflicts"><description>Y keeps a booking that clashes at the new time</description></parameter>
         </in-parameters>
-        <out-parameters><parameter name="targetWorkEffortId"/><parameter name="message"/></out-parameters>
+        <out-parameters>
+            <parameter name="targetWorkEffortId"/>
+            <parameter name="message"/>
+            <parameter name="conflictList" type="List"/>
+        </out-parameters>
         <actions>
             <service-call name="ironstone.CalendarServices.get#EventAccessInfo" in-map="{workEffortId:workEffortId, need:'edit'}" out-map="access"/>
             <if condition="ec.message.hasError()"><return/></if>
@@ -258,12 +227,13 @@ along with this software (see the LICENSE.md file). If not, see
                     end = isAllDay ? endDay : endDay + ' ' + (time(endTime) || time(startTime) || '10:00')
                 }
                 if (infoUrl && !/^https?:\/\//i.test(String(infoUrl).trim())) { ec.message.addError(L('The join link is a web address (https://...)')); return }
-                const changed = ec.service.sync().name('ironstone.CalendarServices.update#EventOccurrence').parameters({workEffortId: workEffortId,
+                const changed = ec.service.sync().name('mantle.work.EventServices.update#EventOccurrence').parameters({workEffortId: workEffortId,
                     instanceStart: instanceStart || null, scope: scope || 'this', start: start, end: end, allDay: isAllDay ? 'Y' : 'N',
                     workEffortName: workEffortName, location: location == null ? null : location, description: description == null ? null : description,
-                    notify: 'N'}).call()
+                    notify: 'N', allowConflicts: allowConflicts === 'Y' || allowConflicts === 'true'}).call()
                 if (ec.message.hasError()) return
                 targetWorkEffortId = changed.targetWorkEffortId
+                conflictList = Array.from(changed.conflictList || [])
                 const fields = {workEffortId: targetWorkEffortId}
                 if (infoUrl != null) fields.infoUrl = String(infoUrl).trim() || null
                 if (visibilityEnumId != null) fields.visibilityEnumId = visibilityEnumId || null
@@ -416,22 +386,6 @@ along with this software (see the LICENSE.md file). If not, see
                     message = sent.message
                 }
             ]]></script>
-        </actions>
-    </service>
-    <service verb="remove" noun="Attendee">
-        <description>Takes a person off an event (edit access; mantle.work.WorkEffortServices.remove#WorkEffortParty); the organizer
-            stays. Mantle sends a removed attendee no cancel (send#EventInvitations reads the current attendees only).</description>
-        <in-parameters>
-            <parameter name="workEffortId" required="true"/>
-            <parameter name="partyId" required="true"/>
-        </in-parameters>
-        <out-parameters><parameter name="message"/></out-parameters>
-        <actions>
-            <service-call name="ironstone.CalendarServices.get#EventAccessInfo" in-map="{workEffortId:workEffortId, need:'edit'}" out-map="access"/>
-            <if condition="ec.message.hasError()"><return/></if>
-            <if condition="access.workEffort.ownerPartyId == partyId"><return error="true" message="The organizer stays on the event"/></if>
-            <service-call name="mantle.work.WorkEffortServices.remove#WorkEffortParty" in-map="{workEffortId:workEffortId, partyId:partyId}"/>
-            <set field="message" from="ec.l10n.localize('Removed from the event')"/>
         </actions>
     </service>
     <service verb="set" noun="AttendeeOptional">

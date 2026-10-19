@@ -189,3 +189,35 @@ feature("a task john.doe is not on cannot be marked done or rescheduled", {
         status == "WeApproved"
     },
 })
+
+feature("the demo loaded again on a later day keeps one Assignee row per party, and a data load (no user) dates it in john.doe's zone", {
+    when() {
+        const pinned = Number(String(ec.user.nowTimestamp))
+        const assignees = () => sys(() => Array.from(ec.entity.find("mantle.work.effort.WorkEffortParty").condition("workEffortId", "BOSS_DEMO_TODAY_DUE")
+                .condition("roleTypeId", "Assignee").list())).map((row) => row.partyId).sort()
+        ec.user.setEffectiveTime(pinned + 3 * 86400000)
+        sys(() => call("ironstone.DemoServices.load#CommonsDemo", {}))
+        const later = assignees()
+        // as a data load runs it: no user, the server's time zone
+        logout()
+        ec.user.setTimeZone("UTC")
+        let loaded = null
+        try {
+            sys(() => call("ironstone.DemoServices.load#CommonsDemo", {}))
+            loaded = assignees()
+        } finally {
+            ec.user.setTimeZone(null)
+            login("john.doe")
+            ec.user.setEffectiveTime(pinned)
+        }
+        return { later, loaded, event: one("mantle.work.effort.WorkEffort", { workEffortId: "BOSS_DEMO_EVENT" }),
+            due: one("mantle.work.effort.WorkEffort", { workEffortId: "BOSS_DEMO_TODAY_DUE" }) }
+    },
+    then({ later, loaded, event, due }) {
+        later == ["EX_JOHN_DOE", "ORG_ZIZI_JD"]
+        loaded == ["EX_JOHN_DOE", "ORG_ZIZI_JD"]
+        ec.user.timeZone == "US/Central"
+        ec.l10n.format(event.estimatedStartDate, "yyyy-MM-dd HH:mm") == "2026-10-21 10:00"
+        ec.l10n.format(due.estimatedCompletionDate, "HH:mm") == "17:00"
+    },
+})

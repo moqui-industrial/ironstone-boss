@@ -150,10 +150,12 @@ along with this software (see the LICENSE.md file). If not, see
     <moqui.service.job.ServiceJob jobName="apply_ChatDndHours" description="Do not disturb hours of the chat users (IronStone)"
             serviceName="ironstone.ChatServices.apply#DndHours" cronExpression="0 */5 * * * ?" paused="N"/>
     <!-- Contacts (design-drawers-commons.md §6, impl M4): contact admins change and delete directory contacts and review the
-        duplicates (Commons/Contacts/Duplicates); ADMIN members are contact admins too. A pair a contact admin marks "not a
-        duplicate" is kept in a PartySetting of each party (a comma list of the other party ids), until Mantle records it. -->
+        duplicates (Commons/Contacts/Duplicates), with Mantle's CONTACT_ADMIN permission (which the ADMIN group has too). A pair
+        a contact admin marks "not a duplicate" is Mantle's PartyNotDuplicate; the PartySetting BossNotDuplicates that held such
+        pairs before is moved to it on a load (ironstone.ContactServices.migrate#NotDuplicateSettings, nothing to do once done). -->
     <moqui.security.UserGroup userGroupId="BOSS_CONTACT_ADMIN" description="Contact admins (IronStone): edit and delete directory contacts, review duplicates"/>
-    <mantle.party.PartySettingType partySettingTypeId="BossNotDuplicates" description="Not duplicates of (IronStone Contacts): party ids, comma separated"/>
+    <moqui.security.UserGroupPermission userGroupId="BOSS_CONTACT_ADMIN" userPermissionId="CONTACT_ADMIN" fromDate="0"/>
+    <ironstone.ContactServices.migrate-NotDuplicateSettings/>
 
     <!-- Files (design-drawers-commons.md §9 Records, impl-drawers-commons.md M8, R25): the Records drive, a view over the record
         attachment folders Mantle's save#*ContentFile services write under the mantle.content.root preference (the default
