@@ -117,23 +117,38 @@ feature("a page: its title, versions, last change, links and backlinks across sp
     },
 })
 
-feature("a new page under Office is made and opened; a name taken under another page, or a page there already, is refused", {
+feature("a new page under Office is made and opened; a page there already is refused, a name used under another page is another page", {
     when() {
         const created = post("createPage", { wikiSpaceId: "BOSSKB", parentPath: "Office", pageName: `Spec page ${RUN}` })
         made.pageId = created.json.wikiPageId
         const again = post("createPage", { wikiSpaceId: "BOSSKB", parentPath: "Office", pageName: `Spec page ${RUN}` })
+        // a top-level Travel is a page of its own: Policies/Travel keeps its text (the wiki writes each page at its exact path)
+        const travelBefore = page({ wikiSpaceId: "BOSSKB", pagePath: "Policies/Travel" }).text
         const elsewhere = post("createPage", { wikiSpaceId: "BOSSKB", parentPath: "", pageName: "Travel" })
+        const travelAfter = page({ wikiSpaceId: "BOSSKB", pagePath: "Policies/Travel" }).text
+        const topTravel = page({ wikiSpaceId: "BOSSKB", pagePath: "Travel" })
+        const removed = post("deletePage", { wikiPageId: elsewhere.json.wikiPageId })
         const badName = post("createPage", { wikiSpaceId: "BOSSKB", parentPath: "", pageName: "a/b" })
-        return { created, again, elsewhere, badName, view: page({ wikiPageId: made.pageId }), office: names(get("children", { wikiSpaceId: "BOSSKB", pagePath: "Office" })) }
+        // a space Joe may not read: nothing is said of its paths
+        const hidden = as("joe.developer", () => post("createPage", { wikiSpaceId: "BOSSLEAD", parentPath: "", pageName: "Mine" }))
+        return { created, again, elsewhere, travelBefore, travelAfter, topTravel, removed, badName, hidden, view: page({ wikiPageId: made.pageId }),
+            office: names(get("children", { wikiSpaceId: "BOSSKB", pagePath: "Office" })), top: names(get("children", { wikiSpaceId: "BOSSKB", pagePath: "" })) }
     },
-    then({ created, again, elsewhere, badName, view, office }) {
+    then({ created, again, elsewhere, travelBefore, travelAfter, topTravel, removed, badName, hidden, view, office, top }) {
         created.status == 200
         created.json.pagePath == `Office/Spec page ${RUN}`
         view.text.startsWith(`# Spec page ${RUN}`)
         office.includes(`Spec page ${RUN}`)
         again.errors.includes("There is a page")
-        elsewhere.errors.includes("is at Policies/Travel already")
+        elsewhere.errors == ""
+        elsewhere.json.pagePath == "Travel"
+        topTravel.text.startsWith("# Travel")
+        travelAfter == travelBefore
+        travelAfter.includes("Take the train")
+        removed.errors == ""
+        !top.includes("Travel")
         badName.errors.length > 0
+        hidden.errors.includes("Page not found")
     },
 })
 
@@ -278,7 +293,7 @@ feature("delete takes a page with its files; a page with pages under it, or a sp
         deleted.json.parentPath == ""
         row == null
         gone.errors.includes("Page not found")
-        withChildren.errors.includes("Move or delete the pages under this page first")
+        withChildren.errors.includes("has child pages")
         home.errors.includes("not deleted")
     },
 })
@@ -337,7 +352,8 @@ feature("Bob Developer reads the handbook but may not change, add to, tag, move 
         view.title == "Onboarding"
         !view.canUpdate
         save.errors.includes("You may not change this page")
-        create.errors.includes("You may not add pages to this space")
+        // update#WikiPage's refusal
+        create.errors.includes("is not allowed")
         tags.errors.includes("You may not change this page")
         move.errors.length > 0
         remove.errors.includes("You may not change this page")
@@ -414,9 +430,16 @@ feature("restricting a page and naming who reads it, as an administrator of the 
         const opened = call_("Knowledge/SpaceDetail/restrictPage", { wikiSpaceId: "BOSSKB", wikiPageId: expenses, restrictView: "N", restrictUpdate: "N" }, "post")
         const joeAgain = as("joe.developer", () => page({ wikiPageId: expenses }))
         const notAdmin = as("joe.developer", () => call_("Knowledge/SpaceDetail/restrictPage", { wikiSpaceId: "BOSSKB", pagePath: "Policies/Travel", restrictView: "Y" }, "post"))
-        return { restricted, named, joe, bob, opened, joeAgain, notAdmin }
+        // restricting who edits needs no page member: the space's administrator edits any page they read
+        const member = (id) => sys(() => ec.entity.find("moqui.resource.wiki.WikiPageUser").condition({ wikiPageId: id, userId: "EX_JOHN_DOE" }).one())
+        const office = pageId("BOSSKB", "Office")
+        const editOnly = call_("Knowledge/SpaceDetail/restrictPage", { wikiSpaceId: "BOSSKB", wikiPageId: office, restrictView: "N", restrictUpdate: "Y" }, "post")
+        const editOnlyMember = member(office)
+        const stillEdits = page({ wikiPageId: office }).canUpdate
+        call_("Knowledge/SpaceDetail/restrictPage", { wikiSpaceId: "BOSSKB", wikiPageId: office, restrictView: "N", restrictUpdate: "N" }, "post")
+        return { restricted, named, joe, bob, opened, joeAgain, notAdmin, viewMember: member(expenses), editOnly, editOnlyMember, stillEdits }
     },
-    then({ restricted, named, joe, bob, opened, joeAgain, notAdmin }) {
+    then({ restricted, named, joe, bob, opened, joeAgain, notAdmin, viewMember, editOnly, editOnlyMember, stillEdits }) {
         restricted.errors == ""
         named.errors == ""
         joe.errors.includes("Page not found")
@@ -424,6 +447,10 @@ feature("restricting a page and naming who reads it, as an administrator of the 
         opened.errors == ""
         joeAgain.title == "Expenses"
         notAdmin.errors.includes("Only an administrator of this space may do that")
+        viewMember.allowView == "Y"
+        editOnly.errors == ""
+        editOnlyMember == null
+        stillEdits
     },
 })
 

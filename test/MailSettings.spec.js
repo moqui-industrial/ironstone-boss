@@ -173,8 +173,8 @@ feature("rules: the demo's in words with the blocked sender apart; a new rule sa
         return { page, qvue, data: data.json, badRule, saved, before, reordered, afterOrder, off, offRule, run, invoice, hello, label, blocked, withBlock, unblocked, withoutBlock }
     },
     then({ page, qvue, data, badRule, saved, before, reordered, afterOrder, off, offRule, run, invoice, hello, label, blocked, withBlock, unblocked, withoutBlock }) {
-        page.status == 200
-        !page.broken
+        // a .qvue screen only: the shell loads it in qvue (its best client mode), and a .qvt of it is not found
+        page.status != 200
         qvue.includes("module.exports")
         qvue.includes("Blocked senders")
         data.ruleList.map((rule) => rule.ruleName) == ["Receipts", "Newsletters", "Flag mail from Acme"]

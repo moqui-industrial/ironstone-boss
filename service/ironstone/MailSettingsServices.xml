@@ -17,11 +17,14 @@ along with this software (see the LICENSE.md file). If not, see
     OutOfOffice and TextBlocks, and the Mail box of Commons Preferences (§11 MailDefaults), over the framework's mail client
     (org.moqui.impl.EmailClientServices). Every read and write of an account goes through those services, which check the
     user's access (get#EmailAccountAccess, R21): an account the user does not reach is "not found", and only a manager changes
-    one. Server passwords are never answered: the views say only whether one is stored. Passwords and app passwords only
-    for now; Google and Microsoft sign-in (OAuth) is M5e, so the provider help says where to make an app password.
+    one. Server passwords and sign-in tokens are never answered: the views say only whether one is stored. An account signs
+    in with a password (or an app password, with the provider's help on where to make one) or, where this server is set up
+    for it (mr-moqui docs/Mail-OAuth.md), with Google or Microsoft: get#OAuthChoice says which, start#MailSignIn begins the
+    sign-in of the SignIn screen's popup, drop#UnusedSignIn takes back an account made for a sign-in that did not finish.
 
     The wizard (MailAccounts/Add): Address suggests the servers (suggest#MailServer: the providers IronStone knows, else
-    discover#EmailServer), Connect makes the account, paused until the wizard ends (save#AccountConnection), Test signs in
+    discover#EmailServer), Connect makes the account, paused until the wizard ends (save#AccountConnection with a password,
+    or before a provider's sign-in, start#MailSignIn), Test signs in
     (test#MailAccount, with what to try for each failure), Options (save#AccountOptions: name, sync window, filing, members
     of a shared account) and Finish (finish#AccountSetup: active, and the first sync on a worker). An account still paused
     from a wizard that was left is "Setup not finished" in the list, with the way back into it.
@@ -35,8 +38,8 @@ along with this software (see the LICENSE.md file). If not, see
     <service verb="get" noun="MailProvider" allow-remote="false">
         <description>The provider IronStone knows for an address (by its domain) or a server (by the incoming host, for a
             company domain at Google or Microsoft): its servers, whether it needs an app password and where to make one
-            (OAuth comes with M5e), and a warning for one that cannot work here (Proton Mail needs its Bridge). provider is
-            null for any other.</description>
+            (the sign-in with Google or Microsoft, where this server offers it, is get#OAuthChoice's), and a warning for one
+            that cannot work here (Proton Mail needs its Bridge). provider is null for any other.</description>
         <in-parameters>
             <parameter name="emailAddress" allow-html="any"/>
             <parameter name="storeHost"/>
@@ -46,12 +49,12 @@ along with this software (see the LICENSE.md file). If not, see
             const L = (text) => text.length > 255 ? text : ec.l10n.localize(text)
             const SSL = 'ssl', STARTTLS = 'starttls'
             const googleHelp = L('Google asks for an app password here, not your Google password. Turn on 2-Step Verification for your Google account, then make an app password (Security, App passwords) and paste the 16 letters below; the spaces do not matter.')
-            const microsoftHelp = L('Microsoft asks for an app password for mail apps. Turn on two-step verification, then make an app password (Security, Advanced security options, App passwords). Microsoft is turning off password sign-in for mail apps: if the test says the sign-in was refused, this account needs Microsoft sign-in, which IronStone does not have yet.')
+            const microsoftHelp = L('Microsoft asks for an app password for mail apps. Turn on two-step verification, then make an app password (Security, Advanced security options, App passwords). Microsoft is turning off password sign-in for mail apps: if the test says the sign-in was refused, this account needs Microsoft sign-in.')
             const PROVIDERS = [
                 {id: 'gmail', name: 'Gmail', domains: ['gmail.com', 'googlemail.com'], hosts: /(^|\.)(gmail|googlemail)\.com$/,
                     imap: ['imap.gmail.com', 993, SSL], smtp: ['smtp.gmail.com', 465, SSL], appPassword: true, help: googleHelp,
                     helpUrl: 'https://myaccount.google.com/apppasswords', helpLinkText: L('Make a Google app password'),
-                    note: L('A Google Workspace account whose administrator turned off app passwords needs Google sign-in, which comes later.')},
+                    note: L('A Google Workspace account whose administrator turned off app passwords needs Google sign-in.')},
                 {id: 'outlook', name: 'Outlook.com', domains: ['outlook.com', 'hotmail.com', 'live.com', 'msn.com', 'passport.com', 'hotmail.co.uk', 'live.co.uk',
                         'outlook.co.uk', 'hotmail.fr', 'live.fr', 'outlook.fr', 'hotmail.de', 'outlook.de', 'hotmail.it', 'outlook.it', 'hotmail.es', 'outlook.es',
                         'live.ca', 'hotmail.ca', 'live.com.au', 'outlook.com.au'],
@@ -113,13 +116,52 @@ along with this software (see the LICENSE.md file). If not, see
         ]]></script></actions>
     </service>
 
+    <service verb="get" noun="OAuthChoice">
+        <description>Whether an address (or a server) signs in with a provider this server is set up for (mr-moqui
+            docs/Mail-OAuth.md): oauthProviderEnumId when given (discover#EmailServer's, or the account server's), else the
+            EmailOAuthProvider whose addressDomains has the address's domain or whose hostSuffixes the incoming server is
+            under, as discover#EmailServer finds it but without its network lookups; configured as get#OAuthProviders says
+            (a client of this deployment, not disabled); providerLabel names the button (Sign in with Google, with
+            Microsoft). The provider rows are read without their secrets. choice is null when no provider has the mail.</description>
+        <in-parameters>
+            <parameter name="emailAddress" allow-html="any"/>
+            <parameter name="storeHost"/>
+            <parameter name="oauthProviderEnumId"/>
+        </in-parameters>
+        <out-parameters><parameter name="choice" type="Map"/></out-parameters>
+        <actions><script><![CDATA[
+            choice = null
+            const address = String(emailAddress || '').trim().toLowerCase()
+            const domain = address.includes('@') ? address.substring(address.lastIndexOf('@') + 1).replace(/\.$/, '') : ''
+            const host = String(storeHost || '').trim().toLowerCase().replace(/\.$/, '')
+            const list = (text) => String(text || '').split(',').map((part) => part.trim().toLowerCase()).filter((part) => part)
+            const under = (name, suffix) => !!suffix && (name === suffix || name.endsWith('.' + suffix))
+            let id = oauthProviderEnumId || null
+            if (!id && (domain || host)) {
+                const rows = Array.from(ec.entity.find('moqui.basic.email.EmailOAuthProvider').selectField('oauthProviderEnumId,addressDomains,hostSuffixes')
+                        .orderBy('oauthProviderEnumId').disableAuthz().list())
+                const found = rows.find((row) => domain && list(row.addressDomains).includes(domain)) ||
+                        rows.find((row) => host && list(row.hostSuffixes).some((suffix) => under(host, suffix)))
+                id = found ? found.oauthProviderEnumId : null
+            }
+            if (!id) return
+            const providers = Array.from(ec.service.sync().name('org.moqui.impl.EmailClientServices.get#OAuthProviders').call()?.providerList || [])
+            const provider = providers.find((row) => row.oauthProviderEnumId === id)
+            if (!provider) return
+            const LABELS = {EopGoogle: 'Google', EopMicrosoft: 'Microsoft'}
+            choice = {oauthProviderEnumId: id, providerLabel: LABELS[id] || provider.description || id, configured: provider.configured === true}
+        ]]></script></actions>
+    </service>
+
     <service verb="suggest" noun="MailServer">
         <description>The add-account wizard's servers for an address, and where they came from: a provider IronStone knows
             (get#MailProvider, with its app-password help), else org.moqui.impl.EmailClientServices.discover#EmailServer
             (Thunderbird autoconfig and its ISPDB, DNS SRV records, else the guesses imap.domain and smtp.domain). A reserved
             domain (example.com, .example, .test, .invalid, .localhost, .local) is never looked up: it gets the guesses at once.
             A discovery that fails falls back to the guesses, said so (logged). The servers are in the wizard's terms:
-            storeKind imap or pop, storeSecurity and smtpSecurity ssl, starttls or none.</description>
+            storeKind imap or pop, storeSecurity and smtpSecurity ssl, starttls or none. oauthProviderEnumId is the
+            provider discovery found the mail at (for a company domain at Google or Microsoft, by its MX hosts), for
+            get#OAuthChoice.</description>
         <in-parameters><parameter name="emailAddress" required="true" allow-html="any"/></in-parameters>
         <out-parameters><parameter name="suggestion" type="Map"/></out-parameters>
         <actions><script><![CDATA[
@@ -141,7 +183,7 @@ along with this software (see the LICENSE.md file). If not, see
             const result = {emailAddress: address, domain: domain, providerId: null, providerName: null, source: 'guess', sourceText: SOURCES.guess,
                 storeKind: 'imap', storeSecurity: 'ssl', storeHost: 'imap.' + domain, storePort: '993', smtpHost: 'smtp.' + domain, smtpPort: '587',
                 smtpSecurity: 'starttls', mailUsername: address, displayName: null, appPassword: false, unsupported: false, oauthOnly: false,
-                helpText: null, helpUrl: null, helpLinkText: null, noteText: null, warningText: null}
+                oauthProviderEnumId: null, helpText: null, helpUrl: null, helpLinkText: null, noteText: null, warningText: null}
             const applyProvider = (provider, setServers) => {
                 if (!provider) return
                 Object.assign(result, {providerId: provider.providerId, providerName: provider.providerName, appPassword: provider.appPassword,
@@ -175,12 +217,15 @@ along with this software (see the LICENSE.md file). If not, see
                         Object.assign(result, {storeKind: protocol.startsWith('pop') ? 'pop' : 'imap',
                             storeSecurity: protocol === 'imaps' || protocol === 'pop3s' ? 'ssl' : 'starttls', storeHost: found.storeHost,
                             storePort: String(found.storePort || (protocol === 'pop3s' ? 995 : protocol === 'pop3' ? 110 : protocol === 'imap' ? 143 : 993)),
-                            mailUsername: found.mailUsername || address, displayName: found.displayName || null, oauthOnly: found.oauthOnly === true})
+                            mailUsername: found.mailUsername || address, displayName: found.displayName || null, oauthOnly: found.oauthOnly === true,
+                            oauthProviderEnumId: found.oauthProviderEnumId || null})
                         if (found.smtpHost) Object.assign(result, {smtpHost: found.smtpHost, smtpPort: String(found.smtpPort || 587),
                             smtpSecurity: found.smtpSsl === 'Y' ? 'ssl' : (found.smtpStartTls === 'Y' ? 'starttls' : 'none')})
                         // a company domain at Google or Microsoft: their help
                         applyProvider(ec.service.sync().name('ironstone.MailSettingsServices.get#MailProvider').parameter('storeHost', found.storeHost).call()?.provider, false)
-                        if (result.oauthOnly) result.warningText = L('This provider signs mail apps in only with its own sign-in (OAuth), which IronStone does not have yet; a password will most likely be refused.')
+                        if (result.oauthOnly) result.warningText = found.oauthConfigured === true
+                                ? L('This provider signs mail apps in only with its own sign-in: use the sign-in button, a password will most likely be refused.')
+                                : L('This provider signs mail apps in only with its own sign-in (OAuth), which is not set up on this server: a password will most likely be refused. An administrator can set the sign-in up.')
                     }
                 } catch (err) {
                     ec.logger.warn(`Mail server discovery for ${domain} failed, the guesses are offered: ${err && err.message ? err.message : err}`)
@@ -244,7 +289,7 @@ along with this software (see the LICENSE.md file). If not, see
                     canSend: account.canSend === true, accessText: account.isOwner ? L('yours') : ec.resource.expand('shared with you: you may ${what}', '',
                         {what: PERMISSION[account.level] || ''}), unreadCount: account.unreadCount ?? null, outboxErrorCount: account.outboxErrorCount || 0,
                     statusId: account.statusId || 'EasActive', statusLabel: L('Active'), statusColor: 'positive', problemText: null, lastSyncText: null,
-                    lastSyncError: account.lastSyncError ?? null, syncing: false, setupIncomplete: false, hasServer: !!account.emailServerId,
+                    lastSyncError: account.lastSyncError ?? null, syncing: false, setupIncomplete: false, hasServer: !!account.emailServerId, isOAuth: false,
                     canSync: false, canPause: false, canResume: false, serverText: null, memberText: null, memberCount: 0,
                     folderCount: Array.from(account.folderList || []).filter((folder) => !folder.removed).length,
                     filingText: account.recordFilingEnumId === 'ErfAllMatches' ? L('Files mail with known contacts on their records')
@@ -265,6 +310,10 @@ along with this software (see the LICENSE.md file). If not, see
                     item.syncing = lockedUntil != null && lockedUntil > nowMillis
                     item.lastSyncText = lastSync != null ? agoText(lastSync) : null
                     item.setupIncomplete = item.statusId === 'EasPaused' && lastSync == null && item.hasServer && item.canManage
+                    const auth = account.emailServerId ? ec.entity.find('moqui.basic.email.EmailServer').condition('emailServerId', account.emailServerId)
+                            .selectField('authTypeEnumId,oauthProviderEnumId').one() : null
+                    item.isOAuth = auth?.authTypeEnumId === 'EatOAuth2'
+                    const providerName = item.isOAuth ? ({EopGoogle: 'Google', EopMicrosoft: 'Microsoft'}[auth.oauthProviderEnumId] || L('the provider')) : null
                     const status = item.statusId
                     if (!item.hasServer) Object.assign(item, {statusLabel: L('Local only'), statusColor: 'info',
                         problemText: L('No server: the mail here is kept only here and does not sync')})
@@ -272,7 +321,8 @@ along with this software (see the LICENSE.md file). If not, see
                         problemText: L('The account is not syncing until its setup is finished')})
                     else if (status === 'EasPaused') Object.assign(item, {statusLabel: L('Paused'), statusColor: 'grey-7', problemText: L('Sync is paused')})
                     else if (status === 'EasAuthFailed') Object.assign(item, {statusLabel: L('Sign-in failed'), statusColor: 'negative',
-                        problemText: L('The server refused the password; mail is not syncing until it is entered again')})
+                        problemText: item.isOAuth ? ec.resource.expand('The sign-in with ${name} ended; mail is not syncing until you sign in again', '', {name: providerName})
+                            : L('The server refused the password; mail is not syncing until it is entered again')})
                     else if (status === 'EasError') Object.assign(item, {statusLabel: L('Sync failed'), statusColor: 'negative',
                         problemText: item.lastSyncError || L('The last sync failed')})
                     else if (item.syncing) Object.assign(item, {statusLabel: L('Syncing'), statusColor: 'info'})
@@ -316,7 +366,9 @@ along with this software (see the LICENSE.md file). If not, see
         <description>One account for its page (MailAccounts/Account): the list's view of it (get#MailAccountList), its folders
             with their kind, the server's path and counts, and for a manager the servers in the wizard's terms (storeKind,
             storeSecurity, storeHost, storePort, smtpHost, smtpPort, smtpSecurity, mailUsername and hasPassword; never the
-            password), the members of a shared account, the options and the provider's help. found is false, with "not found",
+            password), the members of a shared account, the options and the provider's help. signIn says how a manager's
+            account signs in (get#OAuthStatus: isOAuth, signedIn, needsSignIn, signInDate) and oauth whether it may sign in
+            with Google or Microsoft here (get#OAuthChoice: providerLabel, configured). found is false, with "not found",
             for an account the user does not reach.</description>
         <in-parameters><parameter name="emailAccountId" required="true"/></in-parameters>
         <out-parameters>
@@ -327,10 +379,12 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="memberList" type="List"/>
             <parameter name="folderList" type="List"/>
             <parameter name="provider" type="Map"/>
+            <parameter name="signIn" type="Map"/>
+            <parameter name="oauth" type="Map"/>
         </out-parameters>
         <actions><script><![CDATA[
             const L = (text) => text.length > 255 ? text : ec.l10n.localize(text)
-            found = false; account = null; server = null; options = null; memberList = []; folderList = []; provider = null
+            found = false; account = null; server = null; options = null; memberList = []; folderList = []; provider = null; signIn = null; oauth = null
             const access = ec.service.sync().name('org.moqui.impl.EmailClientServices.get#EmailAccountAccess').parameter('emailAccountId', emailAccountId).call()
             if (ec.message.hasError()) return
             if (!(access?.level >= 1) || access.account?.isInternal) { ec.message.addError(ec.resource.expand('Email account ${id} not found', '', {id: emailAccountId})); return }
@@ -362,7 +416,14 @@ along with this software (see the LICENSE.md file). If not, see
                         storeKind: protocol.startsWith('pop') ? 'pop' : 'imap', storeSecurity: protocol === 'imaps' || protocol === 'pop3s' ? 'ssl' : 'starttls',
                         storeHost: row.storeHost || '', storePort: row.storePort != null ? String(row.storePort) : '', smtpHost: row.smtpHost || '',
                         smtpPort: row.smtpPort != null ? String(row.smtpPort) : '', smtpSecurity: row.smtpSsl === 'Y' ? 'ssl' : (row.smtpStartTls === 'Y' ? 'starttls' : 'none'),
-                        mailUsername: row.mailUsername || '', hasPassword: !!row.mailPassword, hasStore: !!row.storeHost}
+                        mailUsername: row.mailUsername || '', hasPassword: !!row.mailPassword, hasStore: !!row.storeHost,
+                        authTypeEnumId: row.authTypeEnumId || 'EatPassword', oauthProviderEnumId: row.oauthProviderEnumId || null}
+                    // the sign-in with a provider (get#OAuthStatus answers no token)
+                    const status = ec.service.sync().name('org.moqui.impl.EmailClientServices.get#OAuthStatus').parameter('emailAccountId', emailAccountId).call()
+                    if (ec.message.hasError()) { ec.logger.warn(`The sign-in state of email account ${emailAccountId} is left out: ${ec.message.getErrorsString()}`); ec.message.clearErrors() }
+                    else signIn = {isOAuth: status?.authTypeEnumId === 'EatOAuth2', signedIn: status?.signedIn === true, needsSignIn: status?.needsSignIn === true,
+                        oauthProviderEnumId: status?.oauthProviderEnumId || null, signInDate: status?.signInDate ?? null,
+                        signInText: status?.signInDate ? ec.l10n.format(status.signInDate, 'MMM d, yyyy') : null}
                 }
             }
             if (access.level >= 3 && account.isShared) {
@@ -377,6 +438,8 @@ along with this software (see the LICENSE.md file). If not, see
             }
             provider = ec.service.sync().name('ironstone.MailSettingsServices.get#MailProvider').parameters({emailAddress: raw.emailAddress,
                 storeHost: server?.storeHost || null}).call()?.provider || null
+            if (access.level >= 3) oauth = ec.service.sync().name('ironstone.MailSettingsServices.get#OAuthChoice').parameters({emailAddress: raw.emailAddress,
+                storeHost: server?.storeHost || null, oauthProviderEnumId: server?.oauthProviderEnumId || null}).call()?.choice || null
         ]]></script></actions>
     </service>
 
@@ -387,9 +450,13 @@ along with this software (see the LICENSE.md file). If not, see
             wizard's Finish, so the sync job leaves it alone) or change the one the user manages. The servers come in the
             wizard's terms (storeKind imap or pop, storeSecurity ssl or starttls, smtpSecurity ssl, starttls or none; a port
             left empty takes the usual one for its security); the user name defaults to the address. A password is needed
-            to make an account, and an empty one keeps the one stored. An account whose setup was not finished is made again
-            when the wizard comes back with another kind (the kind is set when an account is made). Strict on access: an
-            emailAccountId the user does not manage is not found.</description>
+            to make an account with a password, and an empty one keeps the one stored; a password given makes the account
+            sign in with it (EatPassword: an account that signed in with a provider is signed out there). With
+            authTypeEnumId EatOAuth2 and oauthProviderEnumId no password is taken: a new account is made for the provider's
+            sign-in (start#MailSignIn), on the servers given or else the provider's own, and an account there already keeps
+            its servers and its sign-in, which the provider's sign-in sets. The wizard coming back with another kind changes
+            the account's kind (update#EmailAccount, by the framework's rules). Strict on access: an emailAccountId the user
+            does not manage is not found.</description>
         <in-parameters>
             <parameter name="emailAccountId"/>
             <parameter name="emailAddress" required="true" allow-html="any"/>
@@ -406,6 +473,9 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="mailPassword" allow-html="any"/>
             <parameter name="passwordOnly" type="Boolean" default="false"><description>Only the password changes (the Fix of a
                 sign-in that failed)</description></parameter>
+            <parameter name="authTypeEnumId" default-value="EatPassword"><description>EatPassword, or EatOAuth2 for an account
+                that signs in with oauthProviderEnumId</description></parameter>
+            <parameter name="oauthProviderEnumId"/>
         </in-parameters>
         <out-parameters>
             <parameter name="emailAccountId"/>
@@ -419,6 +489,9 @@ along with this software (see the LICENSE.md file). If not, see
             const at = address.lastIndexOf('@')
             if (at < 1 || at === address.length - 1 || /\s/.test(address)) { invalid('emailAddress', 'Enter your whole email address, like name@example.com'); return }
             if (!['EakExternal', 'EakShared'].includes(accountKindEnumId)) { ec.message.addError(ec.resource.expand('Unknown account kind ${kind}', '', {kind: accountKindEnumId})); return }
+            const oauth = authTypeEnumId === 'EatOAuth2'
+            if (!oauth && authTypeEnumId !== 'EatPassword') { ec.message.addError(ec.resource.expand('Unknown sign-in ${kind}', '', {kind: authTypeEnumId})); return }
+            if (oauth && !oauthProviderEnumId) { ec.message.addError(L('Which provider does the account sign in with?')); return }
             let existing = null
             if (emailAccountId) {
                 const access = ec.service.sync().name('org.moqui.impl.EmailClientServices.get#EmailAccountAccess').parameter('emailAccountId', emailAccountId).call()
@@ -427,46 +500,50 @@ along with this software (see the LICENSE.md file). If not, see
                 if (access.level < 3) { ec.message.addError(ec.resource.expand('You may not change email account ${id}', '', {id: emailAccountId})); return }
                 existing = access.account
             }
-            const password = mailPassword == null ? '' : String(mailPassword)
+            const password = oauth || mailPassword == null ? '' : String(mailPassword).trim()
             if (passwordOnly) {
                 if (!existing) { ec.message.addError(L('Which account? The account is required')); return }
-                if (!password.trim()) { invalid('mailPassword', 'Enter the password (or app password)'); return }
+                if (!password) { invalid('mailPassword', 'Enter the password (or app password)'); return }
                 ec.service.sync().name('org.moqui.impl.EmailClientServices.update#EmailAccount').parameters({emailAccountId: emailAccountId,
-                    mailPassword: password.trim()}).call()
+                    mailPassword: password, authTypeEnumId: 'EatPassword'}).call()
                 return
             }
             const host = (value) => String(value || '').trim().toLowerCase().replace(/\.$/, '')
             const hostOk = (value) => /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/.test(value)
-            const storeName = host(storeHost), smtpName = host(smtpHost)
-            if (!storeName || !hostOk(storeName)) { invalid('storeHost', 'Enter the incoming server, like imap.example.com'); return }
-            if (!smtpName || !hostOk(smtpName)) { invalid('smtpHost', 'Enter the outgoing server, like smtp.example.com'); return }
-            const pop = storeKind === 'pop'
-            const storeSsl = storeSecurity !== 'starttls'
-            const portOf = (value, fallback, field) => {
-                const text = String(value ?? '').trim()
-                if (!text) return String(fallback)
-                if (!/^\d{1,5}$/.test(text) || Number(text) < 1 || Number(text) > 65535) { invalid(field, 'A port is a number from 1 to 65535'); return null }
-                return text
-            }
-            const storePortText = portOf(storePort, pop ? (storeSsl ? 995 : 110) : (storeSsl ? 993 : 143), 'storePort')
-            if (storePortText == null) return
-            const smtpPortText = portOf(smtpPort, smtpSecurity === 'ssl' ? 465 : (smtpSecurity === 'none' ? 25 : 587), 'smtpPort')
-            if (smtpPortText == null) return
-            const servers = {storeHost: storeName, storePort: storePortText, storeProtocol: pop ? (storeSsl ? 'pop3s' : 'pop3') : (storeSsl ? 'imaps' : 'imap'),
-                smtpHost: smtpName, smtpPort: smtpPortText, smtpSsl: smtpSecurity === 'ssl' ? 'Y' : 'N', smtpStartTls: smtpSecurity === 'starttls' ? 'Y' : 'N',
-                mailUsername: String(mailUsername || '').trim() || address}
-            // a setup that was not finished, now of another kind: made again
-            if (existing && existing.accountKindEnumId !== accountKindEnumId) {
-                const unfinished = existing.statusId === 'EasPaused' && existing.lastSyncDate == null
-                if (!unfinished) { ec.message.addError(L('The kind of an account in use does not change; remove it and add it again')); return }
-                ec.service.sync().name('org.moqui.impl.EmailClientServices.delete#EmailAccount').parameters({emailAccountId: emailAccountId, deleteLocalCopies: true}).call()
-                if (ec.message.hasError()) return
-                existing = null
-                emailAccountId = null
+            let storeName = host(storeHost), smtpName = host(smtpHost)
+            let servers = null
+            // an account for a provider's sign-in: the servers given, else the provider's own (read without its secrets)
+            if (oauth && !existing && !storeName && !smtpName) {
+                const row = ec.entity.find('moqui.basic.email.EmailOAuthProvider').condition('oauthProviderEnumId', oauthProviderEnumId)
+                        .selectField('storeHost,storePort,storeProtocol,smtpHost,smtpPort,smtpSsl,smtpStartTls').disableAuthz().one()
+                if (row == null) { ec.message.addError(ec.resource.expand('No sign-in provider ${id}', '', {id: oauthProviderEnumId})); return }
+                servers = {storeHost: row.storeHost, storePort: row.storePort, storeProtocol: row.storeProtocol || 'imaps', smtpHost: row.smtpHost,
+                    smtpPort: row.smtpPort, smtpSsl: row.smtpSsl || 'N', smtpStartTls: row.smtpStartTls || 'N', mailUsername: address}
+            } else if (!(oauth && existing && !storeName && !smtpName)) {
+                if (!storeName || !hostOk(storeName)) { invalid('storeHost', 'Enter the incoming server, like imap.example.com'); return }
+                if (!smtpName || !hostOk(smtpName)) { invalid('smtpHost', 'Enter the outgoing server, like smtp.example.com'); return }
+                const pop = storeKind === 'pop'
+                const storeSsl = storeSecurity !== 'starttls'
+                const portOf = (value, fallback, field) => {
+                    const text = String(value ?? '').trim()
+                    if (!text) return String(fallback)
+                    if (!/^\d{1,5}$/.test(text) || Number(text) < 1 || Number(text) > 65535) { invalid(field, 'A port is a number from 1 to 65535'); return null }
+                    return text
+                }
+                const storePortText = portOf(storePort, pop ? (storeSsl ? 995 : 110) : (storeSsl ? 993 : 143), 'storePort')
+                if (storePortText == null) return
+                const smtpPortText = portOf(smtpPort, smtpSecurity === 'ssl' ? 465 : (smtpSecurity === 'none' ? 25 : 587), 'smtpPort')
+                if (smtpPortText == null) return
+                servers = {storeHost: storeName, storePort: storePortText, storeProtocol: pop ? (storeSsl ? 'pop3s' : 'pop3') : (storeSsl ? 'imaps' : 'imap'),
+                    smtpHost: smtpName, smtpPort: smtpPortText, smtpSsl: smtpSecurity === 'ssl' ? 'Y' : 'N', smtpStartTls: smtpSecurity === 'starttls' ? 'Y' : 'N',
+                    mailUsername: String(mailUsername || '').trim() || address}
             }
             if (existing) {
-                const changes = Object.assign({emailAccountId: emailAccountId, emailAddress: address}, servers)
-                if (password.trim()) changes.mailPassword = password.trim()
+                const changes = Object.assign({emailAccountId: emailAccountId, emailAddress: address}, servers || {})
+                // the wizard came back with another kind: the account takes it (to shared at any time; personal again only
+                // when one person is left on it)
+                if (existing.accountKindEnumId !== accountKindEnumId) changes.accountKindEnumId = accountKindEnumId
+                if (password) { changes.mailPassword = password; changes.authTypeEnumId = 'EatPassword' }
                 ec.service.sync().name('org.moqui.impl.EmailClientServices.update#EmailAccount').parameters(changes).call()
                 if (ec.message.hasError()) return
                 if (displayName != null && String(displayName).trim()) {
@@ -477,15 +554,99 @@ along with this software (see the LICENSE.md file). If not, see
                 }
                 return
             }
-            if (!password.trim()) { invalid('mailPassword', 'Enter the password (or app password)'); return }
+            if (!oauth && !password) { invalid('mailPassword', 'Enter the password (or app password)'); return }
             const made = ec.service.sync().name('org.moqui.impl.EmailClientServices.create#EmailAccount').parameters(Object.assign({
                 accountKindEnumId: accountKindEnumId, emailAddress: address, accountName: address, syncWindowDays: 365,
-                displayName: String(displayName || '').trim() || null, mailPassword: password.trim(), authTypeEnumId: 'EatPassword'}, servers)).call()
+                displayName: String(displayName || '').trim() || null}, oauth ? {authTypeEnumId: 'EatOAuth2', oauthProviderEnumId: oauthProviderEnumId}
+                    : {mailPassword: password, authTypeEnumId: 'EatPassword'}, servers)).call()
             if (ec.message.hasError()) return
             emailAccountId = made.emailAccountId
             created = true
             // not synced until the wizard's Finish
             ec.service.sync().name('org.moqui.impl.EmailClientServices.update#EmailAccount').parameters({emailAccountId: emailAccountId, statusId: 'EasPaused'}).call()
+        ]]></script></actions>
+    </service>
+
+    <service verb="start" noun="MailSignIn">
+        <description>Begin an account's sign-in with Google or Microsoft (org.moqui.impl.EmailClientServices.start#OAuthSignIn,
+            in the popup of the SignIn screen; mr-moqui docs/Mail-OAuth.md), on a provider this server is set up for
+            (get#OAuthChoice). From the wizard (setup) the account is made first, or changed, by save#AccountConnection with
+            authTypeEnumId EatOAuth2: a new one is paused with the year's sync window until the wizard's Finish, as one with a
+            password, and created says so; the sign-in then stores itself on it. From the account page (no setup) the
+            account the user manages signs in again, or for the first time instead of a password. allowAddressChange is the
+            user's yes to a sign-in as another address than the account's (the account takes the address). The sign-in
+            itself, its state and its tokens are the framework's: authUrl is for the popup, signInId for get#OAuthStatus.</description>
+        <in-parameters>
+            <parameter name="emailAccountId"/>
+            <parameter name="emailAddress" allow-html="any"/>
+            <parameter name="displayName"/>
+            <parameter name="accountKindEnumId" default-value="EakExternal"/>
+            <parameter name="oauthProviderEnumId"/>
+            <parameter name="setup" type="Boolean" default="false"/>
+            <parameter name="allowAddressChange" type="Boolean" default="false"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="authUrl"/>
+            <parameter name="signInId"/>
+            <parameter name="emailAccountId"/>
+            <parameter name="created" type="Boolean"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => text.length > 255 ? text : ec.l10n.localize(text)
+            created = false
+            let address = String(emailAddress || '').trim()
+            let providerId = oauthProviderEnumId || null
+            let storeHost = null
+            if (emailAccountId) {
+                const access = ec.service.sync().name('org.moqui.impl.EmailClientServices.get#EmailAccountAccess').parameter('emailAccountId', emailAccountId).call()
+                if (ec.message.hasError()) return
+                if (!(access?.level >= 1) || access.account?.isInternal) { ec.message.addError(ec.resource.expand('Email account ${id} not found', '', {id: emailAccountId})); return }
+                if (access.level < 3) { ec.message.addError(ec.resource.expand('You may not change email account ${id}', '', {id: emailAccountId})); return }
+                if (!address) address = access.account.emailAddress
+                const server = access.account.emailServerId ? ec.entity.find('moqui.basic.email.EmailServer').condition('emailServerId', access.account.emailServerId)
+                        .selectField('storeHost,oauthProviderEnumId').one() : null
+                storeHost = server?.storeHost || null
+                if (!providerId) providerId = server?.oauthProviderEnumId || null
+            } else if (!setup) { ec.message.addError(L('Which account? The account is required')); return }
+            const choice = ec.service.sync().name('ironstone.MailSettingsServices.get#OAuthChoice').parameters({emailAddress: address, storeHost: storeHost,
+                oauthProviderEnumId: providerId}).call()?.choice || null
+            if (!choice) { ec.message.addError(ec.resource.expand('${address} does not sign in with Google or Microsoft here: use its password or an app password', '', {address: address})); return }
+            if (!choice.configured) { ec.message.addError(ec.resource.expand('Sign-in with ${name} is not set up on this server: use an app password, or ask an administrator to set it up', '',
+                {name: choice.providerLabel})); return }
+            if (setup) {
+                const saved = ec.service.sync().name('ironstone.MailSettingsServices.save#AccountConnection').parameters({emailAccountId: emailAccountId || null,
+                    emailAddress: address, displayName: displayName || null, accountKindEnumId: accountKindEnumId, authTypeEnumId: 'EatOAuth2',
+                    oauthProviderEnumId: choice.oauthProviderEnumId}).call()
+                if (ec.message.hasError()) return
+                emailAccountId = saved.emailAccountId || emailAccountId
+                created = saved.created === true
+            }
+            const started = ec.service.sync().name('org.moqui.impl.EmailClientServices.start#OAuthSignIn').parameters({emailAccountId: emailAccountId,
+                oauthProviderEnumId: choice.oauthProviderEnumId, allowAddressChange: allowAddressChange === true}).call()
+            if (ec.message.hasError()) return
+            authUrl = started.authUrl
+            signInId = started.signInId
+        ]]></script></actions>
+    </service>
+
+    <service verb="drop" noun="UnusedSignIn">
+        <description>Take back an account the wizard made for a provider's sign-in (start#MailSignIn) when the sign-in did not
+            finish (closed, refused, another address the user did not want): only an account the user manages that has never
+            synced, is still paused for its setup, signs in with a provider and has no sign-in stored
+            (get#OAuthStatus); any other is kept, and dropped is false.</description>
+        <in-parameters><parameter name="emailAccountId" required="true"/></in-parameters>
+        <out-parameters><parameter name="dropped" type="Boolean"/></out-parameters>
+        <actions><script><![CDATA[
+            dropped = false
+            const access = ec.service.sync().name('org.moqui.impl.EmailClientServices.get#EmailAccountAccess').parameter('emailAccountId', emailAccountId).call()
+            if (ec.message.hasError()) return
+            if (!(access?.level >= 3) || access.account?.isInternal) { ec.message.addError(ec.resource.expand('Email account ${id} not found', '', {id: emailAccountId})); return }
+            const account = access.account
+            if (account.statusId !== 'EasPaused' || account.lastSyncDate != null || !account.emailServerId) return
+            const status = ec.service.sync().name('org.moqui.impl.EmailClientServices.get#OAuthStatus').parameter('emailAccountId', emailAccountId).call()
+            if (ec.message.hasError() || status?.authTypeEnumId !== 'EatOAuth2' || status.signedIn) return
+            ec.service.sync().name('org.moqui.impl.EmailClientServices.delete#EmailAccount').parameters({emailAccountId: emailAccountId, deleteLocalCopies: true}).call()
+            if (!ec.message.hasError()) dropped = true
         ]]></script></actions>
     </service>
 
@@ -511,9 +672,12 @@ along with this software (see the LICENSE.md file). If not, see
             if (!(access?.level >= 1) || access.account?.isInternal) { ec.message.addError(ec.resource.expand('Email account ${id} not found', '', {id: emailAccountId})); return }
             if (access.level < 3) { ec.message.addError(ec.resource.expand('You may not test email account ${id}', '', {id: emailAccountId})); return }
             const server = access.account.emailServerId ? ec.entity.find('moqui.basic.email.EmailServer').condition('emailServerId', access.account.emailServerId)
-                    .selectField('storeHost,smtpHost,smtpPort,storePort').one() : null
+                    .selectField('storeHost,smtpHost,smtpPort,storePort,authTypeEnumId,oauthProviderEnumId').one() : null
             provider = ec.service.sync().name('ironstone.MailSettingsServices.get#MailProvider').parameters({emailAddress: access.account.emailAddress,
                 storeHost: server?.storeHost || null}).call()?.provider || null
+            const isOAuth = server?.authTypeEnumId === 'EatOAuth2'
+            const oauth = ec.service.sync().name('ironstone.MailSettingsServices.get#OAuthChoice').parameters({emailAddress: access.account.emailAddress,
+                storeHost: server?.storeHost || null, oauthProviderEnumId: server?.oauthProviderEnumId || null}).call()?.choice || null
             const result = ec.service.sync().name('org.moqui.impl.EmailClientServices.test#EmailAccount').parameter('emailAccountId', emailAccountId).call()
             if (ec.message.hasError()) return
             success = result?.success === true
@@ -523,7 +687,12 @@ along with this software (see the LICENSE.md file). If not, see
                 const text = String(step.message || '')
                 if (/sim session/i.test(text)) return L('The connection test is off in this session.')
                 if (/not in email_allowed_hosts/i.test(text)) return L('This server may not connect to that host; ask your administrator to allow it (email_allowed_hosts).')
-                if (/BasicAuthBlocked|LogonDenied|basic auth/i.test(text)) return L('Microsoft no longer takes a password for this account: it needs Microsoft sign-in, which IronStone does not have yet.')
+                if (/BasicAuthBlocked|LogonDenied|basic auth/i.test(text)) return oauth?.configured
+                        ? ec.resource.expand('Microsoft no longer takes a password for this account: it needs Microsoft sign-in. Go back and choose Sign in with ${name}.', '', {name: oauth.providerLabel})
+                        : L('Microsoft no longer takes a password for this account: it needs Microsoft sign-in, which an administrator can set up on this server.')
+                if (isOAuth && /auth|login|logon|credential|token|xoauth|\bNO\b|denied|rejected|535|534/i.test(text))
+                    return ec.resource.expand('${name} did not take the sign-in: sign in again, and check that IMAP and sending from mail apps are allowed for this mailbox.', '',
+                        {name: oauth?.providerLabel || L('The provider')})
                 if (/application-specific password|app password|apppassword|web login required|\bWEBALERT\b/i.test(text))
                     return appPassword || L('The provider wants an app password (made in its account security settings), not your normal password.')
                 if (/IMAP (access )?(is )?disabled|enable IMAP|IMAP not enabled|not enabled for IMAP/i.test(text)) return L('Turn on IMAP access in the mail settings of your provider\'s web mail, then test again.')

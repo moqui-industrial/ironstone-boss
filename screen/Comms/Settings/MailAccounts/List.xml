@@ -15,7 +15,7 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- The mail accounts (design-drawers-commons.md §17 MailAccounts, Accounts): the Internal account first, then each account
     the user owns or shares as a card with its status (active, syncing, paused, setup not finished, sign-in failed, sync
     failed, local only), last sync and its error, unread, the servers and members, and what the user may do: Sync now,
-    Pause or Resume, Fix (a failed sign-in: the account's page with the password), Continue setup (a wizard left before its
+    Pause or Resume, Fix (a failed sign-in: the account's page with the password, or the provider's sign-in), Continue setup (a wizard left before its
     end), Settings. With no mail account yet, a welcome card leads into the wizard. ironstone.MailSettingsServices
     get#MailAccountList reads them through the framework's access rules; syncNow is the Inbox's sync#UserAccounts. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
@@ -59,7 +59,7 @@ along with this software (see the LICENSE.md file). If not, see
         <section name="Welcome" condition="!hasMailAccounts"><widgets>
             <container-box type="info"><box-header title="Read and send your email here"/><box-body>
                 <label type="p" text="Add your email account and your mail is in the Inbox next to your internal messages: Gmail, Outlook.com, Yahoo, iCloud, Fastmail, your own domain, or any provider with IMAP or POP and SMTP."/>
-                <label type="p" text="You need your email address and its password. Gmail, Yahoo, iCloud, Outlook.com and Fastmail ask for an app password, which takes a minute to make: the wizard says where." style="m-muted"/>
+                <label type="p" text="You need your email address and its password. Gmail and Outlook.com sign in with Google or Microsoft where this server is set up for it; otherwise they, Yahoo, iCloud and Fastmail ask for an app password, which takes a minute to make: the wizard says where." style="m-muted"/>
                 <link url="../Add" text="Add your email account" icon="sym_o_mail" btn-type="primary" parameter-map="{fresh:'Y'}"/>
             </box-body></container-box>
         </widgets></section>

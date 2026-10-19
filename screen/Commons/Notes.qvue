@@ -193,14 +193,6 @@ along with this software (see the LICENSE.md file). If not, see
             </q-list>
         </template>
     </m-dialog>
-
-    <m-dialog v-model="confirmBox.open" :title="confirmBox.title" width="480">
-        <div class="text-body2 q-mb-md">{{confirmBox.text}}</div>
-        <div class="row justify-end q-gutter-sm">
-            <q-btn flat no-caps :label="t('Cancel')" v-close-popup></q-btn>
-            <q-btn unelevated no-caps :color="confirmBox.danger ? 'negative' : 'primary'" :label="confirmBox.okLabel" :loading="confirmBox.busy" @click="runConfirm"></q-btn>
-        </div>
-    </m-dialog>
 </div></template>
 
 <script>
@@ -216,7 +208,7 @@ module.exports = {
             move: { open: false, spaceId: null, spaceOptions: [], parentPath: '', options: [], name: '', busy: false },
             history: { open: false, loading: false, versions: [], canRestore: false },
             diff: { open: false, loading: false, html: '', stats: {}, fromShort: '', toShort: '' },
-            confirmBox: { open: false, title: '', text: '', okLabel: '', danger: false, busy: false, run: null }
+            confirmOpen: false
         };
     },
     computed: {
@@ -411,21 +403,19 @@ module.exports = {
             if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(link).then(done, () => moqui.notifyMessages([{ type: 'info', message: link }]));
             else moqui.notifyMessages([{ type: 'info', message: link }]);
         },
+        // Delete, asked first (Quasar's Dialog plugin)
         confirmDelete() {
             const note = this.note;
-            this.confirmBox = { open: true, title: this.t('Delete the note'), text: this.t('Delete') + ' ' + this.liveTitle + '? ' + this.t('Its history goes too.'),
-                okLabel: this.t('Delete'), danger: true, busy: false, run: () => this.post('deleteNote', { wikiPageId: note.wikiPageId }).then(() => {
+            this.confirmOpen = true;
+            this.$q.dialog({ title: this.t('Delete the note'), message: this.t('Delete') + ' ' + this.liveTitle + '? ' + this.t('Its history goes too.'),
+                ok: { label: this.t('Delete'), color: 'negative', unelevated: true, noCaps: true }, cancel: { label: this.t('Cancel'), flat: true, noCaps: true } })
+                .onOk(() => this.post('deleteNote', { wikiPageId: note.wikiPageId }).then(() => {
                     this.note = null;
                     this.savedText = this.text;
                     this.loadList();
                     this.$root.setUrl(this.linkPath);
-                }) };
-        },
-        runConfirm() {
-            const box = this.confirmBox;
-            if (!box.run || box.busy) return;
-            box.busy = true;
-            Promise.resolve().then(() => box.run()).then(() => { box.busy = false; box.open = false; }, () => { box.busy = false; });
+                }, () => {}))
+                .onDismiss(() => { this.confirmOpen = false; });
         },
         // ===== Move to a space =====
         openMove() {
@@ -475,7 +465,7 @@ module.exports = {
             }, () => {});
         },
         keyBindings() {
-            const quiet = () => !this.named.open && !this.move.open && !this.history.open && !this.confirmBox.open;
+            const quiet = () => !this.named.open && !this.move.open && !this.history.open && !this.confirmOpen;
             return [
                 { keys: 'n', label: this.t('Notes: new note'), action: 'notesNew', when: quiet, run: () => this.newNote() },
                 { keys: '/', label: this.t('Notes: search'), action: 'notesSearch', when: quiet, run: () => { const el = document.getElementById('boss-notes-search'); if (el) el.focus(); return true; } },

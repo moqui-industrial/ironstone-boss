@@ -286,17 +286,20 @@ feature("another user may not send as john.doe: not from his identity, not his d
     },
 })
 
-feature("quick create's Email (the qvt render) is the composer in a container with the query it was asked with", {
+feature("quick create's Email loads the composer in its one client mode, qvue, which reads its query from mScreen", {
     when() {
-        const str = ec.screen.makeTest().rootScreen(comms).renderMode("qvt").render("Inbox/Compose", { recordEntity: "mantle.request.Request",
-            recordId: "BOSS_DEMO_REQUEST", recordTitle: "Set up the shared team calendar", lastStandalone: "-2" }, null)
+        const parameters = { recordEntity: "mantle.request.Request", recordId: "BOSS_DEMO_REQUEST", recordTitle: "Set up the shared team calendar", lastStandalone: "-2" }
+        const str = ec.screen.makeTest().rootScreen(comms).renderMode("qvue").render("Inbox/Compose", parameters, null)
+        const qvt = ec.screen.makeTest().rootScreen(comms).renderMode("qvt").render("Inbox/Compose", parameters, null)
         ec.message.clearErrors()
-        return { output: String(str.output || ""), errors: str.errorMessages.join(" | ") }
+        return { output: String(str.output || ""), errors: str.errorMessages.join(" | "), qvtStatus: qvt.status }
     },
-    then({ output, errors }) {
+    then({ output, errors, qvtStatus }) {
         errors == ""
-        output.includes('<m-dynamic-container id="ComposeEmbedded" url="/apps/Comms/Inbox/Compose.qvue?mode=embedded&amp;')
-        output.includes("recordId=BOSS_DEMO_REQUEST")
-        output.includes("recordTitle=Set%20up%20the%20shared%20team%20calendar")
+        output.includes("module.exports")
+        output.includes("BossCompose")
+        output.includes("mScreen.parameters")
+        !output.includes("curUrl")
+        qvtStatus != 200
     },
 })

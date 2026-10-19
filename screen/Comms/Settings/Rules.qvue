@@ -130,12 +130,6 @@ along with this software (see the LICENSE.md file). If not, see
             <q-btn flat no-caps :label="t('Cancel')" @click="editor.open = false"></q-btn>
         </div>
     </m-dialog>
-
-    <m-dialog v-model="confirmBox.open" :title="confirmBox.title" width="420">
-        <div>{{confirmBox.message}}</div>
-        <div class="row q-mt-md q-gutter-sm"><q-btn unelevated no-caps color="negative" :label="confirmBox.okLabel" @click="confirmOk"></q-btn>
-            <q-btn flat no-caps :label="t('Cancel')" @click="confirmBox.open = false"></q-btn></div>
-    </m-dialog>
 </div></template>
 
 <script>
@@ -168,8 +162,7 @@ module.exports = {
             loaded: false, busy: false, rules: [], blocked: [], accounts: [], dragIndex: null, dropAt: null,
             editor: { open: false, emailRuleId: null, ruleName: '', emailAccountId: '', matchAllEnumId: 'ErmAll', conditions: [], actions: [], flags: ['enabled'], saving: false, error: null },
             run: { emailFolderId: null, emailRuleId: '', running: false, resultText: '', errors: [] },
-            block: { emailAddress: '', emailAccountId: null },
-            confirmBox: { open: false, title: '', message: '', okLabel: '' }, confirmResolve: null
+            block: { emailAddress: '', emailAccountId: null }
         };
     },
     computed: {
@@ -277,13 +270,13 @@ module.exports = {
             const enabled = !rule.enabled;
             this.post('setEnabled', { emailRuleId: rule.emailRuleId, enabled: enabled ? 'Y' : 'N' }).then(() => { rule.enabled = enabled; }, () => {});
         },
+        // a confirmation (Quasar's Dialog plugin): resolves on OK
         confirm(title, message, okLabel) {
             return new Promise((resolve) => {
-                this.confirmResolve = resolve;
-                this.confirmBox = { open: true, title, message, okLabel: okLabel || t('OK') };
+                this.$q.dialog({ title, message, ok: { label: okLabel || t('OK'), color: 'negative', unelevated: true, noCaps: true },
+                    cancel: { label: t('Cancel'), flat: true, noCaps: true } }).onOk(() => resolve());
             });
         },
-        confirmOk() { this.confirmBox.open = false; const resolve = this.confirmResolve; this.confirmResolve = null; if (resolve) resolve(); },
         remove(rule) {
             this.confirm(t('Delete the rule?'), rule.ruleName, t('Delete')).then(() => {
                 this.post('deleteRule', { emailRuleId: rule.emailRuleId }).then(() => this.load(), () => {});

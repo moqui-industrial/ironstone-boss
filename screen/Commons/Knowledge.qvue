@@ -514,13 +514,6 @@ along with this software (see the LICENSE.md file). If not, see
         </div>
     </m-dialog>
 
-    <m-dialog v-model="confirmBox.open" :title="confirmBox.title" width="480">
-        <div class="text-body2 q-mb-md">{{confirmBox.text}}</div>
-        <div class="row justify-end q-gutter-sm">
-            <q-btn flat no-caps :label="t('Cancel')" v-close-popup></q-btn>
-            <q-btn unelevated no-caps :color="confirmBox.danger ? 'negative' : 'primary'" :label="confirmBox.okLabel" :loading="confirmBox.busy" @click="runConfirm"></q-btn>
-        </div>
-    </m-dialog>
 
     <m-dialog v-model="preview.open" :title="preview.name" width="900">
         <div class="text-center"><img v-if="preview.src" :src="preview.src" :alt="preview.name" style="max-width:100%;max-height:70vh"></div>
@@ -576,7 +569,7 @@ module.exports = {
             move: { open: false, spaceId: null, parentPath: '', options: [], name: '', note: '', busy: false },
             reviewRequest: { open: false, reviewers: [], dueDate: '', note: '', busy: false },
             changes: { open: false, review: null, note: '', busy: false },
-            confirmBox: { open: false, title: '', text: '', okLabel: '', danger: false, busy: false, run: null },
+            confirmOpen: false,
             preview: { open: false, src: '', name: '' },
             handledReviewKey: '', handledEditKey: ''
         };
@@ -665,7 +658,16 @@ module.exports = {
             }, (err) => { moqui.handleAjaxError(err); throw err; });
         },
         post(name, params) { return this.request(name, params, 'POST'); },
-        go(url) { this.sideOpen = false; if (url && this.confirmLeave()) this.$root.setUrl(url); },
+        // to another page: an edit not saved yet asks first
+        go(url) {
+            this.sideOpen = false;
+            if (!url) return;
+            if (!this.editDirty) { this.$root.setUrl(url); return; }
+            this.ask(this.t('Leave without saving?'), this.t('Leave without saving your changes?'), this.t('Leave'), true, () => {
+                this.editing = false;
+                this.$root.setUrl(url);
+            });
+        },
         pageUrl(spaceId, path, extra) {
             const query = Object.assign({ wikiSpaceId: spaceId }, path ? { pagePath: path } : {}, extra || {});
             return this.linkPath + '?' + moqui.objToSearch(query);
@@ -686,12 +688,6 @@ module.exports = {
             if (minutes < 10080) return Math.floor(minutes / 1440) + ' ' + this.t('days ago');
             try { return new Intl.DateTimeFormat(this.locale, { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(Number(millis))); }
             catch (err) { return ''; }
-        },
-        confirmLeave() {
-            if (!this.editDirty) return true;
-            if (!window.confirm(this.t('Leave without saving your changes?'))) return false;
-            this.editing = false;
-            return true;
         },
         // ===== loading =====
         loadSetup() {
@@ -997,9 +993,9 @@ module.exports = {
             this.$nextTick(() => { const el = document.getElementById('boss-knowledge-editor'); if (el && el.focus) el.focus(); });
         },
         cancelEdit() {
-            if (this.editDirty && !window.confirm(this.t('Discard your changes?'))) return;
-            this.editing = false;
-            this.conflict = null;
+            const done = () => { this.editing = false; this.conflict = null; };
+            if (!this.editDirty) { done(); return; }
+            this.ask(this.t('Discard your changes?'), this.t('What you changed since the last save is lost.'), this.t('Discard'), true, done);
         },
         save(force) {
             if (!this.editing || this.saving || !this.page) return true;
@@ -1141,12 +1137,13 @@ module.exports = {
             this.ask(this.t('Delete the page'), this.t('Delete') + ' ' + page.title + '? ' + this.t('Its history, files and tags go too; its comments stay.'), this.t('Delete'), true,
                 () => this.post('deletePage', { wikiPageId: page.wikiPageId }).then((json) => { this.refreshTree(); this.openPage(json.wikiSpaceId, json.parentPath || ''); }));
         },
-        ask(title, text, okLabel, danger, run) { this.confirmBox = { open: true, title, text, okLabel, danger, busy: false, run }; },
-        runConfirm() {
-            const box = this.confirmBox;
-            if (!box.run || box.busy) return;
-            box.busy = true;
-            Promise.resolve().then(() => box.run()).then(() => { box.busy = false; box.open = false; }, () => { box.busy = false; });
+        // a confirmation (Quasar's Dialog plugin): OK runs run (a refused post has told the user already); Cancel, Esc or a click
+        // outside does nothing
+        ask(title, text, okLabel, danger, run) {
+            this.confirmOpen = true;
+            this.$q.dialog({ title, message: text, ok: { label: okLabel, color: danger ? 'negative' : 'primary', unelevated: true, noCaps: true },
+                cancel: { label: this.t('Cancel'), flat: true, noCaps: true } })
+                .onOk(() => { Promise.resolve().then(run).catch(() => {}); }).onDismiss(() => { this.confirmOpen = false; });
         },
         // ===== history, compare, restore, publish =====
         openHistory(fromVersion, toVersion) {
@@ -1255,7 +1252,7 @@ module.exports = {
                 this.t('Cancel request'), false, () => this.post('cancelReview', { wikiPageReviewId: review.wikiPageReviewId }).then(() => { this.history.open = false; this.reloadPage(); }));
         },
         // ===== keys =====
-        anyDialog() { return this.history.open || this.newPage.open || this.rename.open || this.move.open || this.reviewRequest.open || this.changes.open || this.confirmBox.open; },
+        anyDialog() { return this.history.open || this.newPage.open || this.rename.open || this.move.open || this.reviewRequest.open || this.changes.open || this.confirmOpen; },
         keyBindings() {
             const when = () => !this.subActive && !this.anyDialog();
             return [

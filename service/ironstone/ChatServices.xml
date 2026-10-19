@@ -33,10 +33,13 @@ along with this software (see the LICENSE.md file). If not, see
         <description>The current user's chat preferences with their defaults: enterSends (CHAT_ENTER_SENDS, Y: Enter sends and
             Shift+Enter is a new line; N: Ctrl+Enter sends), sounds (CHAT_SOUNDS, Y), readReceipts (CHAT_READ_RECEIPTS, Y),
             typing (CHAT_TYPING, Y: send and show typing), notifyDefault (CHAT_NOTIFY_DEFAULT: all, mentions or none for the
-            rooms the user makes or joins here, empty for the room's own default), autoAwayMinutes (CHAT_AUTO_AWAY_MINUTES,
+            rooms the user makes or joins, which the framework's ChatServices start a membership at; empty for the room's own
+            default), notifyPreview (CHAT_NOTIFY_PREVIEW, Y: a mention's notification has the message text; N: only who
+            mentioned the user where, read by the framework's notify#Mention), autoAwayMinutes (CHAT_AUTO_AWAY_MINUTES,
             10, which the framework's presence reads), dndFrom and dndTo (CHAT_DND_FROM and CHAT_DND_TO, HH:mm in the
             user's time zone, apply#DndHours), and statusPresets (CHAT_STATUS_PRESETS, a JSON list of {emoji, text,
-            clearAfter}: minutes, today, week or 0 for never; five presets until the user changes them).</description>
+            clearAfter}: minutes, today, week or 0 for never; five presets until the user changes them; the account menu's
+            status dialog, WebrootChat.js, reads the same preference).</description>
         <out-parameters><parameter name="prefs" type="Map"/></out-parameters>
         <actions><script><![CDATA[
             const pref = (key) => { const value = ec.user.getPreference(key); return value == null || String(value).trim() === '' ? null : String(value).trim() }
@@ -50,7 +53,7 @@ along with this software (see the LICENSE.md file). If not, see
             const level = pref('CHAT_NOTIFY_DEFAULT')
             const minutes = Number(pref('CHAT_AUTO_AWAY_MINUTES'))
             prefs = {enterSends: flag('CHAT_ENTER_SENDS', true), sounds: flag('CHAT_SOUNDS', true), readReceipts: flag('CHAT_READ_RECEIPTS', true),
-                typing: flag('CHAT_TYPING', true), notifyDefault: ['all', 'mentions', 'none'].includes(level) ? level : '',
+                typing: flag('CHAT_TYPING', true), notifyDefault: ['all', 'mentions', 'none'].includes(level) ? level : '', notifyPreview: flag('CHAT_NOTIFY_PREVIEW', true),
                 autoAwayMinutes: minutes > 0 ? minutes : 10, dndFrom: pref('CHAT_DND_FROM'), dndTo: pref('CHAT_DND_TO'),
                 statusPresets: presets.filter((item) => item && (item.text || item.emoji)).slice(0, 12).map((item) => ({emoji: String(item.emoji || ''),
                     text: String(item.text || ''), clearAfter: String(item.clearAfter ?? '0')}))}
@@ -65,6 +68,7 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="sounds"/>
             <parameter name="readReceipts"/>
             <parameter name="typing"/>
+            <parameter name="notifyPreview"/>
             <parameter name="notifyDefault"/>
             <parameter name="autoAwayMinutes"/>
             <parameter name="dndFrom"/>
@@ -80,11 +84,13 @@ along with this software (see the LICENSE.md file). If not, see
                 ec.user.setPreference('CHAT_SOUNDS', yn(sounds))
                 ec.user.setPreference('CHAT_READ_RECEIPTS', yn(readReceipts))
                 ec.user.setPreference('CHAT_TYPING', yn(typing))
+                ec.user.setPreference('CHAT_NOTIFY_PREVIEW', yn(notifyPreview))
             } else {
                 if (enterSends != null) ec.user.setPreference('CHAT_ENTER_SENDS', yn(enterSends))
                 if (sounds != null) ec.user.setPreference('CHAT_SOUNDS', yn(sounds))
                 if (readReceipts != null) ec.user.setPreference('CHAT_READ_RECEIPTS', yn(readReceipts))
                 if (typing != null) ec.user.setPreference('CHAT_TYPING', yn(typing))
+                if (notifyPreview != null) ec.user.setPreference('CHAT_NOTIFY_PREVIEW', yn(notifyPreview))
             }
             if (notifyDefault != null) {
                 if (!['', 'all', 'mentions', 'none'].includes(String(notifyDefault))) { ec.message.addError(ec.l10n.localize('Choose all, mentions or nothing')); return }
@@ -164,36 +170,6 @@ along with this software (see the LICENSE.md file). If not, see
             }
             const out = ec.service.sync().name('org.moqui.impl.ChatServices.set#UserStatus').parameters(params).call()
             if (!ec.message.hasError()) myStatus = out.myStatus
-        ]]></script></actions>
-    </service>
-
-    <service verb="apply" noun="NotifyLevel" allow-remote="false">
-        <description>Internal: put the current user's default notification level (CHAT_NOTIFY_DEFAULT) on a room the user just
-            made or joined here, when it is not the room's own default (all, mentions in a public room). Not in a direct
-            room, whose messages always count. Failure tolerant: a room it cannot set is logged.</description>
-        <in-parameters>
-            <parameter name="chatRoomId" required="true"/>
-            <parameter name="roomTypeEnumId"/>
-        </in-parameters>
-        <out-parameters><parameter name="applied" type="Boolean"/></out-parameters>
-        <actions><script><![CDATA[
-            applied = false
-            const level = String(ec.user.getPreference('CHAT_NOTIFY_DEFAULT') || '').trim()
-            if (!['all', 'mentions', 'none'].includes(level)) return
-            let type = roomTypeEnumId
-            if (!type) {
-                const access = ec.service.sync().name('org.moqui.impl.ChatServices.get#RoomAccess').parameter('chatRoomId', chatRoomId).call()
-                type = access && access.room ? access.room.roomTypeEnumId : null
-            }
-            if (!type || type === 'CrtDirect' || type === 'direct') return
-            const own = type === 'CrtPublic' || type === 'public' ? 'mentions' : 'all'
-            if (level === own) return
-            ec.message.pushErrors()
-            try {
-                ec.service.sync().name('org.moqui.impl.ChatServices.set#Notification').parameters({chatRoomId: chatRoomId, notificationLevelEnumId: level}).call()
-                if (ec.message.hasError()) ec.logger.warn(`Chat: the default notification level of ${ec.user.username} not set on room ${chatRoomId}: ${ec.message.errorsString}`)
-                else applied = true
-            } finally { ec.message.clearErrors(); ec.message.popErrors() }
         ]]></script></actions>
     </service>
 
@@ -480,8 +456,8 @@ along with this software (see the LICENSE.md file). If not, see
     <service verb="create" noun="ChatRoom">
         <description>A new room (org.moqui.impl.ChatServices.create#Room) from the New room and New direct message dialogs:
             roomTypeEnumId direct (one room per set of users: the existing one is answered), private or public (a name),
-            with the members of memberUserIdList or the comma list memberUserIds. A new room that is not direct gets the
-            user's default notification level (apply#NotifyLevel).</description>
+            with the members of memberUserIdList or the comma list memberUserIds; each member starts at their own default
+            notification level (CHAT_NOTIFY_DEFAULT, which create#Room reads).</description>
         <in-parameters>
             <parameter name="roomTypeEnumId" required="true"/>
             <parameter name="roomName"/>
@@ -505,8 +481,6 @@ along with this software (see the LICENSE.md file). If not, see
             if (ec.message.hasError()) return
             chatRoomId = out.chatRoomId
             created = !!out.created
-            if (created && type !== 'CrtDirect') ec.service.sync().name('ironstone.ChatServices.apply#NotifyLevel').parameters({chatRoomId: chatRoomId,
-                roomTypeEnumId: type}).call()
         ]]></script></actions>
     </service>
 
@@ -538,18 +512,15 @@ along with this software (see the LICENSE.md file). If not, see
             if (ec.message.hasError()) return
             chatRoomId = made.chatRoomId
             created = !!made.created
-            if (chatRoomId) ec.service.sync().name('ironstone.ChatServices.apply#NotifyLevel').parameters({chatRoomId: chatRoomId, roomTypeEnumId: 'CrtRecord'}).call()
         ]]></script></actions>
     </service>
 
     <service verb="join" noun="ChatRoom">
         <description>Join a room the user may join (a public room, or a record room whose record the user sees:
-            org.moqui.impl.ChatServices.add#Member), with the user's default notification level.</description>
+            org.moqui.impl.ChatServices.add#Member, which starts the membership at the user's default notification level).</description>
         <in-parameters><parameter name="chatRoomId" required="true"/></in-parameters>
         <actions><script><![CDATA[
             ec.service.sync().name('org.moqui.impl.ChatServices.add#Member').parameter('chatRoomId', chatRoomId).call()
-            if (ec.message.hasError()) return
-            ec.service.sync().name('ironstone.ChatServices.apply#NotifyLevel').parameter('chatRoomId', chatRoomId).call()
         ]]></script></actions>
     </service>
 

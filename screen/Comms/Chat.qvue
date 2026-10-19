@@ -872,15 +872,6 @@ const roomTemplate = `
         <div class="row q-mt-sm"><q-space></q-space>
             <q-btn flat dense no-caps color="primary" icon="sym_o_download" :label="t('Download')" @click="downloadUrl(previewBox.download, previewBox.name)"></q-btn></div>
     </m-dialog>
-
-    <!-- a confirmation (the page has no Quasar Dialog plugin) -->
-    <m-dialog v-model="confirmBox.open" :title="confirmBox.title" width="440">
-        <div class="text-body2">{{confirmBox.message}}</div>
-        <div class="row q-gutter-sm q-mt-md">
-            <q-btn unelevated no-caps :color="confirmBox.danger ? 'negative' : 'primary'" :label="confirmBox.okLabel" @click="confirmOk"></q-btn>
-            <q-btn flat no-caps :label="t('Cancel')" v-close-popup></q-btn>
-        </div>
-    </m-dialog>
 </div>`;
 
 let roomCount = 0;
@@ -900,7 +891,7 @@ const chatRoom = {
             threadView: { rootSeq: null, events: [], loading: false }, pinned: { list: [], loading: false },
             searchPane: { text: '', results: [], loading: false, searched: false }, addPeople: { userIds: [], busy: false },
             settings: { open: false, roomName: '', topic: '', visibility: '', busy: false }, previewBox: { open: false, src: '', name: '', download: '' },
-            confirmBox: { open: false, title: '', message: '', okLabel: '', danger: false }, tick: Date.now(), width: 0, dragOver: false, anchor: null,
+            tick: Date.now(), width: 0, dragOver: false, anchor: null,
             fileOn: { open: false, item: null, value: null, busy: false },
             quickReactions: QUICK_REACTIONS, emoji: EMOJI, levels: LEVELS
         };
@@ -1601,13 +1592,13 @@ const chatRoom = {
             this.markRead(true);
             return true;
         },
+        // a confirmation (Quasar's Dialog plugin): resolves on OK; Cancel, Esc or a click outside resolves nothing
         confirm(title, message, okLabel, danger) {
             return new Promise((resolve) => {
-                this.confirmResolve = resolve;
-                this.confirmBox = { open: true, title, message, okLabel: okLabel || t('OK'), danger: !!danger };
+                this.$q.dialog({ title, message, ok: { label: okLabel || t('OK'), color: danger ? 'negative' : 'primary', unelevated: true, noCaps: true },
+                    cancel: { label: t('Cancel'), flat: true, noCaps: true } }).onOk(() => resolve());
             });
-        },
-        confirmOk() { this.confirmBox.open = false; const resolve = this.confirmResolve; this.confirmResolve = null; if (resolve) resolve(); }
+        }
     },
     mounted() {
         this.composers = {};

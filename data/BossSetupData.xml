@@ -124,9 +124,9 @@ along with this software (see the LICENSE.md file). If not, see
         mantle.party.PartyServices.get#ShellCounts (M2). -->
     <moqui.screen.ScreenThemeResource screenThemeId="DEFAULT_QUASAR" sequenceNum="300" resourceTypeEnumId="STRT_TRAY_TODAY"
             resourceValue="Commons/Panel/Today"/>
-    <!-- the Chat tab is a .qvue screen (Panel/ChatPanel.qvue): named in its render mode, so the tray loads its component -->
+    <!-- the Chat tab is a .qvue screen (Panel/ChatPanel.qvue), which the tray loads in its best client mode -->
     <moqui.screen.ScreenThemeResource screenThemeId="DEFAULT_QUASAR" sequenceNum="301" resourceTypeEnumId="STRT_TRAY_CHAT"
-            resourceValue="Comms/Panel/Chat.qvue"/>
+            resourceValue="Comms/Panel/Chat"/>
     <moqui.screen.ScreenThemeResource screenThemeId="DEFAULT_QUASAR" sequenceNum="302" resourceTypeEnumId="STRT_TRAY_NOTIFICATIONS"
             resourceValue="Commons/Panel/Notifications"/>
     <moqui.screen.ScreenThemeResource screenThemeId="DEFAULT_QUASAR" sequenceNum="303" resourceTypeEnumId="STRT_QUICK_CREATE"

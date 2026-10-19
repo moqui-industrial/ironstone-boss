@@ -15,7 +15,8 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- Add account step 1, the address (design-drawers-commons.md §17 AccountKind and AccountCredentials): the email address,
     your name as people see it, and whose mail it is (just mine, or shared with the team). Next looks the servers up
     (ironstone.MailSettingsServices.suggest#MailServer: a provider IronStone knows, else Thunderbird autoconfig, DNS SRV
-    records or guesses) and carries them to Connect in the URL; when the wizard already made the account for this address,
+    records or guesses) and carries them to Connect in the URL, with the sign-in provider a lookup found the mail at
+    (oauthProvider, for a company domain at Google or Microsoft); when the wizard already made the account for this address,
     its own settings go on instead of a new lookup. fresh=Y starts a new account. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Address" default-menu-index="1">
@@ -56,12 +57,13 @@ along with this software (see the LICENSE.md file). If not, see
             smtpSecurity = settings.smtpSecurity || 'starttls'
             mailUsername = settings.mailUsername || address
             source = settings.source || 'guess'
+            oauthProvider = settings.oauthProviderEnumId || ''
         ]]></script></actions>
         <default-response url=".">
             <parameter name="emailAddress"/><parameter name="displayName"/><parameter name="accountKindEnumId"/>
             <parameter name="storeKind"/><parameter name="storeSecurity"/><parameter name="storeHost"/><parameter name="storePort"/>
             <parameter name="smtpHost"/><parameter name="smtpPort"/><parameter name="smtpSecurity"/><parameter name="mailUsername"/>
-            <parameter name="source"/>
+            <parameter name="source"/><parameter name="oauthProvider"/>
         </default-response>
         <error-response url="."/>
     </transition>

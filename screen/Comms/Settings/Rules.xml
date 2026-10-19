@@ -22,7 +22,7 @@ along with this software (see the LICENSE.md file). If not, see
     which check that the user may change each rule (its owner, or a manager of its account) and normalize them. A test of a
     rule against recent mail needs a service that matches without acting, which the framework has not got yet. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Rules" default-menu-index="3" render-modes="vue,qvue,qvt,html" server-static="vue,qvue">
+        default-menu-title="Rules" default-menu-index="3" render-modes="vue,qvue" server-static="vue,qvue">
 
     <transition name="rulesData" method="get" read-only="true">
         <actions><script><![CDATA[
@@ -85,9 +85,6 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
 
     <widgets>
-        <render-mode>
-            <text type="qvue" location="component://ironstone-boss/screen/Comms/Settings/Rules.qvue" template="false"/>
-            <text type="html,qvt"><![CDATA[<p><strong>Rules</strong>: open it under /qapps to sort your mail as it arrives.</p>]]></text>
-        </render-mode>
+        <render-mode><text type="qvue" location="component://ironstone-boss/screen/Comms/Settings/Rules.qvue" template="false"/></render-mode>
     </widgets>
 </screen>

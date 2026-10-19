@@ -319,11 +319,20 @@ feature("the palette's Messages group finds threads and mailboxes, and MessageDe
         const boxes = sys(() => call("ironstone.InboxServices.search#Messages", { text: "Office", limit: 5 })).rows
         const detail = ec.screen.makeTest().rootScreen(comms).renderMode("qvt").render("Inbox/MessageDetail", { emailMessageId: "BOSS_DEMO_MAIL_ACME1", lastStandalone: "-2" }, null)
         const internal = ec.screen.makeTest().rootScreen(comms).renderMode("qvt").render("Inbox/MessageDetail", { communicationEventId: "BOSS_DEMO_MAIL_IM1", lastStandalone: "-2" }, null)
-        const eml = sys(() => call("ironstone.InboxServices.build#EmlText", { emailMessageId: "BOSS_DEMO_MAIL_NEWS" }))
+        // Download .eml: the framework's export of the message (org.moqui.impl.EmailClientServices.export#EmailMessage), with its files
+        const download = (id) => {
+            const str = ec.screen.makeTest().rootScreen(comms).render("Inbox/MessageDetail/downloadEml", { emailMessageId: id }, null)
+            ec.message.clearErrors()
+            return { status: str.status, errors: str.errorMessages.join(" | "), text: String(str.output || "") }
+        }
+        const eml = download("BOSS_DEMO_MAIL_NEWS")
+        const withFile = download("BOSS_DEMO_MAIL_ACME1")
+        const internalEml = ec.screen.makeTest().rootScreen(comms).render("Inbox/MessageDetail/downloadEml", { emailMessageId: "" }, null)
         ec.message.clearErrors()
-        return { rows, boxes, detail: String(detail.output || ""), detailErrors: detail.errorMessages.join(" | "), internal: String(internal.output || ""), eml }
+        return { rows, boxes, detail: String(detail.output || ""), detailErrors: detail.errorMessages.join(" | "), internal: String(internal.output || ""), eml, withFile,
+            noMessage: internalEml.errorMessages.join(" | ") }
     },
-    then({ rows, boxes, detail, detailErrors, internal, eml }) {
+    then({ rows, boxes, detail, detailErrors, internal, eml, withFile, noMessage }) {
         rows.some((row) => row.title == "Can you review the onboarding guide?" && row.url.includes("thread=internal%3ABOSS_DEMO_MAIL_IM1"))
         boxes.some((row) => row.title == "Office announcements" && row.url == "/qapps/Comms/Inbox?mailbox=BOSS_DEMO_MBX_OFFICE")
         detailErrors == ""
@@ -331,9 +340,15 @@ feature("the palette's Messages group finds threads and mailboxes, and MessageDe
         detail.includes("purchase-order-Q4.txt")
         detail.includes("Headers and source")
         internal.includes("Can you review the onboarding guide?")
-        eml.emlText.includes("List-Unsubscribe: <mailto:leave@ironstone.example?subject=unsubscribe>")
-        eml.emlText.includes("Content-Type: multipart/alternative")
-        eml.emlText.includes("IronStone Weekly")
+        eml.status == 200
+        eml.errors == ""
+        eml.text.includes("Message-ID: <boss_demo_mail_news@demo.ironstone.example>")
+        eml.text.includes("multipart/alternative")
+        eml.text.includes("IronStone Weekly")
+        withFile.errors == ""
+        withFile.text.includes("Subject: Quarterly order for the Ziziwork parts")
+        withFile.text.includes("purchase-order-Q4.txt")
+        noMessage.length > 0
     },
 })
 
@@ -352,7 +367,11 @@ feature("another user reaches none of john.doe's mail: threads, files, state cha
             const notMine = get("thread", { store: "internal", threadId: "BOSS_DEMO_MAIL_POST3" })
             const detail = ec.screen.makeTest().rootScreen(comms).renderMode("qvt").render("Inbox/MessageDetail", { emailMessageId: "BOSS_DEMO_MAIL_ACME1", lastStandalone: "-2" }, null)
             ec.message.clearErrors()
-            return { data, thread, attachment, view, state, link, createFrom, internalThread, notMine, detail: String(detail.output || "") }
+            const eml = ec.screen.makeTest().rootScreen(comms).render("Inbox/MessageDetail/downloadEml", { emailMessageId: "BOSS_DEMO_MAIL_ACME1" }, null)
+            const emlErrors = eml.errorMessages.join(" | ")
+            ec.message.clearErrors()
+            return { data, thread, attachment, view, state, link, createFrom, internalThread, notMine, detail: String(detail.output || ""),
+                eml: { errors: emlErrors, text: String(eml.output || "") } }
         } finally { login("john.doe") }
     },
     then(v) {
@@ -369,6 +388,8 @@ feature("another user reaches none of john.doe's mail: threads, files, state cha
         v.notMine.errors.includes("not found")
         v.detail.includes("Message not found")
         !v.detail.includes("Quarterly order for the Ziziwork parts")
+        v.eml.errors.includes("not found")
+        !v.eml.text.includes("Quarterly order")
         one("moqui.basic.email.EmailMessage", { emailMessageId: "BOSS_DEMO_MAIL_ACME1" }).emailFolderId == "BOSS_DEMO_MAIL_F_INBOX"
     },
 })

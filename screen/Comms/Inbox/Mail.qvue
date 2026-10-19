@@ -642,13 +642,6 @@ along with this software (see the LICENSE.md file). If not, see
         </inbox-done>
     </m-dialog>
 
-    <!-- a confirmation -->
-    <m-dialog v-model="confirmBox.open" :title="confirmBox.title" width="420">
-        <div>{{confirmBox.message}}</div>
-        <div class="row q-mt-md q-gutter-sm"><q-btn unelevated no-caps :color="confirmBox.danger ? 'negative' : 'primary'" :label="confirmBox.okLabel" @click="confirmOk"></q-btn>
-            <q-btn flat no-caps :label="t('Cancel')" @click="confirmBox.open = false"></q-btn></div>
-    </m-dialog>
-
     <!-- MailboxSettings and MailboxMembers -->
     <m-dialog v-model="mailboxDialog.open" :title="mailbox ? mailbox.contactListName : t('Mailbox')" width="620">
         <template v-if="mailbox">
@@ -840,7 +833,7 @@ module.exports = {
             snooze: { open: false, targets: [], custom: '' }, move: { open: false, targets: [], filter: '', newFolder: '' },
             labels: { open: false, targets: [], choice: {}, original: {}, newName: {} }, link: { open: false, message: null, value: null, busy: false },
             saveSearch: { open: false, name: '' }, goto: { open: false, filter: '' }, browse: { open: false, search: '', list: [], loading: false },
-            confirmBox: { open: false, title: '', message: '', okLabel: '', danger: false }, newMailbox: { open: false, key: 0 }, mailboxDialog: { open: false, tab: 'members', key: 0, addPartyId: null }, pendingCreateFrom: false, markReadTimer: null
+            newMailbox: { open: false, key: 0 }, mailboxDialog: { open: false, tab: 'members', key: 0, addPartyId: null }, pendingCreateFrom: false, markReadTimer: null
         };
     },
     computed: {
@@ -2111,14 +2104,13 @@ module.exports = {
             ]);
         },
         domId(prefix, key) { return prefix + String(key || '').replace(/[^A-Za-z0-9_-]/g, '_'); },
-        // a confirmation in an m-dialog (the page has no Quasar Dialog plugin): resolves on OK
+        // a confirmation (Quasar's Dialog plugin): resolves on OK; Cancel, Esc or a click outside resolves nothing
         confirm(title, message, okLabel, danger) {
             return new Promise((resolve) => {
-                this.confirmResolve = resolve;
-                this.confirmBox = { open: true, title, message, okLabel: okLabel || t('OK'), danger: !!danger };
+                this.$q.dialog({ title, message, ok: { label: okLabel || t('OK'), color: danger ? 'negative' : 'primary', unelevated: true, noCaps: true },
+                    cancel: { label: t('Cancel'), flat: true, noCaps: true } }).onOk(() => resolve());
             });
         },
-        confirmOk() { this.confirmBox.open = false; const resolve = this.confirmResolve; this.confirmResolve = null; if (resolve) resolve(); },
         gotoFirst() { const first = this.gotoTargets[0]; if (first) { this.goto.open = false; this.openView(first.params); } },
         onShift(event) { this.shiftDown = !!event.shiftKey; },
 

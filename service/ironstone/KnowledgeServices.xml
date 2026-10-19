@@ -17,12 +17,13 @@ along with this software (see the LICENSE.md file). If not, see
 
     WikiSpace and WikiPage are moqui.* entities, which no entity filter covers (R21, R28), so every service here first finds
     the page or space through get#PageRef, which asks the wiki's own rule (WikiServices.get#WikiPageAccess: view, update,
-    admin) and refuses what the user may not do: a page the user may not view is "not found", a change the user may not make
-    is refused. A service that reads many pages filters them with WikiServices.get#WikiViewScope, or calls a framework service
-    that does (get#WikiSpacePages, search#WikiPages, get#WikiPageBacklinks, find#WikiPageReviews). The framework's write
-    services that check nothing themselves (delete#WikiPage, set#PublishedVersion, the attachment services) are called only
-    after get#PageRef said update. A user's notes space (NOTES_<userId>, WikiServices.ensure#UserNotesSpace) is left out of
-    the Knowledge lists and searches; Notes shows only the user's own.
+    admin) and refuses what the user may not do: a page the user may not view is "Page not found" (never its path), a change
+    the user may not make is refused. The framework's wiki services check the same rule themselves on every read and write
+    (update#WikiPage, delete#WikiPage, set#PublishedVersion, the attachment services), so get#PageRef is the one check here
+    and the friendly words, not the only guard. A service that reads many pages filters them with
+    WikiServices.get#WikiViewScope, or calls a framework service that does (get#WikiSpacePages, search#WikiPages,
+    get#WikiPageBacklinks, find#WikiPageReviews). A user's notes space (NOTES_<userId>, WikiServices.ensure#UserNotesSpace) is
+    left out of the Knowledge lists and searches; Notes shows only the user's own.
 
     Failure tolerance (AGENTS.md): the parts of a page view (last change, links, tags, attachments, reviews, linked records,
     the follow state) and the recent pages each stand alone; one that fails is logged and named in failedParts. -->
@@ -31,10 +32,10 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- ========== Access ========== -->
 
     <service verb="get" noun="PageRef" allow-remote="false">
-        <description>A page by wikiPageId, or by its space and path (an old path of a moved page finds the page at its new
-            place; a name finds the page under it as the wiki does), with what the user may do (WikiServices.get#WikiPageAccess)
-            checked against need: view (a page the user may not view is "Page not found"), update or admin. A page that has
-            no file yet (a link to a page not made) is found with exists false; access is then the space's.</description>
+        <description>A page by wikiPageId, or by its space and exact path (an old path of a moved page finds the page at its
+            new place), with what the user may do (WikiServices.get#WikiPageAccess) checked against need: view (a page the user
+            may not view is "Page not found"), update or admin (an administrator of the space, or the ADMIN group). A page that
+            has no file yet (a link to a page not made) is found with exists false; access is then the space's.</description>
         <in-parameters>
             <parameter name="wikiPageId"/>
             <parameter name="wikiSpaceId"/>
@@ -69,22 +70,10 @@ along with this software (see the LICENSE.md file). If not, see
             const space = ec.entity.find('moqui.resource.wiki.WikiSpace').condition('wikiSpaceId', wikiSpaceId).useCache(true).one()
             if (space == null || !space.rootPageLocation) return notFound()
             pagePath = String(pagePath || '').split('/').map((part) => part.trim()).filter((part) => part).join('/')
-            const resolve = (spaceId, path) => ec.service.sync().name('org.moqui.impl.WikiServices.get#WikiPageReference')
-                    .parameters({wikiSpaceId: spaceId, pagePath: path}).call()
-            let refOut = resolve(wikiSpaceId, pagePath)
+            const refOut = ec.service.sync().name('org.moqui.impl.WikiServices.get#WikiPageReference')
+                    .parameters({wikiSpaceId: wikiSpaceId, pagePath: pagePath}).call()
             if (ec.message.hasError() || refOut == null) { ec.message.clearErrors(); return notFound() }
-            // a name the wiki found under another page (findChildFile searches): read the page at its real path
-            let ref = refOut.pageReference
-            if (ref != null && ref.exists && refOut.pagePath) {
-                const actual = ref.getActualChildPath()
-                if (actual) {
-                    const realPath = actual.replace(/\.[^/.]*$/, '')
-                    if (realPath !== refOut.pagePath) {
-                        refOut = resolve(refOut.wikiSpaceId, realPath)
-                        ref = refOut.pageReference
-                    }
-                }
-            }
+            const ref = refOut.pageReference
             wikiSpaceId = refOut.wikiSpaceId
             pagePath = refOut.pagePath || ''
             wikiPageId = refOut.wikiPageId || null
@@ -94,11 +83,11 @@ along with this software (see the LICENSE.md file). If not, see
                 ec.logger.info(`Knowledge: ${wikiSpaceId}/${pagePath} is not visible to user ${ec.user.username}`)
                 return notFound()
             }
-            if ((need === 'update' || need === 'admin') && !rights.canUpdate && !(need === 'admin' && rights.canAdmin)) {
+            if (need === 'admin' && !rights.canAdmin) { ec.message.addError(L('Only an administrator of this space may do that')); return }
+            if (need === 'update' && !rights.canUpdate) {
                 ec.message.addError(rights.readOnly ? L('This space is a read-only mirror') : L('You may not change this page'))
                 return
             }
-            if (need === 'admin' && !rights.canAdmin) { ec.message.addError(L('Only an administrator of this space may do that')); return }
             found = true
             wikiPage = refOut.wikiPage ? refOut.wikiPage.getMap() : null
             wikiSpace = space.getMap()
@@ -595,9 +584,10 @@ along with this software (see the LICENSE.md file). If not, see
     </service>
 
     <service verb="create" noun="Page">
-        <description>A new page in a space the user may add pages to, under a parent page the user may view (or at the top),
-            with pageText or a heading of its name; refused when a page has the path, or when a page of that name is under
-            another page (the wiki finds a page by its name, so the new page would write over it).</description>
+        <description>A new page in a space the user may add pages to (WikiServices.update#WikiPage checks it), under a parent
+            page the user may view that is made already (or at the top of a space the user may view), with pageText or a
+            heading of its name; refused when a page is at that path already (its record or its file). A page of the same
+            name elsewhere in the space is another page: the wiki writes each at its exact path.</description>
         <in-parameters>
             <parameter name="wikiSpaceId" required="true"/>
             <parameter name="parentPath"/>
@@ -616,31 +606,22 @@ along with this software (see the LICENSE.md file). If not, see
                 ec.message.addError(L("A page name has letters, digits, spaces and . , ' - _ : ( ) ! ? only"))
                 return
             }
-            const access = ec.service.sync().name('org.moqui.impl.WikiServices.get#WikiPageAccess').parameter('wikiSpaceId', wikiSpaceId).call() || {}
-            if (!access.canView) { ec.message.addError(L('Space not found')); return }
-            if (!access.canUpdate) { ec.message.addError(access.readOnly ? L('This space is a read-only mirror') : L('You may not add pages to this space')); return }
             let parent = String(parentPath || '').split('/').filter((part) => part).join('/')
             if (parent === wikiSpaceId) parent = ''
-            if (parent) {
-                const parentRef = ec.service.sync().name('ironstone.KnowledgeServices.get#PageRef').parameters({wikiSpaceId: wikiSpaceId,
-                    pagePath: parent, need: 'view'}).call()
-                if (ec.message.hasError() || !parentRef?.found) return
-                if (!parentRef.exists) { ec.message.addError(L('The parent page has not been made yet')); return }
-                parent = parentRef.pagePath || ''
-            }
+            // the parent page, or the space's home for a page at the top, which the user must see before anything is said of
+            // the paths there; whether they may add the page is update#WikiPage's to say
+            const parentRef = ec.service.sync().name('ironstone.KnowledgeServices.get#PageRef').parameters({wikiSpaceId: wikiSpaceId,
+                pagePath: parent, need: 'view'}).call()
+            if (ec.message.hasError() || !parentRef?.found) return
+            if (parent && !parentRef.exists) { ec.message.addError(L('The parent page has not been made yet')); return }
+            parent = parentRef.pagePath || ''
             const path = (parent ? parent + '/' : '') + name
-            if (ec.entity.find('moqui.resource.wiki.WikiPage').condition('wikiSpaceId', wikiSpaceId).condition('pagePath', path).one() != null) {
-                ec.message.addError(ec.resource.expand('There is a page ${path} already', '', {path: path}))
-                return
-            }
-            const space = ec.entity.find('moqui.resource.wiki.WikiSpace').condition('wikiSpaceId', wikiSpaceId).useCache(true).one()
-            const found = ec.resource.getLocationReference(space.rootPageLocation).findChildFile(path)
-            if (found != null && found.exists) {
-                const actual = String(found.getActualChildPath() || '').replace(/\.[^/.]*$/, '')
-                ec.message.addError(actual && actual !== path ? ec.resource.expand('A page named ${name} is at ${actual} already; choose another name', '', {name: name, actual: actual})
-                        : ec.resource.expand('There is a page ${path} already', '', {path: path}))
-                return
-            }
+            // update#WikiPage writes over a page at the path: a new page is not made there
+            const taken = () => { ec.message.addError(ec.resource.expand('There is a page ${path} already', '', {path: path})) }
+            if (ec.entity.find('moqui.resource.wiki.WikiPage').condition('wikiSpaceId', wikiSpaceId).condition('pagePath', path).one() != null) return taken()
+            const file = ec.service.sync().name('org.moqui.impl.WikiServices.get#WikiPageFile').parameters({wikiSpaceId: wikiSpaceId, pagePath: path}).call()
+            if (ec.message.hasError()) return
+            if (file?.exists) return taken()
             const saved = ec.service.sync().name('org.moqui.impl.WikiServices.update#WikiPage').parameters({wikiSpaceId: wikiSpaceId, pageName: name,
                 parentPath: parent || null, wikiType: 'md', pageText: pageText ? String(pageText) : '# ' + name + '\n\n'}).call()
             if (ec.message.hasError()) return
@@ -764,45 +745,29 @@ along with this software (see the LICENSE.md file). If not, see
     </service>
 
     <service verb="delete" noun="Page">
-        <description>Deletes a page the user may update, with its attachments, history, tags, links, reviews and its Mantle
-            joins (comments' WikiPageCommunicationEvent rows, the linked tasks and requests, the followers; the comments
-            themselves stay); a page with pages under it, or the home page of a space, is not deleted.</description>
+        <description>Deletes a page the user may update (WikiServices.delete#WikiPage, deleteAttachments) with its files,
+            history, tags, links and reviews, and Mantle's joins to it (its SECA: the comments' WikiPageCommunicationEvent rows,
+            the linked tasks and requests, the followers; the comments themselves stay); a page with pages under it, or the
+            home page of a space, is not deleted. A page record with no file goes too.</description>
         <in-parameters><parameter name="wikiPageId" required="true"/></in-parameters>
         <out-parameters>
             <parameter name="wikiSpaceId"/>
             <parameter name="parentPath"/>
         </out-parameters>
         <actions><script><![CDATA[
-            const L = (text) => ec.l10n.localize(text)
             const ref = ec.service.sync().name('ironstone.KnowledgeServices.get#PageRef').parameters({wikiPageId: wikiPageId, need: 'update'}).call()
             if (ec.message.hasError() || !ref?.found) return
-            const path = ref.pagePath || ''
-            if (!path) { ec.message.addError(L('The home page of a space is not deleted')); return }
-            if (ref.exists && Array.from(ref.pageReference.getChildren() || []).some((child) => child.isFile())) {
-                ec.message.addError(L('Move or delete the pages under this page first'))
-                return
-            }
-            for (const entityName of ['mantle.party.communication.WikiPageCommunicationEvent', 'mantle.work.effort.WikiPageWorkEffort', 'mantle.request.WikiPageRequest'])
-                ec.entity.find(entityName).condition('wikiPageId', wikiPageId).deleteAll()
-            ec.entity.find('mantle.party.communication.RecordFollower').condition({recordEntityName: 'moqui.resource.wiki.WikiPage', recordId: wikiPageId}).deleteAll()
-            if (ref.exists) {
-                ec.service.sync().name('org.moqui.impl.WikiServices.delete#WikiPage').parameters({wikiSpaceId: ref.wikiSpaceId, pagePath: path,
-                    deleteAttachments: true}).call()
-            } else {
-                for (const entityName of ['moqui.resource.wiki.WikiPageAlias', 'moqui.resource.wiki.WikiPageCategoryMember', 'moqui.resource.wiki.WikiPageHistory',
-                        'moqui.resource.wiki.WikiPageUser', 'moqui.resource.wiki.WikiPageLink', 'moqui.resource.wiki.WikiPageReview'])
-                    ec.entity.find(entityName).condition('wikiPageId', wikiPageId).deleteAll()
-                ec.entity.find('moqui.resource.wiki.WikiPage').condition('wikiPageId', wikiPageId).deleteAll()
-            }
+            const out = ec.service.sync().name('org.moqui.impl.WikiServices.delete#WikiPage').parameters({wikiPageId: wikiPageId, deleteAttachments: true}).call()
             if (ec.message.hasError()) return
-            wikiSpaceId = ref.wikiSpaceId
-            parentPath = path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : ''
+            wikiSpaceId = out.wikiSpaceId || ref.wikiSpaceId
+            parentPath = out.pagePath || ''
         ]]></script></actions>
     </service>
 
     <service verb="publish" noun="Version">
         <description>Publishes a version of a Knowledge page (the version the public and help-center views read,
-            WikiServices.set#PublishedVersion), for a user who may update it. A note has no published version.</description>
+            WikiServices.set#PublishedVersion, which checks the version is the page's and keeps its full name), for a user who
+            may update it. A note has no published version.</description>
         <in-parameters>
             <parameter name="wikiPageId" required="true"/>
             <parameter name="versionName"><description>Default the current version</description></parameter>
@@ -813,13 +778,13 @@ along with this software (see the LICENSE.md file). If not, see
             const ref = ec.service.sync().name('ironstone.KnowledgeServices.get#PageRef').parameters({wikiPageId: wikiPageId, need: 'update'}).call()
             if (ec.message.hasError() || !ref?.found) return
             if (ref.isNotes) { ec.message.addError(L('A note is not published')); return }
-            const pageRef = ref.pageReference
-            if (!ref.exists || !pageRef.supportsVersion()) { ec.message.addError(L('This page keeps no versions to publish')); return }
-            const version = versionName ? pageRef.getVersion(versionName) : pageRef.getCurrentVersion()
-            if (version == null) { ec.message.addError(L('That version of the page was not found')); return }
-            ec.service.sync().name('org.moqui.impl.WikiServices.set#PublishedVersion').parameters({wikiPageId: wikiPageId,
-                publishedVersionName: version.versionName}).call()
-            publishedVersionName = version.versionName
+            // the current version by default: an empty name would take the page's published version away
+            const name = versionName || (ref.exists && ref.pageReference.supportsVersion() ? ref.pageReference.getCurrentVersion()?.versionName : null)
+            if (!name) { ec.message.addError(L('This page keeps no versions to publish')); return }
+            const out = ec.service.sync().name('org.moqui.impl.WikiServices.set#PublishedVersion').parameters({wikiPageId: wikiPageId,
+                publishedVersionName: name}).call()
+            if (ec.message.hasError()) return
+            publishedVersionName = out.publishedVersionName
         ]]></script></actions>
     </service>
 
@@ -972,7 +937,7 @@ along with this software (see the LICENSE.md file). If not, see
     <service verb="decide" noun="Review">
         <description>The reviewer's decision (WikiServices.decide#WikiPageReview, which checks it is the user's to decide):
             approve publishes the version, changes says what to change (decisionNote). The requester's notification opens
-            the page.</description>
+            what the request's opened (request#Review's link: the page on its review).</description>
         <in-parameters>
             <parameter name="wikiPageReviewId" required="true"/>
             <parameter name="decision" required="true"><description>approve or changes</description></parameter>
@@ -984,14 +949,12 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="wikiPageId"/>
         </out-parameters>
         <actions><script><![CDATA[
-            const review = ec.entity.find('moqui.resource.wiki.WikiPageReview').condition('wikiPageReviewId', wikiPageReviewId).one()
-            wikiPageId = review?.wikiPageId || null
             const out = ec.service.sync().name('org.moqui.impl.WikiServices.decide#WikiPageReview').parameters({wikiPageReviewId: wikiPageReviewId,
-                decision: decision, decisionNote: decisionNote ? String(decisionNote).trim() : null,
-                link: wikiPageId ? '/qapps/Commons/Knowledge?wikiPageId=' + encodeURIComponent(wikiPageId) : null}).call()
+                decision: decision, decisionNote: decisionNote ? String(decisionNote).trim() : null}).call()
             if (ec.message.hasError()) return
             statusId = out?.statusId
             publishedVersionName = out?.publishedVersionName
+            wikiPageId = ec.entity.find('moqui.resource.wiki.WikiPageReview').condition('wikiPageReviewId', wikiPageReviewId).one()?.wikiPageId || null
         ]]></script></actions>
     </service>
 
@@ -1136,8 +1099,9 @@ along with this software (see the LICENSE.md file). If not, see
     </service>
 
     <service verb="upload" noun="Attachment">
-        <description>Adds files to a page's attachments (WikiServices.upload#WikiPageAttachment, the page's _attachments folder),
-            for a user who may update the page; a file of the same name is replaced (a new version where the storage keeps them).</description>
+        <description>Adds files to a page's attachments (WikiServices.upload#WikiPageAttachment, the page's _attachments folder,
+            for a user who may update the page); a file of the same name is replaced (a new version where the storage keeps
+            them). A page not saved yet takes no files.</description>
         <in-parameters>
             <parameter name="wikiPageId" required="true"/>
             <parameter name="attachmentFile" type="Object" required="true"><description>An uploaded file or a list of them</description></parameter>
@@ -1146,7 +1110,7 @@ along with this software (see the LICENSE.md file). If not, see
         <actions><script><![CDATA[
             filenameList = []
             const L = (text) => ec.l10n.localize(text)
-            const ref = ec.service.sync().name('ironstone.KnowledgeServices.get#PageRef').parameters({wikiPageId: wikiPageId, need: 'update'}).call()
+            const ref = ec.service.sync().name('ironstone.KnowledgeServices.get#PageRef').parameters({wikiPageId: wikiPageId, need: 'view'}).call()
             if (ec.message.hasError() || !ref?.found) return
             if (!ref.wikiPageId || !ref.exists) { ec.message.addError(L('Save the page before adding files to it')); return }
             const files = Array.isArray(attachmentFile) ? attachmentFile : [attachmentFile]
@@ -1154,8 +1118,8 @@ along with this software (see the LICENSE.md file). If not, see
                 if (file == null) continue
                 const name = String(file.getName ? file.getName() : (file.name || '')).replace(/^.*[\\/]/, '').trim()
                 if (!name || name.startsWith('.')) { ec.message.addError(L('A file needs a name')); return }
-                ec.service.sync().name('org.moqui.impl.WikiServices.upload#WikiPageAttachment').parameters({wikiSpaceId: ref.wikiSpaceId,
-                    pagePath: ref.wikiPageId, attachmentFile: file}).call()
+                ec.service.sync().name('org.moqui.impl.WikiServices.upload#WikiPageAttachment').parameters({wikiPageId: ref.wikiPageId,
+                    attachmentFile: file}).call()
                 if (ec.message.hasError()) return
                 filenameList.push(name)
             }
@@ -1163,22 +1127,17 @@ along with this software (see the LICENSE.md file). If not, see
     </service>
 
     <service verb="delete" noun="Attachment">
-        <description>Removes a file from a page's attachments, for a user who may update the page.</description>
+        <description>Removes a file from a page's attachments (WikiServices.delete#WikiPageAttachment, for a user who may
+            update the page).</description>
         <in-parameters>
             <parameter name="wikiPageId" required="true"/>
             <parameter name="filename" required="true"/>
         </in-parameters>
         <actions><script><![CDATA[
-            const L = (text) => ec.l10n.localize(text)
-            const ref = ec.service.sync().name('ironstone.KnowledgeServices.get#PageRef').parameters({wikiPageId: wikiPageId, need: 'update'}).call()
+            const ref = ec.service.sync().name('ironstone.KnowledgeServices.get#PageRef').parameters({wikiPageId: wikiPageId, need: 'view'}).call()
             if (ec.message.hasError() || !ref?.found) return
-            const name = String(filename || '')
-            if (!name || /[\\/]/.test(name) || name.startsWith('.')) { ec.message.addError(L('File not found')); return }
-            const out = ec.service.sync().name('org.moqui.impl.WikiServices.get#WikiPageAttachment').parameters({wikiSpaceId: ref.wikiSpaceId,
-                pagePath: ref.wikiPageId, filename: name}).call()
-            if (ec.message.hasError() || out?.attachmentReference == null || !out.attachmentReference.exists) { ec.message.addError(L('File not found')); return }
-            ec.service.sync().name('org.moqui.impl.WikiServices.delete#WikiPageAttachment').parameters({wikiSpaceId: ref.wikiSpaceId,
-                pagePath: ref.wikiPageId, filename: name}).call()
+            ec.service.sync().name('org.moqui.impl.WikiServices.delete#WikiPageAttachment').parameters({wikiPageId: ref.wikiPageId,
+                filename: String(filename || '')}).call()
         ]]></script></actions>
     </service>
 
@@ -1197,10 +1156,8 @@ along with this software (see the LICENSE.md file). If not, see
             const L = (text) => ec.l10n.localize(text)
             const ref = ec.service.sync().name('ironstone.KnowledgeServices.get#PageRef').parameters({wikiPageId: wikiPageId, need: 'view'}).call()
             if (ec.message.hasError() || !ref?.found) return
-            const name = String(filename || '')
-            if (!name || /[\\/]/.test(name) || name.startsWith('.')) { ec.message.addError(L('File not found')); return }
-            const out = ec.service.sync().name('org.moqui.impl.WikiServices.get#WikiPageAttachment').parameters({wikiSpaceId: ref.wikiSpaceId,
-                pagePath: ref.wikiPageId, filename: name}).call()
+            const out = ec.service.sync().name('org.moqui.impl.WikiServices.get#WikiPageAttachment').parameters({wikiPageId: ref.wikiPageId,
+                filename: String(filename || '')}).call()
             const attachment = out?.attachmentReference
             if (ec.message.hasError() || attachment == null || !attachment.exists || !attachment.isFile()) { ec.message.addError(L('File not found')); return }
             location = attachment.location
@@ -1654,7 +1611,9 @@ along with this software (see the LICENSE.md file). If not, see
 
     <service verb="set" noun="PageRestriction">
         <description>Restricts who may read (restrictView) or edit (restrictUpdate) a page to its page members (WikiPageUser),
-            by an administrator of its space; the administrator becomes a page member so the page stays theirs to open up.</description>
+            by an administrator of its space. A page restricted to its readers is not shown to the space's administrators
+            either (only to the ADMIN group), so the administrator who restricts it becomes a page member and it stays theirs
+            to open up; an administrator edits any page they may read, so restrictUpdate alone needs no member.</description>
         <in-parameters>
             <parameter name="wikiPageId" required="true"/>
             <parameter name="restrictView"/>
@@ -1666,7 +1625,7 @@ along with this software (see the LICENSE.md file). If not, see
             const fields = {wikiPageId: wikiPageId}
             if (restrictView != null && restrictView !== '') fields.restrictView = restrictView === 'Y' ? 'Y' : 'N'
             if (restrictUpdate != null && restrictUpdate !== '') fields.restrictUpdate = restrictUpdate === 'Y' ? 'Y' : 'N'
-            if (ec.user.userId && (fields.restrictView === 'Y' || fields.restrictUpdate === 'Y')) {
+            if (ec.user.userId && fields.restrictView === 'Y') {
                 const mine = ec.entity.find('moqui.resource.wiki.WikiPageUser').condition({wikiPageId: wikiPageId, userId: ec.user.userId}).one()
                 if (mine == null) ec.service.sync().name('create#moqui.resource.wiki.WikiPageUser').parameters({wikiPageId: wikiPageId, userId: ec.user.userId,
                     allowView: 'Y', allowUpdate: 'Y', receiveNotifications: 'N'}).call()

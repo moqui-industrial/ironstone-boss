@@ -4,9 +4,9 @@
 // "Placeholder:" label. Every other screen under the Commons, Comms and Insights roots and in screen/Shared (the screens
 // built there and the ones moved from the first SimpleScreens port) renders the same way, on the demo records of
 // data/BossDemoData.xml and data/BossMailDemoData.xml, and shows them; a .qvue screen (render-modes vue,qvue: Shared/Chatter,
-// Shared/RecordFiles, Comms/Inbox/Mail, Comms/Inbox/Compose, Comms/Chat, Comms/Panel/Chat, Comms/Settings/Rules, Commons/Knowledge,
-// Commons/Notes and Commons/Files) renders in qvue,
-// its component.
+// Shared/RecordFiles, Comms/Inbox/Mail, Comms/Inbox/Compose, Comms/Chat, Comms/Panel/Chat, Comms/Settings/Rules,
+// Comms/Settings/MailAccounts/SignIn, Commons/Knowledge, Commons/Notes and Commons/Files, which the shell loads in their best
+// client mode) renders in qvue, its component.
 // Run: ./moq test ironstone-boss
 const base = "component://ironstone-boss/screen"
 const apps = ["Commons", "Comms", "Sales", "Marketing", "CustomerService", "Commerce", "Products", "Purchasing", "Warehouse",
@@ -177,8 +177,8 @@ feature("every other Commons, Comms, Insights and Shared screen renders in qvt (
             const app = root.substring(base.length + 1).replace(/\.xml$/, "")
             const demo = demoRecords[`${app}/${path}`] || {}
             const parameters = Object.assign({ lastStandalone: "-2" }, demo.parameters)
-            // a .qvue screen answers its component in the qvue render mode
-            // (render-modes "vue,qvue", or with qvt and html after them for the text those modes write)
+            // a .qvue screen (render-modes "vue,qvue", with qvt and html after them for Inbox/Mail, a default subscreen whose
+            // parents' levels the shell loads in qvt) answers its component in the qvue render mode
             const qvue = /render-modes="vue,qvue[",]/.test(ec.resource.getLocationReference(location).getText())
             const str = ec.screen.makeTest().rootScreen(root).renderMode(qvue ? "qvue" : "qvt").render(path, parameters, null)
             const where = `${root.substring(base.length + 1)} ${path}`.trim()

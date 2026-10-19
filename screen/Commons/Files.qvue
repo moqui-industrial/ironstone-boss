@@ -593,13 +593,6 @@ along with this software (see the LICENSE.md file). If not, see
         <div v-else class="scroll" v-html="diff.html"></div>
     </m-dialog>
 
-    <!-- ===== A confirmation (the page has no Quasar Dialog plugin) ===== -->
-    <m-dialog v-model="confirmBox.open" :title="confirmBox.title" width="420">
-        <div class="text-body2">{{confirmBox.message}}</div>
-        <div class="row q-mt-md q-gutter-sm"><q-btn unelevated no-caps :color="confirmBox.danger ? 'negative' : 'primary'" :label="confirmBox.okLabel" @click="confirmOk"></q-btn>
-            <q-btn flat no-caps :label="t('Cancel')" @click="confirmBox.open = false"></q-btn></div>
-    </m-dialog>
-
     <!-- the pickers: files, and a folder with what is in it -->
     <div class="hidden">
         <m-file ref="filePicker" v-model="picked" name="pickFiles" multiple @update:model-value="onPicked"></m-file>
@@ -656,7 +649,7 @@ module.exports = {
                 linkPassword: '', linkExpire: '', linkSaving: false, newLink: null, shareList: [], linkList: [] },
             tagsDialog: { open: false, row: null, names: [], input: '', saving: false },
             conflicts: { open: false, list: [], note: '', resolve: null },
-            confirmBox: { open: false, title: '', message: '', okLabel: '', danger: false },
+            confirmOpen: false,
             diff: { open: false, title: '', html: '', loading: false },
             uploads: [], uploadSeq: 0, picked: null, pickedFolder: null
         };
@@ -1602,14 +1595,15 @@ module.exports = {
         focusSearch() { const el = document.getElementById('FilesSearch'); if (el && el.focus) { el.focus(); return true; } return false; },
 
         // ---- the page ----
+        // a confirmation (Quasar's Dialog plugin): resolves on OK; Cancel, Esc or a click outside resolves nothing
         confirm(title, message, okLabel, danger) {
             return new Promise((resolve) => {
-                this.confirmResolve = resolve;
-                this.confirmBox = { open: true, title, message, okLabel: okLabel || t('OK'), danger: !!danger };
+                this.confirmOpen = true;
+                this.$q.dialog({ title, message, ok: { label: okLabel || t('OK'), color: danger ? 'negative' : 'primary', unelevated: true, noCaps: true },
+                    cancel: { label: t('Cancel'), flat: true, noCaps: true } }).onOk(() => resolve()).onDismiss(() => { this.confirmOpen = false; });
             });
         },
-        confirmOk() { this.confirmBox.open = false; const resolve = this.confirmResolve; this.confirmResolve = null; if (resolve) resolve(); },
-        anyDialog() { return this.preview.open || this.nameDialog.open || this.editor.open || this.move.open || this.share.open || this.tagsDialog.open || this.conflicts.open || this.diff.open || this.confirmBox.open; },
+        anyDialog() { return this.preview.open || this.nameDialog.open || this.editor.open || this.move.open || this.share.open || this.tagsDialog.open || this.conflicts.open || this.diff.open || this.confirmOpen; },
         inField(event) {
             const target = event && event.target;
             if (!target) return false;

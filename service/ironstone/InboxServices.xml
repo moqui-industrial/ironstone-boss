@@ -1325,58 +1325,8 @@ along with this software (see the LICENSE.md file). If not, see
                 commEventList: events.map((event) => ({communicationEventId: event.communicationEventId, typeText: describe('mantle.party.communication.CommunicationEventType',
                     'communicationEventTypeId', event.communicationEventTypeId), statusText: describe('moqui.basic.StatusItem', 'statusId', event.statusId), subject: event.subject})),
                 linkList: linkList, threadKey: row.emailAccountId ? 'email:' + (row.rootEmailMessageId || emailMessageId) : null,
-                canResend: (!row.emailAccountId && ec.user.isInGroup('ADMIN')) || (row.statusId === 'ES_BOUNCED' && canSend)}
-        ]]></script></actions>
-    </service>
-
-    <service verb="build" noun="EmlText">
-        <description>The message as an .eml file for Download .eml: its stored headers when the mail client kept them (the
-            original From, To, Date, Subject, Message-ID and the rest, without the parts' own Content headers), then a
-            multipart/alternative of its text and HTML. The files are not in it: the mail client keeps no raw message, and
-            a script writes text only (the files download from MessageDetail one by one).</description>
-        <in-parameters><parameter name="emailMessageId" required="true"/></in-parameters>
-        <out-parameters><parameter name="emlText"/><parameter name="fileName"/></out-parameters>
-        <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.InboxServices.get#MessageDetail').parameter('emailMessageId', emailMessageId).call()
-            if (ec.message.hasError()) return
-            const d = out.detail
-            const crlf = '\r\n'
-            const boundary = 'ironstone-' + Math.random().toString(36).substring(2) + Date.now().toString(36)
-            const kept = []
-            if (d.headersText) {
-                // the stored headers, unfolded, without those of the original MIME structure
-                const lines = String(d.headersText).split(/\r?\n/)
-                let current = null
-                for (const line of lines) {
-                    if (/^[ \t]/.test(line) && current != null) { current += crlf + line; continue }
-                    if (current != null) kept.push(current)
-                    current = line
-                }
-                if (current != null) kept.push(current)
-            }
-            const skip = /^(content-type|content-transfer-encoding|mime-version|content-disposition)\s*:/i
-            const headers = kept.filter((line) => line.trim() && !skip.test(line))
-            const has = (name) => headers.some((line) => line.toLowerCase().startsWith(name.toLowerCase() + ':'))
-            const encode = (text) => /^[\x20-\x7e]*$/.test(text) ? text : '=?UTF-8?B?' + StringUtilities.base64Encode(text) + '?='
-            if (!has('From') && d.fromText) headers.push('From: ' + d.fromText)
-            if (!has('To') && d.toText) headers.push('To: ' + d.toText)
-            if (!has('Cc') && d.ccText) headers.push('Cc: ' + d.ccText)
-            if (!has('Subject')) headers.push('Subject: ' + encode(d.subject || ''))
-            if (!has('Date') && d.dateMillis) headers.push('Date: ' + new Date(d.dateMillis).toUTCString().replace('GMT', '+0000'))
-            if (!has('Message-ID') && d.messageId) headers.push('Message-ID: ' + d.messageId)
-            headers.push('MIME-Version: 1.0')
-            const textPart = d.text != null ? String(d.text) : String(d.html || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
-            let bodyText
-            if (d.html) {
-                headers.push(`Content-Type: multipart/alternative; boundary="${boundary}"`)
-                bodyText = [`--${boundary}`, 'Content-Type: text/plain; charset=UTF-8', 'Content-Transfer-Encoding: 8bit', '', textPart, '',
-                    `--${boundary}`, 'Content-Type: text/html; charset=UTF-8', 'Content-Transfer-Encoding: 8bit', '', String(d.html), '', `--${boundary}--`, ''].join(crlf)
-            } else {
-                headers.push('Content-Type: text/plain; charset=UTF-8', 'Content-Transfer-Encoding: 8bit')
-                bodyText = textPart + crlf
-            }
-            emlText = headers.join(crlf) + crlf + crlf + bodyText
-            fileName = String(d.subject || 'message').replace(/[^\w .-]+/g, '_').trim().substring(0, 80) || 'message'
+                canResend: (!row.emailAccountId && ec.user.isInGroup('ADMIN')) || (row.statusId === 'ES_BOUNCED' && canSend),
+                isSystemMail: !row.emailAccountId}
         ]]></script></actions>
     </service>
 </services>

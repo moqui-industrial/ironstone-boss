@@ -19,8 +19,9 @@ along with this software (see the LICENSE.md file). If not, see
     the first time a room opens, with a back arrow and Open in Chat.
 
     The transitions are those of Comms/Chat. The panel listens to the page's chat store (moqui.chat.on), so a chat push updates
-    the rooms instead of reloading the tab; a reload of the tab (the shell's shellCounts push and its poll) refreshes the
-    rooms in place, and the open room and the rooms are kept for the page, so the tab comes back as it was. -->
+    the rooms instead of reloading the tab; the tray's refresh of the tab (the shell's shellCounts push and its poll) calls
+    shellRefresh(), which refreshes the rooms in place, and the open room and the rooms are kept for the page, so the tab comes
+    back as it was. -->
 <template><div class="m-chat-panel column no-wrap" :style="{height: height + 'px'}">
     <template v-if="!roomId">
         <div class="row items-center no-wrap q-pb-xs">
@@ -169,6 +170,8 @@ module.exports = {
             }, (err) => { this.loaded = true; console.info('Chat panel: the rooms could not be read', err && err.status); });
         },
         scheduleRooms() { clearTimeout(this.roomsTimer); this.roomsTimer = setTimeout(() => this.refresh(), 400); },
+        // the tray's refresh of this tab (m-dynamic-container.shellRefresh): the rooms in place, the open room stays
+        shellRefresh() { this.refresh(); },
         // the room view is Chat.qvue's chat-room, loaded once for the page the first time a room opens here
         roomView() {
             if (memo.roomComponent) return Promise.resolve(memo.roomComponent);
@@ -254,20 +257,11 @@ module.exports = {
             this.unsubscribe.push(moqui.chat.on('event', (payload) => this.onEvent(payload)));
             this.unsubscribe.push(moqui.chat.on('room', () => this.scheduleRooms()));
         }
-        // the tray reloads its tab on the shellCounts push and the poll: here that refreshes the rooms in place rather than
-        // making the tab again (which would close the open room)
-        const container = this.$parent;
-        if (container && container.$options && container.$options.name === 'mDynamicContainer' && String(container.id || '').indexOf('m-tray-') === 0) {
-            this.container = container;
-            this.containerReload = container.reload;
-            container.reload = () => this.refresh();
-        }
         this.refresh();
     },
     beforeUnmount() {
         if (this.resizer) this.resizer.disconnect();
         (this.unsubscribe || []).forEach((off) => off());
-        if (this.container && this.containerReload) this.container.reload = this.containerReload;
         clearTimeout(this.roomsTimer);
     }
 };

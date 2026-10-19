@@ -14,15 +14,16 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- Add a mail account (design-drawers-commons.md §17 MailAccounts: AccountKind, AccountCredentials, AccountTest,
     AccountOptions; style-guide §3.10 Wizard): a subscreens-panel type="wizard" over the steps in Add/: Address (the address,
-    your name, personal or shared; the servers are looked up), Connect (the password or app password, with the provider's
-    help, and the server settings to change; Next makes the account, paused), Test (signing in to both servers, with what to
+    your name, personal or shared; the servers are looked up), Connect ("Sign in with Google" or "with Microsoft" where this
+    server is set up for it, whose popup makes the account, paused, and goes on to Test; else, or instead, the password or
+    app password, with the provider's help, and the server settings to change; Next makes the account, paused), Test (signing in to both servers, with what to
     try for each failure), Options (name, sync window, filing policy, members of a shared account) and Finish (the review;
     Start syncing makes it active and starts the first sync, then shows the account's page).
 
     Between the steps the URL carries the address and the server settings (never the password) and, from Connect on, the
     account itself (emailAccountId), which every step reads through the access rules: an id the user does not manage is
-    "not found". OAuth sign-in for Google and Microsoft comes with M5e (impl-drawers-commons.md R19); until then the help
-    says where to make an app password. -->
+    "not found". The provider's sign-in (OAuth, impl-drawers-commons.md R19, M5e; mr-moqui docs/Mail-OAuth.md) is the SignIn
+    screen next to Add, which Connect and the account page load; an administrator sets the providers up. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Add an account" default-menu-index="2" default-menu-include="false">
 

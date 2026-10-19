@@ -235,28 +235,29 @@ feature("Finish makes the account active and starts its first sync; its page say
     },
 })
 
-feature("a shared account: the kind changes while its setup is not finished, members are added, and the list says to continue its setup", {
+feature("a shared account: the wizard back with another kind changes the account's kind, members are added, and the list says to continue its setup", {
     when() {
         const parameters = Object.assign({ emailAddress: "support@acme.example", displayName: "Acme Support", mailPassword: PASSWORD }, local)
         post("Add/Connect/saveConnection", Object.assign({ accountKindEnumId: "EakExternal" }, parameters))
         const first = accountOf("support@acme.example")
-        // back to Address, now shared: the unfinished account is made again
+        // back to Address, now shared: the same account takes the kind (update#EmailAccount), its filing policy the kind's
         const again = post("Add/Connect/saveConnection", Object.assign({ emailAccountId: first.emailAccountId, accountKindEnumId: "EakShared" }, parameters))
         const account = accountOf("support@acme.example")
         sharedId = account.emailAccountId
-        const firstGone = sys(() => ec.entity.find("moqui.basic.email.EmailAccount").condition("emailAccountId", first.emailAccountId).count())
+        const firstGone = sys(() => ec.entity.find("moqui.basic.email.EmailAccount").condition("emailAccountId", first.emailAccountId).count()) == 0
         const options = render("Add/Options", { emailAccountId: sharedId })
         const added = post("Add/Options/saveOptions", { emailAccountId: sharedId, memberUserIds: "ORG_ZIZI_JD", memberPermissionEnumId: "EapSend" })
         const memberRows = sys(() => Array.from(ec.entity.find("moqui.basic.email.EmailAccountUser").condition("emailAccountId", sharedId).list()))
         const list = render("List", {})
-        return { again, account, firstGone, options, added, memberRows, list }
+        return { again, first, account, firstGone, options, added, memberRows, list }
     },
-    then({ again, account, firstGone, options, added, memberRows, list }) {
+    then({ again, first, account, firstGone, options, added, memberRows, list }) {
         again.errors == ""
         account.accountKindEnumId == "EakShared"
         account.recordFilingEnumId == "ErfAllMatches"
         account.statusId == "EasPaused"
-        firstGone == 0
+        account.emailAccountId == first.emailAccountId
+        !firstGone
         options.output.includes("Add people who share it")
         added.errors == ""
         memberRows.length == 1

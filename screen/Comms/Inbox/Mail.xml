@@ -16,7 +16,10 @@ along with this software (see the LICENSE.md file). If not, see
     Comms/Inbox. The component is Mail.qvue next to this file, served in the qvue render mode; it keeps its view in the URL
     (view, account, folder, label, mailbox, q, thread) and calls the JSON transitions below, each a service of
     service/ironstone/InboxServices.xml or of the mail and mailbox services it stands on, which check the user's accounts,
-    messages and mailboxes (R21): what the user may not reach is "not found". -->
+    messages and mailboxes (R21): what the user may not reach is "not found". It keeps the qvt and html render modes, with a
+    line of text for them, because it is the default subscreen of Inbox, the default of the Comms root: a request for
+    /apps/Comms.qvt or /apps/Comms/Inbox.qvt (the shell loading those levels) resolves to this screen as its target, and the
+    framework refuses a render mode the target does not name. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Inbox" default-menu-include="false" render-modes="vue,qvue,qvt,html" server-static="vue,qvue">
 
@@ -298,7 +301,7 @@ along with this software (see the LICENSE.md file). If not, see
     <widgets>
         <render-mode>
             <text type="qvue" location="component://ironstone-boss/screen/Comms/Inbox/Mail.qvue" template="false"/>
-            <text type="html,qvt"><![CDATA[<p><strong>Inbox</strong>: open it under /qapps (the qvt render mode) to read and send mail.</p>]]></text>
+            <text type="html,qvt"><![CDATA[<p><strong>Inbox</strong>: open it under /qapps to read and send mail.</p>]]></text>
         </render-mode>
     </widgets>
 </screen>

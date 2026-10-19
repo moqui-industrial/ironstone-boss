@@ -1,6 +1,7 @@
 // The tray's Chat tab (screen/Comms/Panel/Chat.xml and ChatPanel.qvue; impl-drawers-commons.md M10, design-drawers-commons.md
-// §4 ChatPanel): the shell names it as a .qvue screen (STRT_TRAY_CHAT Comms/Panel/Chat.qvue) and the + menu's Chat message
-// opens it; it answers its component, which loads the room view from Comms/Chat (chat-room); the light room list it asks
+// §4 ChatPanel): the shell names it without an extension (STRT_TRAY_CHAT Comms/Panel/Chat) and the + menu's Chat message opens
+// it, each loading it in its best client mode, qvue, its only one; it answers its component, which refreshes in place when the
+// tray asks (shellRefresh) and loads the room view from Comms/Chat (chat-room); the light room list it asks
 // for (chatData with a limit) has john.doe's rooms with their counts; New message finds the direct room there is or makes
 // one; Mark all read clears every count. On the chat demo (data/BossChatDemoData.xml), loaded again here.
 // Run: ./moq test ironstone-boss --spec ChatPanel
@@ -27,7 +28,7 @@ spec({
     },
 })
 
-feature("the shell names the tab and the + menu kind as the .qvue screen, which answers its component", {
+feature("the shell names the tab and the + menu kind without an extension; the screen answers its component, in qvue only", {
     when() {
         const str = ec.screen.makeTest().rootScreen(webroot).render("shellData", {}, null)
         let shell = null
@@ -38,18 +39,20 @@ feature("the shell names the tab and the + menu kind as the .qvue screen, which 
         const commsApp = ((shell || {}).apps || []).find((app) => app.name === "Comms") || {}
         return { trayChat: shell && shell.shell ? shell.shell.trayChat : null,
             kind: ((commsApp.providers || {}).quickCreate || []).find((item) => item.kind === "chatMessage") || {},
-            comp: { status: comp.status, output: String(comp.output || "") }, qvt: { status: qvt.status, output: String(qvt.output || "") } }
+            comp: { status: comp.status, output: String(comp.output || "") }, qvt: { status: qvt.status } }
     },
     then({ trayChat, kind, comp, qvt }) {
-        trayChat == "/qapps/Comms/Panel/Chat.qvue"
-        kind.url == "/qapps/Comms/Panel/Chat.qvue"
+        trayChat == "/qapps/Comms/Panel/Chat"
+        kind.url == "/qapps/Comms/Panel/Chat"
         comp.status == 200
         comp.output.includes("BossChatPanel")
         // the room view is Comms/Chat's, loaded when a room opens
         comp.output.includes("/Comms/Chat.qvue")
         !comp.output.includes("Placeholder:")
-        qvt.status == 200
-        qvt.output.includes("/qapps/Comms/Chat")
+        // the tray's refresh keeps an open room: the component refreshes its rooms itself
+        comp.output.includes("shellRefresh()")
+        !comp.output.includes("containerReload")
+        qvt.status != 200
     },
 })
 

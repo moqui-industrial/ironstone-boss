@@ -12,7 +12,7 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 <!-- The composer (design-drawers-commons.md §12 Compose), the component Compose.xml serves in the qvue render mode. Its query
-    (the m-dynamic-container's URL it was loaded with, else the page's parameters) says what it writes: a draft
+    (mScreen: the URL its m-dynamic-container loaded, or the page's) says what it writes: a draft
     (emailMessageId), a reply or forward (replyToEmailMessageId with replyAll, forwardEmailMessageId; replyToCommEventId with
     replyToSender for an internal message or a mailbox post), a post to a mailbox (contactListId), mailto-style to, cc, bcc,
     subject and body, and the record chip (recordEntity, recordId). mode is dock (a card of the Inbox, which provides
@@ -178,12 +178,6 @@ along with this software (see the LICENSE.md file). If not, see
         </div>
     </m-dialog>
 
-    <!-- Discard: when there is something to lose -->
-    <m-dialog v-model="discardOpen" :title="t('Discard this message?')" width="400">
-        <div>{{draftId ? t('The draft is deleted.') : t('What you wrote is lost.')}}</div>
-        <div class="row q-mt-md q-gutter-sm"><q-btn unelevated no-caps color="negative" :label="t('Discard')" @click="discardNow"></q-btn>
-            <q-btn flat no-caps :label="t('Keep writing')" @click="discardOpen = false"></q-btn></div>
-    </m-dialog>
 </div></template>
 
 <script>
@@ -206,7 +200,7 @@ const shellTemplate = '' +
 
 module.exports = {
     name: 'BossCompose',
-    inject: { mComposeHost: { default: null }, mSubmitHide: { default: null } },
+    inject: { mComposeHost: { default: null }, mSubmitHide: { default: null }, mScreen: { default: null } },
     components: {
         'compose-shell': {
             props: { layout: String, title: String, minimized: Boolean, phone: Boolean },
@@ -226,7 +220,7 @@ module.exports = {
         return {
             uid: composeCount, query: {}, state: 'loading', error: null, draft: this.emptyDraft(), identities: [], me: {}, undoSeconds: 10, kind: 'new',
             adding: { to: null, cc: null, bcc: null }, showCc: false, showBcc: false, showQuote: false, dragOver: false, uploading: false, picked: null,
-            sending: false, sent: false, savedAt: null, saving: false, dirty: false, saveTimer: null, scheduleOpen: false, scheduleCustom: '', discardOpen: false,
+            sending: false, sent: false, savedAt: null, saving: false, dirty: false, saveTimer: null, scheduleOpen: false, scheduleCustom: '',
             blocksOpen: false, blocks: [], blockSearch: '', slashPending: false, signature: null, loadedOnce: false, pageLayoutOverride: null,
             picker: { open: false, drives: [], driveId: null, path: '', crumbs: [], rows: [], loading: false, text: '', searching: false, chosen: {}, saving: false }
         };
@@ -290,7 +284,7 @@ module.exports = {
         title(value) { if (this.mComposeHost && this.dockKey) this.mComposeHost.retitle(this.dockKey, value); },
         'draft.fromValue'(value, old) { if (this.state === 'ready' && old && value !== old) this.swapSignature(old, value); },
         // the page: a new query is a new message
-        '$root.currentParameters': { handler() { if (this.layout === 'page' && this.loadedOnce && this.queryChanged()) this.start(); }, deep: true }
+        'mScreen.parameters': { handler() { if (this.layout === 'page' && this.loadedOnce && this.queryChanged()) this.start(); }, deep: true }
     },
     methods: {
         t,
@@ -299,30 +293,13 @@ module.exports = {
                 isForward: false, parentCommEventId: null, replyToSenderOnly: false, contactListId: null, contactListName: null, record: null, attachments: [],
                 uploads: [], threadStore: null, threadId: null };
         },
-        // the query this composer was loaded with: its container's URL, or the page's parameters
-        readQuery() {
-            let vm = this.$parent;
-            while (vm) {
-                const url = vm.curUrl || vm.$data?.curUrl;
-                if (url && String(url).indexOf('/Compose') >= 0) return moqui.searchToObj(String(url).split('?')[1] || '');
-                vm = vm.$parent;
-            }
-            return Object.assign({}, this.$root.currentParameters || {});
-        },
+        // the query this composer was loaded with and its own path (mScreen: its container's URL, or the page's)
+        readQuery() { return Object.assign({}, this.mScreen ? this.mScreen.parameters : this.$root.currentParameters); },
         queryChanged() {
             const next = this.readQuery();
             return JSON.stringify(next) !== JSON.stringify(this.query);
         },
-        base() {
-            let vm = this.$parent;
-            while (vm) {
-                const url = vm.curUrl || vm.$data?.curUrl;
-                if (url && String(url).indexOf('/Compose') >= 0) return String(url).split('?')[0].replace(/\.qvue$/, '');
-                vm = vm.$parent;
-            }
-            const list = this.$root.currentPathList || [];
-            return this.$root.basePath + '/' + (list.length ? list.join('/') : 'Comms/Inbox/Compose');
-        },
+        base() { return this.mScreen ? this.mScreen.path : this.$root.basePath + '/Comms/Inbox/Compose'; },
         url(name) { return this.base() + '/' + name; },
         go(target) { if (target) this.$root.setUrl(target); },
         start() {
@@ -742,12 +719,14 @@ module.exports = {
             if (this.state === 'ready' && !this.sent && this.dirty) this.save().then(finish, finish);
             else finish();
         },
+        // Discard: asked first when there is something to lose
         discard() {
             if (this.isEmpty && !this.draftId) { this.discardNow(); return; }
-            this.discardOpen = true;
+            this.$q.dialog({ title: t('Discard this message?'), message: this.draftId ? t('The draft is deleted.') : t('What you wrote is lost.'),
+                ok: { label: t('Discard'), color: 'negative', unelevated: true, noCaps: true }, cancel: { label: t('Keep writing'), flat: true, noCaps: true } })
+                .onOk(() => this.discardNow());
         },
         discardNow() {
-            this.discardOpen = false;
             this.sent = true;
             if (this.saveTimer) { clearTimeout(this.saveTimer); this.saveTimer = null; }
             this.clearLocal();

@@ -16,11 +16,11 @@ along with this software (see the LICENSE.md file). If not, see
     file, served in the qvue render mode, is a dock card of the Inbox (an m-dynamic-container of Compose.qvue?mode=dock), a
     dialog the dock pops out to, a page at Comms/Inbox/Compose (a draft by emailMessageId; mailto-style to, cc, bcc, subject
     and body; a reply or forward), and the composer of quick create and of Chatter's "Email…" (recordEntity and recordId give
-    the "File on" chip). In qvt (the quick-create dialog asks for qvt) this screen is an m-dynamic-container of the same
-    component with the same query. The JSON transitions below are service/ironstone/ComposeServices.xml: the sender is
-    always the user, from an account the user may send from, and a file is one these services stored. -->
+    the "File on" chip). Quick create's dialog loads it in its best client mode (qvue), and the component reads its query
+    from mScreen wherever it is. The JSON transitions below are service/ironstone/ComposeServices.xml: the sender is always the
+    user, from an account the user may send from, and a file is one these services stored. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Compose" default-menu-include="false" render-modes="vue,qvue,qvt,html" server-static="vue,qvue">
+        default-menu-title="Compose" default-menu-include="false" render-modes="vue,qvue" server-static="vue,qvue">
 
     <parameter name="emailMessageId"/>
     <parameter name="to"/>
@@ -137,24 +137,7 @@ along with this software (see the LICENSE.md file). If not, see
         <default-response type="none"/>
     </transition>
 
-    <actions><script><![CDATA[
-        // the qvt render (quick create's dialog) is the component in a container, with the query it was asked with
-        const names = ['emailMessageId', 'to', 'cc', 'bcc', 'subject', 'body', 'recordEntity', 'recordId', 'recordTitle', 'replyToCommEventId',
-            'replyToEmailMessageId', 'forwardEmailMessageId', 'replyAll', 'replyToSender', 'contactListId']
-        const query = ['mode=embedded']
-        for (const name of names) {
-            const value = context.get(name)
-            if (value != null && value !== '') query.push(encodeURIComponent(name) + '=' + encodeURIComponent(String(value)))
-        }
-        // as an attribute value: the query is URL encoded already, so only & needs its entity
-        composeComponentUrl = ('/apps/Comms/Inbox/Compose.qvue?' + query.join('&')).replace(/&/g, '&amp;').replace(/"/g, '&quot;')
-    ]]></script></actions>
-
     <widgets>
-        <render-mode>
-            <text type="qvue" location="component://ironstone-boss/screen/Comms/Inbox/Compose.qvue" template="false"/>
-            <text type="qvt"><![CDATA[<m-dynamic-container id="ComposeEmbedded" url="${composeComponentUrl}"></m-dynamic-container>]]></text>
-            <text type="html"><![CDATA[<p><strong>Compose</strong>: open it under /qapps (the qvt render mode) to write a message.</p>]]></text>
-        </render-mode>
+        <render-mode><text type="qvue" location="component://ironstone-boss/screen/Comms/Inbox/Compose.qvue" template="false"/></render-mode>
     </widgets>
 </screen>

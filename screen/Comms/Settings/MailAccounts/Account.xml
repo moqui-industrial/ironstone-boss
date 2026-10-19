@@ -14,7 +14,11 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- A mail account's page (design-drawers-commons.md §17 AccountEdit): its status and last sync with Sync now, Pause and
     Resume; after the wizard (setup=done) that the first sync is under way, with the way to the Inbox; a sign-in that
-    failed (or fix=Y, the list's and the Inbox's Fix) asks for the password again and tests it at once; the test of both
+    failed (or fix=Y, the list's and the Inbox's Fix) asks for the password again and tests it at once, or for an account that
+    signs in with Google or Microsoft (and needs a new sign-in, get#OAuthStatus) shows the SignIn screen's button, whose popup
+    signs it in again and then tests it; an account signed in with its provider says so in Sign-in and servers, with Sign
+    out (org.moqui.impl.EmailClientServices.revoke#OAuthSignIn), and a password account at a provider this server is set up
+    for may sign in with it instead; the test of both
     servers (runTest=Y) with what to try; the server settings; the folders as the sync maps them; the options (name, sync
     window, filing policy); the members of a shared account (add, change what they may do, remove); importing .eml and
     .mbox files into a folder (org.moqui.impl.EmailClientServices.import#EmailMessages); and removing the account, keeping
@@ -29,6 +33,12 @@ along with this software (see the LICENSE.md file). If not, see
     <parameter name="fix"/>
     <parameter name="runTest"/>
 
+    <transition name="signOut">
+        <service-call name="org.moqui.impl.EmailClientServices.revoke#OAuthSignIn" in-map="{emailAccountId:emailAccountId}"/>
+        <actions><if condition="!ec.message.hasError()"><message type="success">Signed out: the account waits for a new sign-in</message></if></actions>
+        <default-response url="."><parameter name="emailAccountId"/></default-response>
+        <error-response url="."/>
+    </transition>
     <transition name="savePassword">
         <service-call name="ironstone.MailSettingsServices.save#AccountConnection" in-map="{emailAccountId:emailAccountId, emailAddress:emailAddress,
                 mailPassword:mailPassword, passwordOnly:true}"/>
@@ -139,7 +149,24 @@ along with this software (see the LICENSE.md file). If not, see
         folderRows = Array.from(detail.folderList || [])
         memberRows = Array.from(detail.memberList || [])
         showSetupDone = setup === 'done'
-        needsSignIn = canManage && account.hasServer && (account.statusId === 'EasAuthFailed' || fix === 'Y')
+        // how it signs in: a password, or a provider's sign-in (get#OAuthStatus), and whether this server offers that sign-in
+        const signInState = detail.signIn || {}
+        isOAuth = signInState.isOAuth === true
+        oauthChoice = detail.oauth || null
+        oauthConfigured = oauthChoice?.configured === true
+        providerLabel = oauthChoice?.providerLabel || null
+        needsSignIn = canManage && account.hasServer && (account.statusId === 'EasAuthFailed' || fix === 'Y' || signInState.needsSignIn === true)
+        oauthSignInText = isOAuth ? (signInState.signedIn ? ec.resource.expand('Signs in with ${name} as ${address}${since}.', '', {name: providerLabel || L('its provider'),
+            address: server?.mailUsername || account.emailAddress, since: signInState.signInText ? ' ' + ec.resource.expand('since ${date}', '', {date: signInState.signInText}) : ''})
+            : ec.resource.expand('Signs in with ${name}; it is not signed in now.', '', {name: providerLabel || L('its provider')})) : null
+        signedIn = isOAuth && signInState.signedIn === true
+        const everSignedIn = !!signInState.signInDate
+        signInTitle = isOAuth && !everSignedIn ? L('Sign in') : L('Sign in again')
+        oauthAgainText = isOAuth ? (oauthConfigured ? (everSignedIn ? ec.resource.expand('The sign-in with ${name} ended (a changed password, access taken back, or a long time unused), so mail is not syncing: sign in again.', '',
+            {name: providerLabel}) : ec.resource.expand('This account signs in with ${name} and is not signed in yet: sign in to connect it.', '', {name: providerLabel}))
+            : ec.resource.expand('This account signs in with ${name}, which is not set up on this server now: an administrator can set it up again. Or use a password or an app password:', '',
+            {name: providerLabel || L('its provider')})) : null
+        offerOAuth = canManage && account.hasServer && !isOAuth && oauthConfigured
         helpText = provider?.helpText || null
         helpUrl = provider?.helpUrl || null
         helpLinkText = provider?.helpLinkText || L('Where to make it')
@@ -215,9 +242,22 @@ along with this software (see the LICENSE.md file). If not, see
 
             <!-- a sign-in that failed: the password again, tested at once -->
             <section name="SignInAgain" condition="needsSignIn"><widgets>
-                <container-box type="danger"><box-header title="Sign in again"/><box-body>
-                    <label type="p" text="${account.statusId == 'EasAuthFailed' ? 'The server refused the password, so mail is not syncing. Passwords change, and app passwords can be revoked: enter it again and it is tested at once.' : 'Enter the password again; it is tested at once.'}"/>
-                    <label type="p" text="${account.lastSyncError}" style="text-caption text-negative" condition="account.lastSyncError"/>
+                <container-box type="danger"><box-header title="${signInTitle}"/><box-body>
+                    <section name="OAuthAgain" condition="isOAuth"><widgets>
+                        <label type="p" text="${oauthAgainText}"/>
+                        <label type="p" text="${account.lastSyncError}" style="text-caption text-negative" condition="account.lastSyncError"/>
+                        <section name="OAuthAgainButton" condition="oauthConfigured"><widgets>
+                            <dynamic-container id="AccountSignIn" transition="../SignIn">
+                                <parameter name="mode" value="account"/>
+                                <parameter name="emailAccountId" from="emailAccountId"/>
+                                <parameter name="oauthProviderEnumId" from="oauthChoice.oauthProviderEnumId"/>
+                                <parameter name="providerLabel" from="providerLabel"/>
+                            </dynamic-container>
+                        </widgets></section>
+                    </widgets></section>
+                    <section name="PasswordAgain" condition="!isOAuth || !oauthConfigured"><widgets>
+                    <label type="p" text="${account.statusId == 'EasAuthFailed' ? 'The server refused the password, so mail is not syncing. Passwords change, and app passwords can be revoked: enter it again and it is tested at once.' : 'Enter the password again; it is tested at once.'}" condition="!isOAuth"/>
+                    <label type="p" text="${account.lastSyncError}" style="text-caption text-negative" condition="account.lastSyncError &amp;&amp; !isOAuth"/>
                     <section name="SignInHelp" condition="helpText"><widgets>
                         <label type="p" text="${helpText}" style="text-body2"/>
                         <section name="SignInHelpLink" condition="helpUrl"><widgets>
@@ -233,6 +273,16 @@ along with this software (see the LICENSE.md file). If not, see
                         <field name="submitButton"><default-field title="Save and test"><submit/></default-field></field>
                         <field-layout><field-row-big><field-ref name="mailPassword"/><field-ref name="submitButton"/></field-row-big></field-layout>
                     </form-single>
+                    </widgets></section>
+                    <section name="OAuthInstead" condition="!isOAuth &amp;&amp; oauthConfigured"><widgets>
+                        <label type="p" text="Or sign in with ${providerLabel} instead of a password: no app password to keep." style="text-body2 q-mt-md q-mb-sm"/>
+                        <dynamic-container id="AccountSignInInstead" transition="../SignIn">
+                            <parameter name="mode" value="account"/>
+                            <parameter name="emailAccountId" from="emailAccountId"/>
+                            <parameter name="oauthProviderEnumId" from="oauthChoice.oauthProviderEnumId"/>
+                            <parameter name="providerLabel" from="providerLabel"/>
+                        </dynamic-container>
+                    </widgets></section>
                 </box-body></container-box>
             </widgets></section>
 
@@ -289,12 +339,32 @@ along with this software (see the LICENSE.md file). If not, see
 
                     <section name="Servers" condition="canManage"><widgets>
                         <container-box><box-header title="Sign-in and servers"/><box-body>
-                            <label type="p" text="${server ? (server.hasPassword ? 'A password is saved; it is never shown. Leave it empty to keep it.' : 'No password is saved yet.') : 'This account has no server: its mail is kept only here. Enter the servers to sync it.'}" style="text-caption m-muted"/>
+                            <section name="OAuthSignedIn" condition="isOAuth"><widgets>
+                                <container style="row items-center q-gutter-sm q-mb-sm">
+                                    <label type="span" text="${oauthSignInText}" style="text-body2"/>
+                                    <link url="signOut" link-type="hidden-form" text="Sign out" icon="sym_o_logout" condition="signedIn"
+                                            confirmation="Sign out of ${providerLabel || 'the provider'}? The account stops syncing until you sign in again." parameter-map="{emailAccountId:emailAccountId}"/>
+                                </container>
+                            </widgets></section>
+                            <section name="OfferOAuth" condition="offerOAuth &amp;&amp; !needsSignIn"><widgets>
+                                <container style="row items-center q-gutter-sm q-mb-sm">
+                                    <label type="span" text="Sign in with ${providerLabel} instead of a password:" style="text-body2"/>
+                                    <dynamic-container id="AccountSignInOffer" transition="../SignIn">
+                                        <parameter name="mode" value="account"/>
+                                        <parameter name="emailAccountId" from="emailAccountId"/>
+                                        <parameter name="oauthProviderEnumId" from="oauthChoice.oauthProviderEnumId"/>
+                                        <parameter name="providerLabel" from="providerLabel"/>
+                                        <parameter name="secondary" value="Y"/>
+                                    </dynamic-container>
+                                </container>
+                            </widgets></section>
+                            <label type="p" text="${server ? (server.hasPassword ? 'A password is saved; it is never shown. Leave it empty to keep it.' : 'No password is saved yet.') : 'This account has no server: its mail is kept only here. Enter the servers to sync it.'}" style="text-caption m-muted" condition="!isOAuth"/>
                             <form-single name="AccountServers" transition="saveServers" map="servers">
                                 <field name="emailAccountId"><default-field><hidden/></default-field></field>
                                 <field name="emailAddress"><default-field><hidden/></default-field></field>
                                 <field name="accountKindEnumId"><default-field><hidden/></default-field></field>
-                                <field name="mailPassword"><default-field title="${passwordTitle}"><password size="30"/></default-field></field>
+                                <field name="mailPassword"><conditional-field condition="isOAuth"><ignored/></conditional-field>
+                                    <default-field title="${passwordTitle}"><password size="30"/></default-field></field>
                                 <field name="mailUsername"><default-field title="User name"><text-line size="40"/></default-field></field>
                                 <field name="storeKind"><default-field title="Incoming mail"><radio no-current-selected-key="imap">
                                     <option key="imap" text="IMAP"/><option key="pop" text="POP (the Inbox only)"/></radio></default-field></field>
