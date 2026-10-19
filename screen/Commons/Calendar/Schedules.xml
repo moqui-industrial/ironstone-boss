@@ -12,11 +12,66 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for Schedules: design-drawers-commons.md §7, calendar archetype, qvue, scope new. -->
+<!-- Rooms and equipment (design-drawers-commons.md §7 Schedules; impl-drawers-commons.md M7): the calendar in resource mode, a row
+    per bookable meeting room and piece of equipment over the hours of a day or the days of a week, with each booking in its
+    status color (waiting for approval in warning, booked in primary). A click or a drag on a row books it (a new event in the
+    user's calendar, booked at once or requested by the resource's policy: service/ironstone/ScheduleServices.xml); a booking
+    of the user's can be cancelled; a resource's name opens ResourceDetail, its subscreen. The component is Schedules.qvue next
+    to this file; its state (view, date, type) is in the URL. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Rooms and equipment" default-menu-index="1">
+        default-menu-title="Rooms and equipment" default-menu-index="1" render-modes="vue,qvue" server-static="vue,qvue">
+
+    <parameter name="view"/>
+    <parameter name="date"/>
+    <parameter name="type"/>
+
+    <!-- the resources, the user's time zone and today -->
+    <transition name="resources" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.ScheduleServices.get#Resources').parameters({resourceType: type || 'all', text: text || null}).call()
+            const defaults = ec.service.sync().name('ironstone.CalendarServices.get#CalendarDefaults').call()?.defaults || {}
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {resourceList: out.resourceList, timeZone: ec.user.timeZone,
+                todayText: ec.l10n.format(ec.user.nowTimestamp, 'yyyy-MM-dd'), workStart: defaults.workStart, workEnd: defaults.workEnd,
+                weekStart: defaults.weekStart})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- the bookings of the resources (keys) from start to end (days) -->
+    <transition name="bookings" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.ScheduleServices.get#ResourceBookings').parameters({start: start, end: end, keys: keys || ''}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {bookingList: out.bookingList, failedSources: out.failedSources})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="bookSlot">
+        <actions><script><![CDATA[
+            // a resource as type and id, or as its key (room|id); the time as start and end, or a day with from and to
+            const key = String(resource || '')
+            const at = key.indexOf('|')
+            const day = date ? String(date).substring(0, 10) : ''
+            const out = ec.service.sync().name('ironstone.ScheduleServices.book#ResourceSlot').parameters({resourceType: resourceType || (at > 0 ? key.substring(0, at) : ''),
+                resourceId: resourceId || (at > 0 ? key.substring(at + 1) : ''), start: start || (day ? day + ' ' + (from || '09:00') : ''),
+                end: end || (day ? day + ' ' + (to || '10:00') : ''), purpose: purpose || null, notes: notes || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {workEffortId: out.workEffortId, statusId: out.statusId, requiresApproval: out.requiresApproval,
+                messageInfos: [{type: out.requiresApproval ? 'warning' : 'success', message: out.message,
+                    link: '/qapps/Commons/Calendar/EventDetail?workEffortId=' + out.workEffortId, linkText: ec.l10n.localize('Open')}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="cancelBooking">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.ScheduleServices.cancel#MyBooking').parameters({workEffortId: workEffortId || '',
+                resourceType: resourceType || '', resourceId: resourceId || ''}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {eventCancelled: out.eventCancelled, messageInfos: [{type: 'success', message: out.message}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+
     <widgets>
-        <label text="Placeholder: Meeting room and equipment schedules by resource with a Book action." type="p"/>
-        <subscreens-active/>
+        <render-mode>
+            <text type="qvue" location="component://ironstone-boss/screen/Commons/Calendar/Schedules.qvue" template="false"/>
+            <text type="html,qvt"><![CDATA[<p class="m-muted">Rooms and equipment is a .qvue screen: open it under /qapps.</p>]]></text>
+        </render-mode>
     </widgets>
 </screen>

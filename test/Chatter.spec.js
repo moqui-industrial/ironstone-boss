@@ -404,13 +404,13 @@ feature("the record screens render with their chatter and record-files elements,
         { path: "apps/Commons/Tasks/TaskDetail", parameters: { workEffortId: "BOSS_DEMO_TASK" }, id: "TaskChatter", entity: "mantle.work.effort.WorkEffort",
             recordId: "BOSS_DEMO_TASK", tab: "log", files: "TaskFiles", filesParameters: { workEffortId: "BOSS_DEMO_TASK", tab: "files" } },
         { path: "apps/Commons/Calendar/EventDetail", parameters: { workEffortId: "BOSS_DEMO_EVENT" }, id: "EventChatter", entity: "mantle.work.effort.WorkEffort",
-            recordId: "BOSS_DEMO_EVENT", tab: "log", files: "EventFiles" },
+            recordId: "BOSS_DEMO_EVENT", tab: "log", files: "EventFiles", filesParameters: { workEffortId: "BOSS_DEMO_EVENT", tab: "files" } },
         { path: "apps/Commons/Contacts/ContactDetail", parameters: { partyId: "ORG_ACME_BA" }, id: "ContactChatter", entity: "mantle.party.Party",
             recordId: "ORG_ACME_BA", tab: "message", files: "ContactFiles", filesParameters: { partyId: "ORG_ACME_BA", tab: "files" } },
     ],
     expect({ path, parameters, id, entity, recordId, tab, files, filesParameters }) {
         const shown = render(path, parameters)
-        // the contact record (M4), the task and the request (M6) have their files on the Files tab
+        // the contact record (M4), the task and the request (M6) and the event (M7) have their files on the Files tab
         const filesShown = filesParameters ? render(path, filesParameters) : shown
         shown.status == 200
         shown.errors == ""

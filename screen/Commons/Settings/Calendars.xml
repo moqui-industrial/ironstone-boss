@@ -12,10 +12,267 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for Calendars: design-drawers-commons.md §11, settings archetype, xml, scope new. -->
+<!-- Calendars (design-drawers-commons.md §11 Calendars; style-guide §3.9 Settings; impl-drawers-commons.md M7): the user's calendars
+    (Calendars: name, color, kind, shared with, the user's access, the default), New calendar, per calendar the user manages Edit
+    (name, color, description, make it the default), Share (a user, with free/busy, view, edit or manage) and its shares with
+    Stop sharing, Export .ics and Delete (not the default); the subscriptions to calendar feeds (Subscriptions: address, refresh,
+    last fetch and its status or error, Fetch now, Unsubscribe) with Subscribe; and Import .ics into a calendar the user may
+    change. Everything goes through mantle.work.CalendarServices, which checks the user's permission on each calendar
+    (ironstone.CalendarServices.get#CalendarSettings reads the shares only of the calendars the user manages: IronStone R21).
+    Google and Microsoft 365 accounts, publish links and the CalDAV address come later. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Calendars" default-menu-index="5">
+
+    <transition name="createCalendar">
+        <service-call name="mantle.work.CalendarServices.create#Calendar" in-map="{calendarName:calendarName, color:(color || null), description:(description || null),
+                isDefault:(isDefault == 'Y' ? 'Y' : null)}" out-map="createOut"/>
+        <actions><if condition="!ec.message.hasError()"><message type="success">Calendar ${calendarName} created</message></if></actions>
+        <default-response url="."/>
+        <error-response url="."/>
+    </transition>
+    <transition name="updateCalendar">
+        <service-call name="mantle.work.CalendarServices.update#Calendar" in-map="{calendarId:calendarId, calendarName:calendarName, color:(color || ''),
+                description:(description || ''), isDefault:(isDefault == 'Y' ? 'Y' : null)}"/>
+        <actions><if condition="!ec.message.hasError()"><message type="success">Saved</message></if></actions>
+        <default-response url="."/>
+        <error-response url="."/>
+    </transition>
+    <transition name="deleteCalendar">
+        <service-call name="mantle.work.CalendarServices.delete#Calendar" in-map="{calendarId:calendarId}" out-map="deleteOut"/>
+        <actions><if condition="!ec.message.hasError()"><message type="success">Calendar deleted; its events stay for the people on them</message></if></actions>
+        <default-response url="."/>
+        <error-response url="."/>
+    </transition>
+    <transition name="shareCalendar">
+        <actions><script><![CDATA[
+            if (!shareUserId) { ec.message.addValidationError(null, 'shareUserId', null, ec.l10n.localize('Choose a user'), null); return }
+            ec.service.sync().name('mantle.work.CalendarServices.share#Calendar').parameters({calendarId: calendarId, userId: shareUserId,
+                permissionEnumId: permissionEnumId || 'CalpView'}).call()
+            if (!ec.message.hasError()) ec.message.addMessage(ec.l10n.localize('Shared'), 'success')
+        ]]></script></actions>
+        <default-response url="."/>
+        <error-response url="."/>
+    </transition>
+    <transition name="unshareCalendar">
+        <service-call name="mantle.work.CalendarServices.unshare#Calendar" in-map="{calendarId:calendarId, calendarShareId:calendarShareId}"/>
+        <actions><if condition="!ec.message.hasError()"><message type="success">No longer shared</message></if></actions>
+        <default-response url="."/>
+        <error-response url="."/>
+    </transition>
+    <transition name="subscribe">
+        <service-call name="mantle.work.CalendarServices.subscribe#Calendar" in-map="{url:url, calendarName:(calendarName || null), color:(color || null),
+                refreshMinutes:(refreshMinutes || 60), fetchNow:(fetchNow == 'Y')}" out-map="subscribeOut"/>
+        <actions><if condition="!ec.message.hasError()"><message type="success">Subscribed; the calendar fills in at its first fetch</message></if></actions>
+        <default-response url="."/>
+        <error-response url="."/>
+    </transition>
+    <transition name="fetchNow">
+        <actions>
+            <service-call name="ironstone.CalendarServices.fetch#SubscriptionNow" in-map="{calendarId:calendarId}" out-map="fetchOut"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(fetchOut.message, fetchOut.status == 'ok' ? 'success' : 'warning')</script></if>
+        </actions>
+        <default-response url="."/>
+        <error-response url="."/>
+    </transition>
+    <transition name="importIcs">
+        <actions>
+            <service-call name="mantle.work.CalendarServices.import#Calendar" in-map="{calendarId:calendarId, calendarFile:calendarFile}" out-map="importOut"/>
+            <if condition="!ec.message.hasError()"><script><![CDATA[
+                const L = (text) => ec.l10n.localize(text)
+                ec.message.addMessage(L('Imported') + ': ' + (importOut.createdCount || 0) + ' ' + L('new') + ', ' + (importOut.updatedCount || 0) + ' ' + L('updated')
+                    + (importOut.failedCount ? ' · ' + importOut.failedCount + ' ' + L('not read') : ''), importOut.failedCount ? 'warning' : 'success')
+            ]]></script></if>
+        </actions>
+        <default-response url="."/>
+        <error-response url="."/>
+    </transition>
+    <!-- a calendar as an .ics download -->
+    <transition name="exportCalendar" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.CalendarServices.export#CalendarFile').parameters({calendarId: calendarId || ''}).call()
+            if (!ec.message.hasError() && out?.location) ec.web.sendResourceResponse(out.location, false)
+            else ec.web.sendJsonResponse({})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- the users of the share dialog -->
+    <transition name="searchUsers" read-only="true">
+        <actions>
+            <service-call name="ironstone.ChatterServices.search#Users" in-map="{term:term}" out-map="found"/>
+            <script>ec.web.sendJsonResponse(Array.from(found.userList || []).filter((user) =&gt; user.value != ec.user.userId).map((user) =&gt; ({value: user.value, label: user.label})))</script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+
+    <actions>
+        <service-call name="ironstone.CalendarServices.get#CalendarSettings" out-map="settings"/>
+        <script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const enc = (text) => String(text == null ? '' : text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+            const dot = (color) => '<span class="q-mr-sm" style="display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:middle;background:'
+                    + (/^#[0-9a-fA-F]{3,8}$/.test(String(color || '')) ? color : 'var(--q-primary)') + '"></span>'
+            const shares = settings.shareList || []
+            const decorate = (calendar) => Object.assign({}, calendar, {nameHtml: dot(calendar.color) + '<span>' + enc(calendar.calendarName) + '</span>'
+                    + (calendar.isDefault && calendar.isOwner ? ' <q-chip dense square class="q-my-none m-tonal text-primary">' + enc(L('Default')) + '</q-chip>' : ''),
+                kindLine: calendar.kindText + (calendar.group === 'shared' && calendar.ownerName ? ' · ' + calendar.ownerName : ''),
+                youText: calendar.isOwner ? L('Yours') : calendar.permissionText,
+                sharedText: calendar.sharedWithText || (calendar.canManage ? L('Only you') : ''),
+                shareRows: shares.filter((share) => share.calendarId === calendar.calendarId),
+                canChange: calendar.canManage, canDelete: calendar.canManage && !calendar.isDefault})
+            calendarList = (settings.mineList || []).concat(settings.sharedList || []).map(decorate)
+            manageList = calendarList.filter((calendar) => calendar.canManage)
+            subscriptionList = (settings.subscriptionList || []).map((calendar) => Object.assign(decorate(calendar), {
+                statusHtml: '<q-chip dense square class="q-ma-none m-tonal text-' + (calendar.fetchStatus === 'ok' ? 'positive' : calendar.fetchStatus === 'error' ? 'negative' : 'grey-7') + '">'
+                    + enc(calendar.fetchStatusText) + '</q-chip>', refreshText: calendar.refreshMinutes ? L('every') + ' ' + (Number(calendar.refreshMinutes) % 60 === 0
+                    ? (Number(calendar.refreshMinutes) / 60) + ' h' : calendar.refreshMinutes + ' min') : ''}))
+            importOptions = calendarList.filter((calendar) => ['CalpEdit', 'CalpManage'].includes(calendar.permissionEnumId) && calendar.calendarKindEnumId !== 'CalkSubscription')
+                    .map((calendar) => ({key: calendar.calendarId, text: calendar.calendarName}))
+            importCalendarId = settings.defaultCalendarId || (importOptions[0] ? importOptions[0].key : null)
+            colorOptions = [['#1e88e5', 'Blue'], ['#43a047', 'Green'], ['#e53935', 'Red'], ['#fb8c00', 'Orange'], ['#8e24aa', 'Purple'], ['#00897b', 'Teal'],
+                ['#6d4c41', 'Brown'], ['#3949ab', 'Indigo'], ['#d81b60', 'Pink'], ['#757575', 'Grey']].map(([key, text]) => ({key: key, text: L(text)}))
+            permissionOptions = [{key: 'CalpFreeBusy', text: L('See only when I am busy')}, {key: 'CalpView', text: L('See all the details')},
+                {key: 'CalpEdit', text: L('Make changes to events')}, {key: 'CalpManage', text: L('Make changes and share')}]
+        ]]></script>
+    </actions>
+
     <widgets>
-        <label text="Placeholder: My calendars, colors, sharing, external subscriptions, publish links, working hours." type="p"/>
+        <container style="row items-center q-mb-sm q-gutter-xs">
+            <label type="h5" text="Calendars" style="q-my-none q-mr-sm"/>
+            <container style="col"/>
+            <container-dialog id="NewCalendarDialog" button-text="New calendar" icon="add" width="520" title="New calendar">
+                <form-single name="NewCalendar" transition="createCalendar" focus-field="calendarName">
+                    <field name="calendarName"><default-field title="Name"><text-line size="30"/></default-field></field>
+                    <field name="color"><default-field title="Color">
+                        <drop-down allow-empty="true"><list-options list="colorOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                    <field name="description"><default-field title="Description"><text-area rows="2" cols="40"/></default-field></field>
+                    <field name="isDefault"><default-field title=""><check><option key="Y" text="Make it my default (new events go in it)"/></check></default-field></field>
+                    <field name="submitButton"><default-field title="Create"><submit/></default-field></field>
+                </form-single>
+            </container-dialog>
+            <container-dialog id="SubscribeDialog" button-text="Subscribe" icon="sym_o_rss_feed" width="560" title="Subscribe to a calendar">
+                <label type="p" text="The address of a calendar feed (.ics, or webcal://) from another calendar app, a school, a sports team or a holiday list. It is read again on its schedule; you cannot change its events here." style="m-muted"/>
+                <form-single name="Subscribe" transition="subscribe" focus-field="url">
+                    <field name="url"><default-field title="Address (https:// or webcal://)"><text-line size="50"/></default-field></field>
+                    <field name="calendarName"><default-field title="Name (default the site's)"><text-line size="30"/></default-field></field>
+                    <field name="color" from="'#757575'"><default-field title="Color">
+                        <drop-down><list-options list="colorOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                    <field name="refreshMinutes" from="'60'"><default-field title="Read it again">
+                        <drop-down><option key="15" text="Every 15 minutes"/><option key="60" text="Every hour"/><option key="360" text="Every 6 hours"/>
+                            <option key="1440" text="Once a day"/></drop-down></default-field></field>
+                    <field name="fetchNow" from="'Y'"><default-field title=""><check><option key="Y" text="Read it now"/></check></default-field></field>
+                    <field name="submitButton"><default-field title="Subscribe"><submit/></default-field></field>
+                    <field-layout><field-ref name="url"/><field-row><field-ref name="calendarName"/><field-ref name="color"/></field-row>
+                        <field-row><field-ref name="refreshMinutes"/><field-ref name="fetchNow"/></field-row><field-ref name="submitButton"/></field-layout>
+                </form-single>
+            </container-dialog>
+            <container-dialog id="ImportDialog" button-text="Import .ics" icon="sym_o_upload_file" width="520" title="Import events from an .ics file" condition="importOptions.length">
+                <label type="p" text="Events of the file go in the calendar you choose; an event imported before (the same UID) is updated." style="m-muted"/>
+                <form-single name="ImportIcs" transition="importIcs">
+                    <field name="calendarId" from="importCalendarId"><default-field title="Into">
+                        <drop-down><list-options list="importOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                    <field name="calendarFile"><default-field title="File (.ics)"><file/></default-field></field>
+                    <field name="submitButton"><default-field title="Import"><submit/></default-field></field>
+                </form-single>
+            </container-dialog>
+        </container>
+
+        <!-- Calendars: mine and shared with me -->
+        <container-box><box-header title="My calendars and calendars shared with me"/><box-body-nopad>
+            <form-list name="Calendars" list="calendarList" skip-form="true" paginate="false">
+                <field name="nameHtml"><default-field title="Calendar"><render-mode><text type="qvt"><![CDATA[${nameHtml}]]></text></render-mode></default-field></field>
+                <field name="kindLine"><default-field title="Kind"><display/></default-field></field>
+                <field name="sharedText"><default-field title="Shared with"><display style="text-caption"/></default-field></field>
+                <field name="youText"><default-field title="You"><display style="text-caption m-muted"/></default-field></field>
+                <field name="export" align="right"><conditional-field condition="permissionEnumId != 'CalpFreeBusy'" title="">
+                    <link url="exportCalendar" link-type="hidden-form-link" icon="sym_o_download" text="" tooltip="Export as .ics" style="m-btn-flat"
+                            parameter-map="{calendarId:calendarId}"/>
+                </conditional-field><default-field title=""><label text="" type="span"/></default-field></field>
+                <form-list-column><field-ref name="nameHtml"/><field-ref name="kindLine"/></form-list-column>
+                <form-list-column><field-ref name="sharedText"/><field-ref name="youText"/></form-list-column>
+                <form-list-column><field-ref name="export"/></form-list-column>
+            </form-list>
+        </box-body-nopad></container-box>
+
+        <!-- per calendar the user manages: edit, share, delete -->
+        <container style="row q-col-gutter-sm q-mt-xs">
+            <section-iterate name="CalendarCards" list="manageList" entry="calendar"><widgets>
+                <container style="col-12 col-md-6"><container-box><box-header title="${calendar.calendarName}"/>
+                    <box-toolbar>
+                        <container-dialog id="EditCalendarDialog" button-text="" icon="sym_o_edit" width="520" title="Edit ${calendar.calendarName}" tooltip="Edit">
+                            <form-single name="EditCalendar" transition="updateCalendar" map="calendar">
+                                <field name="calendarId"><default-field><hidden/></default-field></field>
+                                <field name="calendarName"><default-field title="Name"><text-line size="30"/></default-field></field>
+                                <field name="color"><default-field title="Color">
+                                    <drop-down allow-empty="true"><list-options list="colorOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                <field name="description"><default-field title="Description"><text-area rows="2" cols="40"/></default-field></field>
+                                <field name="isDefault" from="calendar.isDefault ? 'Y' : 'N'"><conditional-field condition="calendar.isOwner &amp;&amp; calendar.calendarKindEnumId == 'CalkPersonal' &amp;&amp; !calendar.isDefault" title="Default">
+                                    <check><option key="Y" text="Make this my default calendar (new events go in it)"/></check></conditional-field>
+                                    <default-field><ignored/></default-field></field>
+                                <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                            </form-single>
+                        </container-dialog>
+                        <container-dialog id="ShareCalendarDialog" button-text="" icon="sym_o_share" width="560" title="Share ${calendar.calendarName}" tooltip="Share">
+                            <form-single name="ShareCalendar" transition="shareCalendar">
+                                <field name="calendarId" from="calendar.calendarId"><default-field><hidden/></default-field></field>
+                                <field name="shareUserId"><default-field title="With">
+                                    <drop-down allow-empty="true"><dynamic-options transition="searchUsers" server-search="true" min-length="1"/></drop-down></default-field></field>
+                                <field name="permissionEnumId" from="'CalpView'"><default-field title="They may">
+                                    <radio><list-options list="permissionOptions" key="${key}" text="${text}"/></radio></default-field></field>
+                                <field name="submitButton"><default-field title="Share"><submit/></default-field></field>
+                            </form-single>
+                        </container-dialog>
+                        <link url="deleteCalendar" link-type="hidden-form-link" icon="sym_o_delete" text="" tooltip="Delete" style="m-btn-flat" condition="calendar.canDelete"
+                                confirmation="Delete ${calendar.calendarName}? Its events stay for the people on them; the calendar and its shares go." parameter-map="{calendarId:calendar.calendarId}"/>
+                    </box-toolbar>
+                    <box-body>
+                        <render-mode><text type="qvt"><![CDATA[<div class="q-mb-xs">${calendar.nameHtml}</div>]]></text></render-mode>
+                        <label type="p" text="${calendar.kindLine}" style="text-caption m-muted"/>
+                        <label type="p" text="${calendar.description}" style="text-body2" condition="calendar.description"/>
+                        <section name="CalendarShares" condition="calendar.shareRows.length"><widgets>
+                            <label type="div" text="Shared with" style="text-subtitle2 q-mb-xs"/>
+                            <form-list name="CalendarShareList" list="calendar.shareRows" skip-form="true" paginate="false" skip-header="true">
+                                <field name="who"><default-field title="Who"><display/></default-field></field>
+                                <field name="permissionText"><default-field title="May"><display style="text-caption"/></default-field></field>
+                                <field name="unshare" align="right"><default-field title="">
+                                    <link url="unshareCalendar" link-type="hidden-form-link" icon="sym_o_person_remove" text="" tooltip="Stop sharing" style="m-btn-flat"
+                                            confirmation="Stop sharing with ${who}?" parameter-map="{calendarId:calendarId, calendarShareId:calendarShareId}"/>
+                                </default-field></field>
+                            </form-list>
+                        </widgets><fail-widgets>
+                            <label type="p" text="Not shared: only you see it." style="m-muted q-mb-none"/>
+                        </fail-widgets></section>
+                    </box-body>
+                </container-box></container>
+            </widgets></section-iterate>
+        </container>
+
+        <!-- Subscriptions: the feeds, their fetch -->
+        <container-box><box-header title="Subscriptions"/><box-body-nopad>
+            <form-list name="Subscriptions" list="subscriptionList" skip-form="true" paginate="false">
+                <field name="nameHtml"><default-field title="Calendar"><render-mode><text type="qvt"><![CDATA[${nameHtml}]]></text></render-mode></default-field></field>
+                <field name="url"><default-field title="Address"><display style="text-caption"/></default-field></field>
+                <field name="refreshText"><default-field title="Read"><display style="text-caption m-muted"/></default-field></field>
+                <field name="lastFetchText"><default-field title="Last read"><display/></default-field></field>
+                <field name="statusHtml"><default-field title="Status"><render-mode><text type="qvt"><![CDATA[${statusHtml}]]></text></render-mode></default-field></field>
+                <field name="fetchError"><default-field title=""><display style="text-caption text-negative"/></default-field></field>
+                <field name="actions" align="right"><default-field title="">
+                    <link url="fetchNow" link-type="hidden-form-link" icon="sym_o_sync" text="" tooltip="Read it now" style="m-btn-flat" parameter-map="{calendarId:calendarId}"/>
+                    <link url="deleteCalendar" link-type="hidden-form-link" icon="sym_o_delete" text="" tooltip="Unsubscribe" style="m-btn-flat"
+                            confirmation="Unsubscribe from ${calendarName}? Its events go with it." parameter-map="{calendarId:calendarId}"/>
+                </default-field></field>
+                <form-list-column><field-ref name="nameHtml"/><field-ref name="url"/></form-list-column>
+                <form-list-column><field-ref name="lastFetchText"/><field-ref name="refreshText"/></form-list-column>
+                <form-list-column><field-ref name="statusHtml"/><field-ref name="fetchError"/></form-list-column>
+                <form-list-column><field-ref name="actions"/></form-list-column>
+            </form-list>
+            <section name="NoSubscriptions" condition="!subscriptionList.length"><widgets>
+                <label type="p" text="No subscriptions · Subscribe to a holiday list, a school or a team calendar by its address" style="m-muted q-pa-sm q-mb-none"/>
+            </widgets></section>
+        </box-body-nopad></container-box>
+
+        <!-- CalDavInfo and publish links: later -->
+        <container-box type="info"><box-header title="Phones, desktop apps and Google or Microsoft 365"/><box-body>
+            <label type="p" text="Coming later: each calendar will have a CalDAV address for a phone or a desktop calendar app (Settings, Sync), a link to publish it, and Google and Microsoft 365 accounts as subscriptions. Until then, export a calendar as .ics, or subscribe here to a feed's address."/>
+        </box-body></container-box>
     </widgets>
 </screen>

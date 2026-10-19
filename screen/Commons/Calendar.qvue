@@ -1,0 +1,1409 @@
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- Commons Calendar (design-drawers-commons.md §7 Calendar), the component Calendar.xml serves in the qvue render mode. The rail
+    (New event, a mini month, My calendars, Subscriptions and Shared with me with their colors and show/hide, Tasks, Declined,
+    Rooms and equipment, Find a time) beside the grid: Today, previous and next, the range, the search line and the views day,
+    work week, week, month and agenda. A click or a drag on the grid opens the quick event popover (More options saves it and
+    opens EventDetail); a drag moves an event and its bottom edge resizes it, asking "this event, this and following or all"
+    for a recurring one and whether to tell the attendees; a click on an event opens its popover with the answers and the
+    user's RSVP. Every day and time is wall-clock text in the user's time zone (Calendar.xml), done as UTC date arithmetic here
+    so the browser's own zone never counts. The keys follow Google Calendar (t, d, x, w, m, a, j/n or Right, k/p or Left, c, /).
+    On a phone the views are day and agenda, the rail opens over the page and a tap creates in a full-screen dialog. While a
+    subscreen (EventDetail, Schedules) is in the path only it shows. Calendar colors are the user's data, so the event blocks
+    and the calendar dots take them as inline colors; everything else is brand color names (style-guide §4.8, §5). -->
+<template><div class="boss-calendar">
+    <m-screen-context record-entity="mantle.work.effort.WorkEffort" :record-id="contextRecordId" :title="contextTitle"></m-screen-context>
+
+    <template v-if="!subActive">
+    <div class="row no-wrap items-start">
+        <!-- ===== the rail: a column from 1024 px, over the page below ===== -->
+        <div v-if="!wide && railOpen" class="fixed-full bg-black" style="opacity:.35;z-index:3000" @click="railOpen = false"></div>
+        <div v-if="wide || railOpen" :class="wide ? 'col-auto q-pr-md' : 'fixed-left q-pa-md shadow-8 scroll ' + (dark ? 'bg-dark' : 'bg-white')"
+                :style="wide ? {width: '248px'} : {width: 'min(320px, 86vw)', zIndex: 3001}">
+            <div class="row items-center no-wrap q-mb-sm">
+                <q-btn unelevated no-caps color="primary" icon="sym_o_add" :label="t('New event')" class="col" @click="newEventNow($event)">
+                    <q-tooltip>{{t('New event')}} (c)</q-tooltip></q-btn>
+                <q-btn v-if="!wide" flat dense round icon="close" class="q-ml-sm" @click="railOpen = false"></q-btn>
+            </div>
+            <!-- the mini month -->
+            <div class="row items-center no-wrap q-mt-sm">
+                <div class="col text-subtitle2">{{miniTitle}}</div>
+                <q-btn flat dense round size="sm" icon="chevron_left" @click="miniShift(-1)"><q-tooltip>{{t('Previous month')}}</q-tooltip></q-btn>
+                <q-btn flat dense round size="sm" icon="chevron_right" @click="miniShift(1)"><q-tooltip>{{t('Next month')}}</q-tooltip></q-btn>
+            </div>
+            <div class="q-mb-sm">
+                <div class="row no-wrap">
+                    <div v-if="defaults.showWeekNumbers" style="width:22px"></div>
+                    <div v-for="name in dayLetters" :key="name" class="col text-center text-caption m-muted">{{name}}</div>
+                </div>
+                <div v-for="week in miniWeeks" :key="week.key" class="row no-wrap items-center">
+                    <div v-if="defaults.showWeekNumbers" class="text-caption m-muted text-center" style="width:22px">{{week.number}}</div>
+                    <div v-for="cell in week.days" :key="cell.date" class="col text-center">
+                        <q-btn flat round dense size="11px" :label="String(cell.dayNum)" :class="miniDayClass(cell)" style="width:28px;height:28px;min-height:28px"
+                                @click="goDate(cell.date)"></q-btn>
+                    </div>
+                </div>
+            </div>
+            <!-- the calendars -->
+            <template v-for="group in calendarGroups" :key="group.key">
+                <div class="row items-center no-wrap q-mt-sm">
+                    <div class="col text-caption text-weight-medium m-muted">{{group.label}}</div>
+                    <q-btn v-if="group.key === 'mine'" flat dense round size="sm" icon="sym_o_settings" @click="go(settingsUrl)">
+                        <q-tooltip>{{t('Calendar settings and sharing')}}</q-tooltip></q-btn>
+                </div>
+                <q-list dense>
+                    <q-item v-for="cal in group.calendars" :key="cal.calendarId" clickable dense class="q-px-xs rounded-borders" role="checkbox"
+                            :aria-checked="cal.shown ? 'true' : 'false'" @click="toggleCalendar(cal)">
+                        <q-item-section avatar style="min-width:28px">
+                            <q-icon :name="cal.shown ? 'check_box' : 'check_box_outline_blank'" size="sm" :style="{color: cal.color || 'var(--q-primary)'}"></q-icon>
+                        </q-item-section>
+                        <q-item-section>
+                            <q-item-label class="ellipsis">{{cal.calendarName}}</q-item-label>
+                            <q-item-label v-if="cal.group === 'shared' && (cal.freeBusyOnly || (cal.ownerName && cal.ownerName !== cal.calendarName))" caption class="ellipsis">{{[cal.ownerName !== cal.calendarName ? cal.ownerName : '', cal.freeBusyOnly ? t('free/busy only') : ''].filter((part) => part).join(' · ')}}</q-item-label>
+                            <q-item-label v-else-if="cal.group === 'subscription' && cal.lastFetchText" caption class="ellipsis">{{t('Fetched')}} {{cal.lastFetchText}}</q-item-label>
+                        </q-item-section>
+                        <q-item-section v-if="cal.warning" side>
+                            <q-icon name="sym_o_warning" color="warning" size="xs"><q-tooltip>{{cal.warning}}</q-tooltip></q-icon>
+                        </q-item-section>
+                        <q-item-section side>
+                            <q-btn flat dense round size="sm" icon="more_vert" @click.stop>
+                                <q-menu auto-close>
+                                    <q-list dense style="min-width:200px">
+                                        <q-item clickable @click="onlyCalendar(cal)"><q-item-section>{{t('Show only this one')}}</q-item-section></q-item>
+                                        <q-item v-if="!cal.freeBusyOnly" clickable @click="exportCalendar(cal)"><q-item-section>{{t('Export as .ics')}}</q-item-section></q-item>
+                                        <q-item clickable @click="go(settingsUrl)"><q-item-section>{{t('Settings and sharing')}}</q-item-section></q-item>
+                                    </q-list>
+                                </q-menu>
+                            </q-btn>
+                        </q-item-section>
+                    </q-item>
+                </q-list>
+            </template>
+            <div v-if="!calendars.length && ready" class="text-caption m-muted q-my-sm">{{t('No calendars to show')}}</div>
+            <div class="text-caption text-weight-medium m-muted q-mt-md">{{t('Also show')}}</div>
+            <q-list dense>
+                <q-item clickable dense class="q-px-xs rounded-borders" role="checkbox" :aria-checked="showTasks ? 'true' : 'false'" @click="toggleTasks">
+                    <q-item-section avatar style="min-width:28px"><q-icon :name="showTasks ? 'check_box' : 'check_box_outline_blank'" size="sm" color="grey-7"></q-icon></q-item-section>
+                    <q-item-section>{{t('My tasks')}}</q-item-section>
+                    <q-item-section side><q-icon name="sym_o_task_alt" size="xs"></q-icon></q-item-section>
+                </q-item>
+                <q-item clickable dense class="q-px-xs rounded-borders" role="checkbox" :aria-checked="showDeclined ? 'true' : 'false'" @click="toggleDeclined">
+                    <q-item-section avatar style="min-width:28px"><q-icon :name="showDeclined ? 'check_box' : 'check_box_outline_blank'" size="sm" color="grey-7"></q-icon></q-item-section>
+                    <q-item-section>{{t('Declined events')}}</q-item-section>
+                </q-item>
+            </q-list>
+            <q-separator class="q-my-sm"></q-separator>
+            <q-list dense>
+                <q-item clickable dense class="q-px-xs rounded-borders" @click="go(schedulesUrl)">
+                    <q-item-section avatar style="min-width:28px"><q-icon name="sym_o_meeting_room" size="sm"></q-icon></q-item-section>
+                    <q-item-section>{{t('Rooms and equipment')}}</q-item-section>
+                </q-item>
+                <q-item clickable dense class="q-px-xs rounded-borders" @click="openFindTime">
+                    <q-item-section avatar style="min-width:28px"><q-icon name="sym_o_event_available" size="sm"></q-icon></q-item-section>
+                    <q-item-section>{{t('Find a time')}}</q-item-section>
+                </q-item>
+            </q-list>
+            <div class="text-caption m-muted q-mt-sm">{{t('Time zone')}}: {{timeZone || '—'}}</div>
+        </div>
+
+        <!-- ===== the main column ===== -->
+        <div class="col" style="min-width:0">
+            <!-- the header -->
+            <div class="row items-center no-wrap q-mb-sm">
+                <q-btn v-if="!wide" flat dense round icon="menu" class="q-mr-xs" @click="railOpen = true"><q-tooltip>{{t('Calendars')}}</q-tooltip></q-btn>
+                <q-btn unelevated dense no-caps class="m-btn-tonal q-px-sm" :label="t('Today')" @click="goToday"><q-tooltip>{{t('Today')}} (t)</q-tooltip></q-btn>
+                <q-btn flat dense round icon="chevron_left" class="q-ml-xs" @click="shift(-1)"><q-tooltip>{{t('Previous')}} (k)</q-tooltip></q-btn>
+                <q-btn flat dense round icon="chevron_right" @click="shift(1)"><q-tooltip>{{t('Next')}} (j)</q-tooltip></q-btn>
+                <div class="q-ml-sm ellipsis" :class="phone ? 'text-subtitle1 text-weight-medium' : 'text-h6'" style="min-width:0">{{rangeTitle}}</div>
+                <q-space></q-space>
+                <div v-if="!compactHeader" class="q-mx-sm" style="width:220px">
+                    <m-text-line id="boss-cal-search" name="calendarSearch" v-model="searchText" :label="t('Search events')"
+                            @keyup.enter="runSearch(true)"></m-text-line>
+                </div>
+                <q-btn v-else flat dense round icon="search" class="q-mx-xs" @click="openPhoneSearch"><q-tooltip>{{t('Search')}} (/)</q-tooltip></q-btn>
+                <q-btn-toggle v-if="!phone" :model-value="shownView" dense no-caps unelevated toggle-color="primary" :options="viewOptions"
+                        @update:model-value="setView"></q-btn-toggle>
+                <q-btn v-if="!phone" flat dense round icon="more_vert" class="q-ml-xs">
+                    <q-menu auto-close>
+                        <q-list dense style="min-width:220px">
+                            <q-item clickable @click="openFindTime"><q-item-section avatar><q-icon name="sym_o_event_available"></q-icon></q-item-section><q-item-section>{{t('Find a time')}}</q-item-section></q-item>
+                            <q-item clickable @click="go(schedulesUrl)"><q-item-section avatar><q-icon name="sym_o_meeting_room"></q-icon></q-item-section><q-item-section>{{t('Rooms and equipment')}}</q-item-section></q-item>
+                            <q-item clickable @click="printRange"><q-item-section avatar><q-icon name="sym_o_print"></q-icon></q-item-section><q-item-section>{{t('Print')}}</q-item-section></q-item>
+                            <q-separator></q-separator>
+                            <q-item clickable @click="go(settingsUrl)"><q-item-section avatar><q-icon name="sym_o_calendar_month"></q-icon></q-item-section><q-item-section>{{t('Calendars, sharing and subscriptions')}}</q-item-section></q-item>
+                            <q-item clickable @click="go(preferencesUrl)"><q-item-section avatar><q-icon name="sym_o_tune"></q-icon></q-item-section><q-item-section>{{t('Calendar preferences')}}</q-item-section></q-item>
+                        </q-list>
+                    </q-menu>
+                </q-btn>
+            </div>
+            <div v-if="phone" class="row items-center no-wrap q-mb-sm q-gutter-x-sm">
+                <q-btn-toggle :model-value="shownView" dense no-caps unelevated toggle-color="primary" :options="viewOptions" @update:model-value="setView"></q-btn-toggle>
+                <q-space></q-space>
+                <q-btn unelevated dense no-caps color="primary" icon="sym_o_add" :label="t('New')" @click="newEventNow($event)"></q-btn>
+            </div>
+            <div v-if="compactHeader && phoneSearch" class="q-mb-sm" style="max-width:420px">
+                <m-text-line id="boss-cal-search" name="calendarSearch" v-model="searchText" :label="t('Search events')" @keyup.enter="runSearch(true)"></m-text-line>
+            </div>
+
+            <!-- what did not load -->
+            <q-banner v-if="problems.length" dense rounded class="q-mb-sm m-tonal text-warning">
+                <template v-slot:avatar><q-icon name="sym_o_warning" color="warning"></q-icon></template>
+                {{problems.join(' · ')}}
+            </q-banner>
+
+            <!-- ===== search results ===== -->
+            <q-card v-if="search.active" flat bordered>
+                <q-card-section class="row items-center q-py-sm">
+                    <div class="text-subtitle2 col">{{t('Events matching')}} “{{search.text}}”</div>
+                    <q-btn flat dense no-caps icon="close" :label="t('Back to the calendar')" @click="clearSearch"></q-btn>
+                </q-card-section>
+                <q-separator></q-separator>
+                <q-inner-loading :showing="search.loading"></q-inner-loading>
+                <q-list v-if="search.results.length" separator>
+                    <q-item v-for="result in search.results" :key="result.workEffortId" clickable @click="go(result.url)">
+                        <q-item-section avatar><q-icon :name="result.recurring ? 'sym_o_event_repeat' : 'sym_o_event'" :color="result.upcoming ? 'primary' : 'grey-6'"></q-icon></q-item-section>
+                        <q-item-section>
+                            <q-item-label>{{result.name}}</q-item-label>
+                            <q-item-label caption>{{result.whenText}}{{result.location ? ' · ' + result.location : ''}}{{result.recurring ? ' · ' + t('repeats') : ''}}</q-item-label>
+                        </q-item-section>
+                        <q-item-section v-if="result.dayText" side>
+                            <q-btn flat dense round icon="sym_o_calendar_view_day" @click.stop="showResultDay(result)"><q-tooltip>{{t('Show that day')}}</q-tooltip></q-btn>
+                        </q-item-section>
+                    </q-item>
+                </q-list>
+                <q-card-section v-else-if="!search.loading" class="text-body2 m-muted">{{t('No events match')}}</q-card-section>
+            </q-card>
+
+            <!-- ===== day, work week and week: the time grid ===== -->
+            <q-card v-else-if="isTimeGrid" flat bordered class="overflow-hidden" :style="{userSelect: drag ? 'none' : 'auto'}">
+                <div class="row no-wrap" :style="{paddingRight: scrollbarWidth + 'px'}">
+                    <div class="text-caption m-muted text-right q-pr-xs q-pt-xs" :style="{width: gutter + 'px'}">{{zoneShort}}</div>
+                    <div v-for="cell in gridDays" :key="cell.date" class="col text-center q-py-xs cursor-pointer" style="min-width:0" @click="goDay(cell.date)">
+                        <div class="text-caption" :class="cell.isToday ? 'text-primary text-weight-medium' : 'm-muted'">{{cell.weekdayShort}}</div>
+                        <q-avatar v-if="cell.isToday" size="30px" color="primary" text-color="white" class="text-subtitle1">{{cell.dayNum}}</q-avatar>
+                        <div v-else class="text-subtitle1" style="line-height:30px">{{cell.dayNum}}</div>
+                    </div>
+                </div>
+                <q-separator></q-separator>
+                <!-- the all-day row -->
+                <div class="row no-wrap" :style="{paddingRight: scrollbarWidth + 'px'}">
+                    <div class="text-caption m-muted text-right q-pr-xs" :style="{width: gutter + 'px', paddingTop: '4px'}">{{t('All day')}}</div>
+                    <div class="col relative-position" :style="{height: allDayHeight + 'px'}">
+                        <div class="absolute-full row no-wrap">
+                            <div v-for="(cell, index) in gridDays" :key="cell.date" class="col relative-position" :data-day="cell.date" data-zone="allday"
+                                    :class="isSelectedDay(cell.date) ? 'bg-primary' : ''" :style="isSelectedDay(cell.date) ? {opacity: 0.25} : {}"
+                                    @pointerdown="onDayDown($event, cell.date, 'allday')">
+                                <q-separator v-if="index > 0" vertical class="absolute-left"></q-separator>
+                            </div>
+                        </div>
+                        <div v-for="item in allDayLayout.items" :key="'a' + item.key" :id="'boss-ev-a' + item.domKey" class="absolute rounded-borders ellipsis q-px-xs text-caption"
+                                :class="eventClass(item)" :style="chipStyle(item)" @pointerdown.stop="onChipDown($event, item, 'allday')">
+                            <q-icon v-if="item.kind === 'task'" :name="item.done ? 'sym_o_task_alt' : 'sym_o_radio_button_unchecked'" size="xs" class="q-mr-xs"></q-icon>{{item.title}}
+                        </div>
+                        <div v-if="chipPreview && chipPreview.zone === 'allday'" class="absolute rounded-borders ellipsis q-px-xs text-caption shadow-3"
+                                :class="eventClass(chipPreview.item)" :style="Object.assign(chipStyle(chipPreview.item, chipPreview), {pointerEvents: 'none', zIndex: 5})">{{chipPreview.item.title}}</div>
+                    </div>
+                </div>
+                <q-separator></q-separator>
+                <!-- the hours -->
+                <div ref="tgScroll" class="scroll relative-position" :style="{height: gridBodyHeight}">
+                    <div class="row no-wrap relative-position" :style="{height: (24 * hourPx) + 'px'}">
+                        <div class="relative-position" :style="{width: gutter + 'px'}">
+                            <template v-for="hour in 23" :key="'h' + hour">
+                                <div class="absolute text-caption m-muted text-right q-pr-xs" :style="{top: (hour * hourPx - 9) + 'px', left: 0, right: 0}">{{hourLabel(hour)}}</div>
+                            </template>
+                        </div>
+                        <div class="col relative-position">
+                            <template v-for="hour in 23" :key="'l' + hour">
+                                <q-separator class="absolute" :style="{top: (hour * hourPx) + 'px', left: 0, right: 0}"></q-separator>
+                            </template>
+                            <div class="absolute-full row no-wrap">
+                                <div v-for="(cell, index) in gridDays" :key="cell.date" class="col relative-position" style="min-width:0" :data-day="cell.date" data-zone="time"
+                                        @pointerdown="onTimeDown($event, cell.date)">
+                                    <q-separator v-if="index > 0" vertical class="absolute-left" style="z-index:1"></q-separator>
+                                    <template v-for="band in offBands(cell)" :key="band.key">
+                                        <div class="absolute" :class="dark ? 'bg-grey-10' : 'bg-grey-2'" :style="{top: band.top + 'px', height: band.height + 'px', left: 0, right: 0, opacity: 0.7}"></div>
+                                    </template>
+                                    <template v-for="item in timedByDay[cell.date] || []" :key="item.key">
+                                        <div :id="'boss-ev-' + item.domKey" class="absolute rounded-borders overflow-hidden q-px-xs"
+                                                :class="eventClass(item)" :style="eventStyle(item)" @pointerdown.stop="onEventDown($event, item, cell.date)">
+                                            <div class="text-caption text-weight-medium ellipsis" style="line-height:1.25">
+                                                <q-icon v-if="item.kind === 'task'" :name="item.done ? 'sym_o_task_alt' : 'sym_o_radio_button_unchecked'" size="xs" class="q-mr-xs"></q-icon>
+                                                <q-icon v-else-if="item.recurring" name="sym_o_repeat" size="12px" class="q-mr-xs"></q-icon>{{item.title}}<span v-if="item.height < 34"> · {{item.shortTime}}</span>
+                                            </div>
+                                            <div v-if="item.height >= 34" class="text-caption ellipsis" style="line-height:1.2;opacity:.9">{{item.timeText}}</div>
+                                            <div v-if="item.height >= 52 && item.location" class="text-caption ellipsis" style="line-height:1.2;opacity:.85">{{item.location}}</div>
+                                            <div v-if="item.canEdit && item.kind === 'event' && !phone" class="absolute-bottom" style="height:7px;cursor:ns-resize"
+                                                    @pointerdown.stop="onResizeDown($event, item, cell.date)"></div>
+                                        </div>
+                                    </template>
+                                    <div v-if="selection && selection.zone === 'time' && selection.day === cell.date" id="boss-cal-sel"
+                                            class="absolute rounded-borders bg-primary text-white text-caption q-px-xs shadow-2"
+                                            :style="{top: (selection.start / 60 * hourPx) + 'px', height: Math.max((selection.end - selection.start) / 60 * hourPx - 1, 14) + 'px', left: '1px', right: '3px', zIndex: 4, pointerEvents: 'none', opacity: 0.85}">
+                                        {{selectionText}}
+                                    </div>
+                                    <div v-if="preview && preview.day === cell.date" class="absolute rounded-borders q-px-xs text-caption shadow-3"
+                                            :class="eventClass(preview.item)"
+                                            :style="Object.assign(colorStyle(preview.item), {top: (preview.start / 60 * hourPx) + 'px', height: Math.max((preview.end - preview.start) / 60 * hourPx - 1, 14) + 'px', left: '1px', right: '3px', zIndex: 5, pointerEvents: 'none'})">
+                                        <div class="text-weight-medium ellipsis">{{preview.item.title}}</div><div class="ellipsis">{{previewText}}</div>
+                                    </div>
+                                    <div v-if="cell.isToday" class="absolute bg-negative" :style="{top: (nowMinutes / 60 * hourPx) + 'px', height: '2px', left: 0, right: 0, zIndex: 3, pointerEvents: 'none'}"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </q-card>
+
+            <!-- ===== month ===== -->
+            <q-card v-else-if="shownView === 'month'" flat bordered class="overflow-hidden" :style="{userSelect: drag ? 'none' : 'auto'}">
+                <div class="row no-wrap">
+                    <div v-if="defaults.showWeekNumbers" style="width:28px"></div>
+                    <div v-for="name in dayNamesShort" :key="name" class="col text-center text-caption text-weight-medium m-muted q-py-xs">{{name}}</div>
+                </div>
+                <template v-for="week in monthWeeks" :key="week.key">
+                    <q-separator></q-separator>
+                    <div class="row no-wrap">
+                        <div v-if="defaults.showWeekNumbers" class="text-caption m-muted text-center q-pt-xs" style="width:28px">{{week.number}}</div>
+                        <template v-for="(cell, index) in week.days" :key="cell.date">
+                            <q-separator v-if="index > 0" vertical></q-separator>
+                            <div class="col q-pa-xs relative-position" style="min-width:0" :data-day="cell.date" data-zone="month"
+                                    :class="isSelectedDay(cell.date) ? (dark ? 'bg-blue-10' : 'bg-blue-1') : (cell.inMonth ? '' : (dark ? 'bg-grey-10' : 'bg-grey-1'))"
+                                    :style="{minHeight: monthCellHeight + 'px'}" @pointerdown="onDayDown($event, cell.date, 'month')">
+                                <div class="row items-center no-wrap">
+                                    <q-avatar v-if="cell.isToday" size="22px" color="primary" text-color="white" class="text-caption cursor-pointer" @pointerdown.stop @click.stop="goDay(cell.date)">{{cell.dayNum}}</q-avatar>
+                                    <span v-else class="text-caption cursor-pointer q-px-xs" :class="cell.inMonth ? '' : 'm-muted'" @click.stop="goDay(cell.date)" @pointerdown.stop>{{cell.dayNum}}</span>
+                                </div>
+                                <template v-if="phone">
+                                    <div class="row q-gutter-xs q-mt-xs">
+                                        <template v-for="item in cell.items.slice(0, 6)" :key="item.key">
+                                            <span class="rounded-borders" :class="dotClass(item)" :style="dotStyle(item, 8)"></span>
+                                        </template>
+                                    </div>
+                                </template>
+                                <template v-else>
+                                    <template v-for="item in cell.items.slice(0, cell.limit)" :key="item.key">
+                                        <div :id="'boss-ev-m' + cell.date + item.domKey" class="rounded-borders ellipsis text-caption q-px-xs q-mt-xs"
+                                                :class="item.long ? eventClass(item) : ''" :style="item.long ? colorStyle(item) : {cursor: 'pointer'}"
+                                                @pointerdown.stop="onChipDown($event, item, 'month', cell.date)">
+                                            <template v-if="item.long">{{item.title}}</template>
+                                            <template v-else><span class="rounded-borders q-mr-xs" :class="dotClass(item)" :style="dotStyle(item, 8)"></span><span class="m-muted">{{item.shortTime}}</span> <span :class="item.partyStatusId === 'WeptDeclined' || item.done ? 'text-strike' : ''">{{item.title}}</span></template>
+                                        </div>
+                                    </template>
+                                    <div v-if="cell.items.length > cell.limit" class="text-caption text-primary cursor-pointer q-px-xs" @pointerdown.stop @click.stop="goDay(cell.date)">
+                                        +{{cell.items.length - cell.limit}} {{t('more')}}</div>
+                                </template>
+                                <div v-if="chipPreview && chipPreview.zone === 'month' && chipPreview.day === cell.date" class="rounded-borders ellipsis text-caption q-px-xs q-mt-xs shadow-3"
+                                        :class="eventClass(chipPreview.item)" :style="Object.assign(colorStyle(chipPreview.item), {pointerEvents: 'none'})">{{chipPreview.item.title}}</div>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+            </q-card>
+
+            <!-- ===== agenda ===== -->
+            <q-card v-else flat bordered>
+                <template v-for="(group, groupIndex) in agendaGroups" :key="group.date">
+                    <q-separator v-if="groupIndex > 0"></q-separator>
+                    <div class="row no-wrap q-px-md q-pt-sm q-pb-xs items-baseline">
+                        <div class="text-subtitle2 cursor-pointer" :class="group.isToday ? 'text-primary' : ''" @click="goDay(group.date)">{{group.label}}</div>
+                        <div v-if="group.isToday" class="text-caption text-primary q-ml-sm">{{t('Today')}}</div>
+                    </div>
+                    <q-list dense class="q-pb-xs">
+                        <q-item v-for="item in group.items" :key="item.key" :id="'boss-ev-g' + group.date + item.domKey" clickable @click="openItem($event, item)">
+                            <q-item-section side class="text-caption" :style="{width: phone ? '74px' : '150px'}">{{item.long ? t('All day') : (phone ? item.shortTime : item.timeText)}}</q-item-section>
+                            <q-item-section avatar style="min-width:18px"><span class="rounded-borders" :class="dotClass(item)" :style="dotStyle(item, 10)"></span></q-item-section>
+                            <q-item-section>
+                                <q-item-label :class="item.partyStatusId === 'WeptDeclined' || item.done ? 'text-strike m-muted' : ''">
+                                    <q-icon v-if="item.kind === 'task'" name="sym_o_task_alt" size="xs" class="q-mr-xs"></q-icon><q-icon v-else-if="item.recurring" name="sym_o_repeat" size="xs" class="q-mr-xs"></q-icon>{{item.title}}</q-item-label>
+                                <q-item-label v-if="item.location" caption class="ellipsis">{{item.location}}</q-item-label>
+                            </q-item-section>
+                            <q-item-section v-if="item.partyStatusId === 'WeptOffered' || item.partyStatusId === 'WeptTentative'" side>
+                                <q-chip dense square class="q-ma-none m-tonal" :class="item.partyStatusId === 'WeptOffered' ? 'text-warning' : 'text-info'">{{item.partyStatusId === 'WeptOffered' ? t('Invitation') : t('Maybe')}}</q-chip>
+                            </q-item-section>
+                        </q-item>
+                    </q-list>
+                </template>
+                <q-card-section v-if="!agendaGroups.length && !loadingEvents" class="text-body2 m-muted">{{t('Nothing on the calendar in these days')}}
+                    <q-btn flat dense no-caps color="primary" :label="t('New event')" @click="newEventNow($event)"></q-btn></q-card-section>
+            </q-card>
+            <q-linear-progress v-if="loadingEvents" indeterminate color="primary" size="2px" class="q-mt-xs"></q-linear-progress>
+        </div>
+    </div>
+    </template>
+
+    <m-subscreens-active></m-subscreens-active>
+
+    <!-- where the popovers attach: the event, cell or selection clicked -->
+    <div id="boss-cal-anchor" class="fixed" :style="{left: anchorRect.left + 'px', top: anchorRect.top + 'px', width: anchorRect.width + 'px', height: anchorRect.height + 'px', pointerEvents: 'none', opacity: 0}"></div>
+
+    <!-- ===== the quick event: a popover by the slot, a dialog on a phone ===== -->
+    <component :is="phone ? 'm-dialog' : 'q-menu'" v-model="quick.open" v-bind="popupBindings(t('New event'))">
+        <div :class="phone ? '' : 'q-pa-md'" :style="phone ? {} : {width: '420px', maxWidth: '94vw'}">
+            <div v-if="!phone" class="row items-center q-mb-sm"><div class="text-subtitle1 text-weight-medium col">{{t('New event')}}</div>
+                <q-btn flat dense round icon="close" v-close-popup></q-btn></div>
+            <m-form :key="'quick' + quick.key" :action="action('createEvent')" :fields-initial="quick.initial" focus-field="workEffortName" @submitted="afterQuick" v-slot="formProps">
+                <m-text-line v-model="formProps.fields.workEffortName" name="workEffortName" id="BossCalQuickName" :label="t('Title')" required></m-text-line>
+                <div class="row items-center q-mt-xs">
+                    <m-check v-model="formProps.fields.allDay" name="allDay" id="BossCalQuickAllDay" toggle true-value="Y" false-value="N" :single-label="t('All day')"
+                            @update:model-value="onQuickAllDay(formProps.fields, $event)"></m-check>
+                </div>
+                <div class="row q-col-gutter-sm q-mt-none">
+                    <div class="col-12 col-sm-6"><m-date-time v-model="formProps.fields.start" name="start" id="BossCalQuickStart" :type="formProps.fields.allDay === 'Y' ? 'date' : 'date-time'" :label="t('Starts')"></m-date-time></div>
+                    <div class="col-12 col-sm-6"><m-date-time v-model="formProps.fields.end" name="end" id="BossCalQuickEnd" :type="formProps.fields.allDay === 'Y' ? 'date' : 'date-time'" :label="formProps.fields.allDay === 'Y' ? t('Last day') : t('Ends')"></m-date-time></div>
+                </div>
+                <div class="row q-col-gutter-sm q-mt-none">
+                    <div class="col-12 col-sm-6"><m-drop-down v-model="formProps.fields.calendarId" name="calendarId" id="BossCalQuickCalendar" :options="calendarOptions" :label="t('Calendar')"></m-drop-down></div>
+                    <div class="col-12 col-sm-6"><m-drop-down v-model="formProps.fields.repeat" name="repeat" id="BossCalQuickRepeat" :options="repeatOptions(formProps.fields.start)" :label="t('Repeat')" allow-empty></m-drop-down></div>
+                </div>
+                <div class="q-mt-sm"><m-drop-down v-model="formProps.fields.attendeePartyIds" name="attendeePartyIds" id="BossCalQuickPeople" multiple server-search
+                        :options-url="url('searchPeople')" :label="t('Invite people')"></m-drop-down></div>
+                <div class="row q-col-gutter-sm q-mt-none">
+                    <div class="col-12 col-sm-6"><m-drop-down v-model="formProps.fields.facilityId" name="facilityId" id="BossCalQuickRoom" :options="roomOptions" :label="t('Meeting room')" allow-empty></m-drop-down></div>
+                    <div class="col-12 col-sm-6"><m-drop-down v-model="formProps.fields.reminderMinutes" name="reminderMinutes" id="BossCalQuickReminder" :options="reminderOptions" :label="t('Reminder')" allow-empty></m-drop-down></div>
+                </div>
+                <div class="q-mt-sm"><m-text-line v-model="formProps.fields.location" name="location" id="BossCalQuickLocation" :label="t('Location or link')"></m-text-line></div>
+                <div class="row items-center justify-end q-gutter-sm q-mt-md">
+                    <q-btn flat dense no-caps type="submit" name="andOpen" value="Y" :label="t('More options')"><q-tooltip>{{t('Save it and open the whole event')}}</q-tooltip></q-btn>
+                    <q-btn unelevated dense no-caps color="primary" type="submit" class="q-px-md" :label="t('Save')"></q-btn>
+                </div>
+            </m-form>
+        </div>
+    </component>
+
+    <!-- ===== the event popover ===== -->
+    <component :is="phone ? 'm-dialog' : 'q-menu'" v-model="pop.open" v-bind="popupBindings(pop.event ? pop.event.name : t('Event'))">
+        <div :class="phone ? '' : 'q-pa-md'" :style="phone ? {} : {width: '400px', maxWidth: '94vw'}">
+            <div v-if="pop.loading" class="q-gutter-y-sm"><q-skeleton type="text" width="70%"></q-skeleton><q-skeleton type="text"></q-skeleton><q-skeleton type="text" width="50%"></q-skeleton></div>
+            <template v-else-if="pop.event">
+                <div class="row items-start no-wrap">
+                    <span class="rounded-borders q-mr-sm q-mt-xs" :style="{display: 'inline-block', width: '14px', height: '14px', flex: 'none', background: pop.color || 'var(--q-primary)'}"></span>
+                    <div class="col" style="min-width:0">
+                        <div v-if="!phone" class="text-h6" style="line-height:1.3" :class="pop.event.cancelled ? 'text-strike' : ''">{{pop.event.name}}</div>
+                        <div class="text-body2">{{pop.event.whenText}}</div>
+                        <div v-if="pop.event.recurrenceText" class="text-caption m-muted row items-center no-wrap"><q-icon name="sym_o_repeat" size="xs" class="q-mr-xs"></q-icon>{{pop.event.recurrenceText}}</div>
+                    </div>
+                    <q-btn v-if="!phone" flat dense round icon="close" v-close-popup></q-btn>
+                </div>
+                <q-chip v-if="pop.event.cancelled" dense square class="q-ml-none m-tonal text-negative">{{t('Cancelled')}}</q-chip>
+                <div v-if="pop.event.joinUrl" class="q-mt-sm">
+                    <q-btn unelevated dense no-caps color="primary" icon="sym_o_videocam" :label="t('Join')" :href="pop.event.joinUrl" target="_blank" type="a"></q-btn>
+                    <span class="text-caption m-muted q-ml-sm ellipsis">{{pop.event.joinUrl}}</span>
+                </div>
+                <div v-if="pop.event.location && !pop.event.rooms.some((room) => room.name === pop.event.location)" class="row items-start no-wrap q-mt-sm text-body2"><q-icon name="sym_o_location_on" size="xs" class="q-mr-sm q-mt-xs"></q-icon><span>{{pop.event.location}}</span></div>
+                <div v-for="room in pop.event.rooms" :key="room.facilityId" class="row items-center no-wrap q-mt-xs text-body2">
+                    <q-icon name="sym_o_meeting_room" size="xs" class="q-mr-sm"></q-icon><span class="ellipsis">{{room.name}}</span>
+                    <q-chip v-if="room.statusId" dense square class="q-my-none m-tonal" :class="'text-' + room.statusColor">{{room.statusLabel}}</q-chip></div>
+                <div v-for="thing in pop.event.equipment" :key="thing.assetId" class="row items-center no-wrap q-mt-xs text-body2">
+                    <q-icon name="sym_o_devices" size="xs" class="q-mr-sm"></q-icon><span class="ellipsis">{{thing.name}}</span>
+                    <q-chip dense square class="q-my-none m-tonal" :class="'text-' + thing.statusColor">{{thing.statusLabel}}</q-chip></div>
+                <div v-if="pop.event.attendees.length" class="q-mt-sm">
+                    <div class="text-caption m-muted">{{attendeeSummary(pop.event)}}</div>
+                    <div v-for="person in pop.event.attendees.slice(0, 8)" :key="person.partyId" class="row items-center no-wrap q-mt-xs">
+                        <m-avatar :name="person.name" size="22px" class="q-mr-sm"></m-avatar>
+                        <span class="text-body2 ellipsis col">{{person.name}}<span v-if="person.isOrganizer" class="m-muted"> · {{t('organizer')}}</span><span v-if="person.optional" class="m-muted"> · {{t('optional')}}</span></span>
+                        <q-chip v-if="!person.isOrganizer" dense square class="q-my-none m-tonal" :class="'text-' + person.statusColor">{{person.statusLabel}}</q-chip>
+                    </div>
+                    <div v-if="pop.event.attendees.length > 8" class="text-caption m-muted q-mt-xs">+{{pop.event.attendees.length - 8}} {{t('more')}}</div>
+                </div>
+                <div v-if="pop.event.calendar" class="row items-center no-wrap q-mt-sm text-caption m-muted">
+                    <q-icon name="sym_o_calendar_month" size="xs" class="q-mr-sm"></q-icon>{{pop.event.calendar.calendarName}}</div>
+                <div v-if="pop.event.canRsvp" class="row items-center q-gutter-xs q-mt-md">
+                    <span class="text-body2 q-mr-xs">{{t('Going?')}}</span>
+                    <q-btn v-for="answer in rsvpOptions" :key="answer.value" dense no-caps unelevated :label="answer.label"
+                            :color="pop.event.myStatusId === answer.statusId ? answer.color : undefined" :class="pop.event.myStatusId === answer.statusId ? '' : 'm-btn-tonal'"
+                            @click="respond(answer.value)"></q-btn>
+                </div>
+                <div class="row items-center q-gutter-xs q-mt-md justify-end">
+                    <q-btn v-if="pop.event.canEdit && !pop.event.cancelled" flat dense no-caps color="negative" icon="sym_o_delete"
+                            :label="pop.event.attendeeCount ? t('Cancel event') : t('Delete')" @click="askCancel"></q-btn>
+                    <q-space></q-space>
+                    <q-btn unelevated dense no-caps color="primary" icon="sym_o_open_in_new" :label="pop.event.canEdit ? t('Open and edit') : t('Open')" @click="openDetail"></q-btn>
+                </div>
+            </template>
+            <template v-else-if="pop.busy">
+                <div class="text-h6">{{t('Busy')}}</div>
+                <div class="text-body2">{{pop.busy.whenText}}</div>
+                <div class="text-caption m-muted q-mt-sm">{{t('You see only when this calendar is busy')}}</div>
+            </template>
+            <div v-else class="text-body2 m-muted">{{t('This event is not available')}}</div>
+        </div>
+    </component>
+
+    <!-- ===== a change to confirm: which events, and whether to tell the attendees ===== -->
+    <m-dialog v-model="change.open" :title="change.title" width="460">
+        <div>
+            <div v-if="change.message" class="text-body2 q-mb-sm">{{change.message}}</div>
+            <div v-if="change.recurring" class="q-mb-sm">
+                <div class="text-body2 q-mb-xs">{{change.kind === 'cancel' ? t('It repeats: which events are cancelled?') : t('It repeats: which events change?')}}</div>
+                <m-radio v-model="change.scope" name="calChangeScope" id="BossCalChangeScope" :options="scopeOptions"></m-radio>
+            </div>
+            <div v-if="change.canNotify">
+                <m-check v-model="change.notify" name="calChangeNotify" id="BossCalChangeNotify" :options="[{value: 'Y', label: change.kind === 'cancel' ? t('Tell the attendees it is cancelled') : t('Send an update to the attendees')}]"></m-check>
+            </div>
+            <div class="row justify-end q-gutter-sm q-mt-md">
+                <q-btn flat dense no-caps :label="t('Back')" @click="change.open = false"></q-btn>
+                <q-btn unelevated dense no-caps :color="change.kind === 'cancel' ? 'negative' : 'primary'" :label="change.okLabel" :loading="change.busy" @click="confirmChange"></q-btn>
+            </div>
+        </div>
+    </m-dialog>
+
+    <!-- ===== Find a time ===== -->
+    <m-dialog v-model="find.open" :title="t('Find a time')" width="560">
+        <div>
+            <div class="text-body2 m-muted q-mb-sm">{{t('The free times of you, the people and the room you pick, in their working hours.')}}</div>
+            <m-drop-down v-model="find.partyIds" name="findPartyIds" id="BossCalFindPeople" multiple server-search :options-url="url('searchPeople')" :label="t('People')"></m-drop-down>
+            <div class="row q-col-gutter-sm q-mt-none">
+                <div class="col-12 col-sm-6"><m-drop-down v-model="find.facilityId" name="findFacilityId" id="BossCalFindRoom" :options="roomOptions" allow-empty :label="t('Meeting room')"></m-drop-down></div>
+                <div class="col-6 col-sm-3"><m-drop-down v-model="find.duration" name="findDuration" id="BossCalFindDuration" :options="durationOptions" :label="t('How long')"></m-drop-down></div>
+                <div class="col-6 col-sm-3"><m-drop-down v-model="find.days" name="findDays" id="BossCalFindDays" :options="dayCountOptions" :label="t('Look ahead')"></m-drop-down></div>
+            </div>
+            <div class="row items-center q-col-gutter-sm q-mt-none">
+                <div class="col-auto"><m-date-time v-model="find.fromDay" name="findFromDay" id="BossCalFindFrom" type="date" :label="t('From')"></m-date-time></div>
+                <div class="col"><m-check v-model="find.workingOnly" name="findWorkingOnly" id="BossCalFindWorking" :options="[{value: 'Y', label: t('Working hours only')}]"></m-check></div>
+                <div class="col-auto"><q-btn unelevated dense no-caps color="primary" icon="search" :label="t('Find')" :loading="find.loading" @click="runFindTime"></q-btn></div>
+            </div>
+            <q-list v-if="find.slots.length" bordered separator class="q-mt-md rounded-borders">
+                <q-item v-for="slot in find.slots" :key="slot.start" clickable @click="pickSlot($event, slot)">
+                    <q-item-section avatar><q-icon name="sym_o_event_available" color="positive"></q-icon></q-item-section>
+                    <q-item-section>{{slot.text}}</q-item-section>
+                    <q-item-section side><span class="text-caption text-primary">{{t('Book it')}}</span></q-item-section>
+                </q-item>
+            </q-list>
+            <div v-else-if="find.note" class="text-body2 m-muted q-mt-md">{{find.note}}</div>
+        </div>
+    </m-dialog>
+</div></template>
+
+<script>
+// wall-clock dates and times as UTC arithmetic: a day is yyyy-MM-dd, a time minutes from its midnight
+const pad = (n) => String(n).padStart(2, '0');
+const dayNum = (text) => { const parts = String(text).slice(0, 10).split('-').map(Number); return Math.round(Date.UTC(parts[0], parts[1] - 1, parts[2]) / 86400000); };
+const dayText = (num) => new Date(num * 86400000).toISOString().slice(0, 10);
+const addDays = (text, days) => dayText(dayNum(text) + days);
+const weekdayOf = (text) => new Date(dayNum(text) * 86400000).getUTCDay();
+const minutesOf = (text) => (text && text.length >= 16 ? Number(text.slice(11, 13)) * 60 + Number(text.slice(14, 16)) : 0);
+const absOf = (text) => dayNum(text) * 1440 + minutesOf(text);
+const wallOf = (abs) => { const day = Math.floor(abs / 1440); const minutes = abs - day * 1440; return dayText(day) + ' ' + pad(Math.floor(minutes / 60)) + ':' + pad(minutes % 60); };
+const isDay = (text) => /^\d{4}-\d{2}-\d{2}$/.test(String(text || ''));
+const isoWeek = (text) => {
+    const num = dayNum(text);
+    const thursday = num - ((weekdayOf(text) + 6) % 7) + 3;
+    const year = new Date(thursday * 86400000).getUTCFullYear();
+    const jan4 = Math.round(Date.UTC(year, 0, 4) / 86400000);
+    const firstThursday = jan4 - ((new Date(jan4 * 86400000).getUTCDay() + 6) % 7) + 3;
+    return 1 + Math.round((thursday - firstThursday) / 7);
+};
+// a dark text on a light calendar color
+const isLight = (color) => {
+    const match = /^#?([0-9a-f]{6})$/i.exec(String(color || ''));
+    if (!match) return false;
+    const value = parseInt(match[1], 16);
+    return (0.299 * (value >> 16) + 0.587 * ((value >> 8) & 255) + 0.114 * (value & 255)) / 255 > 0.66;
+};
+const VIEWS = ['day', 'workweek', 'week', 'month', 'agenda'];
+
+module.exports = {
+    name: 'BossCalendar',
+    data() {
+        return {
+            ready: false, loadingEvents: false, setupFailed: [], failedSources: [], skipped: [],
+            calendars: [], defaultCalendarId: null, roomOptions: [], me: {}, timeZone: '', todayText: '', nowMinutes: 0,
+            defaults: { view: 'week', weekStart: 0, workStart: '09:00', workEnd: '17:00', workDays: [1, 2, 3, 4, 5], defaultDuration: 60,
+                defaultReminder: '10', showDeclined: false, showWeekNumbers: false, showTasks: false, hiddenCalendarIds: [] },
+            view: 'week', date: '', showTasks: false, showDeclined: false, hidden: [],
+            events: [], requestSeq: 0, loadedKey: '',
+            railOpen: false, miniMonth: '', phoneSearch: false,
+            searchText: '', search: { active: false, loading: false, text: '', results: [] },
+            anchorRect: { left: 0, top: 0, width: 0, height: 0 },
+            quick: { open: false, key: 0, initial: {} },
+            pop: { open: false, loading: false, item: null, event: null, color: null, busy: null },
+            change: { open: false, kind: 'move', title: '', recurring: false, canNotify: false, scope: 'this', notify: [], payload: null, okLabel: '', busy: false, done: false, message: '' },
+            find: { open: false, partyIds: [], facilityId: '', duration: '60', days: '5', fromDay: '', workingOnly: ['Y'], loading: false, slots: [], note: null },
+            drag: null, selection: null, preview: null, chipPreview: null,
+            hourPx: 48, gutter: 52, scrollbarWidth: 0
+        };
+    },
+    computed: {
+        phone() { return this.$q.screen.lt.sm; },
+        wide() { return this.$q.screen.gt.sm; },
+        // the search line takes room only on a wide screen; below, a button opens it
+        compactHeader() { return this.phone || this.$q.screen.width < 1200; },
+        dark() { return this.$q.dark.isActive; },
+        locale() { return String((moqui.config && moqui.config.locale) || 'en-US').replace('_', '-'); },
+        pathList() { return this.$root.currentPathList || []; },
+        calIndex() { return this.pathList.indexOf('Calendar'); },
+        // a subscreen (EventDetail, Schedules) in the path: it shows in place of the calendar
+        subActive() { return this.calIndex >= 0 && this.pathList.length > this.calIndex + 1; },
+        screenPath() { return this.$root.basePath + '/' + (this.calIndex >= 0 ? this.pathList.slice(0, this.calIndex + 1) : ['Commons', 'Calendar']).join('/'); },
+        linkPath() { return this.$root.linkBasePath + '/' + (this.calIndex >= 0 ? this.pathList.slice(0, this.calIndex + 1) : ['Commons', 'Calendar']).join('/'); },
+        settingsUrl() { return this.$root.linkBasePath + '/Commons/Settings/Calendars'; },
+        preferencesUrl() { return this.$root.linkBasePath + '/Commons/Settings/Preferences'; },
+        schedulesUrl() { return this.linkPath + '/Schedules'; },
+        shownView() { return this.phone && !['day', 'agenda'].includes(this.view) ? 'day' : this.view; },
+        isTimeGrid() { return ['day', 'workweek', 'week'].includes(this.shownView); },
+        viewOptions() {
+            if (this.phone) return [{ label: this.t('Day'), value: 'day' }, { label: this.t('Agenda'), value: 'agenda' }];
+            return [{ label: this.t('Day'), value: 'day' }, { label: this.t('Work week'), value: 'workweek' }, { label: this.t('Week'), value: 'week' },
+                { label: this.t('Month'), value: 'month' }, { label: this.t('Agenda'), value: 'agenda' }];
+        },
+        weekStartDay() { return this.startOfWeek(this.date || this.todayText); },
+        gridDays() {
+            const base = this.date || this.todayText;
+            if (!base) return [];
+            let days;
+            if (this.shownView === 'day') days = [base];
+            else {
+                days = [];
+                for (let i = 0; i < 7; i++) days.push(addDays(this.weekStartDay, i));
+                if (this.shownView === 'workweek') {
+                    const work = (this.defaults.workDays || [1, 2, 3, 4, 5]).map(Number);
+                    const filtered = days.filter((text) => work.includes(weekdayOf(text)));
+                    if (filtered.length) days = filtered;
+                }
+            }
+            return days.map((text) => ({ date: text, dayNum: Number(text.slice(8, 10)), isToday: text === this.todayText,
+                weekdayShort: this.fmtDay(text, { weekday: this.phone ? 'narrow' : 'short' }) }));
+        },
+        monthWeeks() {
+            const base = this.date || this.todayText;
+            if (!base) return [];
+            const first = base.slice(0, 7) + '-01';
+            const start = this.startOfWeek(first);
+            const month = base.slice(0, 7);
+            const weeks = [];
+            let cursor = start;
+            const byDay = this.itemsByDay(start, addDays(start, 41));
+            const limit = Math.max(1, Math.floor((this.monthCellHeight - 24) / 21));
+            for (let w = 0; w < 6; w++) {
+                const days = [];
+                for (let i = 0; i < 7; i++) {
+                    days.push({ date: cursor, dayNum: Number(cursor.slice(8, 10)), inMonth: cursor.slice(0, 7) === month, isToday: cursor === this.todayText,
+                        items: byDay[cursor] || [], limit: (byDay[cursor] || []).length > limit ? limit - 1 : limit });
+                    cursor = addDays(cursor, 1);
+                }
+                weeks.push({ key: days[0].date, days, number: isoWeek(days[0].date) });
+                if (cursor.slice(0, 7) !== month && w >= 3) break;
+            }
+            return weeks;
+        },
+        monthCellHeight() { return this.phone ? 54 : 112; },
+        range() {
+            const base = this.date || this.todayText;
+            if (!base) return null;
+            if (this.isTimeGrid) { const days = this.gridDays; return days.length ? { start: days[0].date, end: days[days.length - 1].date } : null; }
+            if (this.shownView === 'month') {
+                const weeks = this.monthWeeks;
+                return weeks.length ? { start: weeks[0].days[0].date, end: weeks[weeks.length - 1].days[6].date } : null;
+            }
+            return { start: base, end: addDays(base, 29) };
+        },
+        rangeKey() { return this.range ? this.range.start + '|' + this.range.end + '|' + this.showTasks + '|' + this.showDeclined + '|' + this.hidden.join(',') : ''; },
+        rangeTitle() {
+            const range = this.range;
+            if (!range) return '';
+            if (this.shownView === 'day') return this.fmtDay(range.start, { weekday: this.phone ? 'short' : 'long', month: this.phone ? 'short' : 'long', day: 'numeric', year: 'numeric' });
+            if (this.shownView === 'month') return this.fmtDay(this.date || this.todayText, { month: 'long', year: 'numeric' });
+            try {
+                const format = new Intl.DateTimeFormat(this.locale, { timeZone: 'UTC', month: 'short', day: 'numeric', year: 'numeric' });
+                if (format.formatRange) return format.formatRange(new Date(dayNum(range.start) * 86400000), new Date(dayNum(range.end) * 86400000));
+            } catch (err) { /* below */ }
+            return this.fmtDay(range.start, { month: 'short', day: 'numeric' }) + ' – ' + this.fmtDay(range.end, { month: 'short', day: 'numeric', year: 'numeric' });
+        },
+        dayNamesShort() {
+            const names = [];
+            for (let i = 0; i < 7; i++) names.push(this.fmtDay(addDays('2023-01-01', (this.defaults.weekStart + i) % 7), { weekday: this.phone ? 'narrow' : 'short' }));
+            return names;
+        },
+        dayLetters() {
+            const names = [];
+            for (let i = 0; i < 7; i++) names.push(this.fmtDay(addDays('2023-01-01', (this.defaults.weekStart + i) % 7), { weekday: 'narrow' }));
+            return names;
+        },
+        miniTitle() { return this.miniMonth ? this.fmtDay(this.miniMonth + '-01', { month: 'long', year: 'numeric' }) : ''; },
+        miniWeeks() {
+            if (!this.miniMonth) return [];
+            const first = this.miniMonth + '-01';
+            let cursor = this.startOfWeek(first);
+            const weeks = [];
+            for (let w = 0; w < 6; w++) {
+                const days = [];
+                for (let i = 0; i < 7; i++) {
+                    days.push({ date: cursor, dayNum: Number(cursor.slice(8, 10)), inMonth: cursor.slice(0, 7) === this.miniMonth });
+                    cursor = addDays(cursor, 1);
+                }
+                weeks.push({ key: days[0].date, days, number: isoWeek(days[0].date) });
+            }
+            return weeks;
+        },
+        calendarGroups() {
+            const groups = [{ key: 'mine', label: this.t('My calendars') }, { key: 'subscription', label: this.t('Subscriptions') }, { key: 'shared', label: this.t('Shared with me') }];
+            return groups.map((group) => Object.assign(group, { calendars: this.calendars.filter((cal) => cal.group === group.key) })).filter((group) => group.calendars.length);
+        },
+        calendarOptions() {
+            return this.calendars.filter((cal) => cal.canAdd).map((cal) => ({ value: cal.calendarId, label: cal.calendarName }));
+        },
+        reminderOptions() {
+            return [{ value: '0', label: this.t('At the start') }, { value: '5', label: this.t('5 min before') }, { value: '10', label: this.t('10 min before') },
+                { value: '15', label: this.t('15 min before') }, { value: '30', label: this.t('30 min before') }, { value: '60', label: this.t('1 hour before') },
+                { value: '1440', label: this.t('1 day before') }];
+        },
+        durationOptions() { return [{ value: '30', label: this.t('30 minutes') }, { value: '60', label: this.t('1 hour') }, { value: '90', label: this.t('1½ hours') }, { value: '120', label: this.t('2 hours') }]; },
+        dayCountOptions() { return [{ value: '3', label: this.t('3 days') }, { value: '5', label: this.t('5 days') }, { value: '7', label: this.t('A week') }, { value: '14', label: this.t('Two weeks') }]; },
+        scopeOptions() { return [{ value: 'this', label: this.t('This event') }, { value: 'following', label: this.t('This and following events') }, { value: 'all', label: this.t('All events') }]; },
+        rsvpOptions() {
+            return [{ value: 'accept', statusId: 'WeptAssigned', label: this.t('Yes'), color: 'positive' }, { value: 'tentative', statusId: 'WeptTentative', label: this.t('Maybe'), color: 'warning' },
+                { value: 'decline', statusId: 'WeptDeclined', label: this.t('No'), color: 'negative' }];
+        },
+        // the events with their place on the wall clock
+        items() {
+            return this.events.map((event, index) => {
+                let sAbs, eAbs, startDay, lastDay;
+                if (event.allDay) {
+                    startDay = String(event.start).slice(0, 10);
+                    const endExclusive = event.end && String(event.end).slice(0, 10) > startDay ? String(event.end).slice(0, 10) : addDays(startDay, 1);
+                    lastDay = addDays(endExclusive, -1);
+                    sAbs = dayNum(startDay) * 1440;
+                    eAbs = dayNum(endExclusive) * 1440;
+                } else {
+                    sAbs = absOf(event.start);
+                    eAbs = event.end ? absOf(event.end) : sAbs + 60;
+                    if (eAbs <= sAbs) eAbs = sAbs + 15;
+                    startDay = String(event.start).slice(0, 10);
+                    lastDay = dayText(Math.floor((eAbs - 1) / 1440));
+                }
+                const long = !!event.allDay || lastDay > startDay;
+                return Object.assign({}, event, { sAbs, eAbs, startDay, lastDay, long, domKey: index,
+                    shortTime: event.allDay ? '' : this.fmtTime(sAbs), timeText: event.allDay ? '' : this.fmtTime(sAbs) + ' – ' + this.fmtTime(eAbs) });
+            });
+        },
+        timedByDay() {
+            const out = {};
+            const timed = this.items.filter((item) => !item.long);
+            for (const cell of this.gridDays) {
+                const dayStart = dayNum(cell.date) * 1440;
+                const list = timed.filter((item) => item.sAbs < dayStart + 1440 && item.eAbs > dayStart)
+                    .map((item) => ({ item, s: Math.max(item.sAbs, dayStart) - dayStart, e: Math.min(item.eAbs, dayStart + 1440) - dayStart }))
+                    .sort((a, b) => a.s - b.s || (b.e - b.s) - (a.e - a.s));
+                const done = [];
+                let cluster = [];
+                let clusterEnd = -1;
+                const flush = () => {
+                    const columns = [];
+                    for (const entry of cluster) {
+                        let column = columns.findIndex((end) => end <= entry.s);
+                        if (column < 0) { column = columns.length; columns.push(0); }
+                        columns[column] = entry.e;
+                        entry.column = column;
+                    }
+                    for (const entry of cluster) { entry.columns = columns.length; done.push(entry); }
+                    cluster = [];
+                };
+                for (const entry of list) {
+                    if (cluster.length && entry.s >= clusterEnd) { flush(); clusterEnd = -1; }
+                    cluster.push(entry);
+                    clusterEnd = Math.max(clusterEnd, entry.e);
+                }
+                flush();
+                out[cell.date] = done.map((entry) => Object.assign({}, entry.item, { top: entry.s / 60 * this.hourPx, height: (entry.e - entry.s) / 60 * this.hourPx,
+                    leftPct: entry.column / entry.columns * 100, widthPct: 100 / entry.columns }));
+            }
+            return out;
+        },
+        allDayLayout() {
+            const days = this.gridDays;
+            const count = days.length;
+            if (!count) return { items: [], lanes: 0 };
+            const first = dayNum(days[0].date);
+            const last = dayNum(days[count - 1].date);
+            const column = {};
+            days.forEach((cell, index) => { column[dayNum(cell.date)] = index; });
+            const placed = [];
+            for (const item of this.items.filter((entry) => entry.long)) {
+                let from = null;
+                let to = null;
+                for (let num = Math.max(dayNum(item.startDay), first); num <= Math.min(dayNum(item.lastDay), last); num++) {
+                    if (column[num] == null) continue;
+                    if (from == null) from = column[num];
+                    to = column[num];
+                }
+                if (from != null) placed.push({ item, from, to });
+            }
+            placed.sort((a, b) => a.from - b.from || (b.to - b.from) - (a.to - a.from));
+            const laneEnds = [];
+            for (const entry of placed) {
+                let lane = laneEnds.findIndex((end) => end < entry.from);
+                if (lane < 0) { lane = laneEnds.length; laneEnds.push(-1); }
+                laneEnds[lane] = entry.to;
+                entry.lane = lane;
+            }
+            return { lanes: laneEnds.length, count, items: placed.map((entry) => Object.assign({}, entry.item, { lane: entry.lane,
+                leftPct: entry.from / count * 100, widthPct: (entry.to - entry.from + 1) / count * 100 })) };
+        },
+        allDayHeight() { return Math.max(1, this.allDayLayout.lanes) * 22 + 6; },
+        agendaGroups() {
+            const range = this.range;
+            if (!range || this.shownView !== 'agenda') return [];
+            const byDay = this.itemsByDay(range.start, range.end);
+            const groups = [];
+            for (let num = dayNum(range.start); num <= dayNum(range.end); num++) {
+                const text = dayText(num);
+                if (!(byDay[text] || []).length) continue;
+                groups.push({ date: text, isToday: text === this.todayText, items: byDay[text],
+                    label: this.fmtDay(text, { weekday: 'long', month: 'long', day: 'numeric' }) });
+            }
+            return groups;
+        },
+        gridBodyHeight() { return this.phone ? 'calc(100vh - 230px)' : 'calc(100vh - 250px)'; },
+        zoneShort() {
+            try {
+                const parts = new Intl.DateTimeFormat(this.locale, { timeZone: this.timeZone || undefined, timeZoneName: 'short' }).formatToParts(new Date());
+                const zone = parts.find((part) => part.type === 'timeZoneName');
+                return zone ? zone.value : '';
+            } catch (err) { return ''; }
+        },
+        selectionText() {
+            const sel = this.selection;
+            if (!sel || sel.zone !== 'time') return '';
+            const base = dayNum(sel.day) * 1440;
+            return this.fmtTime(base + sel.start) + ' – ' + this.fmtTime(base + sel.end);
+        },
+        previewText() {
+            const preview = this.preview;
+            if (!preview) return '';
+            const base = dayNum(preview.day) * 1440;
+            return this.fmtTime(base + preview.start) + ' – ' + this.fmtTime(base + preview.end);
+        },
+        problems() {
+            const out = [];
+            const names = { calendars: this.t('your calendars'), rooms: this.t('the rooms'), events: this.t('the events'), 'event details': this.t('some event details'), tasks: this.t('your tasks') };
+            const failed = this.setupFailed.concat(this.failedSources);
+            if (failed.length) out.push(this.t('Not loaded') + ': ' + failed.map((name) => names[name] || name).join(', '));
+            if (this.skipped.length) out.push(this.t('Some calendars are no longer shared with you'));
+            return out;
+        },
+        contextRecordId() { return this.pop.open && this.pop.event ? this.pop.event.workEffortId : ''; },
+        contextTitle() { return this.pop.open && this.pop.event ? this.pop.event.name : this.t('Calendar') + (this.rangeTitle ? ': ' + this.rangeTitle : ''); }
+    },
+    watch: {
+        // the state is in the URL: a query-only change (Today, previous, next, the views) does not remount the screen
+        '$root.currentParameters': { handler() { if (!this.subActive && this.ready) { this.readState(); this.loadEvents(); } }, deep: true },
+        subActive(active) { if (!active && this.ready) { this.readState(); this.loadEvents(true); } },
+        searchText(text) {
+            clearTimeout(this.searchTimer);
+            if (!String(text || '').trim()) { if (this.search.active) this.clearSearch(); return; }
+            this.searchTimer = setTimeout(() => this.runSearch(false), 400);
+        },
+        shownView() { this.$nextTick(() => this.scrollToWork()); },
+        'quick.open'(open) { if (!open) this.selection = null; },
+        'pop.open'(open) { if (!open) this.pop.item = null; },
+        'change.open'(open) { if (!open && !this.change.done) { this.preview = null; this.chipPreview = null; } }
+    },
+    methods: {
+        t(text) { return moqui.l10n && moqui.l10n.localize ? moqui.l10n.localize(text) : text; },
+        url(name) { return this.screenPath + '/' + name; },
+        // an m-form action is a path under the web app (m-form puts appRootPath before it)
+        action(name) {
+            const rootPath = this.$root.appRootPath || '';
+            const path = this.url(name);
+            return rootPath && path.indexOf(rootPath) === 0 ? path.slice(rootPath.length) : path;
+        },
+        go(url) { this.railOpen = false; if (url) this.$root.setUrl(url); },
+        fmtDay(text, options) {
+            try { return new Intl.DateTimeFormat(this.locale, Object.assign({ timeZone: 'UTC' }, options)).format(new Date(dayNum(text) * 86400000)); }
+            catch (err) { return text; }
+        },
+        fmtTime(abs) {
+            const minutes = ((abs % 1440) + 1440) % 1440;
+            try { return new Intl.DateTimeFormat(this.locale, { timeZone: 'UTC', hour: 'numeric', minute: '2-digit' }).format(new Date(minutes * 60000)); }
+            catch (err) { return pad(Math.floor(minutes / 60)) + ':' + pad(minutes % 60); }
+        },
+        hourLabel(hour) {
+            try { return new Intl.DateTimeFormat(this.locale, { timeZone: 'UTC', hour: 'numeric' }).format(new Date(hour * 3600000)); }
+            catch (err) { return pad(hour) + ':00'; }
+        },
+        startOfWeek(text) { return addDays(text, -((weekdayOf(text) - (this.defaults.weekStart || 0) + 7) % 7)); },
+        itemsByDay(start, end) {
+            const out = {};
+            const first = dayNum(start);
+            const last = dayNum(end);
+            const sorted = this.items.slice().sort((a, b) => (b.long ? 1 : 0) - (a.long ? 1 : 0) || a.sAbs - b.sAbs || String(a.title).localeCompare(String(b.title)));
+            for (const item of sorted) {
+                const from = Math.max(dayNum(item.startDay), first);
+                const to = Math.min(dayNum(item.long ? item.lastDay : item.startDay), last);
+                for (let num = from; num <= to; num++) (out[dayText(num)] = out[dayText(num)] || []).push(item);
+            }
+            return out;
+        },
+        // ===== loading =====
+        loadSetup() {
+            return moqui.request(this.url('calendarSetup')).then((result) => {
+                const json = result.json || {};
+                this.calendars = json.calendarList || [];
+                this.defaultCalendarId = json.defaultCalendarId || null;
+                this.defaults = Object.assign({}, this.defaults, json.defaults || {});
+                this.hidden = (this.defaults.hiddenCalendarIds || []).slice();
+                this.showDeclined = !!this.defaults.showDeclined;
+                this.timeZone = json.timeZone || '';
+                this.todayText = json.todayText || this.todayText;
+                this.me = json.me || {};
+                this.roomOptions = json.roomOptions || [];
+                this.setupFailed = json.failedSources || [];
+                this.updateNow();
+                this.ready = true;
+            }, (err) => { moqui.handleAjaxError(err); this.ready = true; });
+        },
+        loadEvents(force) {
+            const range = this.range;
+            if (!range || this.subActive) return;
+            if (!force && this.loadedKey === this.rangeKey && this.events.length) return;
+            const seq = ++this.requestSeq;
+            this.loadingEvents = true;
+            const shown = this.calendars.filter((cal) => !this.hidden.includes(cal.calendarId)).map((cal) => cal.calendarId);
+            const key = this.rangeKey;
+            moqui.request(this.url('calendarEvents'), { params: { start: range.start, end: range.end, calendarIds: shown.join(','), hiddenCalendarIds: this.hidden.join(','),
+                showDeclined: this.showDeclined ? 'Y' : 'N', showTasks: this.showTasks ? 'Y' : 'N' } }).then((result) => {
+                if (seq !== this.requestSeq) return;
+                const json = result.json || {};
+                this.events = json.eventList || [];
+                this.failedSources = json.failedSources || [];
+                this.skipped = json.skippedCalendarIdList || [];
+                this.loadedKey = key;
+                this.loadingEvents = false;
+            }, (err) => { if (seq === this.requestSeq) this.loadingEvents = false; moqui.handleAjaxError(err); });
+        },
+        reload() { this.loadEvents(true); },
+        updateNow() {
+            try {
+                const parts = new Intl.DateTimeFormat('en-CA', { timeZone: this.timeZone || undefined, year: 'numeric', month: '2-digit', day: '2-digit',
+                    hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date());
+                const part = (type) => (parts.find((item) => item.type === type) || {}).value;
+                const today = part('year') + '-' + part('month') + '-' + part('day');
+                if (isDay(today)) this.todayText = today;
+                this.nowMinutes = Number(part('hour')) * 60 + Number(part('minute'));
+            } catch (err) { /* an unknown zone: the server's today stays */ }
+        },
+        // ===== the state in the URL =====
+        readState() {
+            const params = this.$root.currentParameters || {};
+            const view = String(params.view || '');
+            this.view = VIEWS.includes(view) ? view : (this.phone ? (['day', 'agenda'].includes(this.defaults.view) ? this.defaults.view : 'day') : this.defaults.view);
+            this.date = isDay(params.date) ? String(params.date) : this.todayText;
+            this.showTasks = params.showTasks === 'Y' ? true : (params.showTasks === 'N' ? false : !!this.defaults.showTasks);
+            if (!this.miniMonth || this.miniMonth !== this.date.slice(0, 7)) this.miniMonth = this.date.slice(0, 7);
+        },
+        setState(changes) {
+            const params = Object.assign({}, this.$root.currentParameters || {});
+            ['moquiSessionToken', 'lastStandalone', 'pageIndex'].forEach((name) => delete params[name]);
+            const next = Object.assign({ view: this.view, date: this.date }, params, changes || {});
+            if (next.date === this.todayText) delete next.date;
+            Object.keys(next).forEach((name) => { if (next[name] == null || next[name] === '') delete next[name]; });
+            const search = moqui.objToSearch(next);
+            this.$root.setUrl(this.linkPath + (search ? '?' + search : ''));
+        },
+        setView(view) { if (VIEWS.includes(view)) this.setState({ view }); },
+        goToday() { this.setState({ date: this.todayText }); },
+        goDate(text) { this.railOpen = false; this.setState({ date: text }); },
+        goDay(text) { this.setState({ date: text, view: 'day' }); },
+        shift(direction) {
+            const base = this.date || this.todayText;
+            let next;
+            if (this.shownView === 'day') next = addDays(base, direction);
+            else if (this.shownView === 'month') {
+                const year = Number(base.slice(0, 4));
+                const month = Number(base.slice(5, 7)) - 1 + direction;
+                next = new Date(Date.UTC(year, month, 1)).toISOString().slice(0, 10);
+            } else if (this.shownView === 'agenda') next = addDays(base, 30 * direction);
+            else next = addDays(base, 7 * direction);
+            this.setState({ date: next });
+        },
+        miniShift(direction) {
+            const year = Number(this.miniMonth.slice(0, 4));
+            const month = Number(this.miniMonth.slice(5, 7)) - 1 + direction;
+            this.miniMonth = new Date(Date.UTC(year, month, 1)).toISOString().slice(0, 7);
+        },
+        miniDayClass(cell) {
+            const range = this.range;
+            const inRange = range && cell.date >= range.start && cell.date <= range.end && this.shownView !== 'month' && this.shownView !== 'agenda';
+            if (cell.date === this.todayText) return 'bg-primary text-white';
+            if (cell.date === this.date) return 'm-tonal text-primary text-weight-bold';
+            if (inRange) return 'm-tonal text-primary';
+            return cell.inMonth ? '' : 'm-muted';
+        },
+        // ===== the rail =====
+        saveRail(fields) {
+            moqui.request(this.url('saveRailState'), { method: 'POST', params: fields }).then(() => {}, moqui.handleAjaxError);
+        },
+        toggleCalendar(cal) {
+            const hidden = this.hidden.filter((id) => id !== cal.calendarId);
+            if (!this.hidden.includes(cal.calendarId)) hidden.push(cal.calendarId);
+            this.hidden = hidden;
+            cal.shown = !hidden.includes(cal.calendarId);
+            this.saveRail({ hiddenCalendarIds: hidden.join(',') });
+            this.loadEvents(true);
+        },
+        onlyCalendar(cal) {
+            this.hidden = this.calendars.map((other) => other.calendarId).filter((id) => id !== cal.calendarId);
+            this.calendars.forEach((other) => { other.shown = !this.hidden.includes(other.calendarId); });
+            this.saveRail({ hiddenCalendarIds: this.hidden.join(',') });
+            this.loadEvents(true);
+        },
+        toggleTasks() {
+            const next = !this.showTasks;
+            this.saveRail({ showTasks: next ? 'Y' : 'N' });
+            this.defaults.showTasks = next;
+            const params = this.$root.currentParameters || {};
+            if (params.showTasks) this.setState({ showTasks: next ? 'Y' : 'N' });
+            else { this.showTasks = next; this.loadEvents(true); }
+        },
+        toggleDeclined() {
+            this.showDeclined = !this.showDeclined;
+            this.saveRail({ showDeclined: this.showDeclined ? 'Y' : 'N' });
+            this.loadEvents(true);
+        },
+        exportCalendar(cal) { this.download(this.url('exportCalendar') + '?calendarId=' + encodeURIComponent(cal.calendarId)); },
+        download(href) {
+            const link = document.createElement('a');
+            link.href = href;
+            link.setAttribute('download', '');
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        },
+        printRange() { window.print(); },
+        // ===== the look of an event =====
+        isInvite(item) { return item.kind === 'event' && (item.partyStatusId === 'WeptOffered' || item.partyStatusId === 'WeptDeclined'); },
+        eventClass(item) {
+            if (item.kind === 'task') return (this.dark ? 'bg-grey-9 text-white' : 'bg-grey-3 text-black') + (item.done ? ' text-strike' : '');
+            if (item.freeBusyOnly) return this.dark ? 'bg-grey-8 text-white' : 'bg-grey-5 text-white';
+            if (this.isInvite(item)) return (this.dark ? 'bg-dark' : 'bg-white') + (item.partyStatusId === 'WeptDeclined' ? ' text-strike' : '');
+            return item.color && isLight(item.color) ? 'text-black' : 'text-white';
+        },
+        colorStyle(item) {
+            const color = item.color || 'var(--q-primary)';
+            if (item.kind === 'task') return { borderLeft: '3px solid var(--q-primary)' };
+            if (item.freeBusyOnly) return {};
+            if (this.isInvite(item)) return { border: '1px ' + (item.partyStatusId === 'WeptDeclined' ? 'dashed ' : 'solid ') + color, color: color };
+            const style = { background: color };
+            if (item.partyStatusId === 'WeptTentative') style.opacity = 0.7;
+            return style;
+        },
+        eventStyle(item) {
+            const dragging = this.preview && this.preview.item.key === item.key;
+            return Object.assign(this.colorStyle(item), { top: item.top + 'px', height: Math.max(item.height - 1, 15) + 'px', left: 'calc(' + item.leftPct + '% + 1px)',
+                width: 'calc(' + item.widthPct + '% - 4px)', zIndex: 2, cursor: item.canEdit && !this.phone ? 'grab' : 'pointer', opacity: dragging ? 0.35 : undefined });
+        },
+        chipStyle(item, moved) {
+            const leftPct = moved ? moved.leftPct : item.leftPct;
+            const lane = moved ? item.lane : item.lane;
+            const dragging = !moved && this.chipPreview && this.chipPreview.item.key === item.key;
+            return Object.assign(this.colorStyle(item), { top: (lane * 22 + 3) + 'px', height: '20px', lineHeight: '20px', left: 'calc(' + leftPct + '% + 2px)',
+                width: 'calc(' + item.widthPct + '% - 5px)', zIndex: 2, cursor: item.canEdit && !this.phone ? 'grab' : 'pointer', opacity: dragging ? 0.35 : undefined });
+        },
+        dotClass(item) { return item.kind === 'task' ? 'bg-grey-6' : (item.freeBusyOnly ? 'bg-grey-5' : ''); },
+        dotStyle(item, size) {
+            const style = { display: 'inline-block', width: size + 'px', height: size + 'px', flex: 'none', verticalAlign: 'middle' };
+            if (item.kind === 'task' || item.freeBusyOnly) return style;
+            if (this.isInvite(item)) return Object.assign(style, { border: '2px solid ' + (item.color || 'var(--q-primary)') });
+            return Object.assign(style, { background: item.color || 'var(--q-primary)' });
+        },
+        offBands(cell) {
+            const toMinutes = (text) => Number(String(text).slice(0, 2)) * 60 + Number(String(text).slice(3, 5));
+            const work = (this.defaults.workDays || [1, 2, 3, 4, 5]).map(Number);
+            if (!work.includes(weekdayOf(cell.date))) return [{ key: 'all', top: 0, height: 24 * this.hourPx }];
+            const start = toMinutes(this.defaults.workStart || '09:00');
+            const end = toMinutes(this.defaults.workEnd || '17:00');
+            return [{ key: 'before', top: 0, height: start / 60 * this.hourPx }, { key: 'after', top: end / 60 * this.hourPx, height: (1440 - end) / 60 * this.hourPx }];
+        },
+        isSelectedDay(text) {
+            const sel = this.selection;
+            return !!sel && sel.zone !== 'time' && text >= sel.startDay && text <= sel.lastDay;
+        },
+        attendeeSummary(event) {
+            const people = event.attendees.filter((person) => !person.isOrganizer);
+            const yes = people.filter((person) => person.statusId === 'WeptAssigned').length;
+            const no = people.filter((person) => person.statusId === 'WeptDeclined').length;
+            const waiting = people.filter((person) => person.statusId === 'WeptOffered').length;
+            const parts = [people.length + ' ' + this.t(people.length === 1 ? 'guest' : 'guests')];
+            if (yes) parts.push(yes + ' ' + this.t('yes'));
+            if (no) parts.push(no + ' ' + this.t('no'));
+            if (waiting) parts.push(waiting + ' ' + this.t('waiting'));
+            return parts.join(' · ');
+        },
+        scrollToWork() {
+            const el = this.$refs.tgScroll;
+            if (!el) return;
+            const start = Number(String(this.defaults.workStart || '08:00').slice(0, 2));
+            el.scrollTop = Math.max(0, (start - 1) * this.hourPx - 12);
+            this.scrollbarWidth = Math.max(0, el.offsetWidth - el.clientWidth);
+        },
+        // ===== pointer: create, move and resize =====
+        minuteAt(column, clientY) {
+            const rect = column.getBoundingClientRect();
+            return Math.max(0, Math.min(1439, (clientY - rect.top) / this.hourPx * 60));
+        },
+        cellAt(x, y, zone) {
+            const el = document.elementFromPoint(x, y);
+            const cell = el && el.closest ? el.closest('[data-day]') : null;
+            return cell && (!zone || cell.getAttribute('data-zone') === zone) ? cell : null;
+        },
+        listen() {
+            window.addEventListener('pointermove', this.onPointerMove);
+            window.addEventListener('pointerup', this.onPointerUp);
+            window.addEventListener('pointercancel', this.onPointerCancel);
+        },
+        unlisten() {
+            window.removeEventListener('pointermove', this.onPointerMove);
+            window.removeEventListener('pointerup', this.onPointerUp);
+            window.removeEventListener('pointercancel', this.onPointerCancel);
+        },
+        onTimeDown(event, day) {
+            if (event.button !== 0) return;
+            const touch = event.pointerType === 'touch' || this.phone;
+            if (!touch) event.preventDefault();
+            const column = event.currentTarget;
+            const origin = Math.min(Math.floor(this.minuteAt(column, event.clientY) / 15) * 15, 1425);
+            this.drag = { mode: 'create', zone: 'time', day, column, origin, x: event.clientX, y: event.clientY, started: false, touch };
+            this.listen();
+        },
+        onDayDown(event, day, zone) {
+            if (event.button !== 0) return;
+            const touch = event.pointerType === 'touch' || this.phone;
+            if (!touch) event.preventDefault();
+            this.drag = { mode: 'create', zone, day, origin: day, current: day, x: event.clientX, y: event.clientY, started: false, touch, cell: event.currentTarget };
+            this.listen();
+        },
+        onEventDown(event, item, day) {
+            if (event.button !== 0) return;
+            const touch = event.pointerType === 'touch' || this.phone;
+            const movable = !touch && item.canEdit && item.kind === 'event' && !item.freeBusyOnly;
+            if (!touch) event.preventDefault();
+            const column = event.currentTarget.closest('[data-day]');
+            const grab = column ? this.minuteAt(column, event.clientY) - (item.sAbs - dayNum(day) * 1440) : 0;
+            this.drag = { mode: 'move', zone: 'time', item, day, grab, x: event.clientX, y: event.clientY, started: false, touch: !movable, target: event.currentTarget };
+            this.listen();
+        },
+        onResizeDown(event, item, day) {
+            if (event.button !== 0) return;
+            event.preventDefault();
+            const column = event.currentTarget.closest('[data-day]');
+            this.drag = { mode: 'resize', zone: 'time', item, day, column, x: event.clientX, y: event.clientY, started: false, touch: false, target: event.currentTarget.parentElement };
+            this.listen();
+        },
+        onChipDown(event, item, zone, day) {
+            if (event.button !== 0) return;
+            const touch = event.pointerType === 'touch' || this.phone;
+            const movable = !touch && item.canEdit && item.kind === 'event' && !item.freeBusyOnly;
+            if (!touch) event.preventDefault();
+            const cell = this.cellAt(event.clientX, event.clientY, zone);
+            this.drag = { mode: 'moveDays', zone, item, origin: cell ? cell.getAttribute('data-day') : (day || item.startDay), x: event.clientX, y: event.clientY,
+                started: false, touch: !movable, target: event.currentTarget };
+            this.listen();
+        },
+        onPointerMove(event) {
+            const drag = this.drag;
+            if (!drag) return;
+            if (!drag.started) {
+                if (Math.abs(event.clientX - drag.x) + Math.abs(event.clientY - drag.y) < 5) return;
+                if (drag.touch) { this.endDrag(); return; }
+                drag.started = true;
+            }
+            if (drag.mode === 'create' && drag.zone === 'time') {
+                const minute = this.minuteAt(drag.column, event.clientY);
+                if (minute >= drag.origin) this.selection = { zone: 'time', day: drag.day, start: drag.origin, end: Math.min(1440, Math.max(drag.origin + 15, Math.ceil(minute / 15) * 15)) };
+                else this.selection = { zone: 'time', day: drag.day, start: Math.floor(minute / 15) * 15, end: drag.origin + 15 };
+            } else if (drag.mode === 'create') {
+                const cell = this.cellAt(event.clientX, event.clientY, drag.zone);
+                if (cell) drag.current = cell.getAttribute('data-day');
+                const a = drag.origin < drag.current ? drag.origin : drag.current;
+                const b = drag.origin < drag.current ? drag.current : drag.origin;
+                this.selection = { zone: drag.zone, startDay: a, lastDay: b };
+            } else if (drag.mode === 'move') {
+                const cell = this.cellAt(event.clientX, event.clientY, 'time');
+                const day = cell ? cell.getAttribute('data-day') : (this.preview ? this.preview.day : drag.day);
+                const column = cell || drag.column;
+                if (cell) drag.column = cell;
+                if (!column) return;
+                const duration = drag.item.eAbs - drag.item.sAbs;
+                const start = Math.max(0, Math.min(1440 - 15, Math.round((this.minuteAt(column, event.clientY) - drag.grab) / 15) * 15));
+                this.preview = { item: drag.item, day, start, end: start + duration };
+            } else if (drag.mode === 'resize') {
+                const start = drag.item.sAbs - dayNum(drag.day) * 1440;
+                const end = Math.max(start + 15, Math.min(1440, Math.round(this.minuteAt(drag.column, event.clientY) / 15) * 15));
+                this.preview = { item: drag.item, day: drag.day, start: Math.max(0, start), end };
+            } else if (drag.mode === 'moveDays') {
+                const cell = this.cellAt(event.clientX, event.clientY, drag.zone);
+                if (!cell) return;
+                const day = cell.getAttribute('data-day');
+                const delta = dayNum(day) - dayNum(drag.origin);
+                const days = this.gridDays;
+                let leftPct = 0;
+                if (drag.zone === 'allday' && days.length) {
+                    const index = days.findIndex((entry) => entry.date === addDays(drag.item.startDay, delta));
+                    leftPct = index >= 0 ? index / days.length * 100 : (dayNum(addDays(drag.item.startDay, delta)) < dayNum(days[0].date) ? 0 : 100 - drag.item.widthPct);
+                }
+                this.chipPreview = { item: drag.item, zone: drag.zone, day, delta, leftPct };
+            }
+        },
+        onPointerCancel() { this.endDrag(); },
+        endDrag() { this.unlisten(); this.drag = null; },
+        onPointerUp(event) {
+            const drag = this.drag;
+            this.unlisten();
+            this.drag = null;
+            if (!drag) return;
+            if (drag.mode === 'create' && drag.zone === 'time') {
+                if (!drag.started) this.selection = { zone: 'time', day: drag.day, start: drag.origin, end: Math.min(1440, drag.origin + (Number(this.defaults.defaultDuration) || 60)) };
+                if (!this.selection) return;
+                this.$nextTick(() => this.openQuickFor(this.selection, document.getElementById('boss-cal-sel')));
+            } else if (drag.mode === 'create') {
+                if (!drag.started) this.selection = { zone: drag.zone, startDay: drag.day, lastDay: drag.day };
+                if (!this.selection) return;
+                const cell = this.cellAt(event.clientX, event.clientY, drag.zone) || drag.cell;
+                this.openQuickFor(this.selection, cell);
+            } else if (drag.mode === 'move' || drag.mode === 'resize') {
+                const preview = this.preview;
+                if (!drag.started || !preview) { this.preview = null; this.openItem({ currentTarget: drag.target }, drag.item); return; }
+                const base = dayNum(preview.day) * 1440;
+                if (base + preview.start === drag.item.sAbs && base + preview.end === drag.item.eAbs) { this.preview = null; return; }
+                this.askMove(drag.item, { start: wallOf(base + preview.start), end: wallOf(base + preview.end), allDay: 'N' });
+            } else if (drag.mode === 'moveDays') {
+                const moved = this.chipPreview;
+                if (!drag.started || !moved) { this.chipPreview = null; this.openItem({ currentTarget: drag.target }, drag.item); return; }
+                if (!moved.delta) { this.chipPreview = null; return; }
+                const item = drag.item;
+                if (item.allDay) this.askMove(item, { start: addDays(item.startDay, moved.delta), end: addDays(item.lastDay, moved.delta), allDay: 'Y' });
+                else this.askMove(item, { start: wallOf(item.sAbs + moved.delta * 1440), end: wallOf(item.eAbs + moved.delta * 1440), allDay: 'N' });
+            }
+        },
+        setAnchor(el) {
+            const rect = el && el.getBoundingClientRect ? el.getBoundingClientRect() : null;
+            if (rect) this.anchorRect = { left: rect.left, top: rect.top, width: Math.max(rect.width, 1), height: Math.max(rect.height, 1) };
+            else this.anchorRect = { left: window.innerWidth / 2 - 210, top: 120, width: 1, height: 1 };
+        },
+        popupBindings(title) {
+            if (this.phone) return { title, width: '440' };
+            return { target: '#boss-cal-anchor', noParentEvent: true, noFocus: true, anchor: 'top right', self: 'top left', offset: [8, 0], maxHeight: '86vh' };
+        },
+        // ===== the quick event =====
+        openQuickFor(sel, el) {
+            let start, end, allDay = 'N';
+            if (sel.zone === 'time') {
+                const base = dayNum(sel.day) * 1440;
+                start = wallOf(base + sel.start);
+                end = wallOf(base + sel.end);
+            } else { allDay = 'Y'; start = sel.startDay; end = sel.lastDay; }
+            this.openQuick({ start, end, allDay }, el);
+        },
+        openQuick(values, el) {
+            const calendarId = this.calendarOptions.some((option) => option.value === this.defaultCalendarId) ? this.defaultCalendarId
+                : (this.calendarOptions[0] ? this.calendarOptions[0].value : '');
+            this.pop.open = false;
+            this.setAnchor(el);
+            this.quick = { open: false, key: this.quick.key + 1, initial: Object.assign({ workEffortName: '', allDay: 'N', start: '', end: '', calendarId,
+                repeat: '', attendeePartyIds: [], facilityId: '', reminderMinutes: String(this.defaults.defaultReminder || ''), location: '' }, values) };
+            this.$nextTick(() => {
+                this.quick.open = true;
+                // the title takes the keys at once (the popover itself takes no focus)
+                setTimeout(() => { const input = document.getElementById('BossCalQuickName'); if (input) input.focus(); }, 120);
+            });
+        },
+        newEventNow(domEvent) {
+            this.railOpen = false;
+            const day = this.range && this.todayText >= this.range.start && this.todayText <= this.range.end ? this.todayText : (this.date || this.todayText);
+            const workStart = Number(String(this.defaults.workStart || '09:00').slice(0, 2)) * 60;
+            let start = day === this.todayText ? Math.ceil((this.nowMinutes + 1) / 30) * 30 : workStart;
+            if (start > 1440 - 60) start = workStart;
+            const base = dayNum(day) * 1440;
+            const duration = Number(this.defaults.defaultDuration) || 60;
+            this.openQuick({ start: wallOf(base + start), end: wallOf(base + Math.min(1440, start + duration)) }, domEvent && domEvent.currentTarget);
+        },
+        onQuickAllDay(fields, value) {
+            if (value === 'Y') {
+                fields.start = String(fields.start || '').slice(0, 10);
+                fields.end = String(fields.end || fields.start).slice(0, 10);
+            } else {
+                const day = String(fields.start || this.todayText).slice(0, 10);
+                const start = String(this.defaults.workStart || '09:00');
+                fields.start = day + ' ' + start;
+                fields.end = wallOf(absOf(day + ' ' + start) + (Number(this.defaults.defaultDuration) || 60));
+            }
+        },
+        repeatOptions(start) {
+            const day = isDay(String(start || '').slice(0, 10)) ? String(start).slice(0, 10) : this.todayText;
+            const weekday = day ? this.fmtDay(day, { weekday: 'long' }) : '';
+            const monthDay = day ? Number(day.slice(8, 10)) : 1;
+            return [{ value: 'daily', label: this.t('Every day') }, { value: 'weekdays', label: this.t('Every weekday (Monday to Friday)') },
+                { value: 'weekly', label: this.t('Weekly on') + ' ' + weekday }, { value: 'monthly', label: this.t('Monthly on day') + ' ' + monthDay },
+                { value: 'yearly', label: this.t('Every year on') + ' ' + (day ? this.fmtDay(day, { month: 'long', day: 'numeric' }) : '') }];
+        },
+        afterQuick() {
+            this.quick.open = false;
+            this.selection = null;
+            this.reload();
+        },
+        // ===== the event popover =====
+        openItem(domEvent, item) {
+            if (item.kind === 'task') { this.go(item.url); return; }
+            this.quick.open = false;
+            this.setAnchor(domEvent && domEvent.currentTarget);
+            if (item.freeBusyOnly) {
+                this.pop = { open: false, loading: false, item, event: null, color: null,
+                    busy: { whenText: item.allDay ? this.fmtDay(item.startDay, { weekday: 'long', month: 'long', day: 'numeric' }) : this.fmtDay(item.startDay, { weekday: 'short', month: 'short', day: 'numeric' }) + ' · ' + item.timeText } };
+                this.$nextTick(() => { this.pop.open = true; });
+                return;
+            }
+            this.pop = { open: false, loading: true, item, event: null, color: item.color || null, busy: null };
+            this.$nextTick(() => { this.pop.open = true; });
+            moqui.request(this.url('eventSummary'), { params: { workEffortId: item.workEffortId, instanceStart: item.recurringEventId === item.workEffortId ? (item.instanceStart || '') : '' } }).then((result) => {
+                if (this.pop.item !== item) return;
+                const json = result.json || {};
+                this.pop.loading = false;
+                this.pop.event = json.visible ? json.event : null;
+                if (json.visible && json.event.calendar && json.event.calendar.color && !this.pop.color) this.pop.color = json.event.calendar.color;
+            }, (err) => { this.pop.loading = false; moqui.handleAjaxError(err); });
+        },
+        openDetail() {
+            const event = this.pop.event;
+            this.pop.open = false;
+            if (event && event.url) this.go(event.url);
+        },
+        respond(value) {
+            const event = this.pop.event;
+            if (!event) return;
+            moqui.request(this.url('respond'), { method: 'POST', params: { workEffortId: event.workEffortId, response: value } }).then((result) => {
+                const json = result.json || {};
+                moqui.notifyMessages(json.messageInfos, json.errors);
+                if (json.statusId) event.myStatusId = json.statusId;
+                this.reload();
+            }, moqui.handleAjaxError);
+        },
+        // ===== changes that ask first =====
+        askMove(item, values) {
+            const payload = Object.assign({ workEffortId: item.workEffortId, instanceStart: item.instanceStart || '' }, values);
+            const canNotify = !!(item.hasAttendees && item.isOrganizer);
+            if (!item.recurring && !canNotify) { this.doChange('move', payload, 'all', 'N'); return; }
+            this.change = { open: true, kind: 'move', title: this.t('Change') + ' ' + item.title, recurring: !!item.recurring, canNotify,
+                scope: 'this', notify: canNotify ? ['Y'] : [], payload, okLabel: this.t('Save'), busy: false, done: false, message: '' };
+        },
+        askCancel() {
+            const event = this.pop.event;
+            if (!event) return;
+            const item = this.pop.item || {};
+            const canNotify = event.attendeeCount > 0;
+            const payload = { workEffortId: event.workEffortId, instanceStart: event.isInstance ? '' : (item.instanceStart || event.instanceStart || '') };
+            this.pop.open = false;
+            const plain = !event.isRecurring && !canNotify;
+            this.change = { open: true, kind: 'cancel', title: (plain ? this.t('Delete') : this.t('Cancel')) + ' ' + event.name, recurring: !!event.isRecurring, canNotify,
+                scope: 'this', notify: canNotify ? ['Y'] : [], payload, okLabel: plain ? this.t('Delete') : this.t('Cancel event'), busy: false, done: false,
+                message: plain ? this.t('It goes off your calendar.') : '' };
+        },
+        confirmChange() {
+            this.change.busy = true;
+            this.change.done = true;
+            const notify = (this.change.notify || []).includes('Y') ? 'Y' : 'N';
+            this.doChange(this.change.kind, this.change.payload, this.change.recurring ? this.change.scope : 'all', notify).then(() => { this.change.open = false; this.change.busy = false; });
+        },
+        doChange(kind, payload, scope, notify) {
+            const name = kind === 'cancel' ? 'cancelEvent' : 'moveEvent';
+            return moqui.request(this.url(name), { method: 'POST', params: Object.assign({}, payload, { scope, notify }) }).then((result) => {
+                const json = result.json || {};
+                moqui.notifyMessages(json.messageInfos, json.errors);
+                this.preview = null;
+                this.chipPreview = null;
+                this.reload();
+            }, (err) => { this.preview = null; this.chipPreview = null; moqui.handleAjaxError(err); });
+        },
+        // ===== search =====
+        runSearch(now) {
+            const text = String(this.searchText || '').trim();
+            if (text.length < 2) { if (now) moqui.notifyMessages(null, null); return; }
+            this.search = { active: true, loading: true, text, results: this.search.results || [] };
+            const shown = this.calendars.filter((cal) => !this.hidden.includes(cal.calendarId)).map((cal) => cal.calendarId);
+            moqui.request(this.url('searchEvents'), { params: { text, calendarIds: shown.join(',') } }).then((result) => {
+                if (this.search.text !== text) return;
+                this.search.results = (result.json || {}).resultList || [];
+                this.search.loading = false;
+            }, (err) => { this.search.loading = false; moqui.handleAjaxError(err); });
+        },
+        clearSearch() { this.search = { active: false, loading: false, text: '', results: [] }; this.searchText = ''; this.phoneSearch = false; },
+        showResultDay(result) { this.clearSearch(); this.goDate(result.dayText); },
+        openPhoneSearch() { this.phoneSearch = true; this.$nextTick(() => { const el = document.getElementById('boss-cal-search'); if (el) el.focus(); }); },
+        focusSearch() {
+            if (this.compactHeader) { this.openPhoneSearch(); return true; }
+            const el = document.getElementById('boss-cal-search');
+            if (el) el.focus();
+            return true;
+        },
+        // ===== Find a time =====
+        openFindTime() {
+            this.railOpen = false;
+            this.find = Object.assign({}, this.find, { open: true, fromDay: this.find.fromDay || (this.date > this.todayText ? this.date : this.todayText), slots: [], note: null });
+        },
+        runFindTime() {
+            this.find.loading = true;
+            moqui.request(this.url('findTime'), { params: { partyIds: (this.find.partyIds || []).join(','), facilityId: this.find.facilityId || '',
+                durationMinutes: this.find.duration, fromDay: String(this.find.fromDay || '').slice(0, 10), dayCount: this.find.days,
+                workingHoursOnly: (this.find.workingOnly || []).includes('Y') ? 'Y' : 'N' } }).then((result) => {
+                const json = result.json || {};
+                this.find.loading = false;
+                this.find.slots = json.slotList || [];
+                this.find.note = json.note || null;
+            }, (err) => { this.find.loading = false; moqui.handleAjaxError(err); });
+        },
+        pickSlot(domEvent, slot) {
+            const el = domEvent && domEvent.currentTarget;
+            this.setAnchor(el);
+            const rect = Object.assign({}, this.anchorRect);
+            this.find.open = false;
+            const values = { start: slot.start, end: slot.end, attendeePartyIds: (this.find.partyIds || []).slice(), facilityId: this.find.facilityId || '' };
+            this.$nextTick(() => { this.openQuick(values, null); this.anchorRect = rect; });
+        },
+        keyBindings() {
+            const when = () => !this.subActive && !this.quick.open && !this.pop.open && !this.change.open && !this.find.open;
+            const run = (action) => () => { action(); return true; };
+            return [
+                { keys: 't', label: this.t('Calendar: today'), action: 'calendarToday', when, run: run(() => this.goToday()) },
+                { keys: 'd', label: this.t('Calendar: day view'), action: 'calendarDay', when, run: run(() => this.setView('day')) },
+                { keys: 'x', label: this.t('Calendar: work week view'), action: 'calendarWorkWeek', when, run: run(() => this.setView('workweek')) },
+                { keys: 'w', label: this.t('Calendar: week view'), action: 'calendarWeek', when, run: run(() => this.setView('week')) },
+                { keys: 'm', label: this.t('Calendar: month view'), action: 'calendarMonth', when, run: run(() => this.setView('month')) },
+                { keys: 'a', label: this.t('Calendar: agenda'), action: 'calendarAgenda', when, run: run(() => this.setView('agenda')) },
+                { keys: 'j', label: this.t('Calendar: next'), action: 'calendarNext', when, run: run(() => this.shift(1)) },
+                { keys: 'n', label: this.t('Calendar: next'), action: 'calendarNextN', when, run: run(() => this.shift(1)) },
+                { keys: 'Right', label: this.t('Calendar: next'), action: 'calendarNextArrow', when, run: run(() => this.shift(1)) },
+                { keys: 'k', label: this.t('Calendar: previous'), action: 'calendarPrevious', when, run: run(() => this.shift(-1)) },
+                { keys: 'p', label: this.t('Calendar: previous'), action: 'calendarPreviousP', when, run: run(() => this.shift(-1)) },
+                { keys: 'Left', label: this.t('Calendar: previous'), action: 'calendarPreviousArrow', when, run: run(() => this.shift(-1)) },
+                { keys: 'c', label: this.t('Calendar: new event'), action: 'calendarCreate', when, run: run(() => this.newEventNow(null)) },
+                { keys: '/', label: this.t('Calendar: search'), action: 'calendarSearch', when, run: () => this.focusSearch() }
+            ];
+        }
+    },
+    mounted() {
+        if (moqui.keymap && moqui.keymap.registerScope) this.keysOff = moqui.keymap.registerScope('calendar', this.keyBindings());
+        this.nowTimer = setInterval(() => this.updateNow(), 60000);
+        this.loadSetup().then(() => {
+            this.readState();
+            if (!this.subActive) { this.loadEvents(true); this.$nextTick(() => this.scrollToWork()); }
+        });
+    },
+    beforeUnmount() {
+        if (this.keysOff) this.keysOff();
+        clearInterval(this.nowTimer);
+        clearTimeout(this.searchTimer);
+        this.unlisten();
+    }
+};
+</script>

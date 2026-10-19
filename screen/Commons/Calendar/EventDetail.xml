@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-This software is in the public domain under CC0 1.0 Universal plus a 
+This software is in the public domain under CC0 1.0 Universal plus a
 Grant of Patent License.
 
 To the extent possible under law, the author(s) have dedicated all
@@ -12,196 +12,585 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- EventDetail, moved from the first SimpleScreens port (M0) and redesigned in M7 (design-drawers-commons.md §7). Since M3 its
-    notes and files are the event's Chatter and RecordFiles panels (§15, §9): the right column from 1440 px and below the event
-    otherwise (style-guide §3.3), opening on Log note. -->
-<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-        xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+<!-- EventDetail (design-drawers-commons.md §7 EventDetail, Context passed; style-guide §3.3 Detail; impl-drawers-commons.md M7): one
+    event as Commons shows it (service/ironstone/EventServices.xml get#EventDetail), an instance of a repeating one with
+    instanceStart. The header has the name, its calendar, its status, when and how it repeats, where, the organizer and the
+    user's answer, and the actions: the organizer's Send invitations (primary while attendees have not had the latest), an
+    attendee's RSVP (Yes, Maybe, No, or with a note), Duplicate, Export .ics and Cancel event. The tabs: Overview (When with
+    all day and the time zone, Repeat with daily, weekly on days, monthly, yearly and its end, Where with the meeting rooms and
+    equipment booked and free then, Details with the description, calendar and who sees it), Attendees (required or optional,
+    their answers and whether they are free then, add people or email addresses, Send invitations), Reminders (the user's
+    own), Files and Chatter, which is the right column of the overview from 1440 px and a tab below. A change to a repeating
+    event asks which events (this, this and following, all) and whether to tell the attendees. An event the user may not see
+    is "not available" (ironstone.CalendarServices.get#EventAccessInfo: IronStone R5, R28); one the user may not change shows
+    the same layout read-only. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Event" default-menu-include="false">
 
     <parameter name="workEffortId" required="true"/>
+    <parameter name="instanceStart"/>
+    <parameter name="tab"/>
 
-    <transition name="updateEvent"><service-call name="update#mantle.work.effort.WorkEffort"/><default-response url="."/></transition>
-    <transition name="cloneWorkEffort"><service-call name="mantle.work.WorkEffortServices.clone#WorkEffort"/><default-response url="."/></transition>
+    <transition name="calendar"><default-response url=".."/></transition>
 
-    <transition name="addAssetAssign"><service-call name="create#mantle.work.effort.WorkEffortAssetAssign"/><default-response url="."/></transition>
-    <transition name="updateAssetAssign"><service-call name="update#mantle.work.effort.WorkEffortAssetAssign"/><default-response url="."/></transition>
-    <!-- <transition name="equipmentDetail"><default-response url="."/></transition> -->
-
-    <transition-include name="searchPartyList" location="component://SimpleScreens/template/party/PartyForms.xml"/>
-    <transition name="addAssignment"><service-call name="create#mantle.work.effort.WorkEffortParty"/><default-response url="."/></transition>
-    <transition name="updateAssignment"><service-call name="update#mantle.work.effort.WorkEffortParty"/><default-response url="."/></transition>
-    <!-- <transition name="editParty"><default-response url="."/></transition> -->
+    <!-- ========== changes, each showing the event again on its tab ========== -->
+    <transition name="saveOverview">
+        <actions>
+            <service-call name="ironstone.EventServices.save#EventOverview" out-map="saveOut" in-map="{workEffortId:workEffortId, instanceStart:instanceStart,
+                    scope:scope, workEffortName:workEffortName, allDay:allDay, startDate:startDate, startTime:startTime, endDate:endDate, endTime:endTime,
+                    location:location, infoUrl:infoUrl, description:description, visibilityEnumId:visibilityEnumId, calendarId:calendarId, notify:notify}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if>
+        </actions>
+        <!-- an instance changed on its own, or a new series from here on: that event is shown -->
+        <conditional-response url="." condition="saveOut?.targetWorkEffortId &amp;&amp; saveOut.targetWorkEffortId != workEffortId">
+            <parameter name="workEffortId" from="saveOut.targetWorkEffortId"/><parameter name="tab"/></conditional-response>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="instanceStart"/><parameter name="tab"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="saveRecurrence">
+        <actions>
+            <service-call name="ironstone.EventServices.save#Recurrence" out-map="recurOut" in-map="{workEffortId:workEffortId, freq:freq, interval:interval,
+                    byDay:byDay, monthlyBy:monthlyBy, ends:ends, untilDate:untilDate, count:count}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(recurOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="tab"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="respond">
+        <actions>
+            <service-call name="ironstone.CalendarServices.respond#Invitation" out-map="answerOut" in-map="{workEffortId:workEffortId, response:response, message:message}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(answerOut.resultMessage, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="instanceStart"/><parameter name="tab"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="sendInvitations">
+        <actions>
+            <service-call name="ironstone.EventServices.send#Invitations" out-map="sendOut" in-map="{workEffortId:workEffortId, resendAll:resendAll, note:note}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(sendOut.message, sendOut.skippedList?.length ? 'warning' : 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="instanceStart"/><parameter name="tab"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="addAttendees">
+        <actions>
+            <service-call name="ironstone.EventServices.add#Attendees" out-map="addOut" in-map="{workEffortId:workEffortId, partyIds:partyIds, emails:emails,
+                    optional:optional, sendNow:sendNow}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(addOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="instanceStart"/><parameter name="tab" value="attendees"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="removeAttendee">
+        <actions>
+            <service-call name="ironstone.EventServices.remove#Attendee" out-map="removeOut" in-map="{workEffortId:workEffortId, partyId:partyId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(removeOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="instanceStart"/><parameter name="tab" value="attendees"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="setOptional">
+        <actions>
+            <service-call name="ironstone.EventServices.set#AttendeeOptional" out-map="optOut" in-map="{workEffortId:workEffortId, partyId:partyId, optional:optional}"/>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="instanceStart"/><parameter name="tab" value="attendees"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="addReminder">
+        <actions>
+            <service-call name="ironstone.EventServices.store#MyReminders" out-map="remOut" in-map="{workEffortId:workEffortId, offsetMinutes:offsetMinutes, methodEnumId:methodEnumId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(remOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="instanceStart"/><parameter name="tab" value="reminders"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="removeReminder">
+        <actions>
+            <service-call name="ironstone.EventServices.store#MyReminders" out-map="remOut" in-map="{workEffortId:workEffortId, removeSeqId:reminderSeqId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(remOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="instanceStart"/><parameter name="tab" value="reminders"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="bookResource">
+        <actions>
+            <service-call name="ironstone.EventServices.book#EventResource" out-map="bookOut" in-map="{workEffortId:workEffortId, facilityId:facilityId, assetId:assetId,
+                    comments:comments}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(bookOut.message, bookOut.statusId &amp;&amp; bookOut.statusId.endsWith('Requested') ? 'warning' : 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="instanceStart"/><parameter name="tab"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="cancelBooking">
+        <actions>
+            <service-call name="ironstone.EventServices.cancel#EventResource" out-map="cancelOut" in-map="{workEffortId:workEffortId, facilityId:facilityId, assetId:assetId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(cancelOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="instanceStart"/><parameter name="tab"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="duplicateEvent">
+        <actions>
+            <service-call name="ironstone.EventServices.duplicate#Event" out-map="dupOut" in-map="{workEffortId:workEffortId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(dupOut.message, 'success')</script></if>
+        </actions>
+        <conditional-response url="." condition="dupOut?.newWorkEffortId"><parameter name="workEffortId" from="dupOut.newWorkEffortId"/></conditional-response>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="cancelEvent">
+        <actions>
+            <service-call name="ironstone.CalendarServices.cancel#EventOccurrence" out-map="cancelOut" in-map="{workEffortId:workEffortId, instanceStart:instanceStart,
+                    scope:(scope || 'all'), notify:notify}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(cancelOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="instanceStart"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <!-- the event as an .ics download -->
+    <transition name="exportIcs" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.EventServices.export#EventFile').parameters({workEffortId: workEffortId}).call()
+            if (!ec.message.hasError() && out?.location) ec.web.sendResourceResponse(out.location, false)
+            else ec.web.sendJsonResponse({})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- the people of the attendees drop-down -->
+    <transition name="searchPeople" read-only="true">
+        <actions>
+            <service-call name="ironstone.CalendarServices.search#Attendees" in-map="{term:term}" out-map="found"/>
+            <script>ec.web.sendJsonResponse(found.optionList || [])</script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
 
     <actions>
-        <entity-find-one entity-name="mantle.work.effort.WorkEffort" value-field="workEffort"/>
-
-        <entity-find entity-name="moqui.entity.EntityAuditLog" list="statusHistoryList">
-            <econdition field-name="changedEntityName" value="mantle.work.effort.WorkEffort"/>
-            <econdition field-name="changedFieldName" value="statusId"/>
-            <econdition field-name="pkPrimaryValue" from="workEffortId"/>
-            <order-by field-name="changedDate"/>
-        </entity-find>
-        <set field="statusId" from="workEffort?.statusId"/>
-        <set field="statusChangeTransition" value="updateEvent"/>
-
-        <!-- Equipment -->
-        <entity-find entity-name="mantle.work.effort.WorkEffortAssetAndAssign" list="equipmentList">
-            <date-filter/><econdition field-name="workEffortId"/><order-by field-name="assetName"/></entity-find>
-
-        <!-- Party Assignments -->
-        <entity-find entity-name="mantle.work.effort.WorkEffortAndPartyDetail" list="weapdList">
-            <date-filter/><econdition field-name="workEffortId"/><order-by field-name="firstName,lastName,organizationName"/></entity-find>
+        <set field="tab" from="['overview', 'attendees', 'reminders', 'files', 'chatter'].includes(tab) ? tab : 'overview'"/>
+        <service-call name="ironstone.EventServices.get#EventDetail" in-map="{workEffortId:workEffortId, instanceStart:instanceStart}" out-map="detail"/>
+        <set field="recordFound" from="!!detail.visible"/>
+        <script><![CDATA[
+            if (!recordFound) return
+            const L = (text) => ec.l10n.localize(text)
+            const enc = (text) => String(text == null ? '' : text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+            event = detail.event
+            edit = detail.edit
+            recurrence = detail.recurrence || {}
+            canEdit = !!detail.canEdit
+            canRsvp = !!detail.canRsvp
+            canSetReminders = !!detail.canSetReminders
+            isOrganizer = !!detail.isOrganizer
+            pendingInvites = detail.pendingInvites || 0
+            attendeeList = event.attendees || []
+            otherAttendees = attendeeList.filter((party) => !party.isOrganizer)
+            roomList = event.rooms || []
+            equipmentList = event.equipment || []
+            reminderList = detail.reminderList || []
+            calendarOptions = detail.calendarOptions || []
+            roomOptions = detail.roomOptions || []
+            equipmentOptions = detail.equipmentOptions || []
+            linkedRecordList = detail.linkedRecordList || []
+            isRecurring = !!event.isRecurring
+            hasAttendees = otherAttendees.length > 0
+            notifyDefault = hasAttendees ? 'Y' : 'N'
+            myStatusId = event.myStatusId || ''
+            visibilityOptions = [{key: '', text: L('Its people and calendars')}, {key: 'WevAllUsers', text: L('Everyone')}, {key: 'WevWorkGroup', text: L('Its work group')},
+                {key: 'WevRestricted', text: L('Only the people on it')}]
+            scopeOptions = [{key: 'this', text: L('This event')}, {key: 'following', text: L('This and following')}, {key: 'all', text: L('All events')}]
+            // the header: the calendar's color chip, the status, when and the facts
+            const color = event.calendar?.color && /^#[0-9a-fA-F]{3,8}$/.test(event.calendar.color) ? event.calendar.color : null
+            const statusColor = {grey: 'grey-7'}[event.statusColor] || event.statusColor || 'grey-7'
+            chipsHtml = '<div class="row items-center q-gutter-xs q-mb-xs m-event-chips">'
+                + (event.calendar ? '<q-chip dense square class="q-ma-none" outline><span class="q-mr-xs" style="display:inline-block;width:10px;height:10px;border-radius:2px;background:'
+                    + (color || 'var(--q-primary)') + '"></span>' + enc(event.calendar.calendarName) + '</q-chip>' : '')
+                + '<q-chip dense square class="q-ma-none m-tonal text-' + enc(statusColor) + '">' + enc(event.statusLabel) + '</q-chip>'
+                + (isRecurring ? '<q-chip dense square icon="sym_o_repeat" class="q-ma-none m-tonal text-info">' + enc(event.isInstance ? L('Changed instance') : L('Repeats')) + '</q-chip>' : '')
+                + '</div>'
+            const myAnswer = {WeptAssigned: [L('You are going'), 'text-positive'], WeptTentative: [L('You might go'), 'text-warning'], WeptDeclined: [L('You declined'), 'text-negative'],
+                WeptOffered: [L('Not answered yet'), 'text-warning']}[myStatusId]
+            const fact = (label, value, cls) => '<div class="col-auto" style="max-width:100%"><div class="text-caption m-muted">' + enc(L(label)) + '</div><div class="text-body2'
+                    + (cls ? ' ' + cls : '') + '">' + value + '</div></div>'
+            const where = [event.location].concat(roomList.map((room) => room.name)).filter((part, index, all) => part && all.indexOf(part) === index)
+            factsHtml = '<div class="row q-col-gutter-lg q-mb-sm m-event-facts">'
+                + fact('When', enc(event.whenText) + (event.recurrenceText ? '<div class="text-caption m-muted">' + enc(event.recurrenceText) + '</div>' : ''), '')
+                + (where.length ? fact('Where', enc(where.join(' · ')), '') : '')
+                + (event.organizer ? fact('Organizer', enc(event.organizer.name) + (event.organizer.isMe ? ' (' + enc(L('you')) + ')' : ''), '') : '')
+                + (hasAttendees ? fact('Guests', enc(otherAttendees.length) + ' · ' + enc(otherAttendees.filter((party) => party.statusId === 'WeptAssigned').length) + ' ' + enc(L('yes')), '') : '')
+                + (myAnswer ? fact('Your answer', enc(myAnswer[0]), myAnswer[1]) : '')
+                + (event.joinUrl ? fact('Video call', '<a href="' + enc(event.joinUrl) + '" target="_blank" rel="noopener noreferrer">' + enc(L('Join')) + '</a>', '') : '')
+                + '</div>'
+            captionText = [L('Event') + ' ' + workEffortId, event.timeZone ? L('Time zone') + ' ' + event.timeZone : null].filter((part) => part).join(' · ')
+            // the tabs: Chatter is a tab only below 1440 px, beside the overview from there
+            const tabs = [['overview', 'Overview'], ['attendees', 'Attendees' + (otherAttendees.length ? ' (' + otherAttendees.length + ')' : '')], ['reminders', 'Reminders'],
+                ['files', 'Files'], ['chatter', 'Chatter']]
+            const base = '/qapps/Commons/Calendar/EventDetail?workEffortId=' + encodeURIComponent(workEffortId) + (instanceStart ? '&instanceStart=' + encodeURIComponent(instanceStart) : '')
+            tabsHtml = '<q-tabs dense no-caps inline-label narrow-indicator outside-arrows mobile-arrows align="left" active-color="primary" indicator-color="primary"'
+                    + ' class="text-grey-8 m-event-tabs" model-value="' + enc(tab) + '">' + tabs.map(([key, label]) => {
+                        const cls = key === 'chatter' && tab !== 'chatter' ? ' class="lt-lg"' : ''
+                        return '<q-tab name="' + key + '" label="' + enc(L(label)) + '"' + cls + ' data-tab="' + key + '" @click="$root.setUrl(\'' + enc(base + '&tab=' + key) + '\')"></q-tab>'
+                    }).join('') + '</q-tabs><q-separator class="q-mb-sm"></q-separator>'
+            // the people: answer, required or optional, free then
+            const freeColor = {free: 'text-positive', busy: 'text-negative', tentative: 'text-warning', requested: 'text-warning'}
+            attendeeRows = attendeeList.map((party) => Object.assign({}, party, {answerHtml: party.isOrganizer ? '<span class="text-caption m-muted">' + enc(L('Organizer')) + '</span>'
+                    : '<q-chip dense square class="q-ma-none m-tonal text-' + enc(party.statusColor) + '">' + enc(party.statusLabel) + '</q-chip>',
+                freeHtml: party.freeBusyText ? '<span class="text-caption ' + (freeColor[party.freeBusy] || 'm-muted') + '">' + enc(party.freeBusyText) + '</span>' : '',
+                kindText: party.isOrganizer ? '' : (party.optional ? L('Optional') : L('Required')),
+                inviteText: party.isOrganizer ? '' : (party.pendingInvite ? (party.invited ? L('Changed since the invitation') : L('Not invited yet')) : (party.invitedText ? L('Invited') + ' ' + party.invitedText : '')),
+                reachText: party.hasUser ? '' : L('by email')}))
+            const bookingHtml = (item) => '<q-chip dense square class="q-ma-none m-tonal text-' + enc(item.statusColor) + '">' + enc(item.statusLabel) + '</q-chip>'
+            roomRows = roomList.filter((room) => !room.legacy).map((room) => Object.assign({}, room, {statusHtml: bookingHtml(room)}))
+            equipmentRows = equipmentList.map((item) => Object.assign({}, item, {statusHtml: bookingHtml(item)}))
+            linkedRecordsHtml = linkedRecordList.map((record) => '<m-record-card record-entity="' + enc(record.recordEntityName) + '" record-id="' + enc(record.recordId)
+                    + '" card-url="/apps/Commons/Chatter/recordCard" class="q-mb-xs"></m-record-card>').join('')
+            descriptionText = event.description || ''
+            reminderOptions = [{key: '0', text: L('At the start')}, {key: '5', text: L('5 minutes before')}, {key: '10', text: L('10 minutes before')},
+                {key: '15', text: L('15 minutes before')}, {key: '30', text: L('30 minutes before')}, {key: '60', text: L('1 hour before')},
+                {key: '120', text: L('2 hours before')}, {key: '1440', text: L('1 day before')}, {key: '10080', text: L('1 week before')}]
+            recurrenceFields = {workEffortId: recurrence.seriesId || workEffortId, freq: recurrence.freq || 'NONE', interval: recurrence.interval || '1',
+                byDay: recurrence.byDay || [], monthlyBy: recurrence.monthlyBy || 'day', ends: recurrence.ends || 'never', untilDate: recurrence.untilDate || '',
+                count: recurrence.count || '', tab: tab}
+            seriesUrl = event.isInstance ? '/qapps/Commons/Calendar/EventDetail?workEffortId=' + encodeURIComponent(event.seriesId) : null
+        ]]></script>
     </actions>
+
     <widgets>
-        <!-- the record for the shell: quick create's link chip and the activity kind, Today's "Add activity on this record" -->
-        <context record-entity="mantle.work.effort.WorkEffort" record-id="${workEffortId}" title="${workEffort?.workEffortName || workEffortId}"/>
-        <container-row><row-col lg="8"><container-row><row-col md="7" lg="12">
-            <container-box><box-header title="Event ${workEffortId}"/><box-toolbar>
-                <link url="cloneWorkEffort" text="Clone Event" parameter-map="{baseWorkEffortId:workEffortId,
-                        clearDates:true, copyAssetAssign:true}"/>
-            </box-toolbar><box-body>
-                <form-single name="UpdateEvent" transition="updateEvent" map="workEffort">
-                    <field name="workEffortId"><default-field><hidden/></default-field></field>
-                    <field name="workEffortName"><default-field title="Name"><text-line size="40"/></default-field></field>
-                    <field name="purposeEnumId"><default-field title="Purpose">
-                        <widget-template-include location="component://webroot/template/screen/BasicWidgetTemplates.xml#enumDropDown">
-                            <set field="enumTypeId" value="WorkEffortPurpose"/>
-                            <set field="noCurrentSelectedKey" value="WepMeeting"/></widget-template-include>
-                    </default-field></field>
-                    <field name="facilityId"><default-field title="Facility">
-                        <drop-down allow-empty="true">
-                            <entity-options key="${facilityId}" text="FacilityNameTemplate">
-                                <entity-find entity-name="mantle.facility.Facility" limit="200">
-                                    <econdition field-name="facilityTypeEnumId" operator="in"
-                                            value="FcTpBuilding,FcTpOffice,FcTpRoom,FcTpRetailStore,FcTpWarehouse"/>
-                                    <order-by field-name="facilityName"/>
-                                </entity-find>
-                            </entity-options>
-                        </drop-down>
-                    </default-field></field>
-                    <field name="estimatedStartDate"><default-field title="Start Date"><date-time/></default-field></field>
-                    <field name="estimatedWorkDuration"><default-field title="Est. Hours"><text-line size="8"/></default-field></field>
-                    <field name="description"><default-field title="Description"><text-area rows="10" cols="60"/></default-field></field>
-                    <field name="submitButton"><default-field title="Update"><submit/></default-field></field>
-                </form-single>
+        <section name="EventNotFound" condition="!recordFound"><widgets>
+            <container-box type="warning"><box-header title="Not available"/><box-body>
+                <label type="p" text="Event ${workEffortId} is not available: it does not exist, or you are not on it and it is in no calendar you see."/>
+                <link url="calendar" text="Back to the calendar" link-type="anchor"/>
             </box-body></container-box>
-        </row-col><row-col md="5" lg="12">
-            <section-include name="StatusChangeAndHistorySection" location="component://SimpleScreens/template/basic/StatusWidgets.xml"/>
+        </widgets></section>
 
-            <section name="PartiesSection"><widgets>
-                <container-box>
-                    <box-header title="Parties Assigned"/>
-                    <box-toolbar>
-                        <container-dialog id="AddPartyAssignDialog" button-text="Add Party">
-                            <form-single name="AddPartyAssignForm" transition="addAssignment">
+        <section name="EventFound" condition="recordFound"><widgets>
+            <!-- the record for the shell: quick create's link chip and the activity kind, Today's "Add activity on this record" -->
+            <context record-entity="mantle.work.effort.WorkEffort" record-id="${workEffortId}" title="${event.name}"/>
+            <container style="q-mb-xs"><link url="calendar" link-type="anchor" text="Calendar" icon="arrow_back"/></container>
+
+            <!-- ===== header: name, calendar, status, the answer and the actions ===== -->
+            <container style="row items-start q-col-gutter-sm q-mb-sm m-event-header">
+                <container style="col-12 col-md">
+                    <label text="${event.name}" type="h5" style="q-my-none ${event.cancelled ? 'text-strike m-muted' : ''}"/>
+                    <label text="${captionText}" type="div" style="text-caption m-muted q-mb-xs"/>
+                    <render-mode><text type="qvt"><![CDATA[${chipsHtml}]]></text></render-mode>
+                </container>
+                <container style="col-12 col-md-auto row items-center q-gutter-xs m-event-actions">
+                    <!-- an attendee's answer -->
+                    <section name="Rsvp" condition="canRsvp"><widgets>
+                        <label text="Going?" type="span" style="text-body2 q-mr-xs"/>
+                        <link url="respond" link-type="hidden-form" text="Yes" icon="sym_o_check" btn-type="${myStatusId == 'WeptAssigned' ? 'primary' : 'default'}"
+                                parameter-map="{workEffortId:workEffortId, instanceStart:instanceStart, tab:tab, response:'accept'}"/>
+                        <link url="respond" link-type="hidden-form" text="Maybe" icon="sym_o_help" btn-type="${myStatusId == 'WeptTentative' ? 'primary' : 'default'}"
+                                parameter-map="{workEffortId:workEffortId, instanceStart:instanceStart, tab:tab, response:'tentative'}"/>
+                        <link url="respond" link-type="hidden-form" text="No" icon="sym_o_close" btn-type="${myStatusId == 'WeptDeclined' ? 'primary' : 'default'}"
+                                parameter-map="{workEffortId:workEffortId, instanceStart:instanceStart, tab:tab, response:'decline'}"/>
+                        <container-dialog id="EventAnswerDialog" button-text="With a note" icon="sym_o_chat" width="480" title="Answer ${event.name}">
+                            <form-single name="EventAnswer" transition="respond" focus-field="message">
                                 <field name="workEffortId"><default-field><hidden/></default-field></field>
-                                <field name="fromDate" from="ec.user.nowTimestamp"><default-field><hidden/></default-field></field>
-
-                                <field name="partyId" from="''"><default-field title="Party"><drop-down>
-                                    <dynamic-options transition="searchPartyList" server-search="true" min-length="2"/></drop-down>
-                                </default-field></field>
-                                <field name="roleTypeId"><default-field><hidden default-value="_NA_"/></default-field></field>
-                                <field name="statusId" from="null"><default-field title="Status">
-                                    <widget-template-include location="component://webroot/template/screen/BasicWidgetTemplates.xml#statusDropDown">
-                                        <set field="statusTypeId" value="WorkEffortParty"/><set field="noCurrentSelectedKey" value="WeptAssigned"/></widget-template-include>
-                                </default-field></field>
-                                <field name="submitButton"><default-field title="Add Assignment"><submit/></default-field></field>
+                                <field name="instanceStart"><default-field><hidden/></default-field></field>
+                                <field name="tab"><default-field><hidden/></default-field></field>
+                                <field name="response" from="'accept'"><default-field title="Answer"><radio><option key="accept" text="Yes"/>
+                                    <option key="tentative" text="Maybe"/><option key="decline" text="No"/></radio></default-field></field>
+                                <field name="message"><default-field title="Note to the organizer"><text-area rows="3" cols="50"/></default-field></field>
+                                <field name="submitButton"><default-field title="Send the answer"><submit/></default-field></field>
                             </form-single>
                         </container-dialog>
-                    </box-toolbar>
-                    <box-body>
-                        <form-list name="UpdateAssignForm" list="weapdList" transition="updateAssignment">
-                            <row-actions>
-                                <entity-find-one entity-name="moqui.basic.StatusItem" value-field="currentStatus"/>
-                            </row-actions>
-                            <field name="workEffortId"><default-field><hidden/></default-field></field>
-                            <field name="partyId"><default-field><hidden/></default-field></field>
-                            <field name="fromDate"><default-field><hidden/></default-field></field>
-
-                            <field name="name"><header-field/><default-field>
-                                <display text="PartyNameTemplate"/>
-                                <!-- <link url="editParty" text="PartyNameTemplate" link-type="anchor"/> -->
-                            </default-field></field>
-                            <field name="username"><default-field>
-                                <display text="${username||'--'}"/>
-                                <!-- <link url="editParty" text="${username?:''}" link-type="anchor"/> -->
-                            </default-field></field>
-
-                            <field name="roleTypeId"><default-field><hidden/></default-field></field>
-                            <field name="statusId"><default-field title="Status">
-                                <widget-template-include location="component://webroot/template/screen/BasicWidgetTemplates.xml#statusTransitionDropDown">
-                                    <set field="currentDescription" from="currentStatus?.description"/>
-                                    <set field="statusId"/><set field="style" value=" "/></widget-template-include>
-                            </default-field></field>
-                            <field name="submitButton"><default-field title="Update"><submit/></default-field></field>
-
-                            <field name="removeButton"><default-field title="">
-                                <link url="updateAssignment" text="X" parameter-map="{workEffortId:workEffortId, partyId:partyId,
-                                        roleTypeId:roleTypeId, fromDate:fromDate, thruDate:ec.user.nowTimestamp}"/>
-                            </default-field></field>
-                        </form-list>
-                    </box-body>
-                </container-box>
+                    </widgets></section>
+                    <!-- the organizer's invitations -->
+                    <section name="Invitations" condition="canEdit &amp;&amp; hasAttendees &amp;&amp; !event.cancelled"><widgets>
+                        <container-dialog id="EventSendDialog" button-text="${pendingInvites ? 'Send invitations (' + pendingInvites + ')' : 'Send again'}" icon="sym_o_send"
+                                width="520" title="Send the invitations of ${event.name}">
+                            <label type="p" text="${pendingInvites ? pendingInvites + ' of the attendees have not had the latest: they get an invitation or an update, the others nothing.' : 'Everyone has the latest invitation. Send it to everyone again?'}"
+                                    style="text-body2"/>
+                            <form-single name="EventSend" transition="sendInvitations">
+                                <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                <field name="instanceStart"><default-field><hidden/></default-field></field>
+                                <field name="tab"><default-field><hidden/></default-field></field>
+                                <field name="resendAll" from="pendingInvites ? 'N' : 'Y'"><default-field><hidden/></default-field></field>
+                                <field name="note"><default-field title="A note to the attendees"><text-area rows="3" cols="50"/></default-field></field>
+                                <field name="submitButton"><default-field title="Send"><submit icon="sym_o_send"/></default-field></field>
+                            </form-single>
+                        </container-dialog>
+                    </widgets></section>
+                    <button-menu text="More" icon="more_horiz">
+                        <link url="duplicateEvent" link-type="hidden-form-link" text="Duplicate" icon="sym_o_content_copy" parameter-map="{workEffortId:workEffortId}"/>
+                        <link url="exportIcs" link-type="hidden-form-link" text="Export .ics" icon="sym_o_download" parameter-map="{workEffortId:workEffortId}"/>
+                    </button-menu>
+                    <section name="CancelAction" condition="canEdit &amp;&amp; !event.cancelled"><widgets>
+                        <container-dialog id="EventCancelDialog" button-text="${hasAttendees || isRecurring ? 'Cancel event' : 'Delete'}" icon="sym_o_event_busy" width="480"
+                                title="Cancel ${event.name}" type="danger">
+                            <form-single name="EventCancel" transition="cancelEvent">
+                                <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                <field name="instanceStart"><default-field><hidden/></default-field></field>
+                                <field name="scope" from="isRecurring ? 'this' : 'all'"><conditional-field condition="isRecurring" title="It repeats: which events are cancelled?">
+                                    <radio><list-options list="scopeOptions" key="${key}" text="${text}"/></radio></conditional-field>
+                                    <default-field><hidden/></default-field></field>
+                                <field name="notify" from="notifyDefault"><conditional-field condition="hasAttendees" title="">
+                                    <check><option key="Y" text="Tell the attendees it is cancelled"/></check></conditional-field>
+                                    <default-field><hidden/></default-field></field>
+                                <field name="submitButton"><default-field title="${hasAttendees || isRecurring ? 'Cancel event' : 'Delete'}"><submit type="danger"/></default-field></field>
+                            </form-single>
+                        </container-dialog>
+                    </widgets></section>
+                </container>
+            </container>
+            <render-mode><text type="qvt"><![CDATA[${factsHtml}]]></text></render-mode>
+            <section name="InstanceNote" condition="event.isInstance"><widgets>
+                <container style="q-mb-sm text-body2">
+                    <label type="span" text="This instance was changed on its own from its repeating series. " style="m-muted"/>
+                    <link url="${seriesUrl}" url-type="plain" link-type="anchor" text="Open the series"/>
+                </container>
             </widgets></section>
-        </row-col></container-row>
 
-        <container-box>
-            <box-header title="Equipment"/>
-            <box-toolbar>
-                <container-dialog id="AddEquipment" button-text="Add">
-                    <form-single name="AddEquipment" transition="addAssetAssign">
-                        <field name="workEffortId"><default-field><hidden/></default-field></field>
-                        <field name="assetId"><default-field title="Equipment">
-                            <drop-down>
-                                <entity-options key="${assetId}" text="AssetNameTemplate">
-                                    <entity-find entity-name="mantle.product.asset.Asset">
-                                        <econdition field-name="facilityId" operator="in" from="currentFacilityIdList"/>
-                                        <econdition field-name="assetTypeEnumId" value="AstTpEquipment"/>
-                                        <order-by field-name="assetName"/>
-                                    </entity-find>
-                                </entity-options>
-                            </drop-down>
+            <render-mode><text type="qvt"><![CDATA[${tabsHtml}]]></text></render-mode>
+
+            <!-- ===== Overview ===== -->
+            <section name="OverviewTab" condition="tab == 'overview'"><widgets>
+                <container style="row q-col-gutter-sm">
+                    <container style="col-12 col-lg-8">
+                        <container style="row q-col-gutter-sm">
+                            <container style="col-12 col-md-6">
+                                <container-box><box-header title="When"/><box-body>
+                                    <section name="WhenEdit" condition="canEdit"><widgets>
+                                        <form-single name="EventWhen" transition="saveOverview" map="edit">
+                                            <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                            <field name="instanceStart"><default-field><hidden/></default-field></field>
+                                            <field name="tab" from="tab"><default-field><hidden/></default-field></field>
+                                            <field name="workEffortName"><default-field title="Title"><text-line size="40"/></default-field></field>
+                                            <field name="allDay"><default-field title=""><check><option key="Y" text="All day"/></check></default-field></field>
+                                            <field name="startDate"><default-field title="Starts"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                                            <field name="startTime"><default-field title="At"><date-time type="time" format="HH:mm"/></default-field></field>
+                                            <field name="endDate"><default-field title="Ends"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                                            <field name="endTime"><default-field title="At"><date-time type="time" format="HH:mm"/></default-field></field>
+                                            <field name="scope"><conditional-field condition="isRecurring" title="Change">
+                                                <radio><list-options list="scopeOptions" key="${key}" text="${text}"/></radio></conditional-field>
+                                                <default-field><hidden/></default-field></field>
+                                            <field name="notify" from="notifyDefault"><conditional-field condition="hasAttendees" title="">
+                                                <check><option key="Y" text="Send an update to the attendees"/></check></conditional-field>
+                                                <default-field><hidden/></default-field></field>
+                                            <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                                            <field-layout>
+                                                <field-ref name="workEffortName"/><field-ref name="allDay"/>
+                                                <field-row><field-ref name="startDate"/><field-ref name="startTime"/></field-row>
+                                                <field-row><field-ref name="endDate"/><field-ref name="endTime"/></field-row>
+                                                <field-ref name="scope"/><field-ref name="notify"/><field-ref name="submitButton"/>
+                                            </field-layout>
+                                        </form-single>
+                                        <label type="p" text="Times are in your time zone, ${event.timeZone || ''}; all-day events end on their last day." style="text-caption m-muted q-mb-none q-mt-sm"/>
+                                    </widgets><fail-widgets>
+                                        <label type="p" text="${event.whenText}" style="text-body2"/>
+                                    </fail-widgets></section>
+                                </box-body></container-box>
+                                <container-box><box-header title="Repeat"/><box-body>
+                                    <label type="p" text="${event.recurrenceText || 'Does not repeat'}" style="text-body2 text-weight-medium"/>
+                                    <section name="RepeatEdit" condition="canEdit &amp;&amp; !event.isInstance"><widgets>
+                                        <form-single name="EventRepeat" transition="saveRecurrence" map="recurrenceFields">
+                                            <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                            <field name="tab"><default-field><hidden/></default-field></field>
+                                            <field name="freq"><default-field title="Repeats"><drop-down>
+                                                <option key="NONE" text="Does not repeat"/><option key="DAILY" text="Daily"/><option key="WEEKLY" text="Weekly"/>
+                                                <option key="MONTHLY" text="Monthly"/><option key="YEARLY" text="Yearly"/></drop-down></default-field></field>
+                                            <field name="interval"><default-field title="Every"><text-line size="4" input-type="number"/></default-field></field>
+                                            <field name="byDay"><default-field title="On (weekly)"><check>
+                                                <option key="MO" text="Mon"/><option key="TU" text="Tue"/><option key="WE" text="Wed"/><option key="TH" text="Thu"/>
+                                                <option key="FR" text="Fri"/><option key="SA" text="Sat"/><option key="SU" text="Sun"/></check></default-field></field>
+                                            <field name="monthlyBy"><default-field title="Monthly on"><radio>
+                                                <option key="day" text="The same day"/><option key="weekday" text="The same weekday"/><option key="last" text="The last weekday"/></radio>
+                                            </default-field></field>
+                                            <field name="ends"><default-field title="Ends"><radio>
+                                                <option key="never" text="Never"/><option key="until" text="On a day"/><option key="count" text="After a number of times"/></radio>
+                                            </default-field></field>
+                                            <field name="untilDate"><default-field title="Last day"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                                            <field name="count"><default-field title="Times"><text-line size="4" input-type="number"/></default-field></field>
+                                            <field name="submitButton"><default-field title="Save repeat"><submit/></default-field></field>
+                                            <field-layout>
+                                                <field-row><field-ref name="freq"/><field-ref name="interval"/></field-row>
+                                                <field-ref name="byDay"/><field-ref name="monthlyBy"/><field-ref name="ends"/>
+                                                <field-row><field-ref name="untilDate"/><field-ref name="count"/></field-row>
+                                                <field-ref name="submitButton"/>
+                                            </field-layout>
+                                        </form-single>
+                                        <label type="p" text="A changed repeat applies to the whole series." style="text-caption m-muted q-mb-none q-mt-sm"/>
+                                    </widgets></section>
+                                </box-body></container-box>
+                            </container>
+                            <container style="col-12 col-md-6">
+                                <container-box><box-header title="Where"/><box-body>
+                                    <section name="WhereRead" condition="!canEdit"><widgets>
+                                        <label type="p" text="${event.location || 'No place set'}" style="text-body2"/>
+                                    </widgets></section>
+                                    <section name="RoomsList" condition="roomRows.length || equipmentRows.length"><widgets>
+                                        <form-list name="EventRooms" list="roomRows" skip-form="true" skip-header="true" paginate="false">
+                                            <field name="name"><default-field><label text="${name}" type="span"/></default-field></field>
+                                            <field name="statusHtml"><default-field><render-mode><text type="qvt"><![CDATA[${statusHtml}]]></text></render-mode></default-field></field>
+                                            <field name="cancel" align="right"><conditional-field condition="canEdit" title="">
+                                                <link url="cancelBooking" link-type="hidden-form-link" icon="sym_o_close" text="" tooltip="Cancel the booking" style="m-btn-flat"
+                                                        confirmation="Cancel the booking of ${name}?" parameter-map="{workEffortId:workEffortId, instanceStart:instanceStart, facilityId:facilityId}"/>
+                                            </conditional-field><default-field title=""><label text="" type="span"/></default-field></field>
+                                        </form-list>
+                                        <form-list name="EventEquipment" list="equipmentRows" skip-form="true" skip-header="true" paginate="false">
+                                            <field name="name"><default-field><label text="${name}" type="span"/></default-field></field>
+                                            <field name="statusHtml"><default-field><render-mode><text type="qvt"><![CDATA[${statusHtml}]]></text></render-mode></default-field></field>
+                                            <field name="cancel" align="right"><conditional-field condition="canEdit" title="">
+                                                <link url="cancelBooking" link-type="hidden-form-link" icon="sym_o_close" text="" tooltip="Cancel the booking" style="m-btn-flat"
+                                                        confirmation="Cancel the booking of ${name}?" parameter-map="{workEffortId:workEffortId, instanceStart:instanceStart, assetId:assetId}"/>
+                                            </conditional-field><default-field title=""><label text="" type="span"/></default-field></field>
+                                        </form-list>
+                                    </widgets></section>
+                                    <section name="WhereEdit" condition="canEdit &amp;&amp; !event.cancelled"><widgets>
+                                        <form-single name="EventWhere" transition="saveOverview" map="edit">
+                                            <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                            <field name="instanceStart"><default-field><hidden/></default-field></field>
+                                            <field name="tab" from="tab"><default-field><hidden/></default-field></field>
+                                            <field name="scope" from="'all'"><default-field><hidden/></default-field></field>
+                                            <field name="location"><default-field title="Location"><text-line size="40"/></default-field></field>
+                                            <field name="infoUrl"><default-field title="Video call link" tooltip="https:// address of the meeting"><text-line size="40"/></default-field></field>
+                                            <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                                        </form-single>
+                                        <form-single name="EventBookRoom" transition="bookResource">
+                                            <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                            <field name="instanceStart"><default-field><hidden/></default-field></field>
+                                            <field name="tab" from="tab"><default-field><hidden/></default-field></field>
+                                            <field name="facilityId"><default-field title="Book a room" tooltip="Each room says whether it is free at the event's time">
+                                                <drop-down allow-empty="true"><list-options list="roomOptions" key="${value}" text="${label}"/></drop-down></default-field></field>
+                                            <field name="submitButton"><default-field title="Book"><submit icon="sym_o_meeting_room"/></default-field></field>
+                                            <field-layout><field-row-big><field-ref name="facilityId"/><field-ref name="submitButton"/></field-row-big></field-layout>
+                                        </form-single>
+                                        <form-single name="EventBookEquipment" transition="bookResource">
+                                            <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                            <field name="instanceStart"><default-field><hidden/></default-field></field>
+                                            <field name="tab" from="tab"><default-field><hidden/></default-field></field>
+                                            <field name="assetId"><default-field title="Book equipment">
+                                                <drop-down allow-empty="true"><list-options list="equipmentOptions" key="${value}" text="${label}"/></drop-down></default-field></field>
+                                            <field name="submitButton"><default-field title="Book"><submit icon="sym_o_devices"/></default-field></field>
+                                            <field-layout><field-row-big><field-ref name="assetId"/><field-ref name="submitButton"/></field-row-big></field-layout>
+                                        </form-single>
+                                        <label type="p" text="A room or equipment with an approver waits for the approval; the others are booked at once." style="text-caption m-muted q-mb-none"/>
+                                    </widgets></section>
+                                </box-body></container-box>
+                                <container-box><box-header title="Details"/><box-body>
+                                    <section name="DetailsEdit" condition="canEdit"><widgets>
+                                        <form-single name="EventDetails" transition="saveOverview" map="edit">
+                                            <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                            <field name="instanceStart"><default-field><hidden/></default-field></field>
+                                            <field name="tab" from="tab"><default-field><hidden/></default-field></field>
+                                            <field name="scope" from="'all'"><default-field><hidden/></default-field></field>
+                                            <field name="description"><default-field title="Description"><text-area rows="5" cols="50"/></default-field></field>
+                                            <field name="calendarId"><default-field title="Calendar">
+                                                <drop-down allow-empty="true"><list-options list="calendarOptions" key="${value}" text="${label}"/></drop-down></default-field></field>
+                                            <field name="visibilityEnumId"><default-field title="Who sees it">
+                                                <drop-down allow-empty="true"><list-options list="visibilityOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                            <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                                            <field-layout><field-ref name="description"/><field-row><field-ref name="calendarId"/><field-ref name="visibilityEnumId"/></field-row>
+                                                <field-ref name="submitButton"/></field-layout>
+                                        </form-single>
+                                    </widgets><fail-widgets>
+                                        <label type="p" text="${descriptionText}" style="text-body2" condition="descriptionText"/>
+                                        <label type="p" text="No description" style="m-muted" condition="!descriptionText"/>
+                                        <label type="p" text="Who sees it: ${event.visibilityLabel}" style="text-caption m-muted q-mb-none"/>
+                                    </fail-widgets></section>
+                                    <section name="LinkedRecords" condition="linkedRecordList.length"><widgets>
+                                        <label type="div" text="On" style="text-caption m-muted q-mt-sm"/>
+                                        <render-mode><text type="qvt"><![CDATA[${linkedRecordsHtml}]]></text></render-mode>
+                                    </widgets></section>
+                                </box-body></container-box>
+                            </container>
+                        </container>
+                    </container>
+                    <!-- Chatter beside the overview from 1440 px -->
+                    <container style="col-12 col-lg-4 gt-md">
+                        <chatter id="EventChatter" record-entity="mantle.work.effort.WorkEffort" record-id="${workEffortId}" default-tab="log"/>
+                    </container>
+                </container>
+            </widgets></section>
+
+            <!-- ===== Attendees ===== -->
+            <section name="AttendeesTab" condition="tab == 'attendees'"><widgets>
+                <container-box><box-header title="Attendees"/>
+                    <box-body-nopad>
+                        <form-list name="EventAttendees" list="attendeeRows" skip-form="true" paginate="false">
+                            <field name="name"><default-field title="Who">
+                                <label text="${name}${isMe ? ' (' + ec.l10n.localize('you') + ')' : ''}" type="span" style="${statusId == 'WeptDeclined' ? 'm-muted' : ''}"/>
+                                <label text="${reachText}" type="span" style="text-caption m-muted q-ml-xs" condition="reachText"/>
+                            </default-field></field>
+                            <field name="kindText"><default-field title="Role"><label text="${kindText}" type="span" style="m-muted"/></default-field></field>
+                            <field name="answerHtml"><default-field title="Answer"><render-mode><text type="qvt"><![CDATA[${answerHtml}]]></text></render-mode></default-field></field>
+                            <field name="freeHtml"><default-field title="Then"><render-mode><text type="qvt"><![CDATA[${freeHtml}]]></text></render-mode></default-field></field>
+                            <field name="inviteText"><default-field title="Invitation"><label text="${inviteText}" type="span" style="text-caption ${pendingInvite ? 'text-warning' : 'm-muted'}"/></default-field></field>
+                            <field name="actions" align="right"><conditional-field condition="canEdit &amp;&amp; !isOrganizer" title="">
+                                <link url="setOptional" link-type="hidden-form-link" text="${optional ? 'Make required' : 'Make optional'}" parameter-map="{workEffortId:workEffortId,
+                                        instanceStart:instanceStart, partyId:partyId, optional:(optional ? 'N' : 'Y')}"/>
+                                <link url="removeAttendee" link-type="hidden-form-link" icon="sym_o_person_remove" text="" tooltip="Remove" style="m-btn-flat"
+                                        confirmation="Take ${name} off the event?" parameter-map="{workEffortId:workEffortId, instanceStart:instanceStart, partyId:partyId}"/>
+                            </conditional-field><default-field title=""><label text="" type="span"/></default-field></field>
+                        </form-list>
+                        <section name="NoAttendees" condition="!hasAttendees"><widgets>
+                            <label type="p" text="Only you so far. Invite people to make it a meeting." style="m-muted q-pa-sm q-mb-none"/>
+                        </widgets></section>
+                    </box-body-nopad>
+                </container-box>
+                <section name="AddAttendees" condition="canEdit &amp;&amp; !event.cancelled"><widgets>
+                    <container-box><box-header title="Invite people"/><box-body>
+                        <form-single name="EventAddAttendees" transition="addAttendees">
+                            <field name="workEffortId"><default-field><hidden/></default-field></field>
+                            <field name="instanceStart"><default-field><hidden/></default-field></field>
+                            <field name="partyIds"><default-field title="People">
+                                <drop-down allow-multiple="true" allow-empty="true"><dynamic-options transition="searchPeople" server-search="true" min-length="1"/></drop-down>
+                            </default-field></field>
+                            <field name="emails"><default-field title="Or email addresses" tooltip="Comma separated; someone new becomes one of your contacts"><text-line size="40"/></default-field></field>
+                            <field name="optional"><default-field title=""><check><option key="Y" text="Optional"/></check></default-field></field>
+                            <field name="sendNow" from="'Y'"><default-field title=""><check><option key="Y" text="Send the invitations now"/></check></default-field></field>
+                            <field name="submitButton"><default-field title="Invite"><submit icon="sym_o_person_add"/></default-field></field>
+                            <field-layout><field-row><field-ref name="partyIds"/><field-ref name="emails"/></field-row>
+                                <field-row-big><field-ref name="optional"/><field-ref name="sendNow"/><field-ref name="submitButton"/></field-row-big></field-layout>
+                        </form-single>
+                        <label type="p" text="People with a user get a notification; the others an email with the invitation (.ics) attached." style="text-caption m-muted q-mb-none q-mt-sm"/>
+                    </box-body></container-box>
+                </widgets></section>
+            </widgets></section>
+
+            <!-- ===== Reminders: the user's own ===== -->
+            <section name="RemindersTab" condition="tab == 'reminders'"><widgets>
+                <container-box><box-header title="My reminders"/><box-body-nopad>
+                    <form-list name="EventReminders" list="reminderList" skip-form="true" skip-header="true" paginate="false">
+                        <field name="offsetText"><default-field><label text="${offsetText}" type="span"/></default-field></field>
+                        <field name="methodText"><default-field><label text="${methodText}" type="span" style="m-muted"/></default-field></field>
+                        <field name="sentText"><default-field><label text="${sentText ? ec.l10n.localize('Last sent') + ' ' + sentText : ''}" type="span" style="text-caption m-muted"/></default-field></field>
+                        <field name="remove" align="right"><default-field title="">
+                            <link url="removeReminder" link-type="hidden-form-link" icon="sym_o_delete" text="" tooltip="Remove" style="m-btn-flat"
+                                    parameter-map="{workEffortId:workEffortId, instanceStart:instanceStart, reminderSeqId:reminderSeqId}"/>
                         </default-field></field>
-                        <field name="statusId" from="null"><default-field title="Status">
-                            <widget-template-include location="component://webroot/template/screen/BasicWidgetTemplates.xml#statusDropDown">
-                                <set field="statusTypeId" value="WorkEffortAssetAssign"/>
-                                <set field="noCurrentSelectedKey" value="WeaaAssigned"/></widget-template-include>
-                        </default-field></field>
-                        <field name="submitButton"><default-field title="Add"><submit/></default-field></field>
-                    </form-single>
-                </container-dialog>
-            </box-toolbar>
-            <box-body>
-                <form-list name="EquipmentList" list="equipmentList" transition="updateAssetAssign">
-                    <field name="workEffortId"><default-field><hidden/></default-field></field>
-                    <field name="assetId"><default-field><hidden/></default-field></field>
-                    <field name="fromDate"><default-field><hidden/></default-field></field>
+                    </form-list>
+                    <section name="NoReminders" condition="!reminderList.length"><widgets>
+                        <label type="p" text="No reminders" style="m-muted q-pa-sm q-mb-none"/>
+                    </widgets></section>
+                    <section name="AddReminder" condition="canSetReminders &amp;&amp; !event.cancelled"><widgets>
+                        <container style="q-pa-sm">
+                            <form-single name="EventAddReminder" transition="addReminder">
+                                <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                <field name="instanceStart"><default-field><hidden/></default-field></field>
+                                <field name="offsetMinutes" from="'10'"><default-field title="Remind me">
+                                    <drop-down><list-options list="reminderOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                <field name="methodEnumId" from="'WermNotification'"><default-field title="By"><radio>
+                                    <option key="WermNotification" text="Notification"/><option key="WermEmail" text="Email"/></radio></default-field></field>
+                                <field name="submitButton"><default-field title="Add"><submit icon="sym_o_add_alert"/></default-field></field>
+                                <field-layout><field-row-big><field-ref name="offsetMinutes"/><field-ref name="methodEnumId"/><field-ref name="submitButton"/></field-row-big></field-layout>
+                            </form-single>
+                        </container>
+                    </widgets><fail-widgets>
+                        <label type="p" text="Reminders are for the people on the event." style="m-muted q-pa-sm q-mb-none"/>
+                    </fail-widgets></section>
+                </box-body-nopad></container-box>
+            </widgets></section>
 
-                    <field name="assetName"><default-field>
-                        <display text="AssetNameTemplate"/>
-                        <!-- <link url="equipmentDetail" text="AssetNameTemplate" link-type="anchor"/> -->
-                    </default-field></field>
+            <!-- ===== Files ===== -->
+            <section name="FilesTab" condition="tab == 'files'"><widgets>
+                <record-files id="EventFiles" record-entity="mantle.work.effort.WorkEffort" record-id="${workEffortId}"/>
+            </widgets></section>
 
-                    <field name="statusId"><default-field title="Status">
-                        <widget-template-include location="component://webroot/template/screen/BasicWidgetTemplates.xml#statusTransitionDropDown">
-                            <set field="currentDescription" from="equipmentList_entry?.['WorkEffortAssetAssign#moqui.basic.StatusItem']?.description"/>
-                            <set field="statusId" from="invoice?.statusId"/></widget-template-include>
-                    </default-field></field>
-                    <field name="comments"><default-field><text-area cols="50" rows="2"/></default-field></field>
-
-                    <field name="submitButton"><default-field title="Update"><submit/></default-field></field>
-                    <field name="removeButton"><default-field title="">
-                        <link url="updateAssetAssign" text="Remove" parameter-map="{workEffortId:workEffortId, assetId:assetId,
-                            fromDate:fromDate, thruDate:ec.user.nowTimestamp}"/>
-                    </default-field></field>
-                </form-list>
-            </box-body>
-        </container-box>
-        </row-col><row-col lg="4">
-            <!-- the event's Chatter and files: the theme's record panels of this app root (IronStone R5) -->
-            <chatter id="EventChatter" record-entity="mantle.work.effort.WorkEffort" record-id="${workEffortId}" default-tab="log"/>
-            <record-files id="EventFiles" record-entity="mantle.work.effort.WorkEffort" record-id="${workEffortId}"/>
-        </row-col></container-row>
+            <!-- ===== Chatter, a tab below 1440 px ===== -->
+            <section name="ChatterTab" condition="tab == 'chatter'"><widgets>
+                <chatter id="EventChatterTab" record-entity="mantle.work.effort.WorkEffort" record-id="${workEffortId}" default-tab="log"/>
+            </widgets></section>
+        </widgets></section>
     </widgets>
 </screen>

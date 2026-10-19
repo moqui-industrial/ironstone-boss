@@ -56,6 +56,10 @@ const demoRecords = {
     "Commons/Settings/Preferences": { text: "Keyboard shortcuts" },
     "Commons/Settings/Account": { text: "john.doe" },
     "Commons/Calendar/EventDetail": { parameters: { workEffortId: "BOSS_DEMO_EVENT" }, text: "Weekly team meeting" },
+    // M7: the calendar's resource detail (under the .qvue Schedules, which writes no subscreen here: test/Schedules.spec.js
+    // checks its content) and settings (the demo of data/BossCalendarDemoData.xml)
+    "Commons/Calendar/Schedules/ResourceDetail": { parameters: { resourceType: "room", resourceId: "BOSS_DEMO_ROOM_MAPLE" } },
+    "Commons/Settings/Calendars": { text: "Holidays (demo feed)" },
     // M6: Tasks and Requests, each a list (the default subscreen) and a detail
     "Commons/Requests": { text: "Set up the shared team calendar" },
     "Commons/Requests/List": { text: "Printer on the second floor jams" },

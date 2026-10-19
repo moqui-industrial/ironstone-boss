@@ -1,0 +1,458 @@
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- Rooms and equipment (design-drawers-commons.md §7 Schedules), the component Schedules.xml serves in the qvue render mode: the
+    calendar in resource mode. A row per meeting room and piece of equipment (its name opens ResourceDetail; a lock marks one
+    whose bookings wait for an approver), over the hours of a day (a drag or a click on a row books that time) or the days of a
+    week (a click books that day); each booking in its status color, a waiting one in warning, a booked one in primary, the
+    user's own with a person icon. A booking opens a dialog with the event and, for the user's own, Cancel booking. The Book
+    button books any resource at any time. Days and times are wall-clock text in the user's time zone; the state (view, date,
+    type) is in the URL. While ResourceDetail is in the path only it shows. Brand color names only (style-guide §4.8, §5). -->
+<template><div class="boss-schedules">
+    <m-screen-context :title="t('Rooms and equipment') + (rangeTitle ? ': ' + rangeTitle : '')"></m-screen-context>
+    <template v-if="!subActive">
+        <div class="q-mb-xs"><q-btn flat dense no-caps color="primary" icon="arrow_back" :label="t('Calendar')" @click="go(calendarUrl)"></q-btn></div>
+        <div class="row items-center q-gutter-sm q-mb-sm">
+            <div class="text-h6 q-mr-sm">{{t('Rooms and equipment')}}</div>
+            <q-btn unelevated dense no-caps class="m-btn-tonal q-px-sm" :label="t('Today')" @click="goToday"></q-btn>
+            <div class="row no-wrap">
+                <q-btn flat dense round icon="chevron_left" @click="shift(-1)"><q-tooltip>{{t('Previous')}}</q-tooltip></q-btn>
+                <q-btn flat dense round icon="chevron_right" @click="shift(1)"><q-tooltip>{{t('Next')}}</q-tooltip></q-btn>
+            </div>
+            <div class="text-subtitle1 text-weight-medium">{{rangeTitle}}</div>
+            <q-space></q-space>
+            <q-btn-toggle :model-value="type" dense no-caps unelevated toggle-color="primary" :options="typeOptions" @update:model-value="setState({type: $event})"></q-btn-toggle>
+            <q-btn-toggle v-if="!phone" :model-value="view" dense no-caps unelevated toggle-color="primary" :options="viewOptions" @update:model-value="setState({view: $event})"></q-btn-toggle>
+            <q-btn unelevated dense no-caps color="primary" icon="sym_o_add" :label="t('Book')" @click="openBooking(null, null)"></q-btn>
+        </div>
+        <div class="row items-center q-mb-sm q-gutter-sm">
+            <div style="width:260px;max-width:100%"><m-text-line id="boss-sched-filter" name="resourceFilter" v-model="filter" :label="t('Find a room or equipment')"></m-text-line></div>
+            <div class="text-caption m-muted">
+                <span class="rounded-borders bg-primary q-mr-xs" style="display:inline-block;width:10px;height:10px"></span>{{t('Booked')}}
+                <span class="rounded-borders m-tonal text-warning q-ml-md q-mr-xs" style="display:inline-block;width:10px;height:10px;border:1px solid currentColor"></span>{{t('Waiting for approval')}}
+                <q-icon name="sym_o_lock" size="xs" class="q-ml-md q-mr-xs"></q-icon>{{t('Needs approval')}}
+            </div>
+        </div>
+        <q-banner v-if="failed.length" dense rounded class="q-mb-sm m-tonal text-warning">
+            <template v-slot:avatar><q-icon name="sym_o_warning" color="warning"></q-icon></template>
+            {{t('The bookings of some resources did not load')}}: {{failed.join(', ')}}
+        </q-banner>
+
+        <q-card flat bordered class="overflow-hidden" :style="{userSelect: drag ? 'none' : 'auto'}">
+            <!-- the hours or the days -->
+            <div class="row no-wrap items-end">
+                <div class="text-caption m-muted q-pa-xs" :style="{width: nameWidth + 'px', flex: 'none'}">{{zoneShort}}</div>
+                <div class="col relative-position" style="height:28px">
+                    <template v-if="view === 'day'">
+                        <template v-for="hour in hourMarks" :key="hour.minutes">
+                            <div class="absolute text-caption m-muted" :style="{left: hour.pct + '%', bottom: '2px', transform: 'translateX(-50%)'}">{{hour.label}}</div>
+                        </template>
+                    </template>
+                    <div v-else class="absolute-full row no-wrap">
+                        <div v-for="cell in weekDays" :key="cell.date" class="col text-center text-caption cursor-pointer" :class="cell.isToday ? 'text-primary text-weight-medium' : 'm-muted'"
+                                style="padding-top:6px" @click="setState({view: 'day', date: cell.date})">{{cell.label}}</div>
+                    </div>
+                </div>
+            </div>
+            <q-separator></q-separator>
+            <template v-for="(resource, index) in shownResources" :key="resource.key">
+                <q-separator v-if="index > 0"></q-separator>
+                <div class="row no-wrap items-stretch" :style="{minHeight: rowHeight(resource) + 'px'}">
+                    <div class="q-pa-xs row items-center no-wrap" :style="{width: nameWidth + 'px', flex: 'none'}">
+                        <q-icon :name="resource.icon" size="sm" class="q-mr-sm" color="grey-7"></q-icon>
+                        <div class="col" style="min-width:0">
+                            <div class="text-body2 ellipsis cursor-pointer text-primary" @click="go(resource.url)">{{resource.name}}
+                                <q-icon v-if="resource.requiresApproval" name="sym_o_lock" size="xs" color="grey-7"><q-tooltip>{{resource.policyText}}</q-tooltip></q-icon></div>
+                            <div class="text-caption m-muted ellipsis">{{[resource.typeLabel, resource.site].filter((part) => part).join(' · ')}}</div>
+                        </div>
+                    </div>
+                    <q-separator vertical></q-separator>
+                    <!-- a day: the hours, a booking where it is -->
+                    <div v-if="view === 'day'" class="col relative-position" :data-resource="resource.key" @pointerdown="onRowDown($event, resource)">
+                        <template v-for="hour in hourMarks" :key="hour.minutes">
+                            <q-separator vertical class="absolute" :style="{left: hour.pct + '%', top: 0, bottom: 0, opacity: 0.6}"></q-separator>
+                        </template>
+                        <template v-for="band in offBands" :key="band.key">
+                            <div class="absolute" :class="dark ? 'bg-grey-10' : 'bg-grey-2'" :style="{left: band.left + '%', width: band.width + '%', top: 0, bottom: 0, opacity: 0.7}"></div>
+                        </template>
+                        <template v-for="booking in dayBookings(resource)" :key="booking.key">
+                            <div class="absolute rounded-borders q-px-xs text-caption ellipsis cursor-pointer" :class="bookingClass(booking)"
+                                    :style="{left: booking.leftPct + '%', width: 'calc(' + booking.widthPct + '% - 2px)', top: (4 + booking.lane * 26) + 'px', height: '24px', lineHeight: '24px', zIndex: 2}"
+                                    @pointerdown.stop @click.stop="openBookingDetail(booking, resource)">
+                                <q-icon v-if="booking.mine" name="sym_o_person" size="xs" class="q-mr-xs"></q-icon>{{booking.title}}
+                                <q-tooltip>{{booking.title}} · {{booking.timeText}} · {{booking.statusLabel}}</q-tooltip>
+                            </div>
+                        </template>
+                        <div v-if="selection && selection.key === resource.key" class="absolute rounded-borders bg-primary text-white text-caption q-px-xs"
+                                :style="{left: selection.leftPct + '%', width: selection.widthPct + '%', top: '4px', bottom: '4px', opacity: 0.8, zIndex: 3, pointerEvents: 'none'}">{{selection.text}}</div>
+                        <div v-if="nowPct != null" class="absolute bg-negative" :style="{left: nowPct + '%', width: '2px', top: 0, bottom: 0, zIndex: 3, pointerEvents: 'none'}"></div>
+                    </div>
+                    <!-- a week: the days, the bookings of each listed -->
+                    <div v-else class="col row no-wrap">
+                        <template v-for="(cell, dayIndex) in weekDays" :key="cell.date">
+                            <q-separator v-if="dayIndex > 0" vertical></q-separator>
+                            <div class="col q-pa-xs cursor-pointer" style="min-width:0" :class="cell.isToday ? (dark ? 'bg-blue-10' : 'bg-blue-1') : ''" @click="openBooking(resource, cell.date)">
+                                <template v-for="booking in weekBookings(resource, cell.date)" :key="booking.key">
+                                    <div class="rounded-borders q-px-xs q-mb-xs text-caption ellipsis" :class="bookingClass(booking)" @click.stop="openBookingDetail(booking, resource)">
+                                        <q-icon v-if="booking.mine" name="sym_o_person" size="xs"></q-icon> {{booking.shortTime}} {{booking.title}}
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </template>
+            <div v-if="!shownResources.length && !loading" class="q-pa-md text-body2 m-muted">{{resources.length ? t('No room or equipment matches') : t('No rooms or equipment to book yet: they are added in Maintenance.')}}</div>
+            <q-inner-loading :showing="loading"></q-inner-loading>
+        </q-card>
+        <div class="text-caption m-muted q-mt-sm">{{view === 'day' ? t('Drag along a row, or click it, to book that time.') : t('Click a day of a row to book it.')}}</div>
+    </template>
+
+    <m-subscreens-active></m-subscreens-active>
+
+    <!-- ===== Book ===== -->
+    <m-dialog v-model="booking.open" :title="t('Book')" width="520">
+        <m-form :key="'book' + booking.key" :action="action('bookSlot')" :fields-initial="booking.initial" focus-field="purpose" @submitted="afterBooking" v-slot="formProps">
+            <m-drop-down v-model="formProps.fields.resource" name="resource" id="BossSchedResource" :options="resourceOptions" :label="t('Room or equipment')"></m-drop-down>
+            <div v-if="selectedPolicy(formProps.fields.resource)" class="text-caption m-muted q-mt-xs">{{selectedPolicy(formProps.fields.resource)}}</div>
+            <div class="row q-col-gutter-sm q-mt-none">
+                <div class="col-12 col-sm-4"><m-date-time v-model="formProps.fields.date" name="date" id="BossSchedDate" type="date" :label="t('Day')"></m-date-time></div>
+                <div class="col-6 col-sm-4"><m-date-time v-model="formProps.fields.from" name="from" id="BossSchedFrom" type="time" :label="t('From')"></m-date-time></div>
+                <div class="col-6 col-sm-4"><m-date-time v-model="formProps.fields.to" name="to" id="BossSchedTo" type="time" :label="t('To')"></m-date-time></div>
+            </div>
+            <div class="q-mt-sm"><m-text-line v-model="formProps.fields.purpose" name="purpose" id="BossSchedPurpose" :label="t('What for')"></m-text-line></div>
+            <div class="q-mt-sm"><m-text-area v-model="formProps.fields.notes" name="notes" id="BossSchedNotes" :label="t('Notes for the approver')" rows="2"></m-text-area></div>
+            <div class="row justify-end q-gutter-sm q-mt-md">
+                <q-btn flat dense no-caps :label="t('Cancel')" @click="booking.open = false"></q-btn>
+                <q-btn unelevated dense no-caps color="primary" type="submit" class="q-px-md" :label="t('Book')"></q-btn>
+            </div>
+        </m-form>
+    </m-dialog>
+
+    <!-- ===== a booking ===== -->
+    <m-dialog v-model="detail.open" :title="detail.booking ? detail.booking.title : ''" width="440">
+        <div v-if="detail.booking">
+            <div class="text-body2">{{detail.booking.dayText}} · {{detail.booking.timeText}}</div>
+            <div class="row items-center q-gutter-xs q-mt-sm">
+                <q-icon :name="detail.resource.icon" size="xs"></q-icon><span class="text-body2">{{detail.resource.name}}</span>
+                <q-chip dense square class="m-tonal" :class="'text-' + detail.booking.statusColor">{{detail.booking.statusLabel}}</q-chip>
+            </div>
+            <div v-if="detail.booking.organizerName" class="text-caption m-muted q-mt-xs">{{t('Booked by')}} {{detail.booking.organizerName}}{{detail.booking.mine ? ' (' + t('you') + ')' : ''}}</div>
+            <div v-if="detail.booking.bookingStatusId && detail.booking.bookingStatusId.endsWith('Requested')" class="text-caption text-warning q-mt-xs">{{detail.resource.policyText}}</div>
+            <div class="row justify-end q-gutter-sm q-mt-md">
+                <q-btn v-if="detail.booking.canCancel" flat dense no-caps color="negative" icon="sym_o_event_busy" :label="t('Cancel booking')" @click="cancelBooking"></q-btn>
+                <q-space></q-space>
+                <q-btn v-if="detail.booking.url" unelevated dense no-caps color="primary" icon="sym_o_open_in_new" :label="t('Open the event')" @click="openEvent"></q-btn>
+            </div>
+        </div>
+    </m-dialog>
+</div></template>
+
+<script>
+const pad = (n) => String(n).padStart(2, '0');
+const dayNum = (text) => { const parts = String(text).slice(0, 10).split('-').map(Number); return Math.round(Date.UTC(parts[0], parts[1] - 1, parts[2]) / 86400000); };
+const dayText = (num) => new Date(num * 86400000).toISOString().slice(0, 10);
+const addDays = (text, days) => dayText(dayNum(text) + days);
+const weekdayOf = (text) => new Date(dayNum(text) * 86400000).getUTCDay();
+const minutesOf = (text) => (text && text.length >= 16 ? Number(text.slice(11, 13)) * 60 + Number(text.slice(14, 16)) : 0);
+const absOf = (text) => dayNum(text) * 1440 + minutesOf(text);
+const isDay = (text) => /^\d{4}-\d{2}-\d{2}$/.test(String(text || ''));
+const hhmm = (minutes) => pad(Math.floor(minutes / 60)) + ':' + pad(minutes % 60);
+
+module.exports = {
+    name: 'BossSchedules',
+    data() {
+        return {
+            resources: [], bookings: [], failed: [], loading: false, ready: false, timeZone: '', todayText: '', workStart: '09:00', workEnd: '17:00', weekStart: 0,
+            view: 'day', date: '', type: 'all', filter: '', requestSeq: 0, nowMinutes: null,
+            drag: null, selection: null,
+            booking: { open: false, key: 0, initial: {} },
+            detail: { open: false, booking: null, resource: null }
+        };
+    },
+    computed: {
+        phone() { return this.$q.screen.lt.sm; },
+        dark() { return this.$q.dark.isActive; },
+        locale() { return String((moqui.config && moqui.config.locale) || 'en-US').replace('_', '-'); },
+        pathList() { return this.$root.currentPathList || []; },
+        schedIndex() { return this.pathList.indexOf('Schedules'); },
+        subActive() { return this.schedIndex >= 0 && this.pathList.length > this.schedIndex + 1; },
+        screenPath() { return this.$root.basePath + '/' + (this.schedIndex >= 0 ? this.pathList.slice(0, this.schedIndex + 1) : ['Commons', 'Calendar', 'Schedules']).join('/'); },
+        linkPath() { return this.$root.linkBasePath + '/' + (this.schedIndex >= 0 ? this.pathList.slice(0, this.schedIndex + 1) : ['Commons', 'Calendar', 'Schedules']).join('/'); },
+        calendarUrl() { return this.$root.linkBasePath + '/' + (this.schedIndex >= 0 ? this.pathList.slice(0, this.schedIndex) : ['Commons', 'Calendar']).join('/'); },
+        nameWidth() { return this.phone ? 120 : 230; },
+        typeOptions() { return [{ label: this.t('All'), value: 'all' }, { label: this.t('Rooms'), value: 'room' }, { label: this.t('Equipment'), value: 'equipment' }]; },
+        viewOptions() { return [{ label: this.t('Day'), value: 'day' }, { label: this.t('Week'), value: 'week' }]; },
+        shownResources() {
+            const term = this.filter.trim().toLowerCase();
+            return this.resources.filter((resource) => (this.type === 'all' || resource.resourceType === this.type)
+                && (!term || (resource.name + ' ' + (resource.site || '') + ' ' + (resource.typeLabel || '')).toLowerCase().includes(term)));
+        },
+        resourceOptions() { return this.resources.map((resource) => ({ value: resource.key, label: resource.name + (resource.requiresApproval ? ' · ' + this.t('needs approval') : '') })); },
+        // the hours of a day: from before the working day to after it
+        dayStartMin() { return Math.min(7, Number(String(this.workStart).slice(0, 2)) - 1) * 60; },
+        dayEndMin() { return Math.max(20, Number(String(this.workEnd).slice(0, 2)) + 2) * 60; },
+        hourMarks() {
+            const marks = [];
+            const step = this.phone ? 180 : 60;
+            for (let minutes = this.dayStartMin; minutes <= this.dayEndMin; minutes += step) {
+                if (minutes === this.dayStartMin || minutes === this.dayEndMin) continue;
+                marks.push({ minutes, pct: this.pctOf(minutes), label: this.fmtHour(minutes) });
+            }
+            return marks;
+        },
+        offBands() {
+            const toMinutes = (text) => Number(String(text).slice(0, 2)) * 60 + Number(String(text).slice(3, 5));
+            const start = toMinutes(this.workStart);
+            const end = toMinutes(this.workEnd);
+            if (weekdayOf(this.date || this.todayText) === 0 || weekdayOf(this.date || this.todayText) === 6) return [{ key: 'all', left: 0, width: 100 }];
+            return [{ key: 'before', left: 0, width: this.pctOf(start) }, { key: 'after', left: this.pctOf(end), width: 100 - this.pctOf(end) }];
+        },
+        weekStartDay() { const base = this.date || this.todayText; return base ? addDays(base, -((weekdayOf(base) - (this.weekStart || 0) + 7) % 7)) : ''; },
+        weekDays() {
+            if (!this.weekStartDay) return [];
+            const days = [];
+            for (let i = 0; i < 7; i++) {
+                const text = addDays(this.weekStartDay, i);
+                days.push({ date: text, isToday: text === this.todayText, label: this.fmtDay(text, { weekday: 'short' }) + ' ' + Number(text.slice(8, 10)) });
+            }
+            return days;
+        },
+        range() {
+            const base = this.date || this.todayText;
+            if (!base) return null;
+            return this.view === 'day' ? { start: base, end: base } : { start: this.weekStartDay, end: addDays(this.weekStartDay, 6) };
+        },
+        rangeTitle() {
+            const range = this.range;
+            if (!range) return '';
+            if (this.view === 'day') return this.fmtDay(range.start, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+            try {
+                const format = new Intl.DateTimeFormat(this.locale, { timeZone: 'UTC', month: 'short', day: 'numeric', year: 'numeric' });
+                if (format.formatRange) return format.formatRange(new Date(dayNum(range.start) * 86400000), new Date(dayNum(range.end) * 86400000));
+            } catch (err) { /* below */ }
+            return range.start + ' – ' + range.end;
+        },
+        nowPct() {
+            if (this.view !== 'day' || this.nowMinutes == null || (this.date || this.todayText) !== this.todayText) return null;
+            if (this.nowMinutes < this.dayStartMin || this.nowMinutes > this.dayEndMin) return null;
+            return this.pctOf(this.nowMinutes);
+        },
+        zoneShort() {
+            try {
+                const parts = new Intl.DateTimeFormat(this.locale, { timeZone: this.timeZone || undefined, timeZoneName: 'short' }).formatToParts(new Date());
+                const zone = parts.find((part) => part.type === 'timeZoneName');
+                return zone ? zone.value : '';
+            } catch (err) { return ''; }
+        },
+        // each booking with its wall-clock place
+        items() {
+            return this.bookings.map((booking) => {
+                const sAbs = booking.allDay ? dayNum(booking.start) * 1440 : absOf(booking.start);
+                let eAbs = booking.allDay ? dayNum(booking.end || addDays(booking.start, 1)) * 1440 : (booking.end ? absOf(booking.end) : sAbs + 60);
+                if (eAbs <= sAbs) eAbs = sAbs + 30;
+                return Object.assign({}, booking, { sAbs, eAbs, shortTime: booking.allDay ? '' : this.fmtTime(sAbs % 1440),
+                    timeText: booking.allDay ? this.t('All day') : this.fmtTime(sAbs % 1440) + ' – ' + this.fmtTime(eAbs % 1440),
+                    dayText: this.fmtDay(dayText(Math.floor(sAbs / 1440)), { weekday: 'short', month: 'short', day: 'numeric' }) });
+            });
+        }
+    },
+    watch: {
+        '$root.currentParameters': { handler() { if (!this.subActive && this.ready) { const before = this.rangeKey(); this.readState(); this.loadBookings(); if (before !== this.rangeKey()) this.selection = null; } }, deep: true },
+        subActive(active) { if (!active && this.ready) { this.readState(); this.loadBookings(); } },
+        'booking.open'(open) { if (!open) this.selection = null; }
+    },
+    methods: {
+        t(text) { return moqui.l10n && moqui.l10n.localize ? moqui.l10n.localize(text) : text; },
+        url(name) { return this.screenPath + '/' + name; },
+        action(name) {
+            const rootPath = this.$root.appRootPath || '';
+            const path = this.url(name);
+            return rootPath && path.indexOf(rootPath) === 0 ? path.slice(rootPath.length) : path;
+        },
+        go(url) { if (url) this.$root.setUrl(url); },
+        fmtDay(text, options) {
+            try { return new Intl.DateTimeFormat(this.locale, Object.assign({ timeZone: 'UTC' }, options)).format(new Date(dayNum(text) * 86400000)); }
+            catch (err) { return text; }
+        },
+        fmtTime(minutes) {
+            try { return new Intl.DateTimeFormat(this.locale, { timeZone: 'UTC', hour: 'numeric', minute: '2-digit' }).format(new Date(minutes * 60000)); }
+            catch (err) { return hhmm(minutes); }
+        },
+        fmtHour(minutes) {
+            try { return new Intl.DateTimeFormat(this.locale, { timeZone: 'UTC', hour: 'numeric' }).format(new Date(minutes * 60000)); }
+            catch (err) { return hhmm(minutes); }
+        },
+        pctOf(minutes) { return Math.max(0, Math.min(100, (minutes - this.dayStartMin) / (this.dayEndMin - this.dayStartMin) * 100)); },
+        rangeKey() { return this.range ? this.range.start + '|' + this.range.end : ''; },
+        readState() {
+            const params = this.$root.currentParameters || {};
+            this.view = this.phone ? 'day' : (params.view === 'week' ? 'week' : 'day');
+            this.date = isDay(params.date) ? String(params.date) : this.todayText;
+            this.type = ['room', 'equipment'].includes(params.type) ? params.type : 'all';
+        },
+        setState(changes) {
+            const params = Object.assign({}, this.$root.currentParameters || {});
+            ['moquiSessionToken', 'lastStandalone'].forEach((name) => delete params[name]);
+            const next = Object.assign({ view: this.view, date: this.date, type: this.type }, params, changes || {});
+            if (next.date === this.todayText) delete next.date;
+            if (next.type === 'all') delete next.type;
+            if (next.view === 'day') delete next.view;
+            const search = moqui.objToSearch(next);
+            this.$root.setUrl(this.linkPath + (search ? '?' + search : ''));
+        },
+        goToday() { this.setState({ date: this.todayText }); },
+        shift(direction) { this.setState({ date: addDays(this.date || this.todayText, (this.view === 'day' ? 1 : 7) * direction) }); },
+        updateNow() {
+            try {
+                const parts = new Intl.DateTimeFormat('en-CA', { timeZone: this.timeZone || undefined, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date());
+                const part = (type) => (parts.find((item) => item.type === type) || {}).value;
+                this.nowMinutes = Number(part('hour')) * 60 + Number(part('minute'));
+            } catch (err) { this.nowMinutes = null; }
+        },
+        loadResources() {
+            this.loading = true;
+            return moqui.request(this.url('resources')).then((result) => {
+                const json = result.json || {};
+                this.resources = json.resourceList || [];
+                this.timeZone = json.timeZone || '';
+                this.todayText = json.todayText || '';
+                this.workStart = json.workStart || '09:00';
+                this.workEnd = json.workEnd || '17:00';
+                this.weekStart = json.weekStart || 0;
+                this.updateNow();
+                this.ready = true;
+                this.loading = false;
+            }, (err) => { this.loading = false; this.ready = true; moqui.handleAjaxError(err); });
+        },
+        loadBookings() {
+            const range = this.range;
+            if (!range || !this.resources.length || this.subActive) { this.bookings = []; return; }
+            const seq = ++this.requestSeq;
+            this.loading = true;
+            moqui.request(this.url('bookings'), { params: { start: range.start, end: range.end, keys: this.resources.map((resource) => resource.key).join(',') } }).then((result) => {
+                if (seq !== this.requestSeq) return;
+                const json = result.json || {};
+                this.bookings = json.bookingList || [];
+                this.failed = (json.failedSources || []).map((key) => (this.resources.find((resource) => resource.key === key) || { name: key }).name);
+                this.loading = false;
+            }, (err) => { if (seq === this.requestSeq) this.loading = false; moqui.handleAjaxError(err); });
+        },
+        // the bookings of a resource on the day shown, in lanes where they overlap
+        dayBookings(resource) {
+            const dayStart = dayNum(this.date || this.todayText) * 1440;
+            const list = this.items.filter((item) => item.resourceKey === resource.key && item.sAbs < dayStart + 1440 && item.eAbs > dayStart)
+                .sort((a, b) => a.sAbs - b.sAbs);
+            const laneEnds = [];
+            return list.map((item) => {
+                const s = Math.max(item.sAbs - dayStart, this.dayStartMin);
+                const e = Math.min(item.eAbs - dayStart, this.dayEndMin);
+                let lane = laneEnds.findIndex((end) => end <= item.sAbs);
+                if (lane < 0) { lane = laneEnds.length; laneEnds.push(0); }
+                laneEnds[lane] = item.eAbs;
+                return Object.assign({}, item, { lane, leftPct: this.pctOf(s), widthPct: Math.max(this.pctOf(e) - this.pctOf(s), 1.5) });
+            });
+        },
+        rowHeight(resource) {
+            if (this.view !== 'day') return 56;
+            const lanes = this.dayBookings(resource).reduce((max, item) => Math.max(max, item.lane + 1), 1);
+            return Math.max(48, lanes * 26 + 8);
+        },
+        weekBookings(resource, text) {
+            const dayStart = dayNum(text) * 1440;
+            return this.items.filter((item) => item.resourceKey === resource.key && item.sAbs < dayStart + 1440 && item.eAbs > dayStart).sort((a, b) => a.sAbs - b.sAbs);
+        },
+        bookingClass(booking) {
+            if (booking.bookingStatusId && String(booking.bookingStatusId).endsWith('Requested')) return 'm-tonal text-warning';
+            if (!booking.url) return this.dark ? 'bg-grey-8 text-white' : 'bg-grey-5 text-white';
+            return 'bg-primary text-white';
+        },
+        selectedPolicy(key) { const resource = this.resources.find((item) => item.key === key); return resource ? resource.policyText : ''; },
+        // ===== drag on a row: a time to book =====
+        minuteAt(row, clientX) {
+            const rect = row.getBoundingClientRect();
+            const fraction = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+            return this.dayStartMin + fraction * (this.dayEndMin - this.dayStartMin);
+        },
+        onRowDown(event, resource) {
+            if (event.button !== 0) return;
+            const touch = event.pointerType === 'touch';
+            if (!touch) event.preventDefault();
+            const row = event.currentTarget;
+            const origin = Math.floor(this.minuteAt(row, event.clientX) / 30) * 30;
+            this.drag = { resource, row, origin, x: event.clientX, y: event.clientY, started: false, touch };
+            window.addEventListener('pointermove', this.onMove);
+            window.addEventListener('pointerup', this.onUp);
+            window.addEventListener('pointercancel', this.onCancel);
+        },
+        setSelection(resource, start, end) {
+            this.selection = { key: resource.key, start, end, leftPct: this.pctOf(start), widthPct: this.pctOf(end) - this.pctOf(start),
+                text: this.fmtTime(start) + ' – ' + this.fmtTime(end) };
+        },
+        onMove(event) {
+            const drag = this.drag;
+            if (!drag) return;
+            if (!drag.started) {
+                if (Math.abs(event.clientX - drag.x) + Math.abs(event.clientY - drag.y) < 5) return;
+                if (drag.touch) { this.onCancel(); return; }
+                drag.started = true;
+            }
+            const minute = this.minuteAt(drag.row, event.clientX);
+            if (minute >= drag.origin) this.setSelection(drag.resource, drag.origin, Math.max(drag.origin + 30, Math.ceil(minute / 30) * 30));
+            else this.setSelection(drag.resource, Math.floor(minute / 30) * 30, drag.origin + 30);
+        },
+        onCancel() { this.unlisten(); this.drag = null; },
+        unlisten() {
+            window.removeEventListener('pointermove', this.onMove);
+            window.removeEventListener('pointerup', this.onUp);
+            window.removeEventListener('pointercancel', this.onCancel);
+        },
+        onUp() {
+            const drag = this.drag;
+            this.unlisten();
+            this.drag = null;
+            if (!drag) return;
+            if (!drag.started) this.setSelection(drag.resource, drag.origin, Math.min(drag.origin + 60, 1440));
+            const sel = this.selection;
+            this.openBooking(drag.resource, this.date || this.todayText, sel.start, sel.end);
+        },
+        // ===== book =====
+        openBooking(resource, day, start, end) {
+            const from = start != null ? start : Number(String(this.workStart).slice(0, 2)) * 60;
+            const to = end != null ? end : Math.min(from + 60, 1439);
+            this.booking = { open: true, key: this.booking.key + 1, initial: { resource: resource ? resource.key : (this.shownResources[0] ? this.shownResources[0].key : ''),
+                date: day || this.date || this.todayText, from: hhmm(from), to: hhmm(Math.min(to, 1439)), purpose: '', notes: '' } };
+        },
+        afterBooking() { this.booking.open = false; this.selection = null; this.loadBookings(); },
+        openBookingDetail(booking, resource) { this.detail = { open: true, booking, resource }; },
+        openEvent() { const booking = this.detail.booking; this.detail.open = false; if (booking && booking.url) this.go(booking.url); },
+        cancelBooking() {
+            const booking = this.detail.booking;
+            const resource = this.detail.resource;
+            if (!booking || !resource) return;
+            moqui.request(this.url('cancelBooking'), { method: 'POST', params: { workEffortId: booking.workEffortId, resourceType: resource.resourceType,
+                resourceId: resource.resourceId } }).then((result) => {
+                const json = result.json || {};
+                moqui.notifyMessages(json.messageInfos, json.errors);
+                this.detail.open = false;
+                this.loadBookings();
+            }, moqui.handleAjaxError);
+        }
+    },
+    mounted() {
+        this.nowTimer = setInterval(() => this.updateNow(), 60000);
+        this.loadResources().then(() => { this.readState(); this.loadBookings(); });
+    },
+    beforeUnmount() { clearInterval(this.nowTimer); this.unlisten(); }
+};
+</script>

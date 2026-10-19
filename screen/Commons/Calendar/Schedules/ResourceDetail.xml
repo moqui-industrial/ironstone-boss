@@ -12,10 +12,121 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for ResourceDetail: design-drawers-commons.md §7, detail archetype, xml, scope new. -->
+<!-- ResourceDetail (design-drawers-commons.md §7 ResourceDetail, Context passed; impl-drawers-commons.md M7): a bookable meeting room
+    (resourceType room, a Facility of type FcTpRoom) or piece of equipment (equipment, an Asset of type AstTpEquipment) as Commons
+    shows it, read-only: what and where it is, its booking policy in words, Book (a time, booked at once or waiting for its
+    approver), the user's upcoming bookings of it with Cancel, and its week in Rooms and equipment
+    (service/ironstone/ScheduleServices.xml get#ResourceDetail). Its record, approvers and blackout windows are Maintenance's;
+    "Open in Maintenance" shows for a user who has it. Anything else is "not available". -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Resource" default-menu-include="false">
+
+    <parameter name="resourceType" required="true"/>
+    <parameter name="resourceId" required="true"/>
+
+    <transition name="schedules"><default-response url=".."/></transition>
+    <transition name="book">
+        <actions>
+            <service-call name="ironstone.ScheduleServices.book#ResourceSlot" out-map="bookOut" in-map="{resourceType:resourceType, resourceId:resourceId,
+                    start:(date ? String(date).substring(0, 10) + ' ' + (from || '09:00') : ''), end:(date ? String(date).substring(0, 10) + ' ' + (to || '10:00') : ''),
+                    purpose:purpose, notes:notes}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(bookOut.message, bookOut.requiresApproval ? 'warning' : 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="resourceType"/><parameter name="resourceId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="cancelBooking">
+        <actions>
+            <service-call name="ironstone.ScheduleServices.cancel#MyBooking" out-map="cancelOut" in-map="{workEffortId:workEffortId, resourceType:resourceType, resourceId:resourceId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(cancelOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="resourceType"/><parameter name="resourceId"/></default-response>
+        <error-response url="."/>
+    </transition>
+
+    <actions>
+        <service-call name="ironstone.ScheduleServices.get#ResourceDetail" in-map="{resourceType:resourceType, resourceId:resourceId}" out-map="detail"/>
+        <set field="recordFound" from="!!detail.found"/>
+        <script><![CDATA[
+            if (!recordFound) return
+            resource = detail.resource
+            factList = detail.facts || []
+            myBookingList = detail.myBookingList || []
+            weekUrl = '/qapps/Commons/Calendar/Schedules?view=week&type=' + resourceType
+            todayText = ec.l10n.format(ec.user.nowTimestamp, 'yyyy-MM-dd')
+            bookFields = {resourceType: resourceType, resourceId: resourceId, date: todayText, from: ec.user.getPreference('CALENDAR_WORK_START') || '09:00', to: '', purpose: '', notes: ''}
+            const [hours, minutes] = String(bookFields.from).split(':').map(Number)
+            bookFields.to = String(Math.min(23, hours + 1)).padStart(2, '0') + ':' + String(minutes || 0).padStart(2, '0')
+            maintenanceUrl = resourceType === 'room' ? '//Maintenance/Facilities' : '//Maintenance/Equipment'
+            maintenanceAllowed = false
+            try { maintenanceAllowed = !sri.buildUrl(maintenanceUrl).getDisableLink() } catch (err) { maintenanceAllowed = false }
+        ]]></script>
+    </actions>
+
     <widgets>
-        <label text="Placeholder: A bookable meeting room or piece of equipment as a user sees it: what and where it is, its schedule, Book." type="p"/>
+        <section name="ResourceNotFound" condition="!recordFound"><widgets>
+            <container-box type="warning"><box-header title="Not available"/><box-body>
+                <label type="p" text="${resourceId} is not a room or equipment to book."/>
+                <link url="schedules" text="Back to rooms and equipment" link-type="anchor"/>
+            </box-body></container-box>
+        </widgets></section>
+        <section name="ResourceFound" condition="recordFound"><widgets>
+            <context record-entity="${resourceType == 'room' ? 'mantle.facility.Facility' : 'mantle.product.asset.Asset'}" record-id="${resourceId}" title="${resource.name}"/>
+            <container style="q-mb-xs"><link url="schedules" link-type="anchor" text="Rooms and equipment" icon="arrow_back"/></container>
+            <container style="row items-start q-col-gutter-sm q-mb-sm">
+                <container style="col-12 col-md">
+                    <label text="${resource.name}" type="h5" style="q-my-none"/>
+                    <label text="${resource.typeLabel}${resource.site ? ' · ' + resource.site : ''}" type="div" style="text-caption m-muted"/>
+                </container>
+                <container style="col-12 col-md-auto row items-center q-gutter-xs">
+                    <link url="${weekUrl}" url-type="plain" text="See its week" icon="sym_o_date_range"/>
+                    <link url="${maintenanceUrl}" text="Open in Maintenance" icon="sym_o_build" condition="maintenanceAllowed"/>
+                </container>
+            </container>
+            <container-row>
+                <row-col md="6">
+                    <container-box><box-header title="About"/><box-body>
+                        <label type="p" text="${resource.description}" style="text-body2" condition="resource.description"/>
+                        <form-list name="ResourceFacts" list="factList" skip-form="true" skip-header="true" paginate="false">
+                            <field name="label"><default-field><label text="${label}" type="span" style="m-muted"/></default-field></field>
+                            <field name="value"><default-field><label text="${value}" type="span"/></default-field></field>
+                        </form-list>
+                    </box-body></container-box>
+                    <container-box><box-header title="My bookings of it"/><box-body-nopad>
+                        <form-list name="MyBookings" list="myBookingList" skip-form="true" skip-header="true" paginate="false">
+                            <field name="title"><default-field><link url="${url}" url-type="plain" text="${title}"/></default-field></field>
+                            <field name="whenText"><default-field><label text="${whenText}" type="span" style="text-no-wrap"/></default-field></field>
+                            <field name="statusLabel"><default-field>
+                                <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${statusColor}">${WebUtilities.encodeHtml(statusLabel ?? '')}</q-chip>]]></text></render-mode>
+                            </default-field></field>
+                            <field name="cancel" align="right"><conditional-field condition="canCancel" title="">
+                                <link url="cancelBooking" link-type="hidden-form-link" icon="sym_o_event_busy" text="Cancel" btn-type="danger"
+                                        confirmation="Cancel the booking ${title}?" parameter-map="{resourceType:resourceType, resourceId:resourceId, workEffortId:workEffortId}"/>
+                            </conditional-field><default-field title=""><label text="" type="span"/></default-field></field>
+                        </form-list>
+                        <section name="NoBookings" condition="!myBookingList.length"><widgets>
+                            <label type="p" text="You have not booked it in the next 90 days." style="m-muted q-pa-sm q-mb-none"/>
+                        </widgets></section>
+                    </box-body-nopad></container-box>
+                </row-col>
+                <row-col md="6">
+                    <container-box><box-header title="Book it"/><box-body>
+                        <label type="p" text="${resource.policyText}" style="text-body2 ${resource.requiresApproval ? 'text-warning' : 'm-muted'}"/>
+                        <form-single name="ResourceBook" transition="book" map="bookFields" focus-field="purpose">
+                            <field name="resourceType"><default-field><hidden/></default-field></field>
+                            <field name="resourceId"><default-field><hidden/></default-field></field>
+                            <field name="date"><default-field title="Day"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                            <field name="from"><default-field title="From"><date-time type="time" format="HH:mm"/></default-field></field>
+                            <field name="to"><default-field title="To"><date-time type="time" format="HH:mm"/></default-field></field>
+                            <field name="purpose"><default-field title="What for"><text-line size="40"/></default-field></field>
+                            <field name="notes"><default-field title="Notes for the approver"><text-area rows="2" cols="40"/></default-field></field>
+                            <field name="submitButton"><default-field title="Book"><submit icon="sym_o_event_available"/></default-field></field>
+                            <field-layout><field-row><field-ref name="date"/><field-ref name="from"/><field-ref name="to"/></field-row>
+                                <field-ref name="purpose"/><field-ref name="notes"/><field-ref name="submitButton"/></field-layout>
+                        </form-single>
+                    </box-body></container-box>
+                </row-col>
+            </container-row>
+        </widgets></section>
     </widgets>
 </screen>

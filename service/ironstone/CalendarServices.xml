@@ -1,0 +1,1461 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The calendar of IronStone Commons (design-drawers-commons.md §7 Calendar, §11 Calendars and Preferences; impl-drawers-commons.md
+    M7): what Commons/Calendar (Calendar.qvue) and Settings/Calendars read and change, on mantle.work.CalendarServices and
+    mantle.work.EventServices. The grid shows the calendars the user has on (the CALENDAR_HIDDEN preference lists the ones off)
+    plus every event the user is on, as get#FullCalendarData answers it, in the user's time zone: every day and time a screen
+    sends or gets is wall-clock text in that zone (yyyy-MM-dd, yyyy-MM-dd HH:mm). An event is changed as its organizer or an
+    editor of its calendar (check#EventAccess); a recurring event's instance changes as "this event" (an instance WorkEffort
+    linked by WorkEffortAssoc WeatRecurrenceInstance), "this and following" (the series ends before it and a new series starts
+    there) or "all events" (the series moves), which Mantle has no service for. Each part of a read stands alone: one that fails
+    is logged and named in failedSources, and the rest shows. -->
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
+
+    <!-- ========== Preferences (Settings/Preferences CalendarDefaults) ========== -->
+
+    <service verb="get" noun="CalendarDefaults">
+        <description>How the current user's calendar opens and new events start, from the user's preferences with the defaults:
+            view (CALENDAR_DEFAULT_VIEW: day, workweek, week, month or agenda; week), weekStart (CALENDAR_WEEK_START, 0 Sunday,
+            1 Monday or 6 Saturday; 0), workStart and workEnd (CALENDAR_WORK_START and CALENDAR_WORK_END, HH:mm; 09:00 and
+            17:00), workDays (CALENDAR_WORK_DAYS, weekday numbers 0-6; 1,2,3,4,5), defaultDuration (CALENDAR_DEFAULT_DURATION,
+            minutes; 60), defaultReminder (CALENDAR_DEFAULT_REMINDER, minutes before, empty for none; 10), showDeclined
+            (CALENDAR_SHOW_DECLINED, Y or N; N), showWeekNumbers (CALENDAR_SHOW_WEEK_NUMBERS; N), showTasks (CALENDAR_SHOW_TASKS;
+            N) and the calendars the user turned off (CALENDAR_HIDDEN, a comma list).</description>
+        <out-parameters><parameter name="defaults" type="Map"/></out-parameters>
+        <actions><script><![CDATA[
+            const pref = (key) => { const value = ec.user.getPreference(key); return value == null ? '' : String(value).trim() }
+            const time = (text, fallback) => /^\d{2}:\d{2}$/.test(text) ? text : fallback
+            const view = pref('CALENDAR_DEFAULT_VIEW')
+            const weekStart = pref('CALENDAR_WEEK_START')
+            const duration = Number(pref('CALENDAR_DEFAULT_DURATION'))
+            const reminderText = ec.user.getPreference('CALENDAR_DEFAULT_REMINDER')
+            const reminder = reminderText == null ? '10' : String(reminderText).trim()
+            const days = pref('CALENDAR_WORK_DAYS').split(',').map((day) => day.trim()).filter((day) => /^[0-6]$/.test(day))
+            defaults = {view: ['day', 'workweek', 'week', 'month', 'agenda'].includes(view) ? view : 'week',
+                weekStart: ['0', '1', '6'].includes(weekStart) ? Number(weekStart) : 0,
+                workStart: time(pref('CALENDAR_WORK_START'), '09:00'), workEnd: time(pref('CALENDAR_WORK_END'), '17:00'),
+                workDays: days.length ? days.map(Number) : [1, 2, 3, 4, 5],
+                defaultDuration: [15, 30, 45, 60, 90, 120].includes(duration) ? duration : 60,
+                defaultReminder: /^\d+$/.test(reminder) && Number(reminder) <= 43200 ? reminder : '',
+                showDeclined: pref('CALENDAR_SHOW_DECLINED') === 'Y', showWeekNumbers: pref('CALENDAR_SHOW_WEEK_NUMBERS') === 'Y',
+                showTasks: pref('CALENDAR_SHOW_TASKS') === 'Y',
+                hiddenCalendarIds: pref('CALENDAR_HIDDEN').split(',').map((id) => id.trim()).filter((id) => id)}
+            if (defaults.workEnd <= defaults.workStart) { defaults.workStart = '09:00'; defaults.workEnd = '17:00' }
+        ]]></script></actions>
+    </service>
+    <service verb="set" noun="CalendarDefaults">
+        <description>Saves the CalendarDefaults of Settings/Preferences as the current user's preferences (get#CalendarDefaults)
+            and, with defaultCalendarId, makes that one of the user's own personal calendars the default
+            (mantle.work.CalendarServices.update#Calendar). A field left out (null) is not changed.</description>
+        <in-parameters>
+            <parameter name="view"/>
+            <parameter name="weekStart"/>
+            <parameter name="workStart"/>
+            <parameter name="workEnd"/>
+            <parameter name="workDays" type="Object"/>
+            <parameter name="defaultDuration"/>
+            <parameter name="defaultReminder"/>
+            <parameter name="showDeclined"/>
+            <parameter name="showWeekNumbers"/>
+            <parameter name="defaultCalendarId"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const yes = (value) => value === 'Y' || value === 'true' || value === true || (Array.isArray(value) && value.includes('Y'))
+            if (view != null) {
+                if (!['day', 'workweek', 'week', 'month', 'agenda'].includes(String(view))) { ec.message.addError(L('Pick a view: day, work week, week, month or agenda')); return }
+                ec.user.setPreference('CALENDAR_DEFAULT_VIEW', String(view))
+            }
+            if (weekStart != null) {
+                if (!['0', '1', '6'].includes(String(weekStart))) { ec.message.addError(L('A week starts on Sunday, Monday or Saturday')); return }
+                ec.user.setPreference('CALENDAR_WEEK_START', String(weekStart))
+            }
+            const time = (value) => { const text = String(value || '').trim(); return /^\d{1,2}:\d{2}$/.test(text) ? text.padStart(5, '0') : null }
+            if (workStart != null || workEnd != null) {
+                const start = time(workStart) || '09:00'
+                const end = time(workEnd) || '17:00'
+                if (end <= start) { ec.message.addError(L('Working hours end after they start')); return }
+                ec.user.setPreference('CALENDAR_WORK_START', start)
+                ec.user.setPreference('CALENDAR_WORK_END', end)
+            }
+            if (workDays != null) {
+                const list = (Array.isArray(workDays) ? workDays : String(workDays).split(',')).map((day) => String(day).trim()).filter((day) => /^[0-6]$/.test(day))
+                if (!list.length) { ec.message.addError(L('Pick at least one working day')); return }
+                ec.user.setPreference('CALENDAR_WORK_DAYS', Array.from(new Set(list)).sort().join(','))
+            }
+            if (defaultDuration != null) {
+                if (![15, 30, 45, 60, 90, 120].includes(Number(defaultDuration))) { ec.message.addError(L('A default length is 15 minutes to 2 hours')); return }
+                ec.user.setPreference('CALENDAR_DEFAULT_DURATION', String(Number(defaultDuration)))
+            }
+            if (defaultReminder != null) {
+                const text = String(defaultReminder).trim()
+                if (text && !(/^\d+$/.test(text) && Number(text) <= 43200)) { ec.message.addError(L('A reminder is up to 30 days before')); return }
+                ec.user.setPreference('CALENDAR_DEFAULT_REMINDER', text)
+            }
+            if (showDeclined != null) ec.user.setPreference('CALENDAR_SHOW_DECLINED', yes(showDeclined) ? 'Y' : 'N')
+            if (showWeekNumbers != null) ec.user.setPreference('CALENDAR_SHOW_WEEK_NUMBERS', yes(showWeekNumbers) ? 'Y' : 'N')
+            // the working hours as Mantle reads them for free/busy and Find a time: a weekly WetAvailable of the user's
+            if (workStart != null || workEnd != null || workDays != null) {
+                ec.message.pushErrors()
+                try {
+                    ec.service.sync().name('ironstone.CalendarServices.store#WorkingHours').call()
+                    if (ec.message.hasError()) throw new Error(ec.message.getErrorsString())
+                } catch (err) {
+                    ec.logger.warn(`The working hours of ${ec.user.username} were not stored for free/busy: ${err && err.message ? err.message : err}`)
+                } finally { ec.message.clearErrors(); ec.message.popErrors() }
+            }
+            if (defaultCalendarId) {
+                const access = ec.service.sync().name('mantle.work.CalendarServices.check#CalendarAccess').parameters({calendarId: defaultCalendarId}).call()
+                if (ec.message.hasError()) return
+                if (!access?.isOwner || access.calendar?.calendarKindEnumId !== 'CalkPersonal') {
+                    ec.message.addError(L('Only one of your own personal calendars can be your default')); return }
+                if (access.calendar.isDefault !== 'Y') ec.service.sync().name('mantle.work.CalendarServices.update#Calendar')
+                        .parameters({calendarId: defaultCalendarId, isDefault: 'Y'}).call()
+                if (ec.message.hasError()) return
+            }
+            message = L('Calendar settings saved')
+        ]]></script></actions>
+    </service>
+    <service verb="store" noun="WorkingHours">
+        <description>The current user's working hours (the CalendarDefaults preferences: the working days and hours) as Mantle
+            reads them for free/busy (mantle.work.EventServices.get#FreeBusy, Find a time): a WetAvailable work effort of the
+            user's party, repeating weekly on the working days from the start to the end of the working day in the user's time
+            zone, made once (sourceReferenceId BossWorkingHours) and changed after.</description>
+        <out-parameters><parameter name="workEffortId"/></out-parameters>
+        <actions><script><![CDATA[
+            const partyId = ec.user.userAccount?.partyId
+            if (!partyId) return
+            const defaults = ec.service.sync().name('ironstone.CalendarServices.get#CalendarDefaults').call()?.defaults || {}
+            const codes = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA']
+            const days = (defaults.workDays || [1, 2, 3, 4, 5]).map(Number)
+            const pattern = 'yyyy-MM-dd HH:mm:ss.SSS'
+            const today = ec.l10n.format(ec.user.nowTimestamp, 'yyyy-MM-dd')
+            const addDays = (text, count) => { const [y, m, d] = text.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + count)).toISOString().substring(0, 10) }
+            const weekdayOf = (text) => { const [y, m, d] = text.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d)).getUTCDay() }
+            // the first working day of the last week, so the series has started
+            let first = addDays(today, -7)
+            for (let i = 0; i < 7 && !days.includes(weekdayOf(first)); i++) first = addDays(first, 1)
+            const startMs = Number(String(ec.l10n.parseTimestamp(first + ' ' + defaults.workStart + ':00.000', pattern)))
+            const endMs = Number(String(ec.l10n.parseTimestamp(first + ' ' + defaults.workEnd + ':00.000', pattern)))
+            const rule = 'FREQ=WEEKLY;BYDAY=' + ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'].filter((code) => days.includes(codes.indexOf(code))).join(',')
+            const existing = ec.entity.find('mantle.work.effort.WorkEffort').condition('ownerPartyId', partyId).condition('workEffortTypeEnumId', 'WetAvailable')
+                    .condition('sourceReferenceId', 'BossWorkingHours').one()
+            const fields = {estimatedStartDate: new Date(startMs), estimatedCompletionDate: new Date(endMs), estimatedWorkDuration: (endMs - startMs) / 3600000}
+            if (existing != null) {
+                for (const [field, value] of Object.entries(fields)) existing.set(field, value)
+                existing.update()
+                workEffortId = existing.workEffortId
+            } else {
+                workEffortId = ec.service.sync().name('create#mantle.work.effort.WorkEffort').parameters(Object.assign({workEffortTypeEnumId: 'WetAvailable',
+                    workEffortName: ec.l10n.localize('Working hours'), statusId: 'WeApproved', ownerPartyId: partyId, timeUomId: 'TF_hr',
+                    sourceReferenceId: 'BossWorkingHours', visibilityEnumId: 'WevRestricted'}, fields)).call()?.workEffortId
+                if (ec.message.hasError()) return
+                ec.service.sync().name('create#mantle.work.effort.WorkEffortParty').parameters({workEffortId: workEffortId, partyId: partyId,
+                    roleTypeId: 'Assignee', fromDate: ec.user.nowTimestamp, statusId: 'WeptAssigned'}).call()
+            }
+            const recurrence = ec.entity.find('mantle.work.effort.WorkEffortRecurrence').condition('workEffortId', workEffortId).one()
+            if (recurrence == null) ec.service.sync().name('create#mantle.work.effort.WorkEffortRecurrence').parameters({workEffortId: workEffortId,
+                rrule: rule, timeZone: ec.user.timeZone || null}).call()
+            else { recurrence.set('rrule', rule); recurrence.set('timeZone', ec.user.timeZone || null); recurrence.update() }
+        ]]></script></actions>
+    </service>
+
+    <service verb="save" noun="CalendarRailState">
+        <description>What the calendar rail shows, kept as the current user's preferences: the calendars turned off
+            (hiddenCalendarIds, CALENDAR_HIDDEN), the tasks (showTasks, CALENDAR_SHOW_TASKS) and declined invitations
+            (showDeclined, CALENDAR_SHOW_DECLINED). A field left out is not changed.</description>
+        <in-parameters>
+            <parameter name="hiddenCalendarIds" type="Object"/>
+            <parameter name="showTasks"/>
+            <parameter name="showDeclined"/>
+        </in-parameters>
+        <actions><script><![CDATA[
+            if (hiddenCalendarIds != null) {
+                const list = (Array.isArray(hiddenCalendarIds) ? hiddenCalendarIds : String(hiddenCalendarIds).split(','))
+                        .map((id) => String(id).trim()).filter((id) => id && /^[A-Za-z0-9_.:-]+$/.test(id))
+                ec.user.setPreference('CALENDAR_HIDDEN', Array.from(new Set(list)).slice(0, 200).join(','))
+            }
+            if (showTasks != null) ec.user.setPreference('CALENDAR_SHOW_TASKS', showTasks === 'Y' || showTasks === 'true' ? 'Y' : 'N')
+            if (showDeclined != null) ec.user.setPreference('CALENDAR_SHOW_DECLINED', showDeclined === 'Y' || showDeclined === 'true' ? 'Y' : 'N')
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== The calendar grid ========== -->
+
+    <service verb="get" noun="CalendarSetup">
+        <description>What the calendar needs before its events: the user's calendars for the rail (mine, subscriptions and shared
+            with me, from mantle.work.CalendarServices.get#UserCalendars, the default made on first use), each with whether it is
+            shown and may take new events, a subscription's last fetch with a warning when it failed; the calendar defaults; the
+            user's time zone, today and now in it; the user's party and name; the bookable meeting rooms for the quick event. A
+            part that fails is logged and named in failedSources.</description>
+        <out-parameters>
+            <parameter name="calendarList" type="List"/>
+            <parameter name="defaultCalendarId"/>
+            <parameter name="defaults" type="Map"/>
+            <parameter name="timeZone"/>
+            <parameter name="todayText"/>
+            <parameter name="nowText"/>
+            <parameter name="me" type="Map"/>
+            <parameter name="roomOptions" type="List"/>
+            <parameter name="failedSources" type="List"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            calendarList = []
+            defaultCalendarId = null
+            roomOptions = []
+            failedSources = []
+            const attempt = (name, run) => {
+                ec.message.pushErrors()
+                try { run(); if (ec.message.hasError()) throw new Error(ec.message.getErrorsString()) }
+                catch (err) { failedSources.push(name); ec.logger.error(`Calendar ${name} for ${ec.user.username} not read: ${err && err.message ? err.message : err}`) }
+                finally { ec.message.clearErrors(); ec.message.popErrors() }
+            }
+            defaults = ec.service.sync().name('ironstone.CalendarServices.get#CalendarDefaults').call()?.defaults || {}
+            timeZone = ec.user.timeZone || ''
+            const nowMs = Number(String(ec.user.nowTimestamp))
+            todayText = ec.l10n.format(String(nowMs), 'yyyy-MM-dd')
+            nowText = ec.l10n.format(String(nowMs), 'yyyy-MM-dd HH:mm')
+            const partyId = ec.user.userAccount?.partyId || null
+            me = {partyId: partyId, name: ec.user.userAccount?.userFullName || ec.user.username, userId: ec.user.userId}
+            const hidden = new Set(defaults.hiddenCalendarIds || [])
+            attempt('calendars', () => {
+                const out = ec.service.sync().name('mantle.work.CalendarServices.get#UserCalendars').call()
+                if (ec.message.hasError()) return
+                defaultCalendarId = out?.defaultCalendarId || null
+                for (const calendar of Array.from(out?.calendarList || [])) {
+                    const subscription = calendar.subscription
+                    let warning = null
+                    if (subscription && subscription.lastFetchStatus === 'error') warning = L('Last fetch failed') + (subscription.lastFetchError ? ': ' + String(subscription.lastFetchError).substring(0, 200) : '')
+                    else if (subscription && !subscription.lastFetchDate) warning = L('Not fetched yet')
+                    calendarList.push(Object.assign({}, calendar, {shown: !hidden.has(calendar.calendarId),
+                        canAdd: ['CalpEdit', 'CalpManage'].includes(calendar.permissionEnumId) && calendar.calendarKindEnumId !== 'CalkSubscription',
+                        freeBusyOnly: calendar.permissionEnumId === 'CalpFreeBusy', warning: warning,
+                        lastFetchText: subscription?.lastFetchDate ? ec.l10n.format(subscription.lastFetchDate, 'MMM d, h:mm a') : null}))
+                }
+            })
+            attempt('rooms', () => {
+                for (const room of ec.entity.find('mantle.facility.Facility').condition('facilityTypeEnumId', 'FcTpRoom')
+                        .condition('closedDate', 'is-null', null).orderBy('facilityName').limit(200).list())
+                    roomOptions.push({value: room.facilityId, label: room.facilityName || room.facilityId})
+            })
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="CalendarEvents">
+        <description>
+            The events of the grid from start to end (days, yyyy-MM-dd in the user's time zone): get#FullCalendarData over the
+            calendars of calendarIds (the ones the user has on) plus every event the user is on, recurring events expanded,
+            cancelled ones left out and declined invitations unless showDeclined. An event of the user's own calendars that is
+            only in calendars the user turned off is left out too (an invitation from someone else always shows). Each is
+            {key, workEffortId, title, start and end (yyyy-MM-dd HH:mm, or yyyy-MM-dd days for an all-day event with end the day
+            after its last), allDay, color (its calendar's), calendarId, statusId, partyStatusId (the user's answer: WeptOffered
+            is an invitation to answer), recurring, recurringEventId, instanceStart, freeBusyOnly, location, canEdit (organizer
+            or an editor of its calendar), hasAttendees, isOrganizer, url}. With showTasks the user's tasks come too, by their
+            due date ({kind: task, ...}). A part that fails is logged and named in failedSources.
+        </description>
+        <in-parameters>
+            <parameter name="start" required="true"/>
+            <parameter name="end" required="true"/>
+            <parameter name="calendarIds" type="Object"/>
+            <parameter name="hiddenCalendarIds" type="Object"/>
+            <parameter name="showDeclined" type="Boolean" default="false"/>
+            <parameter name="showTasks" type="Boolean" default="false"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="eventList" type="List"/>
+            <parameter name="skippedCalendarIdList" type="List"/>
+            <parameter name="failedSources" type="List"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            eventList = []
+            skippedCalendarIdList = []
+            failedSources = []
+            const cf = ec.entity.conditionFactory
+            const textList = (value) => value == null ? [] : (Array.isArray(value) ? value : String(value).split(',')).map((id) => String(id).trim()).filter((id) => id)
+            const dayOk = (text) => /^\d{4}-\d{2}-\d{2}$/.test(String(text || ''))
+            if (!dayOk(start) || !dayOk(end) || String(end) < String(start)) { ec.message.addError(ec.l10n.localize('The range is two days, yyyy-MM-dd')); return }
+            const partyId = ec.user.userAccount?.partyId || null
+            const shownIds = textList(calendarIds)
+            const hiddenIds = new Set(textList(hiddenCalendarIds))
+            const wall = (text) => text ? String(text).replace('T', ' ').substring(0, 16) : null
+            const attempt = (name, run) => {
+                ec.message.pushErrors()
+                try { run(); if (ec.message.hasError()) throw new Error(ec.message.getErrorsString()) }
+                catch (err) { failedSources.push(name); ec.logger.error(`Calendar ${name} for ${ec.user.username} not read: ${err && err.message ? err.message : err}`) }
+                finally { ec.message.clearErrors(); ec.message.popErrors() }
+            }
+            let events = []
+            attempt('events', () => {
+                const out = ec.service.sync().name('mantle.work.EventServices.get#FullCalendarData').parameters({start: start, end: end,
+                    calendarIdList: shownIds, showDeclined: !!showDeclined, excludeCancelled: true,
+                    titleGString: '${workEffort.workEffortName || "(no title)"}'}).call()
+                if (ec.message.hasError()) return
+                events = Array.from(out?.eventList || [])
+                skippedCalendarIdList = Array.from(out?.skippedCalendarIdList || [])
+            })
+            if (events.length) attempt('event details', () => {
+                const ids = Array.from(new Set(events.map((event) => event.workEffortId)))
+                const rows = new Map()
+                for (const row of ec.entity.find('mantle.work.effort.WorkEffort').condition(cf.makeCondition('workEffortId', 'in', ids))
+                        .selectField('workEffortId,ownerPartyId,location,infoUrl,purposeEnumId,visibilityEnumId').list()) rows.set(row.workEffortId, row)
+                // the calendars each event is in, for the permission and for the calendars the user turned off
+                const calendarsOf = new Map()
+                for (const link of ec.entity.find('mantle.work.calendar.CalendarWorkEffort').condition(cf.makeCondition('workEffortId', 'in', ids)).list()) {
+                    if (!calendarsOf.has(link.workEffortId)) calendarsOf.set(link.workEffortId, [])
+                    calendarsOf.get(link.workEffortId).push(link.calendarId)
+                }
+                const permissionIds = Array.from(new Set([].concat(...Array.from(calendarsOf.values()))))
+                const permissions = permissionIds.length ? (ec.service.sync().name('mantle.work.CalendarServices.check#CalendarAccess')
+                        .parameters({calendarIdList: permissionIds}).call()?.permissionMap || {}) : {}
+                const kinds = new Map()
+                if (permissionIds.length) for (const calendar of ec.entity.find('mantle.work.calendar.Calendar').condition(cf.makeCondition('calendarId', 'in', permissionIds))
+                        .selectField('calendarId,calendarKindEnumId').list()) kinds.set(calendar.calendarId, calendar.calendarKindEnumId)
+                const others = new Map()
+                for (const party of ec.entity.find('mantle.work.effort.WorkEffortParty').condition(cf.makeCondition('workEffortId', 'in', ids))
+                        .condition(cf.makeConditionDate('fromDate', 'thruDate', null)).selectField('workEffortId,partyId').list())
+                    if (party.partyId !== partyId) others.set(party.workEffortId, (others.get(party.workEffortId) || 0) + 1)
+                for (const event of events) {
+                    const row = rows.get(event.workEffortId)
+                    const calendars = calendarsOf.get(event.workEffortId) || []
+                    // declined by the user: not shown unless asked, in whichever calendar it is (get#FullCalendarData keeps one of an asked calendar)
+                    if (!showDeclined && event.partyStatusId === 'WeptDeclined') continue
+                    // in the user's calendars only where they are turned off: not shown
+                    if (calendars.length && !calendars.some((id) => shownIds.includes(id)) && calendars.some((id) => hiddenIds.has(id))
+                            && !(event.partyStatusId && ['WeptOffered', 'WeptTentative'].includes(event.partyStatusId) && row?.ownerPartyId !== partyId)) continue
+                    const isOrganizer = !!partyId && row?.ownerPartyId === partyId
+                    const canEdit = !event.freeBusyOnly && (isOrganizer || calendars.some((id) => ['CalpEdit', 'CalpManage'].includes(permissions[id]) && kinds.get(id) !== 'CalkSubscription'))
+                    const instanceStart = event.instanceStart ? (event.allDay ? String(event.instanceStart).substring(0, 10) : wall(event.instanceStart)) : null
+                    eventList.push({kind: 'event', key: event.workEffortId + '|' + (instanceStart || '') + '|' + event.startMillis, workEffortId: event.workEffortId,
+                        title: event.title, start: event.allDay ? event.start : wall(event.start), end: event.allDay ? event.end : wall(event.end), allDay: !!event.allDay,
+                        color: event.color || null, calendarId: event.calendarId || null, statusId: event.statusId || null, partyStatusId: event.partyStatusId || null,
+                        recurring: !!event.recurring, recurringEventId: event.recurringEventId || null, instanceStart: instanceStart,
+                        freeBusyOnly: !!event.freeBusyOnly, location: event.freeBusyOnly ? null : (row?.location || null), canEdit: canEdit,
+                        isOrganizer: isOrganizer, hasAttendees: (others.get(event.workEffortId) || 0) > 0,
+                        url: event.freeBusyOnly ? null : '/qapps/Commons/Calendar/EventDetail?workEffortId=' + encodeURIComponent(event.workEffortId)
+                            + (instanceStart && event.recurringEventId === event.workEffortId ? '&instanceStart=' + encodeURIComponent(instanceStart) : '')})
+                }
+            })
+            if (showTasks && partyId) attempt('tasks', () => {
+                const out = ec.service.sync().name('mantle.work.TaskServices.get#FullCalendarData').parameters({partyId: partyId, start: start, end: end,
+                    titleGString: '${workEffort.workEffortName || "(no name)"}'}).call()
+                if (ec.message.hasError()) return
+                const tasks = Array.from(out?.eventList || [])
+                const ids = Array.from(new Set(tasks.map((task) => task.id)))
+                const statuses = new Map()
+                if (ids.length) for (const row of ec.entity.find('mantle.work.effort.WorkEffort').condition(cf.makeCondition('workEffortId', 'in', ids))
+                        .selectField('workEffortId,statusId,estimatedCompletionDate').list()) statuses.set(row.workEffortId, row)
+                const seen = new Set()
+                for (const task of tasks) {
+                    if (seen.has(task.id)) continue
+                    seen.add(task.id)
+                    const row = statuses.get(task.id)
+                    if (row?.statusId === 'WeCancelled') continue
+                    // a task is at its due time, half an hour long
+                    const due = row?.estimatedCompletionDate != null ? ec.l10n.format(row.estimatedCompletionDate, 'yyyy-MM-dd HH:mm') : wall(task.end || task.start)
+                    if (!due) continue
+                    const dueMs = Number(String(ec.l10n.parseTimestamp(due + ':00.000', 'yyyy-MM-dd HH:mm:ss.SSS')))
+                    const startText = ec.l10n.format(String(dueMs - 1800000), 'yyyy-MM-dd HH:mm')
+                    eventList.push({kind: 'task', key: 'task|' + task.id, workEffortId: task.id, title: task.title, start: due.substring(0, 10) === startText.substring(0, 10) ? startText : due,
+                        end: due, allDay: false, color: null, statusId: row?.statusId || null, done: ['WeComplete', 'WeClosed'].includes(row?.statusId),
+                        canEdit: false, url: '/qapps/Commons/Tasks/TaskDetail?workEffortId=' + encodeURIComponent(task.id)})
+                }
+            })
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="EventSummary">
+        <description>The event popover: an event the user may see (check#EventAccess, or the record visibility rule of
+            get#RecordLinkInfo; visible false otherwise) with when (instanceStart for an instance of a recurring event), where
+            (location, meeting rooms and equipment with their booking status), the join link (infoUrl, else the first web address
+            in the location or description), the organizer, the attendees with their answers, the user's own answer, its
+            calendar and what the user may do.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="instanceStart"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="visible" type="Boolean"/>
+            <parameter name="event" type="Map"/>
+        </out-parameters>
+        <actions>
+            <service-call name="ironstone.CalendarServices.get#EventAccessInfo" in-map="{workEffortId:workEffortId}" out-map="access"/>
+            <set field="visible" from="!!access.visible"/>
+            <if condition="!visible"><return/></if>
+            <service-call name="ironstone.CalendarServices.get#EventFacts" in-map="{workEffortId:workEffortId, instanceStart:instanceStart}" out-map="facts"/>
+            <script><![CDATA[
+                event = Object.assign({}, facts.event || {}, {canEdit: !!access.canEdit, isOrganizer: !!access.isOrganizer, isAttendee: !!access.isAttendee,
+                    canRsvp: !!access.isAttendee && !access.isOrganizer && facts.event?.statusId !== 'WeCancelled'})
+            ]]></script>
+        </actions>
+    </service>
+
+    <service verb="get" noun="EventAccessInfo" allow-remote="false">
+        <description>Whether the current user may see an event (WetEvent): check#EventAccess (organizer, attendee, a calendar it
+            is in, visible to all users), else the record visibility rule of get#RecordLinkInfo with checkOnly (IronStone R5,
+            R28: its parties and organizations; ADMIN sees all); and what the user may do with it (canEdit as organizer or editor
+            of its calendar). need view adds "not available" when the user may not see it, edit also when the user may not change
+            it; check answers without an error.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="need" default-value="check"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="found" type="Boolean"/>
+            <parameter name="visible" type="Boolean"/>
+            <parameter name="canEdit" type="Boolean"/>
+            <parameter name="isOrganizer" type="Boolean"/>
+            <parameter name="isAttendee" type="Boolean"/>
+            <parameter name="workEffort" type="Map"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            found = false; visible = false; canEdit = false; isOrganizer = false; isAttendee = false; workEffort = null
+            const notAvailable = () => ec.resource.expand('Event ${workEffortId} is not available', '', {workEffortId: workEffortId})
+            const row = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', workEffortId).one()
+            if (row == null || row.workEffortTypeEnumId !== 'WetEvent') { if (need !== 'check') ec.message.addError(notAvailable()); return }
+            found = true
+            // permission check: an answer without an error, whatever the user may do
+            const access = ec.service.sync().name('mantle.work.EventServices.check#EventAccess').parameters({workEffortId: workEffortId, permission: 'check'}).call()
+            if (ec.message.hasError()) return
+            canEdit = !!access?.canEdit
+            isOrganizer = !!access?.isOrganizer
+            isAttendee = !!access?.isAttendee
+            visible = !!access?.canView
+            if (!visible) {
+                const info = ec.service.sync().name('mantle.party.CommunicationServices.get#RecordLinkInfo').parameters({
+                    recordEntityName: 'mantle.work.effort.WorkEffort', recordId: workEffortId, checkOnly: true}).call()
+                if (ec.message.hasError()) return
+                visible = info?.recordVisible === true
+                if (!visible) ec.logger.info(`Event ${workEffortId} is not visible to user ${ec.user.userId}: ${info?.notVisibleReason || 'not on it'}`)
+            }
+            if (!visible) { if (need !== 'check') ec.message.addError(notAvailable()); return }
+            workEffort = row.getMap()
+            if (need === 'edit' && !canEdit) ec.message.addError(ec.resource.expand('Only the organizer of ${name} or an editor of its calendar may change it', '',
+                    {name: row.workEffortName || workEffortId}))
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="EventFacts" allow-remote="false">
+        <description>The facts of an event shared by the popover and EventDetail, for a caller that checked access: name, status,
+            when (whenText; startText and endText as yyyy-MM-dd HH:mm, or days for an all-day event), the recurrence and its
+            summary, the series and instance, location, join link, description, visibility, the calendars it is in, organizer,
+            attendees (with answer, required or optional, invited or not), meeting rooms and equipment with their booking
+            status, and the user's own answer.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="instanceStart"/>
+        </in-parameters>
+        <out-parameters><parameter name="event" type="Map"/></out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const cf = ec.entity.conditionFactory
+            const pattern = 'yyyy-MM-dd HH:mm:ss.SSS'
+            const toMillis = (value) => {
+                if (value == null || value === '') return null
+                if (typeof value === 'number') return value
+                if (value instanceof Date) return value.getTime()
+                const text = String(value)
+                if (/^-?\d+$/.test(text)) return Number(text)
+                const parsed = Date.parse(text)
+                return Number.isNaN(parsed) ? null : parsed
+            }
+            const fmt = (millis, format) => ec.l10n.format(String(millis), format)
+            const dayTextOf = (value) => {
+                if (value == null || value === '') return null
+                const text = String(value)
+                if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.substring(0, 10)
+                return new Date(toMillis(value)).toISOString().substring(0, 10)
+            }
+            const addDays = (text, days) => { const [y, m, d] = text.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + days)).toISOString().substring(0, 10) }
+            const dayLabel = (text) => ec.l10n.format(ec.l10n.parseDate(text, 'yyyy-MM-dd'), 'EEE, MMM d, yyyy')
+            const nameOf = (detail) => detail ? (detail.organizationName || [detail.firstName, detail.lastName].filter((part) => part).join(' ') || detail.partyId) : null
+            const statusInfo = {WeptAssigned: ['Accepted', 'positive'], WeptTentative: ['Maybe', 'warning'], WeptDeclined: ['Declined', 'negative'],
+                WeptOffered: ['Not answered', 'grey-7'], WeptUnassigned: ['Removed', 'grey-7']}
+            const bookingInfo = {WefRequested: ['Pending approval', 'warning'], WefAssigned: ['Booked', 'positive'], WefRequestDenied: ['Request denied', 'negative'],
+                WeaaRequested: ['Pending approval', 'warning'], WeaaAssigned: ['Booked', 'positive'], WeaaRequestDenied: ['Request denied', 'negative']}
+            const row = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', workEffortId).one()
+            if (row == null) { event = null; return }
+            const myPartyId = ec.user.userAccount?.partyId || null
+            // the series of an instance changed on its own
+            const instanceLink = ec.entity.find('mantle.work.effort.WorkEffortAssoc').condition('toWorkEffortId', workEffortId)
+                    .condition('workEffortAssocTypeEnumId', 'WeatRecurrenceInstance').one()
+            const seriesId = instanceLink ? instanceLink.workEffortId : workEffortId
+            const recurrence = ec.entity.find('mantle.work.effort.WorkEffortRecurrence').condition('workEffortId', seriesId).one()
+            const isRecurring = !!(recurrence?.rrule || instanceLink)
+            // when: the instance asked (a generated one has the series' fields), else the event's own dates
+            const startMs = toMillis(row.actualStartDate || row.estimatedStartDate)
+            let endMs = toMillis(row.actualCompletionDate || row.estimatedCompletionDate)
+            if (startMs != null && endMs == null) {
+                const span = ec.service.sync().name('mantle.work.WorkEffortServices.get#WorkEffortStartEnd').parameters({workEffortId: workEffortId}).call()
+                endMs = toMillis(span?.endDate)
+            }
+            const allDay = startMs == null && row.allDayStart != null
+            let startText = null, endText = null, whenText = L('Time to be set')
+            let instanceText = instanceStart ? String(instanceStart).replace('T', ' ') : null
+            if (allDay) {
+                let first = dayTextOf(row.allDayStart)
+                let last = dayTextOf(row.allDayEnd) || first
+                if (last < first) last = first
+                if (instanceText && !instanceLink && /^\d{4}-\d{2}-\d{2}$/.test(instanceText.substring(0, 10))) {
+                    const span = Math.round((Date.UTC(...last.split('-').map((part, index) => index === 1 ? Number(part) - 1 : Number(part)))
+                        - Date.UTC(...first.split('-').map((part, index) => index === 1 ? Number(part) - 1 : Number(part)))) / 86400000)
+                    first = instanceText.substring(0, 10)
+                    last = addDays(first, span)
+                }
+                startText = first
+                endText = addDays(last, 1)
+                whenText = dayLabel(first) + (last > first ? ' – ' + dayLabel(last) : '') + ' · ' + L('All day')
+            } else if (startMs != null) {
+                let shownStart = startMs
+                if (instanceText && !instanceLink && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(instanceText)) {
+                    const parsed = toMillis(ec.l10n.parseTimestamp(instanceText.substring(0, 16) + ':00.000', pattern))
+                    if (parsed != null) shownStart = parsed
+                }
+                const shownEnd = endMs != null ? shownStart + (endMs - startMs) : null
+                startText = fmt(shownStart, 'yyyy-MM-dd HH:mm')
+                endText = shownEnd != null ? fmt(shownEnd, 'yyyy-MM-dd HH:mm') : null
+                whenText = fmt(shownStart, 'EEE, MMM d, yyyy · h:mm a')
+                if (shownEnd != null) whenText += ' – ' + (fmt(shownStart, 'yyyy-MM-dd') === fmt(shownEnd, 'yyyy-MM-dd') ? fmt(shownEnd, 'h:mm a') : fmt(shownEnd, 'EEE, MMM d, h:mm a'))
+            }
+            // a series shown without an instance: its first
+            if (recurrence?.rrule && !instanceLink && !instanceText && startText) whenText = L('From') + ' ' + whenText
+            const recurrenceText = recurrence?.rrule ? (ec.service.sync().name('ironstone.CalendarServices.describe#RRule').parameters({rrule: recurrence.rrule,
+                    startText: allDay ? startText : (startMs != null ? fmt(startMs, 'yyyy-MM-dd HH:mm') : null)}).call()?.text || null)
+                    : (instanceLink ? L('Changed from its series') : null)
+            // the join link: the event's link, else a web address in the location or the description
+            const urlIn = (text) => { const match = text ? /https?:\/\/[^\s<>"')]+/i.exec(String(text)) : null; return match ? match[0] : null }
+            const joinUrl = row.infoUrl && /^https?:\/\//i.test(String(row.infoUrl)) ? String(row.infoUrl) : (urlIn(row.location) || urlIn(row.description))
+            // people
+            const parties = Array.from(ec.entity.find('mantle.work.effort.WorkEffortParty').condition('workEffortId', workEffortId)
+                    .condition(cf.makeConditionDate('fromDate', 'thruDate', null)).orderBy('fromDate').list())
+            const partyIds = Array.from(new Set(parties.map((party) => party.partyId).concat(row.ownerPartyId ? [row.ownerPartyId] : [])))
+            const details = new Map()
+            if (partyIds.length) for (const detail of ec.entity.find('mantle.party.PartyDetail').condition(cf.makeCondition('partyId', 'in', partyIds)).list()) details.set(detail.partyId, detail)
+            const userParties = new Set()
+            if (partyIds.length) for (const account of ec.entity.find('moqui.security.UserAccount').condition(cf.makeCondition('partyId', 'in', partyIds))
+                    .selectField('partyId').disableAuthz().list()) userParties.add(account.partyId)
+            const shownName = (partyId) => {
+                const detail = details.get(partyId)
+                if (!detail) return partyId
+                // a personal contact of another user shows by its id only
+                return detail.privateOwnerUserId && detail.privateOwnerUserId !== ec.user.userId ? partyId : nameOf(detail)
+            }
+            const attendees = []
+            const seen = new Set()
+            let myStatusId = null
+            for (const party of parties) {
+                if (party.partyId === row.ownerPartyId && party.statusId === 'WeptAssigned' && party.roleTypeId === 'Assignee' && seen.has(party.partyId)) continue
+                if (seen.has(party.partyId)) continue
+                seen.add(party.partyId)
+                const info = statusInfo[party.statusId] || [party.statusId || L('Invited'), 'grey-7']
+                if (party.partyId === myPartyId) myStatusId = party.statusId || null
+                attendees.push({partyId: party.partyId, name: shownName(party.partyId), roleTypeId: party.roleTypeId, fromDate: party.fromDate,
+                    statusId: party.statusId || null, statusLabel: L(info[0]), statusColor: info[1], isMe: party.partyId === myPartyId,
+                    isOrganizer: party.partyId === row.ownerPartyId, optional: party.expectationEnumId === 'WepeInvRequested',
+                    hasUser: userParties.has(party.partyId), invited: party.invitationSentDate != null,
+                    invitedText: party.invitationSentDate != null ? ec.l10n.format(party.invitationSentDate, 'MMM d, h:mm a') : null, comments: party.comments || null})
+            }
+            attendees.sort((a, b) => (b.isOrganizer ? 1 : 0) - (a.isOrganizer ? 1 : 0) || String(a.name).localeCompare(String(b.name)))
+            const rooms = []
+            for (const booking of ec.entity.find('mantle.work.effort.WorkEffortFacility').condition('workEffortId', workEffortId).list()) {
+                if (!booking.statusId && booking.typeEnumId) continue
+                const facility = ec.entity.find('mantle.facility.Facility').condition('facilityId', booking.facilityId).one()
+                const info = bookingInfo[booking.statusId] || [L('Booked'), 'positive']
+                rooms.push({facilityId: booking.facilityId, name: facility?.facilityName || booking.facilityId, statusId: booking.statusId || null,
+                    statusLabel: L(info[0]), statusColor: info[1], comments: booking.comments || null})
+            }
+            if (row.facilityId && !rooms.some((room) => room.facilityId === row.facilityId)) {
+                const facility = ec.entity.find('mantle.facility.Facility').condition('facilityId', row.facilityId).one()
+                rooms.push({facilityId: row.facilityId, name: facility?.facilityName || row.facilityId, statusId: null, statusLabel: L('Place'), statusColor: 'grey-7', legacy: true})
+            }
+            const nowMs = Number(String(ec.user.nowTimestamp))
+            const equipment = []
+            for (const assign of ec.entity.find('mantle.work.effort.WorkEffortAssetAssign').condition('workEffortId', workEffortId).orderBy('-fromDate').list()) {
+                const thru = toMillis(assign.thruDate)
+                if (thru != null && thru <= nowMs) continue
+                if (equipment.some((item) => item.assetId === assign.assetId)) continue
+                const asset = ec.entity.find('mantle.product.asset.Asset').condition('assetId', assign.assetId).one()
+                const info = bookingInfo[assign.statusId] || [L('Booked'), 'positive']
+                equipment.push({assetId: assign.assetId, name: asset?.assetName || assign.assetId, statusId: assign.statusId || null,
+                    statusLabel: L(info[0]), statusColor: info[1], fromDate: assign.fromDate, comments: assign.comments || null})
+            }
+            const calendars = []
+            for (const link of ec.entity.find('mantle.work.calendar.CalendarWorkEffort').condition('workEffortId', seriesId).list()) {
+                const calendar = ec.entity.find('mantle.work.calendar.Calendar').condition('calendarId', link.calendarId).one()
+                if (calendar) calendars.push({calendarId: calendar.calendarId, calendarName: calendar.calendarName, color: calendar.color || null,
+                    calendarKindEnumId: calendar.calendarKindEnumId})
+            }
+            const statusLabels = {WeInPlanning: ['Planned', 'grey-7'], WeApproved: ['Confirmed', 'primary'], WeCancelled: ['Cancelled', 'negative'],
+                WeInProgress: ['In progress', 'primary'], WeComplete: ['Done', 'positive']}
+            const status = statusLabels[row.statusId] || [row.statusId || '', 'grey-7']
+            const visibilityLabels = {WevAllUsers: 'Everyone', WevWorkGroup: 'Work group', WevRestricted: 'Only the people on it'}
+            event = {workEffortId: workEffortId, seriesId: seriesId, isInstance: !!instanceLink, instanceStart: instanceLink ? fmt(toMillis(instanceLink.fromDate), allDay ? 'yyyy-MM-dd' : 'yyyy-MM-dd HH:mm')
+                    : (instanceText ? instanceText.substring(0, allDay ? 10 : 16) : null),
+                name: row.workEffortName || L('(no title)'), statusId: row.statusId || null, statusLabel: L(status[0]), statusColor: status[1],
+                cancelled: row.statusId === 'WeCancelled', allDay: allDay, startText: startText, endText: endText, whenText: whenText,
+                timeZone: recurrence?.timeZone || ec.user.timeZone || null, isRecurring: isRecurring, rrule: recurrence?.rrule || null, recurrenceText: recurrenceText,
+                location: row.location || null, joinUrl: joinUrl, infoUrl: row.infoUrl || null, description: row.description || null,
+                purposeEnumId: row.purposeEnumId || null, visibilityEnumId: row.visibilityEnumId || null,
+                visibilityLabel: L(visibilityLabels[row.visibilityEnumId] || 'Its people and calendars'),
+                calendars: calendars, calendar: calendars[0] || null, organizer: row.ownerPartyId ? {partyId: row.ownerPartyId, name: shownName(row.ownerPartyId),
+                    isMe: row.ownerPartyId === myPartyId} : null,
+                attendees: attendees, attendeeCount: attendees.filter((party) => !party.isOrganizer).length, rooms: rooms, equipment: equipment,
+                myStatusId: myStatusId, url: '/qapps/Commons/Calendar/EventDetail?workEffortId=' + encodeURIComponent(workEffortId)
+                    + (instanceText && !instanceLink && recurrence?.rrule ? '&instanceStart=' + encodeURIComponent(instanceText.substring(0, allDay ? 10 : 16)) : '')}
+        ]]></script></actions>
+    </service>
+
+    <service verb="describe" noun="RRule">
+        <description>A recurrence rule in words: "Weekly on Monday and Wednesday, 10 times", "Every 2 weeks on Friday until Dec 31,
+            2026", "Monthly on day 15", "Monthly on the second Tuesday", "Yearly on Mar 4", "Every weekday"; the rule itself when
+            it is one this does not read.</description>
+        <in-parameters>
+            <parameter name="rrule" required="true"/>
+            <parameter name="startText"><description>The first instance (yyyy-MM-dd or yyyy-MM-dd HH:mm), for the day of a rule without BYDAY</description></parameter>
+        </in-parameters>
+        <out-parameters><parameter name="text"/></out-parameters>
+        <actions><script><![CDATA[
+            const L = (value) => ec.l10n.localize(value)
+            const rule = String(rrule).trim().replace(/^RRULE:/i, '')
+            const parts = {}
+            for (const piece of rule.split(';')) { const at = piece.indexOf('='); if (at > 0) parts[piece.substring(0, at).toUpperCase()] = piece.substring(at + 1) }
+            const names = {SU: 'Sunday', MO: 'Monday', TU: 'Tuesday', WE: 'Wednesday', TH: 'Thursday', FR: 'Friday', SA: 'Saturday'}
+            const order = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']
+            const ordinals = {'1': 'first', '2': 'second', '3': 'third', '4': 'fourth', '5': 'fifth', '-1': 'last'}
+            const list = (items) => items.length <= 1 ? (items[0] || '') : items.slice(0, -1).join(', ') + ' ' + L('and') + ' ' + items[items.length - 1]
+            const interval = Number(parts.INTERVAL || '1') || 1
+            const units = {DAILY: ['Daily', 'days'], WEEKLY: ['Weekly', 'weeks'], MONTHLY: ['Monthly', 'months'], YEARLY: ['Yearly', 'years']}
+            const unit = units[parts.FREQ]
+            if (!unit) { text = rule; return }
+            const days = parts.BYDAY ? parts.BYDAY.split(',').map((day) => day.trim().toUpperCase()).filter((day) => day) : []
+            let head = interval === 1 ? L(unit[0]) : L('Every') + ' ' + interval + ' ' + L(unit[1])
+            const startDay = startText && /^\d{4}-\d{2}-\d{2}/.test(String(startText)) ? String(startText).substring(0, 10) : null
+            if (parts.FREQ === 'DAILY' || parts.FREQ === 'WEEKLY') {
+                const plain = days.map((day) => day.replace(/^[+-]?\d+/, '')).filter((day) => names[day])
+                const workweek = ['MO', 'TU', 'WE', 'TH', 'FR'].every((day) => plain.includes(day)) && plain.length === 5
+                if (workweek && interval === 1) head = L('Every weekday')
+                else if (plain.length) head += ' ' + L('on') + ' ' + list(plain.sort((a, b) => order.indexOf(a) - order.indexOf(b)).map((day) => L(names[day])))
+                else if (parts.FREQ === 'WEEKLY' && startDay) {
+                    const [y, m, d] = startDay.split('-').map(Number)
+                    head += ' ' + L('on') + ' ' + L(names[['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'][new Date(Date.UTC(y, m - 1, d)).getUTCDay()]])
+                }
+            } else if (parts.FREQ === 'MONTHLY') {
+                if (days.length === 1 && /^([+-]?\d+)([A-Z]{2})$/.test(days[0])) {
+                    const match = /^([+-]?\d+)([A-Z]{2})$/.exec(days[0])
+                    head += ' ' + L('on the') + ' ' + L(ordinals[String(Number(match[1]))] || match[1]) + ' ' + L(names[match[2]] || match[2])
+                } else if (parts.BYMONTHDAY) head += ' ' + L('on day') + ' ' + parts.BYMONTHDAY
+                else if (startDay) head += ' ' + L('on day') + ' ' + Number(startDay.substring(8, 10))
+            } else if (parts.FREQ === 'YEARLY' && startDay) {
+                head += ' ' + L('on') + ' ' + ec.l10n.format(ec.l10n.parseDate(startDay, 'yyyy-MM-dd'), 'MMM d')
+            }
+            if (parts.COUNT) head += ', ' + parts.COUNT + ' ' + L(Number(parts.COUNT) === 1 ? 'time' : 'times')
+            else if (parts.UNTIL) {
+                const until = /^(\d{4})(\d{2})(\d{2})/.exec(parts.UNTIL)
+                if (until) head += ' ' + L('until') + ' ' + ec.l10n.format(ec.l10n.parseDate(`${until[1]}-${until[2]}-${until[3]}`, 'yyyy-MM-dd'), 'MMM d, yyyy')
+            }
+            text = head
+        ]]></script></actions>
+    </service>
+
+    <service verb="make" noun="RRule">
+        <description>An RRULE from the recurrence editor's fields: freq (NONE, DAILY, WEEKLY, MONTHLY or YEARLY; a preset also:
+            WEEKDAYS), interval, byDay (weekday codes MO..SU for WEEKLY), monthlyBy (day: the start's day of the month, weekday: the
+            start's nth weekday, last for the last one), ends (never, until or count) with untilDate (yyyy-MM-dd, the last day,
+            in the user's time zone) or count, and the start (yyyy-MM-dd or yyyy-MM-dd HH:mm) for the defaults. Empty for
+            NONE.</description>
+        <in-parameters>
+            <parameter name="freq"/>
+            <parameter name="interval"/>
+            <parameter name="byDay" type="Object"/>
+            <parameter name="monthlyBy"/>
+            <parameter name="ends"/>
+            <parameter name="untilDate"/>
+            <parameter name="count"/>
+            <parameter name="startText"/>
+            <parameter name="allDay" type="Boolean" default="false"/>
+        </in-parameters>
+        <out-parameters><parameter name="rrule"/></out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            rrule = ''
+            const kind = String(freq || 'NONE').toUpperCase()
+            if (kind === 'NONE' || !kind) return
+            const codes = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA']
+            const startDay = startText && /^\d{4}-\d{2}-\d{2}/.test(String(startText)) ? String(startText).substring(0, 10) : null
+            const [y, m, d] = (startDay || '2000-01-01').split('-').map(Number)
+            const weekday = codes[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]
+            const parts = []
+            if (kind === 'WEEKDAYS') { parts.push('FREQ=WEEKLY', 'BYDAY=MO,TU,WE,TH,FR') }
+            else {
+                if (!['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY'].includes(kind)) { ec.message.addError(L('Repeat daily, weekly, monthly or yearly')); return }
+                parts.push('FREQ=' + kind)
+                const every = Number(interval || 1)
+                if (!Number.isInteger(every) || every < 1 || every > 99) { ec.message.addError(L('Repeat every 1 to 99')); return }
+                if (every > 1) parts.push('INTERVAL=' + every)
+                if (kind === 'WEEKLY') {
+                    const chosen = (byDay == null ? [] : (Array.isArray(byDay) ? byDay : String(byDay).split(','))).map((day) => String(day).trim().toUpperCase())
+                            .filter((day) => codes.includes(day))
+                    const days = chosen.length ? chosen : [weekday]
+                    parts.push('BYDAY=' + ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'].filter((day) => days.includes(day)).join(','))
+                } else if (kind === 'MONTHLY') {
+                    if (monthlyBy === 'weekday' || monthlyBy === 'last') {
+                        const nth = monthlyBy === 'last' ? -1 : Math.ceil(d / 7)
+                        parts.push('BYDAY=' + nth + weekday)
+                    } else parts.push('BYMONTHDAY=' + d)
+                }
+            }
+            if (ends === 'count') {
+                const times = Number(count)
+                if (!Number.isInteger(times) || times < 1 || times > 999) { ec.message.addError(L('Repeat 1 to 999 times')); return }
+                parts.push('COUNT=' + times)
+            } else if (ends === 'until') {
+                const day = String(untilDate || '').substring(0, 10)
+                if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) { ec.message.addError(L('Pick the last day it repeats')); return }
+                if (startDay && day < startDay) { ec.message.addError(L('The last day is after the first')); return }
+                if (allDay) parts.push('UNTIL=' + day.replace(/-/g, ''))
+                else {
+                    // the end of that day in the user's time zone, in UTC as RFC 5545 asks with a time zone
+                    const endMs = Number(String(ec.l10n.parseTimestamp(day + ' 23:59:59.000', 'yyyy-MM-dd HH:mm:ss.SSS')))
+                    parts.push('UNTIL=' + new Date(endMs).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, ''))
+                }
+            }
+            rrule = parts.join(';')
+        ]]></script></actions>
+    </service>
+    <service verb="parse" noun="RRule">
+        <description>The recurrence editor's fields of an RRULE (make#RRule's inputs): freq, interval, byDay, monthlyBy, ends,
+            untilDate (yyyy-MM-dd in the user's time zone) and count; custom true when the rule has parts the editor does not
+            show (it is then kept as it is unless changed).</description>
+        <in-parameters><parameter name="rrule"/></in-parameters>
+        <out-parameters><parameter name="fields" type="Map"/></out-parameters>
+        <actions><script><![CDATA[
+            fields = {freq: 'NONE', interval: '1', byDay: [], monthlyBy: 'day', ends: 'never', untilDate: '', count: '', custom: false}
+            if (!rrule) return
+            const parts = {}
+            for (const piece of String(rrule).replace(/^RRULE:/i, '').split(';')) { const at = piece.indexOf('='); if (at > 0) parts[piece.substring(0, at).toUpperCase()] = piece.substring(at + 1) }
+            fields.freq = ['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY'].includes(parts.FREQ) ? parts.FREQ : 'NONE'
+            fields.interval = parts.INTERVAL || '1'
+            const days = parts.BYDAY ? parts.BYDAY.split(',').map((day) => day.trim().toUpperCase()) : []
+            if (fields.freq === 'WEEKLY') fields.byDay = days.filter((day) => /^[A-Z]{2}$/.test(day))
+            if (fields.freq === 'MONTHLY' && days.length === 1) fields.monthlyBy = days[0].startsWith('-1') ? 'last' : 'weekday'
+            if (parts.COUNT) { fields.ends = 'count'; fields.count = parts.COUNT }
+            else if (parts.UNTIL) {
+                fields.ends = 'until'
+                const match = /^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})(Z?))?/.exec(parts.UNTIL)
+                if (match) {
+                    if (match[4] && match[7]) fields.untilDate = ec.l10n.format(String(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]),
+                            Number(match[4]), Number(match[5]), Number(match[6]))), 'yyyy-MM-dd')
+                    else fields.untilDate = `${match[1]}-${match[2]}-${match[3]}`
+                }
+            }
+            const known = ['FREQ', 'INTERVAL', 'BYDAY', 'BYMONTHDAY', 'COUNT', 'UNTIL', 'WKST']
+            fields.custom = fields.freq === 'NONE' || Object.keys(parts).some((key) => !known.includes(key))
+                    || (fields.freq !== 'WEEKLY' && fields.freq !== 'MONTHLY' && !!parts.BYDAY) || (fields.freq === 'MONTHLY' && days.length > 1)
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== Creating and changing events ========== -->
+
+    <service verb="create" noun="QuickEvent">
+        <description>The calendar's quick event (a click or a drag on the grid): ironstone.QuickCreateServices.create#Event (in
+            calendarId, the user's default calendar by default; attendees invited) from start to end (yyyy-MM-dd HH:mm in the user's
+            time zone; days for an all-day event, end the last day), then a repeat preset (none, daily, weekdays, weekly, monthly,
+            yearly: store#EventRecurrence), the user's reminder (reminderMinutes before; store#WorkEffortReminders) and a meeting
+            room (book#Resource: by its policy booked or requested). A room or reminder that fails is a warning and the event
+            stays.</description>
+        <in-parameters>
+            <parameter name="workEffortName" required="true"/>
+            <parameter name="start" required="true"/>
+            <parameter name="end"/>
+            <parameter name="allDay"/>
+            <parameter name="calendarId"/>
+            <parameter name="facilityId"/>
+            <parameter name="attendeePartyIds" type="Object"/>
+            <parameter name="repeat"/>
+            <parameter name="reminderMinutes"/>
+            <parameter name="location"/>
+            <parameter name="description"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="workEffortId"/>
+            <parameter name="url"/>
+            <parameter name="message"/>
+            <parameter name="warningList" type="List"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            warningList = []
+            const pattern = 'yyyy-MM-dd HH:mm:ss.SSS'
+            const isAllDay = allDay === 'Y' || allDay === 'true' || allDay === true
+            const wall = (text) => {
+                const match = /^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}):(\d{2}))?/.exec(String(text || '').trim())
+                return match ? {day: match[1], time: match[2] ? match[2] + ':' + match[3] : null} : null
+            }
+            const startWall = wall(start)
+            if (!startWall) { ec.message.addError(L('An event needs its start')); return }
+            const endWall = end ? wall(end) : null
+            const name = String(workEffortName || '').trim()
+            if (!name) { ec.message.addError(L('An event needs a title')); return }
+            const millisOf = (day, time) => Number(String(ec.l10n.parseTimestamp(day + ' ' + (time || '00:00') + ':00.000', pattern)))
+            const startMs = millisOf(startWall.day, isAllDay ? '00:00' : (startWall.time || '09:00'))
+            let endMs = endWall ? millisOf(endWall.day, isAllDay ? '00:00' : (endWall.time || startWall.time || '10:00')) : null
+            if (!isAllDay && (endMs == null || endMs <= startMs)) endMs = startMs + 3600000
+            if (isAllDay && (endMs == null || endMs < startMs)) endMs = startMs
+            const ids = attendeePartyIds == null ? [] : (Array.isArray(attendeePartyIds) ? attendeePartyIds : String(attendeePartyIds).split(','))
+            const created = ec.service.sync().name('ironstone.QuickCreateServices.create#Event').parameters({workEffortName: name,
+                estimatedStartDate: new Date(startMs), estimatedCompletionDate: new Date(endMs), allDay: isAllDay ? 'Y' : 'N',
+                calendarId: calendarId || null, attendeePartyIds: ids.map((id) => String(id).trim()).filter((id) => id), description: description || null}).call()
+            if (ec.message.hasError()) return
+            workEffortId = created.workEffortId
+            url = created.url
+            if (location) ec.service.sync().name('update#mantle.work.effort.WorkEffort').parameters({workEffortId: workEffortId, location: String(location)}).call()
+            if (ec.message.hasError()) return
+            const presets = {daily: 'DAILY', weekdays: 'WEEKDAYS', weekly: 'WEEKLY', monthly: 'MONTHLY', yearly: 'YEARLY'}
+            if (repeat && presets[repeat]) {
+                const rule = ec.service.sync().name('ironstone.CalendarServices.make#RRule').parameters({freq: presets[repeat], startText: startWall.day,
+                    allDay: isAllDay}).call()?.rrule
+                if (ec.message.hasError()) return
+                if (rule) ec.service.sync().name('mantle.work.EventServices.store#EventRecurrence').parameters({workEffortId: workEffortId, rrule: rule}).call()
+                if (ec.message.hasError()) return
+            }
+            const soft = (label, run) => {
+                ec.message.pushErrors()
+                try { run(); if (ec.message.hasError()) throw new Error(ec.message.getErrorsString()) }
+                catch (err) {
+                    const reason = String(err && err.message ? err.message : err)
+                    warningList.push(label + ': ' + reason)
+                    ec.logger.warn(`Event ${workEffortId}: ${label} not done: ${reason}`)
+                } finally { ec.message.clearErrors(); ec.message.popErrors() }
+            }
+            if (reminderMinutes != null && String(reminderMinutes).trim() !== '') soft(L('Reminder'), () => {
+                ec.service.sync().name('mantle.work.EventServices.store#WorkEffortReminders').parameters({workEffortId: workEffortId,
+                    reminderList: [{offsetMinutes: Number(reminderMinutes), methodEnumId: 'WermNotification'}]}).call()
+            })
+            let roomText = ''
+            if (facilityId) soft(L('Meeting room'), () => {
+                const booked = ec.service.sync().name('mantle.work.EventServices.book#Resource').parameters({workEffortId: workEffortId, facilityId: facilityId}).call()
+                if (!ec.message.hasError() && booked?.requiresApproval) roomText = ' · ' + L('the room waits for approval')
+            })
+            message = ec.resource.expand('Event created: ${name}', '', {name: name}) + roomText
+        ]]></script></actions>
+    </service>
+
+    <service verb="update" noun="EventOccurrence">
+        <description>
+            Changes an event's time (a move or resize on the grid, or the When box of EventDetail) and optionally its name,
+            location and description, as its organizer or an editor of its calendar. start and end are yyyy-MM-dd HH:mm in the
+            user's time zone, or days for an all-day event (end the last day). A recurring event changes by scope, for the
+            instance that starts at instanceStart (its start as the rule gives it, yyyy-MM-dd HH:mm or a day):
+            - this: that instance alone, as an instance WorkEffort linked from the series (WorkEffortAssoc WeatRecurrenceInstance,
+              fromDate the rule's start) with the series' people, calendars and rooms; an instance already changed is changed;
+            - following: the series ends before the instance (UNTIL, COUNT counted down) and a new series with the same rule,
+              people, calendars, rooms and reminders starts at the new time, taking the instances changed after it;
+            - all: the series moves by the instance's change (BYDAY and BYMONTHDAY follow a change of day), with its changed
+              instances keyed again.
+            With notify Y the attendees get the update (send#EventInvitations to the changed ones; one that fails is logged).
+            targetWorkEffortId is the work effort the change landed on.
+        </description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="instanceStart"/>
+            <parameter name="scope" default-value="all"/>
+            <parameter name="start"/>
+            <parameter name="end"/>
+            <parameter name="allDay"/>
+            <parameter name="workEffortName"/>
+            <parameter name="location"/>
+            <parameter name="description"/>
+            <parameter name="notify"/>
+            <parameter name="eventUrl"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="targetWorkEffortId"/>
+            <parameter name="message"/>
+            <parameter name="notifiedCount" type="Integer"/>
+        </out-parameters>
+        <actions>
+            <service-call name="ironstone.CalendarServices.get#EventAccessInfo" in-map="{workEffortId:workEffortId, need:'edit'}" out-map="access"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <script><![CDATA[
+                const L = (text) => ec.l10n.localize(text)
+                const cf = ec.entity.conditionFactory
+                const pattern = 'yyyy-MM-dd HH:mm:ss.SSS'
+                notifiedCount = 0
+                const toMillis = (value) => {
+                    if (value == null || value === '') return null
+                    if (typeof value === 'number') return value
+                    if (value instanceof Date) return value.getTime()
+                    const text = String(value)
+                    if (/^-?\d+$/.test(text)) return Number(text)
+                    const parsed = Date.parse(text)
+                    return Number.isNaN(parsed) ? null : parsed
+                }
+                const wall = (text) => {
+                    const match = /^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}):(\d{2}))?/.exec(String(text || '').trim())
+                    return match ? {day: match[1], time: match[2] ? match[2] + ':' + match[3] : null} : null
+                }
+                const millisOf = (day, time) => toMillis(ec.l10n.parseTimestamp(day + ' ' + (time || '00:00') + ':00.000', pattern))
+                const dayTextOf = (value) => {
+                    if (value == null || value === '') return null
+                    const text = String(value)
+                    if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.substring(0, 10)
+                    return new Date(toMillis(value)).toISOString().substring(0, 10)
+                }
+                const dayNumber = (text) => { const [y, m, d] = text.split('-').map(Number); return Date.UTC(y, m - 1, d) / 86400000 }
+                const addDays = (text, days) => { const [y, m, d] = text.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + days)).toISOString().substring(0, 10) }
+                const userDay = (millis) => ec.l10n.format(String(millis), 'yyyy-MM-dd')
+
+                const row = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', workEffortId).one()
+                const link = ec.entity.find('mantle.work.effort.WorkEffortAssoc').condition('toWorkEffortId', workEffortId)
+                        .condition('workEffortAssocTypeEnumId', 'WeatRecurrenceInstance').one()
+                const series = link ? ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', link.workEffortId).one() : row
+                const recurrence = ec.entity.find('mantle.work.effort.WorkEffortRecurrence').condition('workEffortId', series.workEffortId).one()
+                const isRecurring = !!(recurrence?.rrule) || !!link
+                const wantAllDay = allDay == null || allDay === '' ? null : (allDay === 'Y' || allDay === 'true' || allDay === true)
+
+                // the new fields of the work effort that gets the change
+                const fieldsFor = (base) => {
+                    const fields = {}
+                    if (workEffortName != null) { const name = String(workEffortName).trim(); if (!name) throw new Error(L('An event needs a title')); fields.workEffortName = name }
+                    if (location != null) fields.location = String(location).trim() || null
+                    if (description != null) fields.description = String(description) || null
+                    if (start) {
+                        const startWall = wall(start)
+                        if (!startWall) throw new Error(L('The start is yyyy-MM-dd HH:mm'))
+                        const baseAllDay = toMillis(base.actualStartDate || base.estimatedStartDate) == null && base.allDayStart != null
+                        const isAllDay = wantAllDay == null ? (baseAllDay && !startWall.time) : wantAllDay
+                        const endWall = end ? wall(end) : null
+                        if (isAllDay) {
+                            const last = endWall ? endWall.day : startWall.day
+                            if (last < startWall.day) throw new Error(L('An event ends after it starts'))
+                            Object.assign(fields, {allDayStart: startWall.day, allDayEnd: last > startWall.day ? last : null, estimatedStartDate: null,
+                                estimatedCompletionDate: null, actualStartDate: null, actualCompletionDate: null, estimatedWorkDuration: null})
+                        } else {
+                            const startMs = millisOf(startWall.day, startWall.time || '09:00')
+                            const endMs = endWall ? millisOf(endWall.day, endWall.time || startWall.time || '10:00') : startMs + 3600000
+                            if (endMs <= startMs) throw new Error(L('An event ends after it starts'))
+                            Object.assign(fields, {estimatedStartDate: new Date(startMs), estimatedCompletionDate: new Date(endMs), allDayStart: null, allDayEnd: null,
+                                actualStartDate: null, actualCompletionDate: null, estimatedWorkDuration: (endMs - startMs) / 3600000, timeUomId: 'TF_hr'})
+                        }
+                    }
+                    return fields
+                }
+                const apply = (target, fields) => {
+                    for (const [field, value] of Object.entries(fields)) target.set(field, value)
+                    target.update()
+                }
+                // the start the series' rule gives the instance (epoch millis), from instanceStart
+                const seriesAllDay = toMillis(series.actualStartDate || series.estimatedStartDate) == null && series.allDayStart != null
+                const seriesStartMs = seriesAllDay ? millisOf(dayTextOf(series.allDayStart), '00:00') : toMillis(series.actualStartDate || series.estimatedStartDate)
+                // the instance's start as the rule gives it; without instanceStart the series' first (the series itself)
+                const instanceMillis = () => {
+                    if (link) return toMillis(link.fromDate)
+                    const instanceWall = wall(instanceStart)
+                    if (!instanceWall) {
+                        if (seriesStartMs == null) throw new Error(L('Which instance of the recurring event: instanceStart is missing'))
+                        return seriesStartMs
+                    }
+                    return millisOf(instanceWall.day, instanceWall.time || '00:00')
+                }
+                const ruleParts = (rule) => {
+                    const out = []
+                    for (const piece of String(rule || '').replace(/^RRULE:/i, '').split(';')) { const at = piece.indexOf('='); if (at > 0) out.push([piece.substring(0, at).toUpperCase(), piece.substring(at + 1)]) }
+                    return out
+                }
+                const ruleText = (parts) => parts.map(([key, value]) => key + '=' + value).join(';')
+                const codes = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA']
+                // a rule's days follow a change of day by dayDelta
+                const shiftRule = (parts, dayDelta) => {
+                    if (!dayDelta) return parts
+                    return parts.map(([key, value]) => {
+                        if (key === 'BYDAY') return [key, value.split(',').map((day) => {
+                            const match = /^([+-]?\d+)?([A-Z]{2})$/.exec(day.trim().toUpperCase())
+                            if (!match || codes.indexOf(match[2]) < 0) return day
+                            return (match[1] || '') + codes[(((codes.indexOf(match[2]) + dayDelta) % 7) + 7) % 7]
+                        }).join(',')]
+                        if (key === 'BYMONTHDAY' && /^\d+$/.test(value)) { const day = Number(value) + dayDelta; return [key, String(day >= 1 && day <= 31 ? day : value)] }
+                        return [key, value]
+                    })
+                }
+                const copyRows = (fromId, toId, copyReminders) => {
+                    const now = ec.user.nowTimestamp
+                    for (const party of ec.entity.find('mantle.work.effort.WorkEffortParty').condition('workEffortId', fromId)
+                            .condition(cf.makeConditionDate('fromDate', 'thruDate', null)).list()) {
+                        const fields = party.getMap()
+                        fields.workEffortId = toId
+                        delete fields.lastUpdatedStamp
+                        ec.service.sync().name('create#mantle.work.effort.WorkEffortParty').parameters(fields).call()
+                    }
+                    for (const calendar of ec.entity.find('mantle.work.calendar.CalendarWorkEffort').condition('workEffortId', fromId).list())
+                        ec.service.sync().name('create#mantle.work.calendar.CalendarWorkEffort').parameters({calendarId: calendar.calendarId, workEffortId: toId, addedDate: now}).call()
+                    for (const room of ec.entity.find('mantle.work.effort.WorkEffortFacility').condition('workEffortId', fromId).list()) {
+                        if (!room.statusId) continue
+                        ec.service.sync().name('create#mantle.work.effort.WorkEffortFacility').parameters({workEffortId: toId, facilityId: room.facilityId,
+                            statusId: room.statusId, comments: room.comments}).call()
+                    }
+                    const nowMs = toMillis(now)
+                    for (const asset of ec.entity.find('mantle.work.effort.WorkEffortAssetAssign').condition('workEffortId', fromId).list()) {
+                        const thru = toMillis(asset.thruDate)
+                        if (thru != null && thru <= nowMs) continue
+                        ec.service.sync().name('create#mantle.work.effort.WorkEffortAssetAssign').parameters({workEffortId: toId, assetId: asset.assetId,
+                            fromDate: asset.fromDate, statusId: asset.statusId, comments: asset.comments}).call()
+                    }
+                    if (copyReminders) for (const reminder of ec.entity.find('mantle.work.effort.WorkEffortReminder').condition('workEffortId', fromId).list())
+                        ec.service.sync().name('create#mantle.work.effort.WorkEffortReminder').parameters({workEffortId: toId, partyId: reminder.partyId,
+                            reminderSeqId: reminder.reminderSeqId, offsetMinutes: reminder.offsetMinutes, methodEnumId: reminder.methodEnumId}).call()
+                }
+                const newWorkEffort = (base, fields) => {
+                    const copy = {}
+                    for (const field of ['workEffortTypeEnumId', 'purposeEnumId', 'visibilityEnumId', 'statusId', 'resolutionEnumId', 'priority', 'ownerPartyId',
+                            'workEffortName', 'description', 'location', 'infoUrl', 'timeUomId', 'universalId', 'facilityId', 'sourceReferenceId',
+                            'estimatedStartDate', 'estimatedCompletionDate', 'estimatedWorkDuration', 'allDayStart', 'allDayEnd'])
+                        if (base[field] != null) copy[field] = base[field]
+                    return ec.service.sync().name('create#mantle.work.effort.WorkEffort').parameters(Object.assign(copy, fields)).call()?.workEffortId
+                }
+                const relink = (overrideId, fromSeriesId, toSeriesId, oldKeyMs, newKeyMs) => {
+                    const old = ec.entity.find('mantle.work.effort.WorkEffortAssoc').condition('workEffortId', fromSeriesId).condition('toWorkEffortId', overrideId)
+                            .condition('workEffortAssocTypeEnumId', 'WeatRecurrenceInstance').one()
+                    if (old != null) old.delete()
+                    ec.service.sync().name('create#mantle.work.effort.WorkEffortAssoc').parameters({workEffortId: toSeriesId, toWorkEffortId: overrideId,
+                        workEffortAssocTypeEnumId: 'WeatRecurrenceInstance', fromDate: new Date(newKeyMs)}).call()
+                }
+                const overridesOf = (seriesId) => Array.from(ec.entity.find('mantle.work.effort.WorkEffortAssoc').condition('workEffortId', seriesId)
+                        .condition('workEffortAssocTypeEnumId', 'WeatRecurrenceInstance').list())
+
+                try {
+                    if (!isRecurring || (scope !== 'this' && scope !== 'following' && !link && !recurrence?.rrule)) {
+                        apply(row, fieldsFor(row))
+                        targetWorkEffortId = workEffortId
+                    } else if (scope === 'this') {
+                        if (link) {
+                            apply(row, fieldsFor(row))
+                            targetWorkEffortId = workEffortId
+                        } else {
+                            const keyMs = instanceMillis()
+                            // the instance as the rule makes it, then the change
+                            const instanceFields = {}
+                            if (seriesAllDay) {
+                                const span = series.allDayEnd ? dayNumber(dayTextOf(series.allDayEnd)) - dayNumber(dayTextOf(series.allDayStart)) : 0
+                                const first = userDay(keyMs)
+                                Object.assign(instanceFields, {allDayStart: first, allDayEnd: span > 0 ? addDays(first, span) : null, estimatedStartDate: null, estimatedCompletionDate: null})
+                            } else {
+                                const endMs = toMillis(series.actualCompletionDate || series.estimatedCompletionDate)
+                                const duration = endMs != null && seriesStartMs != null ? endMs - seriesStartMs : 3600000
+                                Object.assign(instanceFields, {estimatedStartDate: new Date(keyMs), estimatedCompletionDate: new Date(keyMs + duration)})
+                            }
+                            const base = Object.assign(series.getMap(), instanceFields)
+                            const overrideId = newWorkEffort(series.getMap(), Object.assign(instanceFields, fieldsFor(base)))
+                            if (ec.message.hasError()) throw new Error(ec.message.getErrorsString())
+                            ec.service.sync().name('create#mantle.work.effort.WorkEffortAssoc').parameters({workEffortId: series.workEffortId, toWorkEffortId: overrideId,
+                                workEffortAssocTypeEnumId: 'WeatRecurrenceInstance', fromDate: new Date(keyMs)}).call()
+                            copyRows(series.workEffortId, overrideId, false)
+                            targetWorkEffortId = overrideId
+                        }
+                    } else if (scope === 'all' && !start) {
+                        // all events, no change of time: the series' own fields
+                        apply(series, fieldsFor(series))
+                        targetWorkEffortId = series.workEffortId
+                    } else {
+                        // following or all: the series, by the change of the instance
+                        const keyMs = instanceMillis()
+                        const fields = fieldsFor(Object.assign(series.getMap(), seriesAllDay ? {allDayStart: userDay(keyMs)} : {estimatedStartDate: new Date(keyMs)}))
+                        let deltaMs = 0
+                        let dayDelta = 0
+                        let newDuration = null
+                        if (start) {
+                            const newStartMs = fields.allDayStart ? millisOf(fields.allDayStart, '00:00') : toMillis(fields.estimatedStartDate)
+                            deltaMs = newStartMs - keyMs
+                            dayDelta = dayNumber(fields.allDayStart || userDay(newStartMs)) - dayNumber(userDay(keyMs))
+                            newDuration = fields.allDayStart ? (fields.allDayEnd ? dayNumber(fields.allDayEnd) - dayNumber(fields.allDayStart) : 0)
+                                    : toMillis(fields.estimatedCompletionDate) - toMillis(fields.estimatedStartDate)
+                        }
+                        const first = scope === 'all' || keyMs <= seriesStartMs
+                        // the series' own fields: the moved first instance
+                        const seriesFields = Object.assign({}, fields)
+                        if (start) {
+                            if (fields.allDayStart) {
+                                const firstDay = addDays(dayTextOf(series.allDayStart) || userDay(seriesStartMs), dayDelta)
+                                Object.assign(seriesFields, {allDayStart: firstDay, allDayEnd: newDuration > 0 ? addDays(firstDay, newDuration) : null})
+                            } else {
+                                const movedStart = seriesStartMs + deltaMs
+                                Object.assign(seriesFields, {estimatedStartDate: new Date(movedStart), estimatedCompletionDate: new Date(movedStart + newDuration),
+                                    estimatedWorkDuration: newDuration / 3600000})
+                            }
+                        }
+                        const parts = ruleParts(recurrence?.rrule)
+                        if (first) {
+                            apply(series, seriesFields)
+                            if (dayDelta && recurrence) { recurrence.set('rrule', ruleText(shiftRule(parts, dayDelta))); recurrence.update() }
+                            // the instances changed on their own stay with their instance: keyed again by the move
+                            if (deltaMs) for (const assoc of overridesOf(series.workEffortId))
+                                relink(assoc.toWorkEffortId, series.workEffortId, series.workEffortId, toMillis(assoc.fromDate), toMillis(assoc.fromDate) + deltaMs)
+                            targetWorkEffortId = series.workEffortId
+                        } else {
+                            // this and following: the series ends before the instance, a new one starts with it
+                            let countLeft = null
+                            const countPart = parts.find(([key]) => key === 'COUNT')
+                            if (countPart) {
+                                const before = ec.service.sync().name('mantle.work.EventServices.get#EventInstances').parameters({workEffortList: [series.getMap()],
+                                    rangeStart: new Date(seriesStartMs), rangeEnd: new Date(keyMs - 1)}).call()?.instanceList || []
+                                const generated = Array.from(before).filter((instance) => instance.workEffortId === series.workEffortId && toMillis(instance.start) < keyMs).length
+                                const changed = overridesOf(series.workEffortId).filter((assoc) => toMillis(assoc.fromDate) < keyMs).length
+                                countLeft = Math.max(1, Number(countPart[1]) - generated - changed)
+                            }
+                            const untilValue = seriesAllDay ? addDays(userDay(keyMs), -1).replace(/-/g, '')
+                                    : new Date(keyMs - 1000).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')
+                            const ended = parts.filter(([key]) => key !== 'COUNT' && key !== 'UNTIL').concat([['UNTIL', untilValue]])
+                            recurrence.set('rrule', ruleText(ended))
+                            recurrence.update()
+                            // the new series: the instance's fields with the change, the rule with the rest of its count
+                            const instanceBase = seriesAllDay ? {allDayStart: userDay(keyMs), allDayEnd: series.allDayEnd ? addDays(userDay(keyMs),
+                                    dayNumber(dayTextOf(series.allDayEnd)) - dayNumber(dayTextOf(series.allDayStart))) : null}
+                                : {estimatedStartDate: new Date(keyMs), estimatedCompletionDate: new Date(keyMs + (toMillis(series.estimatedCompletionDate) != null
+                                    ? toMillis(series.estimatedCompletionDate) - seriesStartMs : 3600000))}
+                            const nextFields = Object.assign({}, instanceBase, fields, {universalId: null})
+                            const nextId = newWorkEffort(series.getMap(), nextFields)
+                            if (ec.message.hasError()) throw new Error(ec.message.getErrorsString())
+                            const nextParts = shiftRule(parts.filter(([key]) => key !== 'COUNT'), dayDelta).concat(countLeft != null ? [['COUNT', String(countLeft)]] : [])
+                            ec.service.sync().name('create#mantle.work.effort.WorkEffortRecurrence').parameters({workEffortId: nextId, rrule: ruleText(nextParts),
+                                exdates: recurrence.exdates || null, rdates: null, timeZone: recurrence.timeZone || ec.user.timeZone || null}).call()
+                            copyRows(series.workEffortId, nextId, true)
+                            // the instances changed after it go with the new series
+                            for (const assoc of overridesOf(series.workEffortId)) {
+                                const oldKey = toMillis(assoc.fromDate)
+                                if (oldKey >= keyMs) relink(assoc.toWorkEffortId, series.workEffortId, nextId, oldKey, oldKey + deltaMs)
+                            }
+                            targetWorkEffortId = nextId
+                        }
+                    }
+                    if (ec.message.hasError()) throw new Error(ec.message.getErrorsString())
+                } catch (err) {
+                    if (!ec.message.hasError()) ec.message.addError(String(err && err.message ? err.message : err))
+                    return
+                }
+                message = ec.resource.expand('Event changed: ${name}', '', {name: workEffortName || row.workEffortName || workEffortId})
+                if (notify === 'Y' || notify === 'true') {
+                    ec.message.pushErrors()
+                    try {
+                        const sent = ec.service.sync().name('mantle.work.EventServices.send#EventInvitations').parameters({workEffortId: targetWorkEffortId,
+                            eventUrl: eventUrl || ('/qapps/Commons/Calendar/EventDetail?workEffortId=' + encodeURIComponent(targetWorkEffortId))}).call()
+                        if (ec.message.hasError()) throw new Error(ec.message.getErrorsString())
+                        notifiedCount = (sent?.sentPartyIdList || []).length
+                        if (notifiedCount) message += ' · ' + ec.resource.expand('${count} attendees told', '', {count: notifiedCount})
+                    } catch (err) {
+                        ec.logger.warn(`Event ${targetWorkEffortId}: the update was not sent: ${err && err.message ? err.message : err}`)
+                    } finally { ec.message.clearErrors(); ec.message.popErrors() }
+                }
+            ]]></script>
+        </actions>
+    </service>
+
+    <service verb="cancel" noun="EventOccurrence">
+        <description>Cancels an event (WeCancelled) as its organizer or an editor of its calendar; a recurring event by scope as
+            update#EventOccurrence: this (the instance only: an instance WorkEffort cancelled, which takes it off the calendar),
+            following (the series ends before it, the instances changed after it are cancelled) or all (the series and its
+            changed instances). With notify Y the attendees are told (send#EventInvitations sends a cancel to each; one that fails
+            is logged).</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="instanceStart"/>
+            <parameter name="scope" default-value="all"/>
+            <parameter name="notify"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="cancelledWorkEffortIds" type="List"/>
+            <parameter name="message"/>
+            <parameter name="notifiedCount" type="Integer"/>
+        </out-parameters>
+        <actions>
+            <service-call name="ironstone.CalendarServices.get#EventAccessInfo" in-map="{workEffortId:workEffortId, need:'edit'}" out-map="access"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <script><![CDATA[
+                const L = (text) => ec.l10n.localize(text)
+                cancelledWorkEffortIds = []
+                notifiedCount = 0
+                const pattern = 'yyyy-MM-dd HH:mm:ss.SSS'
+                const toMillis = (value) => {
+                    if (value == null || value === '') return null
+                    if (typeof value === 'number') return value
+                    if (value instanceof Date) return value.getTime()
+                    const text = String(value)
+                    if (/^-?\d+$/.test(text)) return Number(text)
+                    const parsed = Date.parse(text)
+                    return Number.isNaN(parsed) ? null : parsed
+                }
+                const row = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', workEffortId).one()
+                const link = ec.entity.find('mantle.work.effort.WorkEffortAssoc').condition('toWorkEffortId', workEffortId)
+                        .condition('workEffortAssocTypeEnumId', 'WeatRecurrenceInstance').one()
+                const seriesId = link ? link.workEffortId : workEffortId
+                const series = link ? ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', seriesId).one() : row
+                const recurrence = ec.entity.find('mantle.work.effort.WorkEffortRecurrence').condition('workEffortId', seriesId).one()
+                const cancel = (target) => { if (target.statusId !== 'WeCancelled') { target.set('statusId', 'WeCancelled'); target.update() } cancelledWorkEffortIds.push(target.workEffortId) }
+                const overrides = () => Array.from(ec.entity.find('mantle.work.effort.WorkEffortAssoc').condition('workEffortId', seriesId)
+                        .condition('workEffortAssocTypeEnumId', 'WeatRecurrenceInstance').list())
+                let notifyIds = []
+                if (!recurrence?.rrule && !link) {
+                    cancel(row)
+                    notifyIds = [workEffortId]
+                } else if (scope === 'this') {
+                    if (link) { cancel(row); notifyIds = [workEffortId] }
+                    else {
+                        // the instance as its own work effort, cancelled: the rule's instance gives way to it
+                        const match = /^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}):(\d{2}))?/.exec(String(instanceStart || ''))
+                        if (!match) { ec.message.addError(L('Which instance of the recurring event: instanceStart is missing')); return }
+                        const changed = ec.service.sync().name('ironstone.CalendarServices.update#EventOccurrence').parameters({workEffortId: seriesId,
+                            instanceStart: instanceStart, scope: 'this'}).call()
+                        if (ec.message.hasError()) return
+                        const target = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', changed.targetWorkEffortId).one()
+                        cancel(target)
+                        notifyIds = [target.workEffortId]
+                    }
+                } else if (scope === 'following') {
+                    const keyMs = link ? toMillis(link.fromDate) : (() => {
+                        const match = /^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}):(\d{2}))?/.exec(String(instanceStart || ''))
+                        return match ? toMillis(ec.l10n.parseTimestamp(match[1] + ' ' + (match[2] ? match[2] + ':' + match[3] : '00:00') + ':00.000', pattern)) : null
+                    })()
+                    if (keyMs == null) { ec.message.addError(L('Which instance of the recurring event: instanceStart is missing')); return }
+                    const seriesAllDay = toMillis(series.actualStartDate || series.estimatedStartDate) == null && series.allDayStart != null
+                    const seriesStartMs = seriesAllDay ? toMillis(ec.l10n.parseTimestamp(String(series.allDayStart).substring(0, 10) + ' 00:00:00.000', pattern))
+                            : toMillis(series.actualStartDate || series.estimatedStartDate)
+                    if (keyMs <= seriesStartMs) {
+                        cancel(series)
+                        for (const assoc of overrides()) { const target = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', assoc.toWorkEffortId).one(); if (target) cancel(target) }
+                    } else {
+                        const parts = String(recurrence.rrule).replace(/^RRULE:/i, '').split(';').filter((piece) => piece && !/^(COUNT|UNTIL)=/i.test(piece))
+                        const until = seriesAllDay ? ec.l10n.format(String(keyMs - 43200000), 'yyyyMMdd') : new Date(keyMs - 1000).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')
+                        recurrence.set('rrule', parts.concat(['UNTIL=' + until]).join(';'))
+                        recurrence.update()
+                        for (const assoc of overrides()) {
+                            if (toMillis(assoc.fromDate) < keyMs) continue
+                            const target = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', assoc.toWorkEffortId).one()
+                            if (target) cancel(target)
+                        }
+                        cancelledWorkEffortIds.push(seriesId)
+                    }
+                    notifyIds = [seriesId]
+                } else {
+                    cancel(series)
+                    for (const assoc of overrides()) { const target = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', assoc.toWorkEffortId).one(); if (target) cancel(target) }
+                    notifyIds = [seriesId]
+                }
+                message = ec.resource.expand('Event cancelled: ${name}', '', {name: row.workEffortName || workEffortId})
+                if (notify === 'Y' || notify === 'true') for (const id of notifyIds) {
+                    ec.message.pushErrors()
+                    try {
+                        const sent = ec.service.sync().name('mantle.work.EventServices.send#EventInvitations').parameters({workEffortId: id, resendAll: true,
+                            eventUrl: '/qapps/Commons/Calendar/EventDetail?workEffortId=' + encodeURIComponent(id)}).call()
+                        if (ec.message.hasError()) throw new Error(ec.message.getErrorsString())
+                        notifiedCount += (sent?.sentPartyIdList || []).length
+                    } catch (err) {
+                        ec.logger.warn(`Event ${id}: the cancellation was not sent: ${err && err.message ? err.message : err}`)
+                    } finally { ec.message.clearErrors(); ec.message.popErrors() }
+                }
+                if (notifiedCount) message += ' · ' + ec.resource.expand('${count} attendees told', '', {count: notifiedCount})
+            ]]></script>
+        </actions>
+    </service>
+
+    <service verb="respond" noun="Invitation">
+        <description>The user's answer to an event (accept, tentative or decline) with an optional message
+            (mantle.work.EventServices.respond#EventInvitation), the organizer told; a user who is not on it is refused.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="response" required="true"/>
+            <parameter name="message"/>
+        </in-parameters>
+        <out-parameters><parameter name="statusId"/><parameter name="resultMessage"/></out-parameters>
+        <actions>
+            <service-call name="ironstone.CalendarServices.get#EventAccessInfo" in-map="{workEffortId:workEffortId, need:'view'}" out-map="access"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <service-call name="mantle.work.EventServices.respond#EventInvitation" out-map="answer" in-map="{workEffortId:workEffortId, response:response,
+                    message:message, eventUrl:'/qapps/Commons/Calendar/EventDetail?workEffortId=' + workEffortId}"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <set field="statusId" from="answer.statusId"/>
+            <set field="resultMessage" from="ec.l10n.localize({accept: 'You accepted', tentative: 'You answered maybe', decline: 'You declined'}[String(response).toLowerCase()] || 'Answer saved')"/>
+        </actions>
+    </service>
+
+    <service verb="search" noun="CalendarEvents">
+        <description>The calendar's search: events (not cancelled) whose name or location has the text and that the user owns, is
+            on, or that are in one of the user's calendars, upcoming first then the most recent past ones, at most 40, each with
+            its start day to go to.</description>
+        <in-parameters>
+            <parameter name="text" required="true"/>
+            <parameter name="calendarIds" type="Object"/>
+        </in-parameters>
+        <out-parameters><parameter name="resultList" type="List"/></out-parameters>
+        <actions><script><![CDATA[
+            resultList = []
+            const term = String(text || '').trim()
+            if (term.length < 2) return
+            const cf = ec.entity.conditionFactory
+            const partyId = ec.user.userAccount?.partyId || null
+            const calendarIdList = calendarIds == null ? [] : (Array.isArray(calendarIds) ? calendarIds : String(calendarIds).split(',')).map((id) => String(id).trim()).filter((id) => id)
+            const ids = new Set()
+            const like = cf.makeCondition([cf.makeCondition('workEffortName', 'like', '%' + term + '%').ignoreCase(),
+                cf.makeCondition('location', 'like', '%' + term + '%').ignoreCase()], 'or')
+            const base = cf.makeCondition([cf.makeCondition('workEffortTypeEnumId', 'equals', 'WetEvent'), cf.makeCondition('statusId', 'not-equals', 'WeCancelled', true), like], 'and')
+            if (partyId) {
+                for (const row of ec.entity.find('mantle.work.effort.WorkEffort').condition(base).condition('ownerPartyId', partyId).selectField('workEffortId').limit(200).list()) ids.add(row.workEffortId)
+                for (const row of ec.entity.find('mantle.work.effort.WorkEffortAndParty').condition(base).condition('partyId', partyId)
+                        .condition(cf.makeConditionDate('fromDate', 'thruDate', null)).selectField('workEffortId').limit(200).list()) ids.add(row.workEffortId)
+            }
+            if (calendarIdList.length) {
+                const access = ec.service.sync().name('mantle.work.CalendarServices.check#CalendarAccess').parameters({calendarIdList: calendarIdList}).call()
+                const viewable = calendarIdList.filter((id) => ['CalpView', 'CalpEdit', 'CalpManage'].includes(access?.permissionMap?.[id]))
+                if (viewable.length) for (const row of ec.entity.find('mantle.work.calendar.CalendarWorkEffortDetail').condition(base)
+                        .condition(cf.makeCondition('calendarId', 'in', viewable)).selectField('workEffortId').limit(200).list()) ids.add(row.workEffortId)
+            }
+            if (!ids.size) return
+            const nowMs = Number(String(ec.user.nowTimestamp))
+            const toMillis = (value) => value == null || value === '' ? null : (/^-?\d+$/.test(String(value)) ? Number(String(value)) : Date.parse(String(value)))
+            const rows = Array.from(ec.entity.find('mantle.work.effort.WorkEffort').condition(cf.makeCondition('workEffortId', 'in', Array.from(ids))).list())
+            const recurring = new Set(Array.from(ec.entity.find('mantle.work.effort.WorkEffortRecurrence').condition(cf.makeCondition('workEffortId', 'in', Array.from(ids)))
+                    .selectField('workEffortId').list()).map((row) => row.workEffortId))
+            const items = rows.map((row) => {
+                const startMs = toMillis(row.actualStartDate || row.estimatedStartDate)
+                const allDay = startMs == null && row.allDayStart != null
+                const dayText = allDay ? String(row.allDayStart).substring(0, 10) : (startMs != null ? ec.l10n.format(String(startMs), 'yyyy-MM-dd') : null)
+                const sortMs = startMs != null ? startMs : (dayText ? Number(String(ec.l10n.parseTimestamp(dayText + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS'))) : 0)
+                return {workEffortId: row.workEffortId, name: row.workEffortName || '(no title)', location: row.location || null, dayText: dayText,
+                    whenText: allDay ? ec.l10n.format(ec.l10n.parseDate(dayText, 'yyyy-MM-dd'), 'EEE, MMM d, yyyy') : (startMs != null ? ec.l10n.format(String(startMs), 'EEE, MMM d, yyyy h:mm a') : ''),
+                    recurring: recurring.has(row.workEffortId), upcoming: sortMs >= nowMs - 86400000 || recurring.has(row.workEffortId), sortMs: sortMs,
+                    url: '/qapps/Commons/Calendar/EventDetail?workEffortId=' + encodeURIComponent(row.workEffortId)}
+            })
+            const upcoming = items.filter((item) => item.upcoming).sort((a, b) => a.sortMs - b.sortMs)
+            const past = items.filter((item) => !item.upcoming).sort((a, b) => b.sortMs - a.sortMs)
+            resultList = upcoming.concat(past).slice(0, 40)
+        ]]></script></actions>
+    </service>
+
+    <service verb="search" noun="Attendees">
+        <description>People to invite: people (with a user or not; a personal contact only for its owner, as
+            mantle.party.PartyServices.search#Person finds them) whose name or user name has the term, as drop-down options
+            (value the party).</description>
+        <in-parameters><parameter name="term"/></in-parameters>
+        <out-parameters><parameter name="optionList" type="List"/></out-parameters>
+        <actions>
+            <service-call name="mantle.party.PartyServices.search#Person" in-map="{term:term}" out-map="found"/>
+            <set field="optionList" from="found.outList || []"/>
+        </actions>
+    </service>
+
+    <!-- ========== Settings/Calendars ========== -->
+
+    <service verb="get" noun="CalendarSettings">
+        <description>The current user's calendars as Settings/Calendars shows them (mantle.work.CalendarServices.get#UserCalendars):
+            mine (owned, the default first), subscriptions with their feed's last fetch and status, and shared with me; for each
+            the user manages, its current shares (to a user, group or party, with the permission) and whether it has a publish
+            link. Shares are read through check#CalendarAccess (manage) only (IronStone R21).</description>
+        <out-parameters>
+            <parameter name="mineList" type="List"/>
+            <parameter name="subscriptionList" type="List"/>
+            <parameter name="sharedList" type="List"/>
+            <parameter name="defaultCalendarId"/>
+            <parameter name="shareList" type="List"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            mineList = []; subscriptionList = []; sharedList = []; shareList = []
+            const cf = ec.entity.conditionFactory
+            const out = ec.service.sync().name('mantle.work.CalendarServices.get#UserCalendars').call()
+            if (ec.message.hasError()) return
+            defaultCalendarId = out?.defaultCalendarId || null
+            const permissionText = {CalpFreeBusy: 'Free/busy only', CalpView: 'See all details', CalpEdit: 'Make changes', CalpManage: 'Make changes and share'}
+            const kindText = {CalkPersonal: 'Personal', CalkShared: 'Shared', CalkResource: 'Resource', CalkSubscription: 'Subscription'}
+            const nameOfParty = (partyId) => {
+                const detail = partyId ? ec.entity.find('mantle.party.PartyDetail').condition('partyId', partyId).one() : null
+                return detail ? (detail.organizationName || [detail.firstName, detail.lastName].filter((part) => part).join(' ') || partyId) : partyId
+            }
+            for (const calendar of Array.from(out?.calendarList || [])) {
+                const entry = Object.assign({}, calendar, {kindText: L(kindText[calendar.calendarKindEnumId] || calendar.calendarKindEnumId || ''),
+                    permissionText: L(permissionText[calendar.permissionEnumId] || ''), canManage: calendar.permissionEnumId === 'CalpManage',
+                    sharedWithText: '', colorText: calendar.color || ''})
+                if (calendar.subscription) {
+                    const sub = calendar.subscription
+                    entry.url = sub.url
+                    entry.refreshMinutes = sub.refreshMinutes
+                    entry.lastFetchText = sub.lastFetchDate ? ec.l10n.format(sub.lastFetchDate, 'MMM d, yyyy h:mm a') : L('Never')
+                    entry.fetchStatus = sub.lastFetchStatus || (sub.lastFetchDate ? 'ok' : 'new')
+                    entry.fetchStatusText = sub.lastFetchStatus === 'error' ? L('Failed') : (sub.lastFetchDate ? L('OK') : L('Not fetched yet'))
+                    entry.fetchError = sub.lastFetchError || null
+                }
+                if (entry.canManage) {
+                    const names = []
+                    for (const share of ec.entity.find('mantle.work.calendar.CalendarShare').condition('calendarId', calendar.calendarId)
+                            .condition(cf.makeConditionDate('fromDate', 'thruDate', null)).list()) {
+                        if (share.publishToken && !share.userId && !share.userGroupId && !share.partyId) continue
+                        let who = share.userId || share.userGroupId || share.partyId
+                        let whoKind = 'party'
+                        if (share.userId) {
+                            whoKind = 'user'
+                            const account = ec.entity.find('moqui.security.UserAccount').condition('userId', share.userId).disableAuthz().one()
+                            who = account ? (account.userFullName || account.username) : share.userId
+                        } else if (share.userGroupId) {
+                            whoKind = 'group'
+                            const group = ec.entity.find('moqui.security.UserGroup').condition('userGroupId', share.userGroupId).one()
+                            who = group ? (group.description || share.userGroupId) : share.userGroupId
+                        } else who = nameOfParty(share.partyId)
+                        names.push(who)
+                        shareList.push({calendarShareId: share.calendarShareId, calendarId: calendar.calendarId, calendarName: calendar.calendarName,
+                            who: who, whoKind: whoKind, permissionEnumId: share.permissionEnumId, permissionText: L(permissionText[share.permissionEnumId] || share.permissionEnumId),
+                            sinceText: share.fromDate ? ec.l10n.format(share.fromDate, 'MMM d, yyyy') : ''})
+                    }
+                    entry.sharedWithText = names.join(', ')
+                }
+                if (calendar.group === 'mine') mineList.push(entry)
+                else if (calendar.group === 'subscription') subscriptionList.push(entry)
+                else sharedList.push(entry)
+            }
+        ]]></script></actions>
+    </service>
+
+    <service verb="fetch" noun="SubscriptionNow">
+        <description>Fetches a subscription calendar the user manages now (mantle.work.CalendarServices.fetch#CalendarSubscriptions
+            for it, forced), and answers its fetch status: ok, or error with the reason, which the subscription keeps.</description>
+        <in-parameters><parameter name="calendarId" required="true"/></in-parameters>
+        <out-parameters><parameter name="status"/><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const access = ec.service.sync().name('mantle.work.CalendarServices.check#CalendarAccess').parameters({calendarId: calendarId, permissionEnumId: 'CalpManage'}).call()
+            if (ec.message.hasError()) return
+            if (access?.calendar?.calendarKindEnumId !== 'CalkSubscription') { ec.message.addError(L('Only a subscription is fetched')); return }
+            const out = ec.service.sync().name('mantle.work.CalendarServices.fetch#CalendarSubscriptions').parameters({calendarId: calendarId, force: true}).call()
+            if (ec.message.hasError()) return
+            const subscription = ec.entity.find('mantle.work.calendar.CalendarSubscription').condition('calendarId', calendarId).one()
+            if (!out?.toolAvailable) { status = 'error'; message = L('Calendar feeds cannot be read: the iCalendar tool is not available'); return }
+            status = subscription?.lastFetchStatus || 'error'
+            message = status === 'ok' ? ec.resource.expand('${name} fetched', '', {name: access.calendar.calendarName})
+                    : ec.resource.expand('${name} was not fetched: ${error}', '', {name: access.calendar.calendarName, error: subscription?.lastFetchError || L('no answer')})
+        ]]></script></actions>
+    </service>
+
+    <service verb="export" noun="CalendarFile">
+        <description>A calendar the user may view as an .ics file (mantle.work.CalendarServices.export#Calendar), written to the
+            user's own export folder, dbresource://ironstone/CalendarExport/{userId}/, for the screen to send as a download.</description>
+        <in-parameters><parameter name="calendarId" required="true"/></in-parameters>
+        <out-parameters><parameter name="location"/><parameter name="fileName"/></out-parameters>
+        <actions><script><![CDATA[
+            location = null
+            if (!ec.user.userId) { ec.message.addError(ec.l10n.localize('An export needs a user')); return }
+            const out = ec.service.sync().name('mantle.work.CalendarServices.export#Calendar').parameters({calendarId: calendarId}).call()
+            if (ec.message.hasError()) return
+            fileName = String(out.fileName || 'calendar.ics').replace(/[^A-Za-z0-9 _.-]/g, '_').replace(/\s+/g, '-')
+            location = `dbresource://ironstone/CalendarExport/${ec.user.userId}/${fileName}`
+            ec.resource.getLocationReference(location).putText(out.fileText || '')
+        ]]></script></actions>
+    </service>
+</services>

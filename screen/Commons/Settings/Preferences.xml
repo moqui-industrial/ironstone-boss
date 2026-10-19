@@ -16,7 +16,9 @@ along with this software (see the LICENSE.md file). If not, see
     QUASAR_LEFT_OPEN, density SHELL_DENSITY, the start app SHELL_START_APP; ironstone.CommonsServices.set#Appearance) and the
     Keymap: every binding of the shell and of the keymap providers of the apps the user may open, as editable rows whose
     keys change the KEYMAP preference (JSON {scope: {action or keys: keys}}, set#KeymapOverride), which the shell reads when
-    a page loads. Mail, calendar and sound defaults come with Mail and Calendar. -->
+    a page loads; and CalendarDefaults: how the calendar opens and new events start (the default view, the first day of the week, the
+    working days and hours, the length and reminder of a new event, the default calendar, declined events and week numbers;
+    ironstone.CalendarServices.set#CalendarDefaults, which Calendar.qvue reads). Mail and sound defaults come with Mail. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Preferences" default-menu-index="2">
 
@@ -29,6 +31,17 @@ along with this software (see the LICENSE.md file). If not, see
                 messageInfos: [{type: 'success', message: ec.l10n.localize('Appearance saved')}]})
         ]]></script></actions>
         <default-response type="none"/>
+    </transition>
+    <transition name="saveCalendarDefaults">
+        <actions>
+            <service-call name="ironstone.CalendarServices.set#CalendarDefaults" out-map="calendarOut" in-map="{view:view, weekStart:weekStart, workStart:workStart,
+                    workEnd:workEnd, workDays:(workDays ?? null), defaultDuration:defaultDuration, defaultReminder:(defaultReminder ?? null),
+                    showDeclined:(view != null ? (showDeclined || 'N') : null), showWeekNumbers:(view != null ? (showWeekNumbers || 'N') : null),
+                    defaultCalendarId:(defaultCalendarId || null)}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(calendarOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."/>
+        <error-response url="."/>
     </transition>
     <transition name="setKey">
         <service-call name="ironstone.CommonsServices.set#KeymapOverride" in-map="{scope:scope, id:id, keys:keys, defaultKeys:defaultKeys}"/>
@@ -54,6 +67,18 @@ along with this software (see the LICENSE.md file). If not, see
                 density: ec.user.getPreference('SHELL_DENSITY') || 'comfortable', startApp: ec.user.getPreference('SHELL_START_APP') || ''}
         ]]></script>
         <service-call name="ironstone.CommonsServices.get#KeymapRows" in-map="{keymaps:appKeymaps}" out-map="context"/>
+        <!-- the calendar defaults and the user's own personal calendars, one of which is the default -->
+        <service-call name="ironstone.CalendarServices.get#CalendarDefaults" out-map="calendarDefaultsOut"/>
+        <service-call name="mantle.work.CalendarServices.get#UserCalendars" out-map="userCalendarsOut"/>
+        <script><![CDATA[
+            const defaults = calendarDefaultsOut.defaults || {}
+            calendarDefaults = {view: defaults.view, weekStart: String(defaults.weekStart ?? 0), workStart: defaults.workStart, workEnd: defaults.workEnd,
+                workDays: (defaults.workDays || []).map(String), defaultDuration: String(defaults.defaultDuration || 60), defaultReminder: defaults.defaultReminder || '',
+                showDeclined: defaults.showDeclined ? 'Y' : 'N', showWeekNumbers: defaults.showWeekNumbers ? 'Y' : 'N',
+                defaultCalendarId: userCalendarsOut.defaultCalendarId || ''}
+            personalCalendarOptions = Array.from(userCalendarsOut.calendarList || []).filter((calendar) => calendar.isOwner && calendar.calendarKindEnumId === 'CalkPersonal')
+                    .map((calendar) => ({key: calendar.calendarId, text: calendar.calendarName}))
+        ]]></script>
     </actions>
 
     <widgets>
@@ -71,6 +96,42 @@ along with this software (see the LICENSE.md file). If not, see
                         <field name="saveButton"><default-field title="Save"><submit/></default-field></field>
                     </form-single>
                     <label type="p" text="The page loads again with dark mode and the menu. Density and the app to start in are kept for the shell, which does not apply them yet." style="text-caption m-muted q-mb-none"/>
+                </box-body></container-box>
+                <container-box><box-header title="Calendar"/><box-body>
+                    <form-single name="CalendarDefaults" transition="saveCalendarDefaults" map="calendarDefaults">
+                        <field name="view"><default-field title="Opens in"><drop-down>
+                            <option key="day" text="Day"/><option key="workweek" text="Work week"/><option key="week" text="Week"/><option key="month" text="Month"/>
+                            <option key="agenda" text="Agenda"/></drop-down></default-field></field>
+                        <field name="weekStart"><default-field title="Week starts on"><drop-down>
+                            <option key="0" text="Sunday"/><option key="1" text="Monday"/><option key="6" text="Saturday"/></drop-down></default-field></field>
+                        <field name="workDays"><default-field title="Working days"><check>
+                            <option key="1" text="Mon"/><option key="2" text="Tue"/><option key="3" text="Wed"/><option key="4" text="Thu"/><option key="5" text="Fri"/>
+                            <option key="6" text="Sat"/><option key="0" text="Sun"/></check></default-field></field>
+                        <field name="workStart"><default-field title="Work starts"><date-time type="time" format="HH:mm"/></default-field></field>
+                        <field name="workEnd"><default-field title="Work ends"><date-time type="time" format="HH:mm"/></default-field></field>
+                        <field name="defaultDuration"><default-field title="A new event lasts"><drop-down>
+                            <option key="15" text="15 minutes"/><option key="30" text="30 minutes"/><option key="45" text="45 minutes"/><option key="60" text="1 hour"/>
+                            <option key="90" text="1½ hours"/><option key="120" text="2 hours"/></drop-down></default-field></field>
+                        <field name="defaultReminder"><default-field title="Remind me"><drop-down allow-empty="true">
+                            <option key="0" text="At the start"/><option key="5" text="5 minutes before"/><option key="10" text="10 minutes before"/>
+                            <option key="15" text="15 minutes before"/><option key="30" text="30 minutes before"/><option key="60" text="1 hour before"/>
+                            <option key="1440" text="1 day before"/></drop-down></default-field></field>
+                        <field name="defaultCalendarId"><default-field title="New events go in">
+                            <drop-down><list-options list="personalCalendarOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                        <field name="showDeclined"><default-field title=""><check><option key="Y" text="Show the events I declined"/></check></default-field></field>
+                        <field name="showWeekNumbers"><default-field title=""><check><option key="Y" text="Show week numbers"/></check></default-field></field>
+                        <field name="saveButton"><default-field title="Save"><submit/></default-field></field>
+                        <field-layout>
+                            <field-row><field-ref name="view"/><field-ref name="weekStart"/></field-row>
+                            <field-ref name="workDays"/>
+                            <field-row><field-ref name="workStart"/><field-ref name="workEnd"/></field-row>
+                            <field-row><field-ref name="defaultDuration"/><field-ref name="defaultReminder"/></field-row>
+                            <field-ref name="defaultCalendarId"/>
+                            <field-row><field-ref name="showDeclined"/><field-ref name="showWeekNumbers"/></field-row>
+                            <field-ref name="saveButton"/>
+                        </field-layout>
+                    </form-single>
+                    <label type="p" text="Your time zone is on your Account; the calendar shows every time in it." style="text-caption m-muted q-mb-none q-mt-sm"/>
                 </box-body></container-box>
             </row-col>
             <row-col lg="7" md="6">
