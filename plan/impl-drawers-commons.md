@@ -1,7 +1,7 @@
 # IronStone BOSS — Header, drawers, Commons & Comms implementation
 
-Oct 18, 2026 — plan; Step 0 done (the review corrections are in design-drawers-commons.md); Oct 19 — M0 and M1 built,
-the Mantle parts of M2–M5a under way ahead of their screens (status in §5)
+Oct 18, 2026 — plan; Step 0 done (the review corrections are in design-drawers-commons.md); Oct 19 — M0–M10 built
+(M5f and M11's screens left; status in §5)
 
 How [design-drawers-commons.md](design-drawers-commons.md) gets built: the review of that design against mr-moqui and
 Mantle as they stand (findings R1–R27, each with the resolution now written into the design), the rules every step
@@ -111,12 +111,12 @@ Each finding was verified in the code. Each resolution is now part of the design
 | M2 Today, notifications, quick create | mr-moqui, Mantle, BOSS | TodayPanel, NotificationsPanel, Notifications, QuickCreate, Commons Home, Settings, Account, Preferences, NotificationSettings | done Oct 19 |
 | M3 Record links, Chatter, record files | mr-moqui, Mantle, BOSS | Chatter, RecordFiles | done Oct 19 |
 | M4 Contacts | mr-moqui, Mantle, BOSS | Contacts, ContactDetail, ContactImport, Duplicates, ContactBooks | done Oct 19 |
-| M5 Mail (M5a–M5f) | mr-moqui, Mantle, BOSS | Inbox, Compose, MessageDetail, Comms Home, MailAccounts, Identities, Rules, OutOfOffice, TextBlocks | M5a–M5d done; BOSS Inbox, Compose and MessageDetail done Oct 19; Comms Home and the mail settings screens, M5e (OAuth) and M5f (SMTP listener) not started |
+| M5 Mail (M5a–M5f) | mr-moqui, Mantle, BOSS | Inbox, Compose, MessageDetail, Comms Home, MailAccounts, Identities, Rules, OutOfOffice, TextBlocks | M5a–M5e done Oct 19 (OAuth sign-in for Google and Microsoft in the framework; the BOSS sign-in buttons under way); M5f (SMTP listener) not started |
 | M6 Tasks and requests | BOSS | Tasks, TaskDetail, Requests, RequestDetail | done Oct 19 |
 | M7 Calendar and schedules | mr-moqui, Mantle, BOSS | Calendar, EventDetail, Schedules, ResourceDetail, Calendars | done Oct 19 (the Inbox iMIP card with M5) |
-| M8 Files and drives | mr-moqui, BOSS | Files, Drives, Shares, PublicShare | framework done (drives, shares and links, trash, versions, change sets, the git path index, FileServices, token routes and the public shell); BOSS screens not started |
-| M9 Knowledge and notes | mr-moqui, BOSS | Knowledge, Spaces, Review, Notes | not started |
-| M10 Chat and presence | mr-moqui, Mantle, BOSS | Chat, ChatPanel, ChatSettings | framework done (rooms, timeline, presence, the chat store); Mantle and BOSS not started |
+| M8 Files and drives | mr-moqui, BOSS | Files, Drives, Shares, PublicShare | done Oct 19 |
+| M9 Knowledge and notes | mr-moqui, BOSS | Knowledge, Spaces, Review, Notes | done Oct 19 |
+| M10 Chat and presence | mr-moqui, Mantle, BOSS | Chat, ChatPanel, ChatSettings | done Oct 19 |
 | M11 Consent and unsubscribe | mr-moqui, Mantle, BOSS | Consent, Unsubscribe | Mantle done; BOSS screens and the public page not started |
 
 ### M0 — Foundations (mr-moqui, BOSS)
@@ -400,6 +400,19 @@ Built Oct 19 (M5 remainder and BOSS screens):
   - `save#Draft` takes as attachments only the draft's own files and files under the account's mail folder;
     an internal caller with authorization disabled may name any.
 
+Built Oct 19 (M5e and the settings screens):
+- **Commits:** mr-moqui a59c51e (merged 032bb50), 1c4e42d (the service gaps the settings screens found), 1dff6a1 (a
+  capped sync goes on at the job's next run); BOSS e413dea (Comms Home and the mail settings).
+- **What the build added or settled:**
+  - R19, checked: Google's IMAP and SMTP scope is restricted. An Internal Workspace app needs no review; an External
+    app in Testing allows 100 users and its refresh tokens expire after 7 days; production needs the restricted-scope
+    review. Microsoft needs an Entra Web app with a secret and the IMAP, POP and SMTP delegated scopes; Microsoft 365
+    needs SMTP AUTH on per mailbox. A deployment's setup is in mr-moqui docs/Mail-OAuth.md.
+  - The add-account wizard has five steps (Address, Connect, Test, Options, Finish) and an account page replaces the
+    AccountEdit form. Known providers are resolved offline, with app-password help.
+  - Out of office can reply to everyone, contacts or internal senders; "contacts" asks a hook
+    (`STRT_EMAIL_CONTACT_SERVICE`), which Mantle does not provide yet.
+
 ### M6 — Tasks and requests (BOSS on existing Mantle)
 
 - Tasks (smart lists, quick-add row, bulk actions), TaskDetail, Requests and RequestDetail, rewritten from the M0
@@ -471,6 +484,20 @@ Built Oct 19 (BOSS screens):
   - Compose gains AttachFromFiles; Home gains recent files; FileShare notifications.
 - WebDAV stays later (R17).
 
+Built Oct 19:
+- **Commits:** mr-moqui 4b228a9 (merged 3833b18) and db7be4c (the gaps found by the screens); BOSS 972ebeb.
+- **What the build added or settled:**
+  - Two entities beyond the plan: ResourceRecent (for Recent) and ResourceDriveRecordFolder (the records drive's folder
+    map, which BOSS seeds for BOSS_RECORDS over `dbresource://mantle/content`).
+  - Token routes are a conf element, `<token-route name screen-location token-service title>` under the webroot
+    webapp. BOSS adds `s` in its MoquiConf.xml; the public page is `screen/PublicShare.xml`.
+  - A records drive applies record visibility for every caller of FileServices: a path maps to its record through the
+    folder map, and the record-visibility hook (`STRT_RECORD_VISIBLE_SERVICE`, as chat's record rooms use) decides.
+    Without the hook only drive managers reach record folders. The drive is read-only; uploads come from RecordFiles.
+  - WikiPage attachments stay under each space, not in the Records drive.
+  - Shares is three boxes (with me, by me, links), not tabs.
+  - Not built: PDF previews through Chromium, extracted text for search, file comments, office previews.
+
 ### M9 — Knowledge and notes (mr-moqui, BOSS)
 
 - **Framework:** WikiPageReview; WikiPageLink with backlinks indexed in `update#WikiPage`; `move#WikiPage`, which
@@ -478,6 +505,19 @@ Built Oct 19 (BOSS screens):
   saves.
 - **BOSS:** `Knowledge.qvue`, with the markdown `text-area` until `m-coedit` exists and the History compare over
   `getVersionDiff`; Spaces, Review and `Notes.qvue`; recent pages on Home.
+
+Built Oct 19:
+- **Commits:** mr-moqui 36ee9af (merged 5d432cf), 57a5402 (published text respects restrictions) and c2d851b (exact
+  paths and the access rule on every read and write); Mantle 0844957, e848cc0 and udm 1535d11; BOSS 888aa01.
+- **What the build added or settled:**
+  - The wiki's access rule is `get#WikiPageAccess` (view, update, admin; ADMIN and a space's allowAdmin) and
+    `get#WikiViewScope` for lists. Mantle's record visibility and universal search call them.
+  - A page is addressed by its exact path. A short name no longer finds a nested page, so a new page cannot overwrite
+    one elsewhere.
+  - A moved or renamed page keeps an alias at its old path, so links still find it.
+  - Deleting a page removes Mantle's joins first (a SECA on `delete#WikiPage`).
+  - Knowledge/SpaceDetail is a screen beyond the design (settings, members, restricted pages).
+  - Not built: a resizable side pane, favorites, export and print, page clone, presence; space members are users only.
 
 ### M10 — Chat and presence (mr-moqui, Mantle, BOSS)
 
@@ -493,6 +533,18 @@ Built Oct 19 (BOSS screens):
   request or event from a message.
 - **BOSS:** `Chat.qvue` and `ChatPanel.qvue` (the tray tab), ChatSettings, the chat action on Contacts, and rooms on
   Comms Home.
+
+Built Oct 19:
+- **Commits:** mr-moqui 33c54e6 (merged 3d075b7); Mantle 6b2ace3 and udm 050e8fb; BOSS a095a53.
+- **What the build added or settled:**
+  - ChatEventMention (mention counts in one query) and `moqui.security.UserStatus` beside the planned entities.
+  - Record rooms are reached through the record-visibility hook `STRT_RECORD_VISIBLE_SERVICE`, which BOSS seeds as
+    `get#RecordLinkInfo`.
+  - Mantle files a chat message on a record as a CommunicationEvent of the new type Chat
+    (`findOrCreate#ChatCommunicationEvent`) and makes a task, request or event from one
+    (`create#RecordFromChatMessage`); record timelines have a chat source.
+  - The timeline pages by 50 messages rather than a virtual list.
+  - Not built: polls, calls, link previews, the room's files and threads lists, forward, offline sends.
 
 ### M11 — Consent and unsubscribe (mr-moqui, Mantle, BOSS)
 
