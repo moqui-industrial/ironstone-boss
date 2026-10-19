@@ -400,9 +400,9 @@ feature("a record the user may not see, another user's personal contact: the pan
 feature("the record screens render with their chatter and record-files elements, opening on the per-app default tab", {
     where: [
         { path: "apps/Commons/Requests/RequestDetail", parameters: { requestId: "BOSS_DEMO_REQUEST" }, id: "RequestChatter", entity: "mantle.request.Request",
-            recordId: "BOSS_DEMO_REQUEST", tab: "log", files: "RequestFiles" },
+            recordId: "BOSS_DEMO_REQUEST", tab: "log", files: "RequestFiles", filesParameters: { requestId: "BOSS_DEMO_REQUEST", tab: "files" } },
         { path: "apps/Commons/Tasks/TaskDetail", parameters: { workEffortId: "BOSS_DEMO_TASK" }, id: "TaskChatter", entity: "mantle.work.effort.WorkEffort",
-            recordId: "BOSS_DEMO_TASK", tab: "log", files: "TaskFiles" },
+            recordId: "BOSS_DEMO_TASK", tab: "log", files: "TaskFiles", filesParameters: { workEffortId: "BOSS_DEMO_TASK", tab: "files" } },
         { path: "apps/Commons/Calendar/EventDetail", parameters: { workEffortId: "BOSS_DEMO_EVENT" }, id: "EventChatter", entity: "mantle.work.effort.WorkEffort",
             recordId: "BOSS_DEMO_EVENT", tab: "log", files: "EventFiles" },
         { path: "apps/Commons/Contacts/ContactDetail", parameters: { partyId: "ORG_ACME_BA" }, id: "ContactChatter", entity: "mantle.party.Party",
@@ -410,7 +410,7 @@ feature("the record screens render with their chatter and record-files elements,
     ],
     expect({ path, parameters, id, entity, recordId, tab, files, filesParameters }) {
         const shown = render(path, parameters)
-        // the contact record (M4) has its files on the Files tab
+        // the contact record (M4), the task and the request (M6) have their files on the Files tab
         const filesShown = filesParameters ? render(path, filesParameters) : shown
         shown.status == 200
         shown.errors == ""

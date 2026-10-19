@@ -1,0 +1,1129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The tasks of IronStone Commons (design-drawers-commons.md §8 Tasks and TaskDetail; impl-drawers-commons.md M6): the
+    user's own slice of Mantle's tasks (WorkEffort of type WetTask), as the Tasks list and the TaskDetail screen show and
+    change them, on mantle.work.TaskServices, WorkEffortServices and TimeServices. The slice is the tasks the user's party is
+    on (a current WorkEffortParty not declined or unassigned), owns (ownerPartyId, "created by me") or follows (RecordFollower,
+    only while the user may see the task). A task is seen under the record visibility rule of
+    mantle.party.CommunicationServices.get#RecordLinkInfo (IronStone R5, R28): one the user may not see is "not available".
+    Changes are for the task's owner and its assignees, as Today's (ironstone.CommonsServices.check#TaskUpdate). A bulk
+    action takes each task on its own, in its own transaction: one that fails is logged and counted, the rest go on. -->
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
+
+    <!-- ========== Access ========== -->
+
+    <service verb="get" noun="TaskAccess" allow-remote="false">
+        <description>Whether the current user may see and change a task: found (a WetTask), visible (get#RecordLinkInfo with
+            checkOnly), the user's current roles on it (not declined or unassigned), isOwner, isAssignee, isWatcher (the Watcher
+            role or a RecordFollower row) and canUpdate (owner or assignee). need: check answers without an error, view adds
+            "not available" when it is not found or not visible, update adds an error also when the user may not change it.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="need" default-value="view"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="found" type="Boolean"/>
+            <parameter name="visible" type="Boolean"/>
+            <parameter name="workEffort" type="Map"/>
+            <parameter name="roleList" type="List"/>
+            <parameter name="isOwner" type="Boolean"/>
+            <parameter name="isAssignee" type="Boolean"/>
+            <parameter name="isWatcher" type="Boolean"/>
+            <parameter name="isParty" type="Boolean"/>
+            <parameter name="canUpdate" type="Boolean"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            found = false; visible = false; workEffort = null; roleList = []
+            isOwner = false; isAssignee = false; isWatcher = false; isParty = false; canUpdate = false
+            const notAvailable = () => ec.resource.expand('Task ${workEffortId} is not available', '', {workEffortId: workEffortId})
+            const row = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', workEffortId).one()
+            if (row == null || row.workEffortTypeEnumId !== 'WetTask') {
+                if (need !== 'check') ec.message.addError(notAvailable())
+                return
+            }
+            found = true
+            const info = ec.service.sync().name('mantle.party.CommunicationServices.get#RecordLinkInfo').parameters({
+                recordEntityName: 'mantle.work.effort.WorkEffort', recordId: workEffortId, checkOnly: true}).call()
+            if (ec.message.hasError()) return
+            visible = info?.recordVisible === true
+            if (!visible) {
+                ec.logger.info(`Task ${workEffortId} is not visible to user ${ec.user.userId}: ${info?.notVisibleReason || ''}`)
+                if (need !== 'check') ec.message.addError(notAvailable())
+                return
+            }
+            workEffort = row.getMap()
+            const partyId = ec.user.userAccount?.partyId || null
+            const cf = ec.entity.conditionFactory
+            if (partyId) {
+                for (const wep of ec.entity.find('mantle.work.effort.WorkEffortParty').condition('workEffortId', workEffortId).condition('partyId', partyId)
+                        .condition(cf.makeConditionDate('fromDate', 'thruDate', null))
+                        .condition(cf.makeCondition('statusId', 'not-in', ['WeptDeclined', 'WeptUnassigned'], true)).list()) {
+                    if (!roleList.includes(wep.roleTypeId)) roleList.push(wep.roleTypeId)
+                }
+            }
+            isOwner = !!partyId && row.ownerPartyId === partyId
+            isAssignee = roleList.includes('Assignee')
+            isParty = roleList.length > 0
+            isWatcher = roleList.includes('Watcher') || ec.entity.find('mantle.party.communication.RecordFollower')
+                    .condition('recordEntityName', 'mantle.work.effort.WorkEffort').condition('recordId', workEffortId)
+                    .condition('userId', ec.user.userId).count() > 0
+            canUpdate = isOwner || isAssignee
+            if (need === 'update' && !canUpdate)
+                ec.message.addError(ec.resource.expand('You may not change task ${workEffortId}', '', {workEffortId: workEffortId}))
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== The list ========== -->
+
+    <service verb="find" noun="TaskRows">
+        <description>The rows of the Tasks list: the user's slice (see above) in one smart list, narrowed by the find, sorted
+            and paged, each decorated (decorate#TaskRows), with the count of every smart list (over the slice, without the
+            find). The smart lists: all (open, the default), today (open and due today, less what the user snoozed on Today),
+            week (open and due from today through the next seven days), overdue (open and due before today), assigned (open,
+            the user an Assignee), created (open, the user's party the owner), watching (open, the user a Watcher or a
+            follower) and done (Complete or Closed, the latest first). Open is not Complete, Closed or Cancelled; due is the
+            estimated completion date, else the estimated start. A status in the find takes the place of the list's open or
+            done.</description>
+        <in-parameters>
+            <parameter name="list" default-value="all"/>
+            <parameter name="text"/>
+            <parameter name="statusId"/>
+            <parameter name="purposeEnumId"/>
+            <parameter name="dueFrom" type="Timestamp"/>
+            <parameter name="dueThru" type="Timestamp"><description>Exclusive</description></parameter>
+            <parameter name="rootWorkEffortId"/>
+            <parameter name="recordId"><description>The id of a record the task is on (RequestWorkEffort, WikiPageWorkEffort or
+                WorkEffortRecord)</description></parameter>
+            <parameter name="orderByField"/>
+            <parameter name="pageIndex" type="Integer" default="0"/>
+            <parameter name="pageSize" type="Integer" default="25"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="list"/>
+            <parameter name="rowList" type="List"/>
+            <parameter name="rowCount" type="Integer"/>
+            <parameter name="pageIndex" type="Integer"/>
+            <parameter name="pageSize" type="Integer"/>
+            <parameter name="pageMaxIndex" type="Integer"/>
+            <parameter name="pageRangeLow" type="Integer"/>
+            <parameter name="pageRangeHigh" type="Integer"/>
+            <parameter name="counts" type="Map"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const lists = ['all', 'today', 'week', 'overdue', 'assigned', 'created', 'watching', 'done']
+            if (!lists.includes(list)) list = 'all'
+            rowList = []; rowCount = 0; pageMaxIndex = 0; pageRangeLow = 0; pageRangeHigh = 0
+            counts = {}
+            for (const key of lists) counts[key] = 0
+            const partyId = ec.user.userAccount?.partyId || null
+            if (!partyId) return
+            const cf = ec.entity.conditionFactory
+            const toMillis = (value) => {
+                if (value == null || value === '') return null
+                if (typeof value === 'number') return value
+                if (value instanceof Date) return value.getTime()
+                const text = String(value)
+                if (/^-?\d+$/.test(text)) return Number(text)
+                const parsed = Date.parse(text)
+                return Number.isNaN(parsed) ? null : parsed
+            }
+            const pattern = 'yyyy-MM-dd HH:mm:ss.SSS'
+            const nowMillis = toMillis(ec.user.nowTimestamp)
+            const dayText = (millis) => ec.l10n.format(String(millis), 'yyyy-MM-dd')
+            const dayStart = (text) => toMillis(ec.l10n.parseTimestamp(text + ' 00:00:00.000', pattern))
+            // a day is 23 to 25 hours, so 30 hours after its start is in the next one
+            const nextDay = (text) => dayText(dayStart(text) + 30 * 3600000)
+            const todayText = dayText(nowMillis)
+            const todayStart = dayStart(todayText)
+            const tomorrowStart = dayStart(nextDay(todayText))
+            let weekText = todayText
+            for (let i = 0; i < 7; i++) weekText = nextDay(weekText)
+            const weekEnd = dayStart(weekText)
+
+            // the slice: the user's rows, the tasks owned, the tasks followed
+            const entries = new Map()
+            const entryOf = (id) => {
+                let entry = entries.get(id)
+                if (!entry) { entry = {roles: new Set(), snoozedThru: null, follower: false, row: null}; entries.set(id, entry) }
+                return entry
+            }
+            for (const wep of ec.entity.find('mantle.work.effort.WorkEffortAndParty').condition('partyId', partyId)
+                    .condition('workEffortTypeEnumId', 'WetTask').condition(cf.makeConditionDate('fromDate', 'thruDate', null))
+                    .condition(cf.makeCondition('partyStatusId', 'not-in', ['WeptDeclined', 'WeptUnassigned'], true)).list()) {
+                const entry = entryOf(wep.workEffortId)
+                entry.roles.add(wep.roleTypeId)
+                const snoozedThru = toMillis(wep.snoozedThruDate)
+                if (snoozedThru != null && (entry.snoozedThru == null || snoozedThru > entry.snoozedThru)) entry.snoozedThru = snoozedThru
+                if (!entry.row) entry.row = wep
+            }
+            for (const owned of ec.entity.find('mantle.work.effort.WorkEffort').condition('ownerPartyId', partyId)
+                    .condition('workEffortTypeEnumId', 'WetTask').list()) {
+                const entry = entryOf(owned.workEffortId)
+                entry.row = owned
+            }
+            const followed = Array.from(ec.entity.find('mantle.party.communication.RecordFollower').condition('recordEntityName', 'mantle.work.effort.WorkEffort')
+                    .condition('userId', ec.user.userId).list()).map((follower) => follower.recordId)
+            for (const id of followed) {
+                if (entries.has(id)) { entries.get(id).follower = true; continue }
+                // a task followed and not otherwise the user's: only while the user may see it
+                const task = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', id).one()
+                if (task == null || task.workEffortTypeEnumId !== 'WetTask') continue
+                const info = ec.service.sync().name('mantle.party.CommunicationServices.get#RecordLinkInfo').parameters({
+                    recordEntityName: 'mantle.work.effort.WorkEffort', recordId: id, checkOnly: true}).call()
+                if (info?.recordVisible !== true) continue
+                const entry = entryOf(id)
+                entry.row = task
+                entry.follower = true
+            }
+
+            const openOf = (row) => !['WeComplete', 'WeClosed', 'WeCancelled'].includes(row.statusId)
+            const doneOf = (row) => ['WeComplete', 'WeClosed'].includes(row.statusId)
+            const dueOf = (row) => toMillis(row.estimatedCompletionDate) ?? toMillis(row.estimatedStartDate)
+            // each smart list: its status part (open or done) and the rest
+            const rest = {
+                all: () => true,
+                today: (row, entry) => { const due = dueOf(row); return due != null && due >= todayStart && due < tomorrowStart && !(entry.snoozedThru != null && entry.snoozedThru > nowMillis) },
+                week: (row) => { const due = dueOf(row); return due != null && due >= todayStart && due < weekEnd },
+                overdue: (row) => { const due = dueOf(row); return due != null && due < todayStart },
+                assigned: (row, entry) => entry.roles.has('Assignee'),
+                created: (row) => row.ownerPartyId === partyId,
+                watching: (row, entry) => entry.roles.has('Watcher') || entry.follower,
+                done: () => true
+            }
+            const statusPart = (key) => key === 'done' ? doneOf : openOf
+            const all = Array.from(entries.entries()).filter(([id, entry]) => entry.row != null).map(([id, entry]) => ({id: id, entry: entry, row: entry.row}))
+            for (const key of lists) counts[key] = all.filter((item) => statusPart(key)(item.row) && rest[key](item.row, item.entry)).length
+
+            // the find
+            const statusIds = statusId ? String(statusId).split(',').map((id) => id.trim()).filter((id) => id) : []
+            const words = text ? String(text).trim().toLowerCase() : ''
+            const fromMillis = toMillis(dueFrom)
+            const thruMillis = toMillis(dueThru)
+            let linked = null
+            if (recordId) {
+                linked = new Set()
+                const recordText = String(recordId).trim()
+                for (const link of ec.entity.find('mantle.request.RequestWorkEffort').condition('requestId', recordText).list()) linked.add(link.workEffortId)
+                for (const link of ec.entity.find('mantle.work.effort.WikiPageWorkEffort').condition('wikiPageId', recordText).list()) linked.add(link.workEffortId)
+                for (const link of ec.entity.find('mantle.work.effort.WorkEffortRecord').condition('recordId', recordText).list()) linked.add(link.workEffortId)
+            }
+            let rows = all.filter((item) => {
+                const row = item.row
+                if (statusIds.length ? !statusIds.includes(row.statusId) : !statusPart(list)(row)) return false
+                if (!rest[list](row, item.entry)) return false
+                if (purposeEnumId && row.purposeEnumId !== purposeEnumId) return false
+                if (rootWorkEffortId && row.rootWorkEffortId !== rootWorkEffortId) return false
+                if (linked && !linked.has(item.id)) return false
+                if (fromMillis != null || thruMillis != null) {
+                    const due = dueOf(row)
+                    if (due == null || (fromMillis != null && due < fromMillis) || (thruMillis != null && due >= thruMillis)) return false
+                }
+                if (words && !(String(row.workEffortName || '').toLowerCase().includes(words) || String(row.description || '').toLowerCase().includes(words)
+                        || String(item.id).toLowerCase().includes(words))) return false
+                return true
+            })
+
+            // the order: a column's, else by due (none last), priority and name; Done by completion, the latest first
+            const sortKey = orderByField ? String(orderByField).replace(/^[+^]/, '') : ''
+            const desc = sortKey.startsWith('-')
+            const field = desc ? sortKey.substring(1) : sortKey
+            const byText = (left, right) => String(left.row.workEffortName || '').localeCompare(String(right.row.workEffortName || ''))
+            const byDue = (left, right) => (dueOf(left.row) ?? Number.MAX_SAFE_INTEGER) - (dueOf(right.row) ?? Number.MAX_SAFE_INTEGER)
+            const byPriority = (left, right) => (left.row.priority ?? 99) - (right.row.priority ?? 99)
+            const comparators = {
+                workEffortName: byText, workEffortId: (left, right) => String(left.id).localeCompare(String(right.id)),
+                estimatedCompletionDate: (left, right) => byDue(left, right) || byPriority(left, right) || byText(left, right),
+                priority: (left, right) => byPriority(left, right) || byDue(left, right) || byText(left, right),
+                statusId: (left, right) => String(left.row.statusId || '').localeCompare(String(right.row.statusId || '')) || byDue(left, right)
+            }
+            if (comparators[field]) {
+                rows.sort(comparators[field])
+                if (desc) rows.reverse()
+            } else if (list === 'done') {
+                const doneAt = (item) => toMillis(item.row.actualCompletionDate) ?? toMillis(item.row.lastUpdatedStamp) ?? 0
+                rows.sort((left, right) => doneAt(right) - doneAt(left) || byText(left, right))
+            } else {
+                rows.sort((left, right) => byDue(left, right) || byPriority(left, right) || byText(left, right))
+            }
+
+            rowCount = rows.length
+            const size = Math.max(1, Math.min(Number(pageSize) || 25, 200))
+            pageSize = size
+            pageMaxIndex = rowCount ? Math.floor((rowCount - 1) / size) : 0
+            pageIndex = Math.min(Math.max(0, Number(pageIndex) || 0), pageMaxIndex)
+            const page = rows.slice(pageIndex * size, (pageIndex + 1) * size)
+            pageRangeLow = rowCount ? pageIndex * size + 1 : 0
+            pageRangeHigh = Math.min((pageIndex + 1) * size, rowCount)
+            const entryMap = {}
+            for (const item of page) entryMap[item.id] = {roles: Array.from(item.entry.roles), snoozedThru: item.entry.snoozedThru, follower: item.entry.follower}
+            rowList = ec.service.sync().name('ironstone.TaskServices.decorate#TaskRows').parameters({taskList: page.map((item) => item.row.getMap ? item.row.getMap() : item.row),
+                entries: entryMap}).call()?.rowList || []
+        ]]></script></actions>
+    </service>
+
+    <service verb="decorate" noun="TaskRows" allow-remote="false">
+        <description>Task rows as the lists show them: the link, the status (label and color), done, the due date as text with
+            its edit value (yyyy-MM-dd), overdue and due today, the purpose, the project, the record the task is on (its caption
+            and link), the assignees, the estimated and remaining hours, and what the user may do (canUpdate; onToday when it is
+            on the user's Today, canAddToToday when Add to today applies). entries holds the user's roles, snooze and follow of
+            each task (find#TaskRows); without it they are read.</description>
+        <in-parameters>
+            <parameter name="taskList" type="List"/>
+            <parameter name="entries" type="Map"/>
+        </in-parameters>
+        <out-parameters><parameter name="rowList" type="List"/></out-parameters>
+        <actions><script><![CDATA[
+            rowList = []
+            const tasks = Array.from(taskList || [])
+            if (!tasks.length) return
+            const cf = ec.entity.conditionFactory
+            const L = (text) => ec.l10n.localize(text)
+            const partyId = ec.user.userAccount?.partyId || null
+            const toMillis = (value) => {
+                if (value == null || value === '') return null
+                if (typeof value === 'number') return value
+                if (value instanceof Date) return value.getTime()
+                const text = String(value)
+                if (/^-?\d+$/.test(text)) return Number(text)
+                const parsed = Date.parse(text)
+                return Number.isNaN(parsed) ? null : parsed
+            }
+            const pattern = 'yyyy-MM-dd HH:mm:ss.SSS'
+            const nowMillis = toMillis(ec.user.nowTimestamp)
+            const fmt = (millis, format) => ec.l10n.format(new Date(Number(millis)), format)
+            const dayText = (millis) => ec.l10n.format(String(millis), 'yyyy-MM-dd')
+            const dayStart = (text) => toMillis(ec.l10n.parseTimestamp(text + ' 00:00:00.000', pattern))
+            const todayText = dayText(nowMillis)
+            const todayStart = dayStart(todayText)
+            const tomorrowStart = dayStart(dayText(todayStart + 30 * 3600000))
+            const thisYear = fmt(nowMillis, 'yyyy')
+            const ids = tasks.map((task) => task.workEffortId)
+
+            // the user's roles, snooze and follow when not given
+            const mine = {}
+            if (entries) Object.keys(entries).forEach((id) => { mine[id] = entries[id] })
+            const missing = ids.filter((id) => !mine[id])
+            if (missing.length && partyId) {
+                for (const id of missing) mine[id] = {roles: [], snoozedThru: null, follower: false}
+                for (const wep of ec.entity.find('mantle.work.effort.WorkEffortParty').condition('workEffortId', 'in', missing).condition('partyId', partyId)
+                        .condition(cf.makeConditionDate('fromDate', 'thruDate', null))
+                        .condition(cf.makeCondition('statusId', 'not-in', ['WeptDeclined', 'WeptUnassigned'], true)).list()) {
+                    const entry = mine[wep.workEffortId]
+                    if (!entry.roles.includes(wep.roleTypeId)) entry.roles.push(wep.roleTypeId)
+                    const snoozedThru = toMillis(wep.snoozedThruDate)
+                    if (snoozedThru != null && (entry.snoozedThru == null || snoozedThru > entry.snoozedThru)) entry.snoozedThru = snoozedThru
+                }
+                for (const follower of ec.entity.find('mantle.party.communication.RecordFollower').condition('recordEntityName', 'mantle.work.effort.WorkEffort')
+                        .condition('recordId', 'in', missing).condition('userId', ec.user.userId).list()) mine[follower.recordId].follower = true
+            }
+
+            const statusIds = Array.from(new Set(tasks.map((task) => task.statusId).filter((id) => id)))
+            const colors = ec.service.sync().name('ironstone.StatusServices.get#StatusColors').parameters({statusIdList: statusIds}).call()?.colors || {}
+            const statusLabel = (id) => {
+                const item = id ? ec.entity.find('moqui.basic.StatusItem').condition('statusId', id).useCache(true).one() : null
+                return item ? (item.description || id) : (id || '')
+            }
+            const enumLabel = (id) => {
+                const item = id ? ec.entity.find('moqui.basic.Enumeration').condition('enumId', id).useCache(true).one() : null
+                return item ? (item.description || id) : (id || '')
+            }
+            const partyName = (party) => party ? (party.organizationName || [party.firstName, party.lastName].filter((name) => name).join(' ') ||
+                    party.pseudoId || party.partyId) : null
+
+            // the projects
+            const projectIds = Array.from(new Set(tasks.map((task) => task.rootWorkEffortId).filter((id) => id)))
+            const projects = {}
+            if (projectIds.length) for (const project of ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', 'in', projectIds).list())
+                projects[project.workEffortId] = project.workEffortName || project.workEffortId
+            // the assignees
+            const assignees = {}
+            const assigneeParties = new Set()
+            for (const wep of ec.entity.find('mantle.work.effort.WorkEffortParty').condition('workEffortId', 'in', ids).condition('roleTypeId', 'Assignee')
+                    .condition(cf.makeConditionDate('fromDate', 'thruDate', null))
+                    .condition(cf.makeCondition('statusId', 'not-in', ['WeptDeclined', 'WeptUnassigned'], true)).list()) {
+                const list = assignees[wep.workEffortId] || (assignees[wep.workEffortId] = [])
+                if (!list.includes(wep.partyId)) list.push(wep.partyId)
+                assigneeParties.add(wep.partyId)
+            }
+            const names = {}
+            if (assigneeParties.size) for (const party of ec.entity.find('mantle.party.PartyDetail').condition('partyId', 'in', Array.from(assigneeParties)).list())
+                names[party.partyId] = party.privateOwnerUserId && party.privateOwnerUserId !== ec.user.userId ? party.partyId : partyName(party)
+            // the record each task is on: the own joins, then the generic link
+            const links = {}
+            const addLink = (id, recordEntityName, recordId) => { if (!links[id]) links[id] = {recordEntityName: recordEntityName, recordId: recordId} }
+            for (const link of ec.entity.find('mantle.request.RequestWorkEffort').condition('workEffortId', 'in', ids).list())
+                addLink(link.workEffortId, 'mantle.request.Request', link.requestId)
+            for (const link of ec.entity.find('mantle.work.effort.WikiPageWorkEffort').condition('workEffortId', 'in', ids).list())
+                addLink(link.workEffortId, 'moqui.resource.wiki.WikiPage', link.wikiPageId)
+            for (const link of ec.entity.find('mantle.work.effort.WorkEffortRecord').condition('workEffortId', 'in', ids).orderBy('linkedDate').list())
+                addLink(link.workEffortId, link.recordEntityName, link.recordId)
+            const captions = {}
+            const captionOf = (link) => {
+                const key = link.recordEntityName + '|' + link.recordId
+                if (key in captions) return captions[key]
+                let caption = link.recordId
+                let url = null
+                try {
+                    const info = ec.service.sync().name('ironstone.ChatterServices.get#RecordInfo').parameters({recordEntityName: link.recordEntityName,
+                        recordId: link.recordId}).call()
+                    if (ec.message.hasError()) ec.message.clearErrors()
+                    else if (info?.visible) { caption = [info.typeLabel, info.title].filter((part) => part).join(' · ') || link.recordId; url = info.url || null }
+                    else caption = null
+                } catch (err) {
+                    ec.logger.warn(`Tasks: no caption for ${key}: ${err && err.message ? err.message : err}`)
+                }
+                captions[key] = {caption: caption, url: url}
+                return captions[key]
+            }
+            const hours = (value) => value == null || value === '' ? '' : ec.l10n.format(value, '#,##0.##')
+
+            for (const task of tasks) {
+                const id = task.workEffortId
+                const entry = mine[id] || {roles: [], snoozedThru: null, follower: false}
+                const roles = Array.from(entry.roles || [])
+                const isOwner = !!partyId && task.ownerPartyId === partyId
+                const canUpdate = isOwner || roles.includes('Assignee')
+                const isDone = ['WeComplete', 'WeClosed'].includes(task.statusId)
+                const isOpen = !isDone && task.statusId !== 'WeCancelled'
+                const due = toMillis(task.estimatedCompletionDate) ?? toMillis(task.estimatedStartDate)
+                const timeOfDay = due != null ? fmt(due, 'HH:mm') : null
+                let dueText = ''
+                if (due != null) {
+                    if (due >= todayStart && due < tomorrowStart) dueText = L('Today')
+                    else dueText = fmt(due, fmt(due, 'yyyy') === thisYear ? 'MMM d' : 'MMM d, yyyy')
+                    if (timeOfDay !== '00:00') dueText += ' ' + fmt(due, 'h:mm a')
+                }
+                const snoozed = entry.snoozedThru != null && entry.snoozedThru > nowMillis
+                const onToday = isOpen && roles.length > 0 && due != null && due < tomorrowStart && !snoozed
+                const link = links[id] ? captionOf(links[id]) : null
+                const others = (assignees[id] || []).map((assigneeId) => names[assigneeId] || assigneeId)
+                rowList.push({workEffortId: id, workEffortName: task.workEffortName || id, url: '/qapps/Commons/Tasks/TaskDetail?workEffortId=' + encodeURIComponent(id),
+                    statusId: task.statusId || null, statusLabel: statusLabel(task.statusId), statusColor: colors[task.statusId] || 'grey-7',
+                    isDone: isDone, isOpen: isOpen, canUpdate: canUpdate, isOwner: isOwner, roleList: roles, follower: !!entry.follower,
+                    dueMillis: due, dueText: dueText, dueEditText: due != null ? dayText(due) : '',
+                    overdue: isOpen && due != null && due < todayStart, dueToday: due != null && due >= todayStart && due < tomorrowStart,
+                    priority: task.priority ?? null, priorityText: task.priority != null ? String(task.priority) : '',
+                    purposeEnumId: task.purposeEnumId || null, purposeLabel: enumLabel(task.purposeEnumId),
+                    rootWorkEffortId: task.rootWorkEffortId || null, projectName: task.rootWorkEffortId ? (projects[task.rootWorkEffortId] || task.rootWorkEffortId) : '',
+                    parentWorkEffortId: task.parentWorkEffortId || null,
+                    recordEntityName: links[id]?.recordEntityName || null, recordId: links[id]?.recordId || null,
+                    recordCaption: link?.caption || '', recordUrl: link?.url || null,
+                    assigneeText: others.join(', '), estimatedText: hours(task.estimatedWorkTime), remainingText: hours(task.remainingWorkTime),
+                    actualText: hours(task.actualWorkTime), onToday: onToday, snoozed: snoozed,
+                    canAddToToday: isOpen && roles.length > 0 && !onToday && (canUpdate || (due != null && due < tomorrowStart)),
+                    completedText: task.actualCompletionDate ? fmt(toMillis(task.actualCompletionDate), 'MMM d') : ''})
+            }
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== Changes from the list and the detail ========== -->
+
+    <service verb="quickAdd" noun="Task">
+        <description>The quick-add row: a task for the user (owner and assignee), due on dueDate (a date, yyyy-MM-dd, or with a
+            time; none by default, today on the Today list), in the project of the find when there is one.</description>
+        <in-parameters>
+            <parameter name="workEffortName" required="true"/>
+            <parameter name="dueDate"/>
+            <parameter name="list"/>
+            <parameter name="rootWorkEffortId"/>
+        </in-parameters>
+        <out-parameters><parameter name="workEffortId"/><parameter name="url"/><parameter name="message"/></out-parameters>
+        <actions>
+            <set field="dueText" from="dueDate ? String(dueDate).trim() : (list == 'today' ? ec.l10n.format(ec.user.nowTimestamp, 'yyyy-MM-dd') : null)"/>
+            <if condition="rootWorkEffortId">
+                <service-call name="ironstone.TaskServices.check#Project" in-map="{rootWorkEffortId:rootWorkEffortId}"/>
+                <if condition="ec.message.hasError()"><return/></if>
+            </if>
+            <service-call name="ironstone.QuickCreateServices.create#Task" out-map="context"
+                    in-map="{workEffortName:workEffortName.trim(), estimatedCompletionDate:(dueText || null)}"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <if condition="rootWorkEffortId">
+                <service-call name="mantle.work.TaskServices.update#Task" in-map="{workEffortId:workEffortId, rootWorkEffortId:rootWorkEffortId}"/>
+            </if>
+            <set field="message" from="ec.resource.expand('Task added: ${workEffortName}', '', {workEffortName:workEffortName.trim()})"/>
+        </actions>
+    </service>
+
+    <service verb="check" noun="Project" allow-remote="false">
+        <description>A project (WetProject) the user may put tasks in: one the user may see (get#RecordLinkInfo).</description>
+        <in-parameters><parameter name="rootWorkEffortId" required="true"/></in-parameters>
+        <out-parameters><parameter name="projectName"/></out-parameters>
+        <actions><script><![CDATA[
+            const project = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', rootWorkEffortId).one()
+            const info = project && project.workEffortTypeEnumId === 'WetProject' ? ec.service.sync().name('mantle.party.CommunicationServices.get#RecordLinkInfo')
+                    .parameters({recordEntityName: 'mantle.work.effort.WorkEffort', recordId: rootWorkEffortId, checkOnly: true}).call() : null
+            if (!info || info.recordVisible !== true) {
+                ec.message.addError(ec.resource.expand('Project ${rootWorkEffortId} is not available', '', {rootWorkEffortId: rootWorkEffortId}))
+                return
+            }
+            projectName = project.workEffortName || rootWorkEffortId
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="ProjectOptions">
+        <description>The projects of the project drop-downs: open WetProject work efforts the user is a party to or owns, or that are
+            of general visibility, by name.</description>
+        <out-parameters><parameter name="projectList" type="List"><description>key, text</description></parameter></out-parameters>
+        <actions><script><![CDATA[
+            projectList = []
+            const partyId = ec.user.userAccount?.partyId || null
+            const cf = ec.entity.conditionFactory
+            const seen = new Set()
+            const add = (row) => {
+                if (seen.has(row.workEffortId) || ['WeClosed', 'WeCancelled'].includes(row.statusId)) return
+                seen.add(row.workEffortId)
+                projectList.push({key: row.workEffortId, text: (row.workEffortName || row.workEffortId) + ' (' + row.workEffortId + ')'})
+            }
+            if (partyId) {
+                for (const row of ec.entity.find('mantle.work.effort.WorkEffortAndParty').condition('workEffortTypeEnumId', 'WetProject')
+                        .condition('partyId', partyId).condition(cf.makeConditionDate('fromDate', 'thruDate', null)).list()) add(row)
+                for (const row of ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortTypeEnumId', 'WetProject')
+                        .condition('ownerPartyId', partyId).list()) add(row)
+            }
+            for (const row of ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortTypeEnumId', 'WetProject')
+                    .condition('visibilityEnumId', 'WevGeneral').limit(200).list()) add(row)
+            projectList.sort((left, right) => String(left.text).localeCompare(String(right.text)))
+        ]]></script></actions>
+    </service>
+
+    <service verb="set" noun="TaskStatus">
+        <description>A status change of the task by the user (owner or assignee), along the status flow: In Planning, In
+            Progress, On Hold, Complete and Cancelled (Approved and Closed are the Projects app's). Complete sets the resolution
+            Completed and the actual completion date; going back from Complete clears them (mantle.work.TaskServices.update#Task;
+            the entity's status flow check refuses a change the flow has not).</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="toStatusId" required="true"/>
+        </in-parameters>
+        <out-parameters><parameter name="workEffortName"/><parameter name="statusLabel"/><parameter name="message"/></out-parameters>
+        <actions>
+            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'update'}" out-map="access"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <if condition="!['WeInPlanning', 'WeInProgress', 'WeOnHold', 'WeComplete', 'WeCancelled'].includes(toStatusId)">
+                <return error="true" message="A task in Commons cannot be set to ${toStatusId}"/></if>
+            <set field="fromStatusId" from="access.workEffort.statusId"/>
+            <if condition="toStatusId == 'WeComplete'"><then>
+                <service-call name="mantle.work.TaskServices.update#Task" in-map="{workEffortId:workEffortId, statusId:toStatusId,
+                        resolutionEnumId:'WerCompleted', actualCompletionDate:ec.user.nowTimestamp}"/>
+            </then><else-if condition="['WeComplete', 'WeClosed'].includes(fromStatusId)">
+                <service-call name="mantle.work.TaskServices.update#Task" in-map="{workEffortId:workEffortId, statusId:toStatusId,
+                        resolutionEnumId:'WerUnresolved', actualCompletionDate:null}"/>
+            </else-if><else>
+                <service-call name="mantle.work.TaskServices.update#Task" in-map="{workEffortId:workEffortId, statusId:toStatusId}"/>
+            </else></if>
+            <if condition="ec.message.hasError()"><return/></if>
+            <entity-find-one entity-name="moqui.basic.StatusItem" value-field="toStatus" cache="true"><field-map field-name="statusId" from="toStatusId"/></entity-find-one>
+            <set field="workEffortName" from="access.workEffort.workEffortName || workEffortId"/>
+            <set field="statusLabel" from="toStatus?.description || toStatusId"/>
+            <set field="message" from="ec.resource.expand('${workEffortName}: ${statusLabel}', '', {workEffortName:workEffortName, statusLabel:statusLabel})"/>
+        </actions>
+    </service>
+
+    <service verb="toggle" noun="TaskDone">
+        <description>The done checkbox: an open task to Complete, a done one back (Complete to In Progress, Closed to In
+            Planning, as the status flow has them).</description>
+        <in-parameters><parameter name="workEffortId" required="true"/></in-parameters>
+        <out-parameters><parameter name="message"/><parameter name="isDone" type="Boolean"/></out-parameters>
+        <actions>
+            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'update'}" out-map="access"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <set field="fromStatusId" from="access.workEffort.statusId"/>
+            <set field="isDone" from="!['WeComplete', 'WeClosed'].includes(fromStatusId)"/>
+            <if condition="fromStatusId == 'WeCancelled'"><return error="true" message="A cancelled task is not done; open it again first"/></if>
+            <service-call name="ironstone.TaskServices.set#TaskStatus" out-map="statusOut" in-map="{workEffortId:workEffortId,
+                    toStatusId:(isDone ? 'WeComplete' : (fromStatusId == 'WeClosed' ? 'WeInPlanning' : 'WeInProgress'))}"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <set field="message" from="ec.resource.expand(isDone ? 'Done: ${name}' : 'Open again: ${name}', '', {name:statusOut.workEffortName})"/>
+        </actions>
+    </service>
+
+    <service verb="update" noun="TaskField">
+        <description>An inline edit of the list or the detail: field due (a date, yyyy-MM-dd, keeping the time of day of the old
+            due date; empty clears it) or priority (1 to 9), by the task's owner or an assignee.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="field" required="true"/>
+            <parameter name="value"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/><parameter name="valueText"/></out-parameters>
+        <actions>
+            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'update'}" out-map="access"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <script><![CDATA[
+                const text = value == null ? '' : String(value).trim()
+                const name = access.workEffort.workEffortName || workEffortId
+                if (field === 'due') {
+                    let due = null
+                    if (text) {
+                        const old = access.workEffort.estimatedCompletionDate
+                        const time = old != null && old !== '' ? ec.l10n.format(old, 'HH:mm') : '00:00'
+                        const withTime = /^\d{4}-\d{2}-\d{2}$/.test(text) ? text + ' ' + time : text.substring(0, 16)
+                        due = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(withTime) ? ec.l10n.parseTimestamp(withTime + ':00.000', 'yyyy-MM-dd HH:mm:ss.SSS') : null
+                        if (due == null) { ec.message.addError(ec.resource.expand('Not a date: ${text}; use yyyy-MM-dd', '', {text: text})); return }
+                    }
+                    ec.service.sync().name('mantle.work.TaskServices.update#Task').parameters({workEffortId: workEffortId, estimatedCompletionDate: due}).call()
+                    if (ec.message.hasError()) return
+                    valueText = due == null ? '' : ec.l10n.format(due, 'yyyy-MM-dd')
+                    message = due == null ? ec.resource.expand('${name}: no due date', '', {name: name})
+                        : ec.resource.expand('${name}: due ${due}', '', {name: name, due: valueText})
+                } else if (field === 'priority') {
+                    const priority = /^[1-9]$/.test(text) ? Number(text) : null
+                    if (priority == null) { ec.message.addError(ec.l10n.localize('A priority is 1 (highest) to 9 (lowest)')); return }
+                    ec.service.sync().name('mantle.work.TaskServices.update#Task').parameters({workEffortId: workEffortId, priority: priority}).call()
+                    if (ec.message.hasError()) return
+                    valueText = String(priority)
+                    message = ec.resource.expand('${name}: priority ${priority}', '', {name: name, priority: priority})
+                } else {
+                    ec.message.addError(ec.resource.expand('${field} is not a field of the task list', '', {field: field}))
+                }
+            ]]></script>
+        </actions>
+    </service>
+
+    <service verb="update" noun="TaskInfo">
+        <description>The Edit dialog of TaskDetail: name, purpose, description, priority and due date (update#TaskField), by the
+            task's owner or an assignee; a field not given stays as it is.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="workEffortName"/>
+            <parameter name="purposeEnumId"/>
+            <parameter name="description"/>
+            <parameter name="priority"/>
+            <parameter name="dueDate"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions>
+            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'update'}" out-map="access"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <script><![CDATA[
+                const fields = {workEffortId: workEffortId}
+                if (workEffortName != null) {
+                    if (!String(workEffortName).trim()) { ec.message.addError(ec.l10n.localize('A task needs a name')); return }
+                    fields.workEffortName = String(workEffortName).trim()
+                }
+                if (purposeEnumId) fields.purposeEnumId = purposeEnumId
+                if (description != null) fields.description = description
+                if (Object.keys(fields).length > 1) {
+                    ec.service.sync().name('mantle.work.TaskServices.update#Task').parameters(fields).call()
+                    if (ec.message.hasError()) return
+                }
+                if (priority != null && String(priority).trim() !== '' && String(priority) !== String(access.workEffort.priority ?? '')) {
+                    ec.service.sync().name('ironstone.TaskServices.update#TaskField').parameters({workEffortId: workEffortId, field: 'priority', value: priority}).call()
+                    if (ec.message.hasError()) return
+                }
+                if (dueDate != null) {
+                    const old = access.workEffort.estimatedCompletionDate
+                    const oldText = old != null && old !== '' ? ec.l10n.format(old, 'yyyy-MM-dd') : ''
+                    const text = String(dueDate).trim().substring(0, 10)
+                    if (text !== oldText) {
+                        ec.service.sync().name('ironstone.TaskServices.update#TaskField').parameters({workEffortId: workEffortId, field: 'due', value: text}).call()
+                        if (ec.message.hasError()) return
+                    }
+                }
+                message = ec.l10n.localize('Task saved')
+            ]]></script>
+        </actions>
+    </service>
+
+    <service verb="add" noun="TaskToToday">
+        <description>Add to Today: the task shows on the user's Today. The snooze on the user's rows is cleared
+            (mantle.work.WorkEffortServices.snooze#UserTodayItem unsnooze), and a task with no due date or due after today is
+            made due today, keeping the time of day of its due date (which only its owner or an assignee may change). The user
+            must be on the task, as Today shows only those.</description>
+        <in-parameters><parameter name="workEffortId" required="true"/></in-parameters>
+        <out-parameters><parameter name="message"/><parameter name="dueChanged" type="Boolean"/></out-parameters>
+        <actions>
+            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'view'}" out-map="access"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <if condition="!access.isParty"><return error="true" message="Today has the tasks you are on: assign this one to yourself first"/></if>
+            <if condition="['WeComplete', 'WeClosed', 'WeCancelled'].includes(access.workEffort.statusId)">
+                <return error="true" message="This task is not open"/></if>
+            <script><![CDATA[
+                dueChanged = false
+                const toMillis = (value) => value == null || value === '' ? null : (/^-?\d+$/.test(String(value)) ? Number(String(value)) : Date.parse(String(value)))
+                const todayText = ec.l10n.format(ec.user.nowTimestamp, 'yyyy-MM-dd')
+                const tomorrowStart = toMillis(ec.l10n.parseTimestamp(ec.l10n.format(String(toMillis(ec.l10n.parseTimestamp(todayText + ' 00:00:00.000',
+                        'yyyy-MM-dd HH:mm:ss.SSS')) + 30 * 3600000), 'yyyy-MM-dd') + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS'))
+                const due = toMillis(access.workEffort.estimatedCompletionDate) ?? toMillis(access.workEffort.estimatedStartDate)
+                if (due == null || due >= tomorrowStart) {
+                    if (!access.canUpdate) {
+                        ec.message.addError(ec.l10n.localize('Only the owner or an assignee may make this task due today'))
+                        return
+                    }
+                    ec.service.sync().name('ironstone.TaskServices.update#TaskField').parameters({workEffortId: workEffortId, field: 'due', value: todayText}).call()
+                    if (ec.message.hasError()) return
+                    dueChanged = true
+                }
+                ec.service.sync().name('mantle.work.WorkEffortServices.snooze#UserTodayItem').parameters({workEffortId: workEffortId, unsnooze: true}).call()
+                if (ec.message.hasError()) return
+                message = ec.resource.expand(dueChanged ? 'On your Today, due today: ${name}' : 'On your Today: ${name}', '',
+                        {name: access.workEffort.workEffortName || workEffortId})
+            ]]></script>
+        </actions>
+    </service>
+
+    <service verb="reassign" noun="Task">
+        <description>The task to another assignee (mantle.work.WorkEffortServices.replace#WorkEffortParty, role Assignee, status
+            Assigned): the current assignees end, the new one is added; by the owner or an assignee.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="assignToPartyId" required="true"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions>
+            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'update'}" out-map="access"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <entity-find-one entity-name="mantle.party.PartyDetail" value-field="assignee"><field-map field-name="partyId" from="assignToPartyId"/></entity-find-one>
+            <if condition="assignee == null || assignee.disabled == 'Y' || (assignee.privateOwnerUserId &amp;&amp; assignee.privateOwnerUserId != ec.user.userId)">
+                <return error="true" message="${assignToPartyId} is not someone a task can be assigned to"/></if>
+            <service-call name="mantle.work.WorkEffortServices.replace#WorkEffortParty" in-map="{workEffortId:workEffortId, roleTypeId:'Assignee',
+                    newPartyId:assignToPartyId, statusId:'WeptAssigned'}"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <set field="assigneeName" from="assignee.organizationName || [assignee.firstName, assignee.lastName].filter((part) => part).join(' ') || assignToPartyId"/>
+            <set field="message" from="ec.resource.expand('${name} is assigned to ${assignee}', '', {name:(access.workEffort.workEffortName || workEffortId), assignee:assigneeName})"/>
+        </actions>
+    </service>
+
+    <service verb="bulk" noun="Tasks">
+        <description>A bulk action of the Tasks list on the selected tasks (workEffortIds, a list or comma-separated text):
+            complete, reassign (assignToPartyId), setDue (dueDate, yyyy-MM-dd; empty clears), setPriority (priority) or
+            moveToProject (rootWorkEffortId; empty takes the tasks out of their project). Each task on its own transaction: one
+            the user may not change, or whose change fails, is logged and counted in failedCount with its reason in failures,
+            and the others go on.</description>
+        <in-parameters>
+            <parameter name="action" required="true"/>
+            <parameter name="workEffortIds" type="Object"/>
+            <parameter name="assignToPartyId"/>
+            <parameter name="dueDate"/>
+            <parameter name="priority"/>
+            <parameter name="rootWorkEffortId"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="doneCount" type="Integer"/>
+            <parameter name="failedCount" type="Integer"/>
+            <parameter name="failures" type="List"/>
+            <parameter name="message"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            doneCount = 0; failedCount = 0; failures = []
+            const ids = (Array.isArray(workEffortIds) ? workEffortIds : String(workEffortIds || '').split(',')).map((id) => String(id).trim()).filter((id) => id)
+            const actions = ['complete', 'reassign', 'setDue', 'setPriority', 'moveToProject']
+            if (!actions.includes(action)) { ec.message.addError(ec.resource.expand('${action} is not a bulk action', '', {action: action})); return }
+            if (!ids.length) { ec.message.addError(ec.l10n.localize('Select one or more tasks first')); return }
+            if (action === 'reassign' && !assignToPartyId) { ec.message.addError(ec.l10n.localize('Choose who to assign them to')); return }
+            if (action === 'setPriority' && !/^[1-9]$/.test(String(priority || '').trim())) { ec.message.addError(ec.l10n.localize('A priority is 1 (highest) to 9 (lowest)')); return }
+            if (action === 'moveToProject' && rootWorkEffortId) {
+                ec.service.sync().name('ironstone.TaskServices.check#Project').parameters({rootWorkEffortId: rootWorkEffortId}).call()
+                if (ec.message.hasError()) return
+            }
+            for (const id of ids) {
+                ec.message.pushErrors()
+                let reason = null
+                try {
+                    const access = ec.service.sync().name('ironstone.TaskServices.get#TaskAccess').parameters({workEffortId: id, need: 'check'}).call() || {}
+                    if (!access.visible) reason = ec.l10n.localize('not available')
+                    else if (!access.canUpdate) reason = ec.l10n.localize('you may not change it')
+                    else if (action === 'complete' && ['WeComplete', 'WeClosed'].includes(access.workEffort.statusId)) reason = null
+                    else {
+                        let call
+                        if (action === 'complete') call = ['ironstone.TaskServices.set#TaskStatus', {workEffortId: id, toStatusId: 'WeComplete'}]
+                        else if (action === 'reassign') call = ['ironstone.TaskServices.reassign#Task', {workEffortId: id, assignToPartyId: assignToPartyId}]
+                        else if (action === 'setDue') call = ['ironstone.TaskServices.update#TaskField', {workEffortId: id, field: 'due', value: dueDate || ''}]
+                        else if (action === 'setPriority') call = ['ironstone.TaskServices.update#TaskField', {workEffortId: id, field: 'priority', value: priority}]
+                        else call = ['mantle.work.TaskServices.update#Task', {workEffortId: id, rootWorkEffortId: rootWorkEffortId || null}]
+                        ec.service.sync().name(call[0]).parameters(call[1]).requireNewTransaction(true).call()
+                        if (ec.message.hasError()) reason = ec.message.getErrorsString()
+                    }
+                } catch (err) {
+                    reason = String(err && err.message ? err.message : err)
+                } finally {
+                    ec.message.clearErrors()
+                    ec.message.popErrors()
+                }
+                if (reason) {
+                    failedCount++
+                    failures.push({workEffortId: id, reason: reason})
+                    ec.logger.warn(`Tasks bulk ${action}: task ${id} skipped: ${reason}`)
+                } else doneCount++
+            }
+            const verbs = {complete: 'completed', reassign: 'reassigned', setDue: 'given the due date', setPriority: 'given the priority', moveToProject: 'moved'}
+            message = ec.resource.expand('${count} ${tasks} ${verb}', '', {count: doneCount, tasks: doneCount === 1 ? ec.l10n.localize('task') : ec.l10n.localize('tasks'),
+                verb: ec.l10n.localize(verbs[action])}) + (failedCount ? ec.resource.expand('; ${count} skipped: ${reasons}', '',
+                {count: failedCount, reasons: failures.map((failure) => failure.workEffortId + ' ' + failure.reason).join(', ')}) : '')
+        ]]></script></actions>
+    </service>
+
+    <service verb="search" noun="Assignees">
+        <description>The people a task or request can be assigned to: active users with a party (ironstone.ChatterServices
+            search#Users) as drop-down options, value the party.</description>
+        <in-parameters><parameter name="term"/></in-parameters>
+        <out-parameters><parameter name="optionList" type="List"/></out-parameters>
+        <actions>
+            <service-call name="ironstone.ChatterServices.search#Users" in-map="{term:term, limit:20}" out-map="found"/>
+            <script>optionList = Array.from(found.userList || []).map((user) => ({value: user.partyId, label: user.label}))</script>
+        </actions>
+    </service>
+
+    <!-- ========== The detail ========== -->
+
+    <service verb="get" noun="TaskDetail">
+        <description>What TaskDetail shows of a task the user may see (found false, or visible false: "not available"): the task
+            decorated as a list row, its description, status bar (In Planning, In Progress, Complete as the stages, with the
+            transitions the user may take), purpose, project and parent, the owner, the assignees and watchers, the records it
+            is on, the sub-tasks (decorated), the user's time entries on it with the open one, the totals, and the actions
+            that apply: canUpdate (owner or assignee), canDelete (the owner, with no time logged and no sub-tasks), and the
+            add to today of the row.</description>
+        <in-parameters><parameter name="workEffortId" required="true"/></in-parameters>
+        <out-parameters>
+            <parameter name="found" type="Boolean"/>
+            <parameter name="visible" type="Boolean"/>
+            <parameter name="task" type="Map"/>
+            <parameter name="statusBar" type="Map"/>
+            <parameter name="partyList" type="List"/>
+            <parameter name="linkedRecordList" type="List"/>
+            <parameter name="subTaskList" type="List"/>
+            <parameter name="timeEntryList" type="List"/>
+            <parameter name="openTimeEntry" type="Map"/>
+            <parameter name="otherOpenTimeEntry" type="Map"/>
+            <parameter name="myHoursText"/>
+            <parameter name="canUpdate" type="Boolean"/>
+            <parameter name="canDelete" type="Boolean"/>
+            <parameter name="isOwner" type="Boolean"/>
+        </out-parameters>
+        <actions>
+            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'check'}" out-map="access"/>
+            <set field="found" from="!!access.found"/>
+            <set field="visible" from="!!access.visible"/>
+            <if condition="!visible"><return/></if>
+            <script><![CDATA[
+                const L = (text) => ec.l10n.localize(text)
+                const cf = ec.entity.conditionFactory
+                const partyId = ec.user.userAccount?.partyId || null
+                const workEffort = access.workEffort
+                canUpdate = !!access.canUpdate
+                isOwner = !!access.isOwner
+                const toMillis = (value) => value == null || value === '' ? null : (/^-?\d+$/.test(String(value)) ? Number(String(value)) : Date.parse(String(value)))
+                const fmt = (millis, format) => ec.l10n.format(new Date(Number(millis)), format)
+                const partyName = (party) => party ? (party.organizationName || [party.firstName, party.lastName].filter((name) => name).join(' ') ||
+                        party.pseudoId || party.partyId) : null
+                const decorate = (list) => ec.service.sync().name('ironstone.TaskServices.decorate#TaskRows').parameters({taskList: list}).call()?.rowList || []
+
+                task = Object.assign({}, decorate([workEffort])[0] || {}, {description: workEffort.description || '', ownerPartyId: workEffort.ownerPartyId || null,
+                    isWatcher: !!access.isWatcher, roleList: access.roleList || []})
+                if (workEffort.parentWorkEffortId) {
+                    const parent = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', workEffort.parentWorkEffortId).one()
+                    task.parentName = parent ? (parent.workEffortName || parent.workEffortId) : workEffort.parentWorkEffortId
+                    task.parentUrl = parent && parent.workEffortTypeEnumId === 'WetTask' ? '/qapps/Commons/Tasks/TaskDetail?workEffortId=' + encodeURIComponent(parent.workEffortId) : null
+                }
+                // the status bar: the Commons stages, the transitions of the flow the user may take
+                let statusFlowId = workEffort.statusFlowId || null
+                if (!statusFlowId && workEffort.rootWorkEffortId) statusFlowId = ec.entity.find('mantle.work.effort.WorkEffort')
+                        .condition('workEffortId', workEffort.rootWorkEffortId).one()?.statusFlowId || null
+                statusBar = ec.service.sync().name('ironstone.StatusServices.get#StatusBar').parameters({statusId: workEffort.statusId,
+                    statusFlowId: statusFlowId || 'Default', stageStatusIds: ['WeInPlanning', 'WeInProgress', 'WeComplete'],
+                    allowedToStatusIds: canUpdate ? ['WeInPlanning', 'WeInProgress', 'WeOnHold', 'WeComplete', 'WeCancelled'] : []}).call() || {}
+
+                // the parties: owner, assignees, watchers and the others
+                partyList = []
+                const roleName = (id) => {
+                    const role = id ? ec.entity.find('mantle.party.RoleType').condition('roleTypeId', id).useCache(true).one() : null
+                    return role ? (role.description || id) : (id || '')
+                }
+                const statusName = (id) => {
+                    const item = id ? ec.entity.find('moqui.basic.StatusItem').condition('statusId', id).useCache(true).one() : null
+                    return item ? (item.description || id) : ''
+                }
+                // one row per party and role (a party may have the role twice, from different dates)
+                const seenRoles = new Set()
+                const weps = Array.from(ec.entity.find('mantle.work.effort.WorkEffortParty').condition('workEffortId', workEffortId)
+                        .condition(cf.makeConditionDate('fromDate', 'thruDate', null)).orderBy('roleTypeId').orderBy('-fromDate').list())
+                        .filter((wep) => { const key = wep.partyId + '|' + wep.roleTypeId; if (seenRoles.has(key)) return false; seenRoles.add(key); return true })
+                const partyIds = Array.from(new Set(weps.map((wep) => wep.partyId).concat(workEffort.ownerPartyId ? [workEffort.ownerPartyId] : [])))
+                const parties = {}
+                if (partyIds.length) for (const party of ec.entity.find('mantle.party.PartyDetail').condition('partyId', 'in', partyIds).list()) parties[party.partyId] = party
+                const nameOf = (id) => {
+                    const party = parties[id]
+                    if (!party) return id
+                    return party.privateOwnerUserId && party.privateOwnerUserId !== ec.user.userId ? id : partyName(party)
+                }
+                if (workEffort.ownerPartyId) partyList.push({partyId: workEffort.ownerPartyId, name: nameOf(workEffort.ownerPartyId), roleTypeId: 'Owner',
+                    roleText: L('Owner'), statusText: '', isMe: workEffort.ownerPartyId === partyId})
+                const order = {Assignee: 1, Watcher: 3}
+                weps.sort((left, right) => (order[left.roleTypeId] || 2) - (order[right.roleTypeId] || 2))
+                for (const wep of weps) partyList.push({partyId: wep.partyId, name: nameOf(wep.partyId), roleTypeId: wep.roleTypeId, roleText: roleName(wep.roleTypeId),
+                    statusText: statusName(wep.statusId), declined: ['WeptDeclined', 'WeptUnassigned'].includes(wep.statusId), isMe: wep.partyId === partyId})
+                task.assigneeList = partyList.filter((party) => party.roleTypeId === 'Assignee' && !party.declined)
+
+                // the records it is on
+                linkedRecordList = []
+                const seenRecords = new Set()
+                const addRecord = (recordEntityName, recordId) => {
+                    const key = recordEntityName + '|' + recordId
+                    if (seenRecords.has(key)) return
+                    seenRecords.add(key)
+                    linkedRecordList.push({recordEntityName: recordEntityName, recordId: recordId})
+                }
+                for (const link of ec.entity.find('mantle.request.RequestWorkEffort').condition('workEffortId', workEffortId).list()) addRecord('mantle.request.Request', link.requestId)
+                for (const link of ec.entity.find('mantle.work.effort.WikiPageWorkEffort').condition('workEffortId', workEffortId).list()) addRecord('moqui.resource.wiki.WikiPage', link.wikiPageId)
+                for (const link of ec.entity.find('mantle.work.effort.WorkEffortRecord').condition('workEffortId', workEffortId).orderBy('linkedDate').list())
+                    addRecord(link.recordEntityName, link.recordId)
+
+                // the sub-tasks
+                subTaskList = decorate(Array.from(ec.entity.find('mantle.work.effort.WorkEffort').condition('parentWorkEffortId', workEffortId)
+                        .condition('workEffortTypeEnumId', 'WetTask').orderBy('estimatedCompletionDate').orderBy('priority').list()).map((row) => row.getMap()))
+
+                // the user's time on it, and an entry open on it or on another task
+                timeEntryList = []
+                openTimeEntry = null
+                otherOpenTimeEntry = null
+                let myHours = 0
+                if (partyId) {
+                    for (const entry of ec.entity.find('mantle.work.time.TimeEntry').condition('workEffortId', workEffortId).condition('partyId', partyId)
+                            .orderBy('-fromDate').list()) {
+                        const from = toMillis(entry.fromDate)
+                        const thru = toMillis(entry.thruDate)
+                        const hours = entry.hours != null ? Number(String(entry.hours)) : null
+                        if (hours != null) myHours += hours
+                        const row = {timeEntryId: entry.timeEntryId, dateText: from != null ? fmt(from, 'EEE, MMM d') : '',
+                            fromText: from != null ? fmt(from, 'h:mm a') : '', thruText: thru != null ? fmt(thru, 'h:mm a') : L('open'),
+                            hoursText: hours != null ? ec.l10n.format(entry.hours, '#,##0.00') : '', comments: entry.comments || '', isOpen: thru == null,
+                            canDelete: !entry.invoiceId && !entry.vendorInvoiceId}
+                        timeEntryList.push(row)
+                        if (thru == null && !openTimeEntry) openTimeEntry = row
+                    }
+                    if (!openTimeEntry) {
+                        const other = Array.from(ec.entity.find('mantle.work.time.TimeEntry').condition('partyId', partyId).condition('thruDate', 'is-null', null)
+                                .orderBy('-fromDate').limit(1).list())[0]
+                        if (other && other.workEffortId) {
+                            const otherTask = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', other.workEffortId).one()
+                            otherOpenTimeEntry = {timeEntryId: other.timeEntryId, workEffortId: other.workEffortId, workEffortName: otherTask?.workEffortName || other.workEffortId,
+                                sinceText: fmt(toMillis(other.fromDate), 'MMM d, h:mm a'),
+                                url: '/qapps/Commons/Tasks/TaskDetail?workEffortId=' + encodeURIComponent(other.workEffortId) + '&tab=time'}
+                        }
+                    }
+                }
+                myHoursText = ec.l10n.format(myHours, '#,##0.00')
+                const hasTime = ec.entity.find('mantle.work.time.TimeEntry').condition('workEffortId', workEffortId).count() > 0
+                const hasChildren = ec.entity.find('mantle.work.effort.WorkEffort').condition('parentWorkEffortId', workEffortId).count() > 0
+                canDelete = isOwner && !hasTime && !hasChildren
+            ]]></script>
+        </actions>
+    </service>
+
+    <service verb="add" noun="SubTask">
+        <description>A sub-task of the task (parentWorkEffortId, the same project), for the user, due on dueDate; by the task's
+            owner or an assignee.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"><description>The parent task</description></parameter>
+            <parameter name="workEffortName" required="true"/>
+            <parameter name="dueDate"/>
+        </in-parameters>
+        <out-parameters><parameter name="subTaskId"/><parameter name="message"/></out-parameters>
+        <actions>
+            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'update'}" out-map="access"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <service-call name="ironstone.QuickCreateServices.create#Task" out-map="created"
+                    in-map="{workEffortName:workEffortName.trim(), estimatedCompletionDate:(dueDate ? String(dueDate).trim() : null)}"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <service-call name="mantle.work.TaskServices.update#Task" in-map="{workEffortId:created.workEffortId, parentWorkEffortId:workEffortId,
+                    rootWorkEffortId:access.workEffort.rootWorkEffortId}"/>
+            <set field="subTaskId" from="created.workEffortId"/>
+            <set field="message" from="ec.resource.expand('Sub-task added: ${name}', '', {name:workEffortName.trim()})"/>
+        </actions>
+    </service>
+
+    <service verb="clone" noun="Task">
+        <description>A copy of the task for the user (mantle.work.WorkEffortServices.clone#WorkEffort): In Planning, the same name
+            with "(copy)", description, purpose, priority, due date, estimate, project and parent, with its files and notes but
+            no time, no actual dates and no parties; the user's party owns it and is its assignee; on the same records.</description>
+        <in-parameters><parameter name="workEffortId" required="true"/></in-parameters>
+        <out-parameters><parameter name="newWorkEffortId"/><parameter name="url"/><parameter name="message"/></out-parameters>
+        <actions>
+            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'view'}" out-map="access"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <set field="base" from="access.workEffort"/>
+            <set field="cloneName" from="ec.resource.expand('${name} (copy)', '', {name:(base.workEffortName || workEffortId)})"/>
+            <service-call name="mantle.work.WorkEffortServices.clone#WorkEffort" out-map="cloneOut" in-map="{baseWorkEffortId:workEffortId,
+                    workEffortName:cloneName, statusId:'WeInPlanning', resolutionEnumId:'WerUnresolved', clearDates:true,
+                    estimatedStartDate:base.estimatedStartDate, estimatedCompletionDate:base.estimatedCompletionDate,
+                    ownerPartyId:ec.user.userAccount?.partyId, actualWorkTime:0, remainingWorkTime:base.estimatedWorkTime,
+                    actualCost:0, actualClientCost:0, copyParty:false, copyAssetAssign:false}"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <set field="newWorkEffortId" from="cloneOut.workEffortId"/>
+            <service-call name="mantle.work.WorkEffortServices.add#WorkEffortParty" in-map="{workEffortId:newWorkEffortId,
+                    partyId:ec.user.userAccount?.partyId, roleTypeId:'Assignee', statusId:'WeptAssigned'}"/>
+            <script><![CDATA[
+                // on the same records as the original
+                for (const link of ec.entity.find('mantle.request.RequestWorkEffort').condition('workEffortId', workEffortId).list())
+                    ec.service.sync().name('create#mantle.request.RequestWorkEffort').parameters({requestId: link.requestId, workEffortId: newWorkEffortId}).call()
+                for (const link of ec.entity.find('mantle.work.effort.WorkEffortRecord').condition('workEffortId', workEffortId).list())
+                    ec.service.sync().name('create#mantle.work.effort.WorkEffortRecord').parameters({workEffortId: newWorkEffortId,
+                        recordEntityName: link.recordEntityName, recordId: link.recordId, linkedByUserId: ec.user.userId, linkedDate: ec.user.nowTimestamp}).call()
+            ]]></script>
+            <set field="url" from="'/qapps/Commons/Tasks/TaskDetail?workEffortId=' + encodeURIComponent(newWorkEffortId)"/>
+            <set field="message" from="ec.resource.expand('Copied as ${name}', '', {name:cloneName})"/>
+        </actions>
+    </service>
+
+    <service verb="convert" noun="TaskToRequest">
+        <description>Convert to request: a draft request filed by the user with the task's name, description and priority
+            (mantle.request.RequestServices.create#Request), its customer the party the task is on when it is on one, linked to
+            the task by RequestWorkEffort. The task stays as it is; the request opens to be completed and submitted.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="requestTypeEnumId" default-value="RqtSupport"/>
+        </in-parameters>
+        <out-parameters><parameter name="requestId"/><parameter name="url"/><parameter name="message"/></out-parameters>
+        <actions>
+            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'view'}" out-map="access"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <entity-find entity-name="mantle.work.effort.WorkEffortRecord" list="partyLinkList" limit="1">
+                <econdition field-name="workEffortId"/><econdition field-name="recordEntityName" value="mantle.party.Party"/></entity-find>
+            <service-call name="mantle.request.RequestServices.create#Request" out-map="requestOut" in-map="{requestName:(access.workEffort.workEffortName || workEffortId),
+                    description:access.workEffort.description, priority:(access.workEffort.priority ?? 5), requestTypeEnumId:requestTypeEnumId,
+                    statusId:'ReqDraft', customerPartyId:(partyLinkList?.[0]?.recordId || null)}"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <set field="requestId" from="requestOut.requestId"/>
+            <service-call name="create#mantle.request.RequestWorkEffort" in-map="{requestId:requestId, workEffortId:workEffortId}"/>
+            <set field="url" from="'/qapps/Commons/Requests/RequestDetail?requestId=' + encodeURIComponent(requestId)"/>
+            <set field="message" from="ec.resource.expand('Request ${requestId} drafted from the task; submit it when it is ready', '', {requestId:requestId})"/>
+        </actions>
+    </service>
+
+    <service verb="delete" noun="OwnTask">
+        <description>Delete own: a task the user created (owns) with no time logged, no sub-tasks, no comments and no files
+            (mantle.work.WorkEffortServices.delete#WorkEffort with its parties, after its record links and followers, which
+            are links only). Anything else is refused: cancel the task instead.</description>
+        <in-parameters><parameter name="workEffortId" required="true"/></in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions>
+            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'view'}" out-map="access"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <if condition="!access.isOwner"><return error="true" message="Only the task's owner may delete it; cancel it instead"/></if>
+            <script><![CDATA[
+                const refuse = (why) => ec.message.addError(ec.resource.expand('Task ${workEffortId} has ${why}, so it is not deleted: cancel it instead', '',
+                        {workEffortId: workEffortId, why: ec.l10n.localize(why)}))
+                const count = (entityName, field) => ec.entity.find(entityName).condition(field || 'workEffortId', workEffortId).count()
+                if (count('mantle.work.time.TimeEntry')) return refuse('time logged')
+                if (count('mantle.work.effort.WorkEffort', 'parentWorkEffortId') || count('mantle.work.effort.WorkEffort', 'rootWorkEffortId')) return refuse('sub-tasks')
+                if (count('mantle.work.effort.WorkEffortCommEvent')) return refuse('comments')
+                if (count('mantle.work.effort.WorkEffortContent')) return refuse('files')
+                // the links and followers are only links
+                const removeAll = (entityName, conditions) => {
+                    for (const row of ec.entity.find(entityName).condition(conditions).list())
+                        ec.service.sync().name('delete#' + entityName).parameters(row.getPrimaryKeys()).call()
+                }
+                removeAll('mantle.work.effort.WorkEffortRecord', {workEffortId: workEffortId})
+                removeAll('mantle.request.RequestWorkEffort', {workEffortId: workEffortId})
+                removeAll('mantle.work.effort.WikiPageWorkEffort', {workEffortId: workEffortId})
+                removeAll('mantle.party.communication.RecordFollower', {recordEntityName: 'mantle.work.effort.WorkEffort', recordId: workEffortId})
+                removeAll('mantle.work.effort.WorkEffortRecord', {recordEntityName: 'mantle.work.effort.WorkEffort', recordId: workEffortId})
+                if (ec.message.hasError()) return
+                ec.service.sync().name('mantle.work.WorkEffortServices.delete#WorkEffort').parameters({workEffortId: workEffortId, deleteWorkEffortParties: true}).call()
+                if (ec.message.hasError()) return
+                message = ec.resource.expand('Deleted: ${name}', '', {name: access.workEffort.workEffortName || workEffortId})
+            ]]></script>
+        </actions>
+    </service>
+
+    <!-- ========== Time ========== -->
+
+    <service verb="clockIn" noun="Task">
+        <description>Clock in on the task (mantle.work.TimeServices.create#TimeEntryClockIn, from now), for an owner or assignee
+            with no entry open on it.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="comments"/>
+        </in-parameters>
+        <out-parameters><parameter name="timeEntryId"/><parameter name="message"/></out-parameters>
+        <actions>
+            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'update'}" out-map="access"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <entity-find entity-name="mantle.work.time.TimeEntry" list="openList" limit="1">
+                <econdition field-name="workEffortId"/><econdition field-name="partyId" from="ec.user.userAccount.partyId"/>
+                <econdition field-name="thruDate" operator="is-null"/></entity-find>
+            <if condition="openList?.length"><return error="true" message="You are already clocked in on this task"/></if>
+            <service-call name="mantle.work.TimeServices.create#TimeEntryClockIn" out-map="clockOut"
+                    in-map="{workEffortId:workEffortId, partyId:ec.user.userAccount.partyId, comments:comments, fromDate:ec.user.nowTimestamp}"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <set field="timeEntryId" from="clockOut.timeEntryId"/>
+            <set field="message" from="ec.resource.expand('Clocked in at ${time}', '', {time:ec.l10n.format(ec.user.nowTimestamp, 'h:mm a')})"/>
+        </actions>
+    </service>
+
+    <service verb="clockOut" noun="Task">
+        <description>Clock out: the user's open entry on the task ends now (mantle.work.TimeServices.store#TimeEntry, which counts
+            the hours and the rates and lowers the remaining time).</description>
+        <in-parameters><parameter name="workEffortId" required="true"/></in-parameters>
+        <out-parameters><parameter name="hours" type="BigDecimal"/><parameter name="message"/></out-parameters>
+        <actions>
+            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'update'}" out-map="access"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <entity-find entity-name="mantle.work.time.TimeEntry" list="openList" limit="1">
+                <econdition field-name="workEffortId"/><econdition field-name="partyId" from="ec.user.userAccount.partyId"/>
+                <econdition field-name="thruDate" operator="is-null"/><order-by field-name="-fromDate"/></entity-find>
+            <if condition="!openList?.length"><return error="true" message="You are not clocked in on this task"/></if>
+            <service-call name="mantle.work.TimeServices.store#TimeEntry" in-map="{timeEntryId:openList[0].timeEntryId, workEffortId:workEffortId,
+                    thruDate:ec.user.nowTimestamp}"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <entity-find-one entity-name="mantle.work.time.TimeEntry" value-field="entry"><field-map field-name="timeEntryId" from="openList[0].timeEntryId"/></entity-find-one>
+            <set field="hours" from="entry?.hours"/>
+            <set field="message" from="ec.resource.expand('Clocked out: ${hours} hours', '', {hours:ec.l10n.format(entry?.hours ?? 0, '#,##0.00')})"/>
+        </actions>
+    </service>
+
+    <service verb="add" noun="TimeOnTask">
+        <description>Add time: hours on a day (fromDate, by default now less the hours) with a comment, for an owner or assignee
+            (mantle.work.TaskServices.add#TaskTime).</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="hours" type="BigDecimal" required="true"/>
+            <parameter name="fromDate" type="Timestamp"/>
+            <parameter name="comments"/>
+        </in-parameters>
+        <out-parameters><parameter name="timeEntryId"/><parameter name="message"/></out-parameters>
+        <actions>
+            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'update'}" out-map="access"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <if condition="!(toDecimal(hours).compare(0) &gt; 0 &amp;&amp; toDecimal(hours).compare(24) &lt;= 0)"><return error="true" message="Hours are more than 0 and at most 24"/></if>
+            <service-call name="mantle.work.TaskServices.add#TaskTime" out-map="timeOut" in-map="{workEffortId:workEffortId, partyId:ec.user.userAccount.partyId,
+                    hours:hours, fromDate:fromDate, comments:comments}"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <set field="timeEntryId" from="timeOut.timeEntryId"/>
+            <set field="message" from="ec.resource.expand('${hours} hours added', '', {hours:ec.l10n.format(hours, '#,##0.00')})"/>
+        </actions>
+    </service>
+
+    <service verb="delete" noun="MyTimeEntry">
+        <description>Removes one of the user's own time entries on the task that is not invoiced (mantle.work.TimeServices
+            delete#TimeEntry).</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="timeEntryId" required="true"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions>
+            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'view'}" out-map="access"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <entity-find-one entity-name="mantle.work.time.TimeEntry" value-field="entry"/>
+            <if condition="entry == null || entry.workEffortId != workEffortId || entry.partyId != ec.user.userAccount?.partyId">
+                <return error="true" message="Time entry ${timeEntryId} is not yours on this task"/></if>
+            <service-call name="mantle.work.TimeServices.delete#TimeEntry" in-map="{timeEntryId:timeEntryId}"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <service-call name="mantle.work.TaskServices.update#TaskFromTime" in-map="{workEffortId:workEffortId}"/>
+            <set field="message" from="ec.l10n.localize('Time entry removed')"/>
+        </actions>
+    </service>
+</services>

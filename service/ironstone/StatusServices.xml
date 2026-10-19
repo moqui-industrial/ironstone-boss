@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The status display of IronStone records (style-guide §5.2, §8.2 status-bar): the colors of the status items by their
+    meaning, and the stage row of a record's status flow with the next status as the primary action. A BOSS fallback until
+    the framework's status-bar element and its status color map exist; template/StatusBar.xml draws it. -->
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
+
+    <service verb="get" noun="StatusColors" allow-remote="false">
+        <description>The color of each status by its meaning (style-guide §5.2): grey for draft and proposed, primary for in
+            progress, warning for waiting, positive for done well, negative for ended badly, info for informational. The work
+            effort and request statuses are named; any other status gets a color from the words of its id.</description>
+        <in-parameters><parameter name="statusIdList" type="List"/></in-parameters>
+        <out-parameters><parameter name="colors" type="Map"/></out-parameters>
+        <actions><script><![CDATA[
+            const named = {WeInPlanning: 'grey-7', WeApproved: 'primary', WeInProgress: 'primary', WeOnHold: 'warning', WeComplete: 'positive',
+                WeClosed: 'positive', WeCancelled: 'negative', ReqDraft: 'grey-7', ReqSubmitted: 'info', ReqReviewed: 'info',
+                ReqInProgress: 'primary', ReqCompleted: 'positive', ReqCancelled: 'negative', WeptAssigned: 'primary', WeptOffered: 'grey-7',
+                WeptDeclined: 'negative', WeptUnassigned: 'grey-7'}
+            const guess = (id) => {
+                if (/(Cancel|Reject|Void|Lost|Fail|Bounce|Declin)/.test(id)) return 'negative'
+                if (/(Complete|Paid|Shipped|Deliver|Won|Resolved|Closed|Finali)/.test(id)) return 'positive'
+                if (/(Hold|Pending|Overdue|Backorder|Wait)/.test(id)) return 'warning'
+                if (/(Sent|Received|Viewed|Scheduled|Invoiced|Submitted)/.test(id)) return 'info'
+                if (/(Approved|Progress|Open|Active|Picking|Assigned|Placed|Processing)/.test(id)) return 'primary'
+                return 'grey-7'
+            }
+            colors = {}
+            for (const id of Array.from(statusIdList || [])) if (id) colors[id] = named[id] || guess(String(id))
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="StatusBar">
+        <description>The stage row of a record's status: the stages (stageStatusIds in order; a current status that is not one of
+            them, such as On Hold or Cancelled, shows after the last stage reached) each with its label, color and state (done,
+            current or todo), and the transitions of the status flow (StatusFlowTransition of statusFlowId, else Default) from
+            the current status that the user may take (allowedToStatusIds; all of them when it is not given), each with its
+            label (the transition name) and color. next is the primary action: the transition to the first stage after the
+            current one, or with a current status off the stages the transition to the earliest stage (Resume, Re-open); the
+            others are in transitions with isNext false.</description>
+        <in-parameters>
+            <parameter name="statusId"/>
+            <parameter name="statusFlowId" default-value="Default"/>
+            <parameter name="stageStatusIds" type="List" required="true"/>
+            <parameter name="allowedToStatusIds" type="List"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="current" type="Map"><description>statusId, label, color</description></parameter>
+            <parameter name="stages" type="List"><parameter name="stage" type="Map"><description>statusId, label, color, state</description></parameter></parameter>
+            <parameter name="transitions" type="List"><parameter name="transition" type="Map"><description>toStatusId, label, color, isNext, isDanger</description></parameter></parameter>
+            <parameter name="next" type="Map"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const stageIds = Array.from(stageStatusIds || []).map((id) => String(id))
+            const itemOf = (id) => id ? ec.entity.find('moqui.basic.StatusItem').condition('statusId', id).useCache(true).one() : null
+            const flowRows = statusId ? Array.from(ec.entity.find('moqui.basic.StatusFlowTransition').condition('statusFlowId', statusFlowId || 'Default')
+                    .condition('statusId', statusId).useCache(true).list()) : []
+            const allowed = allowedToStatusIds == null ? null : Array.from(allowedToStatusIds).map((id) => String(id))
+            const ids = stageIds.concat(statusId ? [statusId] : []).concat(flowRows.map((row) => row.toStatusId))
+            const colors = ec.service.sync().name('ironstone.StatusServices.get#StatusColors').parameters({statusIdList: ids}).call()?.colors || {}
+            const labelOf = (id) => { const item = itemOf(id); return item ? (item.description || id) : (id || '') }
+            const sequenceOf = (id) => { const item = itemOf(id); return item && item.sequenceNum != null ? Number(item.sequenceNum) : 0 }
+
+            current = statusId ? {statusId: statusId, label: labelOf(statusId), color: colors[statusId] || 'grey-7'} : null
+            const currentIndex = stageIds.indexOf(statusId)
+            // off the stages: shown after the last stage whose sequence is not past the current status's (On Hold after In
+            // Progress), with the stages before it done; one that ended badly (Cancelled) is shown last, with nothing done
+            let reached = currentIndex
+            let insertAfter = -2
+            if (currentIndex < 0 && statusId) {
+                const seq = sequenceOf(statusId)
+                reached = -1
+                stageIds.forEach((id, index) => { if (sequenceOf(id) <= seq) reached = index })
+                insertAfter = reached
+                if (current.color === 'negative') { reached = -1; insertAfter = stageIds.length - 1 }
+            }
+            const currentStage = current ? {statusId: statusId, label: current.label, color: current.color, state: 'current'} : null
+            stages = []
+            if (insertAfter === -1) stages.push(currentStage)
+            stageIds.forEach((id, index) => {
+                stages.push({statusId: id, label: labelOf(id), color: colors[id] || 'grey-7',
+                    state: id === statusId ? 'current' : (index < reached || (currentIndex < 0 && index <= reached) ? 'done' : 'todo')})
+                if (index === insertAfter) stages.push(currentStage)
+            })
+
+            const seen = new Set()
+            transitions = []
+            for (const row of flowRows) {
+                const to = String(row.toStatusId)
+                if (seen.has(to) || (allowed != null && !allowed.includes(to))) continue
+                seen.add(to)
+                transitions.push({toStatusId: to, label: ec.l10n.localize(row.transitionName || labelOf(to)), color: colors[to] || 'grey-7',
+                    isNext: false, isDanger: (colors[to] || '') === 'negative', stageIndex: stageIds.indexOf(to)})
+            }
+            let pick = null
+            if (currentIndex >= 0) {
+                for (const transition of transitions) if (transition.stageIndex > currentIndex && (pick == null || transition.stageIndex < pick.stageIndex)) pick = transition
+            } else {
+                for (const transition of transitions) if (transition.stageIndex >= 0 && (pick == null || transition.stageIndex < pick.stageIndex)) pick = transition
+            }
+            if (pick) pick.isNext = true
+            next = pick
+            // the next first, then by stage, the others after
+            transitions.sort((left, right) => (right.isNext ? 1 : 0) - (left.isNext ? 1 : 0) || (left.isDanger ? 1 : 0) - (right.isDanger ? 1 : 0)
+                    || (left.stageIndex < 0 ? 99 : left.stageIndex) - (right.stageIndex < 0 ? 99 : right.stageIndex))
+        ]]></script></actions>
+    </service>
+</services>

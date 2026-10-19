@@ -287,6 +287,122 @@ along with this software (see the LICENSE.md file). If not, see
         ]]></script></actions>
     </service>
 
+    <service verb="load" noun="TasksDemo" authenticate="anonymous-all" allow-remote="false">
+        <description>The tasks and requests of IronStone Commons M6 (design-drawers-commons.md §8), so every smart list of
+            john.doe (EX_JOHN_DOE) has rows, dated from the load (none overdue or due today, which the Today demo has):
+            - the project BOSS_DEMO_PROJECT (Office move), john.doe its manager, with the task BOSS_DEMO_TASK_PLAN (Plan the office
+              move, in progress, due in five days, with two hours john.doe logged yesterday) and its sub-tasks: Get quotes from two
+              movers (john.doe, in three days), Draw the new floor plan (made by john.doe, assigned to Joe Developer, in six days)
+              and Order packing boxes (done yesterday);
+            - BOSS_DEMO_TASK_WATCH (Renew the domain name), Joe Developer's, which john.doe watches, due in two days;
+            - BOSS_DEMO_TASK_FROMJOE (Check the backup restore), made by Joe Developer and assigned to john.doe, with no due date;
+            - the demo task BOSS_DEMO_TASK due in four days (it had a fixed date);
+            - the requests BOSS_DEMO_REQ_DRAFT (a draft john.doe raised), BOSS_DEMO_REQ_ASSIGNED (raised by Joe Developer, in
+              progress, assigned to john.doe), BOSS_DEMO_REQ_WATCH (raised by Joe Developer, reviewed, john.doe a watcher) and
+              BOSS_DEMO_REQ_DONE (john.doe's, completed).
+            Only BOSS_DEMO_* records are written; loading again moves their dates.</description>
+        <out-parameters><parameter name="workEffortIdList" type="List"/><parameter name="requestIdList" type="List"/></out-parameters>
+        <actions><script><![CDATA[
+            workEffortIdList = []
+            requestIdList = []
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try {
+                if (ec.entity.find('mantle.party.Party').condition('partyId', 'EX_JOHN_DOE').one() == null) {
+                    ec.logger.warn('The Tasks demo needs the party EX_JOHN_DOE (mantle-usl demo data); nothing loaded')
+                    return
+                }
+                const john = 'EX_JOHN_DOE'
+                const joe = 'ORG_ZIZI_JD'
+                const pattern = 'yyyy-MM-dd HH:mm:ss.SSS'
+                const toMillis = (value) => {
+                    if (value == null || value === '') return null
+                    if (typeof value === 'number') return value
+                    if (value instanceof Date) return value.getTime()
+                    const text = String(value)
+                    return /^-?\d+$/.test(text) ? Number(text) : Date.parse(text)
+                }
+                const nowMillis = toMillis(ec.user.nowTimestamp)
+                const dayText = (millis) => ec.l10n.format(String(millis), 'yyyy-MM-dd')
+                const at = (text, time) => ec.l10n.parseTimestamp(text + ' ' + time + ':00.000', pattern)
+                // a day from today at a time: a day is 23 to 25 hours, so 30 hours after a day's start is in the next one and 12
+                // hours before it in the one before
+                const inDays = (days, time) => {
+                    let text = dayText(nowMillis)
+                    for (let i = 0; i < Math.abs(days); i++) text = dayText(toMillis(at(text, '00:00')) + (days < 0 ? -12 : 30) * 3600000)
+                    return at(text, time)
+                }
+                // the party rows from a fixed time, so a load in another time zone or on another day finds the same rows
+                const fromDate = new Date(Date.UTC(2026, 9, 1, 13, 0))
+                const store = (entityName, fields) => ec.service.sync().name('store#' + entityName).parameters(fields).call()
+                // a status is set when the record is made: a later load leaves a status someone changed as it is (the status
+                // flow may have no way back)
+                const storeWithStatus = (entityName, keyField, fields) => {
+                    const values = Object.assign({}, fields)
+                    if (ec.entity.find(entityName).condition(keyField, values[keyField]).one() != null) delete values.statusId
+                    store(entityName, values)
+                }
+                const task = (id, fields, parties) => {
+                    storeWithStatus('mantle.work.effort.WorkEffort', 'workEffortId', Object.assign({workEffortId: id, workEffortTypeEnumId: 'WetTask', purposeEnumId: 'WepTask',
+                        statusId: 'WeInPlanning', resolutionEnumId: 'WerUnresolved', priority: 5, ownerPartyId: john, timeUomId: 'TF_hr'}, fields))
+                    for (const [partyId, roleTypeId] of parties) store('mantle.work.effort.WorkEffortParty', {workEffortId: id, partyId: partyId,
+                        roleTypeId: roleTypeId, fromDate: fromDate, statusId: 'WeptAssigned', snoozedThruDate: null})
+                    workEffortIdList.push(id)
+                }
+
+                // the project and its planning task with sub-tasks and time
+                storeWithStatus('mantle.work.effort.WorkEffort', 'workEffortId', {workEffortId: 'BOSS_DEMO_PROJECT', workEffortTypeEnumId: 'WetProject', statusId: 'WeInProgress',
+                    resolutionEnumId: 'WerUnresolved', ownerPartyId: john, workEffortName: 'Office move', timeUomId: 'TF_hr',
+                    description: 'The move to the new office on the third floor.', estimatedStartDate: inDays(-14, '09:00'), estimatedCompletionDate: inDays(30, '17:00')})
+                store('mantle.work.effort.WorkEffortParty', {workEffortId: 'BOSS_DEMO_PROJECT', partyId: john, roleTypeId: 'Manager', fromDate: fromDate,
+                    statusId: 'WeptAssigned'})
+                store('mantle.work.effort.WorkEffortParty', {workEffortId: 'BOSS_DEMO_PROJECT', partyId: joe, roleTypeId: 'Assignee', fromDate: fromDate,
+                    statusId: 'WeptAssigned'})
+                workEffortIdList.push('BOSS_DEMO_PROJECT')
+                task('BOSS_DEMO_TASK_PLAN', {workEffortName: 'Plan the office move', statusId: 'WeInProgress', priority: 2, rootWorkEffortId: 'BOSS_DEMO_PROJECT',
+                    description: 'Who moves when, what goes where, and the movers.', estimatedCompletionDate: inDays(5, '17:00'),
+                    estimatedWorkTime: 6, remainingWorkTime: 4, actualWorkTime: 2}, [[john, 'Assignee']])
+                task('BOSS_DEMO_SUB_MOVERS', {workEffortName: 'Get quotes from two movers', priority: 3, parentWorkEffortId: 'BOSS_DEMO_TASK_PLAN',
+                    rootWorkEffortId: 'BOSS_DEMO_PROJECT', estimatedCompletionDate: inDays(3, '00:00')}, [[john, 'Assignee']])
+                task('BOSS_DEMO_SUB_FLOORPLAN', {workEffortName: 'Draw the new floor plan', priority: 4, parentWorkEffortId: 'BOSS_DEMO_TASK_PLAN',
+                    rootWorkEffortId: 'BOSS_DEMO_PROJECT', estimatedCompletionDate: inDays(6, '00:00'), estimatedWorkTime: 3, remainingWorkTime: 3}, [[joe, 'Assignee']])
+                task('BOSS_DEMO_SUB_BOXES', {workEffortName: 'Order packing boxes', statusId: 'WeComplete', resolutionEnumId: 'WerCompleted', priority: 5,
+                    parentWorkEffortId: 'BOSS_DEMO_TASK_PLAN', rootWorkEffortId: 'BOSS_DEMO_PROJECT', estimatedCompletionDate: inDays(-1, '00:00'),
+                    actualCompletionDate: inDays(-1, '15:30')}, [[john, 'Assignee']])
+                store('mantle.work.time.TimeEntry', {timeEntryId: 'BOSS_DEMO_TE_PLAN1', partyId: john, workEffortId: 'BOSS_DEMO_TASK_PLAN',
+                    rateTypeEnumId: 'RatpStandard', fromDate: inDays(-1, '09:00'), thruDate: inDays(-1, '11:00'), hours: 2,
+                    comments: 'Walked the new floor and listed the rooms'})
+
+                // watched, from Joe, and the demo task again
+                task('BOSS_DEMO_TASK_WATCH', {workEffortName: 'Renew the domain name', ownerPartyId: joe, priority: 3,
+                    description: 'The company domain expires at the end of the month.', estimatedCompletionDate: inDays(2, '12:00')},
+                    [[joe, 'Assignee'], [john, 'Watcher']])
+                task('BOSS_DEMO_TASK_FROMJOE', {workEffortName: 'Check the backup restore', ownerPartyId: joe, priority: 4,
+                    description: 'Restore last night\'s backup to the spare machine and open a few files.'}, [[john, 'Assignee']])
+                store('mantle.work.effort.WorkEffort', {workEffortId: 'BOSS_DEMO_TASK', estimatedCompletionDate: inDays(4, '17:00')})
+
+                // the requests
+                const request = (id, fields, parties) => {
+                    storeWithStatus('mantle.request.Request', 'requestId', Object.assign({requestId: id, requestTypeEnumId: 'RqtSupport', statusId: 'ReqSubmitted',
+                        requestResolutionEnumId: 'RrUnresolved', priority: 5, filedByPartyId: john, requestDate: inDays(-3, '10:00')}, fields))
+                    for (const [partyId, roleTypeId] of parties) store('mantle.request.RequestParty', {requestId: id, partyId: partyId, roleTypeId: roleTypeId,
+                        fromDate: fromDate})
+                    requestIdList.push(id)
+                }
+                request('BOSS_DEMO_REQ_DRAFT', {requestName: 'Order a second monitor', requestTypeEnumId: 'RqtPurchase', statusId: 'ReqDraft', priority: 5,
+                    description: 'A second 27 inch monitor for the design work.', requestDate: inDays(-1, '16:00')}, [[john, 'Reporter']])
+                request('BOSS_DEMO_REQ_ASSIGNED', {requestName: 'Printer on the second floor jams', statusId: 'ReqInProgress', priority: 2, filedByPartyId: joe,
+                    description: 'It jams on every second page since Monday.', responseRequiredDate: inDays(3, '17:00')},
+                    [[joe, 'Reporter'], [john, 'Assignee']])
+                request('BOSS_DEMO_REQ_WATCH', {requestName: 'Add a parking spot for visitors', requestTypeEnumId: 'RqtNewFeature', statusId: 'ReqReviewed',
+                    priority: 6, filedByPartyId: joe, description: 'Visitors park in the delivery bay.'}, [[joe, 'Reporter'], [john, 'Watcher']])
+                request('BOSS_DEMO_REQ_DONE', {requestName: 'Reset the guest wifi password', statusId: 'ReqCompleted', requestResolutionEnumId: 'RrCompleted',
+                    priority: 4, requestDate: inDays(-10, '09:30')}, [[john, 'Reporter']])
+            } finally {
+                if (!wasDisabled) ec.artifactExecution.enableAuthz()
+            }
+        ]]></script></actions>
+    </service>
+
     <!-- The demo approval topic, BossDemoApproval (data/BossDemoData.xml): its approve and refuse services, which the
         framework's approve#NotificationMessage and refuse#NotificationMessage call as the user (IronStone R23). The decision
         is a note on the record (mantle.party.CommunicationServices.log#RecordNote), nothing else changes. -->

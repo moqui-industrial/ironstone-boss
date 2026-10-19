@@ -192,14 +192,14 @@ along with this software (see the LICENSE.md file). If not, see
             assigned to the user: the card's label is one line) -->
         <dashboard min-width="170" style="q-mb-md">
             <number-card title="Due today" value="${ec.l10n.format(dueTodayCount, '#,##0')}" icon="sym_o_task_alt"
-                    link="../Tasks?estimatedCompletionDate_period=day&amp;estimatedCompletionDate_poffset=0"/>
+                    link="../Tasks?list=today"/>
             <number-card title="Overdue" value="${ec.l10n.format(overdueCount, '#,##0')}" icon="sym_o_assignment_late"
-                    link="../Tasks?estimatedCompletionDate_thru=${todayText}"/>
+                    link="../Tasks?list=overdue"/>
             <number-card title="Events today" value="${ec.l10n.format(eventsTodayCount, '#,##0')}" icon="sym_o_event" link="../Calendar"/>
             <number-card title="Notifications" value="${ec.l10n.format(unreadCount, '#,##0')}" icon="sym_o_notifications"
                     link="../Notifications?viewed=N"/>
             <number-card title="My requests" value="${ec.l10n.format(requestsAssignedCount, '#,##0')}" icon="sym_o_support"
-                    link="../Requests?roleTypeId=Assignee"/>
+                    link="../Requests?list=assigned"/>
         </dashboard>
 
         <container-row>

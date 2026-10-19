@@ -56,7 +56,9 @@ const demoRecords = {
     "Commons/Settings/Preferences": { text: "Keyboard shortcuts" },
     "Commons/Settings/Account": { text: "john.doe" },
     "Commons/Calendar/EventDetail": { parameters: { workEffortId: "BOSS_DEMO_EVENT" }, text: "Weekly team meeting" },
+    // M6: Tasks and Requests, each a list (the default subscreen) and a detail
     "Commons/Requests": { text: "Set up the shared team calendar" },
+    "Commons/Requests/List": { text: "Printer on the second floor jams" },
     "Commons/Requests/RequestDetail": { parameters: { requestId: "BOSS_DEMO_REQUEST" }, text: "Set up the shared team calendar" },
     // M4: Contacts (the split and the record), Compare, Duplicates, the import wizard's steps (no import yet) and the contact books
     "Commons/Contacts/List": { text: "Mary Doe" },
@@ -73,6 +75,7 @@ const demoRecords = {
     "Commons/Contacts/Import/Result": {},
     "Commons/Settings/ContactBooks": { text: "Team Contacts" },
     "Commons/Tasks": { text: "Review the open support requests" },
+    "Commons/Tasks/List": { text: "Plan the office move" },
     "Commons/Tasks/TaskDetail": { parameters: { workEffortId: "BOSS_DEMO_TASK" }, text: "Review the open support requests" },
     "Comms/Inbox": { text: "Question about the team calendar" },
     "Comms/Inbox/MessageDetail": { parameters: { communicationEventId: "BOSS_DEMO_MESSAGE" }, text: "Question about the team calendar" },

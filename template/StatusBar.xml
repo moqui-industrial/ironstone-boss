@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The status display of a record's detail screen (style-guide §3.3, §5.2): a BOSS fallback for the framework's planned
+    status-bar element (style-guide §8.2), so a detail can switch to <status-bar status-id status-type-id transition/> when it
+    exists. The including screen puts in its context:
+    - statusBar: what ironstone.StatusServices.get#StatusBar answers (current, stages, transitions, next);
+    - statusBarParameters: the record's key, such as {workEffortId: workEffortId}, posted with toStatusId;
+    - statusBarTitle: the record's name for the confirmations;
+    and has a transition named changeStatus that takes toStatusId with those parameters. StatusBarStages is the row of stage
+    chips (done, the current filled in its color, the ones to come outlined); StatusBarActions the next status as the primary
+    button and the other transitions the user may take as tonal buttons (the ones that end badly, such as Cancel, in the
+    danger color), each confirming. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-include="false">
+    <widgets>
+        <section name="StatusBarStages">
+            <actions><script><![CDATA[
+                const enc = (text) => String(text == null ? '' : text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+                const stageList = Array.from(statusBar?.stages || [])
+                // a stage chip: done tonal with a check, the current filled in its color, the ones to come outlined and muted
+                statusBarHtml = '<div class="row items-center q-gutter-x-xs q-gutter-y-xs m-status-bar" data-status="' + enc(statusBar?.current?.statusId) + '">'
+                    + stageList.map((stage, index) => {
+                        const sep = index ? '<q-icon name="sym_o_chevron_right" size="xs" class="m-muted"></q-icon>' : ''
+                        if (stage.state === 'current') return sep + '<q-chip dense square color="' + enc(stage.color) + '" text-color="white" class="q-ma-none text-weight-medium" data-stage="'
+                                + enc(stage.statusId) + '" data-state="current">' + enc(stage.label) + '</q-chip>'
+                        if (stage.state === 'done') return sep + '<q-chip dense square icon="sym_o_check" class="q-ma-none m-tonal text-grey-8" data-stage="'
+                                + enc(stage.statusId) + '" data-state="done">' + enc(stage.label) + '</q-chip>'
+                        return sep + '<q-chip dense square outline class="q-ma-none text-grey-7" data-stage="' + enc(stage.statusId) + '" data-state="todo">' + enc(stage.label) + '</q-chip>'
+                    }).join('') + '</div>'
+            ]]></script></actions>
+            <widgets>
+                <render-mode><text type="qvt"><![CDATA[${statusBarHtml}]]></text></render-mode>
+            </widgets>
+        </section>
+
+        <section name="StatusBarActions">
+            <actions><set field="statusBarTransitions" from="Array.from(statusBar?.transitions || [])"/></actions>
+            <widgets>
+                <section-iterate name="StatusBarTransition" list="statusBarTransitions" entry="statusTransition"><widgets>
+                    <section name="StatusBarNext" condition="statusTransition.isNext"><widgets>
+                        <link url="changeStatus" link-type="hidden-form" btn-type="primary" text="${statusTransition.label}" style="q-ml-xs"
+                                confirmation="${statusTransition.label}: ${statusBarTitle}?"
+                                parameter-map="Object.assign({toStatusId:statusTransition.toStatusId}, statusBarParameters || {})"/>
+                    </widgets><fail-widgets>
+                        <section name="StatusBarDanger" condition="statusTransition.isDanger"><widgets>
+                            <link url="changeStatus" link-type="hidden-form" btn-type="danger" text="${statusTransition.label}" style="q-ml-xs"
+                                    confirmation="${statusTransition.label}: ${statusBarTitle}?"
+                                    parameter-map="Object.assign({toStatusId:statusTransition.toStatusId}, statusBarParameters || {})"/>
+                        </widgets><fail-widgets>
+                            <link url="changeStatus" link-type="hidden-form" text="${statusTransition.label}" style="q-ml-xs"
+                                    confirmation="${statusTransition.label}: ${statusBarTitle}?"
+                                    parameter-map="Object.assign({toStatusId:statusTransition.toStatusId}, statusBarParameters || {})"/>
+                        </fail-widgets></section>
+                    </fail-widgets></section>
+                </widgets></section-iterate>
+            </widgets>
+        </section>
+    </widgets>
+</screen>

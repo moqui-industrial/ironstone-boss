@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-This software is in the public domain under CC0 1.0 Universal plus a 
+This software is in the public domain under CC0 1.0 Universal plus a
 Grant of Patent License.
 
 To the extent possible under law, the author(s) have dedicated all
@@ -12,98 +12,443 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- TaskDetail, moved from the first SimpleScreens port (M0) and redesigned in M6 (design-drawers-commons.md §8). Since M3 its
-    notes and files are the task's Chatter and RecordFiles panels (§15, §9): the right column from 1440 px and below the task
-    otherwise (style-guide §3.3), opening on Log note. -->
-<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-        xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+<!-- TaskDetail (design-drawers-commons.md §8 TaskDetail, Context passed; style-guide §3.3 Detail): one task as Commons shows it
+    (service/ironstone/TaskServices.xml get#TaskDetail). The header has the name, the status as a row of stage chips with the
+    next status as the primary action (template/StatusBar.xml, until the framework's status-bar), the due date, the priority
+    and the assignees, and the actions: Reassign, Set due, Add to Today, and in More Clone, Convert to request and Delete
+    (own, with no time logged). The tabs: Overview (description, purpose, project, the records the task is on, its people),
+    Sub-tasks (the children, add one), Time (the user's entries, clock in and out, add time), Files (record files) and
+    Chatter, which is the right column of the overview from 1440 px and a tab below (opening on Log note). The Projects
+    planning fields (estimates, milestone, billing) are left out. The task is found under the record visibility rule (R5,
+    R28): one the user may not see is "not available". The changes are for the task's owner and assignees; anyone who may
+    see it can clone it, convert it to a request of their own and, when on it, put it on their Today. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Task" default-menu-include="false">
 
     <parameter name="workEffortId" required="true"/>
+    <parameter name="tab"/>
 
-    <always-actions>
-        <entity-find entity-name="mantle.work.effort.WorkEffortParty" list="checkWepList">
-            <date-filter/><econdition field-name="workEffortId"/><econdition field-name="partyId" from="ec.user.userAccount.partyId"/></entity-find>
-        <if condition="!checkWepList?.length"><return error="true" message="You are not a party to task ${workEffortId}"/></if>
-    </always-actions>
+    <transition name="tasks"><default-response url="../List"/></transition>
 
-    <transition name="timeEntries"><default-response url="//Projects/Timesheets"/></transition>
-
-    <transition name="updateTask"><service-call name="update#mantle.work.effort.WorkEffort"/><default-response url="."/></transition>
-    <transition name="cloneWorkEffort"><service-call name="mantle.work.WorkEffortServices.clone#WorkEffort"/><default-response url="."/></transition>
-
-    <transition-include name="searchPartyList" location="component://SimpleScreens/template/party/PartyForms.xml"/>
-    <transition name="addAssignment"><service-call name="create#mantle.work.effort.WorkEffortParty"/><default-response url="."/></transition>
-    <transition name="updateAssignment"><service-call name="update#mantle.work.effort.WorkEffortParty"/><default-response url="."/></transition>
-    <!-- <transition name="editParty"><default-response url="."/></transition> -->
+    <!-- ========== changes, each showing the task again on its tab ========== -->
+    <transition name="changeStatus">
+        <actions>
+            <service-call name="ironstone.TaskServices.set#TaskStatus" out-map="statusOut" in-map="{workEffortId:workEffortId, toStatusId:toStatusId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(statusOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="tab"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="updateTask">
+        <actions>
+            <service-call name="ironstone.TaskServices.update#TaskInfo" out-map="updateOut" in-map="{workEffortId:workEffortId, workEffortName:workEffortName,
+                    purposeEnumId:purposeEnumId, description:description, priority:priority, dueDate:dueDate}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(updateOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="tab"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="setDue">
+        <actions>
+            <service-call name="ironstone.TaskServices.update#TaskField" out-map="dueOut" in-map="{workEffortId:workEffortId, field:'due', value:(dueDate || '')}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(dueOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="tab"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="reassign">
+        <actions>
+            <service-call name="ironstone.TaskServices.reassign#Task" out-map="reassignOut" in-map="{workEffortId:workEffortId, assignToPartyId:assignToPartyId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(reassignOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="tab"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="addToToday">
+        <actions>
+            <service-call name="ironstone.TaskServices.add#TaskToToday" out-map="todayOut" in-map="{workEffortId:workEffortId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(todayOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="tab"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="cloneTask">
+        <actions>
+            <service-call name="ironstone.TaskServices.clone#Task" out-map="cloneOut" in-map="{workEffortId:workEffortId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(cloneOut.message, 'success')</script></if>
+        </actions>
+        <conditional-response url="." condition="cloneOut?.newWorkEffortId"><parameter name="workEffortId" from="cloneOut.newWorkEffortId"/></conditional-response>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="convertToRequest">
+        <actions>
+            <service-call name="ironstone.TaskServices.convert#TaskToRequest" out-map="convertOut" in-map="{workEffortId:workEffortId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(convertOut.message, 'success')</script></if>
+        </actions>
+        <conditional-response url="//Commons/Requests/RequestDetail" condition="convertOut?.requestId">
+            <parameter name="requestId" from="convertOut.requestId"/></conditional-response>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="deleteTask">
+        <actions>
+            <service-call name="ironstone.TaskServices.delete#OwnTask" out-map="deleteOut" in-map="{workEffortId:workEffortId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(deleteOut.message, 'success')</script></if>
+        </actions>
+        <conditional-response url="../List" condition="deleteOut?.message"/>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <!-- sub-tasks: subTaskId is the sub-task, workEffortId stays the task shown -->
+    <transition name="addSubTask">
+        <actions>
+            <service-call name="ironstone.TaskServices.add#SubTask" out-map="subOut" in-map="{workEffortId:workEffortId, workEffortName:(workEffortName || ''),
+                    dueDate:(dueDate || null)}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(subOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="tab" value="subtasks"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="toggleSubTask">
+        <actions>
+            <service-call name="ironstone.TaskServices.toggle#TaskDone" out-map="doneOut" in-map="{workEffortId:subTaskId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(doneOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="tab" value="subtasks"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <!-- time -->
+    <transition name="clockIn">
+        <actions>
+            <service-call name="ironstone.TaskServices.clockIn#Task" out-map="timeOut" in-map="{workEffortId:workEffortId, comments:comments}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(timeOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="tab" value="time"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="clockOut">
+        <actions>
+            <service-call name="ironstone.TaskServices.clockOut#Task" out-map="timeOut" in-map="{workEffortId:workEffortId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(timeOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="tab" value="time"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="addTime">
+        <actions>
+            <service-call name="ironstone.TaskServices.add#TimeOnTask" out-map="timeOut" in-map="{workEffortId:workEffortId, hours:hours,
+                    fromDate:(fromDate || null), comments:comments}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(timeOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="tab" value="time"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="deleteTime">
+        <actions>
+            <service-call name="ironstone.TaskServices.delete#MyTimeEntry" out-map="timeOut" in-map="{workEffortId:workEffortId, timeEntryId:timeEntryId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(timeOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="tab" value="time"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <!-- the people of the reassign drop-down -->
+    <transition name="assigneeSearch" read-only="true">
+        <actions>
+            <service-call name="ironstone.TaskServices.search#Assignees" in-map="{term:term}" out-map="found"/>
+            <script>ec.web.sendJsonResponse(found.optionList || [])</script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
 
     <actions>
-        <entity-find-one entity-name="mantle.work.effort.WorkEffort" value-field="workEffort"/>
-
-        <entity-find entity-name="moqui.entity.EntityAuditLog" list="statusHistoryList">
-            <econdition field-name="changedEntityName" value="mantle.work.effort.WorkEffort"/>
-            <econdition field-name="changedFieldName" value="statusId"/>
-            <econdition field-name="pkPrimaryValue" from="workEffortId"/>
-            <order-by field-name="changedDate"/>
-        </entity-find>
-        <set field="statusId" from="workEffort?.statusId"/>
-        <set field="statusChangeTransition" value="updateTask"/>
-
-        <!-- Party Assignments -->
-        <entity-find entity-name="mantle.work.effort.WorkEffortAndPartyDetail" list="weapdList">
-            <date-filter/><econdition field-name="workEffortId"/><order-by field-name="firstName,lastName,organizationName"/></entity-find>
+        <set field="tab" from="['overview', 'subtasks', 'time', 'files', 'chatter'].includes(tab) ? tab : 'overview'"/>
+        <service-call name="ironstone.TaskServices.get#TaskDetail" in-map="{workEffortId:workEffortId}" out-map="detail"/>
+        <set field="recordFound" from="!!detail.visible"/>
+        <script><![CDATA[
+            if (!recordFound) return
+            const L = (text) => ec.l10n.localize(text)
+            const enc = (text) => String(text == null ? '' : text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+            task = detail.task
+            canUpdate = !!detail.canUpdate
+            canDelete = !!detail.canDelete
+            parentTaskId = workEffortId
+            // the status bar (template/StatusBar.xml)
+            statusBar = detail.statusBar
+            statusBarParameters = {workEffortId: workEffortId, tab: tab}
+            statusBarTitle = task.workEffortName
+            subTaskList = detail.subTaskList || []
+            timeEntryList = detail.timeEntryList || []
+            openTimeEntry = detail.openTimeEntry
+            otherOpenTimeEntry = detail.otherOpenTimeEntry
+            linkedRecordList = detail.linkedRecordList || []
+            partyList = detail.partyList || []
+            myHoursText = detail.myHoursText
+            captionText = [L('Task') + ' ' + workEffortId, task.purposeLabel, task.projectName ? L('Project') + ': ' + task.projectName : null].filter((part) => part).join(' · ')
+            // the key facts: due, priority, assignees
+            const fact = (label, value, cls) => '<div class="col-auto"><div class="text-caption m-muted">' + enc(L(label)) + '</div><div class="text-body2' + (cls ? ' ' + cls : '') + '">' + value + '</div></div>'
+            const assignees = (task.assigneeList || []).map((party) => '<span class="row inline items-center no-wrap q-mr-sm"><m-avatar name="' + enc(party.name) + '" size="22px" class="q-mr-xs"></m-avatar>'
+                    + enc(party.name) + '</span>').join('')
+            factsHtml = '<div class="row q-col-gutter-lg q-mb-sm m-task-facts">'
+                + fact('Due', task.dueText ? enc(task.dueText) + (task.overdue ? ' · ' + enc(L('overdue')) : '') : enc(L('No due date')), task.overdue ? 'text-warning text-weight-medium' : '')
+                + fact('Priority', task.priorityText ? enc(task.priorityText) : '—', '')
+                + fact('Assignees', assignees || enc(L('Nobody')), '')
+                + (task.onToday ? fact('Today', '<q-icon name="sym_o_today" size="xs" class="q-mr-xs"></q-icon>' + enc(L('On your Today')), 'text-primary') : '')
+                + (task.isWatcher ? fact('Following', enc(L('You watch this task')), '') : '')
+                + '</div>'
+            // the tabs: Chatter is a tab only below 1440 px, beside the overview from there
+            const tabs = [['overview', 'Overview'], ['subtasks', 'Sub-tasks' + (subTaskList.length ? ' (' + subTaskList.length + ')' : '')], ['time', 'Time'],
+                ['files', 'Files'], ['chatter', 'Chatter']]
+            const base = '/qapps/Commons/Tasks/TaskDetail?workEffortId=' + encodeURIComponent(workEffortId)
+            tabsHtml = '<q-tabs dense no-caps inline-label narrow-indicator outside-arrows mobile-arrows align="left" active-color="primary" indicator-color="primary"'
+                    + ' class="text-grey-8 m-task-tabs" model-value="' + enc(tab) + '">' + tabs.map(([key, label]) => {
+                        const cls = key === 'chatter' && tab !== 'chatter' ? ' class="lt-lg"' : ''
+                        return '<q-tab name="' + key + '" label="' + enc(L(label)) + '"' + cls + ' data-tab="' + key + '" @click="$root.setUrl(\'' + enc(base + '&tab=' + key) + '\')"></q-tab>'
+                    }).join('') + '</q-tabs><q-separator class="q-mb-sm"></q-separator>'
+            linkedRecordsHtml = linkedRecordList.map((record) => '<m-record-card record-entity="' + enc(record.recordEntityName) + '" record-id="' + enc(record.recordId)
+                    + '" card-url="/apps/Commons/Chatter/recordCard" class="q-mb-xs"></m-record-card>').join('')
+            todayText = ec.l10n.format(ec.user.nowTimestamp, 'yyyy-MM-dd')
+            dueEditText = task.dueEditText || ''
+            projectLabel = task.projectName || ''
+        ]]></script>
     </actions>
+
     <widgets>
-        <!-- the record for the shell: quick create's link chip and the activity kind, Today's "Add activity on this record" -->
-        <context record-entity="mantle.work.effort.WorkEffort" record-id="${workEffortId}" title="${workEffort?.workEffortName || workEffortId}"/>
-        <container-row><row-col lg="8"><container-row><row-col md="7" lg="12">
-            <container-box><box-header title="Task ${workEffortId}"/><box-toolbar>
-                <link url="timeEntries" text="Task Time Entries" parameter-map="{workEffortId:workEffortId}"/>
-                <link url="cloneWorkEffort" text="Clone Task" parameter-map="{baseWorkEffortId:workEffortId,
-                        clearDates:true, copyAssetAssign:true}"/>
-            </box-toolbar><box-body>
-                <form-single name="UpdateEvent" transition="updateTask" map="workEffort">
-                    <field name="workEffortId"><default-field><hidden/></default-field></field>
-                    <field name="workEffortName"><default-field title="Name"><text-line size="40"/></default-field></field>
-
-                    <field name="priority"><default-field>
-                        <drop-down current="selected" allow-empty="${allowEmpty || 'true'}">
-                            <option key="1"/><option key="2"/><option key="3"/><option key="4"/><option key="5"/>
-                            <option key="6"/><option key="7"/><option key="8"/><option key="9"/></drop-down>
-                    </default-field></field>
-                    <field name="purposeEnumId"><default-field title="Purpose">
-                        <drop-down no-current-selected-key="WepTask" current="selected">
-                            <entity-options key="${enumId}" text="${description}">
-                                <entity-find entity-name="moqui.basic.Enumeration">
-                                    <econdition field-name="enumTypeId" value="WorkEffortPurpose"/>
-                                    <econdition field-name="parentEnumId" value="WetTask"/>
-                                    <order-by field-name="description"/>
-                                </entity-find>
-                            </entity-options>
-                        </drop-down>
-                    </default-field></field>
-                    <field name="resolutionEnumId"><default-field title="Resolution">
-                        <widget-template-include location="component://webroot/template/screen/BasicWidgetTemplates.xml#enumDropDown">
-                            <set field="enumTypeId" value="WorkEffortResolution"/></widget-template-include>
-                    </default-field></field>
-                    <field name="estimatedCompletionDate">
-                        <default-field title="Due Date"><date-time type="date" format="yyyy-MM-dd"/></default-field>
-                    </field>
-                    <field name="estimatedWorkTime"><default-field title="Estimated Hours"><text-line size="5"/></default-field></field>
-                    <field name="remainingWorkTime"><default-field title="Remaining Hours"><text-line size="5"/></default-field></field>
-                    <field name="actualWorkTime"><default-field title="Actual Hours"><display format="#.00"/></default-field></field>
-                    <field name="description"><default-field title="Description"><text-area rows="10" cols="60"/></default-field></field>
-
-                    <field name="submitButton"><default-field title="Update"><submit/></default-field></field>
-                </form-single>
+        <section name="TaskNotFound" condition="!recordFound"><widgets>
+            <container-box type="warning"><box-header title="Not available"/><box-body>
+                <label type="p" text="Task ${workEffortId} is not available: it does not exist, or you are not one of its people or organizations."/>
+                <link url="tasks" text="Back to Tasks" link-type="anchor"/>
             </box-body></container-box>
-        </row-col><row-col md="5" lg="12">
-            <section-include name="StatusChangeAndHistorySection" location="component://SimpleScreens/template/basic/StatusWidgets.xml"/>
-            <section-include name="PartiesSection" location="component://SimpleScreens/screen/MyAccount/User/Calendar/EventDetail.xml"/>
-        </row-col></container-row></row-col><row-col lg="4">
-            <!-- the task's Chatter and files: the theme's record panels of this app root (IronStone R5) -->
-            <chatter id="TaskChatter" record-entity="mantle.work.effort.WorkEffort" record-id="${workEffortId}" default-tab="log"/>
-            <record-files id="TaskFiles" record-entity="mantle.work.effort.WorkEffort" record-id="${workEffortId}"/>
-        </row-col></container-row>
+        </widgets></section>
+
+        <section name="TaskFound" condition="recordFound"><widgets>
+            <!-- the record for the shell: quick create's link chip and the activity kind, Today's "Add activity on this record" -->
+            <context record-entity="mantle.work.effort.WorkEffort" record-id="${workEffortId}" title="${task.workEffortName}"/>
+            <container style="q-mb-xs"><link url="tasks" link-type="anchor" text="Tasks" icon="arrow_back"/></container>
+
+            <!-- ===== header: name, stages, the next status and the actions ===== -->
+            <container style="row items-start q-col-gutter-sm q-mb-sm m-task-header">
+                <container style="col-12 col-md">
+                    <label text="${task.workEffortName}" type="h5" style="q-my-none ${task.isDone ? 'm-muted' : ''}"/>
+                    <label text="${captionText}" type="div" style="text-caption m-muted q-mb-xs"/>
+                    <section-include name="StatusBarStages" location="component://ironstone-boss/template/StatusBar.xml"/>
+                </container>
+                <container style="col-12 col-md-auto row items-center q-gutter-y-xs m-task-actions">
+                    <section-include name="StatusBarActions" location="component://ironstone-boss/template/StatusBar.xml"/>
+                    <container-dialog id="TaskReassignDialog" button-text="Reassign" icon="sym_o_person_add" width="480" title="Assign ${task.workEffortName} to"
+                            condition="canUpdate">
+                        <form-single name="TaskReassign" transition="reassign">
+                            <field name="workEffortId"><default-field><hidden/></default-field></field>
+                            <field name="tab"><default-field><hidden/></default-field></field>
+                            <field name="assignToPartyId"><default-field title="Assignee">
+                                <drop-down><dynamic-options transition="assigneeSearch" server-search="true" min-length="0"/></drop-down></default-field></field>
+                            <field name="submitButton"><default-field title="Reassign"><submit/></default-field></field>
+                        </form-single>
+                    </container-dialog>
+                    <container-dialog id="TaskDueDialog" button-text="Set due" icon="sym_o_event" width="400" title="Due date" condition="canUpdate">
+                        <form-single name="TaskSetDue" transition="setDue">
+                            <field name="workEffortId"><default-field><hidden/></default-field></field>
+                            <field name="tab"><default-field><hidden/></default-field></field>
+                            <field name="dueDate" from="dueEditText"><default-field title="Due (empty: no due date)"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                            <field name="submitButton"><default-field title="Set due"><submit/></default-field></field>
+                        </form-single>
+                    </container-dialog>
+                    <link url="addToToday" link-type="hidden-form" text="Add to Today" icon="sym_o_today" style="q-ml-xs" condition="task.canAddToToday"
+                            parameter-map="{workEffortId:workEffortId, tab:tab}"/>
+                    <button-menu text="More" icon="more_horiz" style="q-ml-xs">
+                        <link url="cloneTask" link-type="hidden-form-link" text="Clone" icon="sym_o_content_copy" parameter-map="{workEffortId:workEffortId}"/>
+                        <link url="convertToRequest" link-type="hidden-form-link" text="Convert to request" icon="sym_o_support"
+                                confirmation="Draft a request from ${task.workEffortName}?" parameter-map="{workEffortId:workEffortId}"/>
+                        <link url="deleteTask" link-type="hidden-form-link" text="Delete" icon="sym_o_delete" btn-type="danger" condition="canDelete"
+                                confirmation="Delete ${task.workEffortName}?" parameter-map="{workEffortId:workEffortId}"/>
+                    </button-menu>
+                </container>
+            </container>
+            <render-mode><text type="qvt"><![CDATA[${factsHtml}]]></text></render-mode>
+
+            <render-mode><text type="qvt"><![CDATA[${tabsHtml}]]></text></render-mode>
+
+            <!-- ===== Overview ===== -->
+            <section name="OverviewTab" condition="tab == 'overview'"><widgets>
+                <container style="row q-col-gutter-sm">
+                    <container style="col-12 col-lg-8">
+                        <container style="row q-col-gutter-sm">
+                            <container style="col-12 col-md-6">
+                                <container-box><box-header title="Details"/>
+                                    <box-toolbar>
+                                        <container-dialog id="TaskEditDialog" button-text="Edit" icon="sym_o_edit" width="600" title="Edit ${task.workEffortName}" condition="canUpdate">
+                                            <form-single name="TaskEdit" transition="updateTask" map="task" focus-field="workEffortName">
+                                                <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                                <field name="tab"><default-field><hidden/></default-field></field>
+                                                <field name="workEffortName"><default-field title="Name"><text-line size="40"/></default-field></field>
+                                                <field name="purposeEnumId"><default-field title="Purpose">
+                                                    <drop-down><entity-options key="${enumId}" text="${description}">
+                                                        <entity-find entity-name="moqui.basic.Enumeration" cache="true">
+                                                            <econdition field-name="enumTypeId" value="WorkEffortPurpose"/><econdition field-name="parentEnumId" value="WetTask"/>
+                                                            <order-by field-name="description"/></entity-find>
+                                                    </entity-options></drop-down></default-field></field>
+                                                <field name="priority" from="task.priorityText || '5'"><default-field title="Priority">
+                                                    <drop-down><option key="1" text="1 (highest)"/><option key="2" text="2 (high)"/><option key="3"/><option key="4"/>
+                                                        <option key="5" text="5 (normal)"/><option key="6"/><option key="7"/><option key="8" text="8 (low)"/>
+                                                        <option key="9" text="9 (lowest)"/></drop-down></default-field></field>
+                                                <field name="dueDate" from="dueEditText"><default-field title="Due"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                                                <field name="description"><default-field title="Description"><text-area rows="5" cols="60"/></default-field></field>
+                                                <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                                                <field-layout>
+                                                    <field-ref name="workEffortName"/>
+                                                    <field-row><field-ref name="purposeEnumId"/><field-ref name="priority"/><field-ref name="dueDate"/></field-row>
+                                                    <field-ref name="description"/><field-ref name="submitButton"/>
+                                                </field-layout>
+                                            </form-single>
+                                        </container-dialog>
+                                    </box-toolbar>
+                                    <box-body>
+                                        <label text="${task.description}" type="p" style="text-body2" condition="task.description"/>
+                                        <label text="No description" type="p" style="m-muted" condition="!task.description"/>
+                                        <form-single name="TaskFacts" map="task">
+                                            <field name="statusLabel"><default-field title="Status"><display/></default-field></field>
+                                            <field name="purposeLabel"><default-field title="Purpose"><display/></default-field></field>
+                                            <field name="projectLabel" from="projectLabel"><conditional-field condition="projectLabel" title="Project"><display/></conditional-field>
+                                                <default-field><ignored/></default-field></field>
+                                            <field name="parentName"><conditional-field condition="task.parentUrl" title="Part of">
+                                                <link url="${task.parentUrl}" url-type="plain" text="${task.parentName}" link-type="anchor"/>
+                                            </conditional-field><conditional-field condition="task.parentName" title="Part of">
+                                                <display also-hidden="false"/>
+                                            </conditional-field><default-field><ignored/></default-field></field>
+                                            <field name="completedText"><conditional-field condition="task.completedText" title="Completed"><display/></conditional-field>
+                                                <default-field><ignored/></default-field></field>
+                                            <field-layout><field-row><field-ref name="statusLabel"/><field-ref name="purposeLabel"/></field-row>
+                                                <field-row><field-ref name="projectLabel"/><field-ref name="parentName"/></field-row>
+                                                <field-ref name="completedText"/></field-layout>
+                                        </form-single>
+                                    </box-body>
+                                </container-box>
+                            </container>
+                            <container style="col-12 col-md-6">
+                                <container-box><box-header title="Linked records"/><box-body>
+                                    <section name="LinkedRecords" condition="linkedRecordList.length"><widgets>
+                                        <render-mode><text type="qvt"><![CDATA[${linkedRecordsHtml}]]></text></render-mode>
+                                    </widgets><fail-widgets>
+                                        <label type="p" text="Not on a record. A task made from a record (a request, a contact, an order) shows it here." style="m-muted q-mb-none"/>
+                                    </fail-widgets></section>
+                                </box-body></container-box>
+                                <container-box><box-header title="People"/><box-body-nopad>
+                                    <form-list name="TaskPeople" list="partyList" skip-form="true" skip-header="true" paginate="false">
+                                        <field name="name"><default-field><label text="${name}${isMe ? ' (' + ec.l10n.localize('you') + ')' : ''}" type="span"
+                                                style="${declined ? 'm-muted' : ''}"/></default-field></field>
+                                        <field name="roleText"><default-field><label text="${roleText}" type="span" style="m-muted"/></default-field></field>
+                                        <field name="statusText" align="right"><default-field><label text="${statusText}" type="span" style="text-caption m-muted"/></default-field></field>
+                                    </form-list>
+                                </box-body-nopad></container-box>
+                            </container>
+                        </container>
+                    </container>
+                    <!-- Chatter beside the overview from 1440 px -->
+                    <container style="col-12 col-lg-4 gt-md">
+                        <chatter id="TaskChatter" record-entity="mantle.work.effort.WorkEffort" record-id="${workEffortId}" default-tab="log"/>
+                    </container>
+                </container>
+            </widgets></section>
+
+            <!-- ===== Sub-tasks ===== -->
+            <section name="SubTasksTab" condition="tab == 'subtasks'"><widgets>
+                <container-box><box-header title="Sub-tasks"/><box-body-nopad>
+                    <section name="AddSubTask" condition="canUpdate"><widgets>
+                        <container style="q-px-sm q-pt-sm">
+                            <form-single name="NewSubTask" transition="addSubTask" focus-field="workEffortName">
+                                <field name="workEffortId" from="parentTaskId"><default-field><hidden/></default-field></field>
+                                <field name="workEffortName" from="''"><default-field title="Add a sub-task"><text-line size="36"/></default-field></field>
+                                <field name="dueDate" from="''"><default-field title="Due"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                                <field name="addButton"><default-field title="Add"><submit icon="sym_o_add"/></default-field></field>
+                                <field-layout><field-row-big><field-ref name="workEffortName"/><field-ref name="dueDate"/><field-ref name="addButton"/></field-row-big></field-layout>
+                            </form-single>
+                        </container>
+                    </widgets></section>
+                    <form-list name="SubTasks" list="subTaskList" skip-form="true" paginate="false">
+                        <field name="done"><conditional-field condition="canUpdate &amp;&amp; isDone" title="">
+                            <link url="toggleSubTask" link-type="hidden-form-link" icon="sym_o_check_circle" text="" tooltip="Done: open it again" style="m-btn-flat text-positive"
+                                    parameter-map="{workEffortId:parentTaskId, subTaskId:workEffortId}"/>
+                        </conditional-field><conditional-field condition="canUpdate &amp;&amp; isOpen" title="">
+                            <link url="toggleSubTask" link-type="hidden-form-link" icon="sym_o_radio_button_unchecked" text="" tooltip="Mark done" style="m-btn-flat"
+                                    parameter-map="{workEffortId:parentTaskId, subTaskId:workEffortId}"/>
+                        </conditional-field><default-field title=""><label text="" type="span"/></default-field></field>
+                        <field name="workEffortName"><default-field title="Sub-task">
+                            <link url="${url}" url-type="plain" text="${workEffortName}" style="${isDone ? 'm-muted' : ''}"/></default-field></field>
+                        <field name="statusId"><default-field title="Status">
+                            <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${statusColor}">${WebUtilities.encodeHtml(statusLabel ?? '')}</q-chip>]]></text></render-mode>
+                        </default-field></field>
+                        <field name="dueText"><default-field title="Due"><label text="${dueText}" type="span" style="text-no-wrap ${overdue ? 'text-warning' : ''}"/></default-field></field>
+                        <field name="assigneeText"><default-field title="Assignees"><display/></default-field></field>
+                    </form-list>
+                    <section name="NoSubTasks" condition="!subTaskList.length"><widgets>
+                        <label type="p" text="No sub-tasks" style="m-muted q-pa-sm q-mb-none"/>
+                    </widgets></section>
+                </box-body-nopad></container-box>
+            </widgets></section>
+
+            <!-- ===== Time: the user's entries ===== -->
+            <section name="TimeTab" condition="tab == 'time'"><widgets>
+                <container-box><box-header title="My time"/>
+                    <box-toolbar>
+                        <section name="ClockActions" condition="canUpdate"><widgets>
+                            <section name="ClockOutAction" condition="openTimeEntry"><widgets>
+                                <link url="clockOut" link-type="hidden-form" btn-type="primary" text="Clock out" icon="sym_o_timer_off"
+                                        parameter-map="{workEffortId:workEffortId}"/>
+                            </widgets><fail-widgets>
+                                <link url="clockIn" link-type="hidden-form" text="Clock in" icon="sym_o_timer" parameter-map="{workEffortId:workEffortId}"/>
+                            </fail-widgets></section>
+                            <container-dialog id="TaskAddTimeDialog" button-text="Add time" icon="sym_o_more_time" width="480" title="Add time on ${task.workEffortName}">
+                                <form-single name="TaskAddTime" transition="addTime" focus-field="hours">
+                                    <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                    <field name="hours"><default-field title="Hours"><text-line size="6" input-type="number"/></default-field></field>
+                                    <field name="fromDate"><default-field title="From" tooltip="When the work started; empty: the hours up to now">
+                                        <date-time type="timestamp" format="yyyy-MM-dd HH:mm"/></default-field></field>
+                                    <field name="comments"><default-field title="What was done"><text-area rows="2" cols="50"/></default-field></field>
+                                    <field name="submitButton"><default-field title="Add time"><submit/></default-field></field>
+                                    <field-layout><field-row><field-ref name="hours"/><field-ref name="fromDate"/></field-row><field-ref name="comments"/>
+                                        <field-ref name="submitButton"/></field-layout>
+                                </form-single>
+                            </container-dialog>
+                        </widgets></section>
+                    </box-toolbar>
+                    <box-body-nopad>
+                        <section name="ClockedIn" condition="openTimeEntry"><widgets>
+                            <label type="p" text="Clocked in since ${openTimeEntry.dateText} ${openTimeEntry.fromText}" style="text-primary q-pa-sm q-mb-none"/>
+                        </widgets></section>
+                        <section name="ClockedInElsewhere" condition="otherOpenTimeEntry"><widgets>
+                            <container style="q-pa-sm text-body2">
+                                <label type="span" text="You are clocked in on " style="m-muted"/>
+                                <link url="${otherOpenTimeEntry.url}" url-type="plain" link-type="anchor" text="${otherOpenTimeEntry.workEffortName}"/>
+                                <label type="span" text=" since ${otherOpenTimeEntry.sinceText}" style="m-muted"/>
+                            </container>
+                        </widgets></section>
+                        <form-list name="TaskTime" list="timeEntryList" skip-form="true" paginate="false">
+                            <field name="dateText"><default-field title="Day"><display/></default-field></field>
+                            <field name="span"><default-field title="From – thru"><label text="${fromText} – ${thruText}" type="span" style="text-no-wrap"/></default-field></field>
+                            <field name="hoursText" align="right"><default-field title="Hours"><display/></default-field></field>
+                            <field name="comments"><default-field title="Comments"><display/></default-field></field>
+                            <field name="remove" align="right"><conditional-field condition="canDelete &amp;&amp; !isOpen" title="">
+                                <link url="deleteTime" link-type="hidden-form-link" icon="sym_o_delete" text="" tooltip="Remove" style="m-btn-flat"
+                                        confirmation="Remove this time entry?" parameter-map="{workEffortId:parentTaskId, timeEntryId:timeEntryId}"/>
+                            </conditional-field><default-field title=""><label text="" type="span"/></default-field></field>
+                        </form-list>
+                        <section name="NoTime" condition="!timeEntryList.length"><widgets>
+                            <label type="p" text="No time logged by you on this task" style="m-muted q-pa-sm q-mb-none"/>
+                        </widgets></section>
+                        <label type="p" text="Your time: ${myHoursText} h · the task's time: ${task.actualText || '0'} h" style="text-caption m-muted q-px-sm q-pb-sm q-mb-none"/>
+                    </box-body-nopad>
+                </container-box>
+            </widgets></section>
+
+            <!-- ===== Files ===== -->
+            <section name="FilesTab" condition="tab == 'files'"><widgets>
+                <record-files id="TaskFiles" record-entity="mantle.work.effort.WorkEffort" record-id="${workEffortId}"/>
+            </widgets></section>
+
+            <!-- ===== Chatter, a tab below 1440 px ===== -->
+            <section name="ChatterTab" condition="tab == 'chatter'"><widgets>
+                <chatter id="TaskChatterTab" record-entity="mantle.work.effort.WorkEffort" record-id="${workEffortId}" default-tab="log"/>
+            </widgets></section>
+        </widgets></section>
     </widgets>
 </screen>
