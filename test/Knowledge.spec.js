@@ -293,7 +293,7 @@ feature("delete takes a page with its files; a page with pages under it, or a sp
         deleted.json.parentPath == ""
         row == null
         gone.errors.includes("Page not found")
-        withChildren.errors.includes("has child pages")
+        withChildren.errors.includes("has pages under it")
         home.errors.includes("not deleted")
     },
 })
@@ -353,7 +353,7 @@ feature("Bob Developer reads the handbook but may not change, add to, tag, move 
         !view.canUpdate
         save.errors.includes("You may not change this page")
         // update#WikiPage's refusal
-        create.errors.includes("is not allowed")
+        create.errors.includes("may not add pages")
         tags.errors.includes("You may not change this page")
         move.errors.length > 0
         remove.errors.includes("You may not change this page")
