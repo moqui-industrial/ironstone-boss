@@ -1,0 +1,249 @@
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- RecordFiles (design-drawers-commons.md §9), the component RecordFiles.xml serves in the qvue render mode: the files of the
+    record that the record-files element names (inject: ['mRecordPanel']), through the transitions of RecordFiles.xml under the
+    current app root, which find the record under the user's filters first (IronStone R5): for a record the user may not see
+    the panel shows nothing and says so once in the console.
+
+    A box with the files (name, type chip, size, who and when, description), each previewed on a click (an image here, a PDF
+    in a tab, anything else downloads), downloaded or removed; Upload opens the drop zone with the file picker (several at
+    once), the type (the record's content type enumeration) and a description. Files dropped anywhere on the box go into the
+    upload. "Link an existing file" waits for Files and drives (M8). Chatter's Add on its attachments strip asks this panel to
+    open its upload (the document event m-record-files-add), and after a change this panel says so (m-record-files-changed),
+    so Chatter's strip and timeline follow. -->
+<template><div class="m-record-files-panel">
+    <m-container-box v-if="state !== 'hidden'" :title="t('Files') + (state === 'ready' && hasContent ? ' (' + fileCount + ')' : '')">
+        <template v-slot:toolbar>
+            <q-btn v-if="state === 'ready' && canUpload" dense flat no-caps color="primary" icon="sym_o_upload" :label="t('Upload')"
+                    @click="uploadOpen = !uploadOpen"></q-btn>
+            <span v-if="state === 'ready' && hasContent">
+                <q-btn dense flat round size="sm" icon="sym_o_add_link" disable :aria-label="t('Link an existing file')"></q-btn>
+                <q-tooltip>{{t('Link an existing file: comes with Files and drives')}}</q-tooltip>
+            </span>
+        </template>
+
+        <div v-if="state === 'loading'" class="q-gutter-y-sm">
+            <div v-for="n in 2" :key="n" class="row items-center no-wrap q-gutter-x-sm">
+                <q-skeleton type="QAvatar" size="24px"></q-skeleton>
+                <div class="col"><q-skeleton type="text" width="60%"></q-skeleton><q-skeleton type="text" width="40%"></q-skeleton></div>
+            </div>
+        </div>
+
+        <div v-else-if="state === 'ready'" @dragover.prevent="onDragOver" @dragleave="onDragLeave" @drop.prevent="onDrop">
+            <div v-if="!hasContent" class="text-body2 m-muted">{{t('This kind of record keeps no files.')}}</div>
+
+            <!-- the upload: drop zone and picker, type, description -->
+            <files-done v-if="hasContent && canUpload && uploadOpen" :key="'upload' + uploadKey" :done="afterUpload">
+                <m-form ref="uploadForm" :action="action('upload')" :fields-initial="uploadInitial" v-slot="formProps" class="q-mb-sm">
+                    <div class="q-pa-sm text-center rounded-borders" :class="dragOver ? 'text-primary' : 'm-muted'" style="border:2px dashed">
+                        <q-icon name="sym_o_upload_file" size="md"></q-icon>
+                        <div class="text-body2">{{t('Drop files here, or choose them')}}</div>
+                        <m-file v-model="formProps.fields.contentFile" name="contentFile" multiple :label="t('Files')" class="q-mt-xs text-left"></m-file>
+                    </div>
+                    <div class="row q-gutter-xs q-mt-xs">
+                        <m-drop-down v-if="typeOptions.length" v-model="formProps.fields.contentTypeEnumId" name="contentTypeEnumId" :options="typeOptions"
+                                allow-empty :label="t('Type')"></m-drop-down>
+                        <m-text-line v-model="formProps.fields.description" name="description" :label="t('Description')" class="col"></m-text-line>
+                    </div>
+                    <div class="row q-gutter-sm q-mt-xs">
+                        <q-btn type="submit" dense unelevated no-caps color="primary" icon="sym_o_upload" :label="t('Upload')"></q-btn>
+                        <q-btn dense flat no-caps :label="t('Cancel')" @click="uploadOpen = false"></q-btn>
+                    </div>
+                </m-form>
+            </files-done>
+
+            <q-list v-if="files.length" dense separator>
+                <q-item v-for="file in files" :key="file.contentKey" class="q-px-xs">
+                    <q-item-section avatar class="m-record-file-icon">
+                        <q-icon :name="file.icon" :color="file.isImage ? 'primary' : (file.isPdf ? 'negative' : undefined)"></q-icon>
+                    </q-item-section>
+                    <q-item-section>
+                        <q-item-label class="ellipsis">
+                            <a v-if="file.hasFile" href="#" class="text-primary" @click.prevent="openFile(file)">{{file.fileName}}</a>
+                            <span v-else class="m-muted">{{file.fileName}}</span>
+                        </q-item-label>
+                        <q-item-label caption class="row items-center no-wrap">
+                            <q-chip v-if="file.typeLabel" dense square class="m-tonal q-ml-none q-my-none">{{file.typeLabel}}</q-chip>
+                            <span class="ellipsis">{{metaText(file)}}<q-tooltip v-if="file.dateFull">{{file.dateFull}}</q-tooltip></span>
+                        </q-item-label>
+                        <q-item-label v-if="file.description" caption class="ellipsis-2-lines">{{file.description}}</q-item-label>
+                    </q-item-section>
+                    <q-item-section side>
+                        <div class="row no-wrap">
+                            <q-btn v-if="file.hasFile" flat round dense size="sm" icon="sym_o_download" :aria-label="t('Download')" @click="download(fileUrl(file, false))">
+                                <q-tooltip>{{t('Download')}}</q-tooltip></q-btn>
+                            <q-btn v-if="file.canRemove" flat round dense size="sm" color="negative" icon="sym_o_delete" :aria-label="t('Remove')"
+                                    :data-confirm="t('Remove') + ' ' + file.fileName + '?'" @click="remove(file)">
+                                <q-tooltip>{{t('Remove')}}</q-tooltip></q-btn>
+                        </div>
+                    </q-item-section>
+                </q-item>
+            </q-list>
+            <div v-else-if="hasContent && !uploadOpen" class="text-body2 m-muted q-pa-xs">
+                {{canUpload ? t('No files yet. Drop files here or use Upload.') : t('No files yet.')}}
+            </div>
+        </div>
+    </m-container-box>
+
+    <m-dialog v-model="preview.open" :title="preview.name" width="900">
+        <div class="text-center"><img v-if="preview.src" :src="preview.src" :alt="preview.name" style="max-width:100%;max-height:70vh"></div>
+        <div class="row q-mt-sm"><q-space></q-space>
+            <q-btn flat dense no-caps color="primary" icon="sym_o_download" :label="t('Download')" :href="preview.download" type="a"></q-btn></div>
+    </m-dialog>
+</div></template>
+
+<script>
+const unwrap = (value) => (value && value.__v_isRef ? value.value : value);
+module.exports = {
+    name: 'BossRecordFiles',
+    inject: { mRecordPanel: { default: null } },
+    components: {
+        // the upload form's scope: m-form calls mSubmitHide.hide() after an answer without errors (webroot js/README.md)
+        'files-done': {
+            props: { done: Function },
+            provide() { return { mSubmitHide: { hide: () => { if (this.done) this.done(); } } }; },
+            template: '<div><slot></slot></div>'
+        }
+    },
+    data() {
+        return {
+            state: 'loading', record: null, hasContent: false, canUpload: false, files: [], fileCount: 0, typeOptions: [], defaultTypeId: null,
+            uploadOpen: false, uploadKey: 0, dragOver: false, pendingFiles: null, preview: { open: false, src: '', name: '', download: '' },
+            loggedHidden: false, requestSeq: 0
+        };
+    },
+    computed: {
+        panel() { return unwrap(this.mRecordPanel) || {}; },
+        recordEntity() { return this.panel.recordEntity || ''; },
+        recordId() { return this.panel.recordId || ''; },
+        panelKey() { return this.recordEntity + '|' + this.recordId + '|' + (this.panel.appRoot || ''); },
+        // <basePath>/<app root>/<RecordFiles subscreen>, where the transitions are
+        base() {
+            const shell = (this.$root.shellData && this.$root.shellData.shell) || {};
+            return this.$root.basePath + '/' + (this.panel.appRoot || this.$root.currentAppName) + '/' + (shell.recordFilesScreen || 'RecordFiles');
+        },
+        common() { return { recordEntity: this.recordEntity, recordId: this.recordId }; },
+        uploadInitial() {
+            return Object.assign({ contentFile: this.pendingFiles || [], contentTypeEnumId: this.defaultTypeId || '', description: '' }, this.common);
+        }
+    },
+    watch: {
+        panelKey() { this.state = 'loading'; this.files = []; this.loggedHidden = false; this.load(); }
+    },
+    methods: {
+        t(text) { return moqui.l10n && moqui.l10n.localize ? moqui.l10n.localize(text) : text; },
+        url(name) { return this.base + '/' + name; },
+        action(name) {
+            const rootPath = this.$root.appRootPath || '';
+            const path = this.url(name);
+            return rootPath && path.indexOf(rootPath) === 0 ? path.slice(rootPath.length) : path;
+        },
+        load() {
+            if (!this.recordEntity || !this.recordId) { this.state = 'hidden'; return; }
+            const seq = ++this.requestSeq;
+            moqui.request(this.url('filesData'), { params: this.common }).then((result) => {
+                if (seq !== this.requestSeq) return;
+                const json = result.json || {};
+                if (!json.visible) { this.hide('the record is not visible to this user'); return; }
+                this.record = json.record || {};
+                this.hasContent = !!json.hasContent;
+                this.canUpload = !!json.canUpload;
+                this.files = json.fileList || [];
+                this.fileCount = json.fileCount || 0;
+                this.typeOptions = json.typeOptions || [];
+                this.defaultTypeId = json.defaultTypeId || null;
+                if (this.panel.upload && this.state === 'loading') this.uploadOpen = this.canUpload;
+                this.state = 'ready';
+            }, (err) => {
+                if (seq !== this.requestSeq) return;
+                this.hide('the panel did not load (status ' + (err && err.status) + ')');
+            });
+        },
+        hide(reason) {
+            this.state = 'hidden';
+            if (this.loggedHidden) return;
+            this.loggedHidden = true;
+            console.info('RecordFiles of ' + this.recordEntity + ' ' + this.recordId + ' shows nothing: ' + reason);
+        },
+        metaText(file) { return [file.sizeText, file.byName, file.dateText].filter((part) => part).join(' · '); },
+        afterUpload() {
+            this.uploadOpen = !!this.panel.upload;
+            this.pendingFiles = null;
+            this.uploadKey += 1;
+            this.load();
+            this.changed();
+        },
+        changed() {
+            document.dispatchEvent(new CustomEvent('m-record-files-changed', { detail: { recordEntity: this.recordEntity, recordId: this.recordId } }));
+        },
+        remove(file) {
+            moqui.request(this.url('remove'), { method: 'POST', params: Object.assign({ contentKey: file.contentKey }, this.common) }).then((result) => {
+                const json = result.json || {};
+                moqui.notifyMessages(json.messageInfos, json.errors);
+                this.load();
+                this.changed();
+            }, moqui.handleAjaxError);
+        },
+        fileUrl(file, inline) {
+            return this.url('download') + '?' + moqui.objToSearch(Object.assign({ contentKey: file.contentKey, inline: inline ? 'true' : 'false' }, this.common));
+        },
+        openFile(file) {
+            if (file.isImage) this.preview = { open: true, src: this.fileUrl(file, true), name: file.fileName, download: this.fileUrl(file, false) };
+            else if (file.isPdf) window.open(this.fileUrl(file, true), '_blank', 'noopener');
+            else this.download(this.fileUrl(file, false));
+        },
+        download(href) {
+            const link = document.createElement('a');
+            link.href = href;
+            link.setAttribute('download', '');
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        },
+        // files dropped on the box go into the upload form, opened for them
+        onDragOver(event) {
+            if (!this.canUpload || !event.dataTransfer || !Array.from(event.dataTransfer.types || []).includes('Files')) return;
+            this.dragOver = true;
+        },
+        onDragLeave() { this.dragOver = false; },
+        onDrop(event) {
+            this.dragOver = false;
+            const dropped = event.dataTransfer ? Array.from(event.dataTransfer.files || []) : [];
+            if (!this.canUpload || !dropped.length) return;
+            const form = this.$refs.uploadForm;
+            if (this.uploadOpen && form && form.fields) {
+                const current = Array.isArray(form.fields.contentFile) ? form.fields.contentFile : [];
+                form.fields.contentFile = current.concat(dropped);
+            } else {
+                this.pendingFiles = dropped;
+                this.uploadKey += 1;
+                this.uploadOpen = true;
+            }
+        },
+        // Chatter's Add: open the upload of this record, here
+        onAddRequest(event) {
+            const detail = event.detail || {};
+            if (detail.recordEntity !== this.recordEntity || String(detail.recordId) !== String(this.recordId) || this.state !== 'ready' || !this.canUpload) return;
+            detail.handled = true;
+            this.uploadOpen = true;
+            this.$nextTick(() => { if (this.$el && this.$el.scrollIntoView) this.$el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); });
+        }
+    },
+    mounted() {
+        document.addEventListener('m-record-files-add', this.onAddRequest);
+        this.load();
+    },
+    beforeUnmount() { document.removeEventListener('m-record-files-add', this.onAddRequest); }
+};
+</script>

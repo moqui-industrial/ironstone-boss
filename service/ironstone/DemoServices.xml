@@ -12,7 +12,8 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- The demo of IronStone Commons M2 (data/BossDemoData.xml calls load#CommonsDemo, as the element ironstone.DemoServices.load-CommonsDemo): john.doe's Today and notifications with
+<!-- The demo of IronStone Commons M2 and M3 (data/BossDemoData.xml calls load#CommonsDemo and load#ChatterDemo, as the elements
+    ironstone.DemoServices.load-CommonsDemo and load-ChatterDemo): john.doe's Today and notifications with
     dates relative to the load, so the Today and Notifications panels and Commons Home have content on the day the demo data
     is loaded, and the demo approval topic's decision services. Only the BOSS_DEMO_* records are written; loading again
     moves their dates to the new day. -->
@@ -132,6 +133,134 @@ along with this software (see the LICENSE.md file). If not, see
             notification('BOSS_DEMO_NM_UPDATE_OLD', Object.assign({topic: 'RecordFollow', reasonEnumId: 'NrComment', actorUserId: 'ORG_ZIZI_BD', appName: 'Commons',
                 sentDate: hours(50), titleText: 'Bob Developer on Request BOSS_DEMO_REQUEST: the old calendar export is attached',
                 messageJson: {recordName: 'Set up the shared team calendar', authorName: 'Bob Developer', summary: 'the old calendar export is attached'}}, request), hours(48))
+        ]]></script></actions>
+    </service>
+
+    <service verb="load" noun="ChatterDemo" authenticate="anonymous-all" allow-remote="false">
+        <description>Stores the Chatter and record files of the demo request, task and event (IronStone M3), so their timelines
+            and files have content: on the request (BOSS_DEMO_REQUEST) two notes, an email from Bob Acme with its quoted text, a
+            call done, a status change, two files (a text file and a picture of the calendar) and two followers (john.doe and
+            Joe Developer), with the planned call of load#CommonsDemo; on the task (BOSS_DEMO_TASK) a note, an email to send in
+            two days, a to-do done and a file; on the event (BOSS_DEMO_EVENT) a note, a to-do in three days and an agenda. The
+            past entries have fixed dates in October 2026, the planned ones are dated from the load; nothing notifies anyone.
+            Only BOSS_DEMO_* records are written; loading again moves the planned dates.</description>
+        <out-parameters><parameter name="communicationEventIdList" type="List"/><parameter name="workEffortIdList" type="List"/></out-parameters>
+        <actions><script><![CDATA[
+            communicationEventIdList = []
+            workEffortIdList = []
+            if (ec.entity.find('mantle.party.Party').condition('partyId', 'EX_JOHN_DOE').disableAuthz().one() == null) {
+                ec.logger.warn('The Chatter demo needs the party EX_JOHN_DOE (mantle-usl demo data); nothing loaded')
+                return
+            }
+            const pattern = 'yyyy-MM-dd HH:mm:ss.SSS'
+            const ts = (text) => ec.l10n.parseTimestamp(text + ':00.000', pattern)
+            const toMillis = (value) => {
+                if (value == null || value === '') return null
+                if (typeof value === 'number') return value
+                if (value instanceof Date) return value.getTime()
+                const text = String(value)
+                return /^-?\d+$/.test(text) ? Number(text) : Date.parse(text)
+            }
+            const nowMillis = toMillis(ec.user.nowTimestamp)
+            const dayText = (millis) => ec.l10n.format(String(millis), 'yyyy-MM-dd')
+            // a day from today at a time: a day is 23 to 25 hours, so 30 hours after a day's start is in the next one
+            const inDays = (days, time) => {
+                let text = dayText(nowMillis)
+                for (let i = 0; i < days; i++) text = dayText(toMillis(ts(text + ' 00:00')) + 30 * 3600000)
+                return ts(text + ' ' + time)
+            }
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try {
+                const store = (entityName, fields) => ec.service.sync().name('store#' + entityName).parameters(fields).call()
+                const request = {entity: 'mantle.request.RequestCommEvent', keys: {requestId: 'BOSS_DEMO_REQUEST'}}
+                const task = {entity: 'mantle.work.effort.WorkEffortCommEvent', keys: {workEffortId: 'BOSS_DEMO_TASK'}}
+                const event = {entity: 'mantle.work.effort.WorkEffortCommEvent', keys: {workEffortId: 'BOSS_DEMO_EVENT'}}
+                const note = (id, from, date, body, on) => {
+                    store('mantle.party.communication.CommunicationEvent', {communicationEventId: id, communicationEventTypeId: 'Comment',
+                        contactMechTypeEnumId: 'CmtWebForm', statusId: 'CeSent', fromPartyId: from, entryDate: ts(date), contentType: 'text/html', body: body})
+                    store(on.entity, Object.assign({communicationEventId: id}, on.keys))
+                    communicationEventIdList.push(id)
+                }
+
+                // the request: notes, an email with its quoted text, the message of the Comms demo, a call done, a status change
+                note('BOSS_DEMO_CE_NOTE1', 'ORG_ZIZI_JD', '2026-10-02 10:15', '<p>Contractors should get <strong>view</strong> access only. ' +
+                    '<span data-mention-id="EX_JOHN_DOE">@John Doe</span>, can you confirm that with Bob?</p>', request)
+                store('mantle.party.communication.CommunicationEvent', {communicationEventId: 'BOSS_DEMO_CE_EMAIL1', communicationEventTypeId: 'Email',
+                    contactMechTypeEnumId: 'CmtEmailAddress', statusId: 'CeReceived', fromPartyId: 'ORG_ACME_BA', toPartyId: 'EX_JOHN_DOE',
+                    entryDate: ts('2026-10-02 16:40'), subject: 'Re: The shared team calendar', contentType: 'text/plain',
+                    body: 'Hi John,\n\nYes, view access for the contractors is fine. Please add the two meeting rooms as well.\n\nThanks,\nBob\n\n' +
+                        'On Thu, Oct 2, 2026 at 11:02 AM John Doe wrote:\n> Bob, should the contractors see the shared calendar?\n' +
+                        '> We can give them view access only.'})
+                store(request.entity, Object.assign({communicationEventId: 'BOSS_DEMO_CE_EMAIL1'}, request.keys))
+                communicationEventIdList.push('BOSS_DEMO_CE_EMAIL1')
+                note('BOSS_DEMO_CE_NOTE2', 'EX_JOHN_DOE', '2026-10-03 09:30', '<p>Confirmed with Bob: view access for the contractors, and the ' +
+                    'two meeting rooms as resources.</p><ul><li>Room A, 8 seats</li><li>Room B, 12 seats</li></ul>', request)
+                store(request.entity, Object.assign({communicationEventId: 'BOSS_DEMO_MESSAGE'}, request.keys))
+                store('mantle.work.effort.WorkEffort', {workEffortId: 'BOSS_DEMO_DONE_CALL', workEffortTypeEnumId: 'WetTask', purposeEnumId: 'WepPhoneCall',
+                    statusId: 'WeComplete', resolutionEnumId: 'WerCompleted', priority: 5, ownerPartyId: 'EX_JOHN_DOE', timeUomId: 'TF_hr',
+                    workEffortName: 'Call Bob Acme about the calendar options', description: 'Bob prefers the option with room booking.',
+                    estimatedCompletionDate: ts('2026-10-02 11:00'), actualCompletionDate: ts('2026-10-02 11:20')})
+                store('mantle.work.effort.WorkEffortParty', {workEffortId: 'BOSS_DEMO_DONE_CALL', partyId: 'EX_JOHN_DOE', roleTypeId: 'Assignee',
+                    fromDate: ts('2026-10-01 09:00'), statusId: 'WeptAssigned'})
+                store('mantle.request.RequestWorkEffort', {requestId: 'BOSS_DEMO_REQUEST', workEffortId: 'BOSS_DEMO_DONE_CALL'})
+                workEffortIdList.push('BOSS_DEMO_DONE_CALL')
+                // an audit log row is create-only: written once
+                if (ec.entity.find('moqui.entity.EntityAuditLog').condition('auditHistorySeqId', 'BOSS_DEMO_AUDIT_REQ1').one() == null)
+                    ec.service.sync().name('create#moqui.entity.EntityAuditLog').parameters({auditHistorySeqId: 'BOSS_DEMO_AUDIT_REQ1',
+                        changedEntityName: 'mantle.request.Request', changedFieldName: 'statusId', pkPrimaryValue: 'BOSS_DEMO_REQUEST',
+                        oldValueText: 'ReqDraft', newValueText: 'ReqSubmitted', changedDate: ts('2026-10-01 09:05'), changedByUserId: 'EX_JOHN_DOE'}).call()
+                for (const userId of ['EX_JOHN_DOE', 'ORG_ZIZI_JD']) store('mantle.party.communication.RecordFollower', {recordEntityName: 'mantle.request.Request',
+                    recordId: 'BOSS_DEMO_REQUEST', userId: userId, fromDate: ts('2026-10-01 09:00'), notifyMessages: 'Y', notifyNotes: 'Y',
+                    notifyActivities: 'Y', notifyChanges: 'N'})
+
+                // the files: the content rows and their files in the database resources
+                const root = 'dbresource://mantle/content'
+                const file = (entityName, idField, id, fields, folder, name, content) => {
+                    const location = `${root}/${folder}/content_${id}/${name}`
+                    const ref = ec.resource.getLocationReference(location)
+                    if (content.copyFrom) ref.copyFrom(content.copyFrom)
+                    else ref.putText(content.text)
+                    store(entityName, Object.assign({[idField]: id, contentLocation: location, userId: 'EX_JOHN_DOE'}, fields))
+                }
+                file('mantle.request.RequestContent', 'requestContentId', 'BOSS_DEMO_RC_OPTIONS', {requestId: 'BOSS_DEMO_REQUEST',
+                    contentTypeEnumId: 'RqCntInternal', contentDate: ts('2026-10-02 12:00'), description: 'The three calendar options compared'},
+                    'request/BOSS_DEMO_REQUEST', 'calendar-options.txt', {text: 'Calendar options for the team\n\n' +
+                        '1. Shared calendar in Commons: free, room booking, view-only sharing for contractors\n' +
+                        '2. Hosted calendar service: USD 120.00 a year, room booking\n3. Paper wall planner: no sharing\n'})
+                file('mantle.request.RequestContent', 'requestContentId', 'BOSS_DEMO_RC_PICTURE', {requestId: 'BOSS_DEMO_REQUEST',
+                    contentTypeEnumId: 'RqCntInternal', contentDate: ts('2026-10-03 09:40'), description: 'How the shared calendar will look'},
+                    'request/BOSS_DEMO_REQUEST', 'team-calendar.png', {copyFrom: 'component://ironstone-boss/data/demo/team-calendar.png'})
+
+                // the task: a note, a to-do done, an email planned in two days, a file
+                note('BOSS_DEMO_CE_NOTE3', 'EX_JOHN_DOE', '2026-10-06 14:00', '<p>Three requests are open; two wait on the customer.</p>', task)
+                const activity = (id, fields, on) => {
+                    store('mantle.work.effort.WorkEffort', Object.assign({workEffortId: id, workEffortTypeEnumId: 'WetTask', resolutionEnumId: 'WerUnresolved',
+                        priority: 5, ownerPartyId: 'EX_JOHN_DOE', timeUomId: 'TF_hr'}, fields))
+                    store('mantle.work.effort.WorkEffortParty', {workEffortId: id, partyId: 'EX_JOHN_DOE', roleTypeId: 'Assignee',
+                        fromDate: ts('2026-10-01 09:00'), statusId: 'WeptAssigned'})
+                    store('mantle.work.effort.WorkEffortRecord', {workEffortId: id, recordEntityName: 'mantle.work.effort.WorkEffort', recordId: on,
+                        linkedByUserId: 'EX_JOHN_DOE', linkedDate: ts('2026-10-06 14:05')})
+                    workEffortIdList.push(id)
+                }
+                activity('BOSS_DEMO_TASK_DONE', {purposeEnumId: 'WepToDo', statusId: 'WeComplete', resolutionEnumId: 'WerCompleted',
+                    workEffortName: 'Sort the open requests by customer', estimatedCompletionDate: ts('2026-10-06 15:00'),
+                    actualCompletionDate: ts('2026-10-06 15:10')}, 'BOSS_DEMO_TASK')
+                activity('BOSS_DEMO_TASK_EMAIL', {purposeEnumId: 'WepEmail', statusId: 'WeInPlanning', workEffortName: 'Email the customers waiting on an answer',
+                    estimatedCompletionDate: inDays(2, '10:00'), actualCompletionDate: null}, 'BOSS_DEMO_TASK')
+                file('mantle.work.effort.WorkEffortContent', 'workEffortContentId', 'BOSS_DEMO_WC_LIST', {workEffortId: 'BOSS_DEMO_TASK',
+                    contentTypeEnumId: 'WectSupportingMedia', contentDate: ts('2026-10-06 14:30'), description: 'The open requests'},
+                    'work/BOSS_DEMO_TASK', 'open-requests.csv', {text: 'requestId,name,customer\nBOSS_DEMO_REQUEST,Set up the shared team calendar,Bob Acme\n'})
+
+                // the event: a note, a to-do planned in three days, an agenda
+                note('BOSS_DEMO_CE_NOTE4', 'ORG_ZIZI_JD', '2026-10-07 08:45', '<p>Agenda: the calendar rollout, then the open requests.</p>', event)
+                activity('BOSS_DEMO_EVENT_TODO', {purposeEnumId: 'WepToDo', statusId: 'WeInPlanning', workEffortName: 'Book the large meeting room',
+                    estimatedCompletionDate: inDays(3, '12:00'), actualCompletionDate: null}, 'BOSS_DEMO_EVENT')
+                file('mantle.work.effort.WorkEffortContent', 'workEffortContentId', 'BOSS_DEMO_WC_AGENDA', {workEffortId: 'BOSS_DEMO_EVENT',
+                    contentTypeEnumId: 'WectSupportingMedia', contentDate: ts('2026-10-07 08:50'), description: 'Agenda of the weekly meeting'},
+                    'work/BOSS_DEMO_EVENT', 'agenda.txt', {text: 'Weekly team meeting\n\n1. Calendar rollout\n2. Open requests\n3. Anything else\n'})
+            } finally {
+                if (!wasDisabled) ec.artifactExecution.enableAuthz()
+            }
         ]]></script></actions>
     </service>
 

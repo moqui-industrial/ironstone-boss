@@ -12,10 +12,191 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for Chatter: design-drawers-commons.md §15, panel archetype, qvue, scope parity. -->
+<!-- Chatter (design-drawers-commons.md §15; style-guide §3.14 Panel, §4.8 .qvue): the timeline beside a record. Every BOSS
+    app root mounts this file hidden as its Chatter subscreen (the theme value STRT_CHATTER_SCREEN), and the chatter element of
+    a record screen loads it there as its own request, <app>/Chatter.qvue?recordEntity=&recordId=&appRoot=&defaultTab=&hide=,
+    so the app's authorization and entity filters apply (IronStone R5). The component is Chatter.qvue next to this file; it
+    reads the record and the hints with inject: ['mRecordPanel'] and calls the JSON transitions below, each of which first
+    finds the record under the user's filters (service/ironstone/ChatterServices.xml): a read answers {visible: false} and the
+    panel shows nothing, a write is refused. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Chatter" default-menu-include="false">
+        default-menu-title="Chatter" default-menu-include="false" render-modes="vue,qvue" server-static="vue,qvue">
+
+    <parameter name="recordEntity"/>
+    <parameter name="recordId"/>
+    <parameter name="appRoot"/>
+    <parameter name="defaultTab"/>
+    <parameter name="hide"/>
+
+    <!-- ========== Reads ========== -->
+
+    <!-- the panel apart from the timeline: record, user, followers, planned activities, files strip, parties -->
+    <transition name="chatterData" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.ChatterServices.get#ChatterData').parameters({recordEntityName: recordEntity || '',
+                recordId: recordId || ''}).call()
+            if (ec.message.hasError()) ec.web.sendJsonResponse({})
+            else if (!out.visible) ec.web.sendJsonResponse({visible: false})
+            else ec.web.sendJsonResponse({visible: true, record: out.record, me: out.me, canMessage: out.canMessage, canSchedule: out.canSchedule,
+                mayUpdate: out.mayUpdate, followerList: out.followerList, isFollowing: out.isFollowing, myKinds: out.myKinds,
+                plannedActivities: out.plannedActivities, fileList: out.fileList, fileCount: out.fileCount, hasContent: out.hasContent,
+                partyList: out.partyList, failedSources: out.failedSources})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- a page of the timeline: kinds (all, messages, notes, activities, changes, files), beforeDate (epoch millis) -->
+    <transition name="timeline" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.ChatterServices.get#Timeline').parameters({recordEntityName: recordEntity || '',
+                recordId: recordId || '', kinds: kinds || null, beforeDate: beforeDate || null, pageSize: pageSize || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {entryList: out.entryList, hasMore: out.hasMore, nextBeforeDate: out.nextBeforeDate,
+                failedSources: out.failedSources})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- the people of the @ mentions (GET) and of the user drop-downs (POST): [{id, value, label, partyId}] -->
+    <transition name="searchUsers" read-only="true">
+        <actions>
+            <service-call name="ironstone.ChatterServices.search#Users" in-map="{term:term}" out-map="found"/>
+            <script>ec.web.sendJsonResponse(found.userList || [])</script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- the card of a record for m-record-card (webroot js/README.md, Record cards) -->
+    <transition name="recordCard" read-only="true">
+        <actions>
+            <service-call name="ironstone.ChatterServices.get#RecordCard" in-map="{recordEntityName:recordEntity, recordId:recordId}" out-map="cardOut"/>
+            <script>ec.web.sendJsonResponse(ec.message.hasError() ? {} : (cardOut.card || {}))</script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- a file of the record (its contentKey), inline for an image or a PDF when asked, else as a download -->
+    <transition name="downloadFile" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.RecordFilesServices.get#RecordFile').parameters({recordEntityName: recordEntity || '',
+                recordId: recordId || '', contentKey: contentKey || ''}).call()
+            if (!ec.message.hasError() && !out.contentLocation) ec.message.addError(ec.l10n.localize('This file has no content'))
+            if (ec.message.hasError()) ec.web.sendJsonResponse({})
+            else ec.web.sendResourceResponse(out.contentLocation, String(inline) === 'true' && out.inlineAllowed)
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- an attachment of a message or note on the record -->
+    <transition name="attachment" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.ChatterServices.get#Attachment').parameters({recordEntityName: recordEntity || '',
+                recordId: recordId || '', communicationEventContentId: communicationEventContentId || ''}).call()
+            if (ec.message.hasError()) ec.web.sendJsonResponse({})
+            else ec.web.sendResourceResponse(out.contentLocation, String(inline) === 'true' && out.inlineAllowed)
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+
+    <!-- ========== Writes: each answers JSON messageInfos, or an error the panel shows ========== -->
+
+    <transition name="logNote">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.ChatterServices.log#Note').parameters({recordEntityName: recordEntity, recordId: recordId,
+                body: body, recordUrl: recordUrl || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {communicationEventId: out.communicationEventId,
+                messageInfos: [{type: 'success', message: out.message}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="sendMessage">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.ChatterServices.send#Message').parameters({recordEntityName: recordEntity, recordId: recordId,
+                toUserIds: toUserIds || null, subject: subject || null, body: body, recordUrl: recordUrl || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {communicationEventId: out.communicationEventId,
+                messageInfos: [{type: 'success', message: out.message}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="reply">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.ChatterServices.reply#Entry').parameters({recordEntityName: recordEntity, recordId: recordId,
+                parentCommEventId: parentCommEventId, body: body, recordUrl: recordUrl || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {communicationEventId: out.communicationEventId,
+                messageInfos: [{type: 'success', message: out.message}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="unlink">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.ChatterServices.unlink#Entry').parameters({recordEntityName: recordEntity, recordId: recordId,
+                communicationEventId: communicationEventId}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {unlinked: out.unlinked,
+                messageInfos: [{type: out.unlinked ? 'success' : 'warning', message: out.message}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="scheduleActivity">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.ChatterServices.schedule#Activity').parameters({recordEntityName: recordEntity, recordId: recordId,
+                activityType: activityType, workEffortName: workEffortName, dueDate: dueDate || null, endDate: endDate || null,
+                assignToPartyId: assignToPartyId || null, description: description || null, recordUrl: recordUrl || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {workEffortId: out.workEffortId, url: out.url,
+                messageInfos: [{type: 'success', message: out.message, link: out.url}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="markDone">
+        <actions><script><![CDATA[
+            const next = scheduleNext === 'Y'
+            const out = ec.service.sync().name('ironstone.ChatterServices.complete#Activity').parameters({recordEntityName: recordEntity, recordId: recordId,
+                workEffortId: workEffortId, feedback: feedback || null, nextActivityType: next ? (nextActivityType || null) : null,
+                nextName: next ? (nextName || null) : null, nextDueDate: next ? (nextDueDate || null) : null, recordUrl: recordUrl || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {communicationEventId: out.communicationEventId, nextWorkEffortId: out.nextWorkEffortId,
+                messageInfos: [{type: 'success', message: out.message}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="updateActivity">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.ChatterServices.update#Activity').parameters({recordEntityName: recordEntity, recordId: recordId,
+                workEffortId: workEffortId, workEffortName: workEffortName, dueDate: dueDate || null, endDate: endDate || null,
+                description: description || null, assignToPartyId: assignToPartyId || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: out.message}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="cancelActivity">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.ChatterServices.cancel#Activity').parameters({recordEntityName: recordEntity, recordId: recordId,
+                workEffortId: workEffortId}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: out.message}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="follow">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.ChatterServices.follow#Record').parameters({recordEntityName: recordEntity, recordId: recordId,
+                kinds: kinds || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: out.message}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="unfollow">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.ChatterServices.unfollow#Record').parameters({recordEntityName: recordEntity, recordId: recordId,
+                userId: userId || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: out.message}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="addFollowers">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.ChatterServices.add#Followers').parameters({recordEntityName: recordEntity, recordId: recordId,
+                userIds: userIds || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {addedUserIds: out.addedUserIds, messageInfos: [{type: 'success', message: out.message}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+
     <widgets>
-        <label text="Placeholder: The timeline beside every record: messages and notes, scheduled activities, attachments, followers, changes; send email, log a note, schedule an activity from the record." type="p"/>
+        <render-mode>
+            <text type="qvue" location="component://ironstone-boss/screen/Shared/Chatter.qvue" template="false"/>
+            <text type="html,qvt"><![CDATA[<p class="m-muted">Chatter is a panel: a record screen's chatter element loads it under /qapps.</p>]]></text>
+        </render-mode>
     </widgets>
 </screen>

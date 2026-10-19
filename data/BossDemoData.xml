@@ -76,4 +76,8 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the tasks, activity, meeting and notifications, dated from the day the data is loaded (after the records above, which
         it changes: the demo request's response is due today) -->
     <ironstone.DemoServices.load-CommonsDemo/>
+
+    <!-- M3: the Chatter and files of the demo request, task and event (notes, an email, activities done and planned, a status
+        change, files and followers), after the records above and the Today demo, whose planned call is on the request -->
+    <ironstone.DemoServices.load-ChatterDemo/>
 </entity-facade-xml>

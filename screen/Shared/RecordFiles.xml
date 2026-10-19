@@ -12,10 +12,69 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for RecordFiles: design-drawers-commons.md §9, panel archetype, qvue, scope parity. -->
+<!-- RecordFiles (design-drawers-commons.md §9 RecordFiles; style-guide §3.14 Panel, §4.8 .qvue): the files of a record. Every
+    BOSS app root mounts this file hidden as its RecordFiles subscreen (the theme value STRT_RECORD_FILES_SCREEN), and the
+    record-files element loads it there as its own request, <app>/RecordFiles.qvue?recordEntity=&recordId=&appRoot=, so the
+    app's authorization and entity filters apply (IronStone R5). The component is RecordFiles.qvue next to this file. Until
+    Files and drives (M8) the files are the record's *Content rows, through service/ironstone/RecordFilesServices.xml: list,
+    upload (dispatched to the record type's Mantle create#XContent and save#XContentFile), preview and download, remove. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Files" default-menu-include="false">
+        default-menu-title="Files" default-menu-include="false" render-modes="vue,qvue" server-static="vue,qvue">
+
+    <parameter name="recordEntity"/>
+    <parameter name="recordId"/>
+    <parameter name="appRoot"/>
+
+    <!-- the record's files and the upload's type options; {visible: false} for a record the user may not see -->
+    <transition name="filesData" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const recordOut = ec.service.sync().name('ironstone.ChatterServices.get#RecordInfo').parameters({recordEntityName: recordEntity || '',
+                recordId: recordId || ''}).call()
+            if (!recordOut.visible) { ec.web.sendJsonResponse({visible: false}); return }
+            const out = ec.service.sync().name('ironstone.RecordFilesServices.get#RecordFiles').parameters({recordEntityName: recordEntity,
+                recordId: recordId}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {visible: true, record: {title: recordOut.title, typeLabel: recordOut.typeLabel},
+                hasContent: out.hasContent, canUpload: out.canUpload, fileList: out.fileList, fileCount: out.fileCount, typeOptions: out.typeOptions,
+                defaultTypeId: out.defaultTypeId})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- add files (contentFile, one or several), with a type and a description -->
+    <transition name="upload">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.RecordFilesServices.upload#RecordFile').parameters({recordEntityName: recordEntity,
+                recordId: recordId, contentFile: contentFile || null, contentTypeEnumId: contentTypeEnumId || null, description: description || null}).call()
+            if (ec.message.hasError()) { ec.web.sendJsonResponse({}); return }
+            const infos = [{type: 'success', message: out.message}]
+            for (const failed of Array.from(out.failedList || [])) infos.push({type: 'warning', message: failed.fileName + ': ' + failed.error})
+            ec.web.sendJsonResponse({createdList: out.createdList, failedList: out.failedList, messageInfos: infos})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="remove">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.RecordFilesServices.remove#RecordFile').parameters({recordEntityName: recordEntity,
+                recordId: recordId, contentKey: contentKey}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: out.message}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- a file, inline for an image or a PDF when asked, else as a download -->
+    <transition name="download" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.RecordFilesServices.get#RecordFile').parameters({recordEntityName: recordEntity || '',
+                recordId: recordId || '', contentKey: contentKey || ''}).call()
+            if (!ec.message.hasError() && !out.contentLocation) ec.message.addError(ec.l10n.localize('This file has no content'))
+            if (ec.message.hasError()) ec.web.sendJsonResponse({})
+            else ec.web.sendResourceResponse(out.contentLocation, String(inline) === 'true' && out.inlineAllowed)
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+
     <widgets>
-        <label text="Placeholder: The Files component scoped to a record: list, upload, preview, share, link an existing file." type="p"/>
+        <render-mode>
+            <text type="qvue" location="component://ironstone-boss/screen/Shared/RecordFiles.qvue" template="false"/>
+            <text type="html,qvt"><![CDATA[<p class="m-muted">Files is a panel: a record screen's record-files element loads it under /qapps.</p>]]></text>
+        </render-mode>
     </widgets>
 </screen>

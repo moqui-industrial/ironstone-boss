@@ -12,6 +12,9 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
+<!-- EventDetail, moved from the first SimpleScreens port (M0) and redesigned in M7 (design-drawers-commons.md §7). Since M3 its
+    notes and files are the event's Chatter and RecordFiles panels (§15, §9): the right column from 1440 px and below the event
+    otherwise (style-guide §3.3), opening on Log note. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Event" default-menu-include="false">
@@ -20,9 +23,6 @@ along with this software (see the LICENSE.md file). If not, see
 
     <transition name="updateEvent"><service-call name="update#mantle.work.effort.WorkEffort"/><default-response url="."/></transition>
     <transition name="cloneWorkEffort"><service-call name="mantle.work.WorkEffortServices.clone#WorkEffort"/><default-response url="."/></transition>
-
-    <transition name="createNote"><service-call name="create#mantle.work.effort.WorkEffortNote"/><default-response url="."/></transition>
-    <transition name="updateNote"><service-call name="update#mantle.work.effort.WorkEffortNote"/><default-response url="."/></transition>
 
     <transition name="addAssetAssign"><service-call name="create#mantle.work.effort.WorkEffortAssetAssign"/><default-response url="."/></transition>
     <transition name="updateAssetAssign"><service-call name="update#mantle.work.effort.WorkEffortAssetAssign"/><default-response url="."/></transition>
@@ -56,7 +56,7 @@ along with this software (see the LICENSE.md file). If not, see
     <widgets>
         <!-- the record for the shell: quick create's link chip and the activity kind, Today's "Add activity on this record" -->
         <context record-entity="mantle.work.effort.WorkEffort" record-id="${workEffortId}" title="${workEffort?.workEffortName || workEffortId}"/>
-        <container-row><row-col lg="6">
+        <container-row><row-col lg="8"><container-row><row-col md="7" lg="12">
             <container-box><box-header title="Event ${workEffortId}"/><box-toolbar>
                 <link url="cloneWorkEffort" text="Clone Event" parameter-map="{baseWorkEffortId:workEffortId,
                         clearDates:true, copyAssetAssign:true}"/>
@@ -86,59 +86,8 @@ along with this software (see the LICENSE.md file). If not, see
                     <field name="submitButton"><default-field title="Update"><submit/></default-field></field>
                 </form-single>
             </box-body></container-box>
-        </row-col><row-col lg="6">
+        </row-col><row-col md="5" lg="12">
             <section-include name="StatusChangeAndHistorySection" location="component://SimpleScreens/template/basic/StatusWidgets.xml"/>
-
-            <section name="NotesSection">
-                <actions>
-                    <entity-find entity-name="mantle.work.effort.WorkEffortNote" list="noteList">
-                        <econdition field-name="workEffortId"/><order-by field-name="-noteDate"/></entity-find>
-                </actions>
-                <widgets>
-                    <container-box><box-header title="Notes"/><box-toolbar>
-                        <container-dialog id="NewNoteDialog" button-text="Add Note">
-                            <form-single name="NewNoteForm" transition="createNote">
-                                <field name="workEffortId"><default-field><hidden/></default-field></field>
-                                <field name="noteText"><default-field title="Note"><text-area cols="60" rows="6"/></default-field></field>
-                                <field name="submitButton"><default-field title="Add Note"><submit/></default-field></field>
-                            </form-single>
-                        </container-dialog>
-                    </box-toolbar><box-body>
-                        <section-iterate name="NoteIterateSection" list="noteList" entry="note">
-                            <actions>
-                                <entity-find-one entity-name="mantle.party.PersonWithUserAccount" value-field="paua">
-                                    <field-map field-name="userId" from="note.userId"/></entity-find-one>
-                            </actions>
-                            <widgets>
-                                <container-row>
-                                    <row-col lg="4" md="4" sm="4">
-                                        <label text="${ec.l10n.format(note.noteDate, 'yyyy-MM-dd HH:mm')}" type="strong" style="text-nowrap"/>
-                                        <label text="by ${ec.resource.expand('UsernameTemplate','',Object.assign({}, paua.getMap(), {userId:note.userId}))}"
-                                                condition="paua" style="text-nowrap"/>
-                                    </row-col>
-                                    <row-col lg="6" md="6" sm="6">
-                                        <label text="${note.noteText}"/>
-                                    </row-col>
-                                    <row-col lg="2" md="2" sm="2" style="text-right">
-                                        <section name="UpdateNoteSection" condition="note.userId == ec.user.userId">
-                                            <widgets>
-                                                <container-dialog id="UpdateNoteContainer" button-text="Edit">
-                                                    <form-single name="UpdateNoteForm" transition="updateNote" map="note">
-                                                        <field name="workEffortId"><default-field><hidden/></default-field></field>
-                                                        <field name="noteDate"><default-field><hidden/></default-field></field>
-                                                        <field name="noteText"><default-field title="Note"><text-area cols="60" rows="6"/></default-field></field>
-                                                        <field name="submitButton"><default-field title="Update"><submit/></default-field></field>
-                                                    </form-single>
-                                                </container-dialog>
-                                            </widgets>
-                                        </section>
-                                    </row-col>
-                                </container-row>
-                            </widgets>
-                        </section-iterate>
-                    </box-body></container-box>
-                </widgets>
-            </section>
 
             <section name="PartiesSection"><widgets>
                 <container-box>
@@ -249,5 +198,10 @@ along with this software (see the LICENSE.md file). If not, see
                 </form-list>
             </box-body>
         </container-box>
+        </row-col><row-col lg="4">
+            <!-- the event's Chatter and files: the theme's record panels of this app root (IronStone R5) -->
+            <chatter id="EventChatter" record-entity="mantle.work.effort.WorkEffort" record-id="${workEffortId}" default-tab="log"/>
+            <record-files id="EventFiles" record-entity="mantle.work.effort.WorkEffort" record-id="${workEffortId}"/>
+        </row-col></container-row>
     </widgets>
 </screen>

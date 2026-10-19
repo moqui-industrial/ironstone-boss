@@ -1,0 +1,685 @@
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- Chatter (design-drawers-commons.md §15), the component Chatter.xml serves in the qvue render mode. The record and the
+    host's hints (defaultTab: message, log or activity; hide: a comma list of message, log, activity) come from the chatter
+    element through inject: ['mRecordPanel']; the data and every action go through the transitions of Chatter.xml under the
+    current app root (<app>/Chatter/<transition>), which find the record under the user's filters first (IronStone R5): for a
+    record the user may not see the panel shows nothing and says so once in the console.
+
+    Top to bottom: the compose bar (Send message, Log note, Schedule activity as tabs; buttons that open one below 600 px), the
+    followers line, the planned activities (Mark done opens the MarkDone dialog, Edit inline, Cancel), the attachments strip
+    (Add opens the page's RecordFiles upload, or the RecordFiles panel in a dialog when the page has none), and the timeline
+    newest first in pages with Load more, its filter chips and a search over the entries loaded. Forms are m-form with the m-*
+    inputs; each sits in a chatter-done scope, whose mSubmitHide (the hook m-form calls after an answer without errors) resets
+    that form and reloads what it changed. Brand color names only, no style colors (style-guide §4.8, §5). -->
+<template><div class="m-chatter-panel">
+    <m-container-box v-if="state !== 'hidden'" :title="t('Chatter')">
+        <template v-slot:toolbar>
+            <span v-if="state === 'ready' && record" class="text-caption m-muted q-mr-xs ellipsis gt-xs">{{record.typeLabel}} {{record.id}}</span>
+        </template>
+
+        <div v-if="state === 'loading'" class="q-gutter-y-sm">
+            <q-skeleton type="QToolbar" height="32px"></q-skeleton>
+            <div v-for="n in 3" :key="n" class="row items-center no-wrap q-gutter-x-sm">
+                <q-skeleton type="QAvatar" size="24px"></q-skeleton>
+                <div class="col"><q-skeleton type="text" width="50%"></q-skeleton><q-skeleton type="text"></q-skeleton></div>
+            </div>
+        </div>
+
+        <template v-else-if="state === 'ready'">
+            <!-- compose bar -->
+            <div v-if="composeTabs.length" class="q-mb-sm">
+                <q-tabs v-if="!phone" v-model="tab" dense no-caps inline-label align="left" active-color="primary" indicator-color="primary"
+                        outside-arrows mobile-arrows class="m-chatter-tabs">
+                    <q-tab v-for="item in composeTabs" :key="item.name" :name="item.name" :icon="narrow ? undefined : item.icon"
+                            :label="narrow ? item.short : item.label"></q-tab>
+                </q-tabs>
+                <div v-else class="row q-gutter-xs">
+                    <q-btn v-for="item in composeTabs" :key="item.name" dense unelevated no-caps :icon="item.icon" :label="item.short"
+                            :color="composeOpen && tab === item.name ? 'primary' : undefined" :class="composeOpen && tab === item.name ? '' : 'm-btn-tonal'"
+                            @click="openCompose(item.name)"></q-btn>
+                </div>
+                <q-separator v-if="!phone"></q-separator>
+
+                <div v-if="!phone || composeOpen" class="q-pt-sm">
+                    <!-- Send message: internal, to users; Email… opens Comms Compose with the record's parties -->
+                    <chatter-done v-if="tab === 'message'" :key="'message' + formKeys.message" :done="afterMessage">
+                        <m-form :action="action('sendMessage')" :fields-initial="messageInitial" v-slot="formProps">
+                            <m-drop-down v-model="formProps.fields.toUserIds" name="toUserIds" multiple server-search :options-url="url('searchUsers')"
+                                    value-field="id" :label="t('To (people here)')"></m-drop-down>
+                            <m-text-line v-model="formProps.fields.subject" name="subject" :label="t('Subject')" class="q-mt-xs"></m-text-line>
+                            <m-rich-text v-model="formProps.fields.body" name="body" light rows="2" class="q-mt-xs" :placeholder="t('Write a message… @ to mention')"
+                                    :mention-url="url('searchUsers')"></m-rich-text>
+                            <div class="row items-center q-gutter-sm q-mt-xs">
+                                <q-btn type="submit" dense unelevated no-caps color="primary" icon="sym_o_send" :label="t('Send')"></q-btn>
+                                <q-btn dense flat no-caps color="primary" icon="sym_o_mail" :label="t('Email…')" @click="openEmail">
+                                    <q-tooltip>{{emailTooltip}}</q-tooltip></q-btn>
+                                <q-space></q-space>
+                                <q-btn v-if="phone" flat round dense size="sm" icon="sym_o_close" :aria-label="t('Close')" @click="composeOpen = false"></q-btn>
+                            </div>
+                        </m-form>
+                    </chatter-done>
+
+                    <!-- Log note: an internal note, rich text with @ mentions -->
+                    <chatter-done v-if="tab === 'log'" :key="'log' + formKeys.log" :done="afterNote">
+                        <m-form :action="action('logNote')" :fields-initial="logInitial" v-slot="formProps">
+                            <m-rich-text v-model="formProps.fields.body" name="body" light rows="2" :placeholder="t('Log an internal note… @ to mention')"
+                                    :mention-url="url('searchUsers')"></m-rich-text>
+                            <div class="row items-center q-gutter-sm q-mt-xs">
+                                <q-btn type="submit" dense unelevated no-caps color="primary" icon="sym_o_edit_note" :label="t('Log')"></q-btn>
+                                <span class="text-caption m-muted">{{t('Only people who can see this record')}}</span>
+                                <q-space></q-space>
+                                <q-btn v-if="phone" flat round dense size="sm" icon="sym_o_close" :aria-label="t('Close')" @click="composeOpen = false"></q-btn>
+                            </div>
+                        </m-form>
+                    </chatter-done>
+
+                    <!-- Schedule activity: a call, email or to-do (a task) or a meeting (an event) -->
+                    <chatter-done v-if="tab === 'activity'" :key="'activity' + formKeys.activity" :done="afterActivity">
+                        <m-form :action="action('scheduleActivity')" :fields-initial="activityInitial" v-slot="formProps">
+                            <q-btn-toggle v-model="formProps.fields.activityType" spread dense no-caps unelevated toggle-color="primary" class="q-mb-xs"
+                                    :options="activityTypes"></q-btn-toggle>
+                            <m-text-line v-model="formProps.fields.workEffortName" name="workEffortName" :label="t('Summary')" required></m-text-line>
+                            <div class="row q-gutter-xs q-mt-none">
+                                <m-date-time v-model="formProps.fields.dueDate" name="dueDate" required
+                                        :label="formProps.fields.activityType === 'meeting' ? t('Starts') : t('Due')"></m-date-time>
+                                <m-date-time v-if="formProps.fields.activityType === 'meeting'" v-model="formProps.fields.endDate" name="endDate"
+                                        :label="t('Ends')"></m-date-time>
+                            </div>
+                            <m-drop-down v-model="formProps.fields.assignToPartyId" name="assignToPartyId" server-search :options-url="url('searchUsers')"
+                                    value-field="partyId" :options="meOptions" :label="t('Assignee')" class="q-mt-xs"></m-drop-down>
+                            <m-text-area v-model="formProps.fields.description" name="description" rows="2" :label="t('Note')" class="q-mt-xs"></m-text-area>
+                            <div class="row items-center q-gutter-sm q-mt-xs">
+                                <q-btn type="submit" dense unelevated no-caps color="primary" icon="sym_o_event_available" :label="t('Schedule')"></q-btn>
+                                <q-space></q-space>
+                                <q-btn v-if="phone" flat round dense size="sm" icon="sym_o_close" :aria-label="t('Close')" @click="composeOpen = false"></q-btn>
+                            </div>
+                        </m-form>
+                    </chatter-done>
+                </div>
+            </div>
+
+            <!-- followers -->
+            <div class="row items-center no-wrap q-mb-sm">
+                <q-icon name="sym_o_group" size="xs" class="m-muted q-mr-xs"></q-icon>
+                <div class="row no-wrap q-gutter-x-xs">
+                    <m-avatar v-for="follower in followers.slice(0, 5)" :key="follower.userId" :name="follower.name" size="22px" tooltip></m-avatar>
+                </div>
+                <span class="text-caption m-muted q-ml-xs ellipsis">{{followerText}}</span>
+                <q-space></q-space>
+                <q-btn flat dense no-caps size="sm" color="primary" :icon="isFollowing ? 'sym_o_notifications_off' : 'sym_o_notifications'"
+                        :label="isFollowing ? t('Unfollow') : t('Follow')" :loading="busy.follow" @click="toggleFollow"></q-btn>
+                <q-btn flat round dense size="sm" icon="sym_o_group_add" :aria-label="t('Followers')">
+                    <q-tooltip>{{t('Followers')}}</q-tooltip>
+                    <q-menu anchor="bottom right" self="top right">
+                        <div class="q-pa-sm" style="min-width:280px;max-width:340px">
+                            <div class="text-subtitle2">{{t('Followers')}}</div>
+                            <q-list dense>
+                                <q-item v-for="follower in followers" :key="follower.userId" class="q-px-none">
+                                    <q-item-section avatar><m-avatar :name="follower.name" size="24px"></m-avatar></q-item-section>
+                                    <q-item-section><q-item-label>{{follower.name}}</q-item-label>
+                                        <q-item-label caption>{{follower.kindsText || t('nothing')}}</q-item-label></q-item-section>
+                                    <q-item-section v-if="follower.canRemove" side>
+                                        <q-btn flat round dense size="sm" icon="sym_o_close" :aria-label="t('Remove')" @click="removeFollower(follower)">
+                                            <q-tooltip>{{t('Remove')}}</q-tooltip></q-btn></q-item-section>
+                                </q-item>
+                                <q-item v-if="!followers.length" class="q-px-none"><q-item-section class="m-muted">{{t('No followers yet')}}</q-item-section></q-item>
+                            </q-list>
+                            <template v-if="isFollowing">
+                                <q-separator class="q-my-xs"></q-separator>
+                                <chatter-done :key="'kinds' + formKeys.kinds" :done="afterFollowers">
+                                    <m-form :action="action('follow')" :fields-initial="kindsInitial" v-slot="formProps">
+                                        <m-check v-model="formProps.fields.kinds" name="kinds" :options="kindOptions" :label="t('Notify me of')"></m-check>
+                                        <q-btn type="submit" dense flat no-caps color="primary" :label="t('Save')"></q-btn>
+                                    </m-form>
+                                </chatter-done>
+                            </template>
+                            <q-separator class="q-my-xs"></q-separator>
+                            <chatter-done :key="'add' + formKeys.followers" :done="afterFollowers">
+                                <m-form :action="action('addFollowers')" :fields-initial="followersInitial" v-slot="formProps">
+                                    <m-drop-down v-model="formProps.fields.userIds" name="userIds" multiple server-search :options-url="url('searchUsers')"
+                                            value-field="id" :label="t('Add followers')"></m-drop-down>
+                                    <q-btn type="submit" dense flat no-caps color="primary" icon="sym_o_person_add" :label="t('Add')" class="q-mt-xs"></q-btn>
+                                </m-form>
+                            </chatter-done>
+                        </div>
+                    </q-menu>
+                </q-btn>
+            </div>
+
+            <!-- planned activities -->
+            <div v-if="planned.length" class="q-mb-sm">
+                <div class="text-subtitle2 q-mb-xs">{{t('Planned activities')}} <span class="m-muted">({{planned.length}})</span></div>
+                <q-list dense bordered separator class="rounded-borders">
+                    <q-item v-for="act in planned" :key="act.workEffortId" class="q-py-xs">
+                        <q-item-section avatar top class="q-pt-xs">
+                            <q-icon :name="act.icon" :color="act.overdue ? 'warning' : 'primary'"><q-tooltip>{{act.typeLabel}}</q-tooltip></q-icon>
+                        </q-item-section>
+                        <q-item-section>
+                            <q-item-label class="text-body2">
+                                <m-link v-if="act.url" :href="act.url">{{act.workEffortName}}</m-link><span v-else>{{act.workEffortName}}</span>
+                            </q-item-label>
+                            <q-item-label caption class="row items-center no-wrap">
+                                <span :class="act.overdue ? 'text-warning text-weight-medium' : ''">{{act.dueText}}</span>
+                                <span v-if="act.assigneeName" class="q-mx-xs">·</span>
+                                <m-avatar v-if="act.assigneeName" :name="act.assigneeName" size="16px" class="q-mr-xs"></m-avatar>
+                                <span class="ellipsis">{{act.assigneeName}}</span>
+                            </q-item-label>
+                            <q-item-label v-if="act.description && editing !== act.workEffortId" caption class="ellipsis-2-lines">{{act.description}}</q-item-label>
+                            <!-- Edit, inline -->
+                            <chatter-done v-if="editing === act.workEffortId" :key="'edit' + formKeys.edit" :done="afterEdit">
+                                <m-form :action="action('updateActivity')" :fields-initial="editFields" v-slot="formProps" class="q-mt-xs">
+                                    <m-text-line v-model="formProps.fields.workEffortName" name="workEffortName" :label="t('Summary')" required></m-text-line>
+                                    <div class="row q-gutter-xs q-mt-none">
+                                        <m-date-time v-model="formProps.fields.dueDate" name="dueDate" :label="act.isMeeting ? t('Starts') : t('Due')"></m-date-time>
+                                        <m-date-time v-if="act.isMeeting" v-model="formProps.fields.endDate" name="endDate" :label="t('Ends')"></m-date-time>
+                                    </div>
+                                    <m-drop-down v-model="formProps.fields.assignToPartyId" name="assignToPartyId" server-search :options-url="url('searchUsers')"
+                                            value-field="partyId" :options="editOptions" :label="t('Assignee')" class="q-mt-xs"></m-drop-down>
+                                    <m-text-area v-model="formProps.fields.description" name="description" rows="2" :label="t('Note')" class="q-mt-xs"></m-text-area>
+                                    <div class="row q-gutter-sm q-mt-xs">
+                                        <q-btn type="submit" dense unelevated no-caps color="primary" :label="t('Save')"></q-btn>
+                                        <q-btn dense flat no-caps :label="t('Cancel')" @click="editing = null"></q-btn>
+                                    </div>
+                                </m-form>
+                            </chatter-done>
+                        </q-item-section>
+                        <q-item-section v-if="act.canUpdate && editing !== act.workEffortId" side top>
+                            <div class="row no-wrap">
+                                <q-btn flat round dense size="sm" color="positive" icon="sym_o_check" :aria-label="t('Mark done')" @click="openMarkDone(act)">
+                                    <q-tooltip>{{t('Mark done')}}</q-tooltip></q-btn>
+                                <q-btn flat round dense size="sm" icon="sym_o_edit" :aria-label="t('Edit')" @click="startEdit(act)">
+                                    <q-tooltip>{{t('Edit')}}</q-tooltip></q-btn>
+                                <q-btn flat round dense size="sm" color="negative" icon="sym_o_cancel" :aria-label="t('Cancel activity')"
+                                        :data-confirm="t('Cancel the activity') + ' ' + act.workEffortName + '?'" @click="cancelActivity(act)">
+                                    <q-tooltip>{{t('Cancel activity')}}</q-tooltip></q-btn>
+                            </div>
+                        </q-item-section>
+                    </q-item>
+                </q-list>
+            </div>
+
+            <!-- attachments strip -->
+            <div v-if="record.hasContent" class="row items-center q-gutter-xs q-mb-sm">
+                <q-icon name="sym_o_attach_file" size="xs" class="m-muted"></q-icon>
+                <span class="text-caption m-muted">{{t('Files')}} {{fileCount}}</span>
+                <q-chip v-for="file in files" :key="file.contentKey" dense clickable :icon="file.icon" class="m-chatter-file" @click="openFile(file)">
+                    <span class="ellipsis" style="max-width:160px">{{file.fileName}}</span><q-tooltip>{{file.fileName}} {{file.sizeText}}</q-tooltip>
+                </q-chip>
+                <span v-if="fileCount > files.length" class="text-caption m-muted">+{{fileCount - files.length}}</span>
+                <q-btn flat dense no-caps size="sm" color="primary" icon="sym_o_add" :label="t('Add')" @click="addFiles"></q-btn>
+            </div>
+
+            <q-separator class="q-mb-sm"></q-separator>
+
+            <!-- filters and search -->
+            <div class="row items-center q-gutter-xs q-mb-xs">
+                <q-chip v-for="item in filters" :key="item.value" dense clickable :outline="filter !== item.value"
+                        :color="filter === item.value ? 'primary' : undefined" :text-color="filter === item.value ? 'white' : undefined"
+                        @click="setFilter(item.value)">{{item.label}}</q-chip>
+            </div>
+            <m-text-line v-model="search" name="chatterSearch" :label="t('Search the timeline')" class="q-mb-xs">
+                <template v-slot:append><q-icon name="sym_o_search" size="xs"></q-icon></template>
+            </m-text-line>
+
+            <!-- the timeline, newest first -->
+            <div v-if="!shownEntries.length && !loadingTimeline" class="text-body2 m-muted q-pa-sm">
+                {{search ? t('No entries match') : (filter === 'all' ? t('No messages yet') : t('Nothing of this kind yet'))}}
+            </div>
+            <q-timeline v-if="shownEntries.length" layout="dense" color="primary" class="q-my-none m-chatter-timeline">
+                <q-timeline-entry v-for="entry in shownEntries" :key="entry.key" :icon="entry.icon" :color="entry.color">
+                    <template v-slot:subtitle><span>{{entry.dateText}}<q-tooltip>{{entry.dateFull}}</q-tooltip></span></template>
+                    <template v-slot:title>
+                        <div class="row items-center no-wrap text-body2">
+                            <m-avatar :name="entry.authorName || ''" size="24px" class="q-mr-sm"></m-avatar>
+                            <div class="col ellipsis">
+                                <span class="text-weight-medium">{{entry.authorName || (entry.kind === 'change' ? t('System') : t('Someone'))}}</span>
+                                <span class="m-muted"> · {{entry.kindLabel}}</span>
+                                <span v-if="entry.toName" class="m-muted"> → {{entry.toName}}</span>
+                            </div>
+                            <q-chip v-if="entry.status" dense square :class="'m-tonal text-' + entry.status.color">{{entry.status.label}}</q-chip>
+                            <q-btn v-if="hasActions(entry)" flat round dense size="sm" icon="sym_o_more_horiz" :aria-label="t('Actions')">
+                                <q-menu auto-close>
+                                    <q-list dense style="min-width:200px">
+                                        <q-item v-if="entry.canReply" clickable @click="startReply(entry)">
+                                            <q-item-section avatar><q-icon name="sym_o_reply" size="xs"></q-icon></q-item-section>
+                                            <q-item-section>{{t('Reply')}}</q-item-section></q-item>
+                                        <q-item v-if="entry.emailReply" clickable @click="replyByEmail(entry)">
+                                            <q-item-section avatar><q-icon name="sym_o_reply" size="xs"></q-icon></q-item-section>
+                                            <q-item-section>{{t('Reply by email')}}</q-item-section></q-item>
+                                        <q-item v-if="entry.threadUrl" clickable @click="go(entry.threadUrl)">
+                                            <q-item-section avatar><q-icon name="sym_o_forum" size="xs"></q-icon></q-item-section>
+                                            <q-item-section>{{t('Open thread in Inbox')}}</q-item-section></q-item>
+                                        <q-item v-if="entry.url" clickable @click="go(entry.url)">
+                                            <q-item-section avatar><q-icon name="sym_o_open_in_new" size="xs"></q-icon></q-item-section>
+                                            <q-item-section>{{t('Open')}}</q-item-section></q-item>
+                                        <q-item v-if="entry.kind === 'file'" clickable @click="openFile(entry)">
+                                            <q-item-section avatar><q-icon name="sym_o_download" size="xs"></q-icon></q-item-section>
+                                            <q-item-section>{{t('Open the file')}}</q-item-section></q-item>
+                                        <q-item v-if="entry.canUnlink && entry.communicationEventId" clickable
+                                                :data-confirm="t('Take this off the record?')" @click="unlink(entry)">
+                                            <q-item-section avatar><q-icon name="sym_o_link_off" size="xs" color="negative"></q-icon></q-item-section>
+                                            <q-item-section class="text-negative">{{t('Unlink from this record')}}</q-item-section></q-item>
+                                    </q-list>
+                                </q-menu>
+                            </q-btn>
+                        </div>
+                    </template>
+                    <div style="overflow-wrap:anywhere">
+                        <div v-if="entry.title" class="text-body2 text-weight-medium">
+                            <a v-if="entry.kind === 'file'" href="#" class="text-primary" @click.prevent="openFile(entry)">{{entry.title}}</a>
+                            <m-link v-else-if="entry.url" :href="entry.url">{{entry.title}}</m-link>
+                            <span v-else>{{entry.title}}</span>
+                        </div>
+                        <div v-if="entry.bodyHtml" class="m-rich-text-content text-body2 m-chatter-body" style="padding:0;cursor:auto" v-html="entry.bodyHtml"></div>
+                        <div v-if="entry.quotedHtml">
+                            <q-btn flat dense size="sm" no-caps icon="sym_o_more_horiz" :label="openQuotes[entry.key] ? t('Hide quoted text') : t('Show quoted text')"
+                                    class="m-muted" @click="toggleQuote(entry)"></q-btn>
+                            <div v-if="openQuotes[entry.key]" class="m-rich-text-content text-body2 m-muted" style="padding:0;cursor:auto" v-html="entry.quotedHtml"></div>
+                        </div>
+                        <div v-if="entry.attachments && entry.attachments.length" class="row q-gutter-xs q-mt-xs">
+                            <q-chip v-for="item in entry.attachments" :key="item.id" dense clickable icon="sym_o_attach_file" @click="openAttachment(item)">
+                                <span class="ellipsis" style="max-width:180px">{{item.name}}</span></q-chip>
+                        </div>
+                        <!-- reply in place -->
+                        <chatter-done v-if="replyTo === entry.key" :key="'reply' + formKeys.reply" :done="afterReply" class="q-mt-xs">
+                            <m-form :action="action('reply')" :fields-initial="replyFields" v-slot="formProps">
+                                <m-rich-text v-model="formProps.fields.body" name="body" light rows="2" autofocus :placeholder="t('Reply… @ to mention')"
+                                        :mention-url="url('searchUsers')"></m-rich-text>
+                                <div class="row q-gutter-sm q-mt-xs">
+                                    <q-btn type="submit" dense unelevated no-caps color="primary" icon="sym_o_reply" :label="t('Reply')"></q-btn>
+                                    <q-btn dense flat no-caps :label="t('Cancel')" @click="replyTo = null"></q-btn>
+                                </div>
+                            </m-form>
+                        </chatter-done>
+                    </div>
+                </q-timeline-entry>
+            </q-timeline>
+            <div v-if="loadingTimeline" class="q-pa-sm"><q-linear-progress indeterminate color="primary"></q-linear-progress></div>
+            <div v-if="hasMore && !loadingTimeline" class="text-center">
+                <q-btn flat dense no-caps color="primary" icon="sym_o_expand_more" :label="t('Load more')" @click="loadMore"></q-btn>
+            </div>
+            <div v-if="failedSources.length" class="text-caption text-warning q-mt-xs">
+                <q-icon name="sym_o_warning" size="xs"></q-icon> {{t('Not shown, it could not be read:')}} {{failedSources.join(', ')}}
+            </div>
+        </template>
+    </m-container-box>
+
+    <!-- MarkDone: close an activity with feedback, and schedule the next one -->
+    <m-dialog v-model="markDone.open" :title="t('Mark done') + (markDone.activity ? ': ' + markDone.activity.workEffortName : '')" width="520">
+        <chatter-done v-if="markDone.activity" :key="'done' + formKeys.done" :done="afterMarkDone">
+            <m-form :action="action('markDone')" :fields-initial="markDone.fields" v-slot="formProps">
+                <m-rich-text v-model="formProps.fields.feedback" name="feedback" light rows="3" :label="t('Feedback')"
+                        :placeholder="t('What happened? It is logged as a note on the record')" :mention-url="url('searchUsers')"></m-rich-text>
+                <m-check v-model="formProps.fields.scheduleNext" name="scheduleNext" true-value="Y" false-value="N"
+                        :single-label="t('Schedule the next activity')" class="q-mt-sm"></m-check>
+                <div v-if="formProps.fields.scheduleNext === 'Y'" class="q-mt-xs">
+                    <q-btn-toggle v-model="formProps.fields.nextActivityType" spread dense no-caps unelevated toggle-color="primary" class="q-mb-xs"
+                            :options="activityTypes"></q-btn-toggle>
+                    <m-text-line v-model="formProps.fields.nextName" name="nextName" :label="t('Summary')"></m-text-line>
+                    <m-date-time v-model="formProps.fields.nextDueDate" name="nextDueDate" :label="t('Due')" class="q-mt-xs"></m-date-time>
+                </div>
+                <div class="row q-gutter-sm q-mt-md">
+                    <q-btn type="submit" unelevated no-caps color="primary" icon="sym_o_check" :label="t('Mark done')"></q-btn>
+                    <q-btn flat no-caps :label="t('Cancel')" v-close-popup></q-btn>
+                </div>
+            </m-form>
+        </chatter-done>
+    </m-dialog>
+
+    <!-- an image file, shown here; a PDF opens in a tab, anything else downloads -->
+    <m-dialog v-model="preview.open" :title="preview.name" width="900">
+        <div class="text-center"><img v-if="preview.src" :src="preview.src" :alt="preview.name" style="max-width:100%;max-height:70vh"></div>
+        <div class="row q-mt-sm"><q-space></q-space>
+            <q-btn flat dense no-caps color="primary" icon="sym_o_download" :label="t('Download')" :href="preview.download" type="a"></q-btn></div>
+    </m-dialog>
+
+    <!-- the RecordFiles panel when the page has none (Add on the attachments strip) -->
+    <m-dialog v-model="filesDialog.open" :title="t('Add files')" width="640">
+        <chatter-files-host v-if="filesDialog.open && filesDialog.url" :panel="filesDialog.panel" :url="filesDialog.url"></chatter-files-host>
+    </m-dialog>
+</div></template>
+
+<script>
+let chatterCount = 0;
+const unwrap = (value) => (value && value.__v_isRef ? value.value : value);
+module.exports = {
+    name: 'BossChatter',
+    inject: { mRecordPanel: { default: null } },
+    components: {
+        // one form's scope: m-form calls mSubmitHide.hide() after an answer without errors (the quick-create contract of the
+        // shell, webroot js/README.md); here it resets that form and reloads what it changed
+        'chatter-done': {
+            props: { done: Function },
+            provide() { return { mSubmitHide: { hide: () => { if (this.done) this.done(); } } }; },
+            template: '<div><slot></slot></div>'
+        },
+        // the RecordFiles panel of the record in a dialog, with the hints a record-files element would give it
+        'chatter-files-host': {
+            props: { panel: Object, url: String },
+            provide() { return { mRecordPanel: this.panel }; },
+            template: '<m-dynamic-container :id="panel.containerId" :url="url"></m-dynamic-container>'
+        }
+    },
+    data() {
+        chatterCount += 1;
+        return {
+            uid: chatterCount, state: 'loading', record: null, me: {}, canMessage: false, canSchedule: false, mayUpdate: false,
+            followers: [], isFollowing: false, myKinds: [], planned: [], files: [], fileCount: 0, parties: [], dataFailed: [],
+            entries: [], hasMore: false, nextBeforeDate: null, timelineFailed: [], loadingTimeline: false, filter: 'all', search: '',
+            tab: null, composeOpen: false, formKeys: { message: 0, log: 0, activity: 0, kinds: 0, followers: 0, edit: 0, reply: 0, done: 0 },
+            replyTo: null, replyFields: {}, editing: null, editFields: {}, editOptions: [], openQuotes: {},
+            markDone: { open: false, activity: null, fields: {} }, preview: { open: false, src: '', name: '', download: '' },
+            filesDialog: { open: false, url: null, panel: null }, busy: { follow: false }, loggedHidden: false, requestSeq: 0, panelWidth: 0
+        };
+    },
+    computed: {
+        panel() { return unwrap(this.mRecordPanel) || {}; },
+        recordEntity() { return this.panel.recordEntity || ''; },
+        recordId() { return this.panel.recordId || ''; },
+        panelKey() { return this.recordEntity + '|' + this.recordId + '|' + (this.panel.appRoot || ''); },
+        // the screen's own path under the apps base, where its transitions are: <basePath>/<app root>/<Chatter subscreen>
+        base() {
+            const shell = (this.$root.shellData && this.$root.shellData.shell) || {};
+            return this.$root.basePath + '/' + (this.panel.appRoot || this.$root.currentAppName) + '/' + (shell.chatterScreen || 'Chatter');
+        },
+        phone() { return this.$q.screen.lt.sm; },
+        // a column under 480 px (the right column of a detail) has the short tab labels
+        narrow() { return this.panelWidth > 0 && this.panelWidth < 480; },
+        hidden() { return String(this.panel.hide || '').split(',').map((item) => item.trim()).filter((item) => item); },
+        composeTabs() {
+            const tabs = [];
+            if (this.canMessage && !this.hidden.includes('message')) tabs.push({ name: 'message', icon: 'sym_o_send', label: this.t('Send message'), short: this.t('Message') });
+            if (this.canMessage && !this.hidden.includes('log')) tabs.push({ name: 'log', icon: 'sym_o_edit_note', label: this.t('Log note'), short: this.t('Note') });
+            if (this.canSchedule && !this.hidden.includes('activity')) tabs.push({ name: 'activity', icon: 'sym_o_event_available', label: this.t('Schedule activity'), short: this.t('Activity') });
+            return tabs;
+        },
+        recordUrl() { return this.$root.currentLinkUrl || ''; },
+        common() { return { recordEntity: this.recordEntity, recordId: this.recordId }; },
+        messageInitial() {
+            return Object.assign({ recordUrl: this.recordUrl, toUserIds: [], subject: this.record ? this.record.subject : '', body: '' }, this.common);
+        },
+        logInitial() { return Object.assign({ recordUrl: this.recordUrl, body: '' }, this.common); },
+        activityInitial() {
+            return Object.assign({ recordUrl: this.recordUrl, activityType: 'todo', workEffortName: '', dueDate: this.me.defaultDue || '',
+                endDate: this.me.defaultEnd || '', assignToPartyId: this.me.partyId || '', description: '' }, this.common);
+        },
+        kindsInitial() { return Object.assign({ kinds: this.myKinds.slice() }, this.common); },
+        followersInitial() { return Object.assign({ userIds: [] }, this.common); },
+        meOptions() { return this.me.partyId ? [{ value: this.me.partyId, label: this.me.name }] : []; },
+        activityTypes() {
+            return [{ value: 'call', label: this.t('Call'), icon: 'sym_o_call' }, { value: 'email', label: this.t('Email'), icon: 'sym_o_mail' },
+                { value: 'todo', label: this.t('To-do'), icon: 'sym_o_checklist' }, { value: 'meeting', label: this.t('Meeting'), icon: 'sym_o_groups' }];
+        },
+        kindOptions() {
+            return [{ value: 'messages', label: this.t('Messages') }, { value: 'notes', label: this.t('Notes') },
+                { value: 'activities', label: this.t('Activities') }, { value: 'changes', label: this.t('Changes') }];
+        },
+        filters() {
+            return [{ value: 'all', label: this.t('All') }, { value: 'messages', label: this.t('Messages') }, { value: 'notes', label: this.t('Notes') },
+                { value: 'activities', label: this.t('Activities') }, { value: 'changes', label: this.t('Changes') }, { value: 'files', label: this.t('Files') }];
+        },
+        followerText() {
+            const count = this.followers.length;
+            if (!count) return this.t('No followers');
+            return count === 1 ? this.t('1 follower') : count + ' ' + this.t('followers');
+        },
+        emailParties() { return this.parties.filter((party) => party.email && !party.isMe); },
+        emailTooltip() {
+            const names = this.emailParties.map((party) => party.name);
+            return this.t('Email from Comms') + (names.length ? ': ' + names.join(', ') : '');
+        },
+        shownEntries() {
+            const term = this.search.trim().toLowerCase();
+            if (!term) return this.entries;
+            return this.entries.filter((entry) => (entry.searchText || '').indexOf(term) >= 0);
+        },
+        failedSources() { return this.dataFailed.concat(this.timelineFailed.filter((name) => !this.dataFailed.includes(name))); }
+    },
+    watch: {
+        panelKey() { this.reset(); this.load(); }
+    },
+    methods: {
+        t(text) { return moqui.l10n && moqui.l10n.localize ? moqui.l10n.localize(text) : text; },
+        url(name) { return this.base + '/' + name; },
+        // an m-form action is a path under the web app (m-form puts appRootPath before it)
+        action(name) {
+            const rootPath = this.$root.appRootPath || '';
+            const path = this.url(name);
+            return rootPath && path.indexOf(rootPath) === 0 ? path.slice(rootPath.length) : path;
+        },
+        params(extra) { return Object.assign({}, this.common, extra || {}); },
+        reset() {
+            this.state = 'loading';
+            this.record = null;
+            this.entries = [];
+            this.planned = [];
+            this.followers = [];
+            this.files = [];
+            this.replyTo = null;
+            this.editing = null;
+            this.loggedHidden = false;
+        },
+        load() {
+            if (!this.recordEntity || !this.recordId) { this.state = 'hidden'; return; }
+            const seq = ++this.requestSeq;
+            moqui.request(this.url('chatterData'), { params: this.common }).then((result) => {
+                if (seq !== this.requestSeq) return;
+                const json = result.json || {};
+                if (!json.visible) { this.hide('the record is not visible to this user'); return; }
+                this.applyData(json);
+                if (!this.tab || !this.composeTabs.some((item) => item.name === this.tab)) this.tab = this.firstTab();
+                this.state = 'ready';
+                this.loadTimeline(false);
+            }, (err) => {
+                if (seq !== this.requestSeq) return;
+                // a panel that cannot load shows nothing; the reason goes to the console once
+                this.hide('the panel did not load (status ' + (err && err.status) + ')');
+            });
+        },
+        hide(reason) {
+            this.state = 'hidden';
+            if (this.loggedHidden) return;
+            this.loggedHidden = true;
+            console.info('Chatter of ' + this.recordEntity + ' ' + this.recordId + ' shows nothing: ' + reason);
+        },
+        firstTab() {
+            const names = this.composeTabs.map((item) => item.name);
+            const wanted = this.panel.defaultTab;
+            if (wanted && names.includes(wanted)) return wanted;
+            if (names.includes('log')) return 'log';
+            return names[0] || null;
+        },
+        applyData(json) {
+            this.record = json.record || {};
+            this.me = json.me || {};
+            this.canMessage = !!json.canMessage;
+            this.canSchedule = !!json.canSchedule;
+            this.mayUpdate = !!json.mayUpdate;
+            this.followers = json.followerList || [];
+            this.isFollowing = !!json.isFollowing;
+            this.myKinds = json.myKinds || [];
+            this.planned = json.plannedActivities || [];
+            this.files = json.fileList || [];
+            this.fileCount = json.fileCount || 0;
+            this.parties = json.partyList || [];
+            this.dataFailed = json.failedSources || [];
+        },
+        // the panel's data again (followers, planned activities, files), keeping the timeline
+        reloadData() {
+            moqui.request(this.url('chatterData'), { params: this.common }).then((result) => {
+                const json = result.json || {};
+                if (json.visible) this.applyData(json);
+            }, moqui.handleAjaxError);
+        },
+        loadTimeline(more) {
+            const seq = this.requestSeq;
+            const params = this.params({ kinds: this.filter, pageSize: 25 });
+            if (more && this.nextBeforeDate) params.beforeDate = this.nextBeforeDate;
+            this.loadingTimeline = true;
+            moqui.request(this.url('timeline'), { params }).then((result) => {
+                if (seq !== this.requestSeq) return;
+                this.loadingTimeline = false;
+                const json = result.json || {};
+                const list = json.entryList || [];
+                if (more) {
+                    const known = new Set(this.entries.map((entry) => entry.key));
+                    this.entries = this.entries.concat(list.filter((entry) => !known.has(entry.key)));
+                } else this.entries = list;
+                this.hasMore = !!json.hasMore && !!json.nextBeforeDate;
+                this.nextBeforeDate = json.nextBeforeDate || null;
+                this.timelineFailed = json.failedSources || [];
+            }, (err) => { this.loadingTimeline = false; moqui.handleAjaxError(err); });
+        },
+        loadMore() { this.loadTimeline(true); },
+        setFilter(value) {
+            if (this.filter === value) return;
+            this.filter = value;
+            this.requestSeq += 1;
+            this.loadTimeline(false);
+        },
+        openCompose(name) {
+            if (this.composeOpen && this.tab === name) { this.composeOpen = false; return; }
+            this.tab = name;
+            this.composeOpen = true;
+        },
+        // after a form's answer without errors: that form again, empty, and what it changed
+        afterMessage() { this.formKeys.message += 1; this.composeOpen = false; this.loadTimeline(false); },
+        afterNote() { this.formKeys.log += 1; this.composeOpen = false; this.loadTimeline(false); },
+        afterActivity() { this.formKeys.activity += 1; this.composeOpen = false; this.reloadData(); this.notifyToday(); },
+        afterFollowers() { this.formKeys.kinds += 1; this.formKeys.followers += 1; this.reloadData(); },
+        afterEdit() { this.editing = null; this.reloadData(); this.notifyToday(); },
+        afterReply() { this.replyTo = null; this.formKeys.reply += 1; this.loadTimeline(false); },
+        afterMarkDone() {
+            this.markDone.open = false;
+            this.markDone.activity = null;
+            this.formKeys.done += 1;
+            this.reloadData();
+            this.loadTimeline(false);
+            this.notifyToday();
+        },
+        // the Today tab of the tray follows the activities (its topic refresh)
+        notifyToday() { if (this.$root.reloadTrayTab) this.$root.reloadTrayTab('today'); },
+        post(name, extra) {
+            return moqui.request(this.url(name), { method: 'POST', params: this.params(extra) }).then((result) => {
+                const json = result.json || {};
+                moqui.notifyMessages(json.messageInfos, json.errors);
+                return json;
+            }, (err) => { moqui.handleAjaxError(err); throw err; });
+        },
+        toggleFollow() {
+            this.busy.follow = true;
+            this.post(this.isFollowing ? 'unfollow' : 'follow').then(() => { this.busy.follow = false; this.reloadData(); },
+                () => { this.busy.follow = false; });
+        },
+        removeFollower(follower) {
+            this.post('unfollow', { userId: follower.userId }).then(() => this.reloadData(), () => {});
+        },
+        startEdit(act) {
+            this.editFields = Object.assign({ workEffortId: act.workEffortId, workEffortName: act.workEffortName, dueDate: act.dueInput,
+                endDate: act.endInput, description: act.description || '', assignToPartyId: act.assigneePartyId || '' }, this.common);
+            this.editOptions = act.assigneePartyId ? [{ value: act.assigneePartyId, label: act.assigneeName || act.assigneePartyId }] : this.meOptions.slice();
+            this.formKeys.edit += 1;
+            this.editing = act.workEffortId;
+        },
+        cancelActivity(act) {
+            this.post('cancelActivity', { workEffortId: act.workEffortId }).then(() => { this.reloadData(); this.notifyToday(); }, () => {});
+        },
+        openMarkDone(act) {
+            this.markDone.fields = Object.assign({ workEffortId: act.workEffortId, recordUrl: this.recordUrl, feedback: '', scheduleNext: 'N',
+                nextActivityType: act.activityType || 'todo', nextName: '', nextDueDate: this.me.defaultDue || '' }, this.common);
+            this.markDone.activity = act;
+            this.formKeys.done += 1;
+            this.markDone.open = true;
+        },
+        hasActions(entry) {
+            return !!(entry.canReply || entry.emailReply || entry.threadUrl || entry.url || entry.kind === 'file' || (entry.canUnlink && entry.communicationEventId));
+        },
+        startReply(entry) {
+            this.replyFields = Object.assign({ parentCommEventId: entry.communicationEventId, recordUrl: this.recordUrl, body: '' }, this.common);
+            this.formKeys.reply += 1;
+            this.replyTo = entry.key;
+        },
+        toggleQuote(entry) { this.openQuotes = Object.assign({}, this.openQuotes, { [entry.key]: !this.openQuotes[entry.key] }); },
+        unlink(entry) {
+            this.post('unlink', { communicationEventId: entry.communicationEventId }).then((json) => { if (json.unlinked) this.loadTimeline(false); }, () => {});
+        },
+        go(url) { if (url) this.$root.setUrl(url); },
+        // Comms Compose (a placeholder until M5, where mantle.party.CommunicationServices.send#EmailDraft files the sent email here)
+        composeUrl(extra) {
+            const to = this.emailParties.map((party) => party.email);
+            const query = Object.assign({ recordEntity: this.recordEntity, recordId: this.recordId, to: to.join(','), subject: this.record ? this.record.subject : '' }, extra || {});
+            return this.$root.linkBasePath + '/Comms/Inbox/Compose?' + moqui.objToSearch(query);
+        },
+        openEmail() { this.go(this.composeUrl()); },
+        replyByEmail(entry) { this.go(this.composeUrl({ replyToCommEventId: entry.communicationEventId, subject: entry.title || '' })); },
+        fileUrl(file, inline) {
+            return this.url('downloadFile') + '?' + moqui.objToSearch(this.params({ contentKey: file.contentKey, inline: inline ? 'true' : 'false' }));
+        },
+        // an image shows here, a PDF opens in a tab, anything else downloads
+        openFile(file) {
+            const name = file.fileName || file.title || '';
+            if (file.isImage) this.preview = { open: true, src: this.fileUrl(file, true), name, download: this.fileUrl(file, false) };
+            else if (file.isPdf) window.open(this.fileUrl(file, true), '_blank', 'noopener');
+            else this.download(this.fileUrl(file, false));
+        },
+        openAttachment(item) {
+            const params = this.params({ communicationEventContentId: item.id });
+            const lower = String(item.name || '').toLowerCase();
+            const href = (inline) => this.url('attachment') + '?' + moqui.objToSearch(Object.assign({ inline: inline ? 'true' : 'false' }, params));
+            if (/\.(png|jpe?g|gif|webp)$/.test(lower)) this.preview = { open: true, src: href(true), name: item.name, download: href(false) };
+            else if (/\.pdf$/.test(lower)) window.open(href(true), '_blank', 'noopener');
+            else this.download(href(false));
+        },
+        download(href) {
+            const link = document.createElement('a');
+            link.href = href;
+            link.setAttribute('download', '');
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        },
+        // Add on the attachments strip: the page's RecordFiles panel of this record opens its upload; without one, it opens here
+        addFiles() {
+            const detail = { recordEntity: this.recordEntity, recordId: this.recordId, handled: false };
+            document.dispatchEvent(new CustomEvent('m-record-files-add', { detail }));
+            if (detail.handled) return;
+            const target = moqui.recordPanelUrl(this.$root.shellData, this.panel.appRoot || this.$root.currentAppName, 'recordFiles',
+                this.common, this.$root.basePath, this.$root.linkBasePath);
+            if (!target.url) { moqui.notifyMessages(null, this.t('Files are not available in this app')); return; }
+            this.filesDialog = { open: true, url: target.url, panel: Object.assign({ kind: 'recordFiles', appRoot: this.panel.appRoot, upload: true,
+                containerId: 'm-chatter-files-' + this.uid }, this.common) };
+        },
+        onFilesChanged(event) {
+            const detail = event.detail || {};
+            if (detail.recordEntity !== this.recordEntity || String(detail.recordId) !== String(this.recordId)) return;
+            this.reloadData();
+            if (this.filter === 'all' || this.filter === 'files') this.loadTimeline(false);
+        }
+    },
+    mounted() {
+        document.addEventListener('m-record-files-changed', this.onFilesChanged);
+        if (window.ResizeObserver) {
+            this.resizeObserver = new ResizeObserver(() => { this.panelWidth = this.$el ? this.$el.clientWidth : 0; });
+            this.resizeObserver.observe(this.$el);
+        }
+        this.panelWidth = this.$el ? this.$el.clientWidth : 0;
+        this.load();
+    },
+    beforeUnmount() {
+        document.removeEventListener('m-record-files-changed', this.onFilesChanged);
+        if (this.resizeObserver) this.resizeObserver.disconnect();
+    }
+};
+</script>

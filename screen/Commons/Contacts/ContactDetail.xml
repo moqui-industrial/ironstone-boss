@@ -12,10 +12,105 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for ContactDetail: design-drawers-commons.md §6, detail archetype, xml, scope parity. -->
+<!-- ContactDetail (design-drawers-commons.md §6 ContactDetail; style-guide §3.4 360), until Contacts is built in M4: the party's
+    header (name, kind, id, its email addresses and phone numbers, its roles) and its Chatter and files, so a contact's
+    messages, notes and activities are usable now. The party is found under the user's filters, so another user's personal
+    contact is "not available". Chatter opens on Send message, as Commons contacts do (§15 per-app defaults). The Overview,
+    Activity, Calendar, Tasks and Requests tabs come with M4. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Contact" default-menu-include="false">
+
+    <parameter name="partyId" required="true"/>
+
+    <transition name="contacts"><default-response url="//Commons/Contacts"/></transition>
+
+    <actions>
+        <entity-find-one entity-name="mantle.party.PartyDetail" value-field="party"/>
+        <if condition="party != null">
+            <set field="partyName" from="(ec.resource.expand('PartyNameOnlyTemplate', '', party) || '').trim() || partyId"/>
+            <set field="partyKind" from="ec.l10n.localize(party.partyTypeEnumId == 'PtyOrganization' ? 'Organization' : 'Person')"/>
+            <entity-find entity-name="mantle.party.contact.PartyContactMechInfo" list="contactMechList">
+                <date-filter/><econdition field-name="partyId"/>
+                <econdition field-name="contactMechTypeEnumId" operator="in" value="CmtEmailAddress,CmtTelecomNumber"/>
+                <order-by field-name="contactMechTypeEnumId,contactMechPurposeId"/>
+            </entity-find>
+            <entity-find entity-name="mantle.party.PartyRole" list="partyRoleList"><econdition field-name="partyId"/></entity-find>
+            <script><![CDATA[
+                const purposes = {}
+                const purposeText = (id) => {
+                    if (!id) return ''
+                    if (purposes[id] === undefined) {
+                        const purpose = ec.entity.find('mantle.party.contact.ContactMechPurpose').condition('contactMechPurposeId', id).useCache(true).one()
+                        purposes[id] = purpose ? (purpose.description || id) : id
+                    }
+                    return purposes[id]
+                }
+                // one row per address or number, with its purposes
+                const byKey = {}
+                contactRows = []
+                for (const row of Array.from(contactMechList)) {
+                    let value = row.infoString
+                    if (row.contactMechTypeEnumId === 'CmtTelecomNumber') {
+                        const phone = ec.entity.find('mantle.party.contact.TelecomNumber').condition('contactMechId', row.contactMechId).one()
+                        if (phone) value = [phone.countryCode ? '+' + phone.countryCode : null, phone.areaCode, phone.contactNumber].filter((part) => part).join(' ')
+                    }
+                    if (!value) continue
+                    const key = row.contactMechTypeEnumId + '|' + value
+                    const known = byKey[key]
+                    if (known) {
+                        if (row.contactMechPurposeId) known.purpose = [known.purpose, purposeText(row.contactMechPurposeId)].filter((part) => part).join(', ')
+                        continue
+                    }
+                    byKey[key] = {kind: ec.l10n.localize(row.contactMechTypeEnumId === 'CmtEmailAddress' ? 'Email' : 'Phone'), value: String(value),
+                        purpose: purposeText(row.contactMechPurposeId)}
+                    contactRows.push(byKey[key])
+                }
+                const roleNames = Array.from(partyRoleList).map((role) => {
+                    const roleType = ec.entity.find('mantle.party.RoleType').condition('roleTypeId', role.roleTypeId).useCache(true).one()
+                    return roleType ? (roleType.description || role.roleTypeId) : role.roleTypeId
+                })
+                roleText = roleNames.join(', ')
+                isPersonal = !!party.privateOwnerUserId
+                const escapeHtml = (text) => String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+                avatarHtml = '<m-avatar name="' + escapeHtml(partyName) + '" size="48px" class="q-mr-md"></m-avatar>'
+            ]]></script>
+        </if>
+    </actions>
     <widgets>
-        <label text="Placeholder: The contact record." type="p"/>
+        <section name="NotFound" condition="party == null"><widgets>
+            <container-box type="warning"><box-header title="Not available"/><box-body>
+                <label type="p" text="Contact ${partyId} is not available: it does not exist, or it is someone else's personal contact."/>
+                <link url="contacts" text="Back to Contacts" link-type="anchor"/>
+            </box-body></container-box>
+        </widgets></section>
+
+        <section name="Found" condition="party != null"><widgets>
+            <!-- the record for the shell: quick create's link chip and the activity kind, Today's "Add activity on this record" -->
+            <context record-entity="mantle.party.Party" record-id="${partyId}" title="${partyName}"/>
+            <container-row><row-col lg="8">
+                <container style="row items-center no-wrap q-mx-sm q-my-sm">
+                    <render-mode><text type="qvt"><![CDATA[${avatarHtml}]]></text></render-mode>
+                    <container style="col">
+                        <label text="${partyName}" type="h5" style="q-my-none"/>
+                        <label text="${partyKind} · ${party.pseudoId || partyId}${roleText ? ' · ' + roleText : ''}${isPersonal ? ' · ' + ec.l10n.localize('your personal contact') : ''}"
+                                type="div" style="text-caption m-muted"/>
+                    </container>
+                </container>
+
+                <container-box><box-header title="Contact"/><box-body-nopad>
+                    <form-list name="ContactMechList" list="contactRows" skip-form="true" paginate="false">
+                        <field name="kind"><default-field title="Kind"><display/></default-field></field>
+                        <field name="value"><default-field title="Address or number"><display/></default-field></field>
+                        <field name="purpose"><default-field title="Purpose"><display/></default-field></field>
+                    </form-list>
+                </box-body-nopad></container-box>
+                <label text="The full contact record (Overview, Activity, Calendar, Tasks, Requests) comes with Contacts." type="div"
+                        style="text-caption m-muted q-mx-sm"/>
+            </row-col><row-col lg="4">
+                <!-- the contact's Chatter, opening on Send message, and files: the theme's record panels of this app root (IronStone R5) -->
+                <chatter id="ContactChatter" record-entity="mantle.party.Party" record-id="${partyId}" default-tab="message"/>
+                <record-files id="ContactFiles" record-entity="mantle.party.Party" record-id="${partyId}"/>
+            </row-col></container-row>
+        </widgets></section>
     </widgets>
 </screen>

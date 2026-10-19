@@ -3,7 +3,8 @@
 // menu data builds, which also defines the sibling and default screens the menu lists. Placeholders are found by their
 // "Placeholder:" label. Every other screen under the Commons, Comms and Insights roots and in screen/Shared (the screens
 // built there and the ones moved from the first SimpleScreens port) renders the same way, on the demo records of
-// data/BossDemoData.xml, and shows them.
+// data/BossDemoData.xml, and shows them; a .qvue screen (render-modes vue,qvue: Shared/Chatter and Shared/RecordFiles) renders
+// in qvue, its component.
 // Run: ./moq test ironstone-boss
 const base = "component://ironstone-boss/screen"
 const apps = ["Commons", "Comms", "Sales", "Marketing", "CustomerService", "Commerce", "Products", "Purchasing", "Warehouse",
@@ -32,11 +33,11 @@ function findScreenFiles(appList, matches) {
         for (const file of files) {
             // the walk's paths start with the root's own name: Commons, Commons/Home, …
             if (file.path !== app && file.location.endsWith(".xml") && matches(file.location))
-                found.push([`${base}/${app}.xml`, file.path.substring(app.length + 1)])
+                found.push([`${base}/${app}.xml`, file.path.substring(app.length + 1), file.location])
         }
     }
     for (const fileRef of ec.resource.getLocationReference(`${base}/Shared`).getDirectoryEntries())
-        if (fileRef.location.endsWith(".xml") && matches(fileRef.location)) found.push([fileRef.location, ""])
+        if (fileRef.location.endsWith(".xml") && matches(fileRef.location)) found.push([fileRef.location, "", fileRef.location])
     return found
 }
 
@@ -57,6 +58,8 @@ const demoRecords = {
     "Commons/Calendar/EventDetail": { parameters: { workEffortId: "BOSS_DEMO_EVENT" }, text: "Weekly team meeting" },
     "Commons/Requests": { text: "Set up the shared team calendar" },
     "Commons/Requests/RequestDetail": { parameters: { requestId: "BOSS_DEMO_REQUEST" }, text: "Set up the shared team calendar" },
+    // M3: the contact detail (until M4) with its Chatter and files
+    "Commons/Contacts/ContactDetail": { parameters: { partyId: "ORG_ACME_BA" }, text: "Bob Acme" },
     "Commons/Tasks": { text: "Review the open support requests" },
     "Commons/Tasks/TaskDetail": { parameters: { workEffortId: "BOSS_DEMO_TASK" }, text: "Review the open support requests" },
     "Comms/Inbox": { text: "Question about the team calendar" },
@@ -116,18 +119,21 @@ feature("every placeholder screen renders in qvt without errors, with its menu",
     },
 })
 
-feature("every other Commons, Comms, Insights and Shared screen renders in qvt without errors, with its menu", {
+feature("every other Commons, Comms, Insights and Shared screen renders in qvt (a .qvue screen in qvue) without errors, with its menu", {
     when() {
         const failures = []
-        for (const [root, path] of screens) {
+        for (const [root, path, location] of screens) {
             const app = root.substring(base.length + 1).replace(/\.xml$/, "")
             const demo = demoRecords[`${app}/${path}`] || {}
             const parameters = Object.assign({ lastStandalone: "-2" }, demo.parameters)
-            const str = ec.screen.makeTest().rootScreen(root).renderMode("qvt").render(path, parameters, null)
+            // a .qvue screen answers its component in the qvue render mode
+            const qvue = /render-modes="vue,qvue"/.test(ec.resource.getLocationReference(location).getText())
+            const str = ec.screen.makeTest().rootScreen(root).renderMode(qvue ? "qvue" : "qvt").render(path, parameters, null)
             const where = `${root.substring(base.length + 1)} ${path}`.trim()
             const output = str.output || ""
             if (str.status != 200 || str.errorMessages.length > 0 || /Error rendering|Exception in render/.test(output))
                 failures.push(`${where}: status ${str.status}, ${str.errorMessages.join(" | ") || output.substring(0, 200)}`)
+            else if (qvue && !output.includes("module.exports")) failures.push(`${where}: no component in qvue`)
             else if (demo.text && !output.includes(demo.text)) failures.push(`${where}: no "${demo.text}"`)
             ec.message.clearErrors()
             const menu = apps.includes(app) ? menuError(`${app}/${path}`) : null
