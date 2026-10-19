@@ -1,7 +1,7 @@
 # IronStone BOSS — Header, drawers, Commons & Comms implementation
 
-Oct 18, 2026 — plan; Step 0 done (the review corrections are in design-drawers-commons.md); Oct 19 — M0–M11 built
-(M5f left; status in §5)
+Oct 18, 2026 — plan; Step 0 done (the review corrections are in design-drawers-commons.md); Oct 19 — M0–M11 built,
+save point (what is left in §8)
 
 How [design-drawers-commons.md](design-drawers-commons.md) gets built: the review of that design against mr-moqui and
 Mantle as they stand (findings R1–R27, each with the resolution now written into the design), the rules every step
@@ -111,7 +111,7 @@ Each finding was verified in the code. Each resolution is now part of the design
 | M2 Today, notifications, quick create | mr-moqui, Mantle, BOSS | TodayPanel, NotificationsPanel, Notifications, QuickCreate, Commons Home, Settings, Account, Preferences, NotificationSettings | done Oct 19 |
 | M3 Record links, Chatter, record files | mr-moqui, Mantle, BOSS | Chatter, RecordFiles | done Oct 19 |
 | M4 Contacts | mr-moqui, Mantle, BOSS | Contacts, ContactDetail, ContactImport, Duplicates, ContactBooks | done Oct 19 |
-| M5 Mail (M5a–M5f) | mr-moqui, Mantle, BOSS | Inbox, Compose, MessageDetail, Comms Home, MailAccounts, Identities, Rules, OutOfOffice, TextBlocks | M5a–M5e done Oct 19 (OAuth sign-in for Google and Microsoft in the framework; the BOSS sign-in buttons under way); M5f (SMTP listener) not started |
+| M5 Mail (M5a–M5f) | mr-moqui, Mantle, BOSS | Inbox, Compose, MessageDetail, Comms Home, MailAccounts, Identities, Rules, OutOfOffice, TextBlocks | done Oct 19 (M5f, the SMTP listener, is in the framework behind the `inbound-smtp` feature, off by default; BOSS has no hosted-account setup yet) |
 | M6 Tasks and requests | BOSS | Tasks, TaskDetail, Requests, RequestDetail | done Oct 19 |
 | M7 Calendar and schedules | mr-moqui, Mantle, BOSS | Calendar, EventDetail, Schedules, ResourceDetail, Calendars | done Oct 19 (the Inbox iMIP card with M5) |
 | M8 Files and drives | mr-moqui, BOSS | Files, Drives, Shares, PublicShare | done Oct 19 |
@@ -627,3 +627,44 @@ Designed in design-drawers-commons.md; each of these gets its own plan:
 - **Screenshots** with `example/test/gallery-shots.mjs` (`BASE_URL`, `USERNAME`, `PASSWORD`, `CHROME`), light and dark.
 - **Non-BOSS check:** with BOSS's theme values removed, MarbleERP and the tools screens still render with the hidden
   elements (R27).
+
+## 8. Save point, Oct 19, 2026
+
+Every milestone M0–M11 is built and committed: mr-moqui-base e6d8504, Mantle udm f443cb8 and usl 8c3b30c, BOSS eb4a3d3
+(MrSimpleScreens 5330d2a). The last full `./moq test` was 1076 features, all passing, before the final follow-ups; those
+were checked with their own specs only. Build notes per milestone are in §5; the framework's own list is mr-moqui
+plans/Remaining-Work.md.
+
+**Waiting for a decision**
+- mr-moqui branch `entity-modified-fields` (0109e5e, not merged): a found value's `update()` writes only the fields that
+  changed, so two transactions changing different fields of one row no longer undo each other. This goes beyond Java,
+  whose `update()` of a found value writes every field it holds; recorded in plans/Parity-Diffs.md on the branch. Its
+  core, gate3 and example tests pass; the component suites were not run on it (one Mantle spec failed only because the
+  branch predates the MailCapture headers change).
+- view-calendar `range-find` is opt-in (Tasks uses it); making it the default adds a request to every calendar list.
+
+**Left to build**
+- Framework:
+  - `m-avatar` given only a user id has no way to find a face image (the header avatar shows initials): a hook such as
+    a theme value with `${userId}` or a shell data URL.
+  - `WikiServices.clone#WikiPage`: no new name or children option, attachments copied to the source path, aliases
+    copied (BOSS duplicates pages with its own service).
+  - A rare flaky spec: MailClient's search feature (about 1 run in 15) — the search index's pending queue processed by
+    two workers at once.
+  - Not run against real Google and Microsoft OAuth clients yet; access tokens are per node in a cluster.
+  - SMTP listener: no TLS to the gateway (loopback or a private network), no LMTP mode, no DSN.
+  - Files: PDF previews, extracted text for search, office previews. Chat: polls, calls, link previews, a room's
+    files and threads lists, forward, offline sends.
+  - Older open items still listed in Remaining-Work.md (notification digest grouping, rich-text tables and `#` record
+    links, job scheduling in the machine time zone, and others).
+- Mantle: a generic request-to-record link (only RequestWorkEffort exists); a bookable flag and capacity on Facility
+  and Asset; a token route for a published calendar; consent per organization was decided against (§16, §19).
+- BOSS:
+  - Mail: the account list's SyncProgress should unregister its listener on unmount (the framework now returns an
+    unregister function); hosted and shared accounts' setup for the SMTP listener; internal labels
+    (CommunicationEventPartyLabel); the quota line, phone swipe actions, contact groups in recipients; Save to Files
+    from a message; the MailDefaults left (threads or messages, default account, swipe).
+  - Contacts: import as a job with progress, print, calls.
+  - Calls (§14) and the Assist drawer (Phase 13) are later, as §6 lists.
+  - The server-static pass: `moqui lint --screens --qvt-static` over BOSS and marking the screens that fit.
+  - Old ported screens outside Commons and Comms (Sales/Reports and others) still carry 11 lint flags.
