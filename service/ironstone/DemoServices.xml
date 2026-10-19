@@ -264,6 +264,29 @@ along with this software (see the LICENSE.md file). If not, see
         ]]></script></actions>
     </service>
 
+    <service verb="load" noun="ContactsDemo" authenticate="anonymous-all" allow-remote="false">
+        <description>The emails john.doe sent that Commons Contacts lists under Recently contacted (IronStone M4), dated from the
+            load: to his personal contact Robin Fischer three days ago and to Pat Quinn six days ago. Only BOSS_DEMO_CE_CONTACT_*
+            records are written; loading again moves their dates.</description>
+        <actions><script><![CDATA[
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try {
+                if (ec.entity.find('mantle.party.Party').condition('partyId', 'BOSS_DEMO_PC_ROBIN').one() == null) {
+                    ec.logger.warn('The Contacts demo needs BOSS_DEMO_PC_ROBIN (data/BossDemoData.xml); nothing loaded')
+                    return
+                }
+                const now = Number(String(ec.user.nowTimestamp))
+                const sent = (id, toPartyId, days, subject, body) => ec.service.sync().name('store#mantle.party.communication.CommunicationEvent')
+                        .parameters({communicationEventId: id, communicationEventTypeId: 'Email', statusId: 'CeSent', fromPartyId: 'EX_JOHN_DOE',
+                            toPartyId: toPartyId, entryDate: new Date(now - days * 86400000), subject: subject, contentType: 'text/plain', body: body}).call()
+                sent('BOSS_DEMO_CE_CONTACT_ROBIN', 'BOSS_DEMO_PC_ROBIN', 3, 'Dinner on Saturday', 'Are you free for dinner on Saturday?')
+                sent('BOSS_DEMO_CE_CONTACT_PAT', 'BOSS_DEMO_DUP_A', 6, 'Your calendar question', 'The shared calendar can be read by the whole team.')
+            } finally {
+                if (!wasDisabled) ec.artifactExecution.enableAuthz()
+            }
+        ]]></script></actions>
+    </service>
+
     <!-- The demo approval topic, BossDemoApproval (data/BossDemoData.xml): its approve and refuse services, which the
         framework's approve#NotificationMessage and refuse#NotificationMessage call as the user (IronStone R23). The decision
         is a note on the record (mantle.party.CommunicationServices.log#RecordNote), nothing else changes. -->

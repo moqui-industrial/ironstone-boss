@@ -25,6 +25,7 @@ along with this software (see the LICENSE.md file). If not, see
     <parameter name="recordEntity"/>
     <parameter name="recordId"/>
     <parameter name="recordTitle"/>
+    <parameter name="openAfter"><description>Y: a new contact opens in Contacts after it is made</description></parameter>
 
     <!-- each kind's create: the service in the script, so its errors are answered too (a 500 the form shows) -->
     <transition name="createTask">
@@ -71,8 +72,10 @@ along with this software (see the LICENSE.md file). If not, see
             const out = ec.service.sync().name('ironstone.QuickCreateServices.create#Contact').parameters({partyTypeEnumId: partyTypeEnumId || null,
                 contactName: contactName, emailAddress: emailAddress || null, phone: phone || null,
                 organizationPartyId: partyTypeEnumId === 'PtyOrganization' ? null : (organizationPartyId || null), contactBookId: contactBookId || null}).call()
-            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {partyId: out.partyId, contactBookId: out.contactBookId, url: out.url,
-                messageInfos: [{type: 'success', message: out.message, link: out.url}]})
+            // from Contacts' New contact (openAfter=Y) the new contact opens in the Contacts split
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : Object.assign({partyId: out.partyId, contactBookId: out.contactBookId, url: out.url,
+                messageInfos: [{type: 'success', message: out.message, link: out.url}]},
+                openAfter === 'Y' ? {screenUrl: '/qapps/Commons/Contacts?partyId=' + encodeURIComponent(out.partyId)} : {}))
         ]]></script></actions>
         <default-response type="none"/>
     </transition>
@@ -148,6 +151,9 @@ along with this software (see the LICENSE.md file). If not, see
             customerName = customerPartyId ? recordLabel : null
             organizationPartyId = has && partyType === 'PtyOrganization' ? recordId : null
             organizationName = organizationPartyId ? recordLabel : null
+            // an event from a person's record (Contacts' New event) invites that person
+            attendeeDefault = has && partyType === 'PtyPerson' ? recordId : null
+            attendeeName = attendeeDefault ? recordLabel : null
             kindTitles = {task: L('New task'), activity: L('Schedule an activity'), event: L('New event'), note: L('New note'),
                 contact: L('New contact'), request: L('New request')}
         ]]></script>
@@ -242,8 +248,8 @@ along with this software (see the LICENSE.md file). If not, see
                 <field name="allDay"><default-field title="All day"><check><option key="Y" text="All day"/></check></default-field></field>
                 <field name="calendarId"><default-field title="Calendar">
                     <drop-down><list-options list="calendarOptions" key="${calendarId}" text="${calendarName}"/></drop-down></default-field></field>
-                <field name="attendeePartyIds"><default-field title="Attendees">
-                    <drop-down allow-multiple="true" allow-empty="true"><dynamic-options transition="searchPeople" server-search="true" min-length="1"/></drop-down>
+                <field name="attendeePartyIds" from="attendeeDefault"><default-field title="Attendees">
+                    <drop-down allow-multiple="true" allow-empty="true" current-description="${attendeeName || ''}"><dynamic-options transition="searchPeople" server-search="true" min-length="1"/></drop-down>
                 </default-field></field>
                 <field name="createButton"><default-field title="Create"><submit/></default-field></field>
                 <field-layout>
@@ -278,6 +284,7 @@ along with this software (see the LICENSE.md file). If not, see
         <!-- contact: personal by default, or in the directory -->
         <section name="ContactKind" condition="kind == 'contact'"><widgets>
             <form-single name="QuickContact" transition="createContact" focus-field="contactName">
+                <field name="openAfter"><default-field><hidden/></default-field></field>
                 <field name="partyTypeEnumId"><default-field title="Type"><radio no-current-selected-key="PtyPerson">
                     <option key="PtyPerson" text="Person"/><option key="PtyOrganization" text="Organization"/></radio></default-field></field>
                 <field name="contactName"><default-field title="Name"><text-line size="40"/></default-field></field>

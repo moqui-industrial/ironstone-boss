@@ -1,0 +1,18 @@
+BEGIN:VCARD
+VERSION:3.0
+N:Lovelace;Ada;;;
+FN:Ada Lovelace
+ORG:Analytical Engines
+TITLE:Analyst
+EMAIL;TYPE=INTERNET,HOME:ada@engine.example
+TEL;TYPE=CELL:+1 555 010 0150
+CATEGORIES:Friends
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Fischer;Robin;;;
+FN:Robin Fischer
+EMAIL;TYPE=INTERNET:robin.fischer@example.org
+TEL;TYPE=WORK:+1 555 010 0178
+NOTE:Works at the library
+END:VCARD

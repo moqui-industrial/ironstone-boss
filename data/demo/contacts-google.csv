@@ -1,0 +1,4 @@
+First Name,Middle Name,Last Name,Name Prefix,Name Suffix,Nickname,Organization Name,Organization Title,Birthday,Notes,Labels,E-mail 1 - Label,E-mail 1 - Value,Phone 1 - Label,Phone 1 - Value,Address 1 - Label,Address 1 - Street,Address 1 - City,Address 1 - Region,Address 1 - Postal Code,Address 1 - Country
+Grace,,Hopper,,,,Harvard Computation Lab,Programmer,1906-12-09,Met at the conference,* myContacts ::: Friends,* Work,grace.hopper@navy.example,Mobile,+1 555 010 0170,Work,1 Oxford Street,Cambridge,MA,02138,United States
+Mary,,Doe,,,,,,,,* myContacts ::: Family,* Home,mary.doe@example.com,Home,+1 555 010 0199,,,,,,
+Alan,,Turing,,,,Bletchley Park,,,,* myContacts ::: Colleagues,* Work,alan.turing@bletchley.example,,,,,,,,

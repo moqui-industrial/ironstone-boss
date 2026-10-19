@@ -58,8 +58,20 @@ const demoRecords = {
     "Commons/Calendar/EventDetail": { parameters: { workEffortId: "BOSS_DEMO_EVENT" }, text: "Weekly team meeting" },
     "Commons/Requests": { text: "Set up the shared team calendar" },
     "Commons/Requests/RequestDetail": { parameters: { requestId: "BOSS_DEMO_REQUEST" }, text: "Set up the shared team calendar" },
-    // M3: the contact detail (until M4) with its Chatter and files
+    // M4: Contacts (the split and the record), Compare, Duplicates, the import wizard's steps (no import yet) and the contact books
+    "Commons/Contacts/List": { text: "Mary Doe" },
     "Commons/Contacts/ContactDetail": { parameters: { partyId: "ORG_ACME_BA" }, text: "Bob Acme" },
+    "Commons/Contacts/Compare": { parameters: { partyId: "BOSS_DEMO_DUP_A", otherPartyId: "BOSS_DEMO_DUP_B" }, text: "Side by side" },
+    "Commons/Contacts/Duplicates": { text: "Same email" },
+    "Commons/Contacts/Import": { text: "Import contacts" },
+    // the steps render inside the wizard's panel, which the client fills: here only that they render (test/ContactImport.spec.js
+    // walks them)
+    "Commons/Contacts/Import/Source": {},
+    "Commons/Contacts/Import/Mapping": {},
+    "Commons/Contacts/Import/Options": {},
+    "Commons/Contacts/Import/Preview": {},
+    "Commons/Contacts/Import/Result": {},
+    "Commons/Settings/ContactBooks": { text: "Team Contacts" },
     "Commons/Tasks": { text: "Review the open support requests" },
     "Commons/Tasks/TaskDetail": { parameters: { workEffortId: "BOSS_DEMO_TASK" }, text: "Review the open support requests" },
     "Comms/Inbox": { text: "Question about the team calendar" },
@@ -114,7 +126,8 @@ feature("every placeholder screen renders in qvt without errors, with its menu",
         return { failures }
     },
     then({ failures }) {
-        placeholders.length > 130
+        // fewer as the milestones replace them (129 after M4)
+        placeholders.length > 120
         failures.join("\n") == ""
     },
 })

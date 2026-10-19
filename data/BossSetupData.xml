@@ -141,4 +141,9 @@ along with this software (see the LICENSE.md file). If not, see
             resourceValue="RecordFiles"/>
     <moqui.screen.ScreenThemeResource screenThemeId="DEFAULT_QUASAR" sequenceNum="307" resourceTypeEnumId="STRT_SHELL_COUNTS_SERVICE"
             resourceValue="mantle.party.PartyServices.get#ShellCounts"/>
+    <!-- Contacts (design-drawers-commons.md §6, impl M4): contact admins change and delete directory contacts and review the
+        duplicates (Commons/Contacts/Duplicates); ADMIN members are contact admins too. A pair a contact admin marks "not a
+        duplicate" is kept in a PartySetting of each party (a comma list of the other party ids), until Mantle records it. -->
+    <moqui.security.UserGroup userGroupId="BOSS_CONTACT_ADMIN" description="Contact admins (IronStone): edit and delete directory contacts, review duplicates"/>
+    <mantle.party.PartySettingType partySettingTypeId="BossNotDuplicates" description="Not duplicates of (IronStone Contacts): party ids, comma separated"/>
 </entity-facade-xml>

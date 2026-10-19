@@ -12,10 +12,121 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for Duplicates: design-drawers-commons.md §6, list archetype, xml, scope parity. -->
+<!-- Duplicates (design-drawers-commons.md §6 Duplicates; style-guide §3.2 List): the candidate duplicate pairs of the directory,
+    grouped by reason (same email, same phone, same name, same address, same identification), from the duplicate scan
+    (mantle.party.DuplicateServices.check#AllPartyDuplicates, run on demand here; find#PartyDuplicates for each flagged
+    party) and a same-name pass (ironstone.ContactServices.get#DuplicatePairs); DuplicateFind narrows by reason, book and
+    minimum score. Each pair opens the Compare dialog (Contacts/Compare: both records side by side, the field-level choice,
+    Merge) or is marked Not a duplicate. Personal contacts never appear: the duplicate services skip them and the pairs are
+    directory parties only. For contact admins (BOSS_CONTACT_ADMIN or ADMIN). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Duplicates" default-menu-index="2">
+        default-menu-title="Duplicates" default-menu-index="3">
+
+    <parameter name="reason"/>
+    <parameter name="contactBookId"/>
+    <parameter name="minScore"/>
+
+    <transition name="runScan">
+        <actions><script><![CDATA[
+            if (!(ec.user.isInGroup('BOSS_CONTACT_ADMIN') || ec.user.isInGroup('ADMIN'))) { ec.message.addError(ec.l10n.localize('Only contact admins review duplicates')); return }
+            ec.service.sync().name('mantle.party.DuplicateServices.check#AllPartyDuplicates').call()
+            if (!ec.message.hasError()) ec.message.addMessage(ec.l10n.localize('The duplicate scan is done'), 'success')
+        ]]></script></actions>
+        <default-response url="."/>
+    </transition>
+    <transition name="notDuplicate">
+        <actions>
+            <service-call name="ironstone.ContactServices.mark#NotDuplicate" in-map="{partyId:partyId, otherPartyId:otherPartyId}"/>
+            <if condition="!ec.message.hasError()"><message type="success">Marked as not duplicates</message></if>
+        </actions>
+        <default-response url="."/>
+    </transition>
+
+    <actions>
+        <set field="isContactAdmin" from="ec.user.isInGroup('BOSS_CONTACT_ADMIN') || ec.user.isInGroup('ADMIN')"/>
+        <if condition="isContactAdmin">
+            <service-call name="ironstone.ContactServices.get#DuplicatePairs" in-map="{reason:reason}" out-map="dupOut"/>
+            <service-call name="mantle.party.ContactBookServices.get#UserContactBooks" out-map="booksOut"/>
+        </if>
+        <script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            if (!isContactAdmin) return
+            let pairs = Array.from(dupOut?.pairList || [])
+            const books = Array.from(booksOut?.contactBookList || [])
+            bookOptions = books.map((book) => ({key: book.contactBookId, text: book.contactBookName}))
+            if (contactBookId && books.some((book) => book.contactBookId === contactBookId)) {
+                const members = new Set(Array.from(ec.entity.find('mantle.party.contact.ContactBookParty').condition('contactBookId', contactBookId)
+                        .condition(ec.entity.conditionFactory.makeConditionDate('fromDate', 'thruDate', null)).selectField('partyId').list()).map((row) => row.partyId))
+                pairs = pairs.filter((pair) => members.has(pair.partyId) || members.has(pair.otherPartyId))
+            }
+            const min = Number(minScore || 0) || 0
+            if (min) pairs = pairs.filter((pair) => pair.score >= min)
+            reasonList = Array.from(dupOut?.reasonList || [])
+            // a group per reason, in the order of the reasons
+            reasonGroups = reasonList.map((entry) => ({reason: entry.reason, title: entry.label + ' · ' + pairs.filter((pair) => pair.reason === entry.reason).length,
+                pairList: pairs.filter((pair) => pair.reason === entry.reason)})).filter((group) => group.pairList.length)
+            pairCount = pairs.length
+            flaggedCount = dupOut?.flaggedCount || 0
+            filtered = !!(reason || contactBookId || minScore)
+        ]]></script>
+    </actions>
     <widgets>
-        <label text="Placeholder: Candidate duplicates with compare and merge." type="p"/>
+        <section name="NotAdmin" condition="!isContactAdmin"><widgets>
+            <container-box type="warning"><box-header title="Duplicates"/><box-body>
+                <label type="p" text="Only contact admins review duplicates. Ask an admin to add you to Contact admins."/>
+                <link url="../List" link-type="anchor" text="Back to Contacts"/>
+            </box-body></container-box>
+        </widgets></section>
+        <section name="Admin" condition="isContactAdmin"><widgets>
+            <container style="row items-center q-mb-sm">
+                <label type="h5" text="Duplicates" style="q-my-none"/>
+                <container style="col"/>
+                <link url="runScan" text="Run the scan" icon="sym_o_manage_search" link-type="hidden-form-link" style="q-ml-sm"/>
+                <link url="../List" text="Contacts" icon="sym_o_contacts" style="q-ml-sm"/>
+            </container>
+            <label type="p" text="Candidate pairs among the directory's people and organizations; personal contacts are never in the scan. Compare a pair to merge it, or mark it not a duplicate." style="m-muted"/>
+
+            <form-single name="DuplicateFind" transition=".">
+                <field name="reason"><default-field title="Reason">
+                    <drop-down allow-empty="true"><option key="email" text="Same email"/><option key="phone" text="Same phone"/><option key="name" text="Same name"/>
+                        <option key="address" text="Same address"/><option key="identification" text="Same identification"/></drop-down></default-field></field>
+                <field name="contactBookId"><default-field title="Book">
+                    <drop-down allow-empty="true"><list-options list="bookOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                <field name="minScore"><default-field title="Minimum score"><text-line size="5" input-type="number"/></default-field></field>
+                <field name="findButton"><default-field title="Find"><submit/></default-field></field>
+                <field-layout><field-row-big><field-ref name="reason"/><field-ref name="contactBookId"/><field-ref name="minScore"/><field-ref name="findButton"/></field-row-big></field-layout>
+            </form-single>
+
+            <section-iterate name="ReasonGroup" list="reasonGroups" entry="group"><widgets>
+                <container-box><box-header title="${group.title}"/><box-body-nopad>
+                    <form-list name="DuplicatePairs" list="group.pairList" skip-form="true" paginate="false">
+                        <field name="name"><default-field title="Contact">
+                            <link url="../ContactDetail" link-type="anchor" text="${name}" parameter-map="{partyId:partyId}"/></default-field></field>
+                        <field name="otherName"><default-field title="Possible duplicate">
+                            <link url="../ContactDetail" link-type="anchor" text="${otherName}" parameter-map="{partyId:otherPartyId}"/></default-field></field>
+                        <field name="reasonText"><default-field title="Why"><display/></default-field></field>
+                        <field name="detailText"><default-field title="Matching"><display style="text-caption"/></default-field></field>
+                        <field name="score" align="right"><default-field title="Score"><display/></default-field></field>
+                        <field name="rowActions" align="right"><default-field title="">
+                            <container style="row no-wrap justify-end items-center q-gutter-x-xs">
+                                <dynamic-dialog id="CompareDialog" button-text="Compare" icon="sym_o_compare" transition="../Compare" width="900" title="Compare and merge"
+                                        parameter-map="{partyId:partyId, otherPartyId:otherPartyId, returnTo:'duplicates'}"/>
+                                <link url="notDuplicate" link-type="hidden-form-link" text="Not a duplicate" icon="sym_o_do_not_disturb_on"
+                                        parameter-map="{partyId:partyId, otherPartyId:otherPartyId}"/>
+                            </container>
+                        </default-field></field>
+                        <columns type="mobile">
+                            <column><field-ref name="name"/><field-ref name="otherName"/><field-ref name="reasonText"/></column>
+                            <column><field-ref name="rowActions"/></column>
+                        </columns>
+                    </form-list>
+                </box-body-nopad></container-box>
+            </widgets></section-iterate>
+            <section name="NoPairs" condition="!pairCount"><widgets>
+                <container-box><box-body>
+                    <label type="p" text="${filtered ? 'No pairs match' : 'No duplicates found · Run the scan to check again'}" style="m-muted q-mb-none"/>
+                </box-body></container-box>
+            </widgets></section>
+        </widgets></section>
     </widgets>
 </screen>

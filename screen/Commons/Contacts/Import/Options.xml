@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- Import step 3, ImportOptions (design-drawers-commons.md §6): where and how, the import#Contacts parameters: as personal
+    contacts (only you see them, into one of your books) or directory contacts (contact admins; into a shared book, or none),
+    the target book, groups to add to every contact (existing ones and new names), the file's own groups, and what to do with
+    a row that matches an existing contact (skip, update, or create anyway). saveOptions keeps them in the import's draft. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Options" default-menu-index="3">
+
+    <parameter name="importId"/>
+
+    <transition name="saveOptions">
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const current = ec.service.sync().name('ironstone.ContactServices.get#ImportDraft').parameters({importId: importId}).call()
+            if (!current?.found) { ec.message.addError(L('This import is not available; start again from the file')); return }
+            const personal = asPersonal !== 'N'
+            const admin = ec.user.isInGroup('BOSS_CONTACT_ADMIN') || ec.user.isInGroup('ADMIN')
+            if (!personal && !admin) { ec.message.addValidationError(null, 'asPersonal', null, L('Only contact admins import into the directory'), null); return }
+            if (!['skip', 'update', 'create'].includes(duplicatePolicy)) { ec.message.addValidationError(null, 'duplicatePolicy', null, L('Choose what to do with duplicates'), null); return }
+            const books = ec.service.sync().name('mantle.party.ContactBookServices.get#UserContactBooks').call()?.contactBookList || []
+            const book = contactBookId ? books.find((entry) => entry.contactBookId === contactBookId) : null
+            if (contactBookId && (book == null || !['CbpEdit', 'CbpManage'].includes(book.permissionEnumId))) {
+                ec.message.addValidationError(null, 'contactBookId', null, L('Choose a book you may add to'), null); return }
+            if (personal && book && !book.isOwner) { ec.message.addValidationError(null, 'contactBookId', null, L('Personal contacts go in one of your own books'), null); return }
+            const groupIds = (contactBookGroupIdList == null ? [] : (typeof contactBookGroupIdList === 'string' ? contactBookGroupIdList.split(',') : Array.from(contactBookGroupIdList)))
+                    .map((id) => String(id).trim()).filter((id) => id && book && (book.groupList || []).some((group) => group.contactBookGroupId === id))
+            if (!personal && !book && (groupIds.length || groupNames)) { ec.message.addValidationError(null, 'contactBookId', null, L('Groups need a book'), null); return }
+            ec.service.sync().name('ironstone.ContactServices.store#ImportDraft').parameters({importId: importId, fields: {status: 'options', options: {
+                asPersonal: personal, contactBookId: contactBookId || null, contactBookGroupIdList: groupIds,
+                groupNames: groupNames ? String(groupNames).trim() : null, duplicatePolicy: duplicatePolicy, useFileGroups: useFileGroups !== 'N'}}}).call()
+        ]]></script></actions>
+        <default-response url="."><parameter name="importId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition-include name="contactBookGroups" location="component://ironstone-boss/template/ContactRecord.xml"/>
+
+    <actions>
+        <service-call name="ironstone.ContactServices.get#ImportDraft" in-map="{importId:importId}" out-map="draftOut"/>
+        <set field="hasDraft" from="!!draftOut.found"/>
+        <set field="draft" from="draftOut.draft || {}"/>
+        <service-call name="mantle.party.ContactBookServices.get#UserContactBooks" out-map="booksOut"/>
+        <script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const books = Array.from(booksOut.contactBookList || []).filter((book) => ['CbpEdit', 'CbpManage'].includes(book.permissionEnumId))
+            isContactAdmin = ec.user.isInGroup('BOSS_CONTACT_ADMIN') || ec.user.isInGroup('ADMIN')
+            bookOptions = books.map((book) => ({key: book.contactBookId, text: book.contactBookName + (book.isOwner ? ' · ' + L('yours') : ' · ' + L('shared'))}))
+            const defaultBook = books.find((book) => book.isOwner && book.isDefault) || books.find((book) => book.isOwner)
+            const saved = draft.options || {}
+            options = {importId: importId, asPersonal: saved.asPersonal === false ? 'N' : 'Y', contactBookId: saved.contactBookId || (defaultBook ? defaultBook.contactBookId : null),
+                contactBookGroupIdList: saved.contactBookGroupIdList || [], groupNames: saved.groupNames || '', duplicatePolicy: saved.duplicatePolicy || 'skip',
+                useFileGroups: saved.useFileGroups === false ? 'N' : 'Y'}
+        ]]></script>
+    </actions>
+    <widgets>
+        <section name="NoDraft" condition="!hasDraft"><widgets>
+            <container-box type="warning"><box-body><label type="p" text="Start with the file."/></box-body></container-box>
+        </widgets></section>
+        <section name="OptionsForm" condition="hasDraft"><widgets>
+            <container-box><box-header title="Where and how"/><box-body>
+                <form-single name="ImportOptions" transition="saveOptions" map="options">
+                    <field name="importId"><default-field><hidden/></default-field></field>
+                    <field name="asPersonal"><conditional-field condition="isContactAdmin" title="Import as">
+                        <radio><option key="Y" text="My personal contacts (only I see them)"/><option key="N" text="Directory contacts (my organization sees them)"/></radio>
+                    </conditional-field><default-field><hidden/></default-field></field>
+                    <field name="contactBookId"><default-field title="Into the book">
+                        <drop-down allow-empty="true"><list-options list="bookOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                    <field name="contactBookGroupIdList"><default-field title="Add every contact to the groups">
+                        <drop-down allow-multiple="true" allow-empty="true">
+                            <dynamic-options transition="contactBookGroups" depends-optional="true"><depends-on field="contactBookId"/></dynamic-options>
+                        </drop-down></default-field></field>
+                    <field name="groupNames"><default-field title="New groups (comma separated)"><text-line size="30"/></default-field></field>
+                    <field name="useFileGroups"><default-field title="The file's groups">
+                        <radio><option key="Y" text="Add them to the book"/><option key="N" text="Leave them out"/></radio></default-field></field>
+                    <field name="duplicatePolicy"><default-field title="A row that matches a contact">
+                        <radio><option key="skip" text="Skip it"/><option key="update" text="Update the contact (add what it lacks)"/>
+                            <option key="create" text="Create another contact anyway"/></radio></default-field></field>
+                </form-single>
+                <label type="p" text="A row matches by email, then by phone with the same name, then by a name only one contact has." style="text-caption m-muted"/>
+            </box-body></container-box>
+        </widgets></section>
+    </widgets>
+</screen>

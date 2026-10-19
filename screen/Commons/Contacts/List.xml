@@ -1,0 +1,291 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- Contacts, the split (design-drawers-commons.md §6 Contacts; style-guide §3.8 Split): the side list (320 px) with the search
+    line (name, email, phone, organization), the scope (All, My contacts, Directory, each contact book, Recently contacted, Not
+    in a group), the group chips of a book, the alphabet jump and the rows (avatar, name, organization and title, primary email
+    and phone) with row selection and the bulk actions (add to group, add to book, remove from this book, export vCard or CSV,
+    merge exactly two, delete); the main pane is the contact record of partyId (template/ContactRecord.xml), or the first row
+    side by side. container-split select-parameter="partyId": below 1024 px the list shows alone until a contact is chosen,
+    then the record with a back button.
+
+    The URL holds partyId (and the record's tab); the side list's find (scope, group, text, letter) is kept in the session
+    (bossContactsFind) when a find gives it (find=Y, or a scope or text in the URL), so choosing a row or editing the record
+    keeps the list as it was. The rows come from ironstone.ContactServices.find#ContactRows (Mantle's find#Party and the book
+    services, with the personal-contact condition): another user's personal contact is never one of them. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Contacts" default-menu-include="false">
+
+    <parameter name="partyId"/>
+    <parameter name="tab"/>
+    <parameter name="showExpired"/>
+    <parameter name="scope"/>
+    <parameter name="contactBookGroupId"/>
+    <parameter name="text"/>
+    <parameter name="combinedName"><description>The palette's People "more": the text of the search</description></parameter>
+    <parameter name="letter"/>
+    <parameter name="find"/>
+
+    <!-- the contact record's transitions (template/ContactRecord.xml) -->
+    <transition-include name="contactUpdate" location="component://ironstone-boss/template/ContactRecord.xml"/>
+    <transition-include name="contactOrganization" location="component://ironstone-boss/template/ContactRecord.xml"/>
+    <transition-include name="contactInfoStore" location="component://ironstone-boss/template/ContactRecord.xml"/>
+    <transition-include name="contactInfoPurpose" location="component://ironstone-boss/template/ContactRecord.xml"/>
+    <transition-include name="contactRelationshipAdd" location="component://ironstone-boss/template/ContactRecord.xml"/>
+    <transition-include name="contactNote" location="component://ironstone-boss/template/ContactRecord.xml"/>
+    <transition-include name="contactAvatarUpload" location="component://ironstone-boss/template/ContactRecord.xml"/>
+    <transition-include name="contactFavorite" location="component://ironstone-boss/template/ContactRecord.xml"/>
+    <transition-include name="contactBooks" location="component://ironstone-boss/template/ContactRecord.xml"/>
+    <transition-include name="contactLink" location="component://ironstone-boss/template/ContactRecord.xml"/>
+    <transition-include name="contactDelete" location="component://ironstone-boss/template/ContactRecord.xml"/>
+    <transition-include name="contactExport" location="component://ironstone-boss/template/ContactRecord.xml"/>
+    <transition-include name="contactAvatar" location="component://ironstone-boss/template/ContactRecord.xml"/>
+    <transition-include name="contactSearch" location="component://ironstone-boss/template/ContactRecord.xml"/>
+    <transition-include name="contactGeoRegions" location="component://ironstone-boss/template/ContactRecord.xml"/>
+    <transition-include name="contactBookGroups" location="component://ironstone-boss/template/ContactRecord.xml"/>
+
+    <!-- ========== bulk actions on the selected rows (selectedPartyIds, a comma list) ========== -->
+    <transition name="bulkAddToGroup">
+        <actions><script><![CDATA[
+            const ids = String(selectedPartyIds || '').split(',').map((id) => id.trim()).filter((id) => id)
+            if (!ids.length) { ec.message.addError(ec.l10n.localize('Select one or more contacts first')); return }
+            if (!contactBookGroupId) { ec.message.addError(ec.l10n.localize('Choose the group')); return }
+            const out = ec.service.sync().name('mantle.party.ContactBookServices.add#ContactBookGroupParties').parameters({contactBookGroupId: contactBookGroupId,
+                partyIdList: ids}).call()
+            if (!ec.message.hasError()) ec.message.addMessage(ec.resource.expand('${count} added to the group', '', {count: ids.length - (out?.failedPartyIdList?.length || 0)}), 'success')
+        ]]></script></actions>
+        <default-response url="."/>
+    </transition>
+    <transition name="bulkAddToBook">
+        <actions><script><![CDATA[
+            const ids = String(selectedPartyIds || '').split(',').map((id) => id.trim()).filter((id) => id)
+            if (!ids.length) { ec.message.addError(ec.l10n.localize('Select one or more contacts first')); return }
+            if (!contactBookId) { ec.message.addError(ec.l10n.localize('Choose the book')); return }
+            const out = ec.service.sync().name('mantle.party.ContactBookServices.add#ContactBookParties').parameters({contactBookId: contactBookId, partyIdList: ids}).call()
+            if (!ec.message.hasError()) ec.message.addMessage(ec.resource.expand('${added} added to the book, ${already} already in it', '',
+                    {added: out?.addedCount || 0, already: out?.alreadyCount || 0}), 'success')
+        ]]></script></actions>
+        <default-response url="."/>
+    </transition>
+    <transition name="bulkRemoveFromBook">
+        <actions><script><![CDATA[
+            const ids = String(selectedPartyIds || '').split(',').map((id) => id.trim()).filter((id) => id)
+            if (!ids.length) { ec.message.addError(ec.l10n.localize('Select one or more contacts first')); return }
+            const out = ec.service.sync().name('mantle.party.ContactBookServices.remove#ContactBookParties').parameters({contactBookId: contactBookId, partyIdList: ids}).call()
+            if (!ec.message.hasError()) ec.message.addMessage(ec.resource.expand('${count} removed from the book', '', {count: out?.removedCount || 0}), 'success')
+        ]]></script></actions>
+        <default-response url="."/>
+    </transition>
+    <!-- a vCard or CSV file of the selected contacts, as a download -->
+    <transition name="bulkExport">
+        <actions><script><![CDATA[
+            const ids = String(selectedPartyIds || '').split(',').map((id) => id.trim()).filter((id) => id)
+            const out = ec.service.sync().name('ironstone.ContactServices.export#ContactFile').parameters({partyIdList: ids, format: format === 'csv' ? 'csv' : 'vcard'}).call()
+            if (!ec.message.hasError() && out?.location) ec.web.sendResourceResponse(out.location, false)
+            else ec.web.sendJsonResponse({})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- exactly two: on to the compare -->
+    <transition name="bulkMerge">
+        <actions><script><![CDATA[
+            const ids = String(selectedPartyIds || '').split(',').map((id) => id.trim()).filter((id) => id)
+            if (ids.length !== 2) { ec.message.addError(ec.l10n.localize('Select exactly two contacts to merge')); return }
+            comparePartyId = ids[0]
+            compareOtherPartyId = ids[1]
+        ]]></script></actions>
+        <default-response url="../Compare"><parameter name="partyId" from="comparePartyId"/><parameter name="otherPartyId" from="compareOtherPartyId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="bulkDelete">
+        <actions><script><![CDATA[
+            const ids = String(selectedPartyIds || '').split(',').map((id) => id.trim()).filter((id) => id)
+            if (!ids.length) { ec.message.addError(ec.l10n.localize('Select one or more contacts first')); return }
+            const out = ec.service.sync().name('ironstone.ContactServices.delete#Contacts').parameters({partyIdList: ids}).call()
+            if (!ec.message.hasError()) {
+                ec.message.addMessage(ec.resource.expand('${count} deleted', '', {count: out?.deletedCount || 0}), 'success')
+                if (ids.includes(partyId)) partyId = null
+            }
+        ]]></script></actions>
+        <default-response url="."/>
+    </transition>
+
+    <actions>
+        <script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const enc = (text) => String(text == null ? '' : text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+            // the find: as given (find=Y, or a scope or text in the URL), else the session's last
+            const key = 'bossContactsFind'
+            const session = (() => { try { return ec.web ? ec.web.sessionAttributes : null } catch (err) { return null } })()
+            let saved = {}
+            try { saved = JSON.parse(session?.get(key) || '{}') || {} } catch (err) { saved = {} }
+            const given = find === 'Y' || !!scope || text != null || !!combinedName || !!letter || !!contactBookGroupId
+            const state = given ? {scope: scope || 'all', contactBookGroupId: contactBookGroupId || null, text: (text != null ? text : combinedName) || null,
+                letter: letter || null} : Object.assign({scope: 'all', contactBookGroupId: null, text: null, letter: null}, saved)
+            if (given) { try { session?.put(key, JSON.stringify(state)) } catch (err) { ec.logger.info("Contacts: the find is not kept: " + err) } }
+            findScope = state.scope
+            findGroupId = state.contactBookGroupId
+            findText = state.text || ''
+            findLetter = state.letter || ''
+            const out = ec.service.sync().name('ironstone.ContactServices.find#ContactRows').parameters({scope: findScope, contactBookGroupId: findGroupId,
+                text: findText || null, letter: findLetter || null, limit: 50}).call() || {}
+            findScope = out.scope || 'all'
+            const rows = Array.from(out.rowList || [])
+            book = out.contactBook || null
+            const books = Array.from(out.contactBookList || [])
+            scopeOptions = out.scopeOptions || []
+            rowCount = out.rowCount || 0
+            hasMore = !!out.hasMore
+            shownCount = rows.length
+            filtered = !!(findText || findLetter || findGroupId)
+            isContactAdmin = ec.user.isInGroup('BOSS_CONTACT_ADMIN') || ec.user.isInGroup('ADMIN')
+
+            // side by side the first row fills the main pane; stacked, no selection shows the list alone
+            recordPartyId = partyId || (rows.length ? rows[0].partyId : null)
+            inSplit = true
+            recordBase = '/qapps/Commons/Contacts'
+            const avatarBase = sri.buildUrl('contactAvatar').path
+            contactRows = rows.map((row) => {
+                const selected = row.partyId === recordPartyId
+                const image = row.hasFaceImage ? ' image="' + enc(avatarBase + '?partyId=' + encodeURIComponent(row.partyId)) + '"' : ''
+                const second = [row.emailAddress, row.phone].filter((part) => part).join(' · ')
+                const icon = row.isPersonal ? '<q-icon name="sym_o_lock" size="xs" class="m-muted"><q-tooltip>' + enc(L('Personal: only you see it')) + '</q-tooltip></q-icon>' : ''
+                const star = row.isFavorite ? '<q-icon name="star" size="xs" class="text-warning"></q-icon>' : ''
+                return Object.assign({}, row, {rowHtml: '<div class="row no-wrap items-center q-gutter-x-sm m-contact-row' + (selected ? ' m-contact-row-selected' : '') + '" data-party="' + enc(row.partyId) + '">'
+                    + '<m-avatar name="' + enc(row.name) + '"' + image + ' size="32px"></m-avatar>'
+                    + '<div class="col" style="min-width:0"><div class="row no-wrap items-center q-gutter-x-xs"><m-link href="' + enc(recordBase + '?partyId=' + encodeURIComponent(row.partyId))
+                    + '" class="ellipsis' + (selected ? ' text-weight-bold' : '') + '">' + enc(row.name) + '</m-link>' + star + icon + '</div>'
+                    + (row.subtitle ? '<div class="text-caption m-muted ellipsis">' + enc(row.subtitle) + '</div>' : '')
+                    + (second ? '<div class="text-caption ellipsis">' + enc(second) + '</div>' : '') + '</div></div>'})
+            })
+
+            // the chips of a book's groups, with All
+            const groups = book ? Array.from(book.groupList || []) : []
+            groupChips = book ? [{id: '', label: L('All') + ' · ' + (book.partyCount || 0), on: !findGroupId}].concat(groups.map((group) =>
+                    ({id: group.contactBookGroupId, label: group.groupName + ' · ' + (group.partyCount || 0), on: group.contactBookGroupId === findGroupId}))) : []
+            letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map((ch) => ({letter: ch, on: ch === findLetter}))
+            // the books and groups a bulk action may put contacts in
+            editableBooks = books.filter((entry) => ['CbpEdit', 'CbpManage'].includes(entry.permissionEnumId))
+            bookChoices = editableBooks.map((entry) => ({key: entry.contactBookId, text: entry.contactBookName + (entry.isOwner ? '' : ' · ' + L('shared'))}))
+            groupChoices = editableBooks.flatMap((entry) => Array.from(entry.groupList || []).map((group) => ({key: group.contactBookGroupId,
+                    text: entry.contactBookName + ' · ' + group.groupName})))
+            bookScopeEditable = !!book && ['CbpEdit', 'CbpManage'].includes(book.permissionEnumId)
+            emptyText = filtered ? L('No contacts match') : (book || findScope === 'mine' ? L('No contacts yet · Import or add one') : L('No contacts'))
+            newContactHtml = '<q-btn unelevated no-caps dense color="primary" class="q-ml-sm" icon="sym_o_person_add" label="' + enc(L('New contact')) + '"'
+                    + ' @click="$root.openQuickCreate({url: \'/qapps/Commons/QuickCreate?kind=contact&amp;openAfter=Y\', label: \'' + enc(L('New contact').replace(/['\\]/g, '')) + '\'})"></q-btn>'
+        ]]></script>
+    </actions>
+
+    <widgets>
+        <!-- title row: New contact, Import, Find duplicates (contact admins) -->
+        <container style="row items-center q-mb-sm">
+            <label text="Contacts" type="h5" style="q-my-none"/>
+            <container style="col"/>
+            <render-mode><text type="qvt"><![CDATA[${newContactHtml}]]></text></render-mode>
+            <link url="../Import" text="Import" icon="sym_o_upload_file" style="q-ml-sm"/>
+            <link url="../Duplicates" text="Find duplicates" icon="sym_o_join" condition="isContactAdmin" style="q-ml-sm"/>
+        </container>
+
+        <container-split id="ContactsSplit" side-width="320" min-main="480" select-parameter="partyId" back-text="Contacts">
+            <split-side>
+                <!-- the search line and the scope -->
+                <form-single name="ContactFind" transition=".">
+                    <field name="find" from="'Y'"><default-field><hidden/></default-field></field>
+                    <field name="text" from="findText"><default-field title="Search"><text-line size="20"/></default-field></field>
+                    <field name="scope" from="findScope"><default-field title="Show">
+                        <drop-down submit-on-select="true"><list-options list="scopeOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                    <field name="findButton"><default-field title="Find"><submit icon="sym_o_search"/></default-field></field>
+                    <field-layout>
+                        <field-row-big><field-ref name="text"/><field-ref name="findButton"/></field-row-big>
+                        <field-ref name="scope"/>
+                    </field-layout>
+                </form-single>
+
+                <!-- the groups of the book shown -->
+                <section name="GroupChips" condition="groupChips.length &gt; 1"><widgets>
+                    <container style="row q-gutter-xs q-mb-xs m-contact-groups">
+                        <section-iterate name="GroupChip" list="groupChips" entry="chip"><widgets>
+                            <link url="." link-type="anchor-button" text="${chip.label}" btn-type="${chip.on ? 'primary' : ''}"
+                                    parameter-map="{find:'Y', scope:findScope, contactBookGroupId:chip.id, text:findText}"/>
+                        </widgets></section-iterate>
+                    </container>
+                </widgets></section>
+
+                <!-- the alphabet jump -->
+                <container style="row justify-between text-caption q-px-xs q-mb-xs m-contact-letters">
+                    <section-iterate name="LetterLink" list="letters" entry="item"><widgets>
+                        <link url="." link-type="anchor" text="${item.letter}" style="${item.on ? 'text-weight-bold' : 'm-muted'}"
+                                parameter-map="{find:'Y', scope:findScope, contactBookGroupId:findGroupId, text:findText, letter:(item.on ? '' : item.letter)}"/>
+                    </widgets></section-iterate>
+                </container>
+
+                <form-list name="ContactRows" list="contactRows" multi="true" transition="bulkAddToBook" paginate="false">
+                    <row-selection id-field="partyId" parameter="selectedPartyIds" list-mode="true">
+                        <action><dialog button-text="Add to group" button-icon="sym_o_label" title="Add the selected contacts to a group"/>
+                            <form-single name="BulkAddToGroup" transition="bulkAddToGroup">
+                                <field name="partyId" from="partyId"><default-field><hidden/></default-field></field>
+                                <field name="contactBookGroupId"><default-field title="Group">
+                                    <drop-down><list-options list="groupChoices" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                <field name="submitButton"><default-field title="Add to group"><submit/></default-field></field>
+                            </form-single></action>
+                        <action><dialog button-text="Add to book" button-icon="sym_o_bookmark_add" title="Add the selected contacts to a book"/>
+                            <form-single name="BulkAddToBook" transition="bulkAddToBook">
+                                <field name="partyId" from="partyId"><default-field><hidden/></default-field></field>
+                                <field name="contactBookId"><default-field title="Book">
+                                    <drop-down><list-options list="bookChoices" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                <field name="submitButton"><default-field title="Add to book"><submit/></default-field></field>
+                            </form-single></action>
+                        <action><form-single name="BulkRemoveFromBook" transition="bulkRemoveFromBook">
+                            <field name="partyId" from="partyId"><default-field><hidden/></default-field></field>
+                            <field name="contactBookId" from="book?.contactBookId"><default-field><hidden/></default-field></field>
+                            <field name="submitButton"><conditional-field condition="bookScopeEditable" title="Remove from this book"><submit type="danger"/></conditional-field>
+                                <default-field><ignored/></default-field></field>
+                        </form-single></action>
+                        <action><form-single name="BulkExportVcard" transition="bulkExport">
+                            <field name="format" from="'vcard'"><default-field><hidden/></default-field></field>
+                            <field name="submitButton"><default-field title="Export vCard"><submit/></default-field></field>
+                        </form-single></action>
+                        <action><form-single name="BulkExportCsv" transition="bulkExport">
+                            <field name="format" from="'csv'"><default-field><hidden/></default-field></field>
+                            <field name="submitButton"><default-field title="Export CSV"><submit/></default-field></field>
+                        </form-single></action>
+                        <action><form-single name="BulkMerge" transition="bulkMerge">
+                            <field name="submitButton"><default-field title="Merge two"><submit/></default-field></field>
+                        </form-single></action>
+                        <action><form-single name="BulkDelete" transition="bulkDelete">
+                            <field name="partyId" from="partyId"><default-field><hidden/></default-field></field>
+                            <field name="submitButton"><default-field title="Delete"><submit type="danger" confirmation="Delete the selected contacts?"/></default-field></field>
+                        </form-single></action>
+                    </row-selection>
+                    <field name="contact"><default-field title="${rowCount} ${rowCount == 1 ? 'contact' : 'contacts'}">
+                        <render-mode><text type="qvt"><![CDATA[${rowHtml}]]></text></render-mode>
+                    </default-field></field>
+                </form-list>
+                <section name="NoRows" condition="!contactRows.length"><widgets>
+                    <container style="q-pa-sm">
+                        <label type="p" text="${emptyText}" style="m-muted q-mb-xs"/>
+                        <section name="ClearFind" condition="filtered"><widgets>
+                            <link url="." link-type="anchor" text="Clear the search" parameter-map="{find:'Y', scope:findScope}"/>
+                        </widgets></section>
+                    </container>
+                </widgets></section>
+                <label text="${shownCount} of ${rowCount} shown; narrow the list with the search or a letter." type="p"
+                        style="text-caption m-muted q-px-sm q-mt-xs" condition="hasMore"/>
+            </split-side>
+            <split-main>
+                <section-include name="ContactRecordSection" location="component://ironstone-boss/template/ContactRecord.xml"/>
+            </split-main>
+        </container-split>
+    </widgets>
+</screen>

@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- Compare and merge two contacts (design-drawers-commons.md §6 Duplicates "Compare dialog", ContactDetail "merge with…"; the
+    baseline FindDuplicates DupPartyList): both records side by side, a field-level choice for the fields both have with
+    different values, which one to keep, then Merge (ironstone.ContactServices.merge#Contacts: the chosen fields on the kept
+    one, then mantle.party.DuplicateServices.merge#Parties, or link#PersonalContactToDirectory for a personal contact merged
+    into a directory party). From Duplicates it opens in a dialog with Not a duplicate as well (returnTo=duplicates); from the
+    contact record and the Contacts bulk action it is a page. Both contacts are found under the user's filters; a pair the
+    user may not change both of shows without Merge. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Compare" default-menu-include="false">
+
+    <parameter name="partyId" required="true"/>
+    <parameter name="otherPartyId" required="true"/>
+    <parameter name="returnTo"/>
+
+    <transition name="mergeContacts">
+        <actions><script><![CDATA[
+            // the side chosen for each field that differs: take the other one's value where it is not the kept one's side
+            const keepSide = keepPartyId === partyId ? 'left' : 'right'
+            const take = []
+            for (const name of ['firstName', 'middleName', 'lastName', 'nickname', 'personalTitle', 'suffix', 'birthDate', 'organizationName', 'comments']) {
+                const picked = context.get('pick_' + name)
+                if (picked && picked !== keepSide) take.push(name)
+            }
+            const other = keepPartyId === partyId ? otherPartyId : partyId
+            ec.service.sync().name('ironstone.ContactServices.merge#Contacts').parameters({keepPartyId: keepPartyId, otherPartyId: other, takeFields: take.join(',')}).call()
+            if (!ec.message.hasError()) ec.message.addMessage(ec.l10n.localize('Contacts merged'), 'success')
+            mergedPartyId = keepPartyId
+        ]]></script></actions>
+        <conditional-response url="../Duplicates" condition="returnTo == 'duplicates'"/>
+        <default-response url="../List"><parameter name="partyId" from="mergedPartyId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="notDuplicate">
+        <actions>
+            <service-call name="ironstone.ContactServices.mark#NotDuplicate" in-map="{partyId:partyId, otherPartyId:otherPartyId}"/>
+            <if condition="!ec.message.hasError()"><message type="success">Marked as not duplicates</message></if>
+        </actions>
+        <default-response url="../Duplicates"/>
+        <error-response url="."/>
+    </transition>
+
+    <actions>
+        <service-call name="ironstone.ContactServices.get#ComparePair" in-map="{partyId:partyId, otherPartyId:otherPartyId}" out-map="pair"/>
+        <script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const enc = (text) => String(text == null ? '' : text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+            pairFound = !ec.message.hasError() && pair?.left != null && pair?.right != null
+            if (!pairFound) { compareError = ec.message.getErrorsString() || L('These contacts are not available'); ec.message.clearErrors(); return }
+            left = pair.left
+            right = pair.right
+            fieldList = Array.from(pair.fieldList || [])
+            // the choices: one radio per field both have with different values
+            choosable = {}
+            for (const field of fieldList) if (field.choosable) choosable[field.fieldName] = {left: field.left, right: field.right, label: field.label}
+            keepOptions = Array.from(pair.keepOptions || [])
+            keepPartyId = keepOptions.length ? keepOptions[0].key : null
+            canMerge = !!pair.canMerge
+            reason = pair.reason || ''
+            isContactAdmin = ec.user.isInGroup('BOSS_CONTACT_ADMIN') || ec.user.isInGroup('ADMIN')
+            canDismiss = returnTo === 'duplicates' && isContactAdmin && !left.access.isPersonal && !right.access.isPersonal
+            const card = (side) => '<div class="row no-wrap items-center q-gutter-x-sm"><m-avatar name="' + enc(side.name) + '" size="40px"></m-avatar><div>'
+                    + '<div class="text-subtitle1 text-weight-medium">' + enc(side.name) + '</div><div class="text-caption m-muted">'
+                    + enc([side.kindLabel, side.pseudoId, side.access.isPersonal ? L('personal') : L('directory')].join(' · ')) + '</div></div></div>'
+            leftCardHtml = card(left)
+            rightCardHtml = card(right)
+            compareRows = fieldList.map((field) => Object.assign({}, field, {rowStyle: field.differs ? 'text-weight-medium' : 'm-muted'}))
+        ]]></script>
+    </actions>
+    <widgets>
+        <section name="CompareMissing" condition="!pairFound"><widgets>
+            <container-box type="warning"><box-header title="Not available"/><box-body>
+                <label type="p" text="${compareError}"/>
+                <link url="../List" link-type="anchor" text="Back to Contacts"/>
+            </box-body></container-box>
+        </widgets></section>
+        <section name="CompareFound" condition="pairFound"><widgets>
+            <label type="h5" text="Compare and merge" style="q-mt-none q-mb-sm" condition="returnTo != 'duplicates'"/>
+            <container style="row q-col-gutter-sm q-mb-sm">
+                <container style="col-12 col-sm-6">
+                    <render-mode><text type="qvt"><![CDATA[<q-card flat bordered class="q-pa-sm row items-center no-wrap">${leftCardHtml}<q-space></q-space>]]></text></render-mode>
+                    <link url="../ContactDetail" link-type="anchor" text="Open" parameter-map="{partyId:left.partyId}"/>
+                    <render-mode><text type="qvt"><![CDATA[</q-card>]]></text></render-mode>
+                </container>
+                <container style="col-12 col-sm-6">
+                    <render-mode><text type="qvt"><![CDATA[<q-card flat bordered class="q-pa-sm row items-center no-wrap">${rightCardHtml}<q-space></q-space>]]></text></render-mode>
+                    <link url="../ContactDetail" link-type="anchor" text="Open" parameter-map="{partyId:right.partyId}"/>
+                    <render-mode><text type="qvt"><![CDATA[</q-card>]]></text></render-mode>
+                </container>
+            </container>
+
+            <container-box><box-header title="Side by side"/><box-body-nopad>
+                <form-list name="CompareRows" list="compareRows" skip-form="true" paginate="false">
+                    <field name="label"><default-field title="Field"><display style="${rowStyle}"/></default-field></field>
+                    <field name="left"><default-field title="${left.name}"><display/></default-field></field>
+                    <field name="right"><default-field title="${right.name}"><display/></default-field></field>
+                    <columns type="mobile">
+                        <column><field-ref name="label"/><field-ref name="left"/><field-ref name="right"/></column>
+                    </columns>
+                </form-list>
+            </box-body-nopad></container-box>
+
+            <section name="MergeAllowed" condition="canMerge"><widgets>
+                <container-box><box-header title="Merge"/><box-body>
+                    <label type="p" text="The contact kept gets the other one's email addresses, phone numbers, addresses, books, groups, relationships, tasks, requests and messages; the other one is disabled. For the fields both have, choose the value to keep." style="m-muted"/>
+                    <form-single name="MergeForm" transition="mergeContacts">
+                        <field name="partyId"><default-field><hidden/></default-field></field>
+                        <field name="otherPartyId"><default-field><hidden/></default-field></field>
+                        <field name="returnTo"><default-field><hidden/></default-field></field>
+                        <field name="keepPartyId"><default-field title="Keep">
+                            <radio><list-options list="keepOptions" key="${key}" text="${text}"/></radio></default-field></field>
+                        <field name="pick_firstName" from="'left'"><conditional-field condition="choosable.firstName" title="First name">
+                            <radio><option key="left" text="${choosable.firstName.left}"/><option key="right" text="${choosable.firstName.right}"/></radio>
+                        </conditional-field><default-field><ignored/></default-field></field>
+                        <field name="pick_middleName" from="'left'"><conditional-field condition="choosable.middleName" title="Middle name">
+                            <radio><option key="left" text="${choosable.middleName.left}"/><option key="right" text="${choosable.middleName.right}"/></radio>
+                        </conditional-field><default-field><ignored/></default-field></field>
+                        <field name="pick_lastName" from="'left'"><conditional-field condition="choosable.lastName" title="Last name">
+                            <radio><option key="left" text="${choosable.lastName.left}"/><option key="right" text="${choosable.lastName.right}"/></radio>
+                        </conditional-field><default-field><ignored/></default-field></field>
+                        <field name="pick_nickname" from="'left'"><conditional-field condition="choosable.nickname" title="Nickname">
+                            <radio><option key="left" text="${choosable.nickname.left}"/><option key="right" text="${choosable.nickname.right}"/></radio>
+                        </conditional-field><default-field><ignored/></default-field></field>
+                        <field name="pick_personalTitle" from="'left'"><conditional-field condition="choosable.personalTitle" title="Title">
+                            <radio><option key="left" text="${choosable.personalTitle.left}"/><option key="right" text="${choosable.personalTitle.right}"/></radio>
+                        </conditional-field><default-field><ignored/></default-field></field>
+                        <field name="pick_suffix" from="'left'"><conditional-field condition="choosable.suffix" title="Suffix">
+                            <radio><option key="left" text="${choosable.suffix.left}"/><option key="right" text="${choosable.suffix.right}"/></radio>
+                        </conditional-field><default-field><ignored/></default-field></field>
+                        <field name="pick_birthDate" from="'left'"><conditional-field condition="choosable.birthDate" title="Birthday">
+                            <radio><option key="left" text="${choosable.birthDate.left}"/><option key="right" text="${choosable.birthDate.right}"/></radio>
+                        </conditional-field><default-field><ignored/></default-field></field>
+                        <field name="pick_organizationName" from="'left'"><conditional-field condition="choosable.organizationName" title="Name">
+                            <radio><option key="left" text="${choosable.organizationName.left}"/><option key="right" text="${choosable.organizationName.right}"/></radio>
+                        </conditional-field><default-field><ignored/></default-field></field>
+                        <field name="pick_comments" from="'left'"><conditional-field condition="choosable.comments" title="Comments">
+                            <radio><option key="left" text="${choosable.comments.left}"/><option key="right" text="${choosable.comments.right}"/></radio>
+                        </conditional-field><default-field><ignored/></default-field></field>
+                        <field name="submitButton"><default-field title="Merge">
+                            <submit confirmation="Merge these two contacts into one? This cannot be undone."/></default-field></field>
+                    </form-single>
+                </box-body></container-box>
+            </widgets><fail-widgets>
+                <container-box type="warning"><box-body><label type="p" text="${reason}"/></box-body></container-box>
+            </fail-widgets></section>
+
+            <section name="DismissPair" condition="canDismiss"><widgets>
+                <container style="q-mt-sm">
+                    <link url="notDuplicate" link-type="hidden-form-link" text="Not a duplicate" icon="sym_o_do_not_disturb_on"
+                            parameter-map="{partyId:partyId, otherPartyId:otherPartyId}"/>
+                </container>
+            </widgets></section>
+        </widgets></section>
+    </widgets>
+</screen>

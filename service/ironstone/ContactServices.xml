@@ -1,0 +1,1396 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The contacts of IronStone Commons (design-drawers-commons.md §6; impl-drawers-commons.md M4): the Contacts side list by
+    scope, the contact record (template/ContactRecord.xml, shown by Contacts/List and Contacts/ContactDetail) and its edits,
+    exports, compare and merge, and the duplicate pairs. The data and the book rules are Mantle's
+    (mantle.party.ContactBookServices, ContactImportServices, PartyServices, ContactServices, DuplicateServices); these
+    services choose and shape what a screen shows.
+
+    Privacy (impl R7): a personal contact (Party.privateOwnerUserId) is only ever its owner's. Every service here that takes
+    a party id finds the party first under the user's entity filters (the Commons authz carries MANTLE_ACTIVE_ORG and
+    MANTLE_PRIVATE_CONTACT) and with the explicit condition (privateOwnerUserId empty or the user), through
+    check#ContactAccess, before it reads anything else of it (contact mechanisms, relationships and contents have no filter
+    of their own). Another user's personal contact is "not found", never "not allowed", so its existence does not show.
+
+    Who may change a contact: the owner of a personal contact; for a directory party a contact admin (the BOSS_CONTACT_ADMIN
+    group, or ADMIN). Deleting a contact disables the party (Party.disabled, as a merge does) and ends its book memberships;
+    a directory party with a user account or an internal organization role is not deleted here. -->
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
+
+    <!-- ========== Access ========== -->
+
+    <service verb="check" noun="ContactAccess" allow-remote="false">
+        <description>A party as the current user may see it (the entity filters, and a personal contact only its owner's) and
+            what the user may do with it. With need (view, edit or delete) an error when the user may not; a party the user may
+            not see is "not found".</description>
+        <in-parameters>
+            <parameter name="partyId" required="true"/>
+            <parameter name="need"><description>view, edit or delete; empty only reports</description></parameter>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="visible" type="Boolean"/>
+            <parameter name="party" type="Map"/>
+            <parameter name="isPersonal" type="Boolean"/>
+            <parameter name="isMine" type="Boolean"/>
+            <parameter name="isContactAdmin" type="Boolean"/>
+            <parameter name="isSelf" type="Boolean"/>
+            <parameter name="isDisabled" type="Boolean"/>
+            <parameter name="canEdit" type="Boolean"/>
+            <parameter name="canDelete" type="Boolean"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const userId = ec.user.userId || null
+            visible = false; isPersonal = false; isMine = false; isSelf = false; isDisabled = false; canEdit = false; canDelete = false
+            isContactAdmin = !!userId && (ec.user.isInGroup('BOSS_CONTACT_ADMIN') || ec.user.isInGroup('ADMIN'))
+            const found = ec.entity.find('mantle.party.PartyDetail').condition('partyId', partyId).one()
+            if (found != null && (!found.privateOwnerUserId || found.privateOwnerUserId === userId)) {
+                visible = true
+                party = found.getMap()
+                isPersonal = !!found.privateOwnerUserId
+                isMine = isPersonal && found.privateOwnerUserId === userId
+                isSelf = !!userId && ec.user.userAccount?.partyId === partyId
+                isDisabled = found.disabled === 'Y'
+                canEdit = !isDisabled && (isMine || (!isPersonal && isContactAdmin))
+                if (!isDisabled && isMine) canDelete = true
+                else if (!isDisabled && !isPersonal && isContactAdmin && !isSelf) {
+                    const hasUser = ec.entity.find('moqui.security.UserAccount').condition('partyId', partyId).disableAuthz().count() > 0
+                    const internal = ec.entity.find('mantle.party.PartyRole').condition('partyId', partyId).condition('roleTypeId', 'OrgInternal').count() > 0
+                    canDelete = !hasUser && !internal
+                }
+            }
+            if (!need) return
+            if (!visible) { ec.message.addError(ec.resource.expand('Contact ${partyId} not found', '', {partyId: partyId})); return }
+            if (need === 'edit' && !canEdit) {
+                ec.message.addError(ec.resource.expand(isDisabled ? 'Contact ${partyId} was merged or deleted' : 'You may not change contact ${partyId}', '', {partyId: partyId}))
+            } else if (need === 'delete' && !canDelete) {
+                ec.message.addError(ec.resource.expand('You may not delete contact ${partyId}', '', {partyId: partyId}))
+            }
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== The side list ========== -->
+
+    <service verb="get" noun="ContactRows">
+        <description>The side list rows of the parties given, in their order, leaving out those the user may not see and the
+            disabled (merged or deleted) ones: name, kind, organization and title (a person's current PrtContact or PrtEmployee
+            relationship to an organization the user may see), the primary email (EmailPrimary first) and phone (PhonePrimary,
+            then PhoneMobile, first), personal or not, a face image or not, and the star of the user's default book.</description>
+        <in-parameters><parameter name="partyIdList" type="List"/></in-parameters>
+        <out-parameters><parameter name="rowList" type="List"/></out-parameters>
+        <actions><script><![CDATA[
+            rowList = []
+            const ids = Array.from(new Set(Array.from(partyIdList || []).map((id) => String(id)).filter((id) => id)))
+            if (!ids.length) return
+            const userId = ec.user.userId || null
+            const cf = ec.entity.conditionFactory
+            const current = cf.makeConditionDate('fromDate', 'thruDate', null)
+            const mineOrDirectory = cf.makeCondition([cf.makeCondition('privateOwnerUserId', 'equals', null),
+                cf.makeCondition('privateOwnerUserId', 'equals', userId)], 'or')
+            const byId = new Map()
+            for (let start = 0; start < ids.length; start += 200) {
+                const chunk = ids.slice(start, start + 200)
+                for (const party of ec.entity.find('mantle.party.PartyDetail').condition(cf.makeCondition('partyId', 'in', chunk))
+                        .condition(mineOrDirectory).list()) {
+                    if (party.disabled === 'Y') continue
+                    byId.set(party.partyId, party.getMap())
+                }
+            }
+            const shown = ids.filter((id) => byId.has(id))
+            if (!shown.length) return
+            const group = (list, key) => {
+                const map = new Map()
+                for (const item of list) { const k = item[key]; if (!map.has(k)) map.set(k, []); map.get(k).push(item) }
+                return map
+            }
+            const rank = (order, purposeId) => { const index = order.indexOf(purposeId); return index < 0 ? order.length : index }
+            const emails = group(Array.from(ec.entity.find('mantle.party.contact.PartyContactMechInfo').condition(cf.makeCondition('partyId', 'in', shown))
+                    .condition('contactMechTypeEnumId', 'CmtEmailAddress').condition(current).orderBy('fromDate').list()).map((row) => row.getMap()), 'partyId')
+            const phones = group(Array.from(ec.entity.find('mantle.party.contact.PartyContactMechTelecomNumber').condition(cf.makeCondition('partyId', 'in', shown))
+                    .condition(current).orderBy('fromDate').list()).map((row) => row.getMap()), 'partyId')
+            const rels = group(Array.from(ec.entity.find('mantle.party.PartyRelationship').condition(cf.makeCondition('fromPartyId', 'in', shown))
+                    .condition(cf.makeCondition('relationshipTypeEnumId', 'in', ['PrtContact', 'PrtEmployee'])).condition(current)
+                    .orderBy('-fromDate').list()).map((row) => row.getMap()), 'fromPartyId')
+            const orgIds = Array.from(new Set(Array.from(rels.values()).flat().map((rel) => rel.toPartyId)))
+            const orgNames = new Map()
+            if (orgIds.length) for (const org of ec.entity.find('mantle.party.PartyDetail').condition(cf.makeCondition('partyId', 'in', orgIds))
+                    .condition(mineOrDirectory).list()) orgNames.set(org.partyId, org.organizationName || org.pseudoId || org.partyId)
+            const faces = new Set(Array.from(ec.entity.find('mantle.party.PartyContent').condition(cf.makeCondition('partyId', 'in', shown))
+                    .condition('partyContentTypeEnumId', 'PcntFaceImage').selectField('partyId').list()).map((row) => row.partyId))
+            // the star of the user's default book (find nothing when the user has none)
+            const favorites = new Set()
+            if (userId) {
+                const book = ec.entity.find('mantle.party.contact.ContactBook').condition('ownerUserId', userId).condition('visibilityEnumId', 'CbvPersonal')
+                        .condition('isDefault', 'Y').one()
+                if (book != null) for (const row of ec.entity.find('mantle.party.contact.ContactBookParty').condition('contactBookId', book.contactBookId)
+                        .condition(cf.makeCondition('partyId', 'in', shown)).condition('isFavorite', 'Y').condition(current).list()) favorites.add(row.partyId)
+            }
+            const phoneText = (tn) => [tn.countryCode ? '+' + tn.countryCode : null, tn.areaCode, tn.contactNumber].filter((part) => part).join(' ')
+            for (const id of shown) {
+                const party = byId.get(id)
+                const isOrg = party.partyTypeEnumId === 'PtyOrganization'
+                const name = (ec.resource.expand('PartyNameOnlyTemplate', '', party) || '').trim() || party.pseudoId || id
+                const email = (emails.get(id) || []).slice().sort((a, b) => rank(['EmailPrimary'], a.contactMechPurposeId) - rank(['EmailPrimary'], b.contactMechPurposeId))[0]
+                const phone = (phones.get(id) || []).slice().sort((a, b) => rank(['PhonePrimary', 'PhoneMobile'], a.contactMechPurposeId)
+                        - rank(['PhonePrimary', 'PhoneMobile'], b.contactMechPurposeId))[0]
+                const rel = isOrg ? null : (rels.get(id) || []).find((candidate) => orgNames.has(candidate.toPartyId))
+                const organizationName = isOrg ? null : (rel ? orgNames.get(rel.toPartyId) : null)
+                const jobTitle = rel ? (rel.relationshipName || null) : null
+                rowList.push({partyId: id, pseudoId: party.pseudoId || id, partyTypeEnumId: party.partyTypeEnumId, isOrganization: isOrg, name: name,
+                    sortName: String(isOrg ? name : (party.firstName || party.lastName || name)).toLowerCase(),
+                    organizationName: organizationName, organizationPartyId: rel ? rel.toPartyId : null, jobTitle: jobTitle,
+                    subtitle: isOrg ? ec.l10n.localize('Organization') : [jobTitle, organizationName].filter((part) => part).join(' · '),
+                    emailAddress: email ? email.infoString : null, phone: phone ? phoneText(phone) : null,
+                    isPersonal: !!party.privateOwnerUserId, hasFaceImage: faces.has(id), isFavorite: favorites.has(id)})
+            }
+        ]]></script></actions>
+    </service>
+
+    <service verb="find" noun="ContactRows">
+        <description>
+            The Contacts side list for a scope, narrowed by text (name, organization, email or phone), a group of a book and a
+            first letter, limited (a 320 px pane has no room for paging): all (the directory and the user's personal
+            contacts, mantle.party.PartyServices.find#Party), directory (find#Party without personal contacts), mine (the
+            members of the user's personal books and the user's personal contacts), a contact book id (find#ContactBookParties,
+            with contactBookGroupId), recent (the parties of the user's communication events of the last 90 days, the latest
+            first) and ungrouped (the members of the user's books that are in no group of them). The rows are
+            get#ContactRows'. The scope's book, its groups and the user's books come back for the scope selector and the chips.
+        </description>
+        <in-parameters>
+            <parameter name="scope" default-value="all"/>
+            <parameter name="contactBookGroupId"/>
+            <parameter name="text"/>
+            <parameter name="letter"/>
+            <parameter name="limit" type="Integer" default="50"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="scope"/>
+            <parameter name="rowList" type="List"/>
+            <parameter name="rowCount" type="Integer"><description>The rows found, maybe more than shown</description></parameter>
+            <parameter name="hasMore" type="Boolean"/>
+            <parameter name="contactBook" type="Map"><description>The book of a book scope, from get#UserContactBooks</description></parameter>
+            <parameter name="contactBookList" type="List"/>
+            <parameter name="scopeOptions" type="List"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const userId = ec.user.userId || null
+            const myPartyId = ec.user.userAccount?.partyId || null
+            const cf = ec.entity.conditionFactory
+            const max = Math.max(1, Math.min(200, Number(limit || 50)))
+            const words = text ? String(text).trim() : ''
+            const first = letter ? String(letter).trim().substring(0, 1).toUpperCase() : ''
+            rowList = []
+            rowCount = 0
+            hasMore = false
+            contactBook = null
+            contactBookList = Array.from(ec.service.sync().name('mantle.party.ContactBookServices.get#UserContactBooks').call()?.contactBookList || [])
+            const books = new Map(contactBookList.map((book) => [book.contactBookId, book]))
+            scopeOptions = [{key: 'all', text: L('All contacts')}, {key: 'mine', text: L('My contacts')}, {key: 'directory', text: L('Directory')}]
+                    .concat(contactBookList.map((book) => ({key: book.contactBookId, text: book.contactBookName + (book.isOwner ? '' : ' · ' + L('shared'))})))
+                    .concat([{key: 'recent', text: L('Recently contacted')}, {key: 'ungrouped', text: L('Not in a group')}])
+            if (!['all', 'mine', 'directory', 'recent', 'ungrouped'].includes(scope) && !books.has(scope)) scope = 'all'
+
+            // the text as find#Party parameters: an email, a phone (its last four digits, checked in full after), or a name
+            // (with the people of organizations of that name), each a find of its own
+            const digits = words.replace(/\D/g, '')
+            const isPhone = digits.length >= 3 && !/[A-Za-z@]/.test(words)
+            const textFinds = (base) => {
+                if (!words) return [base]
+                if (words.includes('@')) return [Object.assign({}, base, {emailAddress: words, leadingWildcard: true})]
+                if (isPhone) return [Object.assign({}, base, {contactNumber: digits.slice(-4), leadingWildcard: true})]
+                const finds = [Object.assign({}, base, {combinedName: words})]
+                if (words.length >= 3) finds.push(Object.assign({}, base, {emailAddress: words, leadingWildcard: true}))
+                return finds
+            }
+            const letterFinds = (base) => !first ? [base] : [Object.assign({}, base, {firstName: first, partyTypeEnumId: 'PtyPerson'}),
+                Object.assign({}, base, {organizationName: first, partyTypeEnumId: 'PtyOrganization'})]
+            const findParties = (base) => {
+                const found = []
+                let count = 0
+                for (const textFind of textFinds(base)) for (const params of letterFinds(textFind)) {
+                    const out = ec.service.sync().name('mantle.party.PartyServices.find#Party').parameters(Object.assign({pageSize: max * 2, pageIndex: 0,
+                        orderByField: 'firstName,organizationName'}, params)).call()
+                    if (ec.message.hasError()) return found
+                    for (const id of out.partyIdList || []) found.push(id)
+                    count += Number(out.partyIdListCount || 0)
+                }
+                // the people of the organizations whose name has the text
+                if (words && !isPhone && !words.includes('@')) {
+                    const orgOut = ec.service.sync().name('mantle.party.PartyServices.find#Party').parameters(Object.assign({}, base,
+                        {organizationName: words, partyTypeEnumId: 'PtyOrganization', leadingWildcard: true, pageSize: 20})).call()
+                    const orgIds = Array.from(orgOut?.partyIdList || [])
+                    if (orgIds.length) {
+                        for (const rel of ec.entity.find('mantle.party.PartyRelationship').condition(cf.makeCondition('toPartyId', 'in', orgIds))
+                                .condition(cf.makeCondition('relationshipTypeEnumId', 'in', ['PrtContact', 'PrtEmployee']))
+                                .condition(cf.makeConditionDate('fromDate', 'thruDate', null)).selectField('fromPartyId').limit(max * 2).list()) found.push(rel.fromPartyId)
+                    }
+                }
+                return {ids: Array.from(new Set(found)), count: count}
+            }
+            const bookMembers = (bookId, groupId) => {
+                const out = ec.service.sync().name('mantle.party.ContactBookServices.find#ContactBookParties').parameters({contactBookId: bookId,
+                    contactBookGroupId: groupId || null, text: words || null, pageNoLimit: true}).call()
+                if (ec.message.hasError()) return []
+                return Array.from(out?.contactList || [])
+            }
+
+            let ids = []
+            let total = null
+            if (scope === 'all' || scope === 'directory') {
+                const found = findParties(scope === 'directory' ? {personalContacts: 'exclude'} : {})
+                ids = found.ids || []
+                total = found.count
+            } else if (scope === 'mine') {
+                const found = findParties({personalContacts: 'only'})
+                ids = (found.ids || []).slice()
+                for (const book of contactBookList.filter((entry) => entry.isOwner)) for (const member of bookMembers(book.contactBookId)) ids.push(member.partyId)
+            } else if (scope === 'recent') {
+                if (myPartyId) {
+                    const since = new Date(Number(String(ec.user.nowTimestamp)) - 90 * 86400000)
+                    const events = ec.entity.find('mantle.party.communication.CommunicationEvent')
+                            .condition(cf.makeCondition([cf.makeCondition('fromPartyId', 'equals', myPartyId), cf.makeCondition('toPartyId', 'equals', myPartyId)], 'or'))
+                            .condition(cf.makeCondition('entryDate', 'greater-equals', since)).selectField('fromPartyId,toPartyId,entryDate')
+                            .orderBy('-entryDate').limit(500).list()
+                    for (const event of events) for (const other of [event.fromPartyId, event.toPartyId]) if (other && other !== myPartyId) ids.push(other)
+                }
+            } else if (scope === 'ungrouped') {
+                const grouped = new Set()
+                const members = []
+                for (const book of contactBookList) for (const member of bookMembers(book.contactBookId)) {
+                    members.push(member.partyId)
+                    if ((member.groupList || []).length) grouped.add(member.partyId)
+                }
+                ids = members.filter((id) => !grouped.has(id))
+            } else {
+                contactBook = books.get(scope)
+                ids = bookMembers(scope, contactBookGroupId).map((member) => member.partyId)
+            }
+
+            ids = Array.from(new Set(ids)).filter((id) => id !== '_NA_')
+            let rows = ids.length ? Array.from(ec.service.sync().name('ironstone.ContactServices.get#ContactRows').parameters({partyIdList: ids}).call()?.rowList || []) : []
+            // the directory is the parties with a role (customer, supplier, employee, contact, account, ...); a personal contact has none
+            if ((scope === 'all' || scope === 'directory') && rows.length) {
+                const withRole = new Set()
+                const rowIds = rows.map((row) => row.partyId)
+                for (let start = 0; start < rowIds.length; start += 200) for (const role of ec.entity.find('mantle.party.PartyRole')
+                        .condition(cf.makeCondition('partyId', 'in', rowIds.slice(start, start + 200))).selectField('partyId').list()) withRole.add(role.partyId)
+                rows = rows.filter((row) => row.isPersonal || withRole.has(row.partyId))
+            }
+            // the text and letter in the scopes whose finds do not take them
+            const lower = words.toLowerCase()
+            if (words && (scope === 'recent' || scope === 'ungrouped')) {
+                rows = rows.filter((row) => [row.name, row.organizationName, row.emailAddress].some((value) => value && String(value).toLowerCase().includes(lower))
+                        || (isPhone && row.phone && String(row.phone).replace(/\D/g, '').includes(digits)))
+            }
+            if (isPhone && (scope === 'all' || scope === 'directory' || scope === 'mine')) {
+                // the finds matched the last four digits: keep the rows whose number has them all
+                const keep = new Set()
+                for (const tn of ids.length ? ec.entity.find('mantle.party.contact.PartyContactMechTelecomNumber').condition(cf.makeCondition('partyId', 'in', ids))
+                        .condition(cf.makeConditionDate('fromDate', 'thruDate', null)).list() : []) {
+                    if (`${tn.countryCode || ''}${tn.areaCode || ''}${tn.contactNumber || ''}`.replace(/\D/g, '').includes(digits)) keep.add(tn.partyId)
+                }
+                rows = rows.filter((row) => keep.has(row.partyId))
+            }
+            if (first) rows = rows.filter((row) => String(row.name || '').toUpperCase().startsWith(first))
+            if (scope !== 'recent') rows.sort((a, b) => a.sortName.localeCompare(b.sortName) || a.partyId.localeCompare(b.partyId))
+            rowCount = Math.max(rows.length, total != null && !first && !isPhone ? total : 0)
+            hasMore = rows.length > max || rowCount > max
+            rowList = rows.slice(0, max)
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== The contact record ========== -->
+
+    <service verb="get" noun="ContactRecord">
+        <description>What the contact record shows of a party the user may see (check#ContactAccess), for template/ContactRecord.xml:
+            the names, the access, the roles, the contact information other than addresses with their purposes (the expired
+            ones too with showExpired), the addresses, a person's organizations and titles, the relationships, the books and
+            groups the party is in among the user's books, the notes, the employee directory card (organization, position,
+            manager), and for a personal contact the books of its banner. Nothing for a party the user may not see.</description>
+        <in-parameters>
+            <parameter name="partyId" required="true"/>
+            <parameter name="showExpired" type="Boolean" default="false"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="found" type="Boolean"/>
+            <parameter name="record" type="Map"/>
+            <parameter name="access" type="Map"/>
+            <parameter name="roleList" type="List"/>
+            <parameter name="contactMechList" type="List"/>
+            <parameter name="addressList" type="List"/>
+            <parameter name="expiredCount" type="Integer"/>
+            <parameter name="organizationList" type="List"/>
+            <parameter name="relationshipList" type="List"/>
+            <parameter name="bookList" type="List"/>
+            <parameter name="otherBookList" type="List"><description>The user's books the party is not in that the user may edit</description></parameter>
+            <parameter name="noteList" type="List"/>
+            <parameter name="employeeCard" type="Map"/>
+            <parameter name="mergedToPartyId"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            found = false
+            const L = (text) => ec.l10n.localize(text)
+            const access = ec.service.sync().name('ironstone.ContactServices.check#ContactAccess').parameters({partyId: partyId}).call() || {}
+            if (!access.visible) return
+            found = true
+            const userId = ec.user.userId || null
+            const cf = ec.entity.conditionFactory
+            const now = Number(String(ec.user.nowTimestamp))
+            const current = cf.makeConditionDate('fromDate', 'thruDate', null)
+            const millis = (value) => value == null || value === '' ? null : Number(String(value))
+            const isExpired = (row) => millis(row.thruDate) != null && millis(row.thruDate) <= now
+            const fmtDate = (value) => value == null || value === '' ? null : ec.l10n.format(value, 'yyyy-MM-dd')
+            // a date field (birthDate) reaches the script as the epoch millis of its UTC midnight: its UTC day, as export#Contacts reads it
+            const dayOf = (value) => {
+                if (value == null || value === '') return null
+                const text = String(value)
+                return /^-?\d+$/.test(text) ? new Date(Number(text)).toISOString().substring(0, 10) : text.substring(0, 10)
+            }
+            const party = access.party
+            const isOrg = party.partyTypeEnumId === 'PtyOrganization'
+            const visibleParty = (id) => {
+                if (!id) return null
+                const other = ec.entity.find('mantle.party.PartyDetail').condition('partyId', id).one()
+                return other != null && (!other.privateOwnerUserId || other.privateOwnerUserId === userId) ? other : null
+            }
+            const nameOf = (other) => (ec.resource.expand('PartyNameOnlyTemplate', '', other) || '').trim() || other.pseudoId || other.partyId
+            const purposes = {}
+            const purposeText = (id) => {
+                if (!id) return ''
+                if (purposes[id] === undefined) {
+                    const purpose = ec.entity.find('mantle.party.contact.ContactMechPurpose').condition('contactMechPurposeId', id).useCache(true).one()
+                    // without the kind the row already shows: "Email - Primary Address" is "Primary Address"
+                    purposes[id] = purpose ? String(purpose.description || id).replace(/^[A-Za-z ]+ - /, '') : id
+                }
+                return purposes[id]
+            }
+            const enumText = (id) => {
+                if (!id) return ''
+                const value = ec.entity.find('moqui.basic.Enumeration').condition('enumId', id).useCache(true).one()
+                return value ? (value.description || id) : id
+            }
+
+            mergedToPartyId = party.mergedToPartyId || null
+            record = {partyId: party.partyId, pseudoId: party.pseudoId || party.partyId, partyTypeEnumId: party.partyTypeEnumId, isOrganization: isOrg,
+                name: nameOf(party), firstName: party.firstName ?? null, middleName: party.middleName ?? null, lastName: party.lastName ?? null,
+                nickname: party.nickname ?? null, personalTitle: party.personalTitle ?? null, suffix: party.suffix ?? null,
+                birthDate: dayOf(party.birthDate), organizationName: party.organizationName ?? null, comments: party.comments ?? null,
+                kindLabel: L(isOrg ? 'Organization' : 'Person'), hasFaceImage: ec.entity.find('mantle.party.PartyContent').condition('partyId', partyId)
+                        .condition('partyContentTypeEnumId', 'PcntFaceImage').count() > 0}
+            const accessOut = {visible: true, isPersonal: !!access.isPersonal, isMine: !!access.isMine, isContactAdmin: !!access.isContactAdmin,
+                isSelf: !!access.isSelf, isDisabled: !!access.isDisabled, canEdit: !!access.canEdit, canDelete: !!access.canDelete}
+            context.put('access', accessOut)
+
+            roleList = Array.from(ec.entity.find('mantle.party.PartyRole').condition('partyId', partyId).list()).map((role) => {
+                const roleType = ec.entity.find('mantle.party.RoleType').condition('roleTypeId', role.roleTypeId).useCache(true).one()
+                return {roleTypeId: role.roleTypeId, description: roleType ? (roleType.description || role.roleTypeId) : role.roleTypeId}
+            })
+
+            // contact information: one row per address or number with its purposes
+            let infoFind = ec.entity.find('mantle.party.contact.PartyContactMechInfo').condition('partyId', partyId)
+                    .condition(cf.makeCondition('contactMechTypeEnumId', 'not-equals', 'CmtPostalAddress')).orderBy('contactMechTypeEnumId,fromDate')
+            if (!showExpired) infoFind = infoFind.condition(current)
+            const infos = Array.from(infoFind.list()).map((row) => row.getMap())
+            expiredCount = ec.entity.find('mantle.party.contact.PartyContactMech').condition('partyId', partyId)
+                    .condition(cf.makeCondition('thruDate', 'less-equals', new Date(now))).count()
+            const kinds = {CmtEmailAddress: 'email', CmtTelecomNumber: 'phone', CmtWebAddress: 'web'}
+            const kindLabels = {email: L('Email'), phone: L('Phone'), web: L('Website'), other: L('Other')}
+            const byMech = new Map()
+            contactMechList = []
+            for (const row of infos) {
+                let entry = byMech.get(row.contactMechId)
+                if (entry == null) {
+                    const kind = kinds[row.contactMechTypeEnumId] || 'other'
+                    let value = row.infoString
+                    let telecom = null
+                    if (kind === 'phone') {
+                        const tn = ec.entity.find('mantle.party.contact.TelecomNumber').condition('contactMechId', row.contactMechId).one()
+                        if (tn != null) {
+                            telecom = {countryCode: tn.countryCode ?? null, areaCode: tn.areaCode ?? null, contactNumber: tn.contactNumber ?? null}
+                            value = [tn.countryCode ? '+' + tn.countryCode : null, tn.areaCode, tn.contactNumber].filter((part) => part).join(' ')
+                        }
+                    }
+                    entry = {contactMechId: row.contactMechId, kind: kind, kindLabel: kindLabels[kind], contactMechTypeEnumId: row.contactMechTypeEnumId,
+                        typeLabel: kind === 'other' ? enumText(row.contactMechTypeEnumId) : kindLabels[kind], value: value ? String(value) : '',
+                        infoString: row.infoString ?? null, telecom: telecom, purposeList: [], purposeText: '', expired: true,
+                        allowSolicitation: row.allowSolicitation ?? null, href: null}
+                    if (kind === 'email' && value) entry.href = 'mailto:' + value
+                    else if (kind === 'web' && value) entry.href = /^https?:\/\//i.test(String(value)) ? String(value) : null
+                    else if (kind === 'phone' && value) entry.href = 'tel:' + String(value).replace(/[^\d+]/g, '')
+                    byMech.set(row.contactMechId, entry)
+                    contactMechList.push(entry)
+                }
+                const expired = isExpired(row)
+                if (!expired) entry.expired = false
+                entry.purposeList.push({contactMechPurposeId: row.contactMechPurposeId ?? null, description: purposeText(row.contactMechPurposeId),
+                    fromDate: millis(row.fromDate), expired: expired})
+            }
+            for (const entry of contactMechList) entry.purposeText = entry.purposeList.filter((p) => entry.expired || !p.expired)
+                    .map((p) => p.description).filter((text) => text).join(', ')
+
+            // addresses
+            let addressFind = ec.entity.find('mantle.party.contact.PartyContactMechPostalAddress').condition('partyId', partyId).orderBy('fromDate')
+            if (!showExpired) addressFind = addressFind.condition(current)
+            const byAddress = new Map()
+            addressList = []
+            for (const row of addressFind.list()) {
+                let entry = byAddress.get(row.contactMechId)
+                if (entry == null) {
+                    const country = row.countryGeoId ? ec.entity.find('moqui.basic.Geo').condition('geoId', row.countryGeoId).useCache(true).one() : null
+                    const region = row.stateGeoCodeAlpha2 || row.stateGeoName || ''
+                    const lines = [row.address1, row.address2, row.unitNumber ? '#' + row.unitNumber : null,
+                        [row.city, [region, row.postalCode].filter((part) => part).join(' ')].filter((part) => part).join(', '), country ? country.geoName : null]
+                            .filter((part) => part)
+                    entry = {contactMechId: row.contactMechId, address1: row.address1 ?? null, address2: row.address2 ?? null, unitNumber: row.unitNumber ?? null,
+                        city: row.city ?? null, stateProvinceGeoId: row.stateProvinceGeoId ?? null, postalCode: row.postalCode ?? null,
+                        countryGeoId: row.countryGeoId ?? null, text: lines.join('\n'), oneLine: lines.join(', '), purposeList: [], purposeText: '', expired: true}
+                    byAddress.set(row.contactMechId, entry)
+                    addressList.push(entry)
+                }
+                const expired = isExpired(row)
+                if (!expired) entry.expired = false
+                entry.purposeList.push({contactMechPurposeId: row.contactMechPurposeId ?? null, description: purposeText(row.contactMechPurposeId),
+                    fromDate: millis(row.fromDate), expired: expired})
+            }
+            for (const entry of addressList) entry.purposeText = entry.purposeList.filter((p) => entry.expired || !p.expired)
+                    .map((p) => p.description).filter((text) => text).join(', ')
+
+            // relationships, both ways, to parties the user may see; a person's organizations and titles among them
+            relationshipList = []
+            organizationList = []
+            let relFind = ec.entity.find('mantle.party.PartyRelationship').condition(cf.makeCondition([cf.makeCondition('fromPartyId', 'equals', partyId),
+                cf.makeCondition('toPartyId', 'equals', partyId)], 'or')).orderBy('-fromDate')
+            if (!showExpired) relFind = relFind.condition(current)
+            for (const rel of relFind.list()) {
+                const outgoing = rel.fromPartyId === partyId
+                const other = visibleParty(outgoing ? rel.toPartyId : rel.fromPartyId)
+                if (other == null) continue
+                const type = enumText(rel.relationshipTypeEnumId)
+                const row = {partyRelationshipId: rel.partyRelationshipId, relationshipTypeEnumId: rel.relationshipTypeEnumId,
+                    otherPartyId: other.partyId, otherName: nameOf(other), otherIsOrganization: other.partyTypeEnumId === 'PtyOrganization',
+                    otherIsPersonal: !!other.privateOwnerUserId, outgoing: outgoing,
+                    // the type describes the from party: Joe is a Contact of Acme (outgoing), Manager: Bob (incoming)
+                    description: outgoing ? ec.resource.expand('${type} of ${name}', '', {type: type, name: nameOf(other)})
+                        : ec.resource.expand('${type}: ${name}', '', {type: type, name: nameOf(other)}),
+                    relationshipName: rel.relationshipName ?? null, fromDate: fmtDate(rel.fromDate), thruDate: fmtDate(rel.thruDate), expired: isExpired(rel)}
+                relationshipList.push(row)
+                if (!isOrg && outgoing && !row.expired && row.otherIsOrganization && ['PrtContact', 'PrtEmployee'].includes(rel.relationshipTypeEnumId))
+                    organizationList.push({partyRelationshipId: rel.partyRelationshipId, organizationPartyId: other.partyId, organizationName: row.otherName,
+                        jobTitle: rel.relationshipName ?? null, relationshipTypeEnumId: rel.relationshipTypeEnumId, typeLabel: type})
+            }
+
+            // the user's books that hold the party, with their groups; the others the user may edit
+            bookList = []
+            otherBookList = []
+            const userBooks = Array.from(ec.service.sync().name('mantle.party.ContactBookServices.get#UserContactBooks').call()?.contactBookList || [])
+            for (const book of userBooks) {
+                const member = ec.entity.find('mantle.party.contact.ContactBookParty').condition('contactBookId', book.contactBookId)
+                        .condition('partyId', partyId).condition(current).list()
+                const canEditBook = ['CbpEdit', 'CbpManage'].includes(book.permissionEnumId)
+                if (!member.length) {
+                    // a personal contact goes only in its owner's personal books
+                    if (canEditBook && (!accessOut.isPersonal || book.isOwner)) otherBookList.push({contactBookId: book.contactBookId,
+                        contactBookName: book.contactBookName, isOwner: book.isOwner, groupList: book.groupList || []})
+                    continue
+                }
+                const groupIds = (book.groupList || []).map((group) => group.contactBookGroupId)
+                const inGroups = new Set(groupIds.length ? Array.from(ec.entity.find('mantle.party.contact.ContactBookGroupParty')
+                        .condition(cf.makeCondition('contactBookGroupId', 'in', groupIds)).condition('partyId', partyId).list()).map((row) => row.contactBookGroupId) : [])
+                bookList.push({contactBookId: book.contactBookId, contactBookName: book.contactBookName, isOwner: book.isOwner, isDefault: book.isDefault,
+                    canEdit: canEditBook, isFavorite: member[0].isFavorite === 'Y',
+                    groupList: (book.groupList || []).map((group) => ({contactBookGroupId: group.contactBookGroupId, groupName: group.groupName,
+                        member: inGroups.has(group.contactBookGroupId)})),
+                    memberGroupText: (book.groupList || []).filter((group) => inGroups.has(group.contactBookGroupId)).map((group) => group.groupName).join(', ')})
+            }
+
+            noteList = Array.from(ec.entity.find('mantle.party.PartyNote').condition('partyId', partyId).orderBy('-noteDate').limit(50).list()).map((note) => {
+                const user = note.userId ? ec.entity.find('moqui.security.UserAccount').condition('userId', note.userId).useCache(true).disableAuthz().one() : null
+                return {noteDate: millis(note.noteDate), noteDateText: ec.l10n.format(note.noteDate, 'yyyy-MM-dd HH:mm'), noteText: note.noteText ?? '',
+                    userName: user ? (user.userFullName || user.username) : '', mine: !!userId && note.userId === userId}
+            })
+
+            // the employee directory card, read only (the Employee 360 is People's)
+            employeeCard = null
+            if (!isOrg && roleList.some((role) => role.roleTypeId === 'Employee')) {
+                const employment = Array.from(ec.entity.find('mantle.party.PartyRelationship').condition('fromPartyId', partyId)
+                        .condition('relationshipTypeEnumId', 'PrtEmployee').condition(current).orderBy('-fromDate').list())
+                const rel = employment.find((candidate) => visibleParty(candidate.toPartyId) != null)
+                let position = rel ? (rel.relationshipName || null) : null
+                if (rel) {
+                    const empl = ec.entity.find('mantle.humanres.employment.Employment').condition('partyRelationshipId', rel.partyRelationshipId).one()
+                    const pos = empl?.emplPositionId ? ec.entity.find('mantle.humanres.position.EmplPosition').condition('emplPositionId', empl.emplPositionId).one() : null
+                    if (pos?.description) position = pos.description
+                }
+                const managerRel = Array.from(ec.entity.find('mantle.party.PartyRelationship').condition('toPartyId', partyId)
+                        .condition('relationshipTypeEnumId', 'PrtManager').condition(current).orderBy('-fromDate').list())
+                        .map((candidate) => visibleParty(candidate.fromPartyId)).find((other) => other != null)
+                const org = rel ? visibleParty(rel.toPartyId) : null
+                employeeCard = {organizationPartyId: org ? org.partyId : null, organizationName: org ? nameOf(org) : null, position: position,
+                    managerPartyId: managerRel ? managerRel.partyId : null, managerName: managerRel ? nameOf(managerRel) : null,
+                    sinceDate: rel ? fmtDate(rel.fromDate) : null}
+            }
+            record.personalBookText = accessOut.isPersonal ? bookList.filter((book) => book.isOwner).map((book) => book.contactBookName).join(', ') : null
+            record.favoriteBookId = (bookList.find((book) => book.isDefault) || bookList.find((book) => book.isOwner) || {}).contactBookId || null
+            record.isFavorite = bookList.some((book) => book.isDefault && book.isFavorite)
+            record.primaryEmail = (contactMechList.find((mech) => mech.kind === 'email' && !mech.expired
+                    && mech.purposeList.some((p) => p.contactMechPurposeId === 'EmailPrimary')) || contactMechList.find((mech) => mech.kind === 'email' && !mech.expired) || {}).value || null
+            const org0 = organizationList[0]
+            record.subtitle = isOrg ? L('Organization') : [org0 ? org0.jobTitle : null, org0 ? org0.organizationName : null].filter((part) => part).join(' · ')
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="ContactActivity">
+        <description>One tab of the contact record beyond the overview, for a party the user may see: calendar (the party's
+            events from 30 days ago to 90 days ahead, mantle.work.EventServices.get#FullCalendarData), tasks (the WetTask work
+            efforts the party is on, open ones first), requests (the requests the party is on) and consent
+            (mantle.party.ConsentServices.get#PartyConsentState, read only).</description>
+        <in-parameters>
+            <parameter name="partyId" required="true"/>
+            <parameter name="tab" required="true"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="eventList" type="List"/>
+            <parameter name="taskList" type="List"/>
+            <parameter name="requestList" type="List"/>
+            <parameter name="consentAddressList" type="List"/>
+            <parameter name="consentListList" type="List"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            eventList = []; taskList = []; requestList = []; consentAddressList = []; consentListList = []
+            const access = ec.service.sync().name('ironstone.ContactServices.check#ContactAccess').parameters({partyId: partyId, need: 'view'}).call()
+            if (ec.message.hasError()) return
+            const cf = ec.entity.conditionFactory
+            const now = Number(String(ec.user.nowTimestamp))
+            const day = (millis) => ec.l10n.format(String(millis), 'yyyy-MM-dd')
+            const status = (id) => {
+                if (!id) return ''
+                const item = ec.entity.find('moqui.basic.StatusItem').condition('statusId', id).useCache(true).one()
+                return item ? (item.description || id) : id
+            }
+            const role = (id) => {
+                if (!id) return ''
+                const item = ec.entity.find('mantle.party.RoleType').condition('roleTypeId', id).useCache(true).one()
+                return item ? (item.description || id) : id
+            }
+            if (tab === 'calendar') {
+                const out = ec.service.sync().name('mantle.work.EventServices.get#FullCalendarData').parameters({partyId: partyId,
+                    start: day(now - 30 * 86400000), end: day(now + 90 * 86400000), includeAllUsers: false, showDeclined: false}).call()
+                if (ec.message.hasError()) { ec.logger.warn(`Contact ${partyId} calendar not shown: ${ec.message.getErrorsString()}`); ec.message.clearErrors(); return }
+                eventList = Array.from(out?.eventList || []).map((event) => ({workEffortId: event.workEffortId, title: String(event.title || '').replace(/ \[[^\]]*\]$/, ''),
+                    whenText: event.allDay ? String(event.start || '').substring(0, 10) : String(event.start || '').replace('T', ' ').substring(0, 16),
+                    startMillis: event.startMillis, statusText: status(event.statusId), statusId: event.statusId,
+                    upcoming: Number(event.startMillis || 0) >= now, url: '/qapps/Commons/Calendar/EventDetail?workEffortId=' + encodeURIComponent(event.workEffortId)}))
+                eventList.sort((a, b) => Number(b.startMillis || 0) - Number(a.startMillis || 0))
+            } else if (tab === 'tasks') {
+                const rows = Array.from(ec.entity.find('mantle.work.effort.WorkEffortAndParty').condition('partyId', partyId)
+                        .condition('workEffortTypeEnumId', 'WetTask').condition(cf.makeConditionDate('fromDate', 'thruDate', null))
+                        .orderBy('-estimatedCompletionDate').limit(100).list())
+                const seen = new Set()
+                for (const row of rows) {
+                    if (seen.has(row.workEffortId)) continue
+                    seen.add(row.workEffortId)
+                    const closed = ['WeComplete', 'WeClosed', 'WeCancelled'].includes(row.statusId)
+                    taskList.push({workEffortId: row.workEffortId, workEffortName: row.workEffortName || row.workEffortId, statusText: status(row.statusId),
+                        closed: closed, dueText: row.estimatedCompletionDate ? ec.l10n.format(row.estimatedCompletionDate, 'yyyy-MM-dd') : '',
+                        roleText: role(row.roleTypeId), url: '/qapps/Commons/Tasks/TaskDetail?workEffortId=' + encodeURIComponent(row.workEffortId)})
+                }
+                taskList.sort((a, b) => (a.closed ? 1 : 0) - (b.closed ? 1 : 0))
+            } else if (tab === 'requests') {
+                const rows = Array.from(ec.entity.find('mantle.request.RequestParty').condition('partyId', partyId)
+                        .condition(cf.makeConditionDate('fromDate', 'thruDate', null)).orderBy('-fromDate').limit(100).list())
+                const seen = new Set()
+                for (const row of rows) {
+                    if (seen.has(row.requestId)) continue
+                    seen.add(row.requestId)
+                    // the request under the user's filters
+                    const request = ec.entity.find('mantle.request.Request').condition('requestId', row.requestId).one()
+                    if (request == null) continue
+                    requestList.push({requestId: request.requestId, requestName: request.requestName || request.requestId, statusText: status(request.statusId),
+                        roleText: role(row.roleTypeId), dateText: request.requestDate ? ec.l10n.format(request.requestDate, 'yyyy-MM-dd') : '',
+                        url: '/qapps/Commons/Requests/RequestDetail?requestId=' + encodeURIComponent(request.requestId)})
+                }
+            } else if (tab === 'consent') {
+                const out = ec.service.sync().name('mantle.party.ConsentServices.get#PartyConsentState').parameters({partyId: partyId}).call()
+                if (ec.message.hasError()) { ec.logger.warn(`Contact ${partyId} consent not shown: ${ec.message.getErrorsString()}`); ec.message.clearErrors(); return }
+                const purposeText = (id) => {
+                    const value = id ? ec.entity.find('moqui.basic.Enumeration').condition('enumId', id).useCache(true).one() : null
+                    return value ? (value.description || id) : (id || '')
+                }
+                consentAddressList = Array.from(out?.addressList || []).map((address) => ({contactMechId: address.contactMechId,
+                    value: address.infoString || address.address || address.contactMechId, allowSolicitation: address.allowSolicitation === 'Y' ? 'Yes'
+                        : (address.allowSolicitation === 'N' ? 'No' : ''),
+                    consentText: Array.from(address.consentList || []).map((consent) => `${purposeText(consent.purposeEnumId)}: ${status(consent.statusId)}`).join(', ')}))
+                consentListList = Array.from(out?.listList || []).map((list) => ({contactListId: list.contactListId, contactListName: list.contactListName || list.contactListId,
+                    statusText: list.subscribed ? ec.l10n.localize('Subscribed') : status(list.statusId) || ec.l10n.localize('Not subscribed')}))
+            }
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== Edits ========== -->
+
+    <service verb="update" noun="Contact">
+        <description>The names of a contact the user may change (mantle.party.PartyServices.update#PartyDetail); a field left
+            out is not changed, an empty one is cleared. A person needs a first or last name, an organization a name.</description>
+        <in-parameters>
+            <parameter name="partyId" required="true"/>
+            <parameter name="firstName"/><parameter name="middleName"/><parameter name="lastName"/>
+            <parameter name="nickname"/><parameter name="personalTitle"/><parameter name="suffix"/>
+            <parameter name="birthDate"/>
+            <parameter name="organizationName"/>
+            <parameter name="comments"/>
+        </in-parameters>
+        <actions><script><![CDATA[
+            const access = ec.service.sync().name('ironstone.ContactServices.check#ContactAccess').parameters({partyId: partyId, need: 'edit'}).call()
+            if (ec.message.hasError()) return
+            const isOrg = access.party.partyTypeEnumId === 'PtyOrganization'
+            const fields = {partyId: partyId}
+            const text = (value) => value == null ? undefined : (String(value).trim() || null)
+            const put = (name, value) => { const v = text(value); if (v !== undefined) fields[name] = v }
+            if (isOrg) {
+                put('organizationName', organizationName)
+                if (fields.organizationName === null) { ec.message.addError(ec.l10n.localize('An organization needs a name')); return }
+            } else {
+                for (const [name, value] of [['firstName', firstName], ['middleName', middleName], ['lastName', lastName], ['nickname', nickname],
+                        ['personalTitle', personalTitle], ['suffix', suffix], ['birthDate', birthDate]]) put(name, value)
+                const first = fields.firstName !== undefined ? fields.firstName : access.party.firstName
+                const last = fields.lastName !== undefined ? fields.lastName : access.party.lastName
+                if (!first && !last) { ec.message.addError(ec.l10n.localize('A person needs a first or last name')); return }
+            }
+            put('comments', comments)
+            ec.service.sync().name('mantle.party.PartyServices.update#PartyDetail').parameters(fields).call()
+        ]]></script></actions>
+    </service>
+
+    <service verb="store" noun="ContactOrganization">
+        <description>A person's organization and title: with partyRelationshipId the title (relationshipName) of that current
+            PrtContact or PrtEmployee relationship; with organizationPartyId (an organization the user may see) a new PrtContact
+            relationship, or the title of the current one to it. thruNow ends the relationship given.</description>
+        <in-parameters>
+            <parameter name="partyId" required="true"/>
+            <parameter name="partyRelationshipId"/>
+            <parameter name="organizationPartyId"/>
+            <parameter name="jobTitle"/>
+            <parameter name="thruNow" type="Boolean" default="false"/>
+        </in-parameters>
+        <actions><script><![CDATA[
+            const access = ec.service.sync().name('ironstone.ContactServices.check#ContactAccess').parameters({partyId: partyId, need: 'edit'}).call()
+            if (ec.message.hasError()) return
+            const cf = ec.entity.conditionFactory
+            if (partyRelationshipId) {
+                const rel = ec.entity.find('mantle.party.PartyRelationship').condition('partyRelationshipId', partyRelationshipId).one()
+                if (rel == null || (rel.fromPartyId !== partyId && rel.toPartyId !== partyId)) { ec.message.addError(ec.l10n.localize('Relationship not found')); return }
+                if (thruNow) rel.set('thruDate', ec.user.nowTimestamp)
+                else rel.set('relationshipName', jobTitle ? String(jobTitle).trim() : null)
+                rel.update()
+                return
+            }
+            if (!organizationPartyId) { ec.message.addError(ec.l10n.localize('Choose the organization')); return }
+            const org = ec.service.sync().name('ironstone.ContactServices.check#ContactAccess').parameters({partyId: organizationPartyId}).call()
+            if (!org?.visible || org.party.partyTypeEnumId !== 'PtyOrganization') {
+                ec.message.addError(ec.resource.expand('Organization ${id} not found', '', {id: organizationPartyId})); return }
+            if (access.isPersonal === false && org.isPersonal) {
+                ec.message.addError(ec.l10n.localize('A directory contact cannot work for one of your personal contacts')); return }
+            const existing = Array.from(ec.entity.find('mantle.party.PartyRelationship').condition('fromPartyId', partyId).condition('toPartyId', organizationPartyId)
+                    .condition(cf.makeCondition('relationshipTypeEnumId', 'in', ['PrtContact', 'PrtEmployee'])).condition(cf.makeConditionDate('fromDate', 'thruDate', null)).list())
+            if (existing.length) {
+                existing[0].set('relationshipName', jobTitle ? String(jobTitle).trim() : null)
+                existing[0].update()
+                return
+            }
+            ec.service.sync().name('create#mantle.party.PartyRelationship').parameters({relationshipTypeEnumId: 'PrtContact', fromPartyId: partyId,
+                toPartyId: organizationPartyId, relationshipName: jobTitle ? String(jobTitle).trim() : null, fromDate: ec.user.nowTimestamp}).call()
+        ]]></script></actions>
+    </service>
+
+    <service verb="add" noun="ContactRelationship">
+        <description>A relationship of a contact the user may change to another party the user may see: the contact is the
+            from party (the type describes it: Joe is a Contact of Acme) unless reverse; a directory party is not related to a
+            personal contact.</description>
+        <in-parameters>
+            <parameter name="partyId" required="true"/>
+            <parameter name="otherPartyId" required="true"/>
+            <parameter name="relationshipTypeEnumId" required="true"/>
+            <parameter name="relationshipName"/>
+            <parameter name="reverse" type="Boolean" default="false"/>
+        </in-parameters>
+        <out-parameters><parameter name="partyRelationshipId"/></out-parameters>
+        <actions><script><![CDATA[
+            const access = ec.service.sync().name('ironstone.ContactServices.check#ContactAccess').parameters({partyId: partyId, need: 'edit'}).call()
+            if (ec.message.hasError()) return
+            const other = ec.service.sync().name('ironstone.ContactServices.check#ContactAccess').parameters({partyId: otherPartyId}).call()
+            if (!other?.visible) { ec.message.addError(ec.resource.expand('Contact ${partyId} not found', '', {partyId: otherPartyId})); return }
+            if (otherPartyId === partyId) { ec.message.addError(ec.l10n.localize('Choose another contact')); return }
+            if (!access.isPersonal && other.isPersonal) { ec.message.addError(ec.l10n.localize('A directory contact cannot be related to one of your personal contacts')); return }
+            const type = ec.entity.find('moqui.basic.Enumeration').condition('enumId', relationshipTypeEnumId).condition('enumTypeId', 'PartyRelationshipType').useCache(true).one()
+            if (type == null) { ec.message.addError(ec.resource.expand('Unknown relationship type ${id}', '', {id: relationshipTypeEnumId})); return }
+            partyRelationshipId = ec.service.sync().name('create#mantle.party.PartyRelationship').parameters({relationshipTypeEnumId: relationshipTypeEnumId,
+                fromPartyId: reverse ? otherPartyId : partyId, toPartyId: reverse ? partyId : otherPartyId,
+                relationshipName: relationshipName ? String(relationshipName).trim() : null, fromDate: ec.user.nowTimestamp}).call()?.partyRelationshipId
+        ]]></script></actions>
+    </service>
+
+    <service verb="store" noun="ContactNote">
+        <description>A note on a contact the user may change (mantle.party.PartyNote); with noteDate the user's own note of
+            that date is changed, or removed when noteText is empty.</description>
+        <in-parameters>
+            <parameter name="partyId" required="true"/>
+            <parameter name="noteDate"/>
+            <parameter name="noteText"/>
+        </in-parameters>
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.ContactServices.check#ContactAccess').parameters({partyId: partyId, need: 'edit'}).call()
+            if (ec.message.hasError()) return
+            const textValue = noteText ? String(noteText).trim() : ''
+            if (noteDate) {
+                const note = ec.entity.find('mantle.party.PartyNote').condition('partyId', partyId).condition('noteDate', new Date(Number(String(noteDate)))).one()
+                if (note == null || note.userId !== ec.user.userId) { ec.message.addError(ec.l10n.localize('Note not found')); return }
+                if (!textValue) { note.delete(); return }
+                note.set('noteText', textValue)
+                note.update()
+                return
+            }
+            if (!textValue) { ec.message.addError(ec.l10n.localize('Write the note')); return }
+            ec.service.sync().name('create#mantle.party.PartyNote').parameters({partyId: partyId, noteDate: ec.user.nowTimestamp, noteText: textValue,
+                userId: ec.user.userId}).call()
+        ]]></script></actions>
+    </service>
+
+    <service verb="store" noun="ContactInfo">
+        <description>An email, phone, website or address of a contact the user may change, with its purpose: new, or with
+            contactMechId a change of that one (mantle.party.ContactServices.store#PartyContactInfo, which keeps the purpose and
+            makes a new contact mechanism for the changed value). kind is email, phone, web or postal; a phone is digits, ten of
+            them an area code and number, eleven starting with 1 also the country code, or countryCode, areaCode and
+            contactNumber as given.</description>
+        <in-parameters>
+            <parameter name="partyId" required="true"/>
+            <parameter name="kind" required="true"/>
+            <parameter name="contactMechId"/>
+            <parameter name="contactMechPurposeId"/>
+            <parameter name="emailAddress"><text-email/></parameter>
+            <parameter name="webAddress"/>
+            <parameter name="phone"/>
+            <parameter name="countryCode"/><parameter name="areaCode"/><parameter name="contactNumber"/>
+            <parameter name="address1"/><parameter name="address2"/><parameter name="unitNumber"/><parameter name="city"/>
+            <parameter name="stateProvinceGeoId"/><parameter name="postalCode"/><parameter name="countryGeoId"/>
+        </in-parameters>
+        <out-parameters><parameter name="contactMechId"/></out-parameters>
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.ContactServices.check#ContactAccess').parameters({partyId: partyId, need: 'edit'}).call()
+            if (ec.message.hasError()) return
+            const L = (text) => ec.l10n.localize(text)
+            const cf = ec.entity.conditionFactory
+            if (contactMechId && ec.entity.find('mantle.party.contact.PartyContactMech').condition('partyId', partyId).condition('contactMechId', contactMechId)
+                    .condition(cf.makeConditionDate('fromDate', 'thruDate', null)).count() === 0) { ec.message.addError(L('Contact information not found')); return }
+            const params = {partyId: partyId}
+            if (kind === 'email') {
+                if (!emailAddress) { ec.message.addValidationError(null, 'emailAddress', null, L('Enter the email address'), null); return }
+                Object.assign(params, {emailAddress: String(emailAddress).trim(), emailContactMechId: contactMechId || null,
+                    emailContactMechPurposeId: contactMechPurposeId || 'EmailPrimary'})
+            } else if (kind === 'web') {
+                let url = webAddress ? String(webAddress).trim() : ''
+                if (!url) { ec.message.addValidationError(null, 'webAddress', null, L('Enter the website address'), null); return }
+                if (!/^[a-z][a-z0-9+.-]*:/i.test(url)) url = 'https://' + url
+                Object.assign(params, {webAddress: url, webContactMechId: contactMechId || null, webContactMechPurposeId: contactMechPurposeId || 'WebUrlPrimary'})
+            } else if (kind === 'phone') {
+                let parts = {countryCode: countryCode || null, areaCode: areaCode || null, contactNumber: contactNumber || null}
+                if (phone) {
+                    let digits = String(phone).replace(/\D/g, '')
+                    let country = null
+                    if (String(phone).trim().startsWith('+') && digits.length > 10) { country = digits.substring(0, digits.length - 10); digits = digits.substring(digits.length - 10) }
+                    else if (digits.length === 11 && digits.startsWith('1')) { country = '1'; digits = digits.substring(1) }
+                    parts = digits.length === 10 ? {countryCode: country, areaCode: digits.substring(0, 3), contactNumber: digits.substring(3, 6) + '-' + digits.substring(6)}
+                            : {countryCode: country, areaCode: null, contactNumber: digits}
+                }
+                if (!parts.contactNumber || String(parts.contactNumber).replace(/\D/g, '').length < 4) {
+                    ec.message.addValidationError(null, 'phone', null, L('Enter the phone number'), null); return }
+                Object.assign(params, parts, {telecomContactMechId: contactMechId || null, telecomContactMechPurposeId: contactMechPurposeId || 'PhonePrimary'})
+            } else if (kind === 'postal') {
+                if (!address1 || !city) { ec.message.addValidationError(null, 'address1', null, L('Enter the street and city'), null); return }
+                Object.assign(params, {address1: address1, address2: address2 || null, unitNumber: unitNumber || null, city: city,
+                    stateProvinceGeoId: stateProvinceGeoId || null, postalCode: postalCode || null, countryGeoId: countryGeoId || null,
+                    postalContactMechId: contactMechId || null, postalContactMechPurposeId: contactMechPurposeId || 'PostalPrimary'})
+            } else { ec.message.addError(ec.resource.expand('Unknown kind of contact information ${kind}', '', {kind: kind})); return }
+            const out = ec.service.sync().name('mantle.party.ContactServices.store#PartyContactInfo').parameters(params).call()
+            if (ec.message.hasError()) return
+            contactMechId = out?.emailContactMechId || out?.webContactMechId || out?.telecomContactMechId || out?.postalContactMechId || null
+        ]]></script></actions>
+    </service>
+
+    <service verb="store" noun="ContactInfoPurpose">
+        <description>Adds a purpose to a current contact mechanism of a contact the user may change (store#PartyContactMech), or
+            with remove ends that purpose (delete#PartyContactMech); without a purpose remove ends the contact mechanism.</description>
+        <in-parameters>
+            <parameter name="partyId" required="true"/>
+            <parameter name="contactMechId" required="true"/>
+            <parameter name="contactMechPurposeId"/>
+            <parameter name="remove" type="Boolean" default="false"/>
+        </in-parameters>
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.ContactServices.check#ContactAccess').parameters({partyId: partyId, need: 'edit'}).call()
+            if (ec.message.hasError()) return
+            const cf = ec.entity.conditionFactory
+            const rows = Array.from(ec.entity.find('mantle.party.contact.PartyContactMech').condition('partyId', partyId).condition('contactMechId', contactMechId)
+                    .condition(cf.makeConditionDate('fromDate', 'thruDate', null)).list())
+            if (!rows.length) { ec.message.addError(ec.l10n.localize('Contact information not found')); return }
+            if (remove) {
+                ec.service.sync().name('mantle.party.ContactServices.delete#PartyContactMech').parameters({partyId: partyId, contactMechId: contactMechId,
+                    contactMechPurposeId: contactMechPurposeId || null}).call()
+                return
+            }
+            if (!contactMechPurposeId) { ec.message.addError(ec.l10n.localize('Choose the purpose')); return }
+            ec.service.sync().name('mantle.party.ContactServices.store#PartyContactMech').parameters({partyId: partyId, contactMechId: contactMechId,
+                contactMechPurposeId: contactMechPurposeId, fromDate: ec.user.nowTimestamp}).call()
+        ]]></script></actions>
+    </service>
+
+    <service verb="upload" noun="ContactAvatar">
+        <description>The face image of a contact the user may change (mantle.party.PartyServices.create#PartyContent with
+            PcntFaceImage); an image file only.</description>
+        <in-parameters>
+            <parameter name="partyId" required="true"/>
+            <parameter name="contentFile" type="org.apache.commons.fileupload2.core.FileItem" required="true"/>
+        </in-parameters>
+        <out-parameters><parameter name="partyContentId"/></out-parameters>
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.ContactServices.check#ContactAccess').parameters({partyId: partyId, need: 'edit'}).call()
+            if (ec.message.hasError()) return
+            const name = String(contentFile.getName ? contentFile.getName() : contentFile.name || '')
+            const type = String(contentFile.contentType || contentFile.getContentType?.() || '')
+            if (!/^image\//.test(type) && !/\.(png|jpe?g|gif|webp)$/i.test(name)) { ec.message.addError(ec.l10n.localize('Choose an image file')); return }
+            partyContentId = ec.service.sync().name('mantle.party.PartyServices.create#PartyContent').parameters({partyId: partyId,
+                partyContentTypeEnumId: 'PcntFaceImage', contentFile: contentFile, contentDate: ec.user.nowTimestamp, description: name}).call()?.partyContentId
+        ]]></script></actions>
+    </service>
+    <service verb="get" noun="ContactAvatar" allow-remote="false">
+        <description>The location of the latest face image of a party the user may see; null when it has none.</description>
+        <in-parameters><parameter name="partyId" required="true"/></in-parameters>
+        <out-parameters><parameter name="contentLocation"/></out-parameters>
+        <actions><script><![CDATA[
+            contentLocation = null
+            const access = ec.service.sync().name('ironstone.ContactServices.check#ContactAccess').parameters({partyId: partyId}).call()
+            if (!access?.visible) return
+            const content = ec.entity.find('mantle.party.PartyContent').condition('partyId', partyId).condition('partyContentTypeEnumId', 'PcntFaceImage')
+                    .orderBy('-contentDate,-partyContentId').limit(1).list()
+            contentLocation = content.length ? (content[0].contentLocation || null) : null
+        ]]></script></actions>
+    </service>
+
+    <service verb="set" noun="ContactBooks">
+        <description>Puts a contact the user may see in a book the user may edit, with the groups of that book given (and out of
+            the book's other groups), or with remove takes it out of the book (mantle.party.ContactBookServices
+            add#ContactBookParties, remove#ContactBookGroupParties and remove#ContactBookParties check the book's permission and that
+            a personal contact goes only in its owner's books).</description>
+        <in-parameters>
+            <parameter name="partyId" required="true"/>
+            <parameter name="contactBookId" required="true"/>
+            <parameter name="contactBookGroupIdList" type="List"/>
+            <parameter name="remove" type="Boolean" default="false"/>
+        </in-parameters>
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.ContactServices.check#ContactAccess').parameters({partyId: partyId, need: 'view'}).call()
+            if (ec.message.hasError()) return
+            if (remove) {
+                ec.service.sync().name('mantle.party.ContactBookServices.remove#ContactBookParties').parameters({contactBookId: contactBookId, partyId: partyId}).call()
+                return
+            }
+            const textList = (value) => value == null ? [] : (typeof value === 'string' ? value.split(',') : Array.from(value)).map((item) => String(item).trim()).filter((item) => item)
+            const wanted = textList(contactBookGroupIdList)
+            const out = ec.service.sync().name('mantle.party.ContactBookServices.add#ContactBookParties').parameters({contactBookId: contactBookId,
+                partyId: partyId, contactBookGroupIdList: wanted}).call()
+            if (ec.message.hasError()) return
+            if (out?.failedPartyIdList?.length) { ec.message.addError(ec.l10n.localize('The contact could not be added to that book')); return }
+            // out of the book's groups not chosen
+            for (const group of ec.entity.find('mantle.party.contact.ContactBookGroup').condition('contactBookId', contactBookId).list()) {
+                if (wanted.includes(group.contactBookGroupId)) continue
+                if (ec.entity.find('mantle.party.contact.ContactBookGroupParty').condition('contactBookGroupId', group.contactBookGroupId).condition('partyId', partyId).count() === 0) continue
+                ec.service.sync().name('mantle.party.ContactBookServices.remove#ContactBookGroupParties').parameters({contactBookGroupId: group.contactBookGroupId,
+                    partyId: partyId}).call()
+                if (ec.message.hasError()) return
+            }
+        ]]></script></actions>
+    </service>
+
+    <service verb="delete" noun="Contacts">
+        <description>Deletes contacts the user may delete (check#ContactAccess need delete): the party is disabled and its book
+            memberships end (the user's personal contact, or a directory party for a contact admin). Each contact on its own: one
+            that cannot be deleted is named in failedPartyIdList with the reason as a warning, and the rest are deleted.</description>
+        <in-parameters><parameter name="partyIdList" type="List"/><parameter name="partyId"/></in-parameters>
+        <out-parameters><parameter name="deletedCount" type="Integer"/><parameter name="failedPartyIdList" type="List"/></out-parameters>
+        <actions><script><![CDATA[
+            deletedCount = 0
+            failedPartyIdList = []
+            const textList = (value) => value == null ? [] : (typeof value === 'string' ? value.split(',') : Array.from(value)).map((item) => String(item).trim()).filter((item) => item)
+            const ids = Array.from(new Set(textList(partyIdList).concat(textList(partyId))))
+            const cf = ec.entity.conditionFactory
+            for (const id of ids) {
+                // a report, not an error: an error would roll back the contacts deleted before and after this one
+                const access = ec.service.sync().name('ironstone.ContactServices.check#ContactAccess').parameters({partyId: id}).call() || {}
+                if (!access.canDelete) {
+                    const why = ec.resource.expand(access.visible ? 'You may not delete contact ${partyId}' : 'Contact ${partyId} not found', '', {partyId: id})
+                    ec.logger.warn(`Contact ${id} not deleted for ${ec.user.username}: ${why}`)
+                    ec.message.addMessage(why, 'warning')
+                    failedPartyIdList.push(id)
+                    continue
+                }
+                for (const row of ec.entity.find('mantle.party.contact.ContactBookParty').condition('partyId', id).condition(cf.makeConditionDate('fromDate', 'thruDate', null)).list()) {
+                    row.set('thruDate', ec.user.nowTimestamp); row.update()
+                }
+                for (const row of ec.entity.find('mantle.party.contact.ContactBookGroupParty').condition('partyId', id).list()) row.delete()
+                ec.service.sync().name('update#mantle.party.Party').parameters({partyId: id, disabled: 'Y'}).call()
+                if (ec.message.hasError()) return
+                deletedCount++
+            }
+        ]]></script></actions>
+    </service>
+
+    <service verb="export" noun="ContactFile">
+        <description>The contacts given (those the user may see) or a book the user may view (with its group) as a vCard or CSV
+            file (mantle.party.ContactImportServices.export#Contacts), written to the user's own export folder,
+            dbresource://ironstone/ContactExport/{userId}/, for the screen to send as a download (ec.web.sendResourceResponse,
+            which names the file from the location).</description>
+        <in-parameters>
+            <parameter name="partyIdList" type="List"/>
+            <parameter name="partyId"/>
+            <parameter name="contactBookId"/>
+            <parameter name="contactBookGroupId"/>
+            <parameter name="format" default-value="vcard"/>
+        </in-parameters>
+        <out-parameters><parameter name="location"/><parameter name="exportedCount" type="Integer"/><parameter name="fileName"/></out-parameters>
+        <actions><script><![CDATA[
+            location = null
+            if (!ec.user.userId) { ec.message.addError(ec.l10n.localize('An export needs a user')); return }
+            const textList = (value) => value == null ? [] : (typeof value === 'string' ? value.split(',') : Array.from(value)).map((item) => String(item).trim()).filter((item) => item)
+            const ids = Array.from(new Set(textList(partyIdList).concat(textList(partyId))))
+            if (!contactBookId && !ids.length) { ec.message.addError(ec.l10n.localize('Select one or more contacts first')); return }
+            const out = ec.service.sync().name('mantle.party.ContactImportServices.export#Contacts').parameters({contactBookId: contactBookId || null,
+                contactBookGroupId: contactBookGroupId || null, partyIdList: contactBookId ? null : ids, format: format === 'csv' ? 'csv' : 'vcard'}).call()
+            if (ec.message.hasError()) return
+            exportedCount = out.exportedCount || 0
+            fileName = out.fileName || (format === 'csv' ? 'contacts.csv' : 'contacts.vcf')
+            if (!contactBookId && ids.length === 1 && exportedCount === 1) {
+                // one contact: the file is named after it
+                const rows = ec.service.sync().name('ironstone.ContactServices.get#ContactRows').parameters({partyIdList: ids}).call()?.rowList || []
+                const base = rows.length ? String(rows[0].name).replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') : ''
+                if (base) fileName = base + (format === 'csv' ? '.csv' : '.vcf')
+            }
+            location = `dbresource://ironstone/ContactExport/${ec.user.userId}/${fileName}`
+            ec.resource.getLocationReference(location).putText(out.fileText || '')
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== Compare, merge and duplicates ========== -->
+
+    <service verb="get" noun="ComparePair">
+        <description>Two contacts side by side for a merge (both must be ones the user may see and change): the fields each has,
+            the rows of the compare (label, the two values, and which differ), and whether they may be merged and which way: a
+            directory party is never merged into a personal contact (link the personal contact to the directory instead), and an
+            internal organization is never merged away.</description>
+        <in-parameters>
+            <parameter name="partyId" required="true"/>
+            <parameter name="otherPartyId" required="true"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="left" type="Map"/>
+            <parameter name="right" type="Map"/>
+            <parameter name="fieldList" type="List"/>
+            <parameter name="canMerge" type="Boolean"/>
+            <parameter name="keepOptions" type="List"/>
+            <parameter name="reason"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            canMerge = false
+            fieldList = []
+            keepOptions = []
+            const L = (text) => ec.l10n.localize(text)
+            if (partyId === otherPartyId) { ec.message.addError(L('Choose two different contacts')); return }
+            const records = []
+            for (const id of [partyId, otherPartyId]) {
+                const out = ec.service.sync().name('ironstone.ContactServices.get#ContactRecord').parameters({partyId: id}).call()
+                if (ec.message.hasError()) return
+                if (!out?.found) { ec.message.addError(ec.resource.expand('Contact ${partyId} not found', '', {partyId: id})); return }
+                const internal = ec.entity.find('mantle.party.PartyRole').condition('partyId', id).condition('roleTypeId', 'OrgInternal').count() > 0
+                records.push(Object.assign({}, out.record, {access: out.access, internal: internal,
+                    emails: (out.contactMechList || []).filter((mech) => mech.kind === 'email').map((mech) => mech.value).join(', '),
+                    phones: (out.contactMechList || []).filter((mech) => mech.kind === 'phone').map((mech) => mech.value).join(', '),
+                    websites: (out.contactMechList || []).filter((mech) => mech.kind === 'web').map((mech) => mech.value).join(', '),
+                    addresses: (out.addressList || []).map((address) => address.oneLine).join(' | '),
+                    organizations: (out.organizationList || []).map((org) => [org.jobTitle, org.organizationName].filter((part) => part).join(' · ')).join(', '),
+                    books: (out.bookList || []).map((book) => book.contactBookName).join(', '),
+                    roles: (out.roleList || []).map((role) => role.description).join(', ')}))
+            }
+            left = records[0]
+            right = records[1]
+            const isOrg = left.isOrganization
+            if (left.isOrganization !== right.isOrganization) { reason = L('A person and an organization cannot be merged'); }
+            // the fields a merge may take from either side, then what the merge brings together
+            const choice = isOrg ? [['organizationName', 'Name']] : [['firstName', 'First name'], ['middleName', 'Middle name'], ['lastName', 'Last name'],
+                ['nickname', 'Nickname'], ['personalTitle', 'Title'], ['suffix', 'Suffix'], ['birthDate', 'Birthday']]
+            choice.push(['comments', 'Comments'])
+            for (const [name, label] of choice) {
+                const a = left[name] == null ? '' : String(left[name])
+                const b = right[name] == null ? '' : String(right[name])
+                if (!a && !b) continue
+                fieldList.push({fieldName: name, label: L(label), left: a, right: b, differs: a !== b, choosable: a !== b && !!a && !!b})
+            }
+            for (const [name, label] of [['emails', 'Email'], ['phones', 'Phone'], ['websites', 'Website'], ['addresses', 'Addresses'],
+                    ['organizations', 'Organization and title'], ['books', 'Books'], ['roles', 'Roles']]) {
+                if (!left[name] && !right[name]) continue
+                fieldList.push({fieldName: name, label: L(label), left: left[name] || '', right: right[name] || '', differs: left[name] !== right[name], choosable: false, combined: true})
+            }
+            if (reason) return
+            const canKeep = (keep, gone) => keep.access.canEdit && gone.access.canEdit && !gone.internal && !(keep.access.isPersonal && !gone.access.isPersonal)
+            if (canKeep(left, right)) keepOptions.push({key: left.partyId, text: ec.resource.expand('Keep ${name} (${id})', '', {name: left.name, id: left.pseudoId})})
+            if (canKeep(right, left)) keepOptions.push({key: right.partyId, text: ec.resource.expand('Keep ${name} (${id})', '', {name: right.name, id: right.pseudoId})})
+            canMerge = keepOptions.length > 0
+            if (!canMerge) reason = !left.access.canEdit || !right.access.canEdit ? L('You may not change both contacts')
+                : L('A directory contact is not merged into a personal contact: link the personal contact to the directory instead')
+        ]]></script></actions>
+    </service>
+
+    <service verb="merge" noun="Contacts">
+        <description>Merges one contact into the other the user keeps (get#ComparePair says which may be kept): the fields chosen
+            from the other side first go on the kept one (update#PartyDetail), then mantle.party.DuplicateServices.merge#Parties
+            moves the rest (contact information, roles, relationships, books, groups, work efforts, requests, messages) and
+            disables the other party. A personal contact merged into a directory party is linked to the directory
+            (link#PersonalContactToDirectory).</description>
+        <in-parameters>
+            <parameter name="keepPartyId" required="true"/>
+            <parameter name="otherPartyId" required="true"/>
+            <parameter name="takeFields"><description>Comma-separated fields to take from the other contact</description></parameter>
+        </in-parameters>
+        <out-parameters><parameter name="partyId"/></out-parameters>
+        <actions><script><![CDATA[
+            const pair = ec.service.sync().name('ironstone.ContactServices.get#ComparePair').parameters({partyId: keepPartyId, otherPartyId: otherPartyId}).call()
+            if (ec.message.hasError()) return
+            if (!(pair.keepOptions || []).some((option) => option.key === keepPartyId)) { ec.message.addError(pair.reason || ec.l10n.localize('These contacts cannot be merged this way')); return }
+            const take = (takeFields ? String(takeFields).split(',') : []).map((name) => name.trim()).filter((name) => name)
+            const allowed = new Set((pair.fieldList || []).filter((field) => !field.combined).map((field) => field.fieldName))
+            const updates = {}
+            for (const name of take) if (allowed.has(name) && pair.right[name]) updates[name] = pair.right[name]
+            if (Object.keys(updates).length) {
+                ec.service.sync().name('ironstone.ContactServices.update#Contact').parameters(Object.assign({partyId: keepPartyId}, updates)).call()
+                if (ec.message.hasError()) return
+            }
+            if (pair.right.access.isPersonal && !pair.left.access.isPersonal) {
+                ec.service.sync().name('mantle.party.ContactBookServices.link#PersonalContactToDirectory').parameters({partyId: otherPartyId,
+                    targetPartyId: keepPartyId}).call()
+            } else {
+                ec.service.sync().name('mantle.party.DuplicateServices.merge#Parties').parameters({toPartyId: keepPartyId, fromPartyId: otherPartyId}).call()
+            }
+            if (ec.message.hasError()) return
+            const after = ec.entity.find('mantle.party.Party').condition('partyId', otherPartyId).one()
+            if (after?.mergedToPartyId !== keepPartyId) { ec.message.addError(ec.resource.expand('${other} was not merged into ${keep}', '', {other: otherPartyId, keep: keepPartyId})); return }
+            // the kept one has no duplicate left for the scan to show, until the next one finds another
+            ec.service.sync().name('update#mantle.party.Party').parameters({partyId: keepPartyId, hasDuplicates: 'N'}).call()
+            partyId = keepPartyId
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="DuplicatePairs">
+        <description>
+            The candidate duplicate pairs the last scan found (parties with hasDuplicates Y, mantle.party.DuplicateServices
+            find#PartyDuplicates for their matches), among the directory parties the user may see (the duplicate services
+            leave personal contacts out, and they are left out here too), without the pairs marked not duplicates (the
+            PartySetting BossNotDuplicates of either party, a comma list of party ids), grouped by reason: same email, same
+            phone, same name (a person's first and last name and birthday, or an organization's name), same address and same
+            identification. The name pass is BOSS's: find#PartyDuplicates matches a name only with a birthday.
+        </description>
+        <in-parameters>
+            <parameter name="reason"/>
+            <parameter name="limit" type="Integer" default="100"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="pairList" type="List"/>
+            <parameter name="reasonList" type="List"><description>reason, label, count</description></parameter>
+            <parameter name="flaggedCount" type="Integer"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            pairList = []
+            reasonList = []
+            const L = (text) => ec.l10n.localize(text)
+            const cf = ec.entity.conditionFactory
+            const directory = cf.makeCondition('privateOwnerUserId', 'equals', null)
+            const flagged = Array.from(ec.entity.find('mantle.party.PartyDetail').condition('hasDuplicates', 'Y').condition(directory)
+                    .condition(cf.makeCondition('disabled', 'not-equals', 'Y', true)).orderBy('partyId').limit(500).list())
+            flaggedCount = flagged.length
+            const visible = new Map()
+            const seeParty = (id) => {
+                if (visible.has(id)) return visible.get(id)
+                const party = ec.entity.find('mantle.party.PartyDetail').condition('partyId', id).condition(directory).one()
+                const shown = party != null && party.disabled !== 'Y' ? party : null
+                visible.set(id, shown)
+                return shown
+            }
+            const notDuplicates = (id) => {
+                const setting = ec.entity.find('mantle.party.PartySetting').condition('partyId', id).condition('partySettingTypeId', 'BossNotDuplicates').one()
+                return new Set(setting?.settingValue ? String(setting.settingValue).split(',').map((item) => item.trim()).filter((item) => item) : [])
+            }
+            const labels = {email: L('Same email'), phone: L('Same phone'), name: L('Same name'), address: L('Same address'), identification: L('Same identification')}
+            const pairs = new Map()
+            const addPair = (a, b, why, detail) => {
+                if (a === b) return
+                const [x, y] = a < b ? [a, b] : [b, a]
+                const key = x + '|' + y
+                let pair = pairs.get(key)
+                if (pair == null) { pair = {key: key, partyId: x, otherPartyId: y, reasons: new Set(), details: new Set()}; pairs.set(key, pair) }
+                pair.reasons.add(why)
+                if (detail) pair.details.add(String(detail))
+            }
+            for (const party of flagged) {
+                // find#PartyDuplicates is anonymous-all (the scan job's), and writes the flags again
+                const out = ec.service.sync().name('mantle.party.DuplicateServices.find#PartyDuplicates').parameters({partyId: party.partyId}).call()
+                if (ec.message.hasError()) {
+                    ec.logger.warn(`Duplicates of ${party.partyId} not found: ${ec.message.getErrorsString()}`)
+                    ec.message.clearErrors()
+                    continue
+                }
+                const matches = out?.matchingInfoByPartyId || {}
+                for (const otherId of Object.keys(matches)) {
+                    for (const info of Array.from(matches[otherId] || [])) {
+                        if (info.idValue) addPair(party.partyId, otherId, 'identification', info.idValue)
+                        else if (info.infoString) addPair(party.partyId, otherId, 'email', info.infoString)
+                        else if (info.contactNumber) addPair(party.partyId, otherId, 'phone', [info.areaCode, info.contactNumber].filter((part) => part).join(' '))
+                        else if (info.address1) addPair(party.partyId, otherId, 'address', [info.address1, info.postalCode].filter((part) => part).join(', '))
+                        else if (info.birthDate) addPair(party.partyId, otherId, 'name', null)
+                    }
+                }
+            }
+            // the same name: people by first and last name, organizations by name, among directory parties
+            const people = ec.entity.find('mantle.party.PartyDetail').condition('partyTypeEnumId', 'PtyPerson').condition(directory)
+                    .condition(cf.makeCondition('disabled', 'not-equals', 'Y', true)).condition(cf.makeCondition('lastName', 'is-not-null'))
+                    .selectField('partyId,firstName,lastName').orderBy('lastName,firstName,partyId').limit(5000).list()
+            const orgs = ec.entity.find('mantle.party.PartyDetail').condition('partyTypeEnumId', 'PtyOrganization').condition(directory)
+                    .condition(cf.makeCondition('disabled', 'not-equals', 'Y', true)).condition(cf.makeCondition('organizationName', 'is-not-null'))
+                    .selectField('partyId,organizationName').orderBy('organizationName,partyId').limit(5000).list()
+            const byName = new Map()
+            const norm = (text) => String(text || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+            for (const person of people) {
+                if (!person.firstName) continue
+                const key = 'p|' + norm(person.firstName) + '|' + norm(person.lastName)
+                if (!byName.has(key)) byName.set(key, [])
+                byName.get(key).push(person.partyId)
+            }
+            for (const org of orgs) {
+                const key = 'o|' + norm(org.organizationName).replace(/ (inc|llc|ltd|co|corp|gmbh|company)$/, '')
+                if (key.length < 4) continue
+                if (!byName.has(key)) byName.set(key, [])
+                byName.get(key).push(org.partyId)
+            }
+            for (const ids of byName.values()) {
+                if (ids.length < 2 || ids.length > 6) continue
+                for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) addPair(ids[i], ids[j], 'name', null)
+            }
+
+            const counts = {}
+            const rows = []
+            for (const pair of pairs.values()) {
+                const a = seeParty(pair.partyId)
+                const b = seeParty(pair.otherPartyId)
+                if (a == null || b == null) continue
+                if (notDuplicates(pair.partyId).has(pair.otherPartyId) || notDuplicates(pair.otherPartyId).has(pair.partyId)) continue
+                const order = ['email', 'phone', 'name', 'address', 'identification']
+                const reasons = order.filter((why) => pair.reasons.has(why))
+                for (const why of reasons) counts[why] = (counts[why] || 0) + 1
+                if (reason && !reasons.includes(reason)) continue
+                const nameOf = (party) => (ec.resource.expand('PartyNameOnlyTemplate', '', party) || '').trim() || party.pseudoId || party.partyId
+                rows.push({key: pair.key, partyId: a.partyId, otherPartyId: b.partyId, name: nameOf(a), otherName: nameOf(b),
+                    pseudoId: a.pseudoId || a.partyId, otherPseudoId: b.pseudoId || b.partyId, reason: reasons[0], reasonLabel: labels[reasons[0]],
+                    reasonText: reasons.map((why) => labels[why]).join(', '), detailText: Array.from(pair.details).join(', '),
+                    // a rough score: each reason counts, an email or identification most
+                    score: reasons.reduce((sum, why) => sum + ({email: 40, identification: 40, phone: 25, address: 20, name: 15}[why] || 0), 0)})
+            }
+            const order = ['email', 'phone', 'name', 'address', 'identification']
+            rows.sort((x, y) => order.indexOf(x.reason) - order.indexOf(y.reason) || y.score - x.score || x.name.localeCompare(y.name))
+            pairList = rows.slice(0, Math.max(1, Number(limit || 100)))
+            reasonList = order.filter((why) => counts[why]).map((why) => ({reason: why, label: labels[why], count: counts[why]}))
+        ]]></script></actions>
+    </service>
+
+    <service verb="mark" noun="NotDuplicate">
+        <description>Records that two directory parties the user may see are not duplicates (contact admins only): each party's
+            PartySetting BossNotDuplicates lists the other, so get#DuplicatePairs leaves the pair out, and the parties' duplicate
+            flags clear. Mantle has no record of this yet (the next scan flags the parties again; the setting keeps the pair
+            out of the list).</description>
+        <in-parameters>
+            <parameter name="partyId" required="true"/>
+            <parameter name="otherPartyId" required="true"/>
+        </in-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            for (const id of [partyId, otherPartyId]) {
+                const access = ec.service.sync().name('ironstone.ContactServices.check#ContactAccess').parameters({partyId: id, need: 'view'}).call()
+                if (ec.message.hasError()) return
+                if (!access.isContactAdmin) { ec.message.addError(L('Only contact admins review duplicates')); return }
+                if (access.isPersonal) { ec.message.addError(ec.resource.expand('Contact ${partyId} not found', '', {partyId: id})); return }
+            }
+            if (partyId === otherPartyId) { ec.message.addError(L('Choose two different contacts')); return }
+            for (const [id, other] of [[partyId, otherPartyId], [otherPartyId, partyId]]) {
+                const setting = ec.entity.find('mantle.party.PartySetting').condition('partyId', id).condition('partySettingTypeId', 'BossNotDuplicates').one()
+                const ids = new Set(setting?.settingValue ? String(setting.settingValue).split(',').map((item) => item.trim()).filter((item) => item) : [])
+                ids.add(other)
+                // the setting holds 255 characters: the newest ids are kept
+                let value = Array.from(ids).join(',')
+                while (value.length > 255 && ids.size > 1) { ids.delete(Array.from(ids)[0]); value = Array.from(ids).join(',') }
+                ec.service.sync().name('store#mantle.party.PartySetting').parameters({partyId: id, partySettingTypeId: 'BossNotDuplicates', settingValue: value}).call()
+                if (ec.message.hasError()) return
+                ec.service.sync().name('update#mantle.party.Party').parameters({partyId: id, hasDuplicates: 'N', lastDupCheckDate: ec.user.nowTimestamp}).call()
+                if (ec.message.hasError()) return
+            }
+        ]]></script></actions>
+    </service>
+    <!-- ========== The import wizard's draft ========== -->
+    <!-- Commons/Contacts/Import keeps the file and the choices of its steps between them in the user's own folder,
+        dbresource://ironstone/ContactImport/{userId}/{importId}/: source.csv or source.vcf (the file as UTF-8 text, decoded by its
+        character set when it was uploaded) and draft.json (file name, kind, preset, character set, the column mapping, the
+        options, and the result once imported). The folder is found from the current user, never from a parameter, so one user
+        never reads another's import; the importId in the wizard's URL only names the import within it. -->
+
+    <service verb="get" noun="ImportDraft">
+        <description>The draft of an import of the current user: the draft map (empty when there is none, or the id is not a
+            draft id), the location of its file, and the folder.</description>
+        <in-parameters><parameter name="importId"/></in-parameters>
+        <out-parameters>
+            <parameter name="draft" type="Map"/>
+            <parameter name="found" type="Boolean"/>
+            <parameter name="fileLocation"/>
+            <parameter name="folder"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            draft = {}
+            found = false
+            fileLocation = null
+            const userId = ec.user.userId
+            if (!userId || !importId || !/^[A-Za-z0-9_-]{1,40}$/.test(String(importId))) return
+            folder = `dbresource://ironstone/ContactImport/${userId}/${importId}`
+            const text = ec.resource.getLocationReference(folder + '/draft.json').getText()
+            if (!text) return
+            try { draft = JSON.parse(text) || {} } catch (err) { ec.logger.warn(`Contact import ${importId} of ${userId}: the draft does not read: ${err}`); draft = {}; return }
+            found = true
+            fileLocation = draft.fileExt ? `${folder}/source.${draft.fileExt}` : null
+        ]]></script></actions>
+    </service>
+    <service verb="store" noun="ImportDraft" allow-remote="false">
+        <description>Merges the fields given into the draft of an import of the current user and saves it.</description>
+        <in-parameters><parameter name="importId" required="true"/><parameter name="fields" type="Map" required="true"/></in-parameters>
+        <out-parameters><parameter name="draft" type="Map"/></out-parameters>
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.ContactServices.get#ImportDraft').parameters({importId: importId}).call()
+            if (!out?.folder) { ec.message.addError(ec.l10n.localize('This import is not available; start again from the file')); return }
+            draft = Object.assign({}, out.draft || {}, fields || {}, {importId: importId, updated: Number(String(ec.user.nowTimestamp))})
+            ec.resource.getLocationReference(out.folder + '/draft.json').putText(JSON.stringify(draft))
+        ]]></script></actions>
+    </service>
+
+    <service verb="save" noun="ImportSource">
+        <description>The import's first step: the file (an upload, or the file already in the draft when none is given) read as
+            text in its character set (UTF-8, Windows-1252, ISO-8859-1 or UTF-16 with its byte order mark; the framework's
+            FileItem.getString reads UTF-8 only), kept as the draft's source file, and parsed
+            (mantle.party.ContactImportServices.parse#ContactFile) for its kind, preset, columns and mapping, which start the
+            draft. A new import gets an id; the same importId replaces its file.</description>
+        <in-parameters>
+            <parameter name="importId"/>
+            <parameter name="contactFile" type="org.apache.commons.fileupload2.core.FileItem"/>
+            <parameter name="presetId"/>
+            <parameter name="characterSet" default-value="UTF-8"/>
+        </in-parameters>
+        <out-parameters><parameter name="importId"/><parameter name="rowCount" type="Integer"/><parameter name="fileKind"/></out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const userId = ec.user.userId
+            if (!userId) { ec.message.addError(L('An import needs a user')); return }
+            let current = importId ? ec.service.sync().name('ironstone.ContactServices.get#ImportDraft').parameters({importId: importId}).call() : null
+            if (!current?.found) {
+                importId = String(Number(String(ec.user.nowTimestamp))) + '-' + Math.floor(Math.random() * 1e6)
+                current = null
+            }
+            const hasUpload = contactFile != null && Number(contactFile.size || 0) > 0
+            if (!hasUpload && !current?.fileLocation) { ec.message.addValidationError(null, 'contactFile', null, L('Choose a vCard or CSV file'), null); return }
+            const folder = `dbresource://ironstone/ContactImport/${userId}/${importId}`
+            let fileName = current?.draft?.fileName || null
+            let fileExt = current?.draft?.fileExt || null
+            const charset = String(characterSet || 'UTF-8').toUpperCase()
+            if (hasUpload) {
+                fileName = String(contactFile.getName ? contactFile.getName() : contactFile.name || 'contacts')
+                const bytes = contactFile.getInputStream().readAllBytes()
+                const cp1252 = {0x80: 0x20AC, 0x82: 0x201A, 0x83: 0x0192, 0x84: 0x201E, 0x85: 0x2026, 0x86: 0x2020, 0x87: 0x2021, 0x88: 0x02C6,
+                    0x89: 0x2030, 0x8A: 0x0160, 0x8B: 0x2039, 0x8C: 0x0152, 0x8E: 0x017D, 0x91: 0x2018, 0x92: 0x2019, 0x93: 0x201C, 0x94: 0x201D,
+                    0x95: 0x2022, 0x96: 0x2013, 0x97: 0x2014, 0x98: 0x02DC, 0x99: 0x2122, 0x9A: 0x0161, 0x9B: 0x203A, 0x9C: 0x0153, 0x9E: 0x017E, 0x9F: 0x0178}
+                let text = ''
+                const parts = []
+                const flush = () => { if (parts.length) { text += String.fromCharCode.apply(null, parts); parts.length = 0 } }
+                const push = (code) => { parts.push(code); if (parts.length >= 4096) flush() }
+                const utf16 = charset === 'UTF-16' || (bytes.length >= 2 && ((bytes[0] === 0xFF && bytes[1] === 0xFE) || (bytes[0] === 0xFE && bytes[1] === 0xFF)))
+                if (utf16) {
+                    const little = !(bytes[0] === 0xFE && bytes[1] === 0xFF)
+                    const start = (bytes[0] === 0xFF && bytes[1] === 0xFE) || (bytes[0] === 0xFE && bytes[1] === 0xFF) ? 2 : 0
+                    for (let i = start; i + 1 < bytes.length; i += 2) push(little ? bytes[i] | (bytes[i + 1] << 8) : (bytes[i] << 8) | bytes[i + 1])
+                    flush()
+                } else if (charset === 'ISO-8859-1' || charset === 'WINDOWS-1252') {
+                    for (let i = 0; i < bytes.length; i++) push(charset === 'WINDOWS-1252' && cp1252[bytes[i]] ? cp1252[bytes[i]] : bytes[i])
+                    flush()
+                } else {
+                    text = contactFile.getString()
+                }
+                if (text.charCodeAt(0) === 0xFEFF) text = text.substring(1)
+                fileExt = /\.vcf$|\.vcard$/i.test(fileName) || /^\s*BEGIN:VCARD/i.test(text) ? 'vcf' : 'csv'
+                ec.resource.getLocationReference(`${folder}/source.${fileExt}`).putText(text)
+            }
+            const fileLocation = `${folder}/source.${fileExt}`
+            const preset = ['google', 'outlook', 'generic'].includes(presetId) && fileExt === 'csv' ? presetId : null
+            const parsed = ec.service.sync().name('mantle.party.ContactImportServices.parse#ContactFile').parameters({fileLocation: fileLocation,
+                fileName: fileExt === 'vcf' ? 'source.vcf' : 'source.csv', presetId: preset, sampleSize: 3}).call()
+            if (ec.message.hasError()) return
+            rowCount = parsed.rowCount || 0
+            fileKind = parsed.fileKind
+            if (!rowCount) { ec.message.addError(L('The file has no contacts')); return }
+            ec.resource.getLocationReference(folder + '/draft.json').putText(JSON.stringify(Object.assign({}, current?.draft || {}, {importId: importId,
+                fileName: fileName, fileExt: fileExt, fileKind: parsed.fileKind, presetId: parsed.presetId, chosenPresetId: presetId || null,
+                characterSet: charset, rowCount: rowCount, columnMapping: parsed.columnMapping || {}, result: null, status: 'source',
+                created: current?.draft?.created || Number(String(ec.user.nowTimestamp))})))
+        ]]></script></actions>
+    </service>
+
+    <service verb="run" noun="Import">
+        <description>The import's last step: mantle.party.ContactImportServices.import#Contacts of the draft's file with its mapping
+            and options (each row in its own transaction: a row that fails is reported and the rest are imported), the result
+            kept in the draft (counts, the failures with their reasons and values, the rows) for the result view and the
+            failures download. A directory import is for contact admins.</description>
+        <in-parameters><parameter name="importId" required="true"/></in-parameters>
+        <out-parameters><parameter name="result" type="Map"/></out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const current = ec.service.sync().name('ironstone.ContactServices.get#ImportDraft').parameters({importId: importId}).call()
+            if (!current?.found || !current.fileLocation) { ec.message.addError(L('This import is not available; start again from the file')); return }
+            const draft = current.draft
+            if (draft.status === 'done') { result = draft.result; return }
+            const options = draft.options || {}
+            const asPersonal = options.asPersonal !== false
+            if (!asPersonal && !(ec.user.isInGroup('BOSS_CONTACT_ADMIN') || ec.user.isInGroup('ADMIN'))) {
+                ec.message.addError(L('Only contact admins import into the directory')); return }
+            const out = ec.service.sync().name('mantle.party.ContactImportServices.import#Contacts').parameters({fileLocation: current.fileLocation,
+                fileName: draft.fileExt === 'vcf' ? 'source.vcf' : 'source.csv', presetId: draft.fileKind === 'csv' ? draft.presetId : null,
+                columnMapping: draft.columnMapping || null, duplicatePolicy: options.duplicatePolicy || 'skip', asPersonal: asPersonal,
+                roleTypeId: asPersonal ? null : (options.roleTypeId || 'Contact'), contactBookId: options.contactBookId || null,
+                contactBookGroupIdList: options.contactBookGroupIdList || [], groupNames: options.groupNames || null,
+                useFileGroups: options.useFileGroups !== false}).call()
+            if (ec.message.hasError()) return
+            result = {contactBookId: out.contactBookId || null, rowCount: out.rowCount || 0, createdCount: out.createdCount || 0, updatedCount: out.updatedCount || 0,
+                skippedCount: out.skippedCount || 0, failedCount: out.failedCount || 0, failureList: Array.from(out.failureList || []),
+                resultList: Array.from(out.resultList || []).slice(0, 1000)}
+            ec.service.sync().name('ironstone.ContactServices.store#ImportDraft').parameters({importId: importId, fields: {status: 'done', result: result,
+                finished: Number(String(ec.user.nowTimestamp))}}).call()
+        ]]></script></actions>
+    </service>
+</services>

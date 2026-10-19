@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- Import step 1, ImportSource (design-drawers-commons.md §6): the file (vCard .vcf, or CSV with the Google Contacts, Outlook
+    or a generic header), its kind and character set. saveSource keeps it in the import's draft
+    (ironstone.ContactServices.save#ImportSource) and answers the importId the next steps carry. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Source" default-menu-index="1">
+
+    <parameter name="importId"/>
+    <parameter name="fresh"><description>Y: a new import, leaving the one in the URL</description></parameter>
+
+    <transition name="saveSource">
+        <service-call name="ironstone.ContactServices.save#ImportSource" in-map="{importId:importId, contactFile:contactFile, presetId:presetId,
+                characterSet:characterSet}" out-map="sourceOut"/>
+        <actions><set field="importId" from="sourceOut?.importId || importId"/></actions>
+        <default-response url="."><parameter name="importId"/></default-response>
+        <error-response url="."/>
+    </transition>
+
+    <actions>
+        <if condition="fresh == 'Y'"><set field="importId" from="null"/></if>
+        <service-call name="ironstone.ContactServices.get#ImportDraft" in-map="{importId:importId}" out-map="draftOut"/>
+        <set field="draft" from="draftOut.draft || {}"/>
+        <set field="source" from="{importId:(draftOut.found ? importId : null), presetId:(draft.chosenPresetId || ''), characterSet:(draft.characterSet || 'UTF-8')}"/>
+        <set field="hasFile" from="!!draftOut.found"/>
+    </actions>
+    <widgets>
+        <container-box><box-header title="The file"/><box-body>
+            <label type="p" text="A vCard file (.vcf) from a phone, Apple Contacts or Thunderbird, or a CSV file exported from Google Contacts, Outlook or a spreadsheet. Nothing is imported until the last step." style="m-muted"/>
+            <section name="CurrentFile" condition="hasFile"><widgets>
+                <label type="p" text="Now: ${draft.fileName} (${draft.rowCount} ${draft.rowCount == 1 ? 'contact' : 'contacts'}, ${draft.fileKind == 'vcard' ? 'vCard' : 'CSV'}). Choose another file to replace it, or go on."/>
+            </widgets></section>
+            <form-single name="ImportSource" transition="saveSource" map="source">
+                <field name="importId"><default-field><hidden/></default-field></field>
+                <field name="contactFile"><default-field title="File"><file/></default-field></field>
+                <field name="presetId"><default-field title="Kind">
+                    <radio no-current-selected-key=""><option key="" text="Find it from the file"/><option key="google" text="Google Contacts CSV"/>
+                        <option key="outlook" text="Outlook CSV"/><option key="generic" text="Other CSV"/><option key="vcard" text="vCard"/></radio></default-field></field>
+                <field name="characterSet"><default-field title="Character set">
+                    <drop-down><option key="UTF-8" text="UTF-8 (most files)"/><option key="WINDOWS-1252" text="Windows (Western, Outlook)"/>
+                        <option key="ISO-8859-1" text="ISO-8859-1 (Latin 1)"/><option key="UTF-16" text="UTF-16"/></drop-down></default-field></field>
+            </form-single>
+        </box-body></container-box>
+    </widgets>
+</screen>

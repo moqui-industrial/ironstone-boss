@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- Import step 4, ImportPreview (design-drawers-commons.md §6): what each row will do, without writing anything
+    (mantle.party.ContactImportServices.preview#Contacts with the draft's mapping and duplicate policy): the row, its name,
+    the action (create, update, or skip as a duplicate of a contact or an earlier row), the matched contact and the row's
+    problems, with the counts; the first 200 rows are shown. The matches are among the contacts the user may see.
+    confirmPreview notes the preview in the draft; the next step imports. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Preview" default-menu-index="4">
+
+    <parameter name="importId"/>
+
+    <transition name="confirmPreview">
+        <actions><script><![CDATA[
+            const current = ec.service.sync().name('ironstone.ContactServices.get#ImportDraft').parameters({importId: importId}).call()
+            if (!current?.found) { ec.message.addError(ec.l10n.localize('This import is not available; start again from the file')); return }
+            if (!current.draft.options) { ec.message.addError(ec.l10n.localize('Choose the options first')); return }
+            ec.service.sync().name('ironstone.ContactServices.store#ImportDraft').parameters({importId: importId, fields: {status: 'previewed'}}).call()
+        ]]></script></actions>
+        <default-response url="."><parameter name="importId"/></default-response>
+        <error-response url="."/>
+    </transition>
+
+    <actions><script><![CDATA[
+        const L = (text) => ec.l10n.localize(text)
+        const current = ec.service.sync().name('ironstone.ContactServices.get#ImportDraft').parameters({importId: importId}).call() || {}
+        hasDraft = !!current.found
+        previewRows = []
+        if (!hasDraft) return
+        draft = current.draft
+        const options = draft.options || {duplicatePolicy: 'skip'}
+        const out = ec.service.sync().name('mantle.party.ContactImportServices.preview#Contacts').parameters({fileLocation: current.fileLocation,
+            fileName: draft.fileExt === 'vcf' ? 'source.vcf' : 'source.csv', presetId: draft.fileKind === 'csv' ? draft.presetId : null,
+            columnMapping: draft.columnMapping || null, duplicatePolicy: options.duplicatePolicy || 'skip', maxRows: 200}).call()
+        if (ec.message.hasError()) { previewError = ec.message.getErrorsString(); ec.message.clearErrors(); hasDraft = false; return }
+        const actions = {create: L('Create'), update: L('Update'), skip: L('Skip')}
+        const reasons = {email: L('same email'), phone: L('same phone and name'), name: L('same name'), file: L('an earlier row')}
+        previewRows = Array.from(out.rowList || []).map((row) => ({rowNumber: row.rowNumber, name: row.name || L('(no name)'), action: row.action,
+            actionLabel: actions[row.action] || row.action, actionStyle: row.action === 'create' ? 'text-positive' : (row.action === 'update' ? 'text-primary' : 'm-muted'),
+            matchedPartyId: row.matchedPartyId || null, matchedText: row.matchedPartyId ? String(row.matchedName || row.matchedPartyId).replace(row.matchedPartyId + ': ', '') + ' · ' + (reasons[row.matchReason] || row.matchReason || '')
+                : (row.matchedRowNumber ? ec.resource.expand('Row ${n} of the file', '', {n: row.matchedRowNumber}) : ''),
+            problemText: Array.from(row.problems || []).join('; ')}))
+        counts = {rowCount: out.rowCount || 0, createCount: out.createCount || 0, updateCount: out.updateCount || 0, skipCount: out.skipCount || 0,
+            problemCount: out.problemCount || 0}
+        summaryText = ec.resource.expand('${rows} rows: ${create} to create, ${update} to update, ${skip} to skip, ${problems} with problems', '',
+                {rows: counts.rowCount, create: counts.createCount, update: counts.updateCount, skip: counts.skipCount, problems: counts.problemCount})
+        policyText = {skip: L('Duplicates are skipped'), update: L('Duplicates are updated'), create: L('Duplicates are created anyway')}[options.duplicatePolicy || 'skip']
+        moreRows = counts.rowCount > previewRows.length
+    ]]></script></actions>
+    <widgets>
+        <section name="NoDraft" condition="!hasDraft"><widgets>
+            <container-box type="warning"><box-body><label type="p" text="${previewError || 'Start with the file.'}"/></box-body></container-box>
+        </widgets></section>
+        <section name="PreviewList" condition="hasDraft"><widgets>
+            <container-box><box-header title="What will happen"/><box-body>
+                <label type="p" text="${summaryText}. ${policyText}." style="text-body2"/>
+                <form-single name="ImportPreviewConfirm" transition="confirmPreview">
+                    <field name="importId" from="importId"><default-field><hidden/></default-field></field>
+                </form-single>
+            </box-body></container-box>
+            <container-box><box-header title="Rows"/><box-body-nopad>
+                <form-list name="ImportPreviewRows" list="previewRows" skip-form="true" paginate="false">
+                    <field name="rowNumber" align="right"><default-field title="Row"><display/></default-field></field>
+                    <field name="name"><default-field title="Contact"><display/></default-field></field>
+                    <field name="actionLabel"><default-field title="Action"><display style="${actionStyle} text-weight-medium"/></default-field></field>
+                    <field name="matchedText"><default-field title="Matches"><display/></default-field></field>
+                    <field name="problemText"><default-field title="Problems"><display style="text-negative text-caption"/></default-field></field>
+                    <columns type="mobile">
+                        <column><field-ref name="name"/><field-ref name="matchedText"/></column>
+                        <column><field-ref name="actionLabel"/></column>
+                    </columns>
+                </form-list>
+                <label type="p" text="The first ${previewRows.length} rows are shown." style="text-caption m-muted q-pa-sm" condition="moreRows == true"/>
+            </box-body-nopad></container-box>
+        </widgets></section>
+    </widgets>
+</screen>

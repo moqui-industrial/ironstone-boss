@@ -80,4 +80,124 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- M3: the Chatter and files of the demo request, task and event (notes, an email, activities done and planned, a status
         change, files and followers), after the records above and the Today demo, whose planned call is on the request -->
     <ironstone.DemoServices.load-ChatterDemo/>
+    <!-- M4: contact books and personal contacts (design-drawers-commons.md §6). john.doe's personal book with its groups and
+        three personal contacts (Mary Doe in Family and starred, Robin Fischer in Friends, Tom Pipes of Pipes and Sons in no
+        group) and the directory's Bob Acme (Clients, starred); the shared book Team Contacts (john.doe manages it, Joe
+        Developer edits it); Joe Developer's own personal contact Sam Secret, which john.doe must never see (it has the
+        same email and phone as the duplicate pair below, so the duplicate scan would pair it if it did not skip personal
+        contacts); two directory people who look like duplicates (Pat Quinn and Patricia Quinn: same email, phone and address,
+        flagged as the scan leaves them) and two organizations with the same name (Quinn Consulting, Quinn Consulting LLC);
+        Bob Developer as Joe Developer's manager, for the directory card. The import specs read data/demo/contacts-google.csv
+        and data/demo/contacts.vcf. -->
+    <mantle.party.contact.ContactBook contactBookId="BOSS_DEMO_BOOK_JD" contactBookName="My Contacts" ownerUserId="EX_JOHN_DOE"
+            visibilityEnumId="CbvPersonal" isDefault="Y" color="#1e88e5" createdDate="2026-10-01 09:00:00"/>
+    <mantle.party.contact.ContactBookGroup contactBookGroupId="BOSS_DEMO_GRP_FAMILY" contactBookId="BOSS_DEMO_BOOK_JD" groupName="Family" sequenceNum="1"/>
+    <mantle.party.contact.ContactBookGroup contactBookGroupId="BOSS_DEMO_GRP_FRIENDS" contactBookId="BOSS_DEMO_BOOK_JD" groupName="Friends" sequenceNum="2"/>
+    <mantle.party.contact.ContactBookGroup contactBookGroupId="BOSS_DEMO_GRP_CLIENTS" contactBookId="BOSS_DEMO_BOOK_JD" groupName="Clients" sequenceNum="3"/>
+
+    <mantle.party.Party partyId="BOSS_DEMO_PC_MARY" pseudoId="BOSS_DEMO_PC_MARY" partyTypeEnumId="PtyPerson" privateOwnerUserId="EX_JOHN_DOE" disabled="N"
+            comments="Call on Sundays."/>
+    <mantle.party.Person partyId="BOSS_DEMO_PC_MARY" firstName="Mary" lastName="Doe" birthDate="1956-04-12"/>
+    <mantle.party.contact.ContactMech contactMechId="BOSS_DEMO_PC_MARY_EM" contactMechTypeEnumId="CmtEmailAddress" infoString="mary.doe@example.com"/>
+    <mantle.party.contact.PartyContactMech partyId="BOSS_DEMO_PC_MARY" contactMechId="BOSS_DEMO_PC_MARY_EM" contactMechPurposeId="EmailPrimary" fromDate="2026-10-01 09:00:00"/>
+    <mantle.party.contact.ContactMech contactMechId="BOSS_DEMO_PC_MARY_TN" contactMechTypeEnumId="CmtTelecomNumber"/>
+    <mantle.party.contact.TelecomNumber contactMechId="BOSS_DEMO_PC_MARY_TN" countryCode="1" areaCode="555" contactNumber="010-0161"/>
+    <mantle.party.contact.PartyContactMech partyId="BOSS_DEMO_PC_MARY" contactMechId="BOSS_DEMO_PC_MARY_TN" contactMechPurposeId="PhoneMobile" fromDate="2026-10-01 09:00:00"/>
+    <mantle.party.contact.ContactMech contactMechId="BOSS_DEMO_PC_MARY_PA" contactMechTypeEnumId="CmtPostalAddress"/>
+    <mantle.party.contact.PostalAddress contactMechId="BOSS_DEMO_PC_MARY_PA" address1="12 Elm Street" city="Springfield" stateProvinceGeoId="USA_IL"
+            postalCode="62701" countryGeoId="USA"/>
+    <mantle.party.contact.PartyContactMech partyId="BOSS_DEMO_PC_MARY" contactMechId="BOSS_DEMO_PC_MARY_PA" contactMechPurposeId="PostalHome" fromDate="2026-10-01 09:00:00"/>
+    <mantle.party.contact.ContactBookParty contactBookId="BOSS_DEMO_BOOK_JD" partyId="BOSS_DEMO_PC_MARY" fromDate="2026-10-01 09:00:00" isFavorite="Y"/>
+    <mantle.party.contact.ContactBookGroupParty contactBookGroupId="BOSS_DEMO_GRP_FAMILY" partyId="BOSS_DEMO_PC_MARY" fromDate="2026-10-01 09:00:00"/>
+    <mantle.party.PartyNote partyId="BOSS_DEMO_PC_MARY" noteDate="2026-10-05 18:00:00" noteText="Prefers a call to an email." userId="EX_JOHN_DOE"/>
+
+    <mantle.party.Party partyId="BOSS_DEMO_PC_ROBIN" pseudoId="BOSS_DEMO_PC_ROBIN" partyTypeEnumId="PtyPerson" privateOwnerUserId="EX_JOHN_DOE" disabled="N"/>
+    <mantle.party.Person partyId="BOSS_DEMO_PC_ROBIN" firstName="Robin" lastName="Fischer"/>
+    <mantle.party.contact.ContactMech contactMechId="BOSS_DEMO_PC_ROBIN_EM" contactMechTypeEnumId="CmtEmailAddress" infoString="robin.fischer@example.org"/>
+    <mantle.party.contact.PartyContactMech partyId="BOSS_DEMO_PC_ROBIN" contactMechId="BOSS_DEMO_PC_ROBIN_EM" contactMechPurposeId="EmailPrimary" fromDate="2026-10-01 09:00:00"/>
+    <mantle.party.contact.ContactMech contactMechId="BOSS_DEMO_PC_ROBIN_TN" contactMechTypeEnumId="CmtTelecomNumber"/>
+    <mantle.party.contact.TelecomNumber contactMechId="BOSS_DEMO_PC_ROBIN_TN" countryCode="1" areaCode="555" contactNumber="010-0177"/>
+    <mantle.party.contact.PartyContactMech partyId="BOSS_DEMO_PC_ROBIN" contactMechId="BOSS_DEMO_PC_ROBIN_TN" contactMechPurposeId="PhoneMobile" fromDate="2026-10-01 09:00:00"/>
+    <mantle.party.contact.ContactBookParty contactBookId="BOSS_DEMO_BOOK_JD" partyId="BOSS_DEMO_PC_ROBIN" fromDate="2026-10-01 09:00:00"/>
+    <mantle.party.contact.ContactBookGroupParty contactBookGroupId="BOSS_DEMO_GRP_FRIENDS" partyId="BOSS_DEMO_PC_ROBIN" fromDate="2026-10-01 09:00:00"/>
+
+    <mantle.party.Party partyId="BOSS_DEMO_PC_PIPES" pseudoId="BOSS_DEMO_PC_PIPES" partyTypeEnumId="PtyOrganization" privateOwnerUserId="EX_JOHN_DOE" disabled="N"/>
+    <mantle.party.Organization partyId="BOSS_DEMO_PC_PIPES" organizationName="Pipes and Sons"/>
+    <mantle.party.Party partyId="BOSS_DEMO_PC_TOM" pseudoId="BOSS_DEMO_PC_TOM" partyTypeEnumId="PtyPerson" privateOwnerUserId="EX_JOHN_DOE" disabled="N"/>
+    <mantle.party.Person partyId="BOSS_DEMO_PC_TOM" firstName="Tom" lastName="Pipes"/>
+    <mantle.party.PartyRelationship partyRelationshipId="BOSS_DEMO_PC_TOM_ORG" relationshipTypeEnumId="PrtContact" fromPartyId="BOSS_DEMO_PC_TOM"
+            toPartyId="BOSS_DEMO_PC_PIPES" relationshipName="Plumber" fromDate="2026-10-01 09:00:00"/>
+    <mantle.party.contact.ContactMech contactMechId="BOSS_DEMO_PC_TOM_TN" contactMechTypeEnumId="CmtTelecomNumber"/>
+    <mantle.party.contact.TelecomNumber contactMechId="BOSS_DEMO_PC_TOM_TN" countryCode="1" areaCode="555" contactNumber="010-0188"/>
+    <mantle.party.contact.PartyContactMech partyId="BOSS_DEMO_PC_TOM" contactMechId="BOSS_DEMO_PC_TOM_TN" contactMechPurposeId="PhoneWork" fromDate="2026-10-01 09:00:00"/>
+    <mantle.party.contact.ContactBookParty contactBookId="BOSS_DEMO_BOOK_JD" partyId="BOSS_DEMO_PC_TOM" fromDate="2026-10-01 09:00:00"/>
+    <mantle.party.contact.ContactBookParty contactBookId="BOSS_DEMO_BOOK_JD" partyId="BOSS_DEMO_PC_PIPES" fromDate="2026-10-01 09:00:00"/>
+
+    <mantle.party.contact.ContactBookParty contactBookId="BOSS_DEMO_BOOK_JD" partyId="ORG_ACME_BA" fromDate="2026-10-01 09:00:00" isFavorite="Y"/>
+    <mantle.party.contact.ContactBookGroupParty contactBookGroupId="BOSS_DEMO_GRP_CLIENTS" partyId="ORG_ACME_BA" fromDate="2026-10-01 09:00:00"/>
+
+    <mantle.party.contact.ContactBook contactBookId="BOSS_DEMO_BOOK_TEAM" contactBookName="Team Contacts" ownerPartyId="ORG_ZIZI_SERVICES"
+            visibilityEnumId="CbvShared" isDefault="N" color="#43a047" createdDate="2026-10-01 09:00:00"
+            description="The customers and vendors the team works with."/>
+    <mantle.party.contact.ContactBookShare contactBookShareId="BOSS_DEMO_SHARE_TEAM_JD" contactBookId="BOSS_DEMO_BOOK_TEAM" userId="EX_JOHN_DOE"
+            permissionEnumId="CbpManage" fromDate="2026-10-01 09:00:00"/>
+    <mantle.party.contact.ContactBookShare contactBookShareId="BOSS_DEMO_SHARE_TEAM_JOE" contactBookId="BOSS_DEMO_BOOK_TEAM" userId="ORG_ZIZI_JD"
+            permissionEnumId="CbpEdit" fromDate="2026-10-01 09:00:00"/>
+    <mantle.party.contact.ContactBookGroup contactBookGroupId="BOSS_DEMO_GRP_CUSTOMERS" contactBookId="BOSS_DEMO_BOOK_TEAM" groupName="Customers" sequenceNum="1"/>
+    <mantle.party.contact.ContactBookGroup contactBookGroupId="BOSS_DEMO_GRP_VENDORS" contactBookId="BOSS_DEMO_BOOK_TEAM" groupName="Vendors" sequenceNum="2"/>
+    <mantle.party.contact.ContactBookParty contactBookId="BOSS_DEMO_BOOK_TEAM" partyId="ORG_ACME_BA" fromDate="2026-10-01 09:00:00"/>
+    <mantle.party.contact.ContactBookGroupParty contactBookGroupId="BOSS_DEMO_GRP_CUSTOMERS" partyId="ORG_ACME_BA" fromDate="2026-10-01 09:00:00"/>
+    <mantle.party.contact.ContactBookParty contactBookId="BOSS_DEMO_BOOK_TEAM" partyId="ORG_ZIZI_JD" fromDate="2026-10-01 09:00:00"/>
+    <mantle.party.contact.ContactBookParty contactBookId="BOSS_DEMO_BOOK_TEAM" partyId="ORG_ZIZI_BD" fromDate="2026-10-01 09:00:00"/>
+
+    <mantle.party.contact.ContactBook contactBookId="BOSS_DEMO_BOOK_JOE" contactBookName="My Contacts" ownerUserId="ORG_ZIZI_JD"
+            visibilityEnumId="CbvPersonal" isDefault="Y" createdDate="2026-10-01 09:00:00"/>
+    <mantle.party.Party partyId="BOSS_DEMO_PC_SAM" pseudoId="BOSS_DEMO_PC_SAM" partyTypeEnumId="PtyPerson" privateOwnerUserId="ORG_ZIZI_JD" disabled="N"/>
+    <mantle.party.Person partyId="BOSS_DEMO_PC_SAM" firstName="Sam" lastName="Secret"/>
+    <mantle.party.contact.ContactMech contactMechId="BOSS_DEMO_PC_SAM_EM" contactMechTypeEnumId="CmtEmailAddress" infoString="pat.quinn@quinnco.example"/>
+    <mantle.party.contact.PartyContactMech partyId="BOSS_DEMO_PC_SAM" contactMechId="BOSS_DEMO_PC_SAM_EM" contactMechPurposeId="EmailPrimary" fromDate="2026-10-01 09:00:00"/>
+    <mantle.party.contact.ContactMech contactMechId="BOSS_DEMO_PC_SAM_TN" contactMechTypeEnumId="CmtTelecomNumber"/>
+    <mantle.party.contact.TelecomNumber contactMechId="BOSS_DEMO_PC_SAM_TN" countryCode="1" areaCode="555" contactNumber="010-0142"/>
+    <mantle.party.contact.PartyContactMech partyId="BOSS_DEMO_PC_SAM" contactMechId="BOSS_DEMO_PC_SAM_TN" contactMechPurposeId="PhoneMobile" fromDate="2026-10-01 09:00:00"/>
+    <mantle.party.contact.ContactBookParty contactBookId="BOSS_DEMO_BOOK_JOE" partyId="BOSS_DEMO_PC_SAM" fromDate="2026-10-01 09:00:00"/>
+
+    <mantle.party.Party partyId="BOSS_DEMO_DUP_A" pseudoId="BOSS_DEMO_DUP_A" partyTypeEnumId="PtyPerson" disabled="N" hasDuplicates="Y"
+            lastDupCheckDate="2026-10-18 02:00:00"/>
+    <mantle.party.Person partyId="BOSS_DEMO_DUP_A" firstName="Pat" lastName="Quinn"/>
+    <mantle.party.PartyRole partyId="BOSS_DEMO_DUP_A" roleTypeId="Customer"/>
+    <mantle.party.contact.ContactMech contactMechId="BOSS_DEMO_DUP_A_EM" contactMechTypeEnumId="CmtEmailAddress" infoString="pat.quinn@quinnco.example"/>
+    <mantle.party.contact.PartyContactMech partyId="BOSS_DEMO_DUP_A" contactMechId="BOSS_DEMO_DUP_A_EM" contactMechPurposeId="EmailPrimary" fromDate="2026-10-01 09:00:00"/>
+    <mantle.party.contact.ContactMech contactMechId="BOSS_DEMO_DUP_A_TN" contactMechTypeEnumId="CmtTelecomNumber"/>
+    <mantle.party.contact.TelecomNumber contactMechId="BOSS_DEMO_DUP_A_TN" countryCode="1" areaCode="555" contactNumber="010-0142"/>
+    <mantle.party.contact.PartyContactMech partyId="BOSS_DEMO_DUP_A" contactMechId="BOSS_DEMO_DUP_A_TN" contactMechPurposeId="PhonePrimary" fromDate="2026-10-01 09:00:00"/>
+    <mantle.party.Party partyId="BOSS_DEMO_DUP_B" pseudoId="BOSS_DEMO_DUP_B" partyTypeEnumId="PtyPerson" disabled="N" hasDuplicates="Y"
+            lastDupCheckDate="2026-10-18 02:00:00" comments="Met at the October trade show."/>
+    <mantle.party.Person partyId="BOSS_DEMO_DUP_B" firstName="Patricia" lastName="Quinn" nickname="Pat"/>
+    <mantle.party.PartyRole partyId="BOSS_DEMO_DUP_B" roleTypeId="Customer"/>
+    <mantle.party.contact.ContactMech contactMechId="BOSS_DEMO_DUP_B_EM" contactMechTypeEnumId="CmtEmailAddress" infoString="pat.quinn@quinnco.example"/>
+    <mantle.party.contact.PartyContactMech partyId="BOSS_DEMO_DUP_B" contactMechId="BOSS_DEMO_DUP_B_EM" contactMechPurposeId="EmailPrimary" fromDate="2026-10-02 09:00:00"/>
+    <mantle.party.contact.ContactMech contactMechId="BOSS_DEMO_DUP_B_TN" contactMechTypeEnumId="CmtTelecomNumber"/>
+    <mantle.party.contact.TelecomNumber contactMechId="BOSS_DEMO_DUP_B_TN" countryCode="1" areaCode="555" contactNumber="010-0142"/>
+    <mantle.party.contact.PartyContactMech partyId="BOSS_DEMO_DUP_B" contactMechId="BOSS_DEMO_DUP_B_TN" contactMechPurposeId="PhoneWork" fromDate="2026-10-02 09:00:00"/>
+    <mantle.party.contact.ContactMech contactMechId="BOSS_DEMO_DUP_B_PA" contactMechTypeEnumId="CmtPostalAddress"/>
+    <mantle.party.contact.PostalAddress contactMechId="BOSS_DEMO_DUP_B_PA" address1="400 Main Street" city="Springfield" stateProvinceGeoId="USA_IL"
+            postalCode="62704" countryGeoId="USA"/>
+    <mantle.party.contact.PartyContactMech partyId="BOSS_DEMO_DUP_B" contactMechId="BOSS_DEMO_DUP_B_PA" contactMechPurposeId="PostalWork" fromDate="2026-10-02 09:00:00"/>
+    <mantle.party.Party partyId="BOSS_DEMO_DUP_ORG_A" pseudoId="BOSS_DEMO_DUP_ORG_A" partyTypeEnumId="PtyOrganization" disabled="N"/>
+    <mantle.party.Organization partyId="BOSS_DEMO_DUP_ORG_A" organizationName="Quinn Consulting"/>
+    <mantle.party.PartyRole partyId="BOSS_DEMO_DUP_ORG_A" roleTypeId="Customer"/>
+    <mantle.party.Party partyId="BOSS_DEMO_DUP_ORG_B" pseudoId="BOSS_DEMO_DUP_ORG_B" partyTypeEnumId="PtyOrganization" disabled="N"/>
+    <mantle.party.Organization partyId="BOSS_DEMO_DUP_ORG_B" organizationName="Quinn Consulting LLC"/>
+    <mantle.party.PartyRole partyId="BOSS_DEMO_DUP_ORG_B" roleTypeId="Customer"/>
+    <mantle.party.PartyRelationship partyRelationshipId="BOSS_DEMO_DUP_A_ORG" relationshipTypeEnumId="PrtContact" fromPartyId="BOSS_DEMO_DUP_A"
+            toPartyId="BOSS_DEMO_DUP_ORG_A" relationshipName="Owner" fromDate="2026-10-01 09:00:00"/>
+
+    <mantle.party.contact.ContactBookParty contactBookId="BOSS_DEMO_BOOK_TEAM" partyId="BOSS_DEMO_DUP_A" fromDate="2026-10-01 09:00:00"/>
+    <mantle.party.contact.ContactBookGroupParty contactBookGroupId="BOSS_DEMO_GRP_CUSTOMERS" partyId="BOSS_DEMO_DUP_A" fromDate="2026-10-01 09:00:00"/>
+
+    <mantle.party.PartyRelationship partyRelationshipId="BOSS_DEMO_MGR_JD" relationshipTypeEnumId="PrtManager" fromPartyId="ORG_ZIZI_BD"
+            toPartyId="ORG_ZIZI_JD" fromDate="2026-10-01 09:00:00"/>
+
+    <!-- the messages Recently contacted lists, dated from the load -->
+    <ironstone.DemoServices.load-ContactsDemo/>
 </entity-facade-xml>

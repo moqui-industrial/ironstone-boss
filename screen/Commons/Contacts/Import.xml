@@ -12,10 +12,29 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for ContactImport: design-drawers-commons.md §6, wizard archetype, xml, scope new. -->
+<!-- ContactImport (design-drawers-commons.md §6 ContactImport; style-guide §3.10 Wizard): vCard and CSV import as a
+    subscreens-panel type="wizard" over the step screens in Import/: Source (the file, its kind and character set), Mapping
+    (each column to a target field, auto-map from the preset), Options (the book, groups, duplicate policy, personal or
+    directory), Preview (what each row will do) and Import (run it, then the result with the failures to download). Next
+    submits a step's form to its transition, whose answer carries importId on to the next step.
+
+    Between the steps the file and the choices are kept in the user's own folder of the resource store,
+    dbresource://ironstone/ContactImport/{userId}/{importId}/ (source.csv or source.vcf as UTF-8 text, and draft.json), by
+    ironstone.ContactServices get#ImportDraft, store#ImportDraft, save#ImportSource and run#Import: the folder comes from the
+    current user, so an importId never opens another user's import, and Back finds what a step saved. The Mantle services
+    read the file by its location (fileLocation). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Import" default-menu-index="1">
+        default-menu-title="Import" default-menu-index="2">
+
+    <parameter name="importId"/>
+    <subscreens default-item="Source"/>
+
     <widgets>
-        <label text="Placeholder: vCard and CSV import with mapping, duplicate policy, preview and result." type="p"/>
+        <container style="row items-center q-mb-sm">
+            <label type="h5" text="Import contacts" style="q-my-none"/>
+            <container style="col"/>
+            <link url="../List" text="Contacts" icon="sym_o_contacts" style="q-ml-sm"/>
+        </container>
+        <subscreens-panel id="ContactImportWizard" type="wizard" finish-text="Import"/>
     </widgets>
 </screen>

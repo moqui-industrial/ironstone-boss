@@ -12,11 +12,14 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for Contacts: design-drawers-commons.md §6, split archetype, xml, scope parity. -->
+<!-- Commons Contacts (design-drawers-commons.md §6): the directory and the user's contact books. The split itself is the
+    default subscreen Contacts/List, so /qapps/Commons/Contacts is the split and its subscreens ContactDetail (the record on
+    its own), Import (the wizard), Duplicates and Compare show in its place: the client loads each screen of the path on its
+    own, so a screen with subscreens cannot tell which one is shown. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Contacts" default-menu-index="2">
+    <subscreens default-item="List"/>
     <widgets>
-        <label text="Placeholder: The directory and the user's contact books: a side list with search, scopes and groups; the contact record in the main pane." type="p"/>
         <subscreens-active/>
     </widgets>
 </screen>

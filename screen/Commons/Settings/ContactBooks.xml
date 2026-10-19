@@ -12,10 +12,222 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for ContactBooks: design-drawers-commons.md §11, settings archetype, xml, scope new. -->
+<!-- ContactBooks (design-drawers-commons.md §11 ContactBooks; style-guide §3.9 Settings): the user's contact books, personal and
+    shared with the user (Books: name, kind, contacts, groups, shared with), New book (NewBook), per book its groups as editable
+    rows (Groups) and for a shared book the user manages its shares (BookShare: a user or a user group with view, edit or
+    manage), and the CardDAV address (CardDavInfo, later: the CardDAV server comes with Sync). Everything goes through
+    mantle.party.ContactBookServices, which checks the user's permission on each book: the owner manages a personal book, a
+    share's permission a shared one. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Contact books" default-menu-index="4">
+
+    <transition name="createBook">
+        <service-call name="mantle.party.ContactBookServices.create#ContactBook" in-map="{contactBookName:contactBookName, description:description,
+                visibilityEnumId:(visibilityEnumId == 'CbvShared' ? 'CbvShared' : 'CbvPersonal'), ownerPartyId:(visibilityEnumId == 'CbvShared' ? (ownerPartyId || null) : null),
+                color:(color || null)}" out-map="createOut"/>
+        <actions><if condition="!ec.message.hasError()"><message type="success">Contact book ${contactBookName} created</message></if></actions>
+        <default-response url="."/>
+    </transition>
+    <transition name="updateBook">
+        <service-call name="mantle.party.ContactBookServices.update#ContactBook" in-map="{contactBookId:contactBookId, contactBookName:contactBookName,
+                description:(description || ''), color:(color || ''), isDefault:(isDefault == 'Y' ? 'Y' : null)}"/>
+        <default-response url="."/>
+    </transition>
+    <transition name="deleteBook">
+        <service-call name="mantle.party.ContactBookServices.delete#ContactBook" in-map="{contactBookId:contactBookId}" out-map="deleteOut"/>
+        <actions><if condition="!ec.message.hasError()">
+            <message type="success">${deleteOut.movedPartyIdList?.length ? 'Contact book deleted; its personal contacts are in your default book' : 'Contact book deleted'}</message>
+        </if></actions>
+        <default-response url="."/>
+    </transition>
+    <transition name="shareBook">
+        <actions><script><![CDATA[
+            if (!shareUserId && !shareUserGroupId) { ec.message.addValidationError(null, 'shareUserId', null, ec.l10n.localize('Choose a user or a user group'), null); return }
+            ec.service.sync().name('mantle.party.ContactBookServices.share#ContactBook').parameters({contactBookId: contactBookId,
+                userId: shareUserId || null, userGroupId: shareUserId ? null : (shareUserGroupId || null), permissionEnumId: permissionEnumId || 'CbpView'}).call()
+            if (!ec.message.hasError()) ec.message.addMessage(ec.l10n.localize('Shared'), 'success')
+        ]]></script></actions>
+        <default-response url="."/>
+    </transition>
+    <transition name="unshareBook">
+        <service-call name="mantle.party.ContactBookServices.unshare#ContactBook" in-map="{contactBookId:contactBookId, contactBookShareId:contactBookShareId}"/>
+        <default-response url="."/>
+    </transition>
+    <transition name="createGroup">
+        <service-call name="mantle.party.ContactBookServices.create#ContactBookGroup" in-map="{contactBookId:contactBookId, groupName:groupName}"/>
+        <default-response url="."/>
+    </transition>
+    <transition name="updateGroup">
+        <service-call name="mantle.party.ContactBookServices.update#ContactBookGroup" in-map="{contactBookGroupId:contactBookGroupId, groupName:groupName}"/>
+        <default-response url="."/>
+    </transition>
+    <transition name="deleteGroup">
+        <service-call name="mantle.party.ContactBookServices.delete#ContactBookGroup" in-map="{contactBookGroupId:contactBookGroupId}"/>
+        <default-response url="."/>
+    </transition>
+    <!-- the users of the share dialog -->
+    <transition name="searchUsers" read-only="true">
+        <actions>
+            <service-call name="ironstone.ChatterServices.search#Users" in-map="{term:term}" out-map="found"/>
+            <script>ec.web.sendJsonResponse(Array.from(found.userList || []).map((user) =&gt; ({value: user.value, label: user.label})))</script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+
+    <actions>
+        <service-call name="mantle.party.ContactBookServices.get#UserContactBooks" out-map="booksOut"/>
+        <script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const cf = ec.entity.conditionFactory
+            const permissionText = {CbpView: L('view'), CbpEdit: L('edit'), CbpManage: L('manage')}
+            bookList = Array.from(booksOut.contactBookList || []).map((book) => {
+                const canManage = book.permissionEnumId === 'CbpManage'
+                const isShared = book.visibilityEnumId === 'CbvShared'
+                // the shares of a shared book, for those who manage it
+                const shares = isShared && canManage ? Array.from(ec.entity.find('mantle.party.contact.ContactBookShare').condition('contactBookId', book.contactBookId)
+                        .condition(cf.makeConditionDate('fromDate', 'thruDate', null)).orderBy('fromDate').list()).map((share) => {
+                    let who = share.userId || share.userGroupId
+                    if (share.userId) {
+                        const user = ec.entity.find('moqui.security.UserAccount').condition('userId', share.userId).useCache(true).one()
+                        if (user) who = user.userFullName || user.username
+                    } else if (share.userGroupId) {
+                        const group = ec.entity.find('moqui.security.UserGroup').condition('userGroupId', share.userGroupId).useCache(true).one()
+                        if (group) who = (group.description || group.userGroupId) + ' (' + L('group') + ')'
+                    }
+                    return {contactBookShareId: share.contactBookShareId, contactBookId: book.contactBookId, who: who, isMe: share.userId === ec.user.userId,
+                        permissionText: permissionText[share.permissionEnumId] || share.permissionEnumId}
+                }) : []
+                const owner = book.ownerPartyId ? ec.entity.find('mantle.party.PartyDetail').condition('partyId', book.ownerPartyId).one() : null
+                return Object.assign({}, book, {canManage: canManage, canEdit: ['CbpEdit', 'CbpManage'].includes(book.permissionEnumId), isShared: isShared,
+                    kindText: isShared ? L('Shared') + (owner ? ' · ' + (owner.organizationName || owner.partyId) : '') : (book.isDefault ? L('Personal · default') : L('Personal')),
+                    yourAccess: book.isOwner ? L('yours') : ec.resource.expand('you may ${permission}', '', {permission: permissionText[book.permissionEnumId] || ''}),
+                    sharedWithText: shares.length ? shares.map((share) => share.who + ' (' + share.permissionText + ')').join(', ') : (isShared ? ec.resource.expand('${count} shares', '', {count: book.shareCount || 0}) : L('only you')),
+                    summary: ec.resource.expand('${contacts} contacts · ${groups} groups', '', {contacts: book.partyCount || 0, groups: book.groupCount || 0}),
+                    shareList: shares, groupRows: Array.from(book.groupList || [])})
+            })
+            orgOptions = Array.from(userOrgList || []).map((org) => ({key: org.partyId, text: org.organizationName || org.partyId}))
+        ]]></script>
+    </actions>
     <widgets>
-        <label text="Placeholder: Contact books and groups, sharing, CardDAV addresses." type="p"/>
+        <container style="row items-center q-mb-sm">
+            <label type="h5" text="Contact books" style="q-my-none"/>
+            <container style="col"/>
+            <container-dialog id="NewBookDialog" button-text="New book" icon="add" width="520" title="New contact book">
+                <form-single name="NewBook" transition="createBook" focus-field="contactBookName">
+                    <field name="contactBookName"><default-field title="Name"><text-line size="30"/></default-field></field>
+                    <field name="visibilityEnumId"><default-field title="Kind"><radio no-current-selected-key="CbvPersonal">
+                        <option key="CbvPersonal" text="Personal (only I see it)"/><option key="CbvShared" text="Shared (I choose who sees it)"/></radio></default-field></field>
+                    <field name="ownerPartyId"><default-field title="Organization">
+                        <drop-down allow-empty="true"><list-options list="orgOptions" key="${key}" text="${text}"/></drop-down>
+                        <visible-when field="visibilityEnumId" value="CbvShared"/></default-field></field>
+                    <field name="description"><default-field title="Description"><text-area rows="2" cols="40"/></default-field></field>
+                    <field name="submitButton"><default-field title="Create"><submit/></default-field></field>
+                </form-single>
+            </container-dialog>
+        </container>
+
+        <!-- Books: the user's books with their kind, size and sharing -->
+        <container-box><box-header title="Books"/><box-body-nopad>
+            <form-list name="Books" list="bookList" skip-form="true" paginate="false">
+                <field name="contactBookName"><default-field title="Name">
+                    <link url="//Commons/Contacts" link-type="anchor" text="${contactBookName}" parameter-map="{find:'Y', scope:contactBookId}"/></default-field></field>
+                <field name="kindText"><default-field title="Kind"><display/></default-field></field>
+                <field name="partyCount" align="right"><default-field title="Contacts"><display/></default-field></field>
+                <field name="groupCount" align="right"><default-field title="Groups"><display/></default-field></field>
+                <field name="sharedWithText"><default-field title="Shared with"><display style="text-caption"/></default-field></field>
+                <field name="yourAccess"><default-field title="You"><display style="text-caption m-muted"/></default-field></field>
+                <form-list-column><field-ref name="contactBookName"/><field-ref name="kindText"/></form-list-column>
+                <form-list-column><field-ref name="partyCount"/></form-list-column>
+                <form-list-column><field-ref name="groupCount"/></form-list-column>
+                <form-list-column><field-ref name="sharedWithText"/><field-ref name="yourAccess"/></form-list-column>
+            </form-list>
+            <section name="NoBooks" condition="!bookList.length"><widgets>
+                <label type="p" text="No contact books yet · New book, or add a contact: your first one makes your book" style="m-muted q-pa-sm q-mb-none"/>
+            </widgets></section>
+        </box-body-nopad></container-box>
+
+        <!-- per book: edit, share, groups -->
+        <container style="row q-col-gutter-sm q-mt-xs">
+            <section-iterate name="BookCards" list="bookList" entry="book"><widgets>
+                <container style="col-12 col-md-6"><container-box><box-header title="${book.contactBookName}"/>
+                    <box-toolbar>
+                        <container-dialog id="EditBookDialog" button-text="" icon="sym_o_edit" width="520" title="Edit ${book.contactBookName}" tooltip="Edit" condition="book.canManage">
+                            <form-single name="EditBook" transition="updateBook" map="book">
+                                <field name="contactBookId"><default-field><hidden/></default-field></field>
+                                <field name="contactBookName"><default-field title="Name"><text-line size="30"/></default-field></field>
+                                <field name="description"><default-field title="Description"><text-area rows="2" cols="40"/></default-field></field>
+                                <field name="isDefault" from="book.isDefault ? 'Y' : 'N'"><conditional-field condition="book.isOwner &amp;&amp; !book.isDefault" title="Default">
+                                    <check><option key="Y" text="Make this my default book (new personal contacts go here)"/></check></conditional-field>
+                                    <default-field><ignored/></default-field></field>
+                                <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                            </form-single>
+                        </container-dialog>
+                        <container-dialog id="ShareBookDialog" button-text="" icon="sym_o_share" width="560" title="Share ${book.contactBookName}" tooltip="Share"
+                                condition="book.canManage &amp;&amp; book.isShared">
+                            <form-single name="ShareBook" transition="shareBook">
+                                <field name="contactBookId" from="book.contactBookId"><default-field><hidden/></default-field></field>
+                                <field name="shareUserId"><default-field title="User">
+                                    <drop-down allow-empty="true"><dynamic-options transition="searchUsers" server-search="true" min-length="1"/></drop-down></default-field></field>
+                                <field name="shareUserGroupId"><default-field title="Or a user group">
+                                    <drop-down allow-empty="true"><entity-options key="${userGroupId}" text="${description || userGroupId}">
+                                        <entity-find entity-name="moqui.security.UserGroup" cache="true"><order-by field-name="description"/></entity-find>
+                                    </entity-options></drop-down></default-field></field>
+                                <field name="permissionEnumId"><default-field title="May">
+                                    <radio no-current-selected-key="CbpView"><option key="CbpView" text="View and export"/><option key="CbpEdit" text="Edit members and groups"/>
+                                        <option key="CbpManage" text="Manage the book and its shares"/></radio></default-field></field>
+                                <field name="submitButton"><default-field title="Share"><submit/></default-field></field>
+                            </form-single>
+                        </container-dialog>
+                        <link url="deleteBook" link-type="hidden-form-link" icon="sym_o_delete" text="" tooltip="Delete" style="m-btn-flat"
+                                condition="book.canManage &amp;&amp; !book.isDefault" confirmation="Delete ${book.contactBookName}? Its groups and shares go too."
+                                parameter-map="{contactBookId:book.contactBookId}"/>
+                    </box-toolbar>
+                    <box-body>
+                        <label type="p" text="${book.kindText} · ${book.summary}" style="text-body2"/>
+                        <label type="p" text="${book.description}" style="m-muted" condition="book.description"/>
+
+                        <section name="BookShares" condition="book.shareList.length"><widgets>
+                            <label type="div" text="Shared with" style="text-subtitle2 q-mb-xs"/>
+                            <form-list name="BookShareList" list="book.shareList" skip-form="true" paginate="false" skip-header="true">
+                                <field name="who"><default-field title="Who"><display/></default-field></field>
+                                <field name="permissionText"><default-field title="May"><display style="text-caption"/></default-field></field>
+                                <field name="unshare" align="right"><default-field title="">
+                                    <link url="unshareBook" link-type="hidden-form-link" icon="sym_o_person_remove" text="" tooltip="Stop sharing" style="m-btn-flat"
+                                            confirmation="Stop sharing with ${who}?" parameter-map="{contactBookId:contactBookId, contactBookShareId:contactBookShareId}"/>
+                                </default-field></field>
+                            </form-list>
+                        </widgets></section>
+
+                        <!-- Groups: editable rows -->
+                        <label type="div" text="Groups" style="text-subtitle2 q-mt-sm q-mb-xs"/>
+                        <section name="GroupRows" condition="book.canEdit"><widgets>
+                            <form-list name="Groups" list="book.groupRows" transition="updateGroup" paginate="false" skip-header="true">
+                                <field name="contactBookGroupId"><default-field><hidden/></default-field></field>
+                                <field name="groupName"><default-field title="Group"><text-line size="20"/></default-field></field>
+                                <field name="partyCount" align="right"><default-field title="Contacts"><display/></default-field></field>
+                                <field name="saveButton"><default-field title="Rename"><submit/></default-field></field>
+                                <field name="remove" align="right"><default-field title="">
+                                    <link url="deleteGroup" link-type="hidden-form-link" icon="sym_o_delete" text="" tooltip="Delete the group" style="m-btn-flat"
+                                            confirmation="Delete the group ${groupName}? Its contacts stay in the book." parameter-map="{contactBookGroupId:contactBookGroupId}"/>
+                                </default-field></field>
+                            </form-list>
+                            <form-single name="NewGroup" transition="createGroup">
+                                <field name="contactBookId" from="book.contactBookId"><default-field><hidden/></default-field></field>
+                                <field name="groupName"><default-field title="New group"><text-line size="20"/></default-field></field>
+                                <field name="submitButton"><default-field title="Add group"><submit/></default-field></field>
+                                <field-layout><field-row-big><field-ref name="groupName"/><field-ref name="submitButton"/></field-row-big></field-layout>
+                            </form-single>
+                        </widgets><fail-widgets>
+                            <label type="p" text="${book.groupRows.length ? book.groupRows.map((group) => group.groupName).join(', ') : 'No groups'}" style="m-muted"/>
+                        </fail-widgets></section>
+                    </box-body>
+                </container-box></container>
+            </widgets></section-iterate>
+        </container>
+
+        <!-- CardDavInfo: later, with the CardDAV server (design §11 Sync) -->
+        <container-box type="info"><box-header title="Phones and desktop apps (CardDAV)"/><box-body>
+            <label type="p" text="Coming later: each book will have a CardDAV address, so a phone or a desktop contacts app can read and change it with an app password (Settings, Sync). Until then, export a book as vCard from Contacts and import it on the device."/>
+        </box-body></container-box>
     </widgets>
 </screen>

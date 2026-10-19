@@ -1,0 +1,463 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- Import step 2, ImportMapping (design-drawers-commons.md §6): one field per column of the file (its name and first values)
+    with the target field it maps to (name parts, organization, title, email, phone and address slots with their labels,
+    birthday, notes, groups, or ignored), started from the preset (Google, Outlook, generic, or a vCard's own fields); Auto-map
+    goes back to the preset's mapping. The step form has a field per column, col_0 to col_99 (a step's form is one form-single,
+    and its fields are fixed in the screen): a file with more columns keeps the preset's mapping for the rest. saveMapping
+    keeps the mapping in the import's draft. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Mapping" default-menu-index="2">
+
+    <parameter name="importId"/>
+
+    <transition name="saveMapping">
+        <actions><script><![CDATA[
+            const current = ec.service.sync().name('ironstone.ContactServices.get#ImportDraft').parameters({importId: importId}).call()
+            if (!current?.found) { ec.message.addError(ec.l10n.localize('This import is not available; start again from the file')); return }
+            const parsed = ec.service.sync().name('mantle.party.ContactImportServices.parse#ContactFile').parameters({fileLocation: current.fileLocation,
+                fileName: current.draft.fileExt === 'vcf' ? 'source.vcf' : 'source.csv', presetId: current.draft.fileKind === 'csv' ? current.draft.presetId : null,
+                sampleSize: 1}).call()
+            if (ec.message.hasError()) return
+            const mapping = Object.assign({}, current.draft.columnMapping || {})
+            const columns = Array.from(parsed.columnList || [])
+            columns.forEach((column, index) => {
+                if (index >= 100) return
+                const value = context.get('col_' + index)
+                mapping[column.columnName] = value ? String(value) : null
+            })
+            if (!Object.values(mapping).some((target) => target)) { ec.message.addError(ec.l10n.localize('Map at least one column')); return }
+            ec.service.sync().name('ironstone.ContactServices.store#ImportDraft').parameters({importId: importId, fields: {columnMapping: mapping, status: 'mapped'}}).call()
+        ]]></script></actions>
+        <default-response url="."><parameter name="importId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <!-- back to the preset's mapping -->
+    <transition name="autoMap">
+        <actions><script><![CDATA[
+            const current = ec.service.sync().name('ironstone.ContactServices.get#ImportDraft').parameters({importId: importId}).call()
+            if (!current?.found) { ec.message.addError(ec.l10n.localize('This import is not available; start again from the file')); return }
+            const parsed = ec.service.sync().name('mantle.party.ContactImportServices.parse#ContactFile').parameters({fileLocation: current.fileLocation,
+                fileName: current.draft.fileExt === 'vcf' ? 'source.vcf' : 'source.csv', presetId: current.draft.fileKind === 'csv' ? current.draft.presetId : null,
+                sampleSize: 1}).call()
+            if (ec.message.hasError()) return
+            ec.service.sync().name('ironstone.ContactServices.store#ImportDraft').parameters({importId: importId, fields: {columnMapping: parsed.columnMapping || {}}}).call()
+            if (!ec.message.hasError()) ec.message.addMessage(ec.l10n.localize('Mapped from the file kind'), 'success')
+        ]]></script></actions>
+        <default-response url="."><parameter name="importId"/></default-response>
+    </transition>
+
+    <actions><script><![CDATA[
+        const L = (text) => ec.l10n.localize(text)
+        const current = ec.service.sync().name('ironstone.ContactServices.get#ImportDraft').parameters({importId: importId}).call() || {}
+        hasDraft = !!current.found
+        mapRows = []
+        targetOptions = []
+        if (!hasDraft) return
+        draft = current.draft
+        const parsed = ec.service.sync().name('mantle.party.ContactImportServices.parse#ContactFile').parameters({fileLocation: current.fileLocation,
+            fileName: draft.fileExt === 'vcf' ? 'source.vcf' : 'source.csv', presetId: draft.fileKind === 'csv' ? draft.presetId : null, sampleSize: 3}).call()
+        if (ec.message.hasError()) { parseError = ec.message.getErrorsString(); ec.message.clearErrors(); hasDraft = false; return }
+        const mapping = draft.columnMapping || parsed.columnMapping || {}
+        const targets = Array.from(parsed.targetFieldList || []).filter((target) => target.fieldName)
+        const known = new Set(targets.map((target) => target.fieldName))
+        // a preset's own targets (an Outlook slot with its purpose, phone7:Other) are offered as they are
+        const describe = (value) => {
+            const [field, purpose] = String(value).split(':')
+            const base = targets.find((target) => target.fieldName === field)
+            return (base ? base.description : field) + (purpose ? ' (' + purpose.replace(/^(Phone|Email|Postal)/, '') + ')' : '')
+        }
+        for (const value of Object.values(mapping)) if (value && !known.has(value)) { known.add(value); targets.push({fieldName: value, description: describe(value)}) }
+        targetOptions = targets
+        mapRows = Array.from(parsed.columnList || []).slice(0, 100).map((column) => {
+            const samples = Array.from(column.sampleValues || []).filter((value) => value != null && String(value).trim()).map((value) => String(value).trim().substring(0, 30))
+            return {columnName: column.columnName, targetField: Object.prototype.hasOwnProperty.call(mapping, column.columnName) ? (mapping[column.columnName] || '') : (column.targetField || ''),
+                label: column.columnName + (samples.length ? ' · ' + samples.slice(0, 2).join(', ') : '')}
+        })
+        columnCount = (parsed.columnList || []).length
+        mappedCount = mapRows.filter((row) => row.targetField).length
+        presetLabel = {google: 'Google Contacts CSV', outlook: 'Outlook CSV', generic: 'CSV', vcard: 'vCard'}[parsed.presetId] || parsed.presetId
+    ]]></script></actions>
+    <widgets>
+        <section name="NoDraft" condition="!hasDraft"><widgets>
+            <container-box type="warning"><box-body><label type="p" text="${parseError || 'Start with the file.'}"/></box-body></container-box>
+        </widgets></section>
+        <section name="Mapping" condition="hasDraft"><widgets>
+            <container-box><box-header title="Map the columns"/>
+                <box-toolbar>
+                    <link url="autoMap" link-type="hidden-form-link" text="Auto-map" icon="sym_o_auto_fix" parameter-map="{importId:importId}"/>
+                </box-toolbar>
+                <box-body>
+                <label type="p" text="${draft.fileName}: ${presetLabel}, ${columnCount} columns, ${mappedCount} mapped. Choose what each column is; an empty one is left out." style="m-muted"/>
+                <form-single name="ImportMapping" transition="saveMapping">
+                    <field name="importId"><default-field><hidden/></default-field></field>
+                <field name="col_0" from="mapRows[0]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 0" title="${mapRows[0].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_1" from="mapRows[1]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 1" title="${mapRows[1].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_2" from="mapRows[2]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 2" title="${mapRows[2].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_3" from="mapRows[3]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 3" title="${mapRows[3].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_4" from="mapRows[4]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 4" title="${mapRows[4].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_5" from="mapRows[5]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 5" title="${mapRows[5].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_6" from="mapRows[6]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 6" title="${mapRows[6].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_7" from="mapRows[7]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 7" title="${mapRows[7].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_8" from="mapRows[8]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 8" title="${mapRows[8].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_9" from="mapRows[9]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 9" title="${mapRows[9].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_10" from="mapRows[10]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 10" title="${mapRows[10].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_11" from="mapRows[11]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 11" title="${mapRows[11].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_12" from="mapRows[12]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 12" title="${mapRows[12].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_13" from="mapRows[13]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 13" title="${mapRows[13].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_14" from="mapRows[14]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 14" title="${mapRows[14].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_15" from="mapRows[15]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 15" title="${mapRows[15].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_16" from="mapRows[16]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 16" title="${mapRows[16].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_17" from="mapRows[17]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 17" title="${mapRows[17].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_18" from="mapRows[18]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 18" title="${mapRows[18].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_19" from="mapRows[19]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 19" title="${mapRows[19].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_20" from="mapRows[20]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 20" title="${mapRows[20].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_21" from="mapRows[21]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 21" title="${mapRows[21].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_22" from="mapRows[22]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 22" title="${mapRows[22].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_23" from="mapRows[23]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 23" title="${mapRows[23].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_24" from="mapRows[24]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 24" title="${mapRows[24].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_25" from="mapRows[25]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 25" title="${mapRows[25].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_26" from="mapRows[26]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 26" title="${mapRows[26].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_27" from="mapRows[27]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 27" title="${mapRows[27].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_28" from="mapRows[28]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 28" title="${mapRows[28].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_29" from="mapRows[29]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 29" title="${mapRows[29].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_30" from="mapRows[30]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 30" title="${mapRows[30].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_31" from="mapRows[31]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 31" title="${mapRows[31].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_32" from="mapRows[32]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 32" title="${mapRows[32].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_33" from="mapRows[33]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 33" title="${mapRows[33].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_34" from="mapRows[34]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 34" title="${mapRows[34].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_35" from="mapRows[35]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 35" title="${mapRows[35].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_36" from="mapRows[36]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 36" title="${mapRows[36].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_37" from="mapRows[37]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 37" title="${mapRows[37].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_38" from="mapRows[38]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 38" title="${mapRows[38].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_39" from="mapRows[39]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 39" title="${mapRows[39].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_40" from="mapRows[40]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 40" title="${mapRows[40].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_41" from="mapRows[41]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 41" title="${mapRows[41].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_42" from="mapRows[42]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 42" title="${mapRows[42].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_43" from="mapRows[43]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 43" title="${mapRows[43].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_44" from="mapRows[44]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 44" title="${mapRows[44].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_45" from="mapRows[45]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 45" title="${mapRows[45].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_46" from="mapRows[46]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 46" title="${mapRows[46].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_47" from="mapRows[47]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 47" title="${mapRows[47].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_48" from="mapRows[48]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 48" title="${mapRows[48].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_49" from="mapRows[49]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 49" title="${mapRows[49].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_50" from="mapRows[50]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 50" title="${mapRows[50].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_51" from="mapRows[51]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 51" title="${mapRows[51].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_52" from="mapRows[52]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 52" title="${mapRows[52].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_53" from="mapRows[53]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 53" title="${mapRows[53].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_54" from="mapRows[54]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 54" title="${mapRows[54].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_55" from="mapRows[55]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 55" title="${mapRows[55].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_56" from="mapRows[56]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 56" title="${mapRows[56].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_57" from="mapRows[57]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 57" title="${mapRows[57].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_58" from="mapRows[58]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 58" title="${mapRows[58].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_59" from="mapRows[59]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 59" title="${mapRows[59].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_60" from="mapRows[60]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 60" title="${mapRows[60].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_61" from="mapRows[61]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 61" title="${mapRows[61].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_62" from="mapRows[62]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 62" title="${mapRows[62].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_63" from="mapRows[63]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 63" title="${mapRows[63].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_64" from="mapRows[64]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 64" title="${mapRows[64].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_65" from="mapRows[65]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 65" title="${mapRows[65].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_66" from="mapRows[66]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 66" title="${mapRows[66].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_67" from="mapRows[67]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 67" title="${mapRows[67].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_68" from="mapRows[68]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 68" title="${mapRows[68].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_69" from="mapRows[69]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 69" title="${mapRows[69].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_70" from="mapRows[70]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 70" title="${mapRows[70].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_71" from="mapRows[71]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 71" title="${mapRows[71].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_72" from="mapRows[72]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 72" title="${mapRows[72].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_73" from="mapRows[73]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 73" title="${mapRows[73].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_74" from="mapRows[74]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 74" title="${mapRows[74].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_75" from="mapRows[75]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 75" title="${mapRows[75].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_76" from="mapRows[76]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 76" title="${mapRows[76].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_77" from="mapRows[77]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 77" title="${mapRows[77].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_78" from="mapRows[78]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 78" title="${mapRows[78].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_79" from="mapRows[79]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 79" title="${mapRows[79].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_80" from="mapRows[80]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 80" title="${mapRows[80].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_81" from="mapRows[81]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 81" title="${mapRows[81].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_82" from="mapRows[82]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 82" title="${mapRows[82].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_83" from="mapRows[83]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 83" title="${mapRows[83].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_84" from="mapRows[84]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 84" title="${mapRows[84].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_85" from="mapRows[85]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 85" title="${mapRows[85].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_86" from="mapRows[86]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 86" title="${mapRows[86].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_87" from="mapRows[87]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 87" title="${mapRows[87].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_88" from="mapRows[88]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 88" title="${mapRows[88].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_89" from="mapRows[89]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 89" title="${mapRows[89].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_90" from="mapRows[90]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 90" title="${mapRows[90].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_91" from="mapRows[91]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 91" title="${mapRows[91].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_92" from="mapRows[92]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 92" title="${mapRows[92].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_93" from="mapRows[93]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 93" title="${mapRows[93].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_94" from="mapRows[94]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 94" title="${mapRows[94].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_95" from="mapRows[95]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 95" title="${mapRows[95].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_96" from="mapRows[96]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 96" title="${mapRows[96].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_97" from="mapRows[97]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 97" title="${mapRows[97].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_98" from="mapRows[98]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 98" title="${mapRows[98].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="col_99" from="mapRows[99]?.targetField || ''"><conditional-field condition="mapRows.length &gt; 99" title="${mapRows[99].label}">
+                    <drop-down allow-empty="true"><list-options list="targetOptions" key="${fieldName}" text="${description}"/></drop-down></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                    <field-layout>
+                        <field-ref name="importId"/>
+                        <field-row><field-ref name="col_0"/><field-ref name="col_1"/></field-row>
+                        <field-row><field-ref name="col_2"/><field-ref name="col_3"/></field-row>
+                        <field-row><field-ref name="col_4"/><field-ref name="col_5"/></field-row>
+                        <field-row><field-ref name="col_6"/><field-ref name="col_7"/></field-row>
+                        <field-row><field-ref name="col_8"/><field-ref name="col_9"/></field-row>
+                        <field-row><field-ref name="col_10"/><field-ref name="col_11"/></field-row>
+                        <field-row><field-ref name="col_12"/><field-ref name="col_13"/></field-row>
+                        <field-row><field-ref name="col_14"/><field-ref name="col_15"/></field-row>
+                        <field-row><field-ref name="col_16"/><field-ref name="col_17"/></field-row>
+                        <field-row><field-ref name="col_18"/><field-ref name="col_19"/></field-row>
+                        <field-row><field-ref name="col_20"/><field-ref name="col_21"/></field-row>
+                        <field-row><field-ref name="col_22"/><field-ref name="col_23"/></field-row>
+                        <field-row><field-ref name="col_24"/><field-ref name="col_25"/></field-row>
+                        <field-row><field-ref name="col_26"/><field-ref name="col_27"/></field-row>
+                        <field-row><field-ref name="col_28"/><field-ref name="col_29"/></field-row>
+                        <field-row><field-ref name="col_30"/><field-ref name="col_31"/></field-row>
+                        <field-row><field-ref name="col_32"/><field-ref name="col_33"/></field-row>
+                        <field-row><field-ref name="col_34"/><field-ref name="col_35"/></field-row>
+                        <field-row><field-ref name="col_36"/><field-ref name="col_37"/></field-row>
+                        <field-row><field-ref name="col_38"/><field-ref name="col_39"/></field-row>
+                        <field-row><field-ref name="col_40"/><field-ref name="col_41"/></field-row>
+                        <field-row><field-ref name="col_42"/><field-ref name="col_43"/></field-row>
+                        <field-row><field-ref name="col_44"/><field-ref name="col_45"/></field-row>
+                        <field-row><field-ref name="col_46"/><field-ref name="col_47"/></field-row>
+                        <field-row><field-ref name="col_48"/><field-ref name="col_49"/></field-row>
+                        <field-row><field-ref name="col_50"/><field-ref name="col_51"/></field-row>
+                        <field-row><field-ref name="col_52"/><field-ref name="col_53"/></field-row>
+                        <field-row><field-ref name="col_54"/><field-ref name="col_55"/></field-row>
+                        <field-row><field-ref name="col_56"/><field-ref name="col_57"/></field-row>
+                        <field-row><field-ref name="col_58"/><field-ref name="col_59"/></field-row>
+                        <field-row><field-ref name="col_60"/><field-ref name="col_61"/></field-row>
+                        <field-row><field-ref name="col_62"/><field-ref name="col_63"/></field-row>
+                        <field-row><field-ref name="col_64"/><field-ref name="col_65"/></field-row>
+                        <field-row><field-ref name="col_66"/><field-ref name="col_67"/></field-row>
+                        <field-row><field-ref name="col_68"/><field-ref name="col_69"/></field-row>
+                        <field-row><field-ref name="col_70"/><field-ref name="col_71"/></field-row>
+                        <field-row><field-ref name="col_72"/><field-ref name="col_73"/></field-row>
+                        <field-row><field-ref name="col_74"/><field-ref name="col_75"/></field-row>
+                        <field-row><field-ref name="col_76"/><field-ref name="col_77"/></field-row>
+                        <field-row><field-ref name="col_78"/><field-ref name="col_79"/></field-row>
+                        <field-row><field-ref name="col_80"/><field-ref name="col_81"/></field-row>
+                        <field-row><field-ref name="col_82"/><field-ref name="col_83"/></field-row>
+                        <field-row><field-ref name="col_84"/><field-ref name="col_85"/></field-row>
+                        <field-row><field-ref name="col_86"/><field-ref name="col_87"/></field-row>
+                        <field-row><field-ref name="col_88"/><field-ref name="col_89"/></field-row>
+                        <field-row><field-ref name="col_90"/><field-ref name="col_91"/></field-row>
+                        <field-row><field-ref name="col_92"/><field-ref name="col_93"/></field-row>
+                        <field-row><field-ref name="col_94"/><field-ref name="col_95"/></field-row>
+                        <field-row><field-ref name="col_96"/><field-ref name="col_97"/></field-row>
+                        <field-row><field-ref name="col_98"/><field-ref name="col_99"/></field-row>
+                    </field-layout>
+                </form-single>
+            </box-body></container-box>
+        </widgets></section>
+    </widgets>
+</screen>

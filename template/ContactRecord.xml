@@ -1,0 +1,847 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The contact record of IronStone Commons (design-drawers-commons.md §6 ContactDetail; style-guide §3.3 Detail): the
+    ContactRecordSection and its transitions, shown by Commons/Contacts/List in the main pane of the split and by
+    Commons/Contacts/ContactDetail on its own (a deep link, the palette, a phone's full screen). Each of those screens
+    includes every transition below by name (transition-include) and the section (section-include), so a form here posts to
+    the screen it is on and its answer (url=".") shows that screen again. The including screen sets recordPartyId (the
+    party shown), inSplit (in the split's main pane) and recordBase (the screen's link, for the tabs).
+
+    The party is found under the user's filters (ironstone.ContactServices.check#ContactAccess): another user's personal
+    contact is "not available". The parts: the header (avatar with upload, name, organization and title, the "Private · in
+    <book>" banner of a personal contact, star), the actions (email, new event, new task, add to a book or group, merge
+    with, export vCard, link to a directory party, delete), and the tabs Overview (names, contact information with purposes
+    and the Expired toggle, addresses, organization and title, relationships, books and groups, notes, an employee's
+    directory card), Activity (Chatter, opening on Send message), Calendar, Tasks, Requests, Files (record files) and Consent
+    (read only, with "Edit in Comms Consent"). Edits are for the owner of a personal contact and contact admins. Call and
+    chat come with Comms calls and chat (later); print comes later. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-include="false">
+
+    <!-- ========== Edits: each checks the party (check#ContactAccess) and shows the screen again ========== -->
+    <transition name="contactUpdate">
+        <service-call name="ironstone.ContactServices.update#Contact"/>
+        <default-response url="."/>
+    </transition>
+    <transition name="contactOrganization">
+        <service-call name="ironstone.ContactServices.store#ContactOrganization"/>
+        <default-response url="."/>
+    </transition>
+    <transition name="contactInfoStore">
+        <actions><script><![CDATA[
+            // the add form names its purpose field by kind
+            const purposeId = contactMechPurposeId || (kind === 'email' ? emailPurposeId : kind === 'phone' ? phonePurposeId : kind === 'web' ? webPurposeId : null) || null
+            ec.service.sync().name('ironstone.ContactServices.store#ContactInfo').parameters({partyId: partyId, kind: kind, contactMechId: contactMechId || null,
+                contactMechPurposeId: purposeId, emailAddress: emailAddress || null, webAddress: webAddress || null, phone: phone || null,
+                address1: address1 || null, address2: address2 || null, unitNumber: unitNumber || null, city: city || null,
+                stateProvinceGeoId: stateProvinceGeoId || null, postalCode: postalCode || null, countryGeoId: countryGeoId || null}).call()
+        ]]></script></actions>
+        <default-response url="."/>
+    </transition>
+    <transition name="contactInfoPurpose">
+        <service-call name="ironstone.ContactServices.store#ContactInfoPurpose"/>
+        <default-response url="."/>
+    </transition>
+    <transition name="contactRelationshipAdd">
+        <service-call name="ironstone.ContactServices.add#ContactRelationship" in-map="{partyId:partyId, otherPartyId:otherPartyId,
+                relationshipTypeEnumId:relationshipTypeEnumId, relationshipName:relationshipName, reverse:(direction == 'from')}"/>
+        <default-response url="."/>
+    </transition>
+    <transition name="contactNote">
+        <service-call name="ironstone.ContactServices.store#ContactNote"/>
+        <default-response url="."/>
+    </transition>
+    <transition name="contactAvatarUpload">
+        <service-call name="ironstone.ContactServices.upload#ContactAvatar"/>
+        <default-response url="."/>
+    </transition>
+    <transition name="contactFavorite">
+        <actions>
+            <service-call name="ironstone.ContactServices.check#ContactAccess" in-map="{partyId:partyId, need:'view'}"/>
+            <if condition="!ec.message.hasError()">
+                <service-call name="mantle.party.ContactBookServices.set#ContactFavorite" in-map="{partyId:partyId, contactBookId:contactBookId,
+                        isFavorite:(isFavorite == 'Y' ? 'Y' : 'N')}"/>
+            </if>
+        </actions>
+        <default-response url="."/>
+    </transition>
+    <transition name="contactBooks">
+        <service-call name="ironstone.ContactServices.set#ContactBooks" in-map="{partyId:partyId, contactBookId:contactBookId,
+                contactBookGroupIdList:contactBookGroupIdList, remove:(remove == 'Y')}"/>
+        <default-response url="."/>
+    </transition>
+    <transition name="contactLink">
+        <actions>
+            <service-call name="ironstone.ContactServices.check#ContactAccess" in-map="{partyId:partyId}" out-map="linkAccess"/>
+            <if condition="!linkAccess.isMine"><then><message error="true">Only your own personal contact can be linked to the directory</message></then><else>
+                <service-call name="mantle.party.ContactBookServices.link#PersonalContactToDirectory" out-map="linkOut"
+                        in-map="{partyId:partyId, targetPartyId:(targetPartyId || null), roleTypeId:(targetPartyId ? null : 'Contact')}"/>
+                <if condition="!ec.message.hasError()">
+                    <set field="partyId" from="linkOut.directoryPartyId"/>
+                    <message type="success">${linkOut.merged ? 'Merged into the directory contact' : 'Now in the directory'}</message>
+                </if>
+            </else></if>
+        </actions>
+        <default-response url="."/>
+    </transition>
+    <transition name="contactDelete">
+        <actions>
+            <service-call name="ironstone.ContactServices.delete#Contacts" in-map="{partyId:partyId}" out-map="deleteOut"/>
+            <if condition="!ec.message.hasError() &amp;&amp; deleteOut.deletedCount">
+                <message type="success">Contact deleted</message></if>
+        </actions>
+        <conditional-response url="//Commons/Contacts" condition="deleteOut?.deletedCount"/>
+        <default-response url="."/>
+    </transition>
+    <!-- a vCard of the contact, as a download -->
+    <transition name="contactExport">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.ContactServices.export#ContactFile').parameters({partyId: partyId, format: format || 'vcard'}).call()
+            if (!ec.message.hasError() && out?.location) ec.web.sendResourceResponse(out.location, false)
+            else ec.web.sendJsonResponse({})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- the face image of a party the user may see, inline; 404 without one, so m-avatar shows the initials -->
+    <transition name="contactAvatar" method="get" read-only="true">
+        <parameter name="partyId" required="true"/>
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.ContactServices.get#ContactAvatar').parameters({partyId: partyId}).call()
+            if (out?.contentLocation) ec.web.sendResourceResponse(out.contentLocation, true)
+            else ec.web.sendJsonError(404, ec.l10n.localize('No picture'))
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- the parties of the pickers (merge with, link to, relationships, organization): those the user may see, by name or
+        email (mantle.party.PartyServices.find#Party); organizationsOnly and directoryOnly narrow them -->
+    <transition name="contactSearch" read-only="true">
+        <actions><script><![CDATA[
+            const words = term ? String(term).trim() : ''
+            const out = []
+            if (words) {
+                const base = {pageSize: 20, orderByField: 'firstName,organizationName'}
+                if (organizationsOnly === 'Y') base.partyTypeEnumId = 'PtyOrganization'
+                if (directoryOnly === 'Y') base.personalContacts = 'exclude'
+                const params = words.includes('@') ? Object.assign({emailAddress: words, leadingWildcard: true}, base) : Object.assign({combinedName: words}, base)
+                const found = ec.service.sync().name('mantle.party.PartyServices.find#Party').parameters(params).call()
+                const ids = Array.from(found?.partyIdList || []).filter((id) => id !== excludePartyId)
+                const rows = ec.service.sync().name('ironstone.ContactServices.get#ContactRows').parameters({partyIdList: ids}).call()?.rowList || []
+                for (const row of rows) out.push({value: row.partyId, label: row.name + (row.subtitle ? ' · ' + row.subtitle : '') +
+                    (row.emailAddress ? ' · ' + row.emailAddress : '') + (row.isPersonal ? ' · ' + ec.l10n.localize('personal') : '')})
+            }
+            ec.web.sendJsonResponse(out)
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- the states or regions of a country, for the address forms -->
+    <transition name="contactGeoRegions" read-only="true">
+        <actions>
+            <entity-find entity-name="moqui.basic.GeoAssocAndToDetail" list="regionList" cache="true">
+                <econdition field-name="geoId" from="geoId || countryGeoId || '_NA_'"/>
+                <econdition field-name="geoAssocTypeEnumId" value="GAT_REGIONS"/>
+                <order-by field-name="geoName"/>
+            </entity-find>
+            <script>ec.web.sendJsonResponse(Array.from(regionList).map((region) =&gt; ({value: region.toGeoId, label: region.geoName})))</script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- the groups of a book, for the book picker's groups -->
+    <transition name="contactBookGroups" read-only="true">
+        <actions><script><![CDATA[
+            const books = ec.service.sync().name('mantle.party.ContactBookServices.get#UserContactBooks').call()?.contactBookList || []
+            const book = books.find((entry) => entry.contactBookId === contactBookId)
+            ec.web.sendJsonResponse(book ? (book.groupList || []).map((group) => ({value: group.contactBookGroupId, label: group.groupName})) : [])
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+
+    <widgets>
+        <section name="ContactRecordSection">
+            <actions>
+                <set field="tab" from="['overview', 'activity', 'calendar', 'tasks', 'requests', 'files', 'consent'].includes(tab) ? tab : 'overview'"/>
+                <set field="rec" from="{found: false}"/>
+                <if condition="recordPartyId">
+                    <service-call name="ironstone.ContactServices.get#ContactRecord" out-map="rec"
+                            in-map="{partyId:recordPartyId, showExpired:(showExpired == 'Y')}"/>
+                </if>
+                <set field="act" from="{}"/>
+                <if condition="rec.found &amp;&amp; ['calendar', 'tasks', 'requests', 'consent'].includes(tab)">
+                    <service-call name="ironstone.ContactServices.get#ContactActivity" in-map="{partyId:recordPartyId, tab:tab}" out-map="act"/>
+                </if>
+                <script><![CDATA[
+                    const L = (text) => ec.l10n.localize(text)
+                    const enc = (text) => String(text == null ? '' : text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+                    // a /qapps link of this screen with these parameters (recordBase is the screen's own link)
+                    const linkTo = (params) => recordBase + '?' + Object.keys(params).filter((key) => params[key] != null && params[key] !== '')
+                            .map((key) => encodeURIComponent(key) + '=' + encodeURIComponent(params[key]).replace(/'/g, '%27')).join('&')
+                    recordFound = !!rec.found
+                    if (!recordFound) return
+                    record = rec.record
+                    access = rec.access
+                    canEdit = !!access.canEdit
+                    isPersonal = !!access.isPersonal
+                    // the chatter column beside the overview on a wide full screen; in the split's pane and below 1440 px a tab
+                    chatterColumn = !inSplit
+                    // two columns of boxes: from 1024 px on the full screen, from 1440 px in the split's narrower pane
+                    halfClass = inSplit ? 'col-12 col-lg-6' : 'col-12 col-md-6'
+                    avatarUrl = record.hasFaceImage ? sri.buildUrl('contactAvatar').path + '?partyId=' + encodeURIComponent(recordPartyId) : ''
+                    avatarHtml = '<m-avatar name="' + enc(record.name) + '"' + (avatarUrl ? ' image="' + enc(avatarUrl) + '"' : '') + ' size="56px"></m-avatar>'
+                    const tabs = [['overview', 'Overview'], ['activity', 'Activity'], ['calendar', 'Calendar'], ['tasks', 'Tasks'], ['requests', 'Requests'],
+                        ['files', 'Files'], ['consent', 'Consent']]
+                    tabsHtml = '<q-tabs dense no-caps inline-label narrow-indicator outside-arrows mobile-arrows align="left" active-color="primary" indicator-color="primary"'
+                            + ' class="text-grey-8 m-contact-tabs" model-value="' + enc(tab) + '">' + tabs.map(([key, label]) => {
+                                const url = linkTo({partyId: recordPartyId, tab: key})
+                                // with the chatter column, Activity is a tab only below 1440 px
+                                const cls = key === 'activity' && chatterColumn && tab !== 'activity' ? ' class="lt-lg"' : ''
+                                return '<q-tab name="' + key + '" label="' + enc(L(label)) + '"' + cls + ' data-tab="' + key + '" @click="$root.setUrl(\'' + enc(url) + '\')"></q-tab>'
+                            }).join('') + '</q-tabs><q-separator class="q-mb-sm"></q-separator>'
+                    // the actions that need the shell: new event and new task on the contact (quick create with the record of the screen context)
+                    const quick = (kind, label, icon) => '<q-btn unelevated no-caps dense class="m-btn-tonal q-ml-xs" icon="' + icon + '" label="' + enc(L(label)) + '"'
+                            + ' @click="$root.openQuickCreate({url: \'/qapps/Commons/QuickCreate?kind=' + kind + '\', label: \'' + enc(L(label).replace(/['\\]/g, '')) + '\'})"></q-btn>'
+                    quickHtml = quick('event', 'New event', 'sym_o_event') + quick('task', 'New task', 'sym_o_task_alt')
+                    composeUrl = record.primaryEmail ? '/qapps/Comms/Inbox/Compose?' + moqui_query({to: record.primaryEmail, recordEntity: 'mantle.party.Party', recordId: recordPartyId}) : null
+                    function moqui_query(params) { return Object.keys(params).map((key) => encodeURIComponent(key) + '=' + encodeURIComponent(params[key])).join('&') }
+                    showExpiredUrl = linkTo({partyId: recordPartyId, tab: 'overview', showExpired: showExpired == 'Y' ? null : 'Y'})
+                    expiredText = showExpired == 'Y' ? L('Hide expired') : ec.resource.expand('Show expired (${count})', '', {count: rec.expiredCount || 0})
+                    const anchor = (href, text, cls) => '<a href="' + enc(href) + '" class="m-link-text' + (cls ? ' ' + cls : '') + '">' + enc(text) + '</a>'
+                    const mLink = (href, text, cls) => '<m-link href="' + enc(href) + '"' + (cls ? ' class="' + cls + '"' : '') + '>' + enc(text) + '</m-link>'
+                    contactMechList = (rec.contactMechList || []).map((mech) => Object.assign({}, mech, {linkHtml: mech.href && !mech.expired ? anchor(mech.href, mech.value) : null,
+                            detailText: [mech.typeLabel, mech.purposeText].filter((part) => part).join(' · ')}))
+                    addressList = rec.addressList || []
+                    organizationList = rec.organizationList || []
+                    relationshipList = rec.relationshipList || []
+                    bookList = rec.bookList || []
+                    otherBookList = rec.otherBookList || []
+                    noteList = rec.noteList || []
+                    employeeCard = rec.employeeCard || null
+                    personalBanner = isPersonal ? ec.resource.expand(record.personalBookText ? 'Private · in ${books}' : 'Private · only you see this contact', '',
+                            {books: record.personalBookText}) : null
+                    roleText = (rec.roleList || []).map((role) => role.description).join(', ')
+                    captionText = [record.kindLabel, record.pseudoId, roleText].filter((part) => part).join(' · ')
+                    eventList = (act.eventList || []).map((event) => Object.assign({}, event, {linkHtml: mLink(event.url, event.title)}))
+                    taskList = (act.taskList || []).map((task) => Object.assign({}, task, {linkHtml: mLink(task.url, task.workEffortName, task.closed ? 'm-muted' : '')}))
+                    requestList = (act.requestList || []).map((request) => Object.assign({}, request, {linkHtml: mLink(request.url, request.requestName)}))
+                    consentAddressList = act.consentAddressList || []
+                    consentListList = act.consentListList || []
+                    mergedToPartyId = rec.mergedToPartyId
+                    bookOptions = otherBookList.map((book) => ({key: book.contactBookId, text: book.contactBookName + (book.isOwner ? '' : ' · ' + L('shared'))}))
+                    favoriteBookId = record.favoriteBookId
+                ]]></script>
+            </actions>
+            <widgets>
+                <section name="ContactNotFound" condition="!recordFound"><widgets>
+                    <section name="ContactNotFoundId" condition="recordPartyId"><widgets>
+                        <container-box type="warning"><box-header title="Not available"/><box-body>
+                            <label type="p" text="Contact ${recordPartyId} is not available: it does not exist, or it is someone else's personal contact."/>
+                            <link url="//Commons/Contacts" text="Back to Contacts" link-type="anchor"/>
+                        </box-body></container-box>
+                    </widgets><fail-widgets>
+                        <container-box><box-header title="No contact"/><box-body>
+                            <label type="p" text="No contacts yet · Import or add one" style="m-muted"/>
+                        </box-body></container-box>
+                    </fail-widgets></section>
+                </widgets></section>
+
+                <section name="ContactFound" condition="recordFound"><widgets>
+                    <!-- the record for the shell: quick create's link chip, the activity kind; the side list's selection in the split -->
+                    <context record-entity="mantle.party.Party" record-id="${recordPartyId}" title="${record.name}" selection-form="${inSplit ? 'ContactRows' : ''}"/>
+
+                    <!-- ===== header ===== -->
+                    <container style="row items-center no-wrap q-mb-sm m-contact-header">
+                        <render-mode><text type="qvt"><![CDATA[<div class="q-mr-md m-contact-avatar">${avatarHtml}</div>]]></text></render-mode>
+                        <container style="col" >
+                            <container style="row items-center q-gutter-x-sm">
+                                <label text="${record.name}" type="h5" style="q-my-none"/>
+                                <section name="FavoriteOn" condition="record.isFavorite"><widgets>
+                                    <link url="contactFavorite" link-type="hidden-form-link" icon="star" text="" tooltip="Starred: unstar" style="m-btn-flat text-warning"
+                                            parameter-map="{partyId:recordPartyId, contactBookId:favoriteBookId, isFavorite:'N'}"/>
+                                </widgets><fail-widgets>
+                                    <link url="contactFavorite" link-type="hidden-form-link" icon="star_border" text="" tooltip="Star" style="m-btn-flat"
+                                            parameter-map="{partyId:recordPartyId, contactBookId:favoriteBookId, isFavorite:'Y'}"/>
+                                </fail-widgets></section>
+                            </container>
+                            <label text="${record.subtitle}" type="div" style="text-body2" condition="record.subtitle"/>
+                            <label text="${captionText}" type="div" style="text-caption m-muted"/>
+                        </container>
+                    </container>
+                    <section name="PersonalBanner" condition="isPersonal"><widgets>
+                        <render-mode><text type="qvt"><![CDATA[<q-banner dense rounded class="m-tonal text-info q-mb-sm" data-banner="personal"><template v-slot:avatar><q-icon name="sym_o_lock" size="sm"></q-icon></template>]]></text></render-mode>
+                        <label type="span" text="${personalBanner}"/>
+                        <section name="LinkHint" condition="access.isMine"><widgets>
+                            <label type="span" text=" · Link it to a directory party to share it with your organization." style="m-muted"/>
+                        </widgets></section>
+                        <render-mode><text type="qvt"><![CDATA[</q-banner>]]></text></render-mode>
+                    </widgets></section>
+                    <section name="MergedBanner" condition="access.isDisabled"><widgets>
+                        <container-box type="warning"><box-body>
+                            <label type="span" text="${mergedToPartyId ? 'This contact was merged into another one.' : 'This contact was deleted.'}"/>
+                            <section name="MergedLink" condition="mergedToPartyId"><widgets>
+                                <link url="." link-type="anchor" text=" Open the contact it was merged into" parameter-map="{partyId:mergedToPartyId}"/>
+                            </widgets></section>
+                        </box-body></container-box>
+                    </widgets></section>
+
+                    <!-- ===== actions: email; new event and task; the rest in More ===== -->
+                    <container style="row items-center q-gutter-y-xs q-mb-sm m-contact-actions">
+                        <section name="EmailAction" condition="composeUrl"><widgets>
+                            <render-mode><text type="qvt"><![CDATA[<m-link href="${composeUrl}"><q-btn unelevated no-caps dense color="primary" icon="sym_o_mail" label="${ec.l10n.localize('Email')}"></q-btn></m-link>]]></text></render-mode>
+                        </widgets></section>
+                        <render-mode><text type="qvt"><![CDATA[${quickHtml}]]></text></render-mode>
+                        <button-menu text="More" icon="more_horiz" style="q-ml-xs">
+                            <container-dialog id="ContactAddToBookDialog" button-text="Add to a book or group" icon="sym_o_bookmark_add" width="520" title="Add to a book or group"
+                                    condition="bookOptions.length">
+                                <form-single name="ContactAddToBook" transition="contactBooks">
+                                    <field name="partyId" from="recordPartyId"><default-field><hidden/></default-field></field>
+                                    <field name="contactBookId"><default-field title="Book">
+                                        <drop-down><list-options list="bookOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                    <field name="contactBookGroupIdList"><default-field title="Groups">
+                                        <drop-down allow-multiple="true" allow-empty="true">
+                                            <dynamic-options transition="contactBookGroups" depends-optional="true"><depends-on field="contactBookId"/></dynamic-options>
+                                        </drop-down></default-field></field>
+                                    <field name="submitButton"><default-field title="Add"><submit/></default-field></field>
+                                </form-single>
+                            </container-dialog>
+                            <container-dialog id="ContactMergeDialog" button-text="Merge with…" icon="sym_o_merge" width="560" title="Merge with another contact"
+                                    condition="canEdit">
+                                <label type="p" text="Choose the other contact; the next step compares them side by side before anything is merged." style="m-muted"/>
+                                <form-single name="ContactMergePick" transition="../Compare">
+                                    <field name="partyId" from="recordPartyId"><default-field><hidden/></default-field></field>
+                                    <field name="otherPartyId"><default-field title="Other contact">
+                                        <drop-down><dynamic-options transition="contactSearch" server-search="true" min-length="2"
+                                                parameter-map="{excludePartyId:recordPartyId}"/></drop-down></default-field></field>
+                                    <field name="submitButton"><default-field title="Compare"><submit/></default-field></field>
+                                </form-single>
+                            </container-dialog>
+                            <link url="contactExport" link-type="hidden-form-link" text="Export vCard" icon="sym_o_contact_page" parameter-map="{partyId:recordPartyId, format:'vcard'}"/>
+                            <container-dialog id="ContactLinkDialog" button-text="Link to a directory party" icon="sym_o_link" width="560" title="Link to a directory party"
+                                    condition="access.isMine">
+                                <label type="p" text="Make this personal contact a directory contact your organization sees, or merge it into a directory party that is the same person or organization." style="m-muted"/>
+                                <form-single name="ContactLinkForm" transition="contactLink">
+                                    <field name="partyId" from="recordPartyId"><default-field><hidden/></default-field></field>
+                                    <field name="targetPartyId"><default-field title="Directory party (empty: this contact joins the directory)">
+                                        <drop-down allow-empty="true"><dynamic-options transition="contactSearch" server-search="true" min-length="2"
+                                                parameter-map="{directoryOnly:'Y', excludePartyId:recordPartyId}"/></drop-down></default-field></field>
+                                    <field name="submitButton"><default-field title="Link"><submit/></default-field></field>
+                                </form-single>
+                            </container-dialog>
+                            <link url="contactDelete" link-type="hidden-form-link" text="Delete" icon="sym_o_delete" btn-type="danger" condition="access.canDelete"
+                                    confirmation="Delete ${record.name}?" parameter-map="{partyId:recordPartyId}"/>
+                        </button-menu>
+                    </container>
+
+                    <render-mode><text type="qvt"><![CDATA[${tabsHtml}]]></text></render-mode>
+
+                    <!-- ===== Overview ===== -->
+                    <section name="OverviewTab" condition="tab == 'overview'"><widgets>
+                        <container style="row q-col-gutter-sm">
+                            <container style="${chatterColumn ? 'col-12 col-lg-8' : 'col-12'}">
+                                <container style="row q-col-gutter-sm">
+                                    <container style="${halfClass}">
+                                        <!-- the names -->
+                                        <container-box><box-header title="${record.isOrganization ? 'Organization' : 'Name'}"/>
+                                            <box-toolbar>
+                                                <container-dialog id="ContactEditDialog" button-text="Edit" icon="sym_o_edit" width="600" title="Edit ${record.name}" condition="canEdit">
+                                                    <form-single name="ContactEditForm" transition="contactUpdate" map="record" focus-field="${record.isOrganization ? 'organizationName' : 'firstName'}">
+                                                        <field name="partyId" from="recordPartyId"><default-field><hidden/></default-field></field>
+                                                        <field name="organizationName"><conditional-field condition="record.isOrganization" title="Name"><text-line size="40"/></conditional-field>
+                                                            <default-field><ignored/></default-field></field>
+                                                        <field name="personalTitle"><conditional-field condition="!record.isOrganization" title="Title"><text-line size="8"/></conditional-field>
+                                                            <default-field><ignored/></default-field></field>
+                                                        <field name="firstName"><conditional-field condition="!record.isOrganization" title="First name"><text-line size="20"/></conditional-field>
+                                                            <default-field><ignored/></default-field></field>
+                                                        <field name="middleName"><conditional-field condition="!record.isOrganization" title="Middle name"><text-line size="15"/></conditional-field>
+                                                            <default-field><ignored/></default-field></field>
+                                                        <field name="lastName"><conditional-field condition="!record.isOrganization" title="Last name"><text-line size="20"/></conditional-field>
+                                                            <default-field><ignored/></default-field></field>
+                                                        <field name="suffix"><conditional-field condition="!record.isOrganization" title="Suffix"><text-line size="8"/></conditional-field>
+                                                            <default-field><ignored/></default-field></field>
+                                                        <field name="nickname"><conditional-field condition="!record.isOrganization" title="Nickname"><text-line size="15"/></conditional-field>
+                                                            <default-field><ignored/></default-field></field>
+                                                        <field name="birthDate"><conditional-field condition="!record.isOrganization" title="Birthday"><date-time type="date" format="yyyy-MM-dd"/></conditional-field>
+                                                            <default-field><ignored/></default-field></field>
+                                                        <field name="comments"><default-field title="About"><text-area rows="3" cols="50"/></default-field></field>
+                                                        <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                                                        <field-layout>
+                                                            <field-ref name="organizationName"/>
+                                                            <field-row><field-ref name="personalTitle"/><field-ref name="firstName"/><field-ref name="middleName"/></field-row>
+                                                            <field-row><field-ref name="lastName"/><field-ref name="suffix"/></field-row>
+                                                            <field-row><field-ref name="nickname"/><field-ref name="birthDate"/></field-row>
+                                                            <field-ref name="comments"/><field-ref name="submitButton"/>
+                                                        </field-layout>
+                                                    </form-single>
+                                                </container-dialog>
+                                            </box-toolbar>
+                                            <box-body>
+                                                <form-single name="ContactNames" map="record">
+                                                    <field name="organizationName"><conditional-field condition="record.isOrganization" title="Name"><display/></conditional-field>
+                                                        <default-field><ignored/></default-field></field>
+                                                    <field name="fullName" from="[record.personalTitle, record.firstName, record.middleName, record.lastName, record.suffix].filter((part) => part).join(' ')">
+                                                        <conditional-field condition="!record.isOrganization" title="Full name"><display/></conditional-field>
+                                                        <default-field><ignored/></default-field></field>
+                                                    <field name="nickname"><conditional-field condition="record.nickname" title="Nickname"><display/></conditional-field>
+                                                        <default-field><ignored/></default-field></field>
+                                                    <field name="birthDate"><conditional-field condition="record.birthDate" title="Birthday"><display/></conditional-field>
+                                                        <default-field><ignored/></default-field></field>
+                                                    <field name="comments"><conditional-field condition="record.comments" title="About"><display/></conditional-field>
+                                                        <default-field><ignored/></default-field></field>
+                                                </form-single>
+                                            </box-body>
+                                        </container-box>
+
+                                        <!-- emails, phones, websites, other: one row per address with its purposes -->
+                                        <container-box><box-header title="Contact info"/>
+                                            <box-toolbar>
+                                                <render-mode><text type="qvt"><![CDATA[<m-link href="${showExpiredUrl}" class="q-mr-sm text-caption">${showExpired == 'Y' || rec.expiredCount ? expiredText : ''}</m-link>]]></text></render-mode>
+                                                <container-dialog id="ContactInfoAddDialog" button-text="Add" icon="add" width="520" title="Add contact info" condition="canEdit">
+                                                    <form-single name="ContactInfoAdd" transition="contactInfoStore" focus-field="emailAddress">
+                                                        <field name="partyId" from="recordPartyId"><default-field><hidden/></default-field></field>
+                                                        <field name="kind"><default-field title="Kind"><radio no-current-selected-key="email">
+                                                            <option key="email" text="Email"/><option key="phone" text="Phone"/><option key="web" text="Website"/></radio></default-field></field>
+                                                        <field name="emailAddress"><default-field title="Email"><text-line size="30" input-type="email"/>
+                                                            <visible-when field="kind" value="email"/></default-field></field>
+                                                        <field name="emailPurposeId"><default-field title="Purpose">
+                                                            <drop-down no-current-selected-key="EmailPrimary"><entity-options key="${contactMechPurposeId}" text="${description}">
+                                                                <entity-find entity-name="mantle.party.contact.ContactMechPurpose" cache="true">
+                                                                    <econdition field-name="contactMechTypeEnumId" value="CmtEmailAddress"/><order-by field-name="description"/></entity-find>
+                                                            </entity-options></drop-down><visible-when field="kind" value="email"/></default-field></field>
+                                                        <field name="phone"><default-field title="Phone"><text-line size="20" input-type="tel"/>
+                                                            <visible-when field="kind" value="phone"/></default-field></field>
+                                                        <field name="phonePurposeId"><default-field title="Purpose">
+                                                            <drop-down no-current-selected-key="PhoneMobile"><entity-options key="${contactMechPurposeId}" text="${description}">
+                                                                <entity-find entity-name="mantle.party.contact.ContactMechPurpose" cache="true">
+                                                                    <econdition field-name="contactMechTypeEnumId" value="CmtTelecomNumber"/><order-by field-name="description"/></entity-find>
+                                                            </entity-options></drop-down><visible-when field="kind" value="phone"/></default-field></field>
+                                                        <field name="webAddress"><default-field title="Website"><text-line size="30"/>
+                                                            <visible-when field="kind" value="web"/></default-field></field>
+                                                        <field name="webPurposeId"><default-field title="Purpose">
+                                                            <drop-down no-current-selected-key="WebUrlPrimary"><entity-options key="${contactMechPurposeId}" text="${description}">
+                                                                <entity-find entity-name="mantle.party.contact.ContactMechPurpose" cache="true">
+                                                                    <econdition field-name="contactMechTypeEnumId" value="CmtWebAddress"/><order-by field-name="description"/></entity-find>
+                                                            </entity-options></drop-down><visible-when field="kind" value="web"/></default-field></field>
+                                                        <field name="submitButton"><default-field title="Add"><submit/></default-field></field>
+                                                    </form-single>
+                                                </container-dialog>
+                                            </box-toolbar>
+                                            <box-body-nopad>
+                                                <form-list name="ContactMechList" list="contactMechList" skip-form="true" paginate="false" skip-header="true">
+                                                    <field name="typeLabel"><default-field title="Kind"><display style="m-muted"/></default-field></field>
+                                                    <field name="value"><conditional-field condition="linkHtml" title="Address or number">
+                                                            <render-mode><text type="qvt"><![CDATA[${linkHtml}]]></text></render-mode>
+                                                        </conditional-field>
+                                                        <default-field title="Address or number"><display style="${expired ? 'text-strike m-muted' : ''}"/></default-field></field>
+                                                    <field name="detailText"><default-field title="Purpose"><display style="text-caption m-muted"/></default-field></field>
+                                                    <field name="rowActions" align="right"><conditional-field condition="canEdit &amp;&amp; !expired" title="">
+                                                        <container style="row no-wrap justify-end items-center">
+                                                            <container-dialog id="ContactInfoEditDialog" button-text="" icon="sym_o_edit" width="520" title="Change ${typeLabel}" tooltip="Change">
+                                                                <form-single name="ContactInfoEdit" transition="contactInfoStore">
+                                                                    <field name="partyId" from="recordPartyId"><default-field><hidden/></default-field></field>
+                                                                    <field name="contactMechId"><default-field><hidden/></default-field></field>
+                                                                    <field name="kind"><default-field><hidden/></default-field></field>
+                                                                    <field name="contactMechPurposeId" from="purposeList[0]?.contactMechPurposeId"><default-field><hidden/></default-field></field>
+                                                                    <field name="emailAddress" from="value"><conditional-field condition="kind == 'email'" title="Email"><text-line size="30"/></conditional-field>
+                                                                        <default-field><ignored/></default-field></field>
+                                                                    <field name="phone" from="value"><conditional-field condition="kind == 'phone'" title="Phone"><text-line size="20"/></conditional-field>
+                                                                        <default-field><ignored/></default-field></field>
+                                                                    <field name="webAddress" from="value"><conditional-field condition="kind == 'web'" title="Website"><text-line size="30"/></conditional-field>
+                                                                        <default-field><ignored/></default-field></field>
+                                                                    <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                                                                </form-single>
+                                                                <label type="p" text="Purposes" style="text-subtitle2 q-mt-md q-mb-xs"/>
+                                                                <section-iterate name="PurposeChips" list="purposeList" entry="purpose"><widgets>
+                                                                    <container style="row items-center q-gutter-x-sm">
+                                                                        <label type="span" text="${purpose.description || 'No purpose'}" style="${purpose.expired ? 'text-strike m-muted' : ''}"/>
+                                                                        <link url="contactInfoPurpose" link-type="hidden-form-link" text="Remove" btn-type="danger" condition="!purpose.expired"
+                                                                                confirmation="Remove the purpose ${purpose.description}?"
+                                                                                parameter-map="{partyId:recordPartyId, contactMechId:contactMechId, contactMechPurposeId:purpose.contactMechPurposeId, remove:'true'}"/>
+                                                                    </container>
+                                                                </widgets></section-iterate>
+                                                                <section name="NotOtherKind" condition="kind != 'other'"><widgets>
+                                                                    <form-single name="ContactInfoPurposeAdd" transition="contactInfoPurpose">
+                                                                        <field name="partyId" from="recordPartyId"><default-field><hidden/></default-field></field>
+                                                                        <field name="contactMechId"><default-field><hidden/></default-field></field>
+                                                                        <field name="contactMechPurposeId"><default-field title="Add a purpose">
+                                                                            <drop-down><entity-options key="${contactMechPurposeId}" text="${description}">
+                                                                                <entity-find entity-name="mantle.party.contact.ContactMechPurpose" cache="true">
+                                                                                    <econdition field-name="contactMechTypeEnumId" from="contactMechTypeEnumId"/><order-by field-name="description"/></entity-find>
+                                                                            </entity-options></drop-down></default-field></field>
+                                                                        <field name="submitButton"><default-field title="Add purpose"><submit/></default-field></field>
+                                                                        <field-layout><field-row-big><field-ref name="contactMechPurposeId"/><field-ref name="submitButton"/></field-row-big></field-layout>
+                                                                    </form-single>
+                                                                </widgets></section>
+                                                            </container-dialog>
+                                                            <link url="contactInfoPurpose" link-type="hidden-form-link" icon="sym_o_delete" text="" tooltip="Remove" style="m-btn-flat"
+                                                                    confirmation="Remove ${value}?" parameter-map="{partyId:recordPartyId, contactMechId:contactMechId, remove:'true'}"/>
+                                                        </container>
+                                                    </conditional-field><default-field title=""><display text=""/></default-field></field>
+                                                    <form-list-column><field-ref name="value"/><field-ref name="detailText"/></form-list-column>
+                                                    <form-list-column><field-ref name="rowActions"/></form-list-column>
+                                                </form-list>
+                                                <section name="NoContactInfo" condition="!contactMechList.length"><widgets>
+                                                    <label type="p" text="No email, phone or website yet" style="m-muted q-pa-sm q-mb-none"/>
+                                                </widgets></section>
+                                            </box-body-nopad>
+                                        </container-box>
+
+                                        <!-- addresses -->
+                                        <container-box><box-header title="Addresses"/>
+                                            <box-toolbar>
+                                                <container-dialog id="ContactAddressAddDialog" button-text="Add" icon="add" width="600" title="Add an address" condition="canEdit">
+                                                    <form-single name="ContactAddressAdd" transition="contactInfoStore" focus-field="address1">
+                                                        <field name="partyId" from="recordPartyId"><default-field><hidden/></default-field></field>
+                                                        <field name="kind" from="'postal'"><default-field><hidden/></default-field></field>
+                                                        <field name="contactMechPurposeId"><default-field title="Purpose">
+                                                            <drop-down no-current-selected-key="PostalPrimary"><entity-options key="${contactMechPurposeId}" text="${description}">
+                                                                <entity-find entity-name="mantle.party.contact.ContactMechPurpose" cache="true">
+                                                                    <econdition field-name="contactMechTypeEnumId" value="CmtPostalAddress"/><order-by field-name="description"/></entity-find>
+                                                            </entity-options></drop-down></default-field></field>
+                                                        <field name="address1"><default-field title="Street"><text-line size="40"/></default-field></field>
+                                                        <field name="address2"><default-field title="Street line 2"><text-line size="40"/></default-field></field>
+                                                        <field name="city"><default-field title="City"><text-line size="20"/></default-field></field>
+                                                        <field name="postalCode"><default-field title="Postal code"><text-line size="10"/></default-field></field>
+                                                        <field name="countryGeoId"><default-field title="Country">
+                                                            <drop-down allow-empty="true" no-current-selected-key="USA"><entity-options key="${geoId}" text="${geoName}">
+                                                                <entity-find entity-name="moqui.basic.Geo" cache="true"><econdition field-name="geoTypeEnumId" value="GEOT_COUNTRY"/>
+                                                                    <order-by field-name="geoName"/></entity-find></entity-options></drop-down></default-field></field>
+                                                        <field name="stateProvinceGeoId"><default-field title="State or region">
+                                                            <drop-down allow-empty="true">
+                                                                <dynamic-options transition="contactGeoRegions" server-search="false" depends-optional="true"><depends-on field="countryGeoId" parameter="geoId"/></dynamic-options>
+                                                            </drop-down></default-field></field>
+                                                        <field name="submitButton"><default-field title="Add"><submit/></default-field></field>
+                                                        <field-layout>
+                                                            <field-ref name="contactMechPurposeId"/><field-ref name="address1"/><field-ref name="address2"/>
+                                                            <field-row><field-ref name="city"/><field-ref name="postalCode"/></field-row>
+                                                            <field-row><field-ref name="countryGeoId"/><field-ref name="stateProvinceGeoId"/></field-row>
+                                                            <field-ref name="submitButton"/>
+                                                        </field-layout>
+                                                    </form-single>
+                                                </container-dialog>
+                                            </box-toolbar>
+                                            <box-body-nopad>
+                                                <form-list name="ContactAddressList" list="addressList" skip-form="true" paginate="false" skip-header="true">
+                                                    <field name="oneLine"><default-field title="Address"><display style="${expired ? 'text-strike m-muted' : ''}"/></default-field></field>
+                                                    <field name="purposeText"><default-field title="Purpose"><display style="text-caption m-muted"/></default-field></field>
+                                                    <field name="rowActions" align="right"><conditional-field condition="canEdit &amp;&amp; !expired" title="">
+                                                        <container style="row no-wrap justify-end items-center">
+                                                            <container-dialog id="ContactAddressEditDialog" button-text="" icon="sym_o_edit" width="600" title="Change the address" tooltip="Change">
+                                                                <form-single name="ContactAddressEdit" transition="contactInfoStore">
+                                                                    <field name="partyId" from="recordPartyId"><default-field><hidden/></default-field></field>
+                                                                    <field name="contactMechId"><default-field><hidden/></default-field></field>
+                                                                    <field name="kind" from="'postal'"><default-field><hidden/></default-field></field>
+                                                                    <field name="contactMechPurposeId" from="purposeList[0]?.contactMechPurposeId"><default-field><hidden/></default-field></field>
+                                                                    <field name="address1"><default-field title="Street"><text-line size="40"/></default-field></field>
+                                                                    <field name="address2"><default-field title="Street line 2"><text-line size="40"/></default-field></field>
+                                                                    <field name="city"><default-field title="City"><text-line size="20"/></default-field></field>
+                                                                    <field name="postalCode"><default-field title="Postal code"><text-line size="10"/></default-field></field>
+                                                                    <field name="countryGeoId"><default-field title="Country">
+                                                                        <drop-down allow-empty="true"><entity-options key="${geoId}" text="${geoName}">
+                                                                            <entity-find entity-name="moqui.basic.Geo" cache="true"><econdition field-name="geoTypeEnumId" value="GEOT_COUNTRY"/>
+                                                                                <order-by field-name="geoName"/></entity-find></entity-options></drop-down></default-field></field>
+                                                                    <field name="stateProvinceGeoId"><default-field title="State or region">
+                                                                        <drop-down allow-empty="true">
+                                                                            <dynamic-options transition="contactGeoRegions" server-search="false" depends-optional="true"><depends-on field="countryGeoId" parameter="geoId"/></dynamic-options>
+                                                                        </drop-down></default-field></field>
+                                                                    <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                                                                    <field-layout>
+                                                                        <field-ref name="address1"/><field-ref name="address2"/>
+                                                                        <field-row><field-ref name="city"/><field-ref name="postalCode"/></field-row>
+                                                                        <field-row><field-ref name="countryGeoId"/><field-ref name="stateProvinceGeoId"/></field-row>
+                                                                        <field-ref name="submitButton"/>
+                                                                    </field-layout>
+                                                                </form-single>
+                                                            </container-dialog>
+                                                            <link url="contactInfoPurpose" link-type="hidden-form-link" icon="sym_o_delete" text="" tooltip="Remove" style="m-btn-flat"
+                                                                    confirmation="Remove this address?" parameter-map="{partyId:recordPartyId, contactMechId:contactMechId, remove:'true'}"/>
+                                                        </container>
+                                                    </conditional-field><default-field title=""><display text=""/></default-field></field>
+                                                    <form-list-column><field-ref name="oneLine"/><field-ref name="purposeText"/></form-list-column>
+                                                    <form-list-column><field-ref name="rowActions"/></form-list-column>
+                                                </form-list>
+                                                <section name="NoAddresses" condition="!addressList.length"><widgets>
+                                                    <label type="p" text="No address yet" style="m-muted q-pa-sm q-mb-none"/>
+                                                </widgets></section>
+                                            </box-body-nopad>
+                                        </container-box>
+                                    </container>
+
+                                    <container style="${halfClass}">
+                                        <!-- an employee's directory card, read only: the Employee 360 is People's -->
+                                        <section name="EmployeeCard" condition="employeeCard"><widgets>
+                                            <container-box type="info"><box-header title="Directory card"/><box-body>
+                                                <form-single name="EmployeeCardForm" map="employeeCard">
+                                                    <field name="organizationName"><default-field title="Department or organization"><display/></default-field></field>
+                                                    <field name="position"><default-field title="Position"><display/></default-field></field>
+                                                    <field name="managerName"><default-field title="Manager"><display/></default-field></field>
+                                                    <field name="sinceDate"><default-field title="Since"><display/></default-field></field>
+                                                    <field-layout>
+                                                        <field-row><field-ref name="organizationName"/><field-ref name="position"/></field-row>
+                                                        <field-row><field-ref name="managerName"/><field-ref name="sinceDate"/></field-row>
+                                                    </field-layout>
+                                                </form-single>
+                                                <label type="div" text="Read only here: the employee record is in People." style="text-caption m-muted"/>
+                                            </box-body></container-box>
+                                        </widgets></section>
+
+                                        <!-- a person's organizations and titles -->
+                                        <section name="OrganizationBox" condition="!record.isOrganization"><widgets>
+                                            <container-box><box-header title="Organization and title"/>
+                                                <box-toolbar>
+                                                    <container-dialog id="ContactOrgAddDialog" button-text="Add" icon="add" width="560" title="Add an organization" condition="canEdit">
+                                                        <form-single name="ContactOrgAdd" transition="contactOrganization">
+                                                            <field name="partyId" from="recordPartyId"><default-field><hidden/></default-field></field>
+                                                            <field name="organizationPartyId"><default-field title="Organization">
+                                                                <drop-down><dynamic-options transition="contactSearch" server-search="true" min-length="2"
+                                                                        parameter-map="{organizationsOnly:'Y'}"/></drop-down></default-field></field>
+                                                            <field name="jobTitle"><default-field title="Title"><text-line size="30"/></default-field></field>
+                                                            <field name="submitButton"><default-field title="Add"><submit/></default-field></field>
+                                                        </form-single>
+                                                    </container-dialog>
+                                                </box-toolbar>
+                                                <box-body-nopad>
+                                                    <form-list name="ContactOrgList" list="organizationList" skip-form="true" paginate="false" skip-header="true">
+                                                        <field name="organizationName"><default-field title="Organization">
+                                                            <link url="." link-type="anchor" text="${organizationName}" parameter-map="{partyId:organizationPartyId}"/></default-field></field>
+                                                        <field name="jobTitle"><default-field title="Title"><display/></default-field></field>
+                                                        <field name="rowActions" align="right"><conditional-field condition="canEdit" title="">
+                                                            <container style="row no-wrap justify-end items-center">
+                                                                <container-dialog id="ContactTitleDialog" button-text="" icon="sym_o_edit" width="480" title="Title at ${organizationName}" tooltip="Change the title">
+                                                                    <form-single name="ContactTitleEdit" transition="contactOrganization">
+                                                                        <field name="partyId" from="recordPartyId"><default-field><hidden/></default-field></field>
+                                                                        <field name="partyRelationshipId"><default-field><hidden/></default-field></field>
+                                                                        <field name="jobTitle"><default-field title="Title"><text-line size="30"/></default-field></field>
+                                                                        <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                                                                    </form-single>
+                                                                </container-dialog>
+                                                                <link url="contactOrganization" link-type="hidden-form-link" icon="sym_o_link_off" text="" tooltip="No longer there" style="m-btn-flat"
+                                                                        confirmation="End ${record.name} at ${organizationName}?" parameter-map="{partyId:recordPartyId, partyRelationshipId:partyRelationshipId, thruNow:'true'}"/>
+                                                            </container>
+                                                        </conditional-field><default-field title=""><display text=""/></default-field></field>
+                                                        <form-list-column><field-ref name="organizationName"/><field-ref name="jobTitle"/></form-list-column>
+                                                        <form-list-column><field-ref name="rowActions"/></form-list-column>
+                                                    </form-list>
+                                                    <section name="NoOrganization" condition="!organizationList.length"><widgets>
+                                                        <label type="p" text="No organization" style="m-muted q-pa-sm q-mb-none"/>
+                                                    </widgets></section>
+                                                </box-body-nopad>
+                                            </container-box>
+                                        </widgets></section>
+
+                                        <!-- relationships both ways -->
+                                        <container-box><box-header title="Relationships"/>
+                                            <box-toolbar>
+                                                <container-dialog id="ContactRelAddDialog" button-text="Add" icon="add" width="560" title="Add a relationship" condition="canEdit">
+                                                    <form-single name="ContactRelAdd" transition="contactRelationshipAdd">
+                                                        <field name="partyId" from="recordPartyId"><default-field><hidden/></default-field></field>
+                                                        <field name="relationshipTypeEnumId"><default-field title="Relationship">
+                                                            <drop-down no-current-selected-key="PrtContact"><entity-options key="${enumId}" text="${description}">
+                                                                <entity-find entity-name="moqui.basic.Enumeration" cache="true"><econdition field-name="enumTypeId" value="PartyRelationshipType"/>
+                                                                    <order-by field-name="description"/></entity-find></entity-options></drop-down></default-field></field>
+                                                        <field name="direction"><default-field title="Which way"><radio no-current-selected-key="to">
+                                                            <option key="to" text="${record.name} is this of the other"/><option key="from" text="The other is this of ${record.name}"/></radio></default-field></field>
+                                                        <field name="otherPartyId"><default-field title="Other contact">
+                                                            <drop-down><dynamic-options transition="contactSearch" server-search="true" min-length="2"
+                                                                    parameter-map="{excludePartyId:recordPartyId}"/></drop-down></default-field></field>
+                                                        <field name="relationshipName"><default-field title="Name or title (optional)"><text-line size="30"/></default-field></field>
+                                                        <field name="submitButton"><default-field title="Add"><submit/></default-field></field>
+                                                    </form-single>
+                                                </container-dialog>
+                                            </box-toolbar>
+                                            <box-body-nopad>
+                                                <form-list name="ContactRelList" list="relationshipList" skip-form="true" paginate="false" skip-header="true">
+                                                    <field name="description"><default-field title="Relationship">
+                                                        <link url="." link-type="anchor" text="${description}" parameter-map="{partyId:otherPartyId}" style="${expired ? 'text-strike' : ''}"/></default-field></field>
+                                                    <field name="relationshipName"><default-field title="Name"><display/></default-field></field>
+                                                    <field name="fromDate"><default-field title="Since"><display style="text-caption m-muted text-no-wrap"/></default-field></field>
+                                                    <field name="rowActions" align="right"><conditional-field condition="canEdit &amp;&amp; !expired" title="">
+                                                        <link url="contactOrganization" link-type="hidden-form-link" icon="sym_o_link_off" text="" tooltip="End" style="m-btn-flat"
+                                                                confirmation="End: ${description}?" parameter-map="{partyId:recordPartyId, partyRelationshipId:partyRelationshipId, thruNow:'true'}"/>
+                                                    </conditional-field><default-field title=""><display text=""/></default-field></field>
+                                                    <form-list-column><field-ref name="description"/><field-ref name="relationshipName"/><field-ref name="fromDate"/></form-list-column>
+                                                    <form-list-column><field-ref name="rowActions"/></form-list-column>
+                                                </form-list>
+                                                <section name="NoRelationships" condition="!relationshipList.length"><widgets>
+                                                    <label type="p" text="No relationships" style="m-muted q-pa-sm q-mb-none"/>
+                                                </widgets></section>
+                                            </box-body-nopad>
+                                        </container-box>
+
+                                        <!-- the user's books and groups the contact is in -->
+                                        <container-box><box-header title="Books and groups"/>
+                                            <box-toolbar>
+                                                <container-dialog id="ContactBookAddDialog" button-text="Add" icon="add" width="520" title="Add to a book or group" condition="bookOptions.length">
+                                                    <form-single name="ContactBookAdd" transition="contactBooks">
+                                                        <field name="partyId" from="recordPartyId"><default-field><hidden/></default-field></field>
+                                                        <field name="contactBookId"><default-field title="Book">
+                                                            <drop-down><list-options list="bookOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                                        <field name="contactBookGroupIdList"><default-field title="Groups">
+                                                            <drop-down allow-multiple="true" allow-empty="true">
+                                                                <dynamic-options transition="contactBookGroups" depends-optional="true"><depends-on field="contactBookId"/></dynamic-options>
+                                                            </drop-down></default-field></field>
+                                                        <field name="submitButton"><default-field title="Add"><submit/></default-field></field>
+                                                    </form-single>
+                                                </container-dialog>
+                                            </box-toolbar>
+                                            <box-body-nopad>
+                                                <form-list name="ContactBookList" list="bookList" skip-form="true" paginate="false" skip-header="true">
+                                                    <field name="contactBookName"><default-field title="Book"><display/></default-field></field>
+                                                    <field name="memberGroupText"><default-field title="Groups"><display style="text-caption"/></default-field></field>
+                                                    <field name="rowActions" align="right"><conditional-field condition="canEdit" title="">
+                                                        <container style="row no-wrap justify-end items-center">
+                                                            <container-dialog id="ContactGroupsDialog" button-text="" icon="sym_o_label" width="480" title="Groups in ${contactBookName}" tooltip="Groups"
+                                                                    condition="groupList.length">
+                                                                <form-single name="ContactGroupsEdit" transition="contactBooks">
+                                                                    <field name="partyId" from="recordPartyId"><default-field><hidden/></default-field></field>
+                                                                    <field name="contactBookId"><default-field><hidden/></default-field></field>
+                                                                    <field name="contactBookGroupIdList" from="groupList.filter((group) => group.member).map((group) => group.contactBookGroupId)">
+                                                                        <default-field title="Groups"><check><list-options list="groupList" key="${contactBookGroupId}" text="${groupName}"/></check></default-field></field>
+                                                                    <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                                                                </form-single>
+                                                            </container-dialog>
+                                                            <link url="contactBooks" link-type="hidden-form-link" icon="sym_o_bookmark_remove" text="" tooltip="Remove from the book" style="m-btn-flat"
+                                                                    confirmation="Remove ${record.name} from ${contactBookName}?" parameter-map="{partyId:recordPartyId, contactBookId:contactBookId, remove:'Y'}"/>
+                                                        </container>
+                                                    </conditional-field><default-field title=""><display text=""/></default-field></field>
+                                                    <form-list-column><field-ref name="contactBookName"/><field-ref name="memberGroupText"/></form-list-column>
+                                                    <form-list-column><field-ref name="rowActions"/></form-list-column>
+                                                </form-list>
+                                                <section name="NoBooks" condition="!bookList.length"><widgets>
+                                                    <label type="p" text="In none of your books" style="m-muted q-pa-sm q-mb-none"/>
+                                                </widgets></section>
+                                            </box-body-nopad>
+                                        </container-box>
+
+                                        <!-- notes (PartyNote) -->
+                                        <container-box><box-header title="Notes"/><box-body>
+                                            <section name="NoteAdd" condition="canEdit"><widgets>
+                                                <form-single name="ContactNoteAdd" transition="contactNote">
+                                                    <field name="partyId" from="recordPartyId"><default-field><hidden/></default-field></field>
+                                                    <field name="noteText"><default-field title="New note"><text-area rows="2" cols="50"/></default-field></field>
+                                                    <field name="submitButton"><default-field title="Add note"><submit/></default-field></field>
+                                                </form-single>
+                                            </widgets></section>
+                                            <section-iterate name="ContactNotes" list="noteList" entry="note"><widgets>
+                                                <container style="q-py-xs m-contact-note">
+                                                    <label type="div" text="${note.noteText}" style="text-body2" encode="true"/>
+                                                    <container style="row items-center q-gutter-x-sm">
+                                                        <label type="span" text="${note.userName} · ${note.noteDateText}" style="text-caption m-muted"/>
+                                                        <link url="contactNote" link-type="hidden-form-link" text="Remove" condition="note.mine &amp;&amp; canEdit" btn-type="danger"
+                                                                confirmation="Remove this note?" parameter-map="{partyId:recordPartyId, noteDate:note.noteDate, noteText:''}"/>
+                                                    </container>
+                                                </container>
+                                            </widgets></section-iterate>
+                                            <section name="NoNotes" condition="!noteList.length"><widgets>
+                                                <label type="p" text="No notes" style="m-muted q-mb-none"/>
+                                            </widgets></section>
+                                        </box-body></container-box>
+                                    </container>
+                                </container>
+                            </container>
+                            <!-- Chatter beside the overview from 1440 px on the full screen (style-guide §3.3); a tab below -->
+                            <section name="ChatterColumn" condition="chatterColumn"><widgets>
+                                <container style="col-12 col-lg-4 gt-md">
+                                    <chatter id="ContactChatter" record-entity="mantle.party.Party" record-id="${recordPartyId}" default-tab="message"/>
+                                </container>
+                            </widgets></section>
+                        </container>
+                    </widgets></section>
+
+                    <!-- ===== Activity: Chatter, opening on Send message (design §15 per-app defaults) ===== -->
+                    <section name="ActivityTab" condition="tab == 'activity'"><widgets>
+                        <chatter id="ContactChatterTab" record-entity="mantle.party.Party" record-id="${recordPartyId}" default-tab="message"/>
+                    </widgets></section>
+
+                    <!-- ===== Calendar: the party's events ===== -->
+                    <section name="CalendarTab" condition="tab == 'calendar'"><widgets>
+                        <container-box><box-header title="Events from 30 days ago to 90 days ahead"/><box-body-nopad>
+                            <form-list name="ContactEventList" list="eventList" skip-form="true" paginate="false">
+                                <field name="whenText"><default-field title="When"><display style="${upcoming ? 'text-weight-medium' : 'm-muted'}"/></default-field></field>
+                                <field name="title"><default-field title="Event">
+                                    <render-mode><text type="qvt"><![CDATA[${linkHtml}]]></text></render-mode>
+                                </default-field></field>
+                                <field name="statusText"><default-field title="Status"><display/></default-field></field>
+                            </form-list>
+                            <section name="NoEvents" condition="!eventList.length"><widgets>
+                                <label type="p" text="No events with ${record.name} in this range" style="m-muted q-pa-sm q-mb-none"/>
+                            </widgets></section>
+                        </box-body-nopad></container-box>
+                    </widgets></section>
+
+                    <!-- ===== Tasks ===== -->
+                    <section name="TasksTab" condition="tab == 'tasks'"><widgets>
+                        <container-box><box-header title="Tasks"/><box-body-nopad>
+                            <form-list name="ContactTaskList" list="taskList" skip-form="true" paginate="false">
+                                <field name="workEffortName"><default-field title="Task">
+                                    <render-mode><text type="qvt"><![CDATA[${linkHtml}]]></text></render-mode>
+                                </default-field></field>
+                                <field name="statusText"><default-field title="Status"><display/></default-field></field>
+                                <field name="dueText"><default-field title="Due"><display/></default-field></field>
+                                <field name="roleText"><default-field title="Role"><display style="text-caption"/></default-field></field>
+                            </form-list>
+                            <section name="NoTasks" condition="!taskList.length"><widgets>
+                                <label type="p" text="No tasks with ${record.name}" style="m-muted q-pa-sm q-mb-none"/>
+                            </widgets></section>
+                        </box-body-nopad></container-box>
+                    </widgets></section>
+
+                    <!-- ===== Requests ===== -->
+                    <section name="RequestsTab" condition="tab == 'requests'"><widgets>
+                        <container-box><box-header title="Requests"/><box-body-nopad>
+                            <form-list name="ContactRequestList" list="requestList" skip-form="true" paginate="false">
+                                <field name="requestName"><default-field title="Request">
+                                    <render-mode><text type="qvt"><![CDATA[${linkHtml}]]></text></render-mode>
+                                </default-field></field>
+                                <field name="statusText"><default-field title="Status"><display/></default-field></field>
+                                <field name="roleText"><default-field title="Role"><display style="text-caption"/></default-field></field>
+                                <field name="dateText"><default-field title="Date"><display/></default-field></field>
+                            </form-list>
+                            <section name="NoRequests" condition="!requestList.length"><widgets>
+                                <label type="p" text="No requests with ${record.name}" style="m-muted q-pa-sm q-mb-none"/>
+                            </widgets></section>
+                        </box-body-nopad></container-box>
+                    </widgets></section>
+
+                    <!-- ===== Files ===== -->
+                    <section name="FilesTab" condition="tab == 'files'"><widgets>
+                        <record-files id="ContactFiles" record-entity="mantle.party.Party" record-id="${recordPartyId}"/>
+                    </widgets></section>
+
+                    <!-- ===== Consent, read only ===== -->
+                    <section name="ConsentTab" condition="tab == 'consent'"><widgets>
+                        <container-box><box-header title="Consent"/>
+                            <box-toolbar>
+                                <render-mode><text type="qvt"><![CDATA[<m-link href="/qapps/Comms/Consent?partyId=${recordPartyId}"><q-btn unelevated no-caps dense class="m-btn-tonal" icon="sym_o_edit" label="${ec.l10n.localize('Edit in Comms Consent')}"></q-btn></m-link>]]></text></render-mode>
+                            </box-toolbar>
+                            <box-body-nopad>
+                                <form-list name="ContactConsentAddressList" list="consentAddressList" skip-form="true" paginate="false">
+                                    <field name="value"><default-field title="Address or number"><display/></default-field></field>
+                                    <field name="allowSolicitation"><default-field title="Allows contact"><display/></default-field></field>
+                                    <field name="consentText"><default-field title="Consent"><display/></default-field></field>
+                                </form-list>
+                                <section name="NoConsentAddresses" condition="!consentAddressList.length"><widgets>
+                                    <label type="p" text="No consent recorded for ${record.name}" style="m-muted q-pa-sm q-mb-none"/>
+                                </widgets></section>
+                                <section name="ConsentLists" condition="consentListList.length"><widgets>
+                                    <form-list name="ContactConsentListList" list="consentListList" skip-form="true" paginate="false">
+                                        <field name="contactListName"><default-field title="List"><display/></default-field></field>
+                                        <field name="statusText"><default-field title="Subscription"><display/></default-field></field>
+                                    </form-list>
+                                </widgets></section>
+                            </box-body-nopad>
+                        </container-box>
+                    </widgets></section>
+                </widgets></section>
+            </widgets>
+        </section>
+    </widgets>
+</screen>

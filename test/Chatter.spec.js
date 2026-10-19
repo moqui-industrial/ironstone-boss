@@ -406,15 +406,17 @@ feature("the record screens render with their chatter and record-files elements,
         { path: "apps/Commons/Calendar/EventDetail", parameters: { workEffortId: "BOSS_DEMO_EVENT" }, id: "EventChatter", entity: "mantle.work.effort.WorkEffort",
             recordId: "BOSS_DEMO_EVENT", tab: "log", files: "EventFiles" },
         { path: "apps/Commons/Contacts/ContactDetail", parameters: { partyId: "ORG_ACME_BA" }, id: "ContactChatter", entity: "mantle.party.Party",
-            recordId: "ORG_ACME_BA", tab: "message", files: "ContactFiles" },
+            recordId: "ORG_ACME_BA", tab: "message", files: "ContactFiles", filesParameters: { partyId: "ORG_ACME_BA", tab: "files" } },
     ],
-    expect({ path, parameters, id, entity, recordId, tab, files }) {
+    expect({ path, parameters, id, entity, recordId, tab, files, filesParameters }) {
         const shown = render(path, parameters)
+        // the contact record (M4) has its files on the Files tab
+        const filesShown = filesParameters ? render(path, filesParameters) : shown
         shown.status == 200
         shown.errors == ""
         !shown.broken
         shown.output.includes(`<m-chatter id="${id}" record-entity="${entity}" record-id="${recordId}" default-tab="${tab}">`)
-        shown.output.includes(`<m-record-files id="${files}" record-entity="${entity}" record-id="${recordId}"`)
+        filesShown.output.includes(`<m-record-files id="${files}" record-entity="${entity}" record-id="${recordId}"`)
         shown.output.includes(`<m-screen-context record-entity="${entity}" record-id="${recordId}"`)
     },
 })
