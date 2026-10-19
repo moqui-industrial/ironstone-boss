@@ -58,12 +58,21 @@ feature("the side pane has the spaces john.doe may read, with their storage and 
         status == 200
         errors == ""
         json.spaceList.some((space) => space.wikiSpaceId === "BOSSKB" && space.description === "Team handbook" && space.canAdmin && space.storage === "db")
-        json.spaceList.some((space) => space.wikiSpaceId === "BOSSENG" && space.storage === "git" && space.repositoryKind === "db" && space.storageText === "Git in the database")
         json.spaceList.some((space) => space.wikiSpaceId === "BOSSLEAD" && space.restrictView)
         !json.spaceList.some((space) => space.wikiSpaceId.startsWith("NOTES_"))
         json.reviewCount >= 1
         json.me.notesSpaceId == "NOTES_EX_JOHN_DOE"
         json.defaultWikiSpaceId != null
+    },
+})
+
+feature("the engineering space is git in the database", {
+    requires: ["git"],
+    when() { return get("setup") },
+    then({ status, errors, json }) {
+        status == 200
+        errors == ""
+        json.spaceList.some((space) => space.wikiSpaceId === "BOSSENG" && space.storage === "git" && space.repositoryKind === "db" && space.storageText === "Git in the database")
     },
 })
 
@@ -98,7 +107,8 @@ feature("a page: its title, versions, last change, links and backlinks across sp
         release.canUpdate
         release.text.includes("Watch the error log")
         release.links.map((link) => [link.toPagePath, link.found]) == [["Onboarding", true]]
-        release.backlinks.map((link) => link.wikiSpaceId + "/" + link.pagePath) == ["BOSSENG/", "BOSSKB/", "BOSSKB/Onboarding/First week"]
+        release.backlinks.some((link) => link.wikiSpaceId + "/" + link.pagePath == "BOSSKB/")
+        release.backlinks.some((link) => link.wikiSpaceId + "/" + link.pagePath == "BOSSKB/Onboarding/First week")
         release.reviews.length == 1
         release.reviews[0].wikiPageReviewId == "BOSS_DEMO_WPR_RELEASE"
         release.reviews[0].canDecide
@@ -114,6 +124,16 @@ feature("a page: its title, versions, last change, links and backlinks across sp
         old.viewingOld
         old.text.includes("3. Deploy")
         !old.text.includes("Rollback")
+    },
+})
+
+feature("a page's backlinks include the engineering space", {
+    requires: ["git"],
+    when() {
+        return { release: page({ wikiSpaceId: "BOSSKB", pagePath: "Release process" }) }
+    },
+    then({ release }) {
+        release.backlinks.map((link) => link.wikiSpaceId + "/" + link.pagePath) == ["BOSSENG/", "BOSSKB/", "BOSSKB/Onboarding/First week"]
     },
 })
 
@@ -242,7 +262,7 @@ feature("publish marks the current version published; tags, a file, watching and
     },
 })
 
-feature("rename keeps the old path as an alias; a drop moves a page inside another and back; Move takes it to another space", {
+feature("rename keeps the old path as an alias; a drop moves a page inside another and back", {
     when() {
         const renamed = post("renamePage", { wikiPageId: made.pageId, pageName: `Spec renamed ${RUN}` })
         const byOldPath = page({ wikiSpaceId: "BOSSKB", pagePath: `Office/Spec page ${RUN}` })
@@ -250,12 +270,9 @@ feature("rename keeps the old path as an alias; a drop moves a page inside anoth
         const before = post("dropPage", { wikiPageId: made.pageId, targetPagePath: "Office/Wi-Fi and printers", position: "before" })
         const office = names(get("children", { wikiSpaceId: "BOSSKB", pagePath: "Office" }))
         const underItself = post("dropPage", { wikiPageId: pageId("BOSSKB", "Office"), targetPagePath: `Office/Spec renamed ${RUN}`, position: "inside" })
-        const moved = post("movePage", { wikiPageId: made.pageId, toWikiSpaceId: "BOSSENG", toParentPath: "", versionNote: "To the engineering notes" })
-        const there = page({ wikiPageId: made.pageId })
-        const history = get("history", { wikiPageId: made.pageId })
-        return { renamed, byOldPath, inside, before, office, underItself, moved, there, history }
+        return { renamed, byOldPath, inside, before, office, underItself }
     },
-    then({ renamed, byOldPath, inside, before, office, underItself, moved, there, history }) {
+    then({ renamed, byOldPath, inside, before, office, underItself }) {
         renamed.json.pagePath == `Office/Spec renamed ${RUN}`
         byOldPath.wikiPageId == made.pageId
         byOldPath.pagePath == `Office/Spec renamed ${RUN}`
@@ -263,6 +280,18 @@ feature("rename keeps the old path as an alias; a drop moves a page inside anoth
         before.json.pagePath == `Office/Spec renamed ${RUN}`
         office == [`Spec renamed ${RUN}`, "Wi-Fi and printers"]
         underItself.errors.includes("cannot move under itself")
+    },
+})
+
+feature("Move takes a page to a git space and replays its history", {
+    requires: ["git"],
+    when() {
+        const moved = post("movePage", { wikiPageId: made.pageId, toWikiSpaceId: "BOSSENG", toParentPath: "", versionNote: "To the engineering notes" })
+        const there = page({ wikiPageId: made.pageId })
+        const history = get("history", { wikiPageId: made.pageId })
+        return { moved, there, history }
+    },
+    then({ moved, there, history }) {
         moved.json.wikiSpaceId == "BOSSENG"
         moved.json.replayed
         // the page's four versions and its file's one, a commit each
@@ -363,10 +392,9 @@ feature("Bob Developer reads the handbook but may not change, add to, tag, move 
     },
 })
 
-feature("Spaces: a new space on database files and one in git, settings, members who then read it, and a clone with its history", {
+feature("Spaces: a new space on database files, settings, and members who then read it", {
     when() {
         const created = call_("Knowledge/Spaces/createSpace", { wikiSpaceId: `S${RUN}A`, description: `Spec space ${RUN}`, storage: "db", restrictView: "Y" }, "post")
-        const git = call_("Knowledge/Spaces/createSpace", { wikiSpaceId: `S${RUN}G`, description: `Spec git ${RUN}`, storage: "gitdb" }, "post")
         const mirror = as("joe.developer", () => call_("Knowledge/Spaces/createSpace", { wikiSpaceId: `S${RUN}M`, description: "Mirror", storage: "mirror",
             remoteUrl: "https://example.com/x.git" }, "post"))
         const bobBefore = as("bob.developer", () => get("page", { wikiSpaceId: `S${RUN}A`, pagePath: "" }))
@@ -378,22 +406,14 @@ feature("Spaces: a new space on database files and one in git, settings, members
         const badUrl = call_("Knowledge/SpaceDetail/updateSettings", { wikiSpaceId: `S${RUN}A`, publicPageUrl: "javascript:alert(1)" }, "post")
         const lastAdmin = call_("Knowledge/SpaceDetail/removeMember", { wikiSpaceId: `S${RUN}A`, userId: "EX_JOHN_DOE" }, "post")
         const saved = post("savePage", { wikiSpaceId: `S${RUN}A`, pagePath: "", pageText: "# Spec space\n\nSecond version\n", versionNote: "Second" })
-        const cloned = call_("Knowledge/Spaces/cloneSpace", { baseWikiSpaceId: `S${RUN}A`, wikiSpaceId: `S${RUN}C`, description: "Spec clone", storage: "gitdb",
-            copyHistory: "Y" }, "post")
-        const clonedHistory = get("history", { wikiSpaceId: `S${RUN}C`, pagePath: "" })
         const list = render("Knowledge/Spaces")
         const detail = render("Knowledge/SpaceDetail", { wikiSpaceId: "BOSSKB" })
         const joeDetail = as("joe.developer", () => render("Knowledge/SpaceDetail", { wikiSpaceId: `S${RUN}A` }))
         const space = sys(() => ec.entity.find("moqui.resource.wiki.WikiSpace").condition("wikiSpaceId", `S${RUN}A`).one())
-        return { created, git, mirror, bobBefore, member, bobAfter, bobSettings, settings, badUrl, lastAdmin, saved, cloned, clonedHistory, list, detail, joeDetail,
-            space, gitRoot: page({ wikiSpaceId: `S${RUN}G`, pagePath: "" }) }
+        return { created, mirror, bobBefore, member, bobAfter, bobSettings, settings, badUrl, lastAdmin, saved, list, detail, joeDetail, space }
     },
-    then({ created, git, mirror, bobBefore, member, bobAfter, bobSettings, settings, badUrl, lastAdmin, saved, cloned, clonedHistory, list, detail, joeDetail,
-            space, gitRoot }) {
+    then({ created, mirror, bobBefore, member, bobAfter, bobSettings, settings, badUrl, lastAdmin, saved, list, detail, joeDetail, space }) {
         created.errors == ""
-        git.errors == ""
-        gitRoot.storage == "git"
-        gitRoot.text.startsWith(`# Spec git ${RUN}`)
         mirror.errors.includes("Only an administrator adds a mirror")
         bobBefore.errors.includes("Page not found")
         member.errors == ""
@@ -407,9 +427,6 @@ feature("Spaces: a new space on database files and one in git, settings, members
         lastAdmin.errors.includes("A space keeps at least one administrator")
         // the automatic root page, the space's home page, this save
         saved.json.versionName == "03"
-        cloned.errors == ""
-        clonedHistory.json.storage == "git"
-        clonedHistory.json.versionList.length == 3
         list.status == 200
         list.output.includes(`Spec space ${RUN} renamed`)
         list.output.includes("Team handbook")
@@ -417,6 +434,25 @@ feature("Spaces: a new space on database files and one in git, settings, members
         detail.output.includes("Policies/Security")
         detail.output.includes("Restrict a page")
         joeDetail.output.includes("This space is not available")
+    },
+})
+
+feature("a git space and a clone of a database space keep their history", {
+    requires: ["git"],
+    when() {
+        const git = call_("Knowledge/Spaces/createSpace", { wikiSpaceId: `S${RUN}G`, description: `Spec git ${RUN}`, storage: "gitdb" }, "post")
+        const cloned = call_("Knowledge/Spaces/cloneSpace", { baseWikiSpaceId: `S${RUN}A`, wikiSpaceId: `S${RUN}C`, description: "Spec clone", storage: "gitdb",
+            copyHistory: "Y" }, "post")
+        const clonedHistory = get("history", { wikiSpaceId: `S${RUN}C`, pagePath: "" })
+        return { git, cloned, clonedHistory, gitRoot: page({ wikiSpaceId: `S${RUN}G`, pagePath: "" }) }
+    },
+    then({ git, cloned, clonedHistory, gitRoot }) {
+        git.errors == ""
+        gitRoot.storage == "git"
+        gitRoot.text.startsWith(`# Spec git ${RUN}`)
+        cloned.errors == ""
+        clonedHistory.json.storage == "git"
+        clonedHistory.json.versionList.length == 3
     },
 })
 
@@ -476,7 +512,7 @@ feature("the screens render: Knowledge as its component, and in it the review li
     },
 })
 
-feature("Duplicate: a page with the pages under it, under a new name in the same space, and one into another space with its file; refusals", {
+feature("Duplicate: a page with the pages under it, under a new name in the same space; refusals", {
     allowMessageErrors: true,
     when() {
         const policies = pageId("BOSSKB", "Policies")
@@ -487,8 +523,6 @@ feature("Duplicate: a page with the pages under it, under a new name in the same
         const travel = page({ wikiSpaceId: "BOSSKB", pagePath: `${base}/Travel` })
         const travelSource = page({ wikiSpaceId: "BOSSKB", pagePath: "Policies/Travel" })
         const history = get("history", { wikiPageId: pageId("BOSSKB", `${base}/Travel`) })
-        const single = post("duplicatePage", { wikiPageId: office, toWikiSpaceId: "BOSSENG", toPageName: `Office copy ${RUN}` })
-        const singleFile = call_("Knowledge/attachment", { wikiPageId: pageId("BOSSENG", `Office copy ${RUN}`), filename: "floor-plan.txt" }, null)
         // Joe Developer may not read the restricted Security page, so his copy is without it
         const joe = as("joe.developer", () => ({
             tree: post("duplicatePage", { wikiPageId: policies, toParentPath: "Office", toPageName: `Joe policies ${RUN}`, withChildren: "true" }),
@@ -496,13 +530,13 @@ feature("Duplicate: a page with the pages under it, under a new name in the same
             restricted: post("duplicatePage", { wikiPageId: pageId("BOSSKB", "Policies/Security"), toPageName: `Joe security ${RUN}` }) }))
         const joeCopied = names(get("children", { wikiSpaceId: "BOSSKB", pagePath: `Office/Joe policies ${RUN}` }))
         const bob = as("bob.developer", () => post("duplicatePage", { wikiPageId: office, toPageName: `Bob office ${RUN}` }))
-        return { tree, copied, travel, travelSource, history, single, singleFile, joe, joeCopied, bob,
+        return { tree, copied, travel, travelSource, history, joe, joeCopied, bob,
             taken: post("duplicatePage", { wikiPageId: office, toPageName: "Onboarding" }),
             underItself: post("duplicatePage", { wikiPageId: policies, toParentPath: "Policies", toPageName: "Again", withChildren: "true" }),
             home: post("duplicatePage", { wikiPageId: pageId("BOSSKB", ""), toPageName: "Home copy" }),
             badName: post("duplicatePage", { wikiPageId: office, toPageName: "a/b" }) }
     },
-    then({ tree, copied, travel, travelSource, history, single, singleFile, joe, joeCopied, bob, taken, underItself, home, badName }) {
+    then({ tree, copied, travel, travelSource, history, joe, joeCopied, bob, taken, underItself, home, badName }) {
         tree.status == 200
         tree.errors == ""
         tree.json.pageCount == 4
@@ -512,10 +546,6 @@ feature("Duplicate: a page with the pages under it, under a new name in the same
         travel.text == travelSource.text
         history.json.versionList.length == 1
         history.json.versionList[0].note.includes("Copied from BOSSKB/Policies/Travel")
-        single.errors == ""
-        single.json.wikiSpaceId == "BOSSENG"
-        singleFile.status == 200
-        singleFile.output.includes("Floor plan of the office")
         joe.tree.errors == ""
         joe.tree.json.pageCount == 3
         joeCopied == ["Expenses", "Travel"]
@@ -526,5 +556,21 @@ feature("Duplicate: a page with the pages under it, under a new name in the same
         underItself.errors.includes("not copied under itself")
         home.errors.includes("copied with its space")
         badName.errors.includes("A page name has")
+    },
+})
+
+feature("a page copied into a git space keeps its file", {
+    requires: ["git"],
+    when() {
+        const office = pageId("BOSSKB", "Office")
+        const single = post("duplicatePage", { wikiPageId: office, toWikiSpaceId: "BOSSENG", toPageName: `Office copy ${RUN}` })
+        const singleFile = call_("Knowledge/attachment", { wikiPageId: pageId("BOSSENG", `Office copy ${RUN}`), filename: "floor-plan.txt" }, null)
+        return { single, singleFile }
+    },
+    then({ single, singleFile }) {
+        single.errors == ""
+        single.json.wikiSpaceId == "BOSSENG"
+        singleFile.status == 200
+        singleFile.output.includes("Floor plan of the office")
     },
 })

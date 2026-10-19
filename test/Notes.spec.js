@@ -132,19 +132,15 @@ feature("pin, tags and a linked request on a note; the list follows", {
     },
 })
 
-feature("Move to a space: a note becomes a page of the space with its history, into database files or a git space", {
+feature("Move to a space: a note becomes a page of the space with its history, on database files", {
     when() {
         const moved = post("moveNote", { wikiPageId: made.noteId, toWikiSpaceId: "BOSSKB", toParentPath: "", toPageName: `Spec moved ${RUN}` })
         const page = call_("Knowledge/page", { wikiPageId: made.noteId }, null).json.page
         const gone = get("notes")
-        const second = post("createNote", { title: `Spec git note ${RUN}` })
-        post("saveNote", { wikiPageId: second.json.wikiPageId, pageText: `# Spec git note ${RUN}\n\nOne\n`, versionNote: "One" })
-        const toGit = post("moveNote", { wikiPageId: second.json.wikiPageId, toWikiSpaceId: "BOSSENG", toParentPath: "" })
-        const gitHistory = call_("Knowledge/history", { wikiPageId: second.json.wikiPageId }, null)
         const targets = get("moveTargets")
-        return { moved, page, gone, toGit, gitHistory, targets }
+        return { moved, page, gone, targets }
     },
-    then({ moved, page, gone, toGit, gitHistory, targets }) {
+    then({ moved, page, gone, targets }) {
         moved.errors == ""
         moved.json.wikiSpaceId == "BOSSKB"
         !moved.json.replayed
@@ -154,12 +150,25 @@ feature("Move to a space: a note becomes a page of the space with its history, i
         page.versionCount == 3
         !page.isNotes
         !gone.json.noteList.some((row) => row.wikiPageId === made.noteId)
+        targets.json.spaceList.some((space) => space.wikiSpaceId === "BOSSKB")
+        !targets.json.spaceList.some((space) => space.wikiSpaceId.startsWith("NOTES_"))
+    },
+})
+
+feature("Move into a git space replays the note's history", {
+    requires: ["git"],
+    when() {
+        const second = post("createNote", { title: `Spec git note ${RUN}` })
+        post("saveNote", { wikiPageId: second.json.wikiPageId, pageText: `# Spec git note ${RUN}\n\nOne\n`, versionNote: "One" })
+        const toGit = post("moveNote", { wikiPageId: second.json.wikiPageId, toWikiSpaceId: "BOSSENG", toParentPath: "" })
+        const gitHistory = call_("Knowledge/history", { wikiPageId: second.json.wikiPageId }, null)
+        return { toGit, gitHistory }
+    },
+    then({ toGit, gitHistory }) {
         toGit.json.replayed
         toGit.json.versionCount == 2
         gitHistory.json.storage == "git"
         gitHistory.json.versionList.map((version) => version.note) == ["One", `Version 01`]
-        targets.json.spaceList.some((space) => space.wikiSpaceId === "BOSSKB")
-        !targets.json.spaceList.some((space) => space.wikiSpaceId.startsWith("NOTES_"))
     },
 })
 

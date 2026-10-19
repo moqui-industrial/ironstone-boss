@@ -312,7 +312,7 @@ feature("a sign-in that failed: the list offers Fix, the page asks for the passw
     },
 })
 
-feature("the account's page: pause and resume, servers, members, and an .eml imported once into a folder", {
+feature("the account's page: pause and resume, servers, and members", {
     when() {
         sys(() => ec.entity.find("moqui.basic.email.EmailAccount").condition("emailAccountId", personalId).updateAll({ statusId: "EasActive",
             lastSyncDate: new Date(), lastSyncError: null }))
@@ -325,15 +325,10 @@ feature("the account's page: pause and resume, servers, members, and an .eml imp
         const server = serverOf(accountOf("pat@acme.example"))
         const permission = post("Account/setMemberPermission", { emailAccountId: sharedId, userId: "ORG_ZIZI_JD", permissionEnumId: "EapRead" })
         const memberRow = sys(() => ec.entity.find("moqui.basic.email.EmailAccountUser").condition("emailAccountId", sharedId).condition("userId", "ORG_ZIZI_JD").list()[0])
-        const inbox = sys(() => ec.entity.find("moqui.basic.email.EmailFolder").condition("emailAccountId", personalId).condition("folderKindEnumId", "EfkInbox").one())
-        const eml = "From: Ada <ada@acme.example>\r\nTo: pat@acme.example\r\nSubject: Imported hello\r\nMessage-ID: <imported-1@acme.example>\r\nDate: Mon, 12 Oct 2026 10:00:00 +0000\r\n\r\nHello from an eml file.\r\n"
-        const imported = post("Account/importMail", { emailAccountId: personalId, emailFolderId: inbox.emailFolderId, mailFile: uploadedFile("hello.eml", eml, "message/rfc822") })
-        const again = post("Account/importMail", { emailAccountId: personalId, emailFolderId: inbox.emailFolderId, mailFile: uploadedFile("hello.eml", eml, "message/rfc822") })
-        const messages = sys(() => Array.from(ec.entity.find("moqui.basic.email.EmailMessage").condition("emailAccountId", personalId).list()))
         const page = render("Account", { emailAccountId: sharedId })
-        return { paused, pausedStatus, resumed, resumedStatus, servers, server, permission, memberRow, imported, again, messages, page }
+        return { paused, pausedStatus, resumed, resumedStatus, servers, server, permission, memberRow, page }
     },
-    then({ paused, pausedStatus, resumed, resumedStatus, servers, server, permission, memberRow, imported, again, messages, page }) {
+    then({ paused, pausedStatus, resumed, resumedStatus, servers, server, permission, memberRow, page }) {
         paused.errors == ""
         pausedStatus == "EasPaused"
         resumed.errors == ""
@@ -344,13 +339,27 @@ feature("the account's page: pause and resume, servers, members, and an .eml imp
         server.mailPassword == PASSWORD
         permission.errors == ""
         memberRow.permissionEnumId == "EapRead"
+        page.output.includes("Shared with")
+        page.output.includes("Joe Developer")
+        page.output.includes("Remove the account")
+    },
+})
+
+feature("an .eml imported once into a folder", {
+    requires: ["imap"],
+    when() {
+        const inbox = sys(() => ec.entity.find("moqui.basic.email.EmailFolder").condition("emailAccountId", personalId).condition("folderKindEnumId", "EfkInbox").one())
+        const eml = "From: Ada <ada@acme.example>\r\nTo: pat@acme.example\r\nSubject: Imported hello\r\nMessage-ID: <imported-1@acme.example>\r\nDate: Mon, 12 Oct 2026 10:00:00 +0000\r\n\r\nHello from an eml file.\r\n"
+        const imported = post("Account/importMail", { emailAccountId: personalId, emailFolderId: inbox.emailFolderId, mailFile: uploadedFile("hello.eml", eml, "message/rfc822") })
+        const again = post("Account/importMail", { emailAccountId: personalId, emailFolderId: inbox.emailFolderId, mailFile: uploadedFile("hello.eml", eml, "message/rfc822") })
+        const messages = sys(() => Array.from(ec.entity.find("moqui.basic.email.EmailMessage").condition("emailAccountId", personalId).list()))
+        return { imported, again, messages }
+    },
+    then({ imported, again, messages }) {
         imported.errors == ""
         again.errors == ""
         messages.length == 1
         messages[0].subject == "Imported hello"
-        page.output.includes("Shared with")
-        page.output.includes("Joe Developer")
-        page.output.includes("Remove the account")
     },
 })
 

@@ -70,6 +70,7 @@ const gmail = { emailAddress: "jane.roe@gmail.com", displayName: "Jane Roe", acc
 const local = { storeKind: "imap", storeSecurity: "ssl", storeHost: "127.0.0.1", storePort: "1", smtpHost: "127.0.0.1", smtpPort: "1", smtpSecurity: "none" }
 
 spec({
+    requires: ["imap"],
     stepwise: true,
     setupSpec() { login("john.doe") },
     cleanupSpec() {

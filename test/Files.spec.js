@@ -54,10 +54,19 @@ feature("the rail: My files first, the shared drives, Records, the tags and the 
         team.json.usage.quotaBytes == 52428800
         team.json.usage.usedPercent != null
         records.json.usage == null
-        json.driveList.some((drive) => drive.driveId === "BOSS_DEMO_WEB" && drive.storage === "git-db")
         json.recordsDriveId == "BOSS_RECORDS"
         json.tagList.map((tag) => tag.tagName).includes("Work")
         json.pendingShareCount >= 1
+    },
+})
+
+feature("the website drive is git in the database", {
+    requires: ["git"],
+    when() { return get("filesData") },
+    then({ status, errors, json }) {
+        status == 200
+        errors == ""
+        json.driveList.some((drive) => drive.driveId === "BOSS_DEMO_WEB" && drive.storage === "git-db")
     },
 })
 

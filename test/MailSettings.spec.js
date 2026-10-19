@@ -76,13 +76,40 @@ feature("the settings index has a card per group and says an account needs atten
     },
 })
 
-feature("an account of this spec's own, with a message imported into its Inbox, for the rules to run on", {
+// The two inbox messages the rules read. This feature writes them as entity rows. The import feature, which
+// requires imap, replaces them with the same messages read from the .eml text.
+function seedInboxMessage(subject, fromName, fromAddress, messageId, messageDate) {
+    const message = ec.entity.makeValue("moqui.basic.email.EmailMessage")
+    message.setSequencedIdPrimary()
+    message.setFields({ emailAccountId: ownId, emailFolderId: ownInbox, statusId: "ES_RECEIVED", subject, fromName, fromAddress,
+        toAddresses: "rules@acme.example", body: "<p>Hello</p>", bodyText: "Hello", contentType: "text/html", messageDate, receivedDate: messageDate,
+        isRead: "N", messageId, snippet: "Hello" }, true, null, null)
+    message.create()
+}
+
+feature("an account of this spec's own, for the rules to run on", {
     when() {
         const made = sys(() => call("ironstone.MailSettingsServices.save#AccountConnection", { emailAddress: "rules@acme.example", accountKindEnumId: "EakExternal",
             storeHost: "127.0.0.1", storePort: "1", smtpHost: "127.0.0.1", smtpPort: "1", smtpSecurity: "none", mailPassword: "x" }))
         ownId = made.emailAccountId
         ownInbox = one("moqui.basic.email.EmailFolder", { emailAccountId: ownId, folderKindEnumId: "EfkInbox" }).emailFolderId
         ownArchive = one("moqui.basic.email.EmailFolder", { emailAccountId: ownId, folderKindEnumId: "EfkArchive" }).emailFolderId
+        sys(() => {
+            seedInboxMessage("Invoice 7 is due", "Billing", "billing@vendor.example", "<inv-7@acme.example>", new Date("2026-10-12T10:01:00Z"))
+            seedInboxMessage("Hello", "Ada", "ada@vendor.example", "<hello-1@acme.example>", new Date("2026-10-12T10:00:00Z"))
+        })
+        return { count: rows("moqui.basic.email.EmailMessage", { emailAccountId: ownId }).length }
+    },
+    then({ count }) {
+        ownId != null
+        count == 2
+    },
+})
+
+feature("two messages imported into that account's Inbox", {
+    requires: ["imap"],
+    when() {
+        sys(() => ec.entity.find("moqui.basic.email.EmailMessage").condition("emailAccountId", ownId).deleteAll())
         const eml = (id, subject, from) => `From: ${from}\r\nTo: rules@acme.example\r\nSubject: ${subject}\r\nMessage-ID: <${id}@acme.example>\r\nDate: Mon, 12 Oct 2026 10:00:00 +0000\r\n\r\nHello.\r\n`
         const imported = sys(() => call("org.moqui.impl.EmailClientServices.import#EmailMessages", { emailFolderId: ownInbox,
             messageText: eml("inv-7", "Invoice 7 is due", "Billing <billing@vendor.example>") + "\r\n" }))
@@ -90,7 +117,6 @@ feature("an account of this spec's own, with a message imported into its Inbox, 
         return { imported, count: rows("moqui.basic.email.EmailMessage", { emailAccountId: ownId }).length }
     },
     then({ imported, count }) {
-        ownId != null
         imported.importedCount == 1
         count == 2
     },
