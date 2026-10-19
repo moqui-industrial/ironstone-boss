@@ -40,6 +40,7 @@ feature("shellData lists Commons and Comms with their providers and the IronSton
         return { status: found.status, text: found.text, shell: (found.json && found.json.shell) || {}, appNames: apps.map((item) => item.name),
             commonsTitle: app("Commons").title, commonsKinds: (commons.quickCreate || []).map((kind) => kind.kind),
             commonsKindUrls: (commons.quickCreate || []).map((kind) => kind.url), commonsIcons: (commons.quickCreate || []).map((kind) => kind.icon),
+            commonsRequiresRecord: (commons.quickCreate || []).map((kind) => !!kind.requiresRecord),
             sources: (commons.paletteSources || []).map((source) => source.group),
             peoplePrefix: ((commons.paletteSources || []).find((source) => source.group === "People") || {}).prefix,
             idPattern: ((commons.paletteSources || []).find((source) => source.group === "IdLookup") || {}).idPattern,
@@ -49,7 +50,7 @@ feature("shellData lists Commons and Comms with their providers and the IronSton
             commsKeys: keysOf(comms), todaySources: (commons.todaySources || []).map((source) => source.service),
             counts: (found.json && found.json.counts) || null }
     },
-    then({ status, text, shell, counts, todaySources, appNames, commonsTitle, commonsKinds, commonsKindUrls, commonsIcons, sources, peoplePrefix, idPattern, types,
+    then({ status, text, shell, counts, todaySources, appNames, commonsTitle, commonsKinds, commonsKindUrls, commonsIcons, commonsRequiresRecord, sources, peoplePrefix, idPattern, types,
             commonsKeys, commonsKeyUrl, account, topics, commsKinds, commsKindUrls, commsKeys }) {
         status == 200
         text.startsWith("{")
@@ -57,10 +58,13 @@ feature("shellData lists Commons and Comms with their providers and the IronSton
         appNames.includes("Comms")
         commonsTitle == "IronStone Commons"
         // the kinds open the theme's quick-create screen with their kind
-        commonsKinds == ["task", "event", "note", "contact", "request"]
+        // the activity kind needs a record in the screen context (requiresRecord), which the client checks
+        commonsKinds == ["task", "activity", "event", "note", "contact", "request"]
         commonsKindUrls[0] == "/qapps/Commons/QuickCreate?kind=task"
-        commonsKindUrls[4] == "/qapps/Commons/QuickCreate?kind=request"
-        commonsIcons == ["sym_o_task_alt", "sym_o_event", "sym_o_sticky_note_2", "sym_o_person", "sym_o_support"]
+        commonsKindUrls[1] == "/qapps/Commons/QuickCreate?kind=activity"
+        commonsKindUrls[5] == "/qapps/Commons/QuickCreate?kind=request"
+        commonsRequiresRecord == [false, true, false, false, false, false]
+        commonsIcons == ["sym_o_task_alt", "sym_o_pending_actions", "sym_o_event", "sym_o_sticky_note_2", "sym_o_person", "sym_o_support"]
         sources == ["IdLookup", "Records", "People", "Pages", "Events"]
         peoplePrefix == "@"
         idPattern.length > 0

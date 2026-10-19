@@ -12,10 +12,251 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for NotificationsPanel: design-drawers-commons.md §4, panel archetype, xml, scope new. -->
+<!-- NotificationsPanel (design-drawers-commons.md §4, as changed Oct 19; style-guide §3.14 Panel): the Notifications tab of
+    the tray panel, laid out for its 400 px. The Notifications / Updates toggle with the Updates unread count, the reason and
+    app chips, then Approvals waiting (Notifications only; Approve and Refuse inline, Refuse asking for a reason when the topic
+    requires one), Unread and Earlier (read in the last 7 days); Mark all read of the inbox shown and Notification settings.
+    A row opens its link and marks it read. The user's own notifications only, through org.moqui.impl.NotificationServices
+    (get#UserNotifications, mark#NotificationsViewed, approve# and refuse#NotificationMessage).
+
+    The tab is an m-dynamic-container (m-tray-notifications) of its own: the toggle and the chips load the tab again with
+    their parameters, and the actions answer JSON messages (the tab reloads on the shellCounts topic their changes publish,
+    a refuse form reloads it itself); opening a row answers the screen to show in the canvas. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Notifications" default-menu-include="false">
+
+    <parameter name="inboxEnumId"/>
+    <parameter name="reasonEnumId"/>
+    <parameter name="appName"/>
+
+    <transition name="openNotification">
+        <parameter name="notificationMessageId" required="true"/>
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.CommonsServices.open#Notification').parameters({notificationMessageId: notificationMessageId}).call()
+            const answer = {}
+            if (!ec.message.hasError()) {
+                if (out.screenUrl) answer.screenUrl = out.screenUrl
+                if (out.redirectUrl) answer.redirectUrl = out.redirectUrl
+                if (out.notice) answer.messageInfos = [{message: out.notice, type: 'warning'}]
+            }
+            ec.web.sendJsonResponse(answer)
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="markRead">
+        <parameter name="notificationMessageId" required="true"/>
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.CommonsServices.mark#NotificationsRead').parameters({notificationMessageId: notificationMessageId}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: ec.l10n.localize('Marked read')}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="markAllRead">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.CommonsServices.mark#InboxRead').parameters({inboxEnumId: inboxEnumId || 'NinNotifications'}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {viewedCount: out.viewedCount, messageInfos: [{type: 'success',
+                message: ec.resource.expand('${count} marked read', '', {count: out.viewedCount || 0})}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="approve">
+        <parameter name="notificationMessageId" required="true"/>
+        <actions><script><![CDATA[
+            ec.service.sync().name('org.moqui.impl.NotificationServices.approve#NotificationMessage').parameters({notificationMessageId: notificationMessageId}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: ec.l10n.localize('Approved')}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="refuse">
+        <parameter name="notificationMessageId" required="true"/>
+        <actions><script><![CDATA[
+            ec.service.sync().name('org.moqui.impl.NotificationServices.refuse#NotificationMessage')
+                    .parameters({notificationMessageId: notificationMessageId, reason: reason}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: ec.l10n.localize('Refused')}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+
+    <actions>
+        <set field="inboxEnumId" from="inboxEnumId == 'NinUpdates' ? 'NinUpdates' : 'NinNotifications'"/>
+        <set field="isUpdates" from="inboxEnumId == 'NinUpdates'"/>
+        <!-- a row's title posts openNotification (a left-aligned text link: the hidden-form-link button centers its text) -->
+        <set field="openAction" from="sri.buildUrl('openNotification').path"/>
+        <script><![CDATA[
+            // the app titles for the app chips, from the shell data
+            const shellData = sri.getShellData()
+            const titles = {}
+            for (const app of (shellData && Array.isArray(shellData.apps) ? shellData.apps : [])) titles[app.name] = String(app.title || app.name).replace(/^IronStone /, '')
+            appTitles = titles
+            const L = (text) => ec.l10n.localize(text)
+            const get = (parameters) => ec.service.sync().name('org.moqui.impl.NotificationServices.get#UserNotifications').parameters(parameters).call() || {}
+            const decorate = (list) => Array.from(ec.service.sync().name('ironstone.CommonsServices.decorate#Notifications')
+                    .parameters({notificationList: list || [], appTitles: titles}).call()?.rows || [])
+            const filters = {inboxEnumId: inboxEnumId, reasonEnumId: reasonEnumId || null, appName: appName || null}
+            const unread = get(Object.assign({viewed: 'N', pageSize: 50}, filters))
+            const counts = unread.unreadCounts || {}
+            const approvals = isUpdates ? [] : decorate(get({approvals: true, pageSize: 20, reasonEnumId: filters.reasonEnumId, appName: filters.appName}).notificationList)
+            const unreadList = decorate(unread.notificationList).filter((row) => !row.isApproval)
+            const weekAgo = new Date(Number(String(ec.user.nowTimestamp)) - 7 * 86400000)
+            const earlierList = decorate(get(Object.assign({viewed: 'Y', fromDate: weekAgo, pageSize: 20}, filters)).notificationList)
+            // the caption lines of the rows
+            for (const row of approvals) row.caption = [row.requestedByName, row.summary, row.whenText].filter((part) => part).join(' · ')
+            for (const row of unreadList.concat(earlierList)) row.caption = [row.actorName, row.appLabel, row.whenText].filter((part) => part).join(' · ')
+            // the chips: the unread of the inbox by reason and by app
+            const reasonNames = {NrMention: 'Mention', NrAssignment: 'Assignment', NrApproval: 'Approval', NrDateAlert: 'Date alert',
+                NrReminder: 'Reminder', NrComment: 'Comment', NrSystem: 'System'}
+            const reasonCounts = unread.reasonCounts || {}
+            const appCounts = unread.appCounts || {}
+
+            unreadCounts = counts
+            approvalCount = unread.approvalCount || 0
+            notificationsUnread = counts.NinNotifications || 0
+            updatesUnread = counts.NinUpdates || 0
+            approvalRows = approvals
+            unreadRows = unreadList
+            earlierRows = earlierList
+            notificationGroups = [{key: 'unread', label: L('Unread'), rows: unreadList}, {key: 'earlier', label: L('Earlier'), rows: earlierList}]
+            reasonChips = Object.keys(reasonNames).filter((id) => reasonCounts[id] || id === reasonEnumId)
+                    .map((id) => ({id: id, label: L(reasonNames[id]), count: reasonCounts[id] || 0}))
+            appChips = Object.keys(appCounts).filter((name) => name).concat(appName && !appCounts[appName] ? [appName] : [])
+                    .map((name) => ({name: name, label: titles[name] || name, count: appCounts[name] || 0}))
+            filtered = !!(reasonEnumId || appName)
+            caughtUp = unreadList.length === 0 && approvals.length === 0
+        ]]></script>
+    </actions>
+
     <widgets>
-        <label text="Placeholder: Unread and recent notifications by reason and app; approvals waiting with Approve and Refuse inline." type="p"/>
+        <!-- the two inboxes; Mark all read and the settings -->
+        <container style="row items-center no-wrap q-gutter-xs q-mb-xs">
+            <section name="InboxNotificationsOn" condition="!isUpdates"><widgets>
+                <link url="." link-type="anchor-button" btn-type="primary" text="Notifications${notificationsUnread ? ' · ' + notificationsUnread : ''}"
+                        dynamic-load-id="m-tray-notifications" parameter-map="{inboxEnumId:'NinNotifications', reasonEnumId:'', appName:''}"/>
+                <link url="." link-type="anchor-button" text="Updates${updatesUnread ? ' · ' + updatesUnread : ''}"
+                        dynamic-load-id="m-tray-notifications" parameter-map="{inboxEnumId:'NinUpdates', reasonEnumId:'', appName:''}"/>
+            </widgets><fail-widgets>
+                <link url="." link-type="anchor-button" text="Notifications${notificationsUnread ? ' · ' + notificationsUnread : ''}"
+                        dynamic-load-id="m-tray-notifications" parameter-map="{inboxEnumId:'NinNotifications', reasonEnumId:'', appName:''}"/>
+                <link url="." link-type="anchor-button" btn-type="primary" text="Updates${updatesUnread ? ' · ' + updatesUnread : ''}"
+                        dynamic-load-id="m-tray-notifications" parameter-map="{inboxEnumId:'NinUpdates', reasonEnumId:'', appName:''}"/>
+            </fail-widgets></section>
+            <container style="col"/>
+            <link url="markAllRead" link-type="hidden-form-link" icon="sym_o_done_all" text="" tooltip="Mark all read"
+                    parameter-map="{inboxEnumId:inboxEnumId}"/>
+            <link url="../../Settings/Notifications" link-type="anchor" icon="sym_o_settings" text="" tooltip="Notification settings"/>
+        </container>
+
+        <!-- the reason and app chips, with the unread of each -->
+        <section name="FilterChips" condition="(reasonChips &amp;&amp; reasonChips.length) || (appChips &amp;&amp; appChips.length) || filtered"><widgets>
+            <container style="row items-center q-gutter-xs q-mb-sm">
+                <section name="AllChip" condition="filtered"><widgets>
+                    <link url="." link-type="anchor-button" text="All" icon="sym_o_filter_alt_off" dynamic-load-id="m-tray-notifications"
+                            parameter-map="{inboxEnumId:inboxEnumId, reasonEnumId:'', appName:''}"/>
+                </widgets></section>
+                <section-iterate name="ReasonChips" list="reasonChips" entry="chip"><widgets>
+                    <section name="ReasonChipOn" condition="chip.id == reasonEnumId"><widgets>
+                        <link url="." link-type="anchor-button" btn-type="primary" text="${chip.label}${chip.count ? ' · ' + chip.count : ''}"
+                                dynamic-load-id="m-tray-notifications" parameter-map="{inboxEnumId:inboxEnumId, reasonEnumId:'', appName:appName}"/>
+                    </widgets><fail-widgets>
+                        <link url="." link-type="anchor-button" text="${chip.label}${chip.count ? ' · ' + chip.count : ''}"
+                                dynamic-load-id="m-tray-notifications" parameter-map="{inboxEnumId:inboxEnumId, reasonEnumId:chip.id, appName:appName}"/>
+                    </fail-widgets></section>
+                </widgets></section-iterate>
+                <section-iterate name="AppChips" list="appChips" entry="chip"><widgets>
+                    <section name="AppChipOn" condition="chip.name == appName"><widgets>
+                        <link url="." link-type="anchor-button" btn-type="primary" text="${chip.label}${chip.count ? ' · ' + chip.count : ''}"
+                                dynamic-load-id="m-tray-notifications" parameter-map="{inboxEnumId:inboxEnumId, reasonEnumId:reasonEnumId, appName:''}"/>
+                    </widgets><fail-widgets>
+                        <link url="." link-type="anchor-button" text="${chip.label}${chip.count ? ' · ' + chip.count : ''}" icon="sym_o_apps"
+                                dynamic-load-id="m-tray-notifications" parameter-map="{inboxEnumId:inboxEnumId, reasonEnumId:reasonEnumId, appName:chip.name}"/>
+                    </fail-widgets></section>
+                </widgets></section-iterate>
+            </container>
+        </widgets></section>
+
+        <section name="CaughtUp" condition="caughtUp"><widgets>
+            <render-mode><text type="qvt"><![CDATA[<q-list dense bordered class="rounded-borders q-mb-sm"><q-item class="q-px-sm">
+                <q-item-section avatar style="min-width: 28px;"><q-icon name="sym_o_check_circle" color="positive" size="xs"></q-icon></q-item-section><q-item-section>]]></text></render-mode>
+            <label type="span" text="You are caught up" style="m-muted"/>
+            <render-mode><text type="qvt"><![CDATA[</q-item-section></q-item></q-list>]]></text></render-mode>
+        </widgets></section>
+
+        <!-- Approvals waiting: the two decisions inline -->
+        <section name="Approvals" condition="approvalRows &amp;&amp; approvalRows.length"><widgets>
+            <container style="row items-center q-mt-sm q-mb-xs">
+                <label type="span" text="Approvals waiting" style="text-subtitle2"/>
+                <render-mode><text type="qvt"><![CDATA[<q-badge class="q-ml-xs" rounded color="info">${approvalRows.length}</q-badge>]]></text></render-mode>
+            </container>
+            <render-mode><text type="qvt"><![CDATA[<q-list dense bordered separator class="rounded-borders">]]></text></render-mode>
+            <section-iterate name="ApprovalRows" list="approvalRows" entry="row"><widgets>
+                <render-mode><text type="qvt"><![CDATA[<q-item class="q-px-sm">
+                    <q-item-section avatar style="min-width: 28px;"><q-icon name="sym_o_how_to_reg" color="info" size="xs"></q-icon></q-item-section>
+                    <q-item-section><q-item-label lines="2">]]></text></render-mode>
+                <render-mode><text type="qvt"><![CDATA[<m-form action="${openAction}"><input type="hidden" name="notificationMessageId" value="${row.notificationMessageId}"><q-btn flat dense no-caps align="left" type="submit" padding="none" color="primary" class="full-width text-left"><div class="full-width text-left">]]></text></render-mode>
+                <label type="span" text="${row.titleText}"/>
+                <render-mode><text type="qvt"><![CDATA[</div></q-btn></m-form></q-item-label><q-item-label caption lines="2">]]></text></render-mode>
+                <label type="span" text="${row.caption}"/>
+                <render-mode><text type="qvt"><![CDATA[</q-item-label>
+                    <div class="row no-wrap items-center q-gutter-xs q-mt-xs">]]></text></render-mode>
+                <link url="approve" link-type="hidden-form-link" btn-type="success" icon="sym_o_check" text="Approve"
+                        parameter-map="{notificationMessageId:row.notificationMessageId}"/>
+                <section name="RefuseWithReason" condition="row.refuseReasonRequired"><widgets>
+                    <container-dialog id="RefuseDialog" button-text="Refuse" icon="sym_o_block" type="danger" button-style="m-btn-flat" width="400" title="Refuse">
+                        <label type="p" text="${row.titleText}" style="text-body2"/>
+                        <form-single name="RefuseForm" transition="refuse" background-reload-id="m-tray-notifications">
+                            <field name="notificationMessageId" from="row.notificationMessageId"><default-field><hidden/></default-field></field>
+                            <field name="reason"><default-field title="Reason"><text-area rows="3" cols="40"/></default-field></field>
+                            <field name="submitButton"><default-field title="Refuse"><submit type="danger"/></default-field></field>
+                        </form-single>
+                    </container-dialog>
+                </widgets><fail-widgets>
+                    <section name="RefuseInline" condition="row.canRefuse"><widgets>
+                        <link url="refuse" link-type="hidden-form-link" btn-type="danger" icon="sym_o_block" text="Refuse"
+                                confirmation="Refuse ${row.titleText}?" parameter-map="{notificationMessageId:row.notificationMessageId}"/>
+                    </widgets></section>
+                </fail-widgets></section>
+                <render-mode><text type="qvt"><![CDATA[</div></q-item-section></q-item>]]></text></render-mode>
+            </widgets></section-iterate>
+            <render-mode><text type="qvt"><![CDATA[</q-list>]]></text></render-mode>
+        </widgets></section>
+
+        <!-- Unread, then Earlier: a row opens its link and marks it read -->
+        <section-iterate name="NotificationGroups" list="notificationGroups" entry="group"><widgets>
+            <section name="NotificationGroup" condition="group.rows &amp;&amp; group.rows.length"><widgets>
+                <container style="row items-center q-mt-sm q-mb-xs">
+                    <label type="span" text="${group.label}" style="text-subtitle2"/>
+                    <section name="UnreadCount" condition="group.key == 'unread'"><widgets>
+                        <render-mode><text type="qvt"><![CDATA[<q-badge class="q-ml-xs" rounded color="primary">${group.rows.length}</q-badge>]]></text></render-mode>
+                    </widgets></section>
+                </container>
+                <render-mode><text type="qvt"><![CDATA[<q-list dense bordered separator class="rounded-borders">]]></text></render-mode>
+                <section-iterate name="NotificationRows" list="group.rows" entry="row"><widgets>
+                    <render-mode><text type="qvt"><![CDATA[<q-item class="q-px-sm">
+                        <q-item-section avatar style="min-width: 28px;"><q-icon name="${row.icon}" color="${row.unread ? 'primary' : 'grey-6'}" size="xs"></q-icon>]]></text></render-mode>
+                    <section name="ReasonTip" condition="row.reasonLabel"><widgets>
+                        <render-mode><text type="qvt"><![CDATA[<q-tooltip>]]></text></render-mode>
+                        <label type="span" text="${row.reasonLabel}"/>
+                        <render-mode><text type="qvt"><![CDATA[</q-tooltip>]]></text></render-mode>
+                    </widgets></section>
+                    <render-mode><text type="qvt"><![CDATA[</q-item-section><q-item-section><q-item-label lines="2" class="${row.unread ? 'text-weight-medium' : ''}">]]></text></render-mode>
+                    <render-mode><text type="qvt"><![CDATA[<m-form action="${openAction}"><input type="hidden" name="notificationMessageId" value="${row.notificationMessageId}"><q-btn flat dense no-caps align="left" type="submit" padding="none" color="primary" class="full-width text-left"><div class="full-width text-left">]]></text></render-mode>
+                    <label type="span" text="${row.titleText}"/>
+                    <render-mode><text type="qvt"><![CDATA[</div></q-btn></m-form></q-item-label><q-item-label caption lines="1">]]></text></render-mode>
+                    <label type="span" text="${row.caption}"/>
+                    <render-mode><text type="qvt"><![CDATA[</q-item-label></q-item-section>]]></text></render-mode>
+                    <section name="MarkReadAction" condition="row.unread"><widgets>
+                        <render-mode><text type="qvt"><![CDATA[<q-item-section side class="q-pl-none"><q-badge rounded color="primary" class="q-mb-xs" style="padding: 4px;"></q-badge>]]></text></render-mode>
+                        <link url="markRead" link-type="hidden-form-link" icon="sym_o_mark_email_read" text="" tooltip="Mark read"
+                                parameter-map="{notificationMessageId:row.notificationMessageId}"/>
+                        <render-mode><text type="qvt"><![CDATA[</q-item-section>]]></text></render-mode>
+                    </widgets></section>
+                    <render-mode><text type="qvt"><![CDATA[</q-item>]]></text></render-mode>
+                </widgets></section-iterate>
+                <render-mode><text type="qvt"><![CDATA[</q-list>]]></text></render-mode>
+            </widgets></section>
+        </widgets></section-iterate>
+
+        <container style="row q-mt-md">
+            <link url="../../Notifications" link-type="anchor" text="Open in Commons" parameter-map="{inboxEnumId:inboxEnumId}"/>
+        </container>
     </widgets>
 </screen>

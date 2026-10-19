@@ -12,8 +12,14 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-        xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+<!-- Account (design-drawers-commons.md §11 Account; style-guide §3.9 Settings): who I am (name, user name, email, locale,
+    time zone; mantle.party.PartyServices.update#Account), my contact information (the primary phone and postal address;
+    mantle.party.ContactServices.store#PartyContactInfo), Change password (org.moqui.impl.UserServices.update#Password, with
+    the code when a second factor is required), my second factors (UserServices: get#UserAuthcFactorInfo, the create
+    services by type, invalidate#UserAuthcFactorEntry, the verify screens of the tools app) and where I am signed in
+    (moqui.server.Visit). Every form is the current user's own: the user and party come from ec.user, never the request. The
+    avatar (PartyContent PcntFaceImage) comes with Contacts (M4). -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Account" default-menu-index="1">
 
     <always-actions>
@@ -21,25 +27,49 @@ along with this software (see the LICENSE.md file). If not, see
         <set field="userId" from="ec.user.userId"/>
     </always-actions>
 
-    <transition name="updateUser"><service-call name="mantle.party.PartyServices.update#Account" in-map="context"/>
-        <default-response url="."/></transition>
-    <transition name="changePassword"><service-call name="org.moqui.impl.UserServices.update#Password"/>
-        <default-response url="."/><error-response url="."/></transition>
+    <transition name="updateAccount">
+        <service-call name="mantle.party.PartyServices.update#Account" in-map="{userId:ec.user.userId, partyId:ec.user.userAccount?.partyId,
+                firstName:firstName, lastName:lastName, emailAddress:emailAddress, locale:locale, timeZone:timeZone}"/>
+        <actions><message type="success">Account saved</message></actions>
+        <default-response url="."/>
+    </transition>
+    <transition name="storeContactInfo">
+        <service-call name="mantle.party.ContactServices.store#PartyContactInfo" in-map="{partyId:ec.user.userAccount?.partyId,
+                telecomContactMechId:telecomContactMechId, telecomContactMechPurposeId:'PhonePrimary',
+                countryCode:countryCode, areaCode:areaCode, contactNumber:contactNumber,
+                postalContactMechId:postalContactMechId, postalContactMechPurposeId:'PostalPrimary', address1:address1, address2:address2,
+                city:city, stateProvinceGeoId:stateProvinceGeoId, postalCode:postalCode, countryGeoId:countryGeoId}"/>
+        <actions><message type="success">Contact information saved</message></actions>
+        <default-response url="."/>
+    </transition>
+    <transition name="getCountryStates" read-only="true">
+        <service-call name="org.moqui.impl.BasicServices.get#GeoRegionsForDropDown" in-map="{geoId:countryGeoId, term:term}"
+                web-send-json-response="resultList"/>
+        <default-response type="none"/>
+    </transition>
+    <transition name="changePassword">
+        <service-call name="org.moqui.impl.UserServices.update#Password" in-map="{userId:ec.user.userId, oldPassword:oldPassword,
+                newPassword:newPassword, newPasswordVerify:newPasswordVerify, code:code}"/>
+        <default-response url="."/><error-response url="."/>
+    </transition>
 
-    <transition name="createUserAuthcFactorTotp"><service-call name="org.moqui.impl.UserServices.create#UserAuthcFactorTotp"/>
-        <default-response url="."/></transition>
-    <transition name="verifyUserAuthcFactorTotp"><service-call name="org.moqui.impl.UserServices.verify#UserAuthcFactorTotp"/>
+    <transition name="createUserAuthcFactorTotp"><service-call name="org.moqui.impl.UserServices.create#UserAuthcFactorTotp"
+            in-map="{userId:ec.user.userId, thruDate:thruDate}"/>
         <default-response url="."/></transition>
     <transition name="createUserAuthcFactorSingleUse">
-        <service-call name="org.moqui.impl.UserServices.create#SingleUseAuthcCodes"/>
+        <service-call name="org.moqui.impl.UserServices.create#SingleUseAuthcCodes" in-map="{userId:ec.user.userId, thruDate:thruDate,
+                numberOfCodes:numberOfCodes}" out-map="codesOut"/>
         <actions><!-- session attributes are text: keep the list as JSON -->
-        <script>ec.web.sessionAttributes.singleUseCodes = JSON.stringify(singleUseCodes)</script></actions>
+            <script>ec.web.sessionAttributes.singleUseCodes = JSON.stringify(codesOut.singleUseCodes || [])</script></actions>
         <default-response url="."/></transition>
-    <transition name="createUserAuthcFactorEmail"><service-call name="org.moqui.impl.UserServices.create#UserAuthcFactorEmail"/>
+    <transition name="createUserAuthcFactorEmail"><service-call name="org.moqui.impl.UserServices.create#UserAuthcFactorEmail"
+            in-map="{userId:ec.user.userId, thruDate:thruDate, factorOption:factorOption}"/>
         <default-response url="."/></transition>
-    <transition name="createUserAuthcFactorSms"><service-call name="org.moqui.impl.UserServices.create#UserAuthcFactorSms"/>
+    <transition name="createUserAuthcFactorSms"><service-call name="org.moqui.impl.UserServices.create#UserAuthcFactorSms"
+            in-map="{userId:ec.user.userId, thruDate:thruDate, factorOption:factorOption}"/>
         <default-response url="."/></transition>
-    <transition name="factorSubmit"><service-call name="org.moqui.impl.UserServices.invalidate#UserAuthcFactorEntry" in-map="context"/>
+    <transition name="removeFactor"><service-call name="org.moqui.impl.UserServices.invalidate#UserAuthcFactorEntry"
+            in-map="{userId:ec.user.userId, factorId:factorId}"/>
         <default-response url="."/></transition>
     <transition name="sendOtp">
         <service-call name="org.moqui.impl.UserServices.send#ExternalAuthcCode" in-map="{factorId:factorId}"/>
@@ -47,182 +77,218 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
 
     <subscreens>
-        <subscreens-item name="VerifyEmail" location="component://tools/screen/System/Security/UserAccount/UserAccountDetail/VerifyEmail.xml"/>
-        <subscreens-item name="VerifySms" location="component://tools/screen/System/Security/UserAccount/UserAccountDetail/VerifySms.xml"/>
-        <subscreens-item name="VerifyTotp" location="component://tools/screen/System/Security/UserAccount/UserAccountDetail/VerifyTotp.xml"/>
+        <subscreens-item name="VerifyEmail" location="component://tools/screen/System/Security/UserAccount/UserAccountDetail/VerifyEmail.xml" menu-include="false"/>
+        <subscreens-item name="VerifySms" location="component://tools/screen/System/Security/UserAccount/UserAccountDetail/VerifySms.xml" menu-include="false"/>
+        <subscreens-item name="VerifyTotp" location="component://tools/screen/System/Security/UserAccount/UserAccountDetail/VerifyTotp.xml" menu-include="false"/>
     </subscreens>
 
     <actions>
         <entity-find-one entity-name="mantle.party.PersonAndUserAccount" value-field="personAndUserAccount"/>
         <if condition="personAndUserAccount == null"><set field="personAndUserAccount" from="ec.user.userAccount"/></if>
+        <if condition="partyId &amp;&amp; !personAndUserAccount?.emailAddress">
+            <service-call name="mantle.party.ContactServices.get#PrimaryEmailAddress" in-map="{partyId:partyId}" out-map="primaryEmail"/>
+        </if>
+        <set field="account" from="{username:ec.user.username, firstName:personAndUserAccount?.firstName, lastName:personAndUserAccount?.lastName,
+                emailAddress:(personAndUserAccount?.emailAddress || primaryEmail?.emailAddress), locale:ec.user.userAccount?.locale,
+                timeZone:ec.user.userAccount?.timeZone}"/>
 
-        <!-- get single use codes to display (if present) -->
+        <!-- the primary phone and address -->
+        <if condition="partyId"><then>
+            <service-call name="mantle.party.ContactServices.get#PartyContactInfo" out-map="contactOut"
+                    in-map="{partyId:partyId, telecomContactMechPurposeId:'PhonePrimary', postalContactMechPurposeId:'PostalPrimary'}"/>
+            <set field="contactInfo" from="{telecomContactMechId:contactOut.telecomContactMechId, countryCode:contactOut.telecomNumber?.countryCode,
+                    areaCode:contactOut.telecomNumber?.areaCode, contactNumber:contactOut.telecomNumber?.contactNumber,
+                    postalContactMechId:contactOut.postalContactMechId, address1:contactOut.postalAddress?.address1,
+                    address2:contactOut.postalAddress?.address2, city:contactOut.postalAddress?.city,
+                    stateProvinceGeoId:contactOut.postalAddress?.stateProvinceGeoId, postalCode:contactOut.postalAddress?.postalCode,
+                    countryGeoId:(contactOut.postalAddress?.countryGeoId || ec.user.getPreference('PostalAddress.DefaultCountry') || 'USA')}"/>
+        </then><else><set field="contactInfo" from="null"/></else></if>
+
+        <!-- single use codes to show once, and the second factors; is one required, also to change the password? -->
         <set field="singleUseCodes" from="JSON.parse(ec.web.sessionAttributes.remove('singleUseCodes') || 'null')"/>
-        <!-- get authc factor info; is a second authc factor required for this user? if so require for password change too -->
         <service-call name="org.moqui.impl.UserServices.get#UserAuthcFactorInfo" out-map="context">
             <field-map field-name="userId"/><field-map field-name="getFactorsIfNotRequired" from="false"/></service-call>
+        <entity-find entity-name="moqui.security.UserAuthcFactor" list="userAuthcFactorList">
+            <date-filter/><econdition field-name="userId"/>
+            <order-by field-name="factorTypeEnumId,fromDate"/>
+        </entity-find>
 
-        <if condition="partyId &amp;&amp; !personAndUserAccount?.emailAddress">
-            <service-call name="mantle.party.ContactServices.get#PrimaryEmailAddress"
-                    in-map="{partyId:partyId}" out-map="primaryEmail"/>
-        </if>
-
+        <!-- where I am signed in: the last visits -->
+        <entity-find entity-name="moqui.server.Visit" list="visitRows" limit="10">
+            <econdition field-name="userId"/>
+            <select-field field-name="visitId,fromDate,thruDate,initialUserAgent,clientIpAddress,clientIpCity,clientIpCountryGeoId"/>
+            <order-by field-name="-fromDate"/>
+        </entity-find>
+        <script><![CDATA[
+            const thisVisitId = ec.user.visitId
+            const device = (agent) => {
+                const text = String(agent || '')
+                if (!text) return ec.l10n.localize('Unknown device')
+                const browser = /Edg\//.test(text) ? 'Edge' : /Firefox\//.test(text) ? 'Firefox' : /Chrome\//.test(text) ? 'Chrome' : /Safari\//.test(text) ? 'Safari' : 'Browser'
+                const system = /iPhone|iPad/.test(text) ? 'iOS' : /Android/.test(text) ? 'Android' : /Mac OS X/.test(text) ? 'macOS' : /Windows/.test(text) ? 'Windows' :
+                    /Linux/.test(text) ? 'Linux' : ''
+                return system ? browser + ' on ' + system : browser
+            }
+            // the times as text: a time stamp copied into a map reaches the list as its millis
+            const when = (value) => value == null || value === '' ? '' : ec.l10n.format(new Date(Number(String(value))), 'yyyy-MM-dd HH:mm')
+            sessionList = Array.from(visitRows ?? []).map((visit) => ({visitId: visit.visitId, device: device(visit.initialUserAgent),
+                where: [visit.clientIpAddress, visit.clientIpCity].filter((part) => part).join(' · '), sinceText: when(visit.fromDate),
+                endedText: when(visit.thruDate), current: !!thisVisitId && visit.visitId === thisVisitId}))
+            singleUseCodeText = singleUseCodes && singleUseCodes.length ? Array.from(singleUseCodes).join('   ') : null
+            thruDefault = String(Number(String(ec.user.nowTimestamp)) + 365 * 86400000)
+        ]]></script>
         <set field="localeStringList" from="[]"/>
         <iterate list="ec.l10n.getAvailableLocales()" entry="lcl"><script>localeStringList.push({locale: lcl.locale, name: lcl.name})</script></iterate>
         <order-map-list list="localeStringList"><order-by field-name="name"/></order-map-list>
-
-        <!-- only show SMS dialog if org.moqui.SmsServices.send#SmsMessage service is NOT from moqui-framework (on classpath) -->
+        <!-- the SMS factor only when an SMS service other than the framework's stub is there -->
         <set field="sendSmsLoc" from="ec.service.getServiceDefinition('org.moqui.SmsServices.send#SmsMessage')?.serviceNode?.fileLocation"/>
-        <set field="isSmsActive" from="sendSmsLoc &amp;&amp; !sendSmsLoc.includes('classpath')"/>
+        <set field="isSmsActive" from="!!(sendSmsLoc &amp;&amp; !sendSmsLoc.includes('classpath'))"/>
     </actions>
+
     <widgets>
-        <container-panel id="UserInfoContainer">
-            <panel-center>
-                <container-dialog id="change-password" button-text="Change Password">
-                    <form-single name="ChangePasswordForm" transition="changePassword">
-                        <field name="oldPassword"><default-field><password size="20"/></default-field></field>
-                        <field name="newPassword"><default-field><password size="20"/></default-field></field>
-                        <field name="newPasswordVerify"><default-field><password size="20"/></default-field></field>
-                        <field name="code"><conditional-field condition="secondFactorRequired" title="Auth Code">
-                            <text-line size="10"/>
-                        </conditional-field></field>
-                        <field name="submitButton"><default-field title="Update"><submit/></default-field></field>
+        <label type="h5" text="Account" style="q-mt-none q-mb-sm"/>
+        <section name="SingleUseCodesDisplay" condition="singleUseCodeText"><widgets>
+            <container-box type="warning"><box-header title="Single use codes"/><box-body>
+                <label type="p" text="Write down these codes. They appear only once." style="text-warning"/>
+                <label type="p" text="${singleUseCodeText}" style="text-mono text-subtitle1"/>
+            </box-body></container-box>
+        </widgets></section>
+
+        <container-row>
+            <row-col md="6">
+                <container-box><box-header title="Who you are"/><box-body>
+                    <form-single name="Account" transition="updateAccount" map="account">
+                        <field name="username"><default-field title="User name"><display/></default-field></field>
+                        <field name="firstName"><default-field title="First name"><text-line size="20"/></default-field></field>
+                        <field name="lastName"><default-field title="Last name"><text-line size="20"/></default-field></field>
+                        <field name="emailAddress"><default-field title="Email"><text-line size="30" input-type="email"/></default-field></field>
+                        <field name="locale"><default-field title="Language and region">
+                            <drop-down allow-empty="true"><list-options list="localeStringList" key="${locale}" text="${name}"/></drop-down></default-field></field>
+                        <field name="timeZone"><default-field title="Time zone">
+                            <drop-down allow-empty="true"><list-options list="ec.l10n.getAvailableTimeZones()"/></drop-down></default-field></field>
+                        <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                        <field-layout>
+                            <field-ref name="username"/>
+                            <field-row><field-ref name="firstName"/><field-ref name="lastName"/></field-row>
+                            <field-ref name="emailAddress"/>
+                            <field-row><field-ref name="locale"/><field-ref name="timeZone"/></field-row>
+                            <field-ref name="submitButton"/>
+                        </field-layout>
                     </form-single>
-                    <section name="SecondFactorSection" condition="secondFactorRequired"><widgets>
-                        <label text="An authentication code is required to change your password" type="p"/>
-                        <container>
-                            <label text="You have these options setup on your account:"/>
-                            <label text="${factorTypeDescriptions.join(', ')}" type="strong"/>
-                        </container>
-                        <section-iterate name="SecondFactorSendSection" list="sendableFactors" entry="userAuthcFactor"><widgets>
-                            <form-single name="SecondFactorSendForm" transition="sendOtp">
-                                <field name="factorId" from="userAuthcFactor.factorId">
-                                    <default-field><hidden/></default-field></field>
-                                <field name="submitBtn"><default-field>
-                                    <submit type="info" text="Send code to ${userAuthcFactor.factorOption}"/>
-                                </default-field></field>
-                            </form-single>
-                        </widgets></section-iterate>
-                    </widgets></section>
-                </container-dialog>
+                </box-body></container-box>
 
-                <form-single name="EditUser" transition="updateUser" map="personAndUserAccount">
-                    <field name="userId"><default-field><hidden/></default-field></field>
-                    <!-- NOTE: don't allow username change, too easy to fish for existing usernames -->
-                    <field name="username"><default-field><display/></default-field></field>
-                    <field name="firstName"><default-field><text-line size="15"/></default-field></field>
-                    <field name="middleName"><default-field><text-line size="15"/></default-field></field>
-                    <field name="lastName"><default-field><text-line size="15"/></default-field></field>
-                    <field name="emailAddress" from="emailAddress || primaryEmail?.emailAddress"><default-field><text-line/></default-field></field>
-
-                    <field name="locale"><default-field>
-                        <drop-down allow-empty="true"><list-options list="localeStringList" key="${locale}" text="${name}"/></drop-down>
-                    </default-field></field>
-                    <field name="timeZone"><default-field>
-                        <drop-down allow-empty="true"><list-options list="ec.l10n.getAvailableTimeZones()"/></drop-down>
-                    </default-field></field>
-
-                    <field name="submitButton"><default-field title="Update"><submit/></default-field></field>
-                </form-single>
-                <section name="SingleUseCodesDisplay" condition="singleUseCodes?.length"><actions>
-                    <set field="singleUseCodes1" from="[]"/><set field="singleUseCodes2" from="[]"/><set field="singleUseCodes3" from="[]"/>
-                    <script><![CDATA[
-                        for (let i = 0; i < singleUseCodes.length; i++) {
-                            if (i%3 == 0) { singleUseCodes1.push(singleUseCodes[i]) }
-                            else if (i%3 == 1) { singleUseCodes2.push(singleUseCodes[i]) }
-                            else if (i%3 == 2) { singleUseCodes3.push(singleUseCodes[i]) }
-                        }
-                    ]]></script>
-                </actions><widgets>
-                    <container-box><box-header><label text="Single Use Codes" style="text-danger" type="h5"/></box-header><box-body>
-                        <label text="Write down these codes. They will only appear once." style="text-danger"/>
-                        <container-row><row-col lg="4">
-                            <container type="ul">
-                                <section-iterate name="SingleUseCodes1" list="singleUseCodes1" entry="code1"><widgets>
-                                    <container type="li"><label text="${code1}" style="text-danger"/></container>
-                                </widgets></section-iterate>
-                            </container>
-                        </row-col><row-col lg="4">
-                            <container type="ul">
-                                <section-iterate name="SingleUseCodes2" list="singleUseCodes2" entry="code2"><widgets>
-                                    <container type="li"><label text="${code2}" style="text-danger"/></container>
-                                </widgets></section-iterate>
-                            </container>
-                        </row-col><row-col lg="4">
-                            <container type="ul">
-                                <section-iterate name="SingleUseCodes3" list="singleUseCodes3" entry="code3"><widgets>
-                                    <container type="li"><label text="${code3}" style="text-danger"/></container>
-                                </widgets></section-iterate>
-                            </container>
-                        </row-col></container-row>
+                <section name="ContactInfoSection" condition="contactInfo"><widgets>
+                    <container-box><box-header title="Contact information"/><box-body>
+                        <form-single name="ContactInfo" transition="storeContactInfo" map="contactInfo">
+                            <field name="telecomContactMechId"><default-field><hidden/></default-field></field>
+                            <field name="postalContactMechId"><default-field><hidden/></default-field></field>
+                            <field name="countryCode"><default-field title="Country code"><text-line size="4"/></default-field></field>
+                            <field name="areaCode"><default-field title="Area code"><text-line size="5"/></default-field></field>
+                            <field name="contactNumber"><default-field title="Phone"><text-line size="12"/></default-field></field>
+                            <field name="address1"><default-field title="Address"><text-line size="40"/></default-field></field>
+                            <field name="address2"><default-field title="Address line 2"><text-line size="40"/></default-field></field>
+                            <field name="city"><default-field title="City"><text-line size="20"/></default-field></field>
+                            <field name="countryGeoId"><default-field title="Country">
+                                <drop-down><entity-options key="${geoId}" text="${geoName}">
+                                    <entity-find entity-name="moqui.basic.Geo" cache="true">
+                                        <econdition field-name="geoTypeEnumId" value="GEOT_COUNTRY"/><order-by field-name="geoName"/></entity-find>
+                                </entity-options></drop-down></default-field></field>
+                            <field name="stateProvinceGeoId"><default-field title="State or province">
+                                <drop-down allow-empty="true"><dynamic-options transition="getCountryStates" value-field="geoId" label-field="label">
+                                    <depends-on field="countryGeoId"/></dynamic-options></drop-down></default-field></field>
+                            <field name="postalCode"><default-field title="Postal code"><text-line size="10"/></default-field></field>
+                            <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                            <field-layout>
+                                <field-row><field-ref name="countryCode"/><field-ref name="areaCode"/><field-ref name="contactNumber"/></field-row>
+                                <field-ref name="address1"/><field-ref name="address2"/>
+                                <field-row><field-ref name="city"/><field-ref name="postalCode"/></field-row>
+                                <field-row><field-ref name="countryGeoId"/><field-ref name="stateProvinceGeoId"/></field-row>
+                                <field-ref name="submitButton"/>
+                            </field-layout>
+                        </form-single>
                     </box-body></container-box>
                 </widgets></section>
-                <container-box><box-header title="Authentication Methods"/>
-                    <box-toolbar>
-                        <container-dialog id="CreateTotpDialog" button-text="Add Authenticator App">
-                            <form-single name="CreateUserAuthcFactorTotp" transition="createUserAuthcFactorTotp">
-                                <field name="userId"><default-field><hidden/></default-field></field>
-                                <field name="thruDate" from="String(Number(ec.user.nowTimestamp) + 365 * 86400000)"><default-field><date-time/></default-field></field>
-                                <field name="submitButton"><default-field title="Add"><submit/></default-field></field>
-                            </form-single></container-dialog>
-                        <container-dialog id="AddSingleUseDialog" button-text="Add Single Use Codes">
-                            <form-single name="CreateUserAuthcFactorSingleUse" transition="createUserAuthcFactorSingleUse">
-                                <field name="userId"><default-field><hidden/></default-field></field>
-                                <field name="fromDate" from="String(Number(ec.user.nowTimestamp) + 365 * 86400000)"><default-field><date-time/></default-field></field>
-                                <field name="numberOfCodes"><default-field title="Number of Codes"><text-line size="5" default-value="1"/></default-field></field>
-                                <field name="submitButton"><default-field title="Add" ><submit/></default-field></field>
-                            </form-single></container-dialog>
-                        <container-dialog id="AddEmailFactor" button-text="Add Email Factor">
-                            <form-single name="CreateUserAuthcFactorEmail" transition="createUserAuthcFactorEmail">
-                                <field name="userId"><default-field><hidden/></default-field></field>
-                                <field name="thruDate" from="String(Number(ec.user.nowTimestamp) + 365 * 86400000)"><default-field><date-time/></default-field></field>
-                                <field name="factorOption" from="ec.user.userAccount.emailAddress"><default-field title="Email"><text-line size="40"/></default-field></field>
-                                <field name="submitButton"><default-field title="Add"><submit/></default-field></field>
-                            </form-single>
-                        </container-dialog>
-                        <container-dialog id="AddSmsFactor" button-text="Add SMS Factor" condition="isSmsActive">
-                            <form-single name="CreateUserAuthcFactorSms" transition="createUserAuthcFactorSms">
-                                <field name="userId"><default-field><hidden/></default-field></field>
-                                <field name="thruDate" from="String(Number(ec.user.nowTimestamp) + 365 * 86400000)"><default-field><date-time/></default-field></field>
-                                <field name="factorOption"><default-field title="Phone (for SMS)"><text-line size="15"/></default-field></field>
-                                <field name="submitButton"><default-field title="Add"><submit/></default-field></field>
-                            </form-single>
-                        </container-dialog>
-                    </box-toolbar>
-                    <box-body-nopad>
-                        <form-list name="UserAuthcFactorList" list="userAuthcFactorList" transition="factorSubmit">
-                            <entity-find entity-name="moqui.security.UserAuthcFactor" list="userAuthcFactorList">
-                                <date-filter/><econdition field-name="userId"/>
-                                <select-field field-name="factorTypeEnumId,factorOption"/>
-                            </entity-find>
+            </row-col>
 
-                            <field name="userId" from="userId"><default-field><hidden/></default-field></field>
-                            <field name="factorId"><default-field title="ID"><display/></default-field></field>
-                            <field name="fromFactorId"><default-field title="From ID"><display/></default-field></field>
-                            <field name="factorTypeEnumId"><default-field title="Factor Type">
-                                <display-entity entity-name="moqui.basic.Enumeration"/></default-field></field>
-                            <field name="fromDate"><default-field><display/></default-field></field>
-                            <field name="thruDate"><default-field><display/></default-field></field>
-                            <field name="action">
-                                <conditional-field condition="needsValidation == 'Y' &amp;&amp; factorTypeEnumId == 'UafTotp'">
-                                    <dynamic-dialog id="VerifyTotpDialog" button-text="Verify" transition="VerifyTotp"
-                                            parameter-map="{userId:userId, factorId:factorId, verify:true}"/></conditional-field>
-                                <conditional-field condition="needsValidation == 'Y' &amp;&amp; factorTypeEnumId == 'UafEmail'">
-                                    <dynamic-dialog id="VerifyEmailDialog" button-text="Verify" transition="VerifyEmail"
-                                            parameter-map="{userId:userId, factorId:factorId}"/></conditional-field>
-                                <conditional-field condition="needsValidation == 'Y' &amp;&amp; factorTypeEnumId == 'UafSms'">
-                                    <dynamic-dialog id="VerifySmsDialog" button-text="Verify" transition="VerifySms"
-                                            parameter-map="{userId:userId, factorId:factorId}"/></conditional-field>
-                                <conditional-field condition="needsValidation == 'N' &amp;&amp; ['UafEmail', 'UafSms'].includes(factorTypeEnumId)">
-                                    <label text="${factorOption}"/></conditional-field>
-                            </field>
-                            <field name="needsValidation"><default-field><display/></default-field></field>
-                            <field name="delete"><default-field title=" "><submit text=" " icon="fa fa-trash"/></default-field></field>
-                        </form-list>
-                    </box-body-nopad>
-                </container-box>
+            <row-col md="6">
+                <container-box><box-header title="Password"/><box-body>
+                    <form-single name="ChangePassword" transition="changePassword">
+                        <field name="oldPassword"><default-field title="Current password"><password size="20"/></default-field></field>
+                        <field name="newPassword"><default-field title="New password"><password size="20"/></default-field></field>
+                        <field name="newPasswordVerify"><default-field title="New password again"><password size="20"/></default-field></field>
+                        <field name="code"><conditional-field condition="secondFactorRequired" title="Authentication code"><text-line size="10"/></conditional-field></field>
+                        <field name="submitButton"><default-field title="Change password"><submit/></default-field></field>
+                    </form-single>
+                    <section name="SecondFactorSection" condition="secondFactorRequired"><widgets>
+                        <label type="p" text="Changing the password needs an authentication code from: ${factorTypeDescriptions ? factorTypeDescriptions.join(', ') : ''}" style="m-muted"/>
+                        <section-iterate name="SecondFactorSend" list="sendableFactors" entry="userAuthcFactor"><widgets>
+                            <link url="sendOtp" link-type="hidden-form-link" text="Send a code to ${userAuthcFactor.factorOption}"
+                                    parameter-map="{factorId:userAuthcFactor.factorId}"/>
+                        </widgets></section-iterate>
+                    </widgets></section>
+                </box-body></container-box>
 
-            </panel-center>
-        </container-panel>
+                <container-box><box-header title="Two-factor sign-in"/><box-toolbar>
+                    <container-dialog id="AddTotpDialog" button-text="Authenticator app" icon="sym_o_qr_code_2" width="480" title="Add an authenticator app">
+                        <form-single name="CreateUserAuthcFactorTotp" transition="createUserAuthcFactorTotp">
+                            <field name="thruDate" from="thruDefault"><default-field title="Valid until"><date-time/></default-field></field>
+                            <field name="submitButton"><default-field title="Add"><submit/></default-field></field>
+                        </form-single></container-dialog>
+                    <container-dialog id="AddEmailFactorDialog" button-text="Email" icon="sym_o_mail" width="480" title="Add an email factor">
+                        <form-single name="CreateUserAuthcFactorEmail" transition="createUserAuthcFactorEmail">
+                            <field name="thruDate" from="thruDefault"><default-field title="Valid until"><date-time/></default-field></field>
+                            <field name="factorOption" from="ec.user.userAccount?.emailAddress"><default-field title="Email"><text-line size="30"/></default-field></field>
+                            <field name="submitButton"><default-field title="Add"><submit/></default-field></field>
+                        </form-single></container-dialog>
+                    <container-dialog id="AddSmsFactorDialog" button-text="Text message" icon="sym_o_sms" width="480" title="Add a text message factor" condition="isSmsActive">
+                        <form-single name="CreateUserAuthcFactorSms" transition="createUserAuthcFactorSms">
+                            <field name="thruDate" from="thruDefault"><default-field title="Valid until"><date-time/></default-field></field>
+                            <field name="factorOption"><default-field title="Phone"><text-line size="15"/></default-field></field>
+                            <field name="submitButton"><default-field title="Add"><submit/></default-field></field>
+                        </form-single></container-dialog>
+                    <container-dialog id="AddSingleUseDialog" button-text="Single use codes" icon="sym_o_password" width="480" title="Add single use codes">
+                        <form-single name="CreateUserAuthcFactorSingleUse" transition="createUserAuthcFactorSingleUse">
+                            <field name="thruDate" from="thruDefault"><default-field title="Valid until"><date-time/></default-field></field>
+                            <field name="numberOfCodes"><default-field title="How many"><text-line size="5" default-value="6"/></default-field></field>
+                            <field name="submitButton"><default-field title="Add"><submit/></default-field></field>
+                        </form-single></container-dialog>
+                </box-toolbar><box-body-nopad>
+                    <form-list name="UserAuthcFactorList" list="userAuthcFactorList" skip-form="true" paginate="false">
+                        <field name="factorTypeEnumId"><default-field title="Type"><display-entity entity-name="moqui.basic.Enumeration"/></default-field></field>
+                        <field name="factorOption"><default-field title="Sent to"><display/></default-field></field>
+                        <field name="fromDate"><default-field title="Added"><display format="yyyy-MM-dd"/></default-field></field>
+                        <field name="thruDate"><default-field title="Valid until"><display format="yyyy-MM-dd"/></default-field></field>
+                        <field name="action"><default-field title="">
+                            <container style="row no-wrap items-center q-gutter-xs">
+                                <dynamic-dialog id="VerifyTotpDialog" button-text="Verify" transition="VerifyTotp" condition="needsValidation == 'Y' &amp;&amp; factorTypeEnumId == 'UafTotp'"
+                                        parameter-map="{userId:userId, factorId:factorId, verify:true}"/>
+                                <dynamic-dialog id="VerifyEmailDialog" button-text="Verify" transition="VerifyEmail" condition="needsValidation == 'Y' &amp;&amp; factorTypeEnumId == 'UafEmail'"
+                                        parameter-map="{userId:userId, factorId:factorId}"/>
+                                <dynamic-dialog id="VerifySmsDialog" button-text="Verify" transition="VerifySms" condition="needsValidation == 'Y' &amp;&amp; factorTypeEnumId == 'UafSms'"
+                                        parameter-map="{userId:userId, factorId:factorId}"/>
+                                <link url="removeFactor" link-type="hidden-form-link" btn-type="danger" icon="sym_o_delete" text="" tooltip="Remove"
+                                        confirmation="Remove this second factor?" parameter-map="{factorId:factorId}"/>
+                            </container>
+                        </default-field></field>
+                    </form-list>
+                    <section name="NoFactors" condition="!(userAuthcFactorList &amp;&amp; userAuthcFactorList.length)"><widgets>
+                        <label type="p" text="No second factor yet: add an authenticator app, an email or single use codes." style="m-muted q-pa-sm q-mb-none"/>
+                    </widgets></section>
+                </box-body-nopad></container-box>
+
+                <container-box><box-header title="Where you are signed in"/><box-body-nopad>
+                    <form-list name="Sessions" list="sessionList" skip-form="true" paginate="false">
+                        <field name="device"><default-field title="Device"><display/></default-field></field>
+                        <field name="where"><default-field title="From"><display/></default-field></field>
+                        <field name="sinceText"><default-field title="Since"><display/></default-field></field>
+                        <field name="endedText"><conditional-field condition="current" title="Ended"><label text="This session" style="text-positive"/></conditional-field>
+                            <default-field title="Ended"><display/></default-field></field>
+                    </form-list>
+                    <section name="NoSessions" condition="!(sessionList &amp;&amp; sessionList.length)"><widgets>
+                        <label type="p" text="No sign-ins recorded" style="m-muted q-pa-sm q-mb-none"/>
+                    </widgets></section>
+                </box-body-nopad></container-box>
+            </row-col>
+        </container-row>
     </widgets>
 </screen>

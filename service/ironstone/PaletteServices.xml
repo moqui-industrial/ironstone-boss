@@ -26,11 +26,14 @@ along with this software (see the LICENSE.md file). If not, see
 
     <!-- the screens of the records, by DataDocument and by entity -->
     <service verb="get" noun="RecordLink">
-        <description>The BOSS screen link (/qapps) and icon of a Mantle record, by its search document type (or the record's
-            entity), its id and, for a work effort, its type; a link of null when Commons and Comms have no screen for it.</description>
+        <description>The BOSS screen link (/qapps) and icon of a Mantle record, by its search document type or the record's
+            full entity name (recordEntityName), its id and, for a work effort, its type (looked up when not given); a link of
+            null when Commons and Comms have no screen for it. The Today panel, the notification lists and the palette use it.</description>
         <in-parameters>
             <parameter name="docType"><description>MantleParty, MantleTask, MantleEvent, MantleRequest, MantleProject,
-                MantleWikiPage or MantleCommunicationEvent</description></parameter>
+                MantleWikiPage, MantleCommunicationEvent, or MantleWorkEffort with workEffortTypeEnumId</description></parameter>
+            <parameter name="recordEntityName"><description>Instead of docType: mantle.party.Party, mantle.request.Request,
+                mantle.work.effort.WorkEffort, moqui.resource.wiki.WikiPage or mantle.party.communication.CommunicationEvent</description></parameter>
             <parameter name="id" required="true"/>
             <parameter name="workEffortTypeEnumId"/>
             <parameter name="partyTypeEnumId"/>
@@ -39,6 +42,14 @@ along with this software (see the LICENSE.md file). If not, see
         <actions><script><![CDATA[
             const q = encodeURIComponent(String(id))
             let type = docType
+            if (!type && recordEntityName) {
+                type = {'mantle.party.Party': 'MantleParty', 'mantle.request.Request': 'MantleRequest', 'mantle.work.effort.WorkEffort': 'MantleWorkEffort',
+                    'moqui.resource.wiki.WikiPage': 'MantleWikiPage', 'mantle.party.communication.CommunicationEvent': 'MantleCommunicationEvent'}[recordEntityName] || null
+                if (type === 'MantleWorkEffort' && !workEffortTypeEnumId) workEffortTypeEnumId = ec.entity.find('mantle.work.effort.WorkEffort')
+                        .condition('workEffortId', id).selectField('workEffortTypeEnumId').one()?.workEffortTypeEnumId || null
+                if (type === 'MantleParty' && !partyTypeEnumId) partyTypeEnumId = ec.entity.find('mantle.party.Party')
+                        .condition('partyId', id).selectField('partyTypeEnumId').one()?.partyTypeEnumId || null
+            }
             if (type === 'MantleWorkEffort') type = workEffortTypeEnumId === 'WetEvent' ? 'MantleEvent' : workEffortTypeEnumId === 'WetTask' ? 'MantleTask'
                 : workEffortTypeEnumId === 'WetProject' ? 'MantleProject' : null
             const links = {

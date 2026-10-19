@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The Commons settings index (design-drawers-commons.md §11 Settings; style-guide §3.9 Settings): a card per settings group
+    with a line about it and the links into its pages, Comms settings last. Sync comes later with the CalDAV, CardDAV and
+    WebDAV servers. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="All settings" default-menu-include="false">
+    <widgets>
+        <label type="h5" text="Settings" style="q-mt-none q-mb-sm"/>
+        <container-row>
+            <row-col md="4" sm="6"><container-box><box-header title="Account"/><box-body>
+                <label type="p" text="Your name, email and contact information, password, two-factor sign-in, and where you are signed in." style="m-muted"/>
+                <link url="../Account" text="Account" icon="sym_o_manage_accounts"/>
+            </box-body></container-box></row-col>
+            <row-col md="4" sm="6"><container-box><box-header title="Preferences"/><box-body>
+                <label type="p" text="Dark mode, the app menu, density, the app to start in, and the keyboard shortcuts." style="m-muted"/>
+                <link url="../Preferences" text="Preferences" icon="sym_o_tune"/>
+            </box-body></container-box></row-col>
+            <row-col md="4" sm="6"><container-box><box-header title="Notifications"/><box-body>
+                <label type="p" text="Which notifications you get in the app, by email and in a daily digest." style="m-muted"/>
+                <link url="../Notifications" text="Notification settings" icon="sym_o_notifications"/>
+            </box-body></container-box></row-col>
+            <row-col md="4" sm="6"><container-box><box-header title="Contact books"/><box-body>
+                <label type="p" text="Your contact books and their groups, and who they are shared with." style="m-muted"/>
+                <link url="../ContactBooks" text="Contact books" icon="sym_o_contacts"/>
+            </box-body></container-box></row-col>
+            <row-col md="4" sm="6"><container-box><box-header title="Calendars"/><box-body>
+                <label type="p" text="Your calendars, their colors and sharing, subscriptions and working hours." style="m-muted"/>
+                <link url="../Calendars" text="Calendars" icon="sym_o_calendar_month"/>
+            </box-body></container-box></row-col>
+            <row-col md="4" sm="6"><container-box><box-header title="Sync"/><box-body>
+                <label type="p" text="Phones and desktop apps reading your calendars, contacts and files: coming with the sync servers." style="m-muted"/>
+                <link url="../Sync" text="Sync" icon="sym_o_sync"/>
+            </box-body></container-box></row-col>
+            <row-col md="4" sm="6"><container-box><box-header title="Mail and chat"/><box-body>
+                <label type="p" text="Mail accounts, identities and signatures, rules, out of office, text blocks, chat and calls are set in Comms." style="m-muted"/>
+                <render-mode><text type="qvt"><![CDATA[<m-link href="/qapps/Comms/Settings"><q-btn dense unelevated no-caps class="m-btn-tonal" icon="sym_o_forum">]]></text></render-mode>
+                <label type="span" text="Comms settings"/>
+                <render-mode><text type="qvt"><![CDATA[</q-btn></m-link>]]></text></render-mode>
+            </box-body></container-box></row-col>
+        </container-row>
+    </widgets>
+</screen>

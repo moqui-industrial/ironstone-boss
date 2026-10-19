@@ -12,10 +12,64 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for NotificationSettings: design-drawers-commons.md §11, settings archetype, xml, scope parity. -->
+<!-- NotificationSettings (design-drawers-commons.md §11; style-guide §3.9 Settings): the notification topics the user can set,
+    the framework's that are not private and the notification-topic providers of the apps the user may open (from the shell
+    data), by inbox; each an editable row of in app, email and daily digest, saved as the user's NotificationTopicUser
+    (ironstone.CommonsServices.get#NotificationTopicRows, store#TopicSetting). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Notifications" default-menu-index="3">
+
+    <transition name="storeTopic">
+        <service-call name="ironstone.CommonsServices.store#TopicSetting"
+                in-map="{topic:topic, receiveNotifications:receiveNotifications, emailNotifications:emailNotifications, digest:digest}"/>
+        <actions><message type="success">Saved</message></actions>
+        <default-response url="."/>
+    </transition>
+
+    <actions>
+        <script><![CDATA[
+            const shellData = sri.getShellData()
+            const topics = []
+            for (const app of (shellData && Array.isArray(shellData.apps) ? shellData.apps : []))
+                for (const topic of (app.providers && app.providers.notificationTopics) || []) if (!topics.includes(topic)) topics.push(topic)
+            providerTopics = topics
+        ]]></script>
+        <service-call name="ironstone.CommonsServices.get#NotificationTopicRows" in-map="{providerTopics:providerTopics}" out-map="context"/>
+    </actions>
+
     <widgets>
-        <label text="Placeholder: Per-topic in-app, email and digest subscriptions." type="p"/>
+        <container style="row items-center q-mb-sm">
+            <label type="h5" text="Notification settings" style="q-my-none"/>
+            <container style="col"/>
+            <link url="../../Notifications" link-type="anchor" text="Notifications" icon="sym_o_notifications"/>
+        </container>
+        <label type="p" text="Mentions, assignments, approvals and reminders come to the Notifications inbox, which the header counts; record updates and system messages come to Updates. A daily digest sends what you have not read in one email a day." style="m-muted"/>
+
+        <container-box><box-header title="Notifications inbox"/><box-body-nopad>
+            <form-list name="NotificationsTopics" list="notificationsRows" transition="storeTopic" paginate="false">
+                <field name="topic"><default-field><hidden/></default-field></field>
+                <field name="description"><default-field title="Topic"><display/></default-field></field>
+                <field name="receiveNotifications"><header-field title="In app"/><default-field title=""><check><option key="Y" text=" "/></check></default-field></field>
+                <field name="emailNotifications"><header-field title="Email"/><conditional-field condition="hasEmail" title=""><check><option key="Y" text=" "/></check></conditional-field>
+                    <default-field title=""><label text="No email" style="m-muted"/></default-field></field>
+                <field name="digest"><header-field title="Daily digest"/><default-field title=""><check><option key="Y" text=" "/></check></default-field></field>
+                <field name="saveButton"><default-field title=""><submit text="Save"/></default-field></field>
+            </form-list>
+        </box-body-nopad></container-box>
+
+        <container-box><box-header title="Updates inbox"/><box-body-nopad>
+            <form-list name="UpdatesTopics" list="updatesRows" transition="storeTopic" paginate="false">
+                <field name="topic"><default-field><hidden/></default-field></field>
+                <field name="description"><default-field title="Topic"><display/></default-field></field>
+                <field name="receiveNotifications"><header-field title="In app"/><default-field title=""><check><option key="Y" text=" "/></check></default-field></field>
+                <field name="emailNotifications"><header-field title="Email"/><conditional-field condition="hasEmail" title=""><check><option key="Y" text=" "/></check></conditional-field>
+                    <default-field title=""><label text="No email" style="m-muted"/></default-field></field>
+                <field name="digest"><header-field title="Daily digest"/><default-field title=""><check><option key="Y" text=" "/></check></default-field></field>
+                <field name="saveButton"><default-field title=""><submit text="Save"/></default-field></field>
+            </form-list>
+            <section name="NoUpdates" condition="!(updatesRows &amp;&amp; updatesRows.length)"><widgets>
+                <label type="p" text="No update topics" style="m-muted q-pa-sm q-mb-none"/>
+            </widgets></section>
+        </box-body-nopad></container-box>
     </widgets>
 </screen>

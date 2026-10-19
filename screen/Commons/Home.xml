@@ -12,10 +12,273 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for Home: design-drawers-commons.md §5, landing archetype, xml, scope new. -->
+<!-- Commons Home (design-drawers-commons.md §5 Home; style-guide §3.1 Landing): a greeting, the first-run setup card (add a
+    mail account, import contacts, connect a calendar, install on your phone; Done and Dismiss kept in the COMMONS_SETUP
+    preference), the Today strip (the TodayPanel's items, ironstone.CommonsServices.get#TodayView), five counters in a
+    dashboard (Due today, Overdue, Events today, Unread notifications, Requests assigned), the lists of my work (tasks this
+    week, requests assigned, events of the next 7 days) and the shortcuts, which open the shell's quick create. Recent pages
+    and files come with Files and Knowledge (M8, M9). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Home" default-menu-index="1">
+
+    <transition name="setSetup">
+        <service-call name="ironstone.CommonsServices.set#SetupItem" in-map="{item:item, state:state}"/>
+        <default-response url="."/>
+    </transition>
+    <transition name="taskDetail"><default-response url="../Tasks/TaskDetail"/></transition>
+    <transition name="requestDetail"><default-response url="../Requests/RequestDetail"/></transition>
+    <transition name="eventDetail"><default-response url="../Calendar/EventDetail"/></transition>
+
+    <actions>
+        <script><![CDATA[
+            const shellData = sri.getShellData()
+            const apps = shellData && Array.isArray(shellData.apps) ? shellData.apps : []
+            const sources = []
+            for (const app of apps) for (const source of (app.providers && app.providers.todaySources) || [])
+                if (source && source.service && !sources.some((known) => known.service === source.service)) sources.push(source)
+            sourceServiceNames = sources
+        ]]></script>
+        <service-call name="ironstone.CommonsServices.get#TodayView" in-map="{sourceServiceNames:sourceServiceNames}" out-map="today"/>
+        <service-call name="ironstone.CommonsServices.get#SetupItems" out-map="setup"/>
+        <service-call name="org.moqui.impl.NotificationServices.get#UserNotifications" in-map="{viewed:'N', pageSize:1}" out-map="unreadOut"/>
+        <set field="partyId" from="ec.user.userAccount?.partyId"/>
+        <script><![CDATA[
+            const nowMillis = Number(String(ec.user.nowTimestamp))
+            // a Date: a time-only pattern (h:mm a) on a time stamp or its millis text answers the millis
+            const fmt = (millis, pattern) => ec.l10n.format(new Date(Number(millis)), pattern)
+            const L = (text) => ec.l10n.localize(text)
+            const hour = Number(fmt(nowMillis, 'H'))
+            const name = String(ec.user.userAccount?.userFullName || ec.user.username || '').split(' ')[0]
+            greeting = (hour < 12 ? L('Good morning') : hour < 18 ? L('Good afternoon') : L('Good evening')) + (name ? ', ' + name : '')
+            todayLabel = today.dayLabel
+            todayText = fmt(nowMillis, 'yyyy-MM-dd')
+            weekEndText = fmt(nowMillis + 7 * 86400000, 'yyyy-MM-dd')
+            weekEnd = new Date(nowMillis + 7 * 86400000)
+            // the strip: the items of the day in the panel's order, eight at most
+            const groups = Array.from(today.groups || [])
+            const items = []
+            for (const group of groups) for (const item of Array.from(group.items || [])) items.push(item)
+            stripItems = items.slice(0, 8)
+            stripMore = Math.max(0, items.length - 8)
+            const counts = today.counts || {}
+            const sourceItems = groups.filter((group) => group.isSource).flatMap((group) => Array.from(group.items || []))
+            const dueTodayGroup = groups.find((group) => group.key === 'dueToday') || {items: []}
+            dueTodayCount = Array.from(dueTodayGroup.items || []).filter((item) => !item.isEvent).length + sourceItems.filter((item) => !item.overdue).length
+            overdueCount = (counts.overdue || 0) + sourceItems.filter((item) => item.overdue).length
+            eventsTodayCount = counts.eventsToday || 0
+            unreadCount = (unreadOut.unreadCounts || {}).NinNotifications || 0
+            setupItems = Array.from(setup.setupItems || []).filter((entry) => !entry.state)
+            showSetup = setupItems.length > 0
+        ]]></script>
+        <!-- my work: open tasks due within 7 days, open requests assigned to me, events of the next 7 days -->
+        <entity-find entity-name="mantle.work.effort.WorkEffortAndParty" list="weekTaskRows" limit="40">
+            <date-filter/>
+            <econdition field-name="partyId"/>
+            <econdition field-name="workEffortTypeEnumId" value="WetTask"/>
+            <econdition field-name="statusId" operator="not-in" value="WeComplete,WeClosed,WeCancelled"/>
+            <econdition field-name="partyStatusId" operator="not-in" value="WeptDeclined,WeptUnassigned" or-null="true"/>
+            <econdition field-name="estimatedCompletionDate" operator="less" from="weekEnd"/>
+            <select-field field-name="workEffortId,workEffortName,estimatedCompletionDate,priority,purposeEnumId,statusId"/>
+            <order-by field-name="estimatedCompletionDate,priority"/>
+        </entity-find>
+        <entity-find entity-name="mantle.request.RequestAndParty" list="requestRows" limit="40">
+            <date-filter/>
+            <econdition field-name="partyId"/>
+            <econdition field-name="roleTypeId" value="Assignee"/>
+            <econdition field-name="statusId" operator="not-in" value="ReqCompleted,ReqCancelled"/>
+            <select-field field-name="requestId,requestName,statusId,priority,responseRequiredDate,requestTypeEnumId"/>
+            <order-by field-name="priority,requestDate"/>
+        </entity-find>
+        <service-call name="mantle.work.EventServices.get#FullCalendarData" out-map="calendarOut"
+                in-map="{partyId:partyId, start:todayText, end:weekEndText, excludeCancelled:true,
+                    titleGString:'\${workEffort.workEffortName || workEffort.workEffortId}'}"/>
+        <script><![CDATA[{
+            // a block: the scripts of one actions element share a scope
+            // a Date: a time-only pattern (h:mm a) on a time stamp or its millis text answers the millis
+            const fmt = (millis, pattern) => ec.l10n.format(new Date(Number(millis)), pattern)
+            const nowMillis = Number(String(ec.user.nowTimestamp))
+            const seen = new Set()
+            const tasks = []
+            for (const row of Array.from(weekTaskRows ?? [])) {
+                if (seen.has(row.workEffortId) || tasks.length >= 10) continue
+                seen.add(row.workEffortId)
+                const due = row.estimatedCompletionDate != null ? Number(String(row.estimatedCompletionDate)) : null
+                tasks.push({workEffortId: row.workEffortId, workEffortName: row.workEffortName || row.workEffortId, priority: row.priority,
+                    dueText: due == null ? '' : fmt(due, 'EEE MMM d'), overdue: due != null && fmt(due, 'yyyy-MM-dd') < fmt(nowMillis, 'yyyy-MM-dd')})
+            }
+            weekTaskList = tasks
+            const requestSeen = new Set()
+            const requests = []
+            for (const row of Array.from(requestRows ?? [])) {
+                if (requestSeen.has(row.requestId)) continue
+                requestSeen.add(row.requestId)
+                requests.push({requestId: row.requestId, requestName: row.requestName || row.requestId, statusId: row.statusId, priority: row.priority,
+                    dueText: row.responseRequiredDate != null ? fmt(Number(String(row.responseRequiredDate)), 'EEE MMM d h:mm a') : ''})
+            }
+            requestsAssignedCount = requests.length
+            requestList = requests.slice(0, 10)
+            eventList = Array.from(calendarOut.eventList || []).filter((event) => event.endMillis == null || Number(event.endMillis) > nowMillis)
+                    .sort((a, b) => Number(a.startMillis || 0) - Number(b.startMillis || 0)).slice(0, 10)
+                    .map((event) => ({workEffortId: event.workEffortId, title: event.title, allDay: !!event.allDay,
+                        whenText: event.allDay ? fmt(Number(event.startMillis), 'EEE MMM d') + ' · ' + ec.l10n.localize('All day') :
+                            fmt(Number(event.startMillis), 'EEE MMM d h:mm a') + (event.endMillis ? ' – ' + fmt(Number(event.endMillis), 'h:mm a') : '')}))
+        }]]></script>
+    </actions>
+
     <widgets>
-        <label text="Placeholder: Today, counters, my work, recent pages and files, shortcuts, first-run setup." type="p"/>
+        <container style="q-mb-md">
+            <label type="h4" text="${greeting}" style="q-my-none"/>
+            <label type="div" text="${todayLabel}" style="text-caption m-muted"/>
+        </container>
+
+        <!-- first run: what a small business or a household sets up first -->
+        <section name="SetupCard" condition="showSetup"><widgets>
+            <container-box type="info"><box-header title="Set up IronStone"/><box-toolbar>
+                <link url="setSetup" link-type="hidden-form-link" text="Dismiss all" parameter-map="{item:'all', state:'dismissed'}"/>
+            </box-toolbar><box-body-nopad>
+                <render-mode><text type="qvt"><![CDATA[<q-list separator>]]></text></render-mode>
+                <section-iterate name="SetupItems" list="setupItems" entry="entry"><widgets>
+                    <render-mode><text type="qvt"><![CDATA[<q-item><q-item-section avatar><q-icon name="${entry.icon}" color="info"></q-icon></q-item-section><q-item-section><q-item-label>]]></text></render-mode>
+                    <section name="SetupLink" condition="entry.url"><widgets>
+                        <render-mode><text type="qvt"><![CDATA[<m-link href="${entry.url}">]]></text></render-mode>
+                        <label type="span" text="${entry.label}" style="text-weight-medium"/>
+                        <render-mode><text type="qvt"><![CDATA[</m-link>]]></text></render-mode>
+                    </widgets><fail-widgets>
+                        <label type="span" text="${entry.label}" style="text-weight-medium"/>
+                    </fail-widgets></section>
+                    <render-mode><text type="qvt"><![CDATA[</q-item-label><q-item-label caption>]]></text></render-mode>
+                    <label type="span" text="${entry.description}"/>
+                    <render-mode><text type="qvt"><![CDATA[</q-item-label></q-item-section><q-item-section side><div class="row no-wrap items-center q-gutter-xs">]]></text></render-mode>
+                    <link url="setSetup" link-type="hidden-form-link" text="Done" icon="sym_o_check" parameter-map="{item:entry.item, state:'done'}"/>
+                    <link url="setSetup" link-type="hidden-form-link" text="Dismiss" btn-type="secondary" parameter-map="{item:entry.item, state:'dismissed'}"/>
+                    <render-mode><text type="qvt"><![CDATA[</div></q-item-section></q-item>]]></text></render-mode>
+                </widgets></section-iterate>
+                <render-mode><text type="qvt"><![CDATA[</q-list>]]></text></render-mode>
+            </box-body-nopad></container-box>
+        </widgets></section>
+
+        <!-- the Today strip: the panel's items, across on a wide screen -->
+        <container-box><box-header title="Today"/><box-toolbar>
+            <render-mode><text type="qvt"><![CDATA[<q-btn v-if="$root.openTray" flat dense no-caps color="primary" icon="sym_o_today" @click="$root.openTray('today')">]]></text></render-mode>
+            <label type="span" text="Open Today"/>
+            <render-mode><text type="qvt"><![CDATA[</q-btn>]]></text></render-mode>
+        </box-toolbar><box-body>
+            <section name="StripEmpty" condition="!(stripItems &amp;&amp; stripItems.length)"><widgets>
+                <label type="p" text="Nothing due today" style="m-muted q-mb-none"/>
+            </widgets></section>
+            <container style="row q-col-gutter-sm">
+                <section-iterate name="StripItems" list="stripItems" entry="item"><widgets>
+                    <render-mode><text type="qvt"><![CDATA[<div class="col-12 col-sm-6 col-md-3"><q-card flat bordered class="q-pa-sm full-height">
+                        <div class="row no-wrap items-start"><q-icon name="${item.icon}" color="${item.overdue ? 'warning' : 'primary'}" size="sm" class="q-mr-sm"></q-icon><div class="col">
+                        <div class="ellipsis-2-lines">]]></text></render-mode>
+                    <section name="StripLink" condition="item.url"><widgets>
+                        <render-mode><text type="qvt"><![CDATA[<m-link href="${item.urlAttr}">]]></text></render-mode>
+                        <label type="span" text="${item.title}"/>
+                        <render-mode><text type="qvt"><![CDATA[</m-link>]]></text></render-mode>
+                    </widgets><fail-widgets><label type="span" text="${item.title}"/></fail-widgets></section>
+                    <render-mode><text type="qvt"><![CDATA[</div><div class="text-caption ellipsis">]]></text></render-mode>
+                    <label type="span" text="${item.timeText}" style="${item.overdue ? 'text-warning' : 'm-muted'}"/>
+                    <render-mode><text type="qvt"><![CDATA[</div><div class="text-caption ellipsis m-muted">]]></text></render-mode>
+                    <label type="span" text="${item.recordCaption || item.source || item.kindLabel}"/>
+                    <render-mode><text type="qvt"><![CDATA[</div></div></div></q-card></div>]]></text></render-mode>
+                </widgets></section-iterate>
+            </container>
+            <section name="StripMore" condition="stripMore &gt; 0"><widgets>
+                <label type="div" text="${stripMore} more in Today" style="text-caption m-muted q-mt-sm"/>
+            </widgets></section>
+        </box-body></container-box>
+
+        <!-- the counters, each a link into its list; two a row on a phone (Notifications counts the unread, My requests those
+            assigned to the user: the card's label is one line) -->
+        <dashboard min-width="170" style="q-mb-md">
+            <number-card title="Due today" value="${ec.l10n.format(dueTodayCount, '#,##0')}" icon="sym_o_task_alt"
+                    link="../Tasks?estimatedCompletionDate_period=day&amp;estimatedCompletionDate_poffset=0"/>
+            <number-card title="Overdue" value="${ec.l10n.format(overdueCount, '#,##0')}" icon="sym_o_assignment_late"
+                    link="../Tasks?estimatedCompletionDate_thru=${todayText}"/>
+            <number-card title="Events today" value="${ec.l10n.format(eventsTodayCount, '#,##0')}" icon="sym_o_event" link="../Calendar"/>
+            <number-card title="Notifications" value="${ec.l10n.format(unreadCount, '#,##0')}" icon="sym_o_notifications"
+                    link="../Notifications?viewed=N"/>
+            <number-card title="My requests" value="${ec.l10n.format(requestsAssignedCount, '#,##0')}" icon="sym_o_support"
+                    link="../Requests?roleTypeId=Assignee"/>
+        </dashboard>
+
+        <container-row>
+            <row-col md="8">
+                <container-box><box-header title="Tasks this week"/><box-toolbar>
+                    <link url="../Tasks" link-type="anchor" text="All tasks"/>
+                </box-toolbar><box-body-nopad>
+                    <form-list name="TasksThisWeek" list="weekTaskList" skip-form="true" skip-header="true" paginate="false">
+                        <field name="workEffortName"><default-field><link url="taskDetail" text="${workEffortName}">
+                            <parameter name="workEffortId"/></link></default-field></field>
+                        <field name="dueText" align="right"><conditional-field condition="overdue">
+                            <label text="${dueText}" style="text-warning text-no-wrap"/></conditional-field>
+                            <default-field><label text="${dueText}" style="text-no-wrap"/></default-field></field>
+                        <columns type="mobile">
+                            <column><field-ref name="workEffortName"/></column>
+                            <column><field-ref name="dueText"/></column>
+                        </columns>
+                    </form-list>
+                    <section name="NoTasks" condition="!(weekTaskList &amp;&amp; weekTaskList.length)"><widgets>
+                        <label type="p" text="Nothing assigned to you this week" style="m-muted q-pa-sm q-mb-none"/>
+                    </widgets></section>
+                </box-body-nopad></container-box>
+
+                <container-box><box-header title="Requests assigned"/><box-toolbar>
+                    <link url="../Requests" link-type="anchor" text="All requests"/>
+                </box-toolbar><box-body-nopad>
+                    <form-list name="RequestsAssigned" list="requestList" skip-form="true" skip-header="true" paginate="false">
+                        <field name="requestName"><default-field><link url="requestDetail" text="${requestName}">
+                            <parameter name="requestId"/></link></default-field></field>
+                        <field name="statusId"><default-field><display-entity entity-name="moqui.basic.StatusItem"/></default-field></field>
+                        <field name="dueText" align="right"><default-field><label text="${dueText}" style="text-no-wrap m-muted"/></default-field></field>
+                        <columns type="mobile">
+                            <column><field-ref name="requestName"/><field-ref name="statusId"/></column>
+                            <column><field-ref name="dueText"/></column>
+                        </columns>
+                    </form-list>
+                    <section name="NoRequests" condition="!(requestList &amp;&amp; requestList.length)"><widgets>
+                        <label type="p" text="No requests assigned to you" style="m-muted q-pa-sm q-mb-none"/>
+                    </widgets></section>
+                </box-body-nopad></container-box>
+
+                <container-box><box-header title="Upcoming events"/><box-toolbar>
+                    <link url="../Calendar" link-type="anchor" text="Calendar"/>
+                </box-toolbar><box-body-nopad>
+                    <form-list name="UpcomingEvents" list="eventList" skip-form="true" skip-header="true" paginate="false">
+                        <field name="title"><default-field><link url="eventDetail" text="${title}">
+                            <parameter name="workEffortId"/></link></default-field></field>
+                        <field name="whenText" align="right"><default-field><label text="${whenText}" style="text-no-wrap"/></default-field></field>
+                        <columns type="mobile">
+                            <column><field-ref name="title"/></column>
+                            <column><field-ref name="whenText"/></column>
+                        </columns>
+                    </form-list>
+                    <section name="NoEvents" condition="!(eventList &amp;&amp; eventList.length)"><widgets>
+                        <label type="p" text="No events in the next 7 days" style="m-muted q-pa-sm q-mb-none"/>
+                    </widgets></section>
+                </box-body-nopad></container-box>
+            </row-col>
+            <row-col md="4">
+                <!-- shortcuts: the shell's quick-create kinds -->
+                <container-box><box-header title="Shortcuts"/><box-body>
+                    <render-mode><text type="qvt"><![CDATA[<div class="column q-gutter-sm items-start">
+                        <q-btn unelevated dense no-caps class="m-btn-tonal" icon="sym_o_task_alt" @click="$root.openQuickCreate && $root.openQuickCreate(($root.quickCreateItems || []).find((kind) => kind.kind === 'task'))">]]></text></render-mode>
+                    <label type="span" text="New task"/>
+                    <render-mode><text type="qvt"><![CDATA[</q-btn>
+                        <q-btn unelevated dense no-caps class="m-btn-tonal" icon="sym_o_event" @click="$root.openQuickCreate && $root.openQuickCreate(($root.quickCreateItems || []).find((kind) => kind.kind === 'event'))">]]></text></render-mode>
+                    <label type="span" text="New event"/>
+                    <render-mode><text type="qvt"><![CDATA[</q-btn>
+                        <q-btn unelevated dense no-caps class="m-btn-tonal" icon="sym_o_sticky_note_2" @click="$root.openQuickCreate && $root.openQuickCreate(($root.quickCreateItems || []).find((kind) => kind.kind === 'note'))">]]></text></render-mode>
+                    <label type="span" text="New note"/>
+                    <render-mode><text type="qvt"><![CDATA[</q-btn>
+                        <q-btn unelevated dense no-caps class="m-btn-tonal" icon="sym_o_person" @click="$root.openQuickCreate && $root.openQuickCreate(($root.quickCreateItems || []).find((kind) => kind.kind === 'contact'))">]]></text></render-mode>
+                    <label type="span" text="New contact"/>
+                    <render-mode><text type="qvt"><![CDATA[</q-btn>
+                        <q-btn unelevated dense no-caps class="m-btn-tonal" icon="sym_o_mail" @click="$root.openQuickCreate && $root.openQuickCreate(($root.quickCreateItems || []).find((kind) => kind.kind === 'email'))">]]></text></render-mode>
+                    <label type="span" text="Compose email"/>
+                    <render-mode><text type="qvt"><![CDATA[</q-btn></div>]]></text></render-mode>
+                </box-body></container-box>
+            </row-col>
+        </container-row>
     </widgets>
 </screen>

@@ -12,10 +12,88 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for Preferences: design-drawers-commons.md §11, settings archetype, xml, scope new. -->
+<!-- Preferences (design-drawers-commons.md §11; style-guide §3.9 Settings): Appearance (dark mode QUASAR_DARK, the app menu
+    QUASAR_LEFT_OPEN, density SHELL_DENSITY, the start app SHELL_START_APP; ironstone.CommonsServices.set#Appearance) and the
+    Keymap: every binding of the shell and of the keymap providers of the apps the user may open, as editable rows whose
+    keys change the KEYMAP preference (JSON {scope: {action or keys: keys}}, set#KeymapOverride), which the shell reads when
+    a page loads. Mail, calendar and sound defaults come with Mail and Calendar. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Preferences" default-menu-index="2">
+
+    <!-- the page loads again, so the shell takes dark mode and the menu -->
+    <transition name="saveAppearance">
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.CommonsServices.set#Appearance').parameters({darkMode: darkMode, leftOpen: leftOpen,
+                density: density, startApp: startApp}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {redirectUrl: '/qapps/Commons/Settings/Preferences',
+                messageInfos: [{type: 'success', message: ec.l10n.localize('Appearance saved')}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="setKey">
+        <service-call name="ironstone.CommonsServices.set#KeymapOverride" in-map="{scope:scope, id:id, keys:keys, defaultKeys:defaultKeys}"/>
+        <actions><message type="success">Saved; the keys apply when the next page loads</message></actions>
+        <default-response url="."/>
+    </transition>
+    <transition name="resetKey">
+        <service-call name="ironstone.CommonsServices.set#KeymapOverride" in-map="{scope:scope, id:id, keys:''}"/>
+        <default-response url="."/>
+    </transition>
+
+    <actions>
+        <script><![CDATA[
+            const shellData = sri.getShellData()
+            const apps = shellData && Array.isArray(shellData.apps) ? shellData.apps : []
+            const keymaps = []
+            for (const app of apps) for (const map of (app.providers && app.providers.keymaps) || [])
+                keymaps.push(Object.assign({}, map, {appTitle: app.title || app.name}))
+            appKeymaps = keymaps
+            appOptions = apps.map((app) => ({name: app.name, title: app.title || app.name}))
+            appearance = {darkMode: ec.user.getPreference('QUASAR_DARK') == 'true' ? 'Y' : 'N',
+                leftOpen: ec.user.getPreference('QUASAR_LEFT_OPEN') == 'true' ? 'Y' : 'N',
+                density: ec.user.getPreference('SHELL_DENSITY') || 'comfortable', startApp: ec.user.getPreference('SHELL_START_APP') || ''}
+        ]]></script>
+        <service-call name="ironstone.CommonsServices.get#KeymapRows" in-map="{keymaps:appKeymaps}" out-map="context"/>
+    </actions>
+
     <widgets>
-        <label text="Placeholder: Appearance and density, start app, key map, mail and calendar defaults." type="p"/>
+        <label type="h5" text="Preferences" style="q-mt-none q-mb-sm"/>
+        <container-row>
+            <row-col lg="5" md="6">
+                <container-box><box-header title="Appearance"/><box-body>
+                    <form-single name="Appearance" transition="saveAppearance" map="appearance">
+                        <field name="darkMode"><default-field title="Theme"><check><option key="Y" text="Dark mode"/></check></default-field></field>
+                        <field name="leftOpen"><default-field title="App menu"><check><option key="Y" text="Keep it open"/></check></default-field></field>
+                        <field name="density"><default-field title="Density"><radio>
+                            <option key="comfortable" text="Comfortable"/><option key="compact" text="Compact"/></radio></default-field></field>
+                        <field name="startApp"><default-field title="Start in">
+                            <drop-down allow-empty="true"><list-options list="appOptions" key="${name}" text="${title}"/></drop-down></default-field></field>
+                        <field name="saveButton"><default-field title="Save"><submit/></default-field></field>
+                    </form-single>
+                    <label type="p" text="The page loads again with dark mode and the menu. Density and the app to start in are kept for the shell, which does not apply them yet." style="text-caption m-muted q-mb-none"/>
+                </box-body></container-box>
+            </row-col>
+            <row-col lg="7" md="6">
+                <container-box><box-header title="Keyboard shortcuts"/><box-body-nopad>
+                    <label type="p" text="Keys like Mod+K (Ctrl, or Cmd on a Mac), Ctrl+Shift+A, ? or a chord such as g c. A changed key applies when the next page loads; ? shows the keys on now." style="text-caption m-muted q-pa-sm q-mb-none"/>
+                    <form-list name="Keymap" list="keyRows" transition="setKey" paginate="false">
+                        <field name="scope"><default-field><hidden/></default-field></field>
+                        <field name="id"><default-field><hidden/></default-field></field>
+                        <field name="defaultKeys"><default-field><hidden/></default-field></field>
+                        <field name="label"><default-field title="Action"><display/></default-field></field>
+                        <field name="where"><default-field title="From"><display/></default-field></field>
+                        <field name="keys"><header-field title="Keys"/><default-field title=""><text-line size="10"/></default-field></field>
+                        <field name="saveButton"><default-field title=""><submit text="Save"/></default-field></field>
+                        <field name="resetKey"><conditional-field condition="overridden" title="">
+                            <link url="resetKey" link-type="hidden-form-link" text="Reset to ${defaultKeys}" parameter-map="{scope:scope, id:id}"/></conditional-field>
+                            <default-field title=""><label text="Default" style="m-muted"/></default-field></field>
+                        <columns type="mobile">
+                            <column><field-ref name="label"/><field-ref name="where"/></column>
+                            <column><field-ref name="keys"/><field-ref name="saveButton"/></column>
+                        </columns>
+                    </form-list>
+                </box-body-nopad></container-box>
+            </row-col>
+        </container-row>
     </widgets>
 </screen>

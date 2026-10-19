@@ -12,10 +12,319 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for QuickCreate: design-drawers-commons.md §4, dialog archetype, xml, scope new. -->
+<!-- QuickCreate (design-drawers-commons.md §4 QuickCreate, §1.5; style-guide §3.11 Dialog, §3.14 Panel): the screen of the
+    Commons + menu kinds (the theme's STRT_QUICK_CREATE), one form by kind: task, activity (only on a record), event, note,
+    contact and request, six fields or fewer, with the record of the screen context (recordEntity, recordId and recordTitle,
+    which the shell adds) as a chip, "remove" loading the form again without it, and "More options" to the full screen.
+    Each form's transition creates the record through ironstone.QuickCreateServices and answers JSON messages, so the shell's
+    dialog closes (an m-form in it that answers without errors hides it) and the page under it stays. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Quick create" default-menu-include="false">
+
+    <parameter name="kind"/>
+    <parameter name="recordEntity"/>
+    <parameter name="recordId"/>
+    <parameter name="recordTitle"/>
+
+    <!-- each kind's create: the service in the script, so its errors are answered too (a 500 the form shows) -->
+    <transition name="createTask">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.QuickCreateServices.create#Task').parameters({workEffortName: workEffortName,
+                estimatedCompletionDate: estimatedCompletionDate || null, assignToPartyId: assignToPartyId || null, priority: priority || null,
+                description: description || null, recordEntity: recordEntity || null, recordId: recordId || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {workEffortId: out.workEffortId, url: out.url,
+                messageInfos: [{type: 'success', message: out.message, link: out.url}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="createActivity">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.QuickCreateServices.create#Activity').parameters({activityType: activityType,
+                workEffortName: workEffortName, dueDate: dueDate || null, endDate: endDate || null, assignToPartyId: assignToPartyId || null,
+                recordEntity: recordEntity || null, recordId: recordId || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {workEffortId: out.workEffortId, url: out.url,
+                messageInfos: [{type: 'success', message: out.message, link: out.url}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="createEvent">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.QuickCreateServices.create#Event').parameters({workEffortName: workEffortName,
+                estimatedStartDate: estimatedStartDate || null, estimatedCompletionDate: estimatedCompletionDate || null, allDay: allDay || null,
+                calendarId: calendarId || null, attendeePartyIds: attendeePartyIds || null, recordEntity: recordEntity || null, recordId: recordId || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {workEffortId: out.workEffortId, url: out.url,
+                messageInfos: [{type: 'success', message: out.message, link: out.url}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="createNote">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.QuickCreateServices.create#Note').parameters({title: title || null, noteText: noteText,
+                recordEntity: recordEntity || null, recordId: recordId || null, recordTitle: recordTitle || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {communicationEventId: out.communicationEventId, wikiPageId: out.wikiPageId,
+                url: out.url, messageInfos: [{type: 'success', message: out.message, link: out.url}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="createContact">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.QuickCreateServices.create#Contact').parameters({partyTypeEnumId: partyTypeEnumId || null,
+                contactName: contactName, emailAddress: emailAddress || null, phone: phone || null,
+                organizationPartyId: partyTypeEnumId === 'PtyOrganization' ? null : (organizationPartyId || null), contactBookId: contactBookId || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {partyId: out.partyId, contactBookId: out.contactBookId, url: out.url,
+                messageInfos: [{type: 'success', message: out.message, link: out.url}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="createRequest">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.QuickCreateServices.create#Request').parameters({requestName: requestName,
+                requestTypeEnumId: requestTypeEnumId || null, priority: priority || null, customerPartyId: customerPartyId || null,
+                description: description || null, recordEntity: recordEntity || null, recordId: recordId || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {requestId: out.requestId, url: out.url,
+                messageInfos: [{type: 'success', message: out.message, link: out.url}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+
+    <!-- the server-search options of the party drop-downs, and the @ mentions of a note: value (the party) and label, the
+        user's filters applying (a personal contact of another user is never found) -->
+    <transition name="searchPeople" read-only="true">
+        <actions>
+            <service-call name="mantle.party.PartyServices.search#Person" in-map="{term:term}" out-map="found"/>
+            <script>ec.web.sendJsonResponse(found.outList || [])</script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="searchParties" read-only="true">
+        <parameter name="organizationsOnly"/>
+        <actions>
+            <entity-find entity-name="mantle.party.PartyDetail" list="partyList" limit="20">
+                <econditions combine="or">
+                    <econdition field-name="organizationName" operator="like" value="%${term}%" ignore-case="true"/>
+                    <econdition field-name="firstName" operator="like" value="%${term}%" ignore-case="true"/>
+                    <econdition field-name="lastName" operator="like" value="%${term}%" ignore-case="true"/>
+                    <econdition field-name="pseudoId" operator="like" value="%${term}%" ignore-case="true"/>
+                </econditions>
+                <econdition field-name="partyTypeEnumId" value="PtyOrganization" ignore="organizationsOnly != 'Y'"/>
+                <econdition field-name="disabled" operator="not-equals" value="Y" or-null="true"/>
+                <econdition field-name="privateOwnerUserId" from="ec.user.userId" or-null="true"/>
+                <order-by field-name="^organizationName,^firstName,^lastName"/>
+            </entity-find>
+            <script><![CDATA[
+                ec.web.sendJsonResponse(Array.from(partyList).map((party) => ({value: party.partyId,
+                    label: (party.organizationName || [party.firstName, party.lastName].filter((part) => part).join(' ') || party.partyId) +
+                        ' (' + (party.pseudoId || party.partyId) + ')'})))
+            ]]></script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+
+    <actions>
+        <script><![CDATA[
+            const kinds = ['task', 'activity', 'event', 'note', 'contact', 'request']
+            const theKind = kinds.includes(kind) ? kind : 'task'
+            const has = !!(recordEntity && recordId)
+            const L = (text) => ec.l10n.localize(text)
+            const nowMillis = Number(String(ec.user.nowTimestamp))
+            // the next half hour, and an hour after it
+            const slot = Math.ceil(nowMillis / 1800000) * 1800000
+            const fmt = (millis, pattern) => ec.l10n.format(String(millis), pattern)
+            let partyType = null
+            if (has && recordEntity === 'mantle.party.Party')
+                partyType = ec.entity.find('mantle.party.Party').condition('partyId', recordId).selectField('partyTypeEnumId').one()?.partyTypeEnumId || null
+
+            kind = theKind
+            hasRecord = has
+            recordLabel = has ? (recordTitle || recordId) : null
+            myPartyId = ec.user.userAccount?.partyId || null
+            myName = ec.user.userAccount?.userFullName || ec.user.username
+            todayText = fmt(nowMillis, 'yyyy-MM-dd')
+            startText = fmt(slot, 'yyyy-MM-dd HH:mm')
+            endText = fmt(slot + 3600000, 'yyyy-MM-dd HH:mm')
+            meetingEndText = fmt(slot + 1800000, 'yyyy-MM-dd HH:mm')
+            // a party in context: the request's customer, and a person's organization
+            customerPartyId = has && partyType ? recordId : null
+            customerName = customerPartyId ? recordLabel : null
+            organizationPartyId = has && partyType === 'PtyOrganization' ? recordId : null
+            organizationName = organizationPartyId ? recordLabel : null
+            kindTitles = {task: L('New task'), activity: L('Schedule an activity'), event: L('New event'), note: L('New note'),
+                contact: L('New contact'), request: L('New request')}
+        ]]></script>
+        <!-- the user's calendars to put an event in, and the books for a contact -->
+        <if condition="kind == 'event'">
+            <service-call name="mantle.work.CalendarServices.get#UserCalendars" out-map="calendarsOut"/>
+            <set field="calendarOptions" from="Array.from(calendarsOut.calendarList || []).filter((calendar) => ['CalpEdit', 'CalpManage'].includes(calendar.permissionEnumId)
+                    &amp;&amp; calendar.calendarKindEnumId != 'CalkSubscription')"/>
+            <set field="calendarId" from="calendarsOut.defaultCalendarId"/>
+        </if>
+        <if condition="kind == 'contact'">
+            <service-call name="mantle.party.ContactBookServices.ensure#UserDefaultContactBook" out-map="bookOut"/>
+            <service-call name="mantle.party.ContactBookServices.get#UserContactBooks" out-map="booksOut"/>
+            <set field="bookOptions" from="Array.from(booksOut.contactBookList || []).filter((book) => book.isOwner).map((book) => ({key: book.contactBookId,
+                    text: book.contactBookName + ' (' + ec.l10n.localize('only you') + ')'})).concat([{key: 'DIRECTORY', text: ec.l10n.localize('Directory (everyone)')}])"/>
+            <set field="contactBookId" from="bookOut.contactBookId"/>
+        </if>
+    </actions>
+
     <widgets>
-        <label text="Placeholder: The quick-create forms for task, activity, event, note, contact and request, prefilled from the screen context." type="p"/>
+        <!-- the record of the screen context; remove loads the form again without it -->
+        <section name="RecordChip" condition="hasRecord"><widgets>
+            <render-mode><text type="qvt"><![CDATA[<q-chip dense square icon="sym_o_link" class="q-ml-none q-mb-sm">]]></text></render-mode>
+            <label type="span" text="Linked to ${recordLabel}"/>
+            <section name="RecordChipRemove" condition="kind != 'activity'"><widgets>
+                <render-mode><text type="qvt"><![CDATA[<span class="q-mx-xs">&#183;</span>]]></text></render-mode>
+                <link url="." link-type="anchor" text="remove" dynamic-load-id="m-quick-create-body"
+                        parameter-map="{kind:kind, recordEntity:'', recordId:'', recordTitle:''}"/>
+            </widgets></section>
+            <render-mode><text type="qvt"><![CDATA[</q-chip>]]></text></render-mode>
+        </widgets></section>
+
+        <!-- task -->
+        <section name="TaskKind" condition="kind == 'task'"><widgets>
+            <form-single name="QuickTask" transition="createTask" focus-field="workEffortName">
+                <field name="recordEntity"><default-field><hidden/></default-field></field>
+                <field name="recordId"><default-field><hidden/></default-field></field>
+                <field name="workEffortName"><default-field title="Task"><text-line size="40"/></default-field></field>
+                <field name="estimatedCompletionDate" from="todayText"><default-field title="Due"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                <field name="assignToPartyId" from="myPartyId"><default-field title="Assignee">
+                    <drop-down current-description="${myName}"><dynamic-options transition="searchPeople" server-search="true" min-length="1"/></drop-down>
+                </default-field></field>
+                <field name="priority"><default-field title="Priority"><radio no-current-selected-key="5">
+                    <option key="2" text="High"/><option key="5" text="Normal"/><option key="8" text="Low"/></radio></default-field></field>
+                <field name="description"><default-field title="Notes"><text-area rows="2" cols="40"/></default-field></field>
+                <field name="createButton"><default-field title="Create"><submit/></default-field></field>
+                <field-layout>
+                    <field-ref name="workEffortName"/>
+                    <field-row><field-ref name="estimatedCompletionDate"/><field-ref name="assignToPartyId"/></field-row>
+                    <field-ref name="priority"/><field-ref name="description"/><field-ref name="createButton"/>
+                </field-layout>
+            </form-single>
+            <link url="../Tasks" link-type="anchor" text="More options" parameter-map="{_openDialog:'NewTaskContainer'}"/>
+        </widgets></section>
+
+        <!-- activity: a call, email, to-do or meeting on the record -->
+        <section name="ActivityKind" condition="kind == 'activity'"><widgets>
+            <section name="ActivityOnRecord" condition="hasRecord"><widgets>
+                <form-single name="QuickActivity" transition="createActivity" focus-field="workEffortName">
+                    <field name="recordEntity"><default-field><hidden/></default-field></field>
+                    <field name="recordId"><default-field><hidden/></default-field></field>
+                    <field name="activityType"><default-field title="Type"><radio no-current-selected-key="call">
+                        <option key="call" text="Call"/><option key="email" text="Email"/><option key="todo" text="To-do"/><option key="meeting" text="Meeting"/>
+                    </radio></default-field></field>
+                    <field name="workEffortName"><default-field title="Summary"><text-line size="40"/></default-field></field>
+                    <field name="dueDate" from="startText"><default-field title="When"><date-time type="date-time"/></default-field></field>
+                    <field name="endDate" from="meetingEndText"><default-field title="Ends"><date-time type="date-time"/>
+                        <visible-when field="activityType" value="meeting"/></default-field></field>
+                    <field name="assignToPartyId" from="myPartyId"><default-field title="Assignee">
+                        <drop-down current-description="${myName}"><dynamic-options transition="searchPeople" server-search="true" min-length="1"/></drop-down>
+                    </default-field></field>
+                    <field name="createButton"><default-field title="Schedule"><submit/></default-field></field>
+                    <field-layout>
+                        <field-ref name="activityType"/><field-ref name="workEffortName"/>
+                        <field-row><field-ref name="dueDate"/><field-ref name="endDate"/></field-row>
+                        <field-ref name="assignToPartyId"/><field-ref name="createButton"/>
+                    </field-layout>
+                </form-single>
+            </widgets><fail-widgets>
+                <label type="p" text="An activity is always on a record: open the record, then schedule its activity from the + menu or Today." style="m-muted"/>
+            </fail-widgets></section>
+        </widgets></section>
+
+        <!-- event -->
+        <section name="EventKind" condition="kind == 'event'"><widgets>
+            <form-single name="QuickEvent" transition="createEvent" focus-field="workEffortName">
+                <field name="recordEntity"><default-field><hidden/></default-field></field>
+                <field name="recordId"><default-field><hidden/></default-field></field>
+                <field name="workEffortName"><default-field title="Event"><text-line size="40"/></default-field></field>
+                <field name="estimatedStartDate" from="startText"><default-field title="Starts"><date-time type="date-time"/></default-field></field>
+                <field name="estimatedCompletionDate" from="endText"><default-field title="Ends"><date-time type="date-time"/></default-field></field>
+                <field name="allDay"><default-field title="All day"><check><option key="Y" text="All day"/></check></default-field></field>
+                <field name="calendarId"><default-field title="Calendar">
+                    <drop-down><list-options list="calendarOptions" key="${calendarId}" text="${calendarName}"/></drop-down></default-field></field>
+                <field name="attendeePartyIds"><default-field title="Attendees">
+                    <drop-down allow-multiple="true" allow-empty="true"><dynamic-options transition="searchPeople" server-search="true" min-length="1"/></drop-down>
+                </default-field></field>
+                <field name="createButton"><default-field title="Create"><submit/></default-field></field>
+                <field-layout>
+                    <field-ref name="workEffortName"/>
+                    <field-row><field-ref name="estimatedStartDate"/><field-ref name="estimatedCompletionDate"/></field-row>
+                    <field-row><field-ref name="allDay"/><field-ref name="calendarId"/></field-row>
+                    <field-ref name="attendeePartyIds"/><field-ref name="createButton"/>
+                </field-layout>
+            </form-single>
+            <link url="../Calendar" link-type="anchor" text="More options"/>
+        </widgets></section>
+
+        <!-- note: on the record's Chatter, or in the user's notes -->
+        <section name="NoteKind" condition="kind == 'note'"><widgets>
+            <label type="p" text="${hasRecord ? 'A note on ' + recordLabel + ', with its other notes and messages.' : 'Saved in your notes, which only you see.'}" style="m-muted"/>
+            <form-single name="QuickNote" transition="createNote" focus-field="noteText">
+                <field name="recordEntity"><default-field><hidden/></default-field></field>
+                <field name="recordId"><default-field><hidden/></default-field></field>
+                <field name="recordTitle"><default-field><hidden/></default-field></field>
+                <field name="title"><default-field title="Title"><text-line size="40"/></default-field></field>
+                <!-- on a record: the rich text of its Chatter, with @ mentions of people; in the notes space: markdown -->
+                <field name="noteText"><conditional-field condition="hasRecord" title="Note">
+                        <text-area rows="5" editor-type="rich-light" mention-transition="searchPeople"/></conditional-field>
+                    <default-field title="Note"><text-area rows="6" cols="50" editor-type="md"/></default-field></field>
+                <field name="createButton"><default-field title="Save"><submit/></default-field></field>
+            </form-single>
+            <section name="NotesLink" condition="!hasRecord"><widgets>
+                <link url="../Notes" link-type="anchor" text="More options"/>
+            </widgets></section>
+        </widgets></section>
+
+        <!-- contact: personal by default, or in the directory -->
+        <section name="ContactKind" condition="kind == 'contact'"><widgets>
+            <form-single name="QuickContact" transition="createContact" focus-field="contactName">
+                <field name="partyTypeEnumId"><default-field title="Type"><radio no-current-selected-key="PtyPerson">
+                    <option key="PtyPerson" text="Person"/><option key="PtyOrganization" text="Organization"/></radio></default-field></field>
+                <field name="contactName"><default-field title="Name"><text-line size="40"/></default-field></field>
+                <field name="emailAddress"><default-field title="Email"><text-line size="30" input-type="email"/></default-field></field>
+                <field name="phone"><default-field title="Phone"><text-line size="20" input-type="tel"/></default-field></field>
+                <field name="organizationPartyId"><default-field title="Organization">
+                    <drop-down allow-empty="true" current-description="${organizationName || ''}">
+                        <dynamic-options transition="searchParties" server-search="true" min-length="1" parameter-map="{organizationsOnly:'Y'}"/></drop-down>
+                    <visible-when field="partyTypeEnumId" value="PtyPerson"/></default-field></field>
+                <field name="contactBookId"><default-field title="Contact book">
+                    <drop-down><list-options list="bookOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                <field name="createButton"><default-field title="Create"><submit/></default-field></field>
+                <field-layout>
+                    <field-ref name="partyTypeEnumId"/><field-ref name="contactName"/>
+                    <field-row><field-ref name="emailAddress"/><field-ref name="phone"/></field-row>
+                    <field-row><field-ref name="organizationPartyId"/><field-ref name="contactBookId"/></field-row>
+                    <field-ref name="createButton"/>
+                </field-layout>
+            </form-single>
+            <link url="../Contacts" link-type="anchor" text="More options"/>
+        </widgets></section>
+
+        <!-- request -->
+        <section name="RequestKind" condition="kind == 'request'"><widgets>
+            <form-single name="QuickRequest" transition="createRequest" focus-field="requestName">
+                <field name="recordEntity"><default-field><hidden/></default-field></field>
+                <field name="recordId"><default-field><hidden/></default-field></field>
+                <field name="requestName"><default-field title="Request"><text-line size="40"/></default-field></field>
+                <field name="requestTypeEnumId"><default-field title="Type">
+                    <drop-down no-current-selected-key="RqtSupport"><entity-options key="${enumId}" text="${description}">
+                        <entity-find entity-name="moqui.basic.Enumeration" cache="true">
+                            <econdition field-name="enumTypeId" value="RequestType"/><order-by field-name="description"/></entity-find>
+                    </entity-options></drop-down></default-field></field>
+                <field name="priority"><default-field title="Priority"><radio no-current-selected-key="5">
+                    <option key="2" text="High"/><option key="5" text="Normal"/><option key="8" text="Low"/></radio></default-field></field>
+                <field name="customerPartyId"><default-field title="Customer">
+                    <drop-down allow-empty="true" current-description="${customerName || ''}">
+                        <dynamic-options transition="searchParties" server-search="true" min-length="1"/></drop-down></default-field></field>
+                <field name="description"><default-field title="Description"><text-area rows="3" cols="50"/></default-field></field>
+                <field name="createButton"><default-field title="Create"><submit/></default-field></field>
+                <field-layout>
+                    <field-ref name="requestName"/>
+                    <field-row><field-ref name="requestTypeEnumId"/><field-ref name="customerPartyId"/></field-row>
+                    <field-ref name="priority"/><field-ref name="description"/><field-ref name="createButton"/>
+                </field-layout>
+            </form-single>
+            <link url="../Requests" link-type="anchor" text="More options" parameter-map="{_openDialog:'NewRequestContainer'}"/>
+        </widgets></section>
     </widgets>
 </screen>

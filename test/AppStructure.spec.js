@@ -43,6 +43,17 @@ function findScreenFiles(appList, matches) {
 // what a screen shows of the demo records (data/BossDemoData.xml), by app and path, with the id parameters of a screen
 // that opens on one
 const demoRecords = {
+    // M2: Today, notifications, quick create, Home and the settings (the demo of service/ironstone/DemoServices.xml), on text
+    // that does not depend on the time of day the data was loaded
+    "Commons/Home": { text: "Set up IronStone" },
+    "Commons/Panel/Today": { text: "1 approval waiting" },
+    "Commons/Panel/Notifications": { text: "Approve the shared calendar subscription: USD 120.00 a year" },
+    "Commons/Notifications": { text: "Approve the shared calendar subscription: USD 120.00 a year" },
+    "Commons/QuickCreate": { parameters: { kind: "task" }, text: "Assignee" },
+    "Commons/Settings/Index": { text: "Comms settings" },
+    "Commons/Settings/Notifications": { text: "Purchase Approval (demo)" },
+    "Commons/Settings/Preferences": { text: "Keyboard shortcuts" },
+    "Commons/Settings/Account": { text: "john.doe" },
     "Commons/Calendar/EventDetail": { parameters: { workEffortId: "BOSS_DEMO_EVENT" }, text: "Weekly team meeting" },
     "Commons/Requests": { text: "Set up the shared team calendar" },
     "Commons/Requests/RequestDetail": { parameters: { requestId: "BOSS_DEMO_REQUEST" }, text: "Set up the shared team calendar" },
@@ -100,7 +111,7 @@ feature("every placeholder screen renders in qvt without errors, with its menu",
         return { failures }
     },
     then({ failures }) {
-        placeholders.length > 140
+        placeholders.length > 130
         failures.join("\n") == ""
     },
 })

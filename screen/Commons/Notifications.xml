@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-This software is in the public domain under CC0 1.0 Universal plus a 
+This software is in the public domain under CC0 1.0 Universal plus a
 Grant of Patent License.
 
 To the extent possible under law, the author(s) have dedicated all
@@ -12,84 +12,288 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-        xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+<!-- Notifications, the notification center (design-drawers-commons.md §4 Notifications, as changed Oct 19; style-guide §3.2
+    List): a rail with the two inboxes, Notifications and the automatic Updates, each with its unread count, and the reason
+    and app chips with counts; NotificationFind (reason, app, read state, date period, text); the Approvals list first (with
+    bulk approve), then the other notifications (with bulk mark read). Open (marks read), mark read, mark all read, approve,
+    refuse and the notification settings. The current user's own notifications only, through
+    org.moqui.impl.NotificationServices; the rows are decorated by ironstone.CommonsServices.decorate#Notifications. The
+    reading pane from 1440 px comes later. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Notifications" default-menu-index="9">
-    <parameter name="showViewed" required="false"/>
 
-    <transition name="viewed">
-        <service-call name="update#moqui.security.user.NotificationMessageUser"
-                in-map="Object.assign({}, context, {userId:ec.user.userId, viewedDate:ec.user.nowTimestamp})"/>
+    <parameter name="inboxEnumId"/>
+    <parameter name="reasonEnumId"/>
+    <parameter name="appName"/>
+    <parameter name="viewed"/>
+    <parameter name="text"/>
+
+    <!-- a row opens its link in the canvas (or another page) and is read -->
+    <transition name="openNotification">
+        <parameter name="notificationMessageId" required="true"/>
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.CommonsServices.open#Notification').parameters({notificationMessageId: notificationMessageId}).call()
+            const answer = {}
+            if (!ec.message.hasError()) {
+                if (out.screenUrl) answer.screenUrl = out.screenUrl
+                if (out.redirectUrl) answer.redirectUrl = out.redirectUrl
+                if (out.notice) answer.messageInfos = [{message: out.notice, type: 'warning'}]
+            }
+            ec.web.sendJsonResponse(answer)
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- the others change the list, which shows again -->
+    <transition name="markRead">
+        <service-call name="ironstone.CommonsServices.mark#NotificationsRead" in-map="{notificationMessageId:notificationMessageId}"/>
         <default-response url="."/>
     </transition>
-    <transition name="topicSubscriptions">
-        <service-call name="store#moqui.security.user.NotificationTopicUser" in-map="Object.assign({}, context, {userId:ec.user.userId})"/>
+    <transition name="markAllRead">
+        <service-call name="ironstone.CommonsServices.mark#InboxRead" in-map="{inboxEnumId:(inboxEnumId || 'NinNotifications')}" out-map="readOut"/>
+        <actions><message type="success">${readOut.viewedCount || 0} marked read</message></actions>
         <default-response url="."/>
     </transition>
+    <transition name="approve">
+        <service-call name="org.moqui.impl.NotificationServices.approve#NotificationMessage" in-map="{notificationMessageId:notificationMessageId}"/>
+        <actions><message type="success">Approved</message></actions>
+        <default-response url="."/>
+    </transition>
+    <transition name="approveSelected">
+        <service-call name="ironstone.CommonsServices.approve#Notifications" in-map="{notificationMessageId:notificationMessageId}" out-map="approveOut"/>
+        <actions><message type="success">${approveOut.approvedCount} approved</message></actions>
+        <default-response url="."/>
+    </transition>
+    <transition name="refuse">
+        <service-call name="org.moqui.impl.NotificationServices.refuse#NotificationMessage" in-map="{notificationMessageId:notificationMessageId, reason:reason}"/>
+        <actions><message type="success">Refused</message></actions>
+        <default-response url="."/>
+    </transition>
+
     <actions>
-        <entity-find entity-name="moqui.security.user.NotificationMessageByUser" list="notificationList">
-            <search-form-inputs default-order-by="-sentDate"/>
-            <econdition field-name="userId" from="ec.user.userId"/>
-            <econdition field-name="viewedDate" from="null" ignore="showViewed == 'true'"/>
-        </entity-find>
-        <entity-find entity-name="moqui.security.user.NotificationTopic" list="notificationTopicList">
-            <econdition field-name="isPrivate" value="N" or-null="true"/>
-            <order-by field-name="description"/></entity-find>
+        <set field="inboxEnumId" from="inboxEnumId == 'NinUpdates' ? 'NinUpdates' : 'NinNotifications'"/>
+        <set field="isUpdates" from="inboxEnumId == 'NinUpdates'"/>
+        <set field="openAction" from="sri.buildUrl('openNotification').path"/>
+        <script><![CDATA[
+            const shellData = sri.getShellData()
+            const titles = {}
+            for (const app of (shellData && Array.isArray(shellData.apps) ? shellData.apps : [])) titles[app.name] = String(app.title || app.name).replace(/^IronStone /, '')
+            const L = (text) => ec.l10n.localize(text)
+            const get = (parameters) => ec.service.sync().name('org.moqui.impl.NotificationServices.get#UserNotifications').parameters(parameters).call() || {}
+            const decorate = (list) => Array.from(ec.service.sync().name('ironstone.CommonsServices.decorate#Notifications')
+                    .parameters({notificationList: list || [], appTitles: titles}).call()?.rows || [])
+            // the date period of the find (the date-period fields), or its from and thru
+            let fromDate = null
+            let thruDate = null
+            const period = ec.web.parameters.sentDate_period
+            if (period) {
+                const range = ec.user.getPeriodRange(String(period), String(ec.web.parameters.sentDate_poffset || '0'),
+                        ec.web.parameters.sentDate_pdate ? String(ec.web.parameters.sentDate_pdate) : null)
+                if (range) { fromDate = range[0]; thruDate = range[1] }
+            } else {
+                if (ec.web.parameters.sentDate_from) fromDate = ec.l10n.parseTimestamp(String(ec.web.parameters.sentDate_from).substring(0, 10) + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS')
+                if (ec.web.parameters.sentDate_thru) thruDate = new Date(Number(String(ec.l10n.parseTimestamp(String(ec.web.parameters.sentDate_thru).substring(0, 10) + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS'))) + 86400000)
+            }
+            const filters = {inboxEnumId: inboxEnumId, reasonEnumId: reasonEnumId || null, appName: appName || null, text: text || null,
+                fromDate: fromDate, thruDate: thruDate}
+            const pageIndex = Number(ec.web.parameters.pageIndex || 0) || 0
+            const main = get(Object.assign({viewed: viewed === 'N' || viewed === 'Y' ? viewed : null, pageIndex: pageIndex, pageSize: 20}, filters))
+            const counts = main.unreadCounts || {}
+            const approvals = isUpdates ? [] : decorate(get(Object.assign({approvals: true, pageSize: 50}, filters, {inboxEnumId: 'NinNotifications'})).notificationList)
+            const rows = decorate(main.notificationList).filter((row) => !row.isApproval)
+            for (const row of approvals) row.caption = [row.summary, row.topicDescription].filter((part) => part).join(' · ')
+
+            const reasonNames = {NrMention: 'Mention', NrAssignment: 'Assignment', NrApproval: 'Approval', NrDateAlert: 'Date alert',
+                NrReminder: 'Reminder', NrComment: 'Comment', NrSystem: 'System'}
+            const reasonCounts = main.reasonCounts || {}
+            const appCounts = main.appCounts || {}
+
+            notificationsUnread = counts.NinNotifications || 0
+            updatesUnread = counts.NinUpdates || 0
+            approvalList = approvals
+            notificationList = rows
+            openRows = approvals.concat(rows).map((row) => ({notificationMessageId: row.notificationMessageId}))
+            notificationListCount = main.notificationListCount || 0
+            notificationListPageIndex = main.notificationListPageIndex || 0
+            notificationListPageSize = main.notificationListPageSize || 20
+            notificationListPageMaxIndex = main.notificationListPageMaxIndex || 0
+            notificationListPageRangeLow = notificationListCount ? notificationListPageIndex * notificationListPageSize + 1 : 0
+            notificationListPageRangeHigh = Math.min((notificationListPageIndex + 1) * notificationListPageSize, notificationListCount)
+            reasonChips = Object.keys(reasonNames).filter((id) => reasonCounts[id] || id === reasonEnumId)
+                    .map((id) => ({id: id, label: L(reasonNames[id]), count: reasonCounts[id] || 0}))
+            appChips = Object.keys(appCounts).filter((name) => name).concat(appName && !appCounts[appName] ? [appName] : [])
+                    .map((name) => ({name: name, label: titles[name] || name, count: appCounts[name] || 0}))
+            appOptions = Object.keys(titles).map((name) => ({appName: name, title: titles[name]}))
+            filtered = !!(reasonEnumId || appName || viewed || text || period || ec.web.parameters.sentDate_from || ec.web.parameters.sentDate_thru)
+        ]]></script>
     </actions>
+
     <widgets>
-        <container-dialog id="TopicUserDialog" button-text="Topic Subscriptions">
-            <form-list name="NotificationTopicList" list="notificationTopicList" transition="topicSubscriptions" multi="true">
-                <row-actions>
-                    <entity-find-one entity-name="moqui.security.user.NotificationTopicUser" value-field="notTopicUser">
-                        <field-map field-name="topic"/><field-map field-name="userId" from="ec.user.userId"/></entity-find-one>
-                </row-actions>
-                <field name="topic"><default-field><hidden/></default-field></field>
-                <field name="description"><default-field><display/></default-field></field>
-                <field name="receiveNotifications" from="notTopicUser?.receiveNotifications || receiveNotifications || 'Y'"><default-field title="Receive">
-                    <radio><option key="Y"/><option key="N"/></radio>
-                </default-field></field>
-                <field name="emailNotifications" from="notTopicUser?.emailNotifications || emailNotifications || 'N'">
-                    <conditional-field condition="emailTemplateId"><radio><option key="Y"/><option key="N"/></radio></conditional-field>
-                    <default-field title="Email"><display text=""/></default-field>
-                </field>
-                <field name="submitButton"><default-field><submit text="Update"/></default-field></field>
-            </form-list>
-        </container-dialog>
-        <form-list name="NotificationList" list="notificationList" transition="viewed" multi="true" header-dialog="true">
-            <field name="_useRowSubmit"><default-field><hidden default-value="true"/></default-field></field>
-            <field name="_rowSubmit"><header-field title="Select"/>
-                <conditional-field condition="viewedDate"><display text=" "/></conditional-field>
-                <default-field title="Select"><check no-current-selected-key="true" no-wrapper="true"><option key="true" text=" "/></check></default-field>
-            </field>
+        <context selection-form="NotificationList"/>
 
-            <field name="titleText">
-                <header-field title="Message" show-order-by="true"/>
-                <conditional-field condition="linkText"><link url="${linkText}" text="${titleText}" link-type="anchor" style="${typeString ? 'text-' + typeString : ''}"/></conditional-field>
-                <default-field><label text="${titleText}" style="${typeString ? 'text-' + typeString : ''}"/></default-field>
-            </field>
-            <field name="notificationMessageId"><default-field title="ID"><hidden/></default-field></field>
-            <field name="topic">
-                <header-field show-order-by="true"><drop-down allow-empty="true">
-                    <list-options list="notificationTopicList" key="${topic}" text="${description}"/>
-                </drop-down></header-field>
-                <default-field><display-entity entity-name="moqui.security.user.NotificationTopic" also-hidden="false"/></default-field>
-            </field>
-            <field name="sentDate"><header-field title="Sent" show-order-by="true"><date-period allow-empty="true"/></header-field>
-                <default-field><display also-hidden="false"/></default-field></field>
-            <field name="userSentDate"><header-field title="Notified" show-order-by="true"><date-period allow-empty="true"/></header-field>
-                <default-field><display also-hidden="false"/></default-field></field>
-            <field name="viewedDate">
-                <header-field title="Viewed" show-order-by="true">
-                    <date-period allow-empty="true"/>
-                    <link url="." text="Show Viewed" link-type="anchor" condition="showViewed != 'true'" parameter-map="{showViewed:'true'}"/>
-                    <link url="." text="Hide Viewed" link-type="anchor" condition="showViewed == 'true'" parameter-map="{showViewed:'false'}"/>
-                </header-field>
-                <default-field><display also-hidden="false"/></default-field></field>
+        <!-- title row: the inbox shown, Mark all read and the settings -->
+        <container style="row items-center q-mb-sm">
+            <label type="h5" text="${isUpdates ? 'Updates' : 'Notifications'}" style="q-my-none"/>
+            <container style="col"/>
+            <link url="markAllRead" text="Mark all read" icon="sym_o_done_all" parameter-map="{inboxEnumId:inboxEnumId}"/>
+            <link url="../Settings/Notifications" link-type="anchor" text="Notification settings" style="q-ml-md"/>
+        </container>
 
-            <field name="submitButton"><header-field><submit text="Find"/></header-field>
-                <conditional-field condition="viewedDate"><display text=" "/></conditional-field>
-                <default-field><submit text="Mark Viewed"/></default-field>
-            </field>
-        </form-list>
+        <container-row>
+            <!-- the rail: the inboxes, then the chips of reasons and apps -->
+            <row-col md="3" sm="4">
+                <container-box><box-header title="Inboxes"/><box-body-nopad>
+                    <render-mode><text type="qvt"><![CDATA[<q-list dense>
+                        <q-item class="${isUpdates ? '' : 'm-tonal text-primary'}"><q-item-section avatar style="min-width: 32px;"><q-icon name="sym_o_notifications" size="xs"></q-icon></q-item-section><q-item-section>]]></text></render-mode>
+                    <link url="." link-type="anchor" text="Notifications" parameter-map="{inboxEnumId:'NinNotifications'}"/>
+                    <render-mode><text type="qvt"><![CDATA[</q-item-section><q-item-section side>${notificationsUnread ? '<q-badge rounded color="primary">' + notificationsUnread + '</q-badge>' : ''}</q-item-section></q-item>
+                        <q-item class="${isUpdates ? 'm-tonal text-primary' : ''}"><q-item-section avatar style="min-width: 32px;"><q-icon name="sym_o_dynamic_feed" size="xs"></q-icon></q-item-section><q-item-section>]]></text></render-mode>
+                    <link url="." link-type="anchor" text="Updates" parameter-map="{inboxEnumId:'NinUpdates'}"/>
+                    <render-mode><text type="qvt"><![CDATA[</q-item-section><q-item-section side>${updatesUnread ? '<q-badge rounded color="grey-7">' + updatesUnread + '</q-badge>' : ''}</q-item-section></q-item>
+                        </q-list>]]></text></render-mode>
+                    <section name="ReasonChips" condition="reasonChips &amp;&amp; reasonChips.length"><widgets>
+                        <container style="q-pa-sm">
+                            <label type="div" text="Unread by reason" style="text-caption m-muted q-mb-xs"/>
+                            <container style="row q-gutter-xs">
+                                <section-iterate name="ReasonChip" list="reasonChips" entry="chip"><widgets>
+                                    <section name="ReasonChipOn" condition="chip.id == reasonEnumId"><widgets>
+                                        <link url="." link-type="anchor-button" btn-type="primary" text="${chip.label} · ${chip.count}"
+                                                parameter-map="{inboxEnumId:inboxEnumId, appName:appName}"/>
+                                    </widgets><fail-widgets>
+                                        <link url="." link-type="anchor-button" text="${chip.label} · ${chip.count}"
+                                                parameter-map="{inboxEnumId:inboxEnumId, reasonEnumId:chip.id, appName:appName}"/>
+                                    </fail-widgets></section>
+                                </widgets></section-iterate>
+                            </container>
+                        </container>
+                    </widgets></section>
+                    <section name="AppChips" condition="appChips &amp;&amp; appChips.length"><widgets>
+                        <container style="q-pa-sm">
+                            <label type="div" text="Unread by app" style="text-caption m-muted q-mb-xs"/>
+                            <container style="row q-gutter-xs">
+                                <section-iterate name="AppChip" list="appChips" entry="chip"><widgets>
+                                    <section name="AppChipOn" condition="chip.name == appName"><widgets>
+                                        <link url="." link-type="anchor-button" btn-type="primary" text="${chip.label} · ${chip.count}"
+                                                parameter-map="{inboxEnumId:inboxEnumId, reasonEnumId:reasonEnumId}"/>
+                                    </widgets><fail-widgets>
+                                        <link url="." link-type="anchor-button" text="${chip.label} · ${chip.count}"
+                                                parameter-map="{inboxEnumId:inboxEnumId, reasonEnumId:reasonEnumId, appName:chip.name}"/>
+                                    </fail-widgets></section>
+                                </widgets></section-iterate>
+                            </container>
+                        </container>
+                    </widgets></section>
+                </box-body-nopad></container-box>
+            </row-col>
+
+            <row-col md="9" sm="8">
+                <!-- the find: two or three filters are used all the time, so a find form above the lists -->
+                <form-single name="NotificationFind" transition=".">
+                    <field name="inboxEnumId"><default-field><hidden/></default-field></field>
+                    <field name="reasonEnumId"><default-field title="Reason">
+                        <drop-down allow-empty="true"><entity-options key="${enumId}" text="${description}">
+                            <entity-find entity-name="moqui.basic.Enumeration" cache="true">
+                                <econdition field-name="enumTypeId" value="NotificationReason"/><order-by field-name="sequenceNum"/></entity-find>
+                        </entity-options></drop-down></default-field></field>
+                    <field name="appName"><default-field title="App">
+                        <drop-down allow-empty="true"><list-options list="appOptions" key="${appName}" text="${title}"/></drop-down></default-field></field>
+                    <field name="viewed"><default-field title="Read">
+                        <drop-down allow-empty="true"><option key="N" text="Unread"/><option key="Y" text="Read"/></drop-down></default-field></field>
+                    <field name="sentDate"><default-field title="Received"><date-period allow-empty="true"/></default-field></field>
+                    <field name="text"><default-field title="Text"><text-line size="20"/></default-field></field>
+                    <field name="findButton"><default-field title="Find"><submit/></default-field></field>
+                    <field-layout><field-row-big><field-ref name="reasonEnumId"/><field-ref name="appName"/><field-ref name="viewed"/>
+                        <field-ref name="sentDate"/><field-ref name="text"/><field-ref name="findButton"/></field-row-big></field-layout>
+                </form-single>
+                <section name="ClearFilters" condition="filtered"><widgets>
+                    <container style="q-mb-sm"><link url="." link-type="anchor" text="Clear filters" parameter-map="{inboxEnumId:inboxEnumId}"/></container>
+                </widgets></section>
+
+                <!-- the approvals inbox, always first -->
+                <section name="ApprovalsSection" condition="!isUpdates"><widgets>
+                    <container-box type="info"><box-header title="Approvals waiting"/><box-body-nopad>
+                        <form-list name="ApprovalList" list="approvalList" transition="approveSelected" multi="true" skip-header="false" paginate="false">
+                            <row-selection id-field="notificationMessageId" list-mode="true">
+                                <action><form-single name="ApproveSelectedForm" transition="approveSelected">
+                                    <field name="approveButton"><default-field title="Approve selected"><submit/></default-field></field>
+                                    <field-layout><field-row-big><field-ref name="approveButton"/></field-row-big></field-layout>
+                                </form-single></action>
+                            </row-selection>
+                            <field name="titleText"><default-field title="What">
+                                <render-mode><text type="qvt"><![CDATA[<q-btn flat dense no-caps align="left" type="submit" form="NotificationOpen_${notificationMessageId}" padding="none" color="primary" class="text-left"><div class="full-width text-left">]]></text></render-mode>
+                                <label type="span" text="${titleText}"/>
+                                <render-mode><text type="qvt"><![CDATA[</div></q-btn>]]></text></render-mode>
+                            </default-field></field>
+                            <field name="caption"><default-field title="Summary"><display/></default-field></field>
+                            <field name="requestedByName"><default-field title="Requested by"><display/></default-field></field>
+                            <field name="whenText"><default-field title="Waiting since"><display/></default-field></field>
+                            <field name="decide" align="right"><default-field title="">
+                                <container style="row no-wrap justify-end items-center q-gutter-xs">
+                                    <link url="approve" link-type="hidden-form-link" btn-type="success" icon="sym_o_check" text="Approve"
+                                            parameter-map="{notificationMessageId:notificationMessageId}"/>
+                                    <section name="RefuseReason" condition="refuseReasonRequired"><widgets>
+                                        <container-dialog id="RefuseDialog" button-text="Refuse" icon="sym_o_block" type="danger" width="440" title="Refuse">
+                                            <label type="p" text="${titleText}" style="text-body2"/>
+                                            <form-single name="RefuseForm" transition="refuse">
+                                                <field name="notificationMessageId"><default-field><hidden/></default-field></field>
+                                                <field name="reason"><default-field title="Reason"><text-area rows="3" cols="50"/></default-field></field>
+                                                <field name="submitButton"><default-field title="Refuse"><submit type="danger"/></default-field></field>
+                                            </form-single>
+                                        </container-dialog>
+                                    </widgets><fail-widgets>
+                                        <link url="refuse" link-type="hidden-form-link" btn-type="danger" icon="sym_o_block" text="Refuse" condition="canRefuse"
+                                                confirmation="Refuse ${titleText}?" parameter-map="{notificationMessageId:notificationMessageId}"/>
+                                    </fail-widgets></section>
+                                </container>
+                            </default-field></field>
+                            <columns type="mobile">
+                                <column><field-ref name="titleText"/><field-ref name="caption"/></column>
+                                <column><field-ref name="decide"/></column>
+                            </columns>
+                        </form-list>
+                        <section name="NoApprovals" condition="!(approvalList &amp;&amp; approvalList.length)"><widgets>
+                            <label type="p" text="Nothing waiting on you" style="m-muted q-pa-sm q-mb-none"/>
+                        </widgets></section>
+                    </box-body-nopad></container-box>
+                </widgets></section>
+
+                <!-- everything else -->
+                <container-box><box-header title="${isUpdates ? 'Updates' : 'Notifications'}"/><box-body-nopad>
+                    <form-list name="NotificationList" list="notificationList" transition="markRead" multi="true" paginate="true">
+                        <row-selection id-field="notificationMessageId" list-mode="true">
+                            <action><form-single name="MarkSelectedReadForm" transition="markRead">
+                                <field name="markButton"><default-field title="Mark read"><submit/></default-field></field>
+                                <field-layout><field-row-big><field-ref name="markButton"/></field-row-big></field-layout>
+                            </form-single></action>
+                        </row-selection>
+                        <field name="titleText"><default-field title="Notification">
+                            <render-mode><text type="qvt"><![CDATA[<q-btn flat dense no-caps align="left" type="submit" form="NotificationOpen_${notificationMessageId}" padding="none" color="primary" class="text-left${unread ? ' text-weight-medium' : ''}"><div class="full-width text-left">]]></text></render-mode>
+                            <label type="span" text="${titleText}"/>
+                            <render-mode><text type="qvt"><![CDATA[</div></q-btn>]]></text></render-mode>
+                        </default-field></field>
+                        <field name="reasonLabel"><default-field title="Reason"><display/></default-field></field>
+                        <field name="appLabel"><default-field title="App"><display/></default-field></field>
+                        <field name="actorName"><default-field title="From"><display/></default-field></field>
+                        <field name="whenText"><default-field title="Received"><display/></default-field></field>
+                        <field name="readState"><conditional-field condition="unread" title="Read">
+                            <link url="markRead" link-type="hidden-form-link" icon="sym_o_mark_email_read" text="" tooltip="Mark read" style="m-btn-flat"
+                                    parameter-map="{notificationMessageId:notificationMessageId}"/></conditional-field>
+                            <default-field title="Read"><label text="${ec.l10n.format(viewedDate, 'MMM d h:mm a')}" style="m-muted"/></default-field></field>
+                        <columns type="mobile">
+                            <column><field-ref name="titleText"/><field-ref name="whenText"/></column>
+                            <column><field-ref name="readState"/></column>
+                        </columns>
+                    </form-list>
+                    <section name="NoNotifications" condition="!(notificationList &amp;&amp; notificationList.length)"><widgets>
+                        <label type="p" text="${filtered ? 'No notifications match' : 'You are caught up'}" style="m-muted q-pa-sm q-mb-none"/>
+                    </widgets></section>
+                </box-body-nopad></container-box>
+            </row-col>
+        </container-row>
+
+        <!-- the forms the row titles post (open marks read): outside the lists, whose rows are forms, as the macros do for a
+            hidden-form-link in a cell; the title is a left-aligned text button with form= (a hidden-form-link centers its text) -->
+        <section-iterate name="OpenForms" list="openRows" entry="row"><widgets>
+            <render-mode><text type="qvt"><![CDATA[<m-form action="${openAction}" id="NotificationOpen_${row.notificationMessageId}" name="NotificationOpen_${row.notificationMessageId}"><input type="hidden" name="notificationMessageId" value="${row.notificationMessageId}"></m-form>]]></text></render-mode>
+        </widgets></section-iterate>
     </widgets>
 </screen>

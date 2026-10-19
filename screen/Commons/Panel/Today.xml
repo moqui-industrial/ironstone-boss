@@ -12,10 +12,206 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for TodayPanel: design-drawers-commons.md §4, panel archetype, xml, scope new. -->
+<!-- TodayPanel (design-drawers-commons.md §4; style-guide §3.14 Panel): the Today tab of the tray panel, laid out for its
+    400 px with no viewport breakpoint columns. The day and the approvals waiting (to the Notifications tab), then Overdue,
+    Due today with the quick-add line, Later today and one group per today-source provider of the apps the user may open
+    (ironstone.CommonsServices.get#TodayView over mantle.work.WorkEffortServices.get#UserTodayItems), each item a dense row
+    with its icon, title, time, record and the other assignees, and flat quick actions: Mark done, Snooze to tomorrow 9:00
+    and Reschedule. A source that fails is named, the rest shows.
+
+    The tray loads this screen as a request of its own (m-dynamic-container m-tray-today), so its quick actions answer JSON
+    messages rather than a screen, and the tab reloads on the shellCounts topic their changes publish; the forms reload it
+    themselves (background-reload-id). The record of the canvas's screen context reaches the panel only on the client: "Add
+    activity on this record" reads $root.screenRecord; the quick-add line links to the record given as parameters. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Today" default-menu-include="false">
+
+    <parameter name="recordEntity"/>
+    <parameter name="recordId"/>
+    <parameter name="recordTitle"/>
+
+    <!-- the quick actions: each answers JSON messages, so the page under the tray stays; the service is called in the script so
+        that an error is answered too (a JSON answer with errors is a 500 the m-form shows) -->
+    <transition name="markDone">
+        <parameter name="workEffortId" required="true"/>
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.CommonsServices.complete#TodayItem').parameters({workEffortId: workEffortId}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success',
+                message: ec.resource.expand('Done: ${name}', '', {name: out.workEffortName})}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="snooze">
+        <parameter name="workEffortId" required="true"/>
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('mantle.work.WorkEffortServices.snooze#UserTodayItem').parameters({workEffortId: workEffortId}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success',
+                message: ec.resource.expand('Snoozed until ${when}', '', {when: ec.l10n.format(out.snoozedThruDate, 'EEE h:mm a')})}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="reschedule">
+        <parameter name="workEffortId" required="true"/>
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.CommonsServices.reschedule#TodayItem')
+                    .parameters({workEffortId: workEffortId, estimatedCompletionDate: estimatedCompletionDate}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success',
+                message: ec.resource.expand('${name} is due ${when}', '', {name: out.workEffortName, when: ec.l10n.format(out.estimatedCompletionDate, 'EEE MMM d')})}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="quickAdd">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.CommonsServices.add#TodayTask')
+                    .parameters({workEffortName: workEffortName, recordEntity: recordEntity, recordId: recordId}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {workEffortId: out.workEffortId, url: out.url,
+                messageInfos: [{type: 'success', message: out.message, link: out.url}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+
+    <actions>
+        <!-- the today-source providers of the apps the user may open, from the shell data (none when this screen is not under
+            the apps root) -->
+        <script><![CDATA[
+            const shellData = sri.getShellData()
+            const apps = shellData && Array.isArray(shellData.apps) ? shellData.apps : []
+            const sources = []
+            for (const app of apps) for (const source of (app.providers && app.providers.todaySources) || [])
+                if (source && source.service && !sources.some((known) => known.service === source.service)) sources.push(source)
+            sourceServiceNames = sources
+        ]]></script>
+        <service-call name="ironstone.CommonsServices.get#TodayView" in-map="{sourceServiceNames:sourceServiceNames}" out-map="context"/>
+        <set field="approvalsText" from="approvalCount == 1 ? ec.l10n.localize('1 approval waiting') : ec.resource.expand('${count} approvals waiting', '', {count: approvalCount})"/>
+        <set field="hasRecord" from="!!(recordEntity &amp;&amp; recordId)"/>
+    </actions>
+
     <widgets>
-        <label text="Placeholder: Overdue, due today and later today across tasks, activities, events, approvals and app sources, with quick actions." type="p"/>
+        <!-- the day, and the approvals waiting on the user, which are in the Notifications tab -->
+        <container style="row items-center no-wrap q-mb-xs">
+            <container style="col">
+                <label type="div" text="Today" style="text-subtitle1 text-weight-medium"/>
+                <label type="div" text="${dayLabel}" style="text-caption m-muted"/>
+            </container>
+            <section name="ApprovalsLine" condition="approvalCount &gt; 0"><widgets>
+                <render-mode><text type="qvt"><![CDATA[<q-btn flat dense no-caps color="info" icon="sym_o_how_to_reg" @click="$root.openTray && $root.openTray('notifications')">]]></text></render-mode>
+                <label type="span" text="${approvalsText}"/>
+                <render-mode><text type="qvt"><![CDATA[</q-btn>]]></text></render-mode>
+            </widgets></section>
+        </container>
+
+        <!-- a source that failed: named, the rest shows -->
+        <section-iterate name="FailedSources" list="failedSources" entry="failure"><widgets>
+            <render-mode><text type="qvt"><![CDATA[<q-banner dense rounded class="q-mb-sm m-tonal text-warning"><template v-slot:avatar><q-icon name="sym_o_warning" color="warning" size="sm"></q-icon></template>]]></text></render-mode>
+            <label type="span" text="${failure.label} items unavailable"/>
+            <render-mode><text type="qvt"><![CDATA[</q-banner>]]></text></render-mode>
+        </widgets></section-iterate>
+
+        <section name="NothingToday" condition="itemCount == 0 &amp;&amp; !(failedSources &amp;&amp; failedSources.length)"><widgets>
+            <render-mode><text type="qvt"><![CDATA[<q-list dense bordered class="rounded-borders q-mt-sm"><q-item class="q-px-sm">
+                <q-item-section avatar><q-icon name="sym_o_check_circle" color="positive" size="xs"></q-icon></q-item-section><q-item-section>]]></text></render-mode>
+            <label type="span" text="Nothing due today" style="m-muted"/>
+            <render-mode><text type="qvt"><![CDATA[</q-item-section></q-item></q-list>]]></text></render-mode>
+        </widgets></section>
+
+        <section-iterate name="TodayGroups" list="groups" entry="group"><widgets>
+            <!-- Overdue, Later today and the sources only with items; Due today always, with the quick-add line -->
+            <section name="TodayGroup" condition="(group.items &amp;&amp; group.items.length &gt; 0) || (group.key == 'dueToday' &amp;&amp; itemCount &gt; 0)"><widgets>
+                <container style="row items-center q-mt-sm q-mb-xs">
+                    <label type="span" text="${group.label}" style="${group.warning ? 'text-subtitle2 text-warning' : 'text-subtitle2'}"/>
+                    <section name="GroupCount" condition="group.items &amp;&amp; group.items.length &gt; 0"><widgets>
+                        <render-mode><text type="qvt"><![CDATA[<q-badge class="q-ml-xs" rounded color="${group.warning ? 'warning' : 'primary'}"${group.warning ? ' text-color="dark"' : ''}>${group.items.length}</q-badge>]]></text></render-mode>
+                    </widgets></section>
+                </container>
+                <render-mode><text type="qvt"><![CDATA[<q-list dense bordered class="rounded-borders">]]></text></render-mode>
+                <section name="GroupEmpty" condition="!(group.items &amp;&amp; group.items.length)"><widgets>
+                    <render-mode><text type="qvt"><![CDATA[<q-item class="q-px-sm"><q-item-section avatar><q-icon name="sym_o_check_circle" color="positive" size="xs"></q-icon></q-item-section><q-item-section>]]></text></render-mode>
+                    <label type="span" text="Nothing more due today" style="m-muted"/>
+                    <render-mode><text type="qvt"><![CDATA[</q-item-section></q-item>]]></text></render-mode>
+                </widgets></section>
+                <section-iterate name="TodayItems" list="group.items" entry="item"><widgets>
+                    <render-mode><text type="qvt"><![CDATA[<q-item class="q-px-sm m-today-item">
+                        <q-item-section avatar style="min-width: 28px;"><q-icon name="${item.icon}" color="${item.overdue ? 'warning' : 'primary'}" size="xs"></q-icon><q-tooltip>${item.kindLabel}</q-tooltip></q-item-section>
+                        <q-item-section><q-item-label lines="2">]]></text></render-mode>
+                    <section name="ItemTitleLink" condition="item.url"><widgets>
+                        <render-mode><text type="qvt"><![CDATA[<m-link href="${item.urlAttr}">]]></text></render-mode>
+                        <label type="span" text="${item.title}"/>
+                        <render-mode><text type="qvt"><![CDATA[</m-link>]]></text></render-mode>
+                    </widgets><fail-widgets>
+                        <label type="span" text="${item.title}"/>
+                    </fail-widgets></section>
+                    <render-mode><text type="qvt"><![CDATA[</q-item-label><q-item-label caption lines="2">]]></text></render-mode>
+                    <label type="span" text="${item.timeText}" style="${item.overdue ? 'text-warning' : ''}"/>
+                    <section name="ItemRecord" condition="item.recordCaption"><widgets>
+                        <render-mode><text type="qvt"><![CDATA[<span class="q-mx-xs">&#183;</span>]]></text></render-mode>
+                        <section name="ItemRecordLink" condition="item.recordUrl"><widgets>
+                            <render-mode><text type="qvt"><![CDATA[<m-link href="${item.recordUrlAttr}">]]></text></render-mode>
+                            <label type="span" text="${item.recordCaption}"/>
+                            <render-mode><text type="qvt"><![CDATA[</m-link>]]></text></render-mode>
+                        </widgets><fail-widgets>
+                            <label type="span" text="${item.recordCaption}"/>
+                        </fail-widgets></section>
+                    </widgets></section>
+                    <section name="ItemAssignees" condition="item.assigneeText"><widgets>
+                        <render-mode><text type="qvt"><![CDATA[<span class="q-mx-xs">&#183;</span>]]></text></render-mode>
+                        <label type="span" text="${item.assigneeText}"/>
+                    </widgets></section>
+                    <render-mode><text type="qvt"><![CDATA[</q-item-label></q-item-section>
+                        <q-item-section side class="q-pl-none"><div class="row no-wrap items-center">]]></text></render-mode>
+                    <link url="markDone" link-type="hidden-form-link" icon="sym_o_check" text="" tooltip="Mark done" condition="item.canComplete"
+                            parameter-map="{workEffortId:item.workEffortId}"/>
+                    <link url="snooze" link-type="hidden-form-link" icon="sym_o_snooze" text="" tooltip="Snooze to tomorrow 9:00" condition="item.canSnooze"
+                            parameter-map="{workEffortId:item.workEffortId}"/>
+                    <section name="ItemReschedule" condition="item.canReschedule"><widgets>
+                        <!-- the tooltip is on the span around the dialog's button, which has none of its own -->
+                        <render-mode><text type="qvt"><![CDATA[<span><q-tooltip>Reschedule</q-tooltip>]]></text></render-mode>
+                        <container-dialog id="RescheduleDialog" button-text="" icon="sym_o_event_repeat" button-style="m-btn-flat" width="360"
+                                title="Reschedule">
+                            <label type="p" text="${item.title}" style="text-body2"/>
+                            <form-single name="RescheduleForm" transition="reschedule" background-reload-id="m-tray-today">
+                                <field name="workEffortId" from="item.workEffortId"><default-field><hidden/></default-field></field>
+                                <field name="estimatedCompletionDate" from="item.dueDateText"><default-field title="New due date">
+                                    <date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                                <field name="submitButton"><default-field title="Reschedule"><submit/></default-field></field>
+                            </form-single>
+                        </container-dialog>
+                        <render-mode><text type="qvt"><![CDATA[</span>]]></text></render-mode>
+                    </widgets></section>
+                    <render-mode><text type="qvt"><![CDATA[</div></q-item-section></q-item>]]></text></render-mode>
+                </widgets></section-iterate>
+                <render-mode><text type="qvt"><![CDATA[</q-list>]]></text></render-mode>
+            </widgets></section>
+
+            <!-- the quick-add line under Due today: a task due today for the user, on the record given -->
+            <section name="QuickAddSection" condition="group.key == 'dueToday'"><widgets>
+                <container style="q-mt-sm">
+                    <section name="QuickAddRecord" condition="hasRecord"><widgets>
+                        <render-mode><text type="qvt"><![CDATA[<q-chip dense square icon="sym_o_link" class="q-ml-none q-mb-xs">]]></text></render-mode>
+                        <label type="span" text="Linked to ${recordTitle || recordId}"/>
+                        <render-mode><text type="qvt"><![CDATA[<span class="q-mx-xs">&#183;</span>]]></text></render-mode>
+                        <link url="." link-type="anchor" text="remove" dynamic-load-id="m-tray-today" parameter-map="{recordEntity:'', recordId:'', recordTitle:''}"/>
+                        <render-mode><text type="qvt"><![CDATA[</q-chip>]]></text></render-mode>
+                    </widgets></section>
+                    <form-single name="TodayQuickAdd" transition="quickAdd" background-reload-id="m-tray-today">
+                        <field name="recordEntity"><default-field><hidden/></default-field></field>
+                        <field name="recordId"><default-field><hidden/></default-field></field>
+                        <field name="workEffortName"><default-field title="Add a task for today"><text-line size="30"/></default-field></field>
+                        <field name="addButton"><default-field title="Add"><submit icon="sym_o_add"/></default-field></field>
+                        <field-layout><field-row-big><field-ref name="workEffortName"/><field-ref name="addButton"/></field-row-big></field-layout>
+                    </form-single>
+                </container>
+            </widgets></section>
+        </widgets></section-iterate>
+
+        <!-- an activity on the record of the canvas's screen context, when the + menu offers the activity kind for it -->
+        <render-mode><text type="qvt"><![CDATA[<div v-if="$root.screenRecord && $root.quickCreateItems && $root.quickCreateItems.some((kind) => kind.kind === 'activity')">
+            <q-btn flat dense no-caps color="primary" icon="sym_o_pending_actions" class="q-mt-xs"
+                    @click="$root.openQuickCreate($root.quickCreateItems.find((kind) => kind.kind === 'activity'))">]]></text></render-mode>
+        <label type="span" text="Add activity on this record"/>
+        <render-mode><text type="qvt"><![CDATA[</q-btn></div>]]></text></render-mode>
+
+        <container style="row q-mt-md">
+            <link url="../../Home" link-type="anchor" text="Open in Commons"/>
+        </container>
     </widgets>
 </screen>

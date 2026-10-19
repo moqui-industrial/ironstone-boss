@@ -66,4 +66,14 @@ along with this software (see the LICENSE.md file). If not, see
             formListFindId="BOSS_DEMO_MY_TASKS" renderMode="xlsx" noResultsAbort="Y" cronExpression="0 0 6 ? * MON"
             fromDate="2026-01-05 00:00:00" thruDate="2026-02-02 00:00:00" emailTemplateId="SCREEN_RENDER"
             emailSubject="Open tasks" userId="EX_JOHN_DOE"/>
+
+    <!-- M2: Today, notifications and approvals for john.doe. The demo approval topic: a purchase to approve, whose decision
+        services (service/ironstone/DemoServices.xml) put a note on the record; a refuse needs a reason. -->
+    <moqui.security.user.NotificationTopic topic="BossDemoApproval" description="Purchase Approval (demo)" typeString="info"
+            showAlert="Y" persistOnSend="Y" receiveNotifications="Y" isPrivate="N" inboxEnumId="NinNotifications"
+            approveServiceName="ironstone.DemoServices.approve#DemoPurchase" refuseServiceName="ironstone.DemoServices.refuse#DemoPurchase"
+            refuseReasonRequired="Y" titleTemplate="Approve ${summary}: ${amount}" linkTemplate=""/>
+    <!-- the tasks, activity, meeting and notifications, dated from the day the data is loaded (after the records above, which
+        it changes: the demo request's response is due today) -->
+    <ironstone.DemoServices.load-CommonsDemo/>
 </entity-facade-xml>

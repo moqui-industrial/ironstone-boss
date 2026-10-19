@@ -54,6 +54,8 @@ along with this software (see the LICENSE.md file). If not, see
             <date-filter/><econdition field-name="workEffortId"/><order-by field-name="firstName,lastName,organizationName"/></entity-find>
     </actions>
     <widgets>
+        <!-- the record for the shell: quick create's link chip and the activity kind, Today's "Add activity on this record" -->
+        <context record-entity="mantle.work.effort.WorkEffort" record-id="${workEffortId}" title="${workEffort?.workEffortName || workEffortId}"/>
         <container-row><row-col lg="6">
             <container-box><box-header title="Task ${workEffortId}"/><box-toolbar>
                 <link url="timeEntries" text="Task Time Entries" parameter-map="{workEffortId:workEffortId}"/>

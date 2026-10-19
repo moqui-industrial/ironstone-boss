@@ -67,6 +67,8 @@ along with this software (see the LICENSE.md file). If not, see
             <econdition field-name="requestId"/><order-by field-name="-noteDate"/></entity-find>
     </actions>
     <widgets>
+        <!-- the record for the shell: quick create's link chip and the activity kind, Today's "Add activity on this record" -->
+        <context record-entity="mantle.request.Request" record-id="${requestId}" title="${request?.requestName || requestId}"/>
         <container-row><row-col md="7">
             <label text="Request #${requestId}" type="h4"/>
 
