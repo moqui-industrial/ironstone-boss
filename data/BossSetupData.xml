@@ -146,6 +146,11 @@ along with this software (see the LICENSE.md file). If not, see
         record (org.moqui.impl.ChatServices.check#RecordVisible calls this service with checkOnly, under the user's filters) -->
     <moqui.screen.ScreenThemeResource screenThemeId="DEFAULT_QUASAR" sequenceNum="309" resourceTypeEnumId="STRT_RECORD_VISIBLE_SERVICE"
             resourceValue="mantle.party.CommunicationServices.get#RecordLinkInfo"/>
+    <!-- Out of office (design-drawers-commons.md §17, impl M5): an automatic reply to "my contacts and people inside" asks which
+        senders are the account owner's contacts (org.moqui.impl.EmailClientServices.filter#ContactAddresses calls this service:
+        the owner's personal contacts, own and shared contact books, and the directory of the owner's organizations) -->
+    <moqui.screen.ScreenThemeResource screenThemeId="DEFAULT_QUASAR" sequenceNum="310" resourceTypeEnumId="STRT_EMAIL_CONTACT_SERVICE"
+            resourceValue="mantle.party.ContactBookServices.filter#ContactAddresses"/>
     <!-- the do not disturb hours of Comms Settings, Chat (ironstone.ChatServices.apply#DndHours) -->
     <moqui.service.job.ServiceJob jobName="apply_ChatDndHours" description="Do not disturb hours of the chat users (IronStone)"
             serviceName="ironstone.ChatServices.apply#DndHours" cronExpression="0 */5 * * * ?" paused="N"/>

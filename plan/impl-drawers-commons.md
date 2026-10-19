@@ -411,14 +411,17 @@ Built Oct 19 (M5e and the settings screens):
   - The add-account wizard has five steps (Address, Connect, Test, Options, Finish) and an account page replaces the
     AccountEdit form. Known providers are resolved offline, with app-password help.
   - Out of office can reply to everyone, contacts or internal senders; "contacts" asks a hook
-    (`STRT_EMAIL_CONTACT_SERVICE`), which Mantle does not provide yet.
+    (`STRT_EMAIL_CONTACT_SERVICE`), which BossSetupData sets (Oct 19) to Mantle's
+    `ContactBookServices.filter#ContactAddresses`: the owner's personal contacts, own and shared books, and the directory
+    of the owner's organizations, never another user's personal contact (R7).
 
 ### M6 — Tasks and requests (BOSS on existing Mantle)
 
 - Tasks (smart lists, quick-add row, bulk actions), TaskDetail, Requests and RequestDetail, rewritten from the M0
   conversions with Chatter, record-files and the context element.
 - The board and calendar switches open the Projects board and the Commons Calendar until `view-board` and
-  `view-calendar` exist, as design §8 says.
+  `view-calendar` exist, as design §8 says. Done Oct 19: the Tasks list has `views="list,board,calendar"` (a board by
+  status through `set#TaskStatus`, a calendar by due day through the in-place due edit, quick add on an empty day).
 
 Built Oct 19:
 - **Commit:** BOSS fd517b5. `ironstone.TaskServices`, `RequestServices` and `StatusServices`, with 170 BOSS features.

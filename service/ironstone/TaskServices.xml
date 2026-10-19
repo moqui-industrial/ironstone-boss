@@ -95,7 +95,8 @@ along with this software (see the LICENSE.md file). If not, see
             the user an Assignee), created (open, the user's party the owner), watching (open, the user a Watcher or a
             follower) and done (Complete or Closed, the latest first). Open is not Complete, Closed or Cancelled; due is the
             estimated completion date, else the estimated start. A status in the find takes the place of the list's open or
-            done.</description>
+            done. Each row has the fields the list's board and calendar read: workEffortId (the key), workEffortName,
+            statusId, priority, estimatedCompletionDate (the due day) and dueAllDay.</description>
         <in-parameters>
             <parameter name="list" default-value="all"/>
             <parameter name="text"/>
@@ -275,7 +276,8 @@ along with this software (see the LICENSE.md file). If not, see
 
     <service verb="decorate" noun="TaskRows" allow-remote="false">
         <description>Task rows as the lists show them: the link, the status (label and color), done, the due date as text with
-            its edit value (yyyy-MM-dd), overdue and due today, the purpose, the project, the record the task is on (its caption
+            its edit value (yyyy-MM-dd), and as estimatedCompletionDate (the due day, yyyy-MM-dd, with dueAllDay Y: the Tasks
+            calendar shows a task a whole day on it), overdue and due today, the purpose, the project, the record the task is on (its caption
             and link), the assignees, the estimated and remaining hours, and what the user may do (canUpdate; onToday when it is
             on the user's Today, canAddToToday when Add to today applies). entries holds the user's roles, snooze and follow of
             each task (find#TaskRows); without it they are read.</description>
@@ -412,7 +414,7 @@ along with this software (see the LICENSE.md file). If not, see
                 rowList.push({workEffortId: id, workEffortName: task.workEffortName || id, url: '/qapps/Commons/Tasks/TaskDetail?workEffortId=' + encodeURIComponent(id),
                     statusId: task.statusId || null, statusLabel: statusLabel(task.statusId), statusColor: colors[task.statusId] || 'grey-7',
                     isDone: isDone, isOpen: isOpen, canUpdate: canUpdate, isOwner: isOwner, roleList: roles, follower: !!entry.follower,
-                    dueMillis: due, dueText: dueText, dueEditText: due != null ? dayText(due) : '',
+                    dueMillis: due, dueText: dueText, dueEditText: due != null ? dayText(due) : '', estimatedCompletionDate: due != null ? dayText(due) : null, dueAllDay: 'Y',
                     overdue: isOpen && due != null && due < todayStart, dueToday: due != null && due >= todayStart && due < tomorrowStart,
                     priority: task.priority ?? null, priorityText: task.priority != null ? String(task.priority) : '',
                     purposeEnumId: task.purposeEnumId || null, purposeLabel: enumLabel(task.purposeEnumId),

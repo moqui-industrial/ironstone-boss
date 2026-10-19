@@ -2,7 +2,9 @@
 // TextBlocks; the Mail box of Commons Preferences; service/ironstone/MailSettingsServices.xml; design-drawers-commons.md §17, §11
 // MailDefaults): on the demo of data/BossMailDemoData.xml (load#MailSettingsDemo: the shared Support account whose sign-in failed,
 // john.doe's rules, automatic reply and text blocks) and on an account of this spec's own (127.0.0.1 port 1, nothing listens) with
-// an imported message, so the rules run on mail no other spec reads. Each signature, reply and text block is cleaned as safe HTML.
+// an imported message, so the rules run on mail no other spec reads; its automatic reply to contacts goes (MailCapture) to
+// john.doe's personal contact and not to a stranger, by the contact hook BossSetupData sets (Mantle's filter#ContactAddresses).
+// Each signature, reply and text block is cleaned as safe HTML.
 // joe.developer may not change john.doe's identities, rules, automatic reply or text blocks; he sees the shared text block and,
 // as a member who sends from Support, its identity without changing it. Authorization stays on, as for a browser request.
 // Run: ./moq test ironstone-boss --spec MailSettings
@@ -239,7 +241,7 @@ feature("out of office: the demo's reply shows off; turned on for three days it 
         const ownReply = one("moqui.basic.email.EmailOutOfOffice", { emailAccountId: ownId })
         for (const id of [DEMO, SUPPORT, ownId]) settings("OutOfOffice/turnOff", { emailAccountId: id })
         const afterOff = rows("moqui.basic.email.EmailOutOfOffice", {}).filter((row) => [DEMO, SUPPORT, ownId].includes(row.emailAccountId) && row.enabled == "Y")
-        // who gets it: people inside only; until a contact hook is set up, every sender counts as a contact
+        // who gets it: people inside only; contacts are the hook's (BossSetupData's STRT_EMAIL_CONTACT_SERVICE), so no note says otherwise
         const inside = settings("OutOfOffice/storeReply", { emailAccountId: DEMO, enabled: "Y", fromDate: fmt(now - 3600000), thruDate: fmt(now + 3 * 86400000),
             subject: "Away", bodyHtml: "<p>Away until Thursday.</p>", replyOncePerDays: "2", replyAudienceEnumId: "EraInternal" })
         const insideRow = one("moqui.basic.email.EmailOutOfOffice", { emailAccountId: DEMO })
@@ -256,7 +258,8 @@ feature("out of office: the demo's reply shows off; turned on for three days it 
         inside.errors == ""
         insideRow.replyAudienceEnumId == "EraInternal"
         badAudience.errors.includes("Choose who gets the reply")
-        shownInside.output.includes("everyone who writes counts as a contact")
+        !shownInside.output.includes("counts as a contact")
+        shownInside.output.includes("Your contacts are your personal contacts")
         offKeepsAudience.enabled == "N"
         offKeepsAudience.replyAudienceEnumId == "EraInternal"
         shown.errors == ""
@@ -276,6 +279,51 @@ feature("out of office: the demo's reply shows off; turned on for three days it 
         supportReply.enabled == "Y"
         ownReply.enabled == "Y"
         afterOff.length == 0
+    },
+})
+
+feature("out of office to contacts and people inside: Mary, john.doe's personal contact, gets the automatic reply; a stranger does not", {
+    when() {
+        const capture = ec.factory.getTool("MailCapture")
+        capture.enable()
+        try {
+            capture.clear()
+            const now = Date.now()
+            sys(() => call("org.moqui.impl.EmailClientServices.store#EmailOutOfOffice", { emailAccountId: ownId, enabled: true, fromDate: new Date(now - 3600000),
+                subject: "Away", bodyHtml: "<p>Away this week, back Monday.</p>", replyOncePerDays: 4, replyAudienceEnumId: "EraContacts" }))
+            // two messages to the account just now: from Mary (her address in another case) and from a stranger
+            const ids = sys(() => [["Mary.Doe@Example.com", "Lunch on Friday?"], ["stranger@nowhere.example", "A business offer"]].map(([fromAddress, subject]) => {
+                const message = ec.entity.makeValue("moqui.basic.email.EmailMessage")
+                message.setSequencedIdPrimary()
+                message.setFields({ emailAccountId: ownId, emailFolderId: ownInbox, statusId: "ES_RECEIVED", subject, fromAddress, toAddresses: "rules@acme.example",
+                    body: "<p>Hello</p>", bodyText: "Hello", contentType: "text/html", messageDate: new Date(now - 60000), receivedDate: new Date(now - 60000),
+                    isRead: "N", messageId: `<ooo-${fromAddress.toLowerCase()}-${now}@test.example>` }, true, null, null)
+                message.create()
+                return message.emailMessageId
+            }))
+            // the hook, as the framework asks it for the account's owner
+            const hook = sys(() => call("org.moqui.impl.EmailClientServices.filter#ContactAddresses", { userId: "EX_JOHN_DOE",
+                emailAddressList: ["mary.doe@example.com", "stranger@nowhere.example"] }))
+            const out = sys(() => call("org.moqui.impl.EmailClientServices.send#OutOfOfficeReplies", { emailAccountId: ownId, emailMessageIdList: ids }))
+            return { hook, out, captured: Array.from(capture.getMessages()), sent: rows("moqui.basic.email.EmailOutOfOfficeSent", { emailAccountId: ownId }) }
+        } finally {
+            capture.reset()
+            sys(() => call("org.moqui.impl.EmailClientServices.store#EmailOutOfOffice", { emailAccountId: ownId, enabled: false, bodyHtml: "<p>Away.</p>",
+                replyAudienceEnumId: "EraContacts" }))
+        }
+    },
+    then({ hook, out, captured, sent }) {
+        hook.hookService == "mantle.party.ContactBookServices.filter#ContactAddresses"
+        !hook.hookFailed
+        hook.contactAddressList == ["mary.doe@example.com"]
+        out.sentCount == 1
+        out.skippedCount == 1
+        captured.length == 1
+        captured[0].toList.length == 1
+        captured[0].toList[0].includes("Mary.Doe@Example.com")
+        captured[0].subject == "Away"
+        captured[0].body.includes("Away this week, back Monday.")
+        sent.map((row) => row.toAddress) == ["mary.doe@example.com"]
     },
 })
 

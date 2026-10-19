@@ -16,9 +16,10 @@ along with this software (see the LICENSE.md file). If not, see
     by the account chips when there are several: on or off, from and until (empty: from now, until turned off), the subject,
     the message everyone gets (m-rich-text) and, when it should differ, the one people inside the organization get (users of
     this system and the domains of its shared and hosted accounts), once per sender every so many days; who gets it (Reply to:
-    everyone, your contacts and people inside, or people inside only; until a contact hook is set up on this server, the
-    STRT_EMAIL_CONTACT_SERVICE theme value, every sender counts as a contact, which the page says); and the same reply on
-    every account at once. The framework sends it from the sync (send#OutOfOfficeReplies: never to lists, bulk mail, other
+    everyone, your contacts and people inside, or people inside only; a contact is one of the owner's personal contacts, in
+    the owner's own or shared contact books, or in the directory, as mantle.party.ContactBookServices.filter#ContactAddresses
+    answers, the STRT_EMAIL_CONTACT_SERVICE theme value data/BossSetupData.xml sets); and the same reply on every account at
+    once. The framework sends it from the sync (send#OutOfOfficeReplies: never to lists, bulk mail, other
     automatic replies or spam). ironstone.MailSettingsServices get and store#OutOfOffice; the access is the framework's. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Out of office" default-menu-index="4">
@@ -60,7 +61,6 @@ along with this software (see the LICENSE.md file). If not, see
             hasServer = oooOut?.hasServer === true
             selectedAccount = oooAccounts.find((account) => account.emailAccountId === selectedAccountId) || null
             manyAccounts = oooAccounts.length > 1
-            contactsNote = oooOut?.contactsNote || null
         ]]></script>
     </actions>
     <widgets>
@@ -118,8 +118,7 @@ along with this software (see the LICENSE.md file). If not, see
                             <field-ref name="submitButton"/>
                         </field-layout>
                     </form-single>
-                    <label type="p" text="${contactsNote}" style="text-caption m-muted q-mb-xs" condition="contactsNote"/>
-                    <label type="p" text="People inside the organization are the users of IronStone and addresses at the domains of your shared accounts. Turning the reply on again sends it to everyone again." style="text-caption m-muted q-mb-none"/>
+                    <label type="p" text="Your contacts are your personal contacts, the people in your contact books and those shared with you, and the directory. People inside the organization are the users of IronStone and addresses at the domains of your shared accounts. Turning the reply on again sends it to everyone again." style="text-caption m-muted q-mb-none"/>
                 </box-body>
             </container-box>
         </widgets></section>

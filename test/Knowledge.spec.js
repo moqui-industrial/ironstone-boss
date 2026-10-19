@@ -465,6 +465,10 @@ feature("the screens render: Knowledge as its component, and in it the review li
         knowledge.status == 200
         knowledge.output.includes("module.exports")
         knowledge.output.includes("BossKnowledge")
+        // the page is the framework's m-markdown, with the wiki's links resolved by the screen; no Marked of its own
+        knowledge.output.includes('<m-markdown ref="body"')
+        knowledge.output.includes(':resolve-link="resolveLink"')
+        !knowledge.output.includes("marked.umd")
         review.status == 200
         review.output.includes("Release process")
         review.output.includes("Please check the new rollback steps")

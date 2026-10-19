@@ -1086,9 +1086,8 @@ along with this software (see the LICENSE.md file). If not, see
         <description>The OutOfOffice screen: the accounts the user manages (not the Internal one) with whether their automatic
             reply is on now, and the chosen account's reply (emailAccountId, else the first) for the form, from
             org.moqui.impl.EmailClientServices.get#EmailOutOfOffice, with who gets it (replyAudienceEnumId: EraEveryone,
-            EraContacts, EraInternal). contactsNote says, when no contact hook is configured (contactHookService empty: the
-            email_contact_service property or the theme value STRT_EMAIL_CONTACT_SERVICE), that every sender counts as a
-            contact until one is. Each account's state stands alone: one that fails is logged and shown as unknown.</description>
+            EraContacts, EraInternal; who is a contact is the hook BossSetupData sets, STRT_EMAIL_CONTACT_SERVICE). Each
+            account's state stands alone: one that fails is logged and shown as unknown.</description>
         <in-parameters><parameter name="emailAccountId"/></in-parameters>
         <out-parameters>
             <parameter name="accountList" type="List"/>
@@ -1097,13 +1096,10 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="statusText"/>
             <parameter name="isActive" type="Boolean"/>
             <parameter name="hasServer" type="Boolean"/>
-            <parameter name="contactHookService"/>
-            <parameter name="contactsNote"/>
         </out-parameters>
         <actions><script><![CDATA[
             const L = (text) => text.length > 255 ? text : ec.l10n.localize(text)
             accountList = []; selectedAccountId = null; reply = null; statusText = null; isActive = false; hasServer = false
-            contactHookService = null; contactsNote = null
             const access = ec.service.sync().name('org.moqui.impl.EmailClientServices.get#EmailAccountAccess').call()
             if (ec.message.hasError()) return
             const fmt = (millis) => millis == null ? '' : ec.l10n.format(new Date(Number(millis)), 'yyyy-MM-dd HH:mm')
@@ -1133,8 +1129,6 @@ along with this software (see the LICENSE.md file). If not, see
             reply = {emailAccountId: selectedAccountId, enabled: current?.enabled ? 'Y' : 'N', fromDate: fmt(current?.fromDate), thruDate: fmt(current?.thruDate),
                 subject: current?.subject || '', bodyHtml: current?.bodyHtml || '', internalBodyHtml: current?.internalBodyHtml || '',
                 replyOncePerDays: String(current?.replyOncePerDays ?? 4), replyAudienceEnumId: current?.replyAudienceEnumId || 'EraEveryone', applyToAll: 'N'}
-            contactHookService = states[selectedAccountId]?.contactHookService || null
-            if (!contactHookService) contactsNote = L('Which senders are your contacts is not set up on this server yet, so until it is, everyone who writes counts as a contact.')
             const now = Number(ec.user.nowTimestamp)
             if (isActive) statusText = current?.thruDate ? ec.resource.expand('On now, until ${until}: people who write get your reply.', '', {until: nice(current.thruDate)})
                 : L('On now: people who write get your reply until you turn it off.')

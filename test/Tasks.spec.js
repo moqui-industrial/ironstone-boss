@@ -3,8 +3,9 @@
 // (data/BossDemoData.xml, DemoServices.load#TasksDemo with the Today demo of load#CommonsDemo); the list with its chips, the
 // quick-add row, the done checks, the in-place due and priority, the bulk actions and the row actions; TaskDetail with its
 // stage chips, tabs and actions: complete through the status action, reassign, set due, clone, convert to request, time
-// (clock in and out, add time), add to Today, sub-tasks and delete own. A task Joe Developer is not on is "not available" to
-// him and every change of it is refused (IronStone R5, R28). The spec changes only the tasks it makes (BOSS_TEST_* names),
+// (clock in and out, add time), add to Today, sub-tasks and delete own; the list's board (a card moved to another status
+// column, along the flow) and calendar (a task moved to another day, a task added on an empty day). A task Joe Developer is
+// not on is "not available" to him and every change of it is refused (IronStone R5, R28). The spec changes only the tasks it makes (BOSS_TEST_* names),
 // so the demo stays for the specs after it. Authorization stays on, as for a browser request.
 // Run: ./moq test ironstone-boss --spec Tasks
 const webroot = "component://webroot/screen/webroot.xml"
@@ -174,7 +175,14 @@ feature("the list renders in qvt with the chips and counts, the views, the find,
         shown.output.includes("All open · ")
         shown.output.includes("Next 7 days · ")
         shown.output.includes("Watching · ")
-        shown.output.includes("Calendar")
+        // the views of the list: the board by status and the calendar by due day, over the rows of the page; no more links away
+        shown.output.includes('<m-list-views id="Tasks_views"')
+        shown.output.includes("moveTaskStatus")
+        shown.output.includes("moveTaskDue")
+        shown.output.includes("calendarAdd")
+        !shown.output.includes("Projects/WorkItems")
+        !shown.output.includes("showTasks")
+        shown.output.includes("v-slot:card_0")
         shown.output.includes("Add a task")
         shown.output.includes('id="Tasks_table"')
         shown.output.includes("Plan the office move")
@@ -315,6 +323,64 @@ feature("the row actions: the done check completes a task and opens it again; Ad
         toToday.errors == ""
         dayOf(printer.estimatedCompletionDate) == todayText
         onToday
+    },
+})
+
+feature("the board moves a task's status along the flow and refuses a move the flow has not; the calendar moves its due day and adds a task on an empty day", {
+    allowMessageErrors: true,
+    when() {
+        const task = quickAdd("BOSS_TEST Board card", tomorrowText, "week").id
+        made.board = task
+        const status = () => one("mantle.work.effort.WorkEffort", { workEffortId: task }).statusId
+        // the row as the views read it: the key, the group, the due day as a whole day
+        const row = rows("week").rowList.find((entry) => entry.workEffortId === task)
+        // In Planning to On Hold: the flow has no such step, so the card goes back
+        const held = post("Tasks/List/moveTaskStatus", { workEffortId: task, toStatusId: "WeOnHold" })
+        const afterHeld = status()
+        const begun = post("Tasks/List/moveTaskStatus", { workEffortId: task, toStatusId: "WeInProgress" })
+        const afterBegin = status()
+        // Approved is the Projects app's, as for the status-bar
+        const approved = post("Tasks/List/moveTaskStatus", { workEffortId: task, toStatusId: "WeApproved" })
+        const completed = post("Tasks/List/moveTaskStatus", { workEffortId: task, toStatusId: "WeComplete" })
+        const afterComplete = one("mantle.work.effort.WorkEffort", { workEffortId: task })
+        // the calendar: to another day, as the in-place edit (the time of day stays); never to no day
+        const moved = post("Tasks/List/moveTaskDue", { workEffortId: task, estimatedCompletionDate: inThreeText })
+        const afterMove = one("mantle.work.effort.WorkEffort", { workEffortId: task })
+        const noDay = post("Tasks/List/moveTaskDue", { workEffortId: task, estimatedCompletionDate: "" })
+        const afterNoDay = one("mantle.work.effort.WorkEffort", { workEffortId: task })
+        const added = post("Tasks/List/calendarAdd", { workEffortName: "BOSS_TEST Calendar add", estimatedCompletionDate: tomorrowText, dueAllDay: "Y", list: "all" })
+        const addedTask = all("mantle.work.effort.WorkEffort", { workEffortName: "BOSS_TEST Calendar add" })[0] || null
+        made.calendarAdd = addedTask ? addedTask.workEffortId : null
+        return { row, held, afterHeld, begun, afterBegin, approved, completed, afterComplete, moved, afterMove, noDay, afterNoDay, added, addedTask,
+            addedAssignees: addedTask ? current("mantle.work.effort.WorkEffortParty", { workEffortId: addedTask.workEffortId, roleTypeId: "Assignee" }) : [] }
+    },
+    then({ row, held, afterHeld, begun, afterBegin, approved, completed, afterComplete, moved, afterMove, noDay, afterNoDay, added, addedTask, addedAssignees }) {
+        row.statusId == "WeInPlanning"
+        row.estimatedCompletionDate == tomorrowText
+        row.dueAllDay == "Y"
+        row.workEffortName == "BOSS_TEST Board card"
+        held.status == 500
+        held.errors.includes("Status change not allowed from In Planning to On Hold")
+        afterHeld == "WeInPlanning"
+        begun.errors == ""
+        begun.json.messageInfos[0].message == "BOSS_TEST Board card: In Progress"
+        afterBegin == "WeInProgress"
+        approved.errors.includes("cannot be set to WeApproved")
+        completed.errors == ""
+        afterComplete.statusId == "WeComplete"
+        afterComplete.resolutionEnumId == "WerCompleted"
+        afterComplete.actualCompletionDate != null
+        moved.errors == ""
+        moved.json.messageInfos[0].message.includes("due " + inThreeText)
+        dayOf(afterMove.estimatedCompletionDate) == inThreeText
+        ec.l10n.format(afterMove.estimatedCompletionDate, "HH:mm") == "00:00"
+        noDay.errors.includes("Drop the task on a day")
+        dayOf(afterNoDay.estimatedCompletionDate) == inThreeText
+        added.errors == ""
+        addedTask != null
+        dayOf(addedTask.estimatedCompletionDate) == tomorrowText
+        addedTask.ownerPartyId == "EX_JOHN_DOE"
+        addedAssignees.length == 1
     },
 })
 
@@ -505,11 +571,14 @@ feature("a task Joe Developer is not on is not available to him, and its changes
             cloned: post("Tasks/TaskDetail/cloneTask", { workEffortId: "BOSS_DEMO_TASK" }),
             field: post("Tasks/List/updateTaskField", { workEffortId: "BOSS_DEMO_TASK", field: "priority", value: "1" }),
             loaded: post("Tasks/List/taskFieldValue", { workEffortId: "BOSS_DEMO_TASK", field: "due" }),
+            // the board and calendar of the list: the same refusal
+            board: post("Tasks/List/moveTaskStatus", { workEffortId: "BOSS_DEMO_TASK", toStatusId: "WeComplete" }),
+            calendar: post("Tasks/List/moveTaskDue", { workEffortId: "BOSS_DEMO_TASK", estimatedCompletionDate: inThreeText }),
             own: render("apps/Commons/Tasks/TaskDetail", { workEffortId: "BOSS_DEMO_TODAY_DUE" }),
             list: render("apps/Commons/Tasks", {}),
         }))
     },
-    then({ hidden, status, cloned, field, loaded, own, list }) {
+    then({ hidden, status, cloned, field, loaded, board, calendar, own, list }) {
         hidden.status == 200
         hidden.output.includes("is not available")
         !hidden.output.includes("Review the open support requests")
@@ -518,7 +587,10 @@ feature("a task Joe Developer is not on is not available to him, and its changes
         cloned.errors.includes("Task BOSS_DEMO_TASK is not available")
         field.errors.includes("Task BOSS_DEMO_TASK is not available")
         !loaded.json.value
+        board.errors.includes("Task BOSS_DEMO_TASK is not available")
+        calendar.errors.includes("Task BOSS_DEMO_TASK is not available")
         one("mantle.work.effort.WorkEffort", { workEffortId: "BOSS_DEMO_TASK" }).statusId != "WeComplete"
+        dayOf(one("mantle.work.effort.WorkEffort", { workEffortId: "BOSS_DEMO_TASK" }).estimatedCompletionDate) != inThreeText
         own.output.includes("Compare the calendar options for the team")
         !own.output.includes("is not available")
         !list.output.includes("Review the open support requests")
