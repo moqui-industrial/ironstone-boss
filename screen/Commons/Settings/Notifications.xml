@@ -25,6 +25,12 @@ along with this software (see the LICENSE.md file). If not, see
         <actions><message type="success">Saved</message></actions>
         <default-response url="."/>
     </transition>
+    <transition name="saveDigestHour">
+        <service-call name="org.moqui.impl.UserServices.set#Preference"
+                in-map="{preferenceKey:'NOTIFICATION_DIGEST_HOUR', preferenceValue:digestHour}"/>
+        <actions><message type="success">Saved</message></actions>
+        <default-response url="."/>
+    </transition>
 
     <actions>
         <script><![CDATA[
@@ -33,6 +39,11 @@ along with this software (see the LICENSE.md file). If not, see
             for (const app of (shellData && Array.isArray(shellData.apps) ? shellData.apps : []))
                 for (const topic of (app.providers && app.providers.notificationTopics) || []) if (!topics.includes(topic)) topics.push(topic)
             providerTopics = topics
+            const hourPref = parseInt(ec.user.getPreference('NOTIFICATION_DIGEST_HOUR'), 10)
+            digestSettings = {digestHour: (hourPref >= 0 && hourPref <= 23) ? String(hourPref) : '6'}
+            digestHourOptions = []
+            for (let hour = 0; hour < 24; hour++)
+                digestHourOptions.push({hour: String(hour), label: (hour < 10 ? '0' : '') + hour + ':00'})
         ]]></script>
         <service-call name="ironstone.CommonsServices.get#NotificationTopicRows" in-map="{providerTopics:providerTopics}" out-map="context"/>
     </actions>
@@ -43,7 +54,16 @@ along with this software (see the LICENSE.md file). If not, see
             <container style="col"/>
             <link url="../../Notifications" link-type="anchor" text="Notifications" icon="sym_o_notifications"/>
         </container>
-        <label type="p" text="Mentions, assignments, approvals and reminders come to the Notifications inbox, which the header counts; record updates and system messages come to Updates. A daily digest sends what you have not read in one email a day." style="m-muted"/>
+        <label type="p" text="Mentions, assignments, approvals and reminders come to the Notifications inbox, which the header counts; record updates and system messages come to Updates. A daily digest sends what you have not read in one email, at the hour you choose, in your time zone." style="m-muted"/>
+
+        <container-box><box-header title="Daily digest"/><box-body>
+            <form-single name="DigestHour" transition="saveDigestHour" map="digestSettings">
+                <field name="digestHour"><default-field title="Send the digest at">
+                    <drop-down><list-options list="digestHourOptions" key="${hour}" text="${label}"/></drop-down>
+                </default-field></field>
+                <field name="submit"><default-field title=""><submit text="Save"/></default-field></field>
+            </form-single>
+        </box-body></container-box>
 
         <container-box><box-header title="Notifications inbox"/><box-body-nopad>
             <form-list name="NotificationsTopics" list="notificationsRows" transition="storeTopic" paginate="false">

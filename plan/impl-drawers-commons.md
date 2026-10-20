@@ -657,8 +657,7 @@ plans/Remaining-Work.md.
   - SMTP listener: no TLS to the gateway (loopback or a private network), no LMTP mode, no DSN.
   - Files: PDF previews, extracted text for search, office previews. Chat: polls, calls, link previews, a room's
     files and threads lists, forward, offline sends.
-  - Older open items still listed in Remaining-Work.md (notification digest grouping, rich-text tables and `#` record
-    links, job scheduling in the machine time zone, and others).
+  - Older open items still listed in Remaining-Work.md.
 - Mantle: a generic request-to-record link (only RequestWorkEffort exists); a bookable flag and capacity on Facility
   and Asset. A published calendar's public page is `/cal/<token>` (`check#PublishedCalendarToken`,
   `screen/PublishedCalendar`); no CalDAV. Consent per organization was decided against (§16, §19).

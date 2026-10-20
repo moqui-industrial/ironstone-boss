@@ -55,6 +55,17 @@ along with this software (see the LICENSE.md file). If not, see
         ]]></script></actions>
         <default-response type="none"/>
     </transition>
+    <!-- the # record links: search#LinkRecords (term of 2 or more) reshaped to {id, label, entity} for the editor -->
+    <transition name="searchRecords" read-only="true">
+        <actions>
+            <service-call name="ironstone.InboxServices.search#LinkRecords" in-map="{term:term}" out-map="found"/>
+            <script><![CDATA[
+                const list = (found && found.optionList) || []
+                ec.web.sendJsonResponse(list.map((row) => ({id: row.recordId, label: row.label, entity: row.recordEntityName})))
+            ]]></script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
     <!-- the people of the @ mentions (GET) and of the user drop-downs (POST): [{id, value, label, partyId}] -->
     <transition name="searchUsers" read-only="true">
         <actions>
