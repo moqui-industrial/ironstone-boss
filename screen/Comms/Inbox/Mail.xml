@@ -42,7 +42,7 @@ along with this software (see the LICENSE.md file). If not, see
                 emailFolderId: folder || null, emailLabelId: label || null, contactListId: mailbox || null, searchText: q || null,
                 unreadOnly: String(unreadOnly) === 'true', cursor: cursor || null, pageSize: pageSize ? Number(pageSize) : 50}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {threadList: out.threadList, hasMore: out.hasMore, nextCursor: out.nextCursor,
-                storeList: out.storeList, failedStores: out.failedStores, termList: out.termList})
+                storeList: out.storeList, failedStores: out.failedStores, termList: out.termList, conversationView: out.conversationView})
         ]]></script></actions>
         <default-response type="none"/>
     </transition>
@@ -54,6 +54,17 @@ along with this software (see the LICENSE.md file). If not, see
         ]]></script></actions>
         <default-response type="none"/>
     </transition>
+    <!-- Save to Files: a copy of an attachment in a drive folder; the message keeps its own -->
+    <transition name="saveFiles">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.InboxServices.save#MessageFiles').parameters({store: store || '', id: id || null,
+                emailMessageId: emailMessageId || null, communicationEventId: communicationEventId || null, driveId: driveId || '', path: path || ''}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {savedList: out.savedList, failedList: out.failedList})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition-include name="pickerData" location="component://ironstone-boss/template/FilePickerTransitions.xml"/>
+    <transition-include name="pickerFolder" location="component://ironstone-boss/template/FilePickerTransitions.xml"/>
     <!-- an attachment's file, inline for an image or a PDF when asked -->
     <transition name="attachment" method="get" read-only="true">
         <actions><script><![CDATA[

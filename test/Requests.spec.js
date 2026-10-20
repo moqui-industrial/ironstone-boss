@@ -275,6 +275,36 @@ feature("RequestDetail: a comment through add#RequestComment shows in Chatter's 
     },
 })
 
+feature("RequestDetail links a party through RequestRecord; a task stays on RequestWorkEffort", {
+    when() {
+        const linked = post("Requests/RequestDetail/linkRecord", { requestId: "BOSS_DEMO_REQ_ASSIGNED", record: "mantle.party.Party|ORG_ACME_BA" })
+        const again = post("Requests/RequestDetail/linkRecord", { requestId: "BOSS_DEMO_REQ_ASSIGNED", record: "mantle.party.Party|ORG_ACME_BA" })
+        const task = post("Requests/RequestDetail/linkRecord", { requestId: "BOSS_DEMO_REQ_ASSIGNED", record: "mantle.work.effort.WorkEffort|BOSS_DEMO_TODAY_CALL" })
+        const party = one("mantle.request.RequestRecord", { requestId: "BOSS_DEMO_REQ_ASSIGNED", recordEntityName: "mantle.party.Party", recordId: "ORG_ACME_BA" })
+        const shown = render("apps/Commons/Requests/RequestDetail", { requestId: "BOSS_DEMO_REQ_ASSIGNED" })
+        const off = post("Requests/RequestDetail/unlinkRecord", { requestId: "BOSS_DEMO_REQ_ASSIGNED", recordEntityName: "mantle.party.Party", recordId: "ORG_ACME_BA" })
+        const gone = one("mantle.request.RequestRecord", { requestId: "BOSS_DEMO_REQ_ASSIGNED", recordEntityName: "mantle.party.Party", recordId: "ORG_ACME_BA" })
+        const closed = post("Requests/RequestDetail/linkRecord", { requestId: made.submitted, record: "mantle.party.Party|ORG_ACME_BA" })
+        return { linked, again, task, shown, off, gone, closed, party,
+            effort: one("mantle.request.RequestWorkEffort", { requestId: "BOSS_DEMO_REQ_ASSIGNED", workEffortId: "BOSS_DEMO_TODAY_CALL" }),
+            effortGeneric: one("mantle.request.RequestRecord", { requestId: "BOSS_DEMO_REQ_ASSIGNED", recordEntityName: "mantle.work.effort.WorkEffort", recordId: "BOSS_DEMO_TODAY_CALL" }) }
+    },
+    allowMessageErrors: true,
+    then({ linked, again, task, shown, off, gone, closed, party, effort, effortGeneric }) {
+        linked.errors == ""
+        again.errors == ""
+        task.errors == ""
+        party != null
+        effort != null
+        effortGeneric == null
+        shown.output.includes("Linked records")
+        shown.output.includes("m-record-card")
+        off.errors == ""
+        gone == null
+        closed.errors.includes("This request is closed")
+    },
+})
+
 feature("RequestDetail: the assignee reassigns; someone not the assignee cannot", {
     when() {
         const notAssignee = post("Requests/RequestDetail/reassign", { requestId: "BOSS_DEMO_REQ_DRAFT", assignToPartyId: "ORG_ZIZI_JD" })

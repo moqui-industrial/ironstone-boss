@@ -56,7 +56,8 @@ spec({
         login("john.doe")
         if (ownId) sys(() => call("org.moqui.impl.EmailClientServices.delete#EmailAccount", { emailAccountId: ownId, deleteLocalCopies: true }))
         sys(() => call("ironstone.MailDemoServices.load#MailSettingsDemo", {}))
-        for (const key of ["MAIL_READING_PANE", "MAIL_MARK_READ_SECONDS", "MAIL_UNDO_SECONDS", "MAIL_ARCHIVE_NEXT", "MAIL_REMOTE_IMAGES"]) ec.user.setPreference(key, null)
+        for (const key of ["MAIL_READING_PANE", "MAIL_MARK_READ_SECONDS", "MAIL_UNDO_SECONDS", "MAIL_ARCHIVE_NEXT", "MAIL_REMOTE_IMAGES",
+                "MAIL_CONVERSATION", "MAIL_DEFAULT_ACCOUNT", "MAIL_SIGNATURE_PLACEMENT", "MAIL_SWIPE_LEFT", "MAIL_SWIPE_RIGHT"]) ec.user.setPreference(key, null)
     },
 })
 
@@ -404,16 +405,28 @@ feature("the Mail box of Preferences saves what the Inbox and Compose read", {
         const bad = post(commons, "Settings/Preferences/saveMailDefaults", { readingPane: "left", markReadSeconds: "0", undoSeconds: "10", remoteImages: "ask" })
         const saved = post(commons, "Settings/Preferences/saveMailDefaults", { readingPane: "bottom", markReadSeconds: "5", undoSeconds: "20", remoteImages: "always" })
         const inbox = json("Inbox/Mail/inboxData", {}, null)
+        const badView = post(commons, "Settings/Preferences/saveMailDefaults", { conversationView: "cards", signaturePlacement: "beside", swipeLeft: "snooze" })
+        const badAccount = post(commons, "Settings/Preferences/saveMailDefaults", { defaultAccountId: "NO_SUCH_ACCOUNT" })
+        const more = post(commons, "Settings/Preferences/saveMailDefaults", { conversationView: "messages", defaultAccountId: DEMO, signaturePlacement: "below",
+            swipeLeft: "trash", swipeRight: "flag" })
+        const inboxAfter = json("Inbox/Mail/inboxData", {}, null)
+        const listed = json("Inbox/Mail/threads", { view: "inbox" }, null)
         const compose = json("Inbox/Compose/composeData", {}, null)
         const again = render("Commons/Settings/Preferences", {})
-        return { shown, bad, saved, prefs: inbox.json.prefs, compose: compose.json, again }
+        const from = (compose.json.compose && compose.json.compose.identityList || []).find((item) => item.value == (compose.json.compose || {}).fromValue)
+        return { shown, bad, saved, prefs: inbox.json.prefs, badView, badAccount, more, after: inboxAfter.json.prefs, listed: listed.json,
+            compose: compose.json, from, again }
     },
-    then({ shown, bad, saved, prefs, again }) {
+    then({ shown, bad, saved, prefs, badView, badAccount, more, after, listed, compose, from, again }) {
         shown.errors == ""
         !shown.broken
         shown.output.includes("Reading pane")
         shown.output.includes("Undo send")
         shown.output.includes("Pictures in mail")
+        shown.output.includes("Conversation view")
+        shown.output.includes("Default account")
+        shown.output.includes("Above the quote")
+        shown.output.includes("Swipe left")
         bad.errors.includes("The reading pane is right, bottom or off")
         saved.errors == ""
         prefs.readingPane == "bottom"
@@ -421,7 +434,25 @@ feature("the Mail box of Preferences saves what the Inbox and Compose read", {
         prefs.undoSeconds == 20
         prefs.archiveOpensNext == false
         prefs.remoteImages == "always"
+        prefs.conversationView == "threads"
+        prefs.signaturePlacement == "above"
+        prefs.swipeLeft == "archive"
+        prefs.swipeRight == "read"
+        badView.errors.includes("The conversation view is threads or messages")
+        badAccount.errors.includes("That mail account is not one you send from")
+        more.errors == ""
+        after.conversationView == "messages"
+        after.defaultAccountId == DEMO
+        after.signaturePlacement == "below"
+        after.swipeLeft == "trash"
+        after.swipeRight == "flag"
+        after.readingPane == "bottom"
+        listed.conversationView == "messages"
+        compose.compose.signaturePlacement == "below"
+        from.emailAccountId == DEMO
         again.output.includes("'readingPane':'bottom'")
+        again.output.includes("'conversationView':'messages'")
+        again.output.includes("'signaturePlacement':'below'")
     },
 })
 

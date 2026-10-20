@@ -291,7 +291,8 @@ along with this software (see the LICENSE.md file). If not, see
             the request with its type, status, priority, customer, assignee, reporter and dates, what its status-bar shows (the
             stages Draft, Submitted, Reviewed, In Progress and Completed, and allowedStatusIds, the transitions the user may take:
             Submit for a draft the user raised, Cancel for an open request the user raised), the parties, the tasks linked by
-            RequestWorkEffort (decorated as task rows) and the actions that apply.</description>
+            RequestWorkEffort (decorated as task rows), the other records it is on (WikiPageRequest and RequestRecord; a record
+            the user may not see is left out) and the actions that apply.</description>
         <in-parameters><parameter name="requestId" required="true"/></in-parameters>
         <out-parameters>
             <parameter name="found" type="Boolean"/>
@@ -301,6 +302,8 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="allowedStatusIds" type="List"/>
             <parameter name="partyList" type="List"/>
             <parameter name="taskList" type="List"/>
+            <parameter name="linkedRecordList" type="List"/>
+            <parameter name="canLink" type="Boolean"/>
             <parameter name="canSubmit" type="Boolean"/>
             <parameter name="canCancel" type="Boolean"/>
             <parameter name="canEdit" type="Boolean"/>
@@ -327,6 +330,7 @@ along with this software (see the LICENSE.md file). If not, see
                 canEdit = isRaiser && row.statusId === 'ReqDraft'
                 canReassign = isAssignee && open
                 canAddTask = (access.isParty || isRaiser) && open
+                canLink = canAddTask
                 const toMillis = (value) => value == null || value === '' ? null : (/^-?\d+$/.test(String(value)) ? Number(String(value)) : Date.parse(String(value)))
                 const fmt = (millis, format) => millis == null ? '' : ec.l10n.format(new Date(Number(millis)), format)
                 const enumLabel = (id) => { const item = id ? ec.entity.find('moqui.basic.Enumeration').condition('enumId', id).useCache(true).one() : null; return item ? (item.description || id) : '' }
@@ -378,6 +382,27 @@ along with this software (see the LICENSE.md file). If not, see
                 const tasks = taskIds.length ? Array.from(ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', 'in', taskIds)
                         .condition('workEffortTypeEnumId', 'WetTask').orderBy('estimatedCompletionDate').list()).map((task) => task.getMap()) : []
                 taskList = tasks.length ? (ec.service.sync().name('ironstone.TaskServices.decorate#TaskRows').parameters({taskList: tasks}).call()?.rowList || []) : []
+
+                // records other than tasks: a wiki page through its own join, anything else through RequestRecord
+                linkedRecordList = []
+                const seenLinks = new Set()
+                const addLink = (recordEntityName, recordId) => {
+                    const key = recordEntityName + '|' + recordId
+                    if (!recordEntityName || !recordId || seenLinks.has(key)) return
+                    seenLinks.add(key)
+                    ec.message.pushErrors()
+                    let shown = false
+                    try {
+                        shown = ec.service.sync().name('mantle.party.CommunicationServices.get#RecordLinkInfo').parameters({recordEntityName: recordEntityName,
+                            recordId: recordId, checkOnly: true}).call()?.recordVisible === true
+                    } catch (err) { shown = false } finally { ec.message.clearErrors(); ec.message.popErrors() }
+                    if (!shown) return
+                    linkedRecordList.push({recordEntityName: recordEntityName, recordId: recordId, canRemove: canLink})
+                }
+                for (const link of ec.entity.find('mantle.request.WikiPageRequest').condition('requestId', requestId).list())
+                    addLink('moqui.resource.wiki.WikiPage', link.wikiPageId)
+                for (const link of ec.entity.find('mantle.request.RequestRecord').condition('requestId', requestId).orderBy('linkedDate').list())
+                    addLink(link.recordEntityName, link.recordId)
             ]]></script>
         </actions>
     </service>
@@ -513,5 +538,65 @@ along with this software (see the LICENSE.md file). If not, see
             <set field="workEffortId" from="created.workEffortId"/>
             <set field="message" from="ec.resource.expand('Task added: ${name}', '', {name:workEffortName.trim()})"/>
         </actions>
+    </service>
+
+    <service verb="link" noun="RequestRecord">
+        <description>Puts the request on a record that is not already a task of it (RequestDetail): a work effort through
+            RequestWorkEffort, a wiki page through WikiPageRequest, any other record through RequestRecord
+            (mantle.request.RequestServices.link#RequestRecord). record is "entity|id" as the picker answers, or
+            recordEntityName and recordId. One of the request's people, while it is open.</description>
+        <in-parameters>
+            <parameter name="requestId" required="true"/>
+            <parameter name="record"/>
+            <parameter name="recordEntityName"/>
+            <parameter name="recordId"/>
+        </in-parameters>
+        <out-parameters><parameter name="created" type="Boolean"/><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            created = false
+            const L = (text) => ec.l10n.localize(text)
+            const access = ec.service.sync().name('ironstone.RequestServices.get#RequestAccess').parameters({requestId: requestId, need: 'view'}).call()
+            if (ec.message.hasError()) return
+            if (!(access.isParty || access.isRaiser)) { ec.message.addError(L('Only the request\'s people may link a record to it')); return }
+            if (['ReqCompleted', 'ReqCancelled'].includes(access.request.statusId)) { ec.message.addError(L('This request is closed')); return }
+            let entityName = recordEntityName || null
+            let id = recordId || null
+            if (!entityName && record) {
+                const text = String(record)
+                const at = text.lastIndexOf('|')
+                if (at > 0) { entityName = text.substring(0, at); id = text.substring(at + 1) }
+            }
+            if (!entityName || !id) { ec.message.addError(L('Choose the record to link')); return }
+            if (entityName === 'mantle.request.Request' && id === requestId) { ec.message.addError(L('A request is not linked to itself')); return }
+            const out = ec.service.sync().name('mantle.request.RequestServices.link#RequestRecord').parameters({requestId: requestId,
+                recordEntityName: entityName, recordId: id}).call()
+            if (ec.message.hasError()) return
+            created = !!out?.created
+            message = created ? L('Linked') : L('It was linked already')
+        ]]></script></actions>
+    </service>
+    <service verb="unlink" noun="RequestRecord">
+        <description>Takes the request off a record (mantle.request.RequestServices.unlink#RequestRecord: the own join and any
+            RequestRecord). The record stays. One of the request's people, while it is open. A task is taken off through this
+            too when the record is that work effort.</description>
+        <in-parameters>
+            <parameter name="requestId" required="true"/>
+            <parameter name="recordEntityName" required="true"/>
+            <parameter name="recordId" required="true"/>
+        </in-parameters>
+        <out-parameters><parameter name="unlinked" type="Boolean"/><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            unlinked = false
+            const L = (text) => ec.l10n.localize(text)
+            const access = ec.service.sync().name('ironstone.RequestServices.get#RequestAccess').parameters({requestId: requestId, need: 'view'}).call()
+            if (ec.message.hasError()) return
+            if (!(access.isParty || access.isRaiser)) { ec.message.addError(L('Only the request\'s people may link a record to it')); return }
+            if (['ReqCompleted', 'ReqCancelled'].includes(access.request.statusId)) { ec.message.addError(L('This request is closed')); return }
+            const out = ec.service.sync().name('mantle.request.RequestServices.unlink#RequestRecord').parameters({requestId: requestId,
+                recordEntityName: recordEntityName, recordId: recordId}).call()
+            if (ec.message.hasError()) return
+            unlinked = !!out?.unlinked
+            message = L(unlinked ? 'Taken off the record' : 'It was not linked')
+        ]]></script></actions>
     </service>
 </services>

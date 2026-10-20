@@ -111,7 +111,7 @@ Each finding was verified in the code. Each resolution is now part of the design
 | M2 Today, notifications, quick create | mr-moqui, Mantle, BOSS | TodayPanel, NotificationsPanel, Notifications, QuickCreate, Commons Home, Settings, Account, Preferences, NotificationSettings | done Oct 19 |
 | M3 Record links, Chatter, record files | mr-moqui, Mantle, BOSS | Chatter, RecordFiles | done Oct 19 |
 | M4 Contacts | mr-moqui, Mantle, BOSS | Contacts, ContactDetail, ContactImport, Duplicates, ContactBooks | done Oct 19 |
-| M5 Mail (M5a–M5f) | mr-moqui, Mantle, BOSS | Inbox, Compose, MessageDetail, Comms Home, MailAccounts, Identities, Rules, OutOfOffice, TextBlocks | done Oct 19 (M5f, the SMTP listener, is in the framework behind the `inbound-smtp` feature, off by default; BOSS has no hosted-account setup yet) |
+| M5 Mail (M5a–M5f) | mr-moqui, Mantle, BOSS | Inbox, Compose, MessageDetail, Comms Home, MailAccounts, Identities, Rules, OutOfOffice, TextBlocks | done Oct 19 (M5f, the SMTP listener, is in the framework behind the `inbound-smtp` feature, off by default; the add-account wizard can make a hosted or shared account the gateway delivers, with no mail-server password) |
 | M6 Tasks and requests | BOSS | Tasks, TaskDetail, Requests, RequestDetail | done Oct 19 |
 | M7 Calendar and schedules | mr-moqui, Mantle, BOSS | Calendar, EventDetail, Schedules, ResourceDetail, Calendars | done Oct 19 (the Inbox iMIP card with M5) |
 | M8 Files and drives | mr-moqui, BOSS | Files, Drives, Shares, PublicShare | done Oct 19 |
@@ -642,8 +642,8 @@ plans/Remaining-Work.md.
   (plans/Parity-Diffs.md, "Modified fields"). Checked with moqui-core (1306), mantle-usl with SimpleScreens (620) and
   ironstone-boss (378).
 
-**Waiting for a decision**
-- view-calendar `range-find` is opt-in (Tasks uses it); making it the default adds a request to every calendar list.
+**Decided**
+- view-calendar `range-find` stays opt-in (Tasks and the gallery Views screen set it). A calendar view paints the list's current page. With `range-find="true"`, and only while that view is showing, the client GETs `{screen}/actions/{form}` once (twice when the calendar has an end field) with `{field}_from`, `{field}_thru` and `pageNoLimit=true` for the dates on screen. Making that the default would fire the request for every form-list that has a view-calendar, including a list whose actions ignore the range or honor `pageNoLimit` without it. It does not add a request to Calendar.qvue or to the table and board.
 
 **Left to build**
 - Framework:
@@ -660,13 +660,21 @@ plans/Remaining-Work.md.
   - Older open items still listed in Remaining-Work.md (notification digest grouping, rich-text tables and `#` record
     links, job scheduling in the machine time zone, and others).
 - Mantle: a generic request-to-record link (only RequestWorkEffort exists); a bookable flag and capacity on Facility
-  and Asset; a token route for a published calendar; consent per organization was decided against (§16, §19).
+  and Asset. A published calendar's public page is `/cal/<token>` (`check#PublishedCalendarToken`,
+  `screen/PublishedCalendar`); no CalDAV. Consent per organization was decided against (§16, §19).
 - BOSS:
-  - Mail: the account list's SyncProgress should unregister its listener on unmount (the framework now returns an
-    unregister function); hosted and shared accounts' setup for the SMTP listener; internal labels
-    (CommunicationEventPartyLabel); the quota line, phone swipe actions, contact groups in recipients; Save to Files
-    from a message; the MailDefaults left (threads or messages, default account, swipe).
+  - Mail: SyncProgress unregisters `emailSyncProgress` when its last widget unmounts. MailDefaults stores the
+    conversation view, the default account, where the signature goes, and the two phone swipe actions. Internal
+    labels are an EmailLabel of the user's Internal account, kept per message as CommunicationEventPartyLabel
+    (`set#InternalMessageLabels`); the Inbox shows them on the thread, in the label dialog and on the Internal
+    rail. Internal messages have no folders. A hosted or shared account can be set up for the SMTP listener with no
+    mail-server password (the gateway delivers it; a plus tag still arrives). Each mail account's rail and account
+    page show the bytes its files use; mail has no quota of its own. A contact group in the recipients expands to
+    its members on send. Save to Files copies a message's attachments into a drive folder, and the message keeps
+    its own copies.
   - Contacts: import as a job with progress, print, calls.
   - Calls (§14) and the Assist drawer (Phase 13) are later, as §6 lists.
   - The server-static pass: `moqui lint --screens --qvt-static` over BOSS and marking the screens that fit.
-  - Old ported screens outside Commons and Comms (Sales/Reports and others) still carry 11 lint flags.
+  - Old ported screens outside Commons and Comms are clear of `moqui lint --screens` flags: report names use the
+    entity's pretty name, the sales margin percent rounds with `'HALF_EVEN'`, and the summary's multi-select checks
+    test length so an empty list is skipped. Commons/Search and Commons/Tasks/List still have flags.

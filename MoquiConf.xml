@@ -5,13 +5,17 @@
         the public shell, after the token check; screen/PublicShare.xml checks the token again in every call. The unsubscribe
         page of a list email (§16 Unsubscribe): /u/<token>, the List-Unsubscribe URL too: the RFC 8058 one-click POST to it runs
         the screen's oneClick transition (post-transition, after the token check), as a POST to /u/<token>/oneClick does (the
-        List-Unsubscribe of the emails sent before); screen/Unsubscribe.xml calls only Mantle's token-checked consent services. -->
+        List-Unsubscribe of the emails sent before); screen/Unsubscribe.xml calls only Mantle's token-checked consent services.
+        A published calendar (§7, §8): /cal/<token>, screen/PublishedCalendar.xml, after check#PublishedCalendarToken; the
+        page asks for the password when the link has one and then reads get#PublishedCalendar. No CalDAV. -->
     <webapp-list>
         <webapp name="webroot">
             <token-route name="s" screen-location="component://ironstone-boss/screen/PublicShare.xml"
                     token-service="org.moqui.impl.FileServices.check#PublicShareToken" title="Shared files"/>
             <token-route name="u" screen-location="component://ironstone-boss/screen/Unsubscribe.xml"
                     token-service="mantle.party.ConsentServices.check#UnsubscribeToken" title="Email preferences" post-transition="oneClick"/>
+            <token-route name="cal" screen-location="component://ironstone-boss/screen/PublishedCalendar.xml"
+                    token-service="ironstone.CalendarServices.check#PublishedCalendarToken" title="Calendar"/>
         </webapp>
     </webapp-list>
     <screen-facade>

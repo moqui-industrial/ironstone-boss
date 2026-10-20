@@ -51,6 +51,9 @@ feature("the rail has the Internal account and the demo account with its folders
         json.accountList.find((account) => account.emailAccountId == "BOSS_DEMO_MAIL_ACCT").labelList.map((label) => label.labelName) == ["Customers", "Follow up", "Newsletters"]
         json.accountList.find((account) => account.emailAccountId == "BOSS_DEMO_MAIL_ACCT").unreadCount >= 4
         json.accountList.find((account) => account.emailAccountId == "BOSS_DEMO_MAIL_ACCT").warning == null
+        json.accountList.find((account) => account.emailAccountId == "BOSS_DEMO_MAIL_ACCT").usedBytes > 0
+        json.accountList.find((account) => account.emailAccountId == "BOSS_DEMO_MAIL_ACCT").storageText != null
+        json.accountList.find((account) => account.isInternal).storageText == null
         json.mailboxList.map((box) => box.contactListId).includes("BOSS_DEMO_MBX_OFFICE")
         json.mailboxList.map((box) => box.contactListId).includes("BOSS_DEMO_MBX_LEAD")
         json.totals.draftCount >= 1
@@ -427,5 +430,36 @@ feature("an invitation from outside is answered: the event goes on the calendar 
         again.json.workEffortId == answered.json.workEffortId
         status == "WeptDeclined"
         bad.errors.includes("This message has no invitation")
+    },
+})
+
+feature("Save to Files copies a message's attachment into a drive folder and the message keeps its copy", {
+    when() {
+        const drives = sys(() => call("org.moqui.impl.FileServices.get#UserDrives", {}))
+        const personal = drives.personalDriveId
+        const folder = sys(() => call("org.moqui.impl.FileServices.create#Folder", { driveId: personal, name: "Saved from mail" })).newPath
+        const saved = post("saveFiles", { store: "email", id: "BOSS_DEMO_MAIL_ACME1_A1", driveId: personal, path: folder })
+        const info = sys(() => call("org.moqui.impl.FileServices.get#ResourceInfo", { driveId: personal, path: folder + "/purchase-order-Q4.txt" }))
+        const still = one("moqui.basic.email.EmailMessageAttachment", { emailMessageAttachmentId: "BOSS_DEMO_MAIL_ACME1_A1" })
+        const text = sys(() => ec.resource.getLocationReference(still.attachmentLocation).getText())
+        const again = post("saveFiles", { store: "email", id: "BOSS_DEMO_MAIL_ACME1_A1", driveId: personal, path: folder })
+        const none = post("saveFiles", { emailMessageId: "BOSS_DEMO_MAIL_ACME2", driveId: personal, path: folder })
+        login("joe.developer")
+        let refused
+        try { refused = post("saveFiles", { store: "email", id: "BOSS_DEMO_MAIL_ACME1_A1", driveId: personal, path: folder }) }
+        finally { login("john.doe") }
+        return { saved, info, still, text, again, none, refused }
+    },
+    then({ saved, info, still, text, again, none, refused }) {
+        saved.errors == ""
+        saved.json.savedList[0].path == "Saved from mail/purchase-order-Q4.txt"
+        saved.json.savedList[0].outcome == "created"
+        info.resource.size > 0
+        still.attachmentLocation.includes("dbresource://email/")
+        text.includes("Purchase order Q4")
+        again.json.savedList[0].outcome == "renamed"
+        again.json.savedList[0].name.includes("(2)")
+        none.errors.includes("no files")
+        refused.errors.includes("not found")
     },
 })

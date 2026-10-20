@@ -45,7 +45,7 @@ along with this software (see the LICENSE.md file). If not, see
             <field name="documentName"><default-field title="Name"><text-line size="30"/></default-field></field>
             <field name="primaryEntityName"><default-field title="Primary Entity"><drop-down>
                 <list-options list="entityInfoList" key="${fullEntityName}"
-                        text="${StringUtilities.camelCaseToPretty(entityName)}"/>
+                        text="${ec.entity.getEntityDefinition(fullEntityName)?.prettyName || entityName}"/>
             </drop-down></default-field></field>
             <field name="userGroupId"><conditional-field title="User Group" condition="ddugList.length == 1"><drop-down>
                 <entity-options key="${userGroupId}" text="${description}">

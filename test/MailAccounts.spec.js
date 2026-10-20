@@ -74,6 +74,8 @@ feature("the wizard has five steps, Address first; the list and the account's pa
         !address.broken
         address.output.includes("Whose mail is it?")
         address.output.includes("Shared: a team address")
+        address.output.includes("Shared, delivered here")
+        address.output.includes("Hosted here")
         connect.output.includes("Start with your email address")
         list.errors == ""
         !list.broken
@@ -589,5 +591,89 @@ feature("removed accounts: listed to their owner with the mail kept, deleted wit
         v.left == 0
         !v.after.json.removedList.some((account) => account.emailAccountId == sharedId)
         v.list.errors == ""
+    },
+})
+
+feature("a hosted address and a shared address the gateway delivers need no mail server or password", {
+    when() {
+        const bad = post("Add/Address/findServers", { emailAddress: "not an address", accountKindEnumId: "EakHosted" })
+        // Proton is refused only when the servers are looked up; delivered here does not look them up
+        const proton = post("Add/Address/findServers", { emailAddress: "ada@proton.me", displayName: "Ada", accountKindEnumId: "EakHosted" })
+        const sharedFind = post("Add/Address/findServers", { emailAddress: "orders@acme.example", displayName: "Orders", accountKindEnumId: "EakSharedHere" })
+        const connect = render("Add/Connect", { emailAddress: "ada@hosted.example", displayName: "Ada Host", accountKindEnumId: "EakHosted", delivery: "gateway" })
+        const personal = post("Add/Connect/saveConnection", { emailAddress: "ada@hosted.example", displayName: "Ada Host", accountKindEnumId: "EakExternal", gatewayDelivery: "Y" })
+        const noFlag = post("Add/Connect/saveConnection", { emailAddress: "ada@hosted.example", displayName: "Ada Host", accountKindEnumId: "EakHosted" })
+        const saved = post("Add/Connect/saveConnection", { emailAddress: "ada@hosted.example", displayName: "Ada Host", accountKindEnumId: "EakHosted", gatewayDelivery: "Y" })
+        const account = accountOf("ada@hosted.example")
+        const hostedId = account ? account.emailAccountId : null
+        const identity = hostedId ? sys(() => ec.entity.find("moqui.basic.email.EmailIdentity").condition("emailAccountId", hostedId).one()) : null
+        const sharedSaved = post("Add/Connect/saveConnection", { emailAddress: "orders@acme.example", displayName: "Orders", accountKindEnumId: "EakShared", gatewayDelivery: "Y" })
+        const shared = accountOf("orders@acme.example")
+        const back = render("Add/Connect", { emailAccountId: hostedId })
+        const test = render("Add/Test", { emailAccountId: hostedId })
+        const confirmed = post("Add/Test/confirmTest", { emailAccountId: hostedId, testPassed: "Y" })
+        const options = render("Add/Options", { emailAccountId: hostedId })
+        const named = post("Add/Options/saveOptions", { emailAccountId: hostedId, accountName: "Ada", accountKindEnumId: "EakHosted", syncWindowDays: "365" })
+        const review = render("Add/Finish", { emailAccountId: hostedId })
+        const finished = post("Add/Finish/finishSetup", { emailAccountId: hostedId })
+        const after = accountOf("ada@hosted.example")
+        const page = render("Account", { emailAccountId: hostedId, setup: "done" })
+        const list = render("List", {})
+        return { bad, proton, sharedFind, connect, personal, noFlag, saved, account, identity, sharedSaved, shared, back, test, confirmed, options, named, review, finished, after, page, list }
+    },
+    then(v) {
+        v.bad.errors.includes("Enter your whole email address")
+        v.proton.errors == ""
+        !v.proton.errors.includes("Proton")
+        v.sharedFind.errors == ""
+        v.connect.errors == ""
+        !v.connect.broken
+        v.connect.output.includes("sales+news@example.com")
+        v.connect.output.includes("mail gateway")
+        !v.connect.output.includes("Incoming server")
+        !v.connect.output.includes("App password")
+        v.personal.errors.includes("hosted or a shared")
+        v.noFlag.errors.includes("Enter the incoming server")
+        v.saved.errors == ""
+        v.account != null
+        v.account.accountKindEnumId == "EakHosted"
+        v.account.statusId == "EasPaused"
+        v.account.emailServerId == null
+        v.account.recordFilingEnumId == "ErfAllMatches"
+        v.identity.displayName == "Ada Host"
+        v.sharedSaved.errors == ""
+        v.shared.accountKindEnumId == "EakShared"
+        v.shared.emailServerId == null
+        v.shared.statusId == "EasPaused"
+        v.shared.recordFilingEnumId == "ErfAllMatches"
+        v.back.errors == ""
+        v.back.output.includes("sales+news@example.com")
+        !v.back.output.includes("Incoming server")
+        v.test.errors == ""
+        !v.test.broken
+        v.test.output.includes("Nothing to sign in to")
+        v.test.output.includes("sales+news@example.com")
+        !v.test.output.includes("It did not work yet")
+        v.confirmed.errors == ""
+        v.options.errors == ""
+        v.options.output.includes("Hosted here")
+        v.named.errors == ""
+        v.review.errors == ""
+        v.review.output.includes("Hosted")
+        v.review.output.includes("The mail gateway delivers it here")
+        v.review.output.includes("sales+news@example.com")
+        v.finished.errors == ""
+        v.after.statusId == "EasActive"
+        v.after.accountName == "Ada"
+        v.after.emailServerId == null
+        v.page.errors == ""
+        v.page.output.includes("The account is on")
+        v.page.output.includes("How mail arrives")
+        !v.page.output.includes("Enter the servers to sync it")
+        v.list.errors == ""
+        v.list.output.includes("ada@hosted.example")
+        v.list.output.includes("Delivered here")
+        v.list.output.includes("orders@acme.example")
+        v.list.output.includes("Setup not finished")
     },
 })

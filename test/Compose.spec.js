@@ -105,6 +105,31 @@ feature("the recipient search offers addresses for email and people and mailboxe
     },
 })
 
+feature("a contact group in the recipients expands to its members on send", {
+    when() {
+        capture.clear()
+        const found = post("recipients", { term: "Family", mode: "email" })
+        const sent = post("send", { fromValue: identityValue, toJson: JSON.stringify([{ value: "group:BOSS_DEMO_GRP_FAMILY", label: "Family" }]),
+            subject: "Family note", body: "<p>Hello</p>", holdSeconds: "0" })
+        const captured = capture.last()
+        const missing = post("send", { fromValue: identityValue, toJson: JSON.stringify([{ value: "group:NO_SUCH_GROUP", label: "Missing" }]),
+            subject: "x", body: "<p>x</p>", holdSeconds: "0" })
+        const emptyId = sys(() => call("mantle.party.ContactBookServices.create#ContactBookGroup", { contactBookId: "BOSS_DEMO_BOOK_JD", groupName: "Nobody" })).contactBookGroupId
+        const empty = post("send", { fromValue: identityValue, toJson: JSON.stringify([{ value: "group:" + emptyId, label: "Nobody" }]),
+            subject: "x", body: "<p>x</p>", holdSeconds: "0" })
+        return { found, sent, captured, missing, empty }
+    },
+    then({ found, sent, captured, missing, empty }) {
+        found.json.some((option) => option.value == "group:BOSS_DEMO_GRP_FAMILY" && option.kind == "group" && option.label.includes("Family"))
+        sent.errors == ""
+        sent.status == 200
+        captured.toList[0].includes("mary.doe@example.com")
+        !String(captured.toList).includes("group:")
+        missing.errors.includes("not found")
+        empty.errors.includes("no email addresses")
+    },
+})
+
 feature("a draft saves, opens again with what it had, and is discarded", {
     when() {
         const saved = post("saveDraft", { fromValue: identityValue, toJson: chips(["ada@math.example"]), ccJson: chips(["bob@b.example"]), subject: "Draft subject",

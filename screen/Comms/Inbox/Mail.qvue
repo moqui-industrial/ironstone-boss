@@ -146,7 +146,7 @@ along with this software (see the LICENSE.md file). If not, see
                                     <q-item clickable v-close-popup @click="bulk('flag')"><q-item-section avatar><q-icon name="star" color="warning"></q-icon></q-item-section><q-item-section>{{t('Flag')}}</q-item-section></q-item>
                                     <q-item clickable v-close-popup @click="bulk('unflag')"><q-item-section avatar><q-icon name="sym_o_star"></q-icon></q-item-section><q-item-section>{{t('Remove flag')}}</q-item-section></q-item>
                                     <q-item v-if="selectionHasEmail" clickable v-close-popup @click="openMove(null)"><q-item-section avatar><q-icon name="sym_o_drive_file_move"></q-icon></q-item-section><q-item-section>{{t('Move to…')}}</q-item-section></q-item>
-                                    <q-item v-if="selectionHasEmail" clickable v-close-popup @click="openLabels(null)"><q-item-section avatar><q-icon name="sym_o_label"></q-icon></q-item-section><q-item-section>{{t('Labels…')}}</q-item-section></q-item>
+                                    <q-item v-if="selectionCanLabel" clickable v-close-popup @click="openLabels(null)"><q-item-section avatar><q-icon name="sym_o_label"></q-icon></q-item-section><q-item-section>{{t('Labels…')}}</q-item-section></q-item>
                                     <q-item v-if="selectionHasEmail" clickable v-close-popup @click="bulk(view === 'junk' ? 'notSpam' : 'spam')"><q-item-section avatar><q-icon name="sym_o_report"></q-icon></q-item-section>
                                         <q-item-section>{{view === 'junk' ? t('Not spam') : t('Report spam')}}</q-item-section></q-item>
                                     <q-item v-if="['archive', 'all'].includes(view) || params.view === 'internalArchive'" clickable v-close-popup @click="bulk('unarchive')"><q-item-section avatar><q-icon name="sym_o_move_to_inbox"></q-icon></q-item-section><q-item-section>{{t('Move to Inbox')}}</q-item-section></q-item>
@@ -209,8 +209,9 @@ along with this software (see the LICENSE.md file). If not, see
                                 <q-item-label header class="q-py-xs q-px-md text-caption text-weight-medium">{{group.label}}</q-item-label>
                                 <q-item v-for="row in group.rows" :key="row.rowKey" :id="domId('inbox-row-', row.rowKey)" clickable
                                         :active="row.rowKey === openKey" :active-class="activeClass" class="q-pl-xs q-pr-sm"
-                                        :class="selected[row.rowKey] ? selectedClass : ''" @click="clickRow(row, $event)"
-                                        @mouseenter="hoverKey = row.rowKey" @mouseleave="hoverKey = hoverKey === row.rowKey ? null : hoverKey">
+                                        :class="selected[row.rowKey] ? selectedClass : ''" :style="swipeStyle(row)" @click="clickRow(row, $event)"
+                                        @mouseenter="hoverKey = row.rowKey" @mouseleave="hoverKey = hoverKey === row.rowKey ? null : hoverKey"
+                                        @touchstart.passive="swipeStart(row, $event)" @touchmove.passive="swipeMove(row, $event)" @touchend="swipeEnd(row)">
                                     <div class="self-stretch" :class="row.rowKey === focusKey ? 'bg-primary' : ''" style="width:3px;margin-right:4px"></div>
                                     <q-item-section v-if="!isPhone" side top class="q-pr-none q-pt-xs" style="min-width:0">
                                         <div class="row no-wrap items-center">
@@ -302,7 +303,7 @@ along with this software (see the LICENSE.md file). If not, see
                                 <q-btn flat round dense icon="sym_o_more_vert" :aria-label="t('More')"><q-tooltip>{{t('More')}}</q-tooltip>
                                     <q-menu anchor="bottom right" self="top right"><q-list dense style="min-width:230px">
                                         <q-item v-if="thread.store === 'email'" clickable v-close-popup @click="openMove('thread')"><q-item-section avatar><q-icon name="sym_o_drive_file_move"></q-icon></q-item-section><q-item-section>{{t('Move to…')}}</q-item-section><q-item-section side>v</q-item-section></q-item>
-                                        <q-item v-if="thread.store === 'email'" clickable v-close-popup @click="openLabels('thread')"><q-item-section avatar><q-icon name="sym_o_label"></q-icon></q-item-section><q-item-section>{{t('Labels…')}}</q-item-section><q-item-section side>l</q-item-section></q-item>
+                                        <q-item v-if="thread.store === 'email' || thread.store === 'internal'" clickable v-close-popup @click="openLabels('thread')"><q-item-section avatar><q-icon name="sym_o_label"></q-icon></q-item-section><q-item-section>{{t('Labels…')}}</q-item-section><q-item-section side>l</q-item-section></q-item>
                                         <q-item clickable v-close-popup @click="threadAction(thread.isFlagged ? 'unflag' : 'flag')"><q-item-section avatar><q-icon :name="thread.isFlagged ? 'star' : 'sym_o_star'" :color="thread.isFlagged ? 'warning' : undefined"></q-icon></q-item-section>
                                             <q-item-section>{{thread.isFlagged ? t('Remove flag') : t('Flag')}}</q-item-section><q-item-section side>s</q-item-section></q-item>
                                         <q-item clickable v-close-popup @click="openLink(lastMessage)"><q-item-section avatar><q-icon name="sym_o_add_link"></q-icon></q-item-section><q-item-section>{{t('Link to a record…')}}</q-item-section></q-item>
@@ -433,10 +434,14 @@ along with this software (see the LICENSE.md file). If not, see
                                         </q-card-section>
                                     </q-card>
                                     <!-- its files -->
-                                    <div v-if="item.message.attachmentList.length" class="row q-gutter-xs q-mt-sm">
-                                        <q-chip v-for="file in item.message.attachmentList" :key="file.id" dense square clickable :icon="fileIcon(file)" class="m-tonal q-ml-none"
-                                                @click="openAttachment(item.message, file)">{{file.name}}<span v-if="file.size" class="m-muted q-ml-xs">{{sizeText(file.size)}}</span>
-                                            <q-tooltip>{{t('Download')}} {{file.name}}</q-tooltip></q-chip>
+                                    <div v-if="item.message.attachmentList.length" class="row q-gutter-xs q-mt-sm items-center">
+                                        <span v-for="file in item.message.attachmentList" :key="file.id" class="row no-wrap items-center">
+                                            <q-chip dense square clickable :icon="fileIcon(file)" class="m-tonal q-ml-none"
+                                                    @click="openAttachment(item.message, file)">{{file.name}}<span v-if="file.size" class="m-muted q-ml-xs">{{sizeText(file.size)}}</span>
+                                                <q-tooltip>{{t('Download')}} {{file.name}}</q-tooltip></q-chip>
+                                            <q-btn flat round dense size="sm" icon="sym_o_drive_folder_upload" :aria-label="t('Save to Files')"
+                                                    @click="openSaveFiles(item.message, file)"><q-tooltip>{{t('Save to Files')}}</q-tooltip></q-btn>
+                                        </span>
                                     </div>
                                     <!-- the records it is filed on, each removable -->
                                     <div v-if="item.message.linkList.length" class="row items-center q-gutter-xs q-mt-sm">
@@ -516,6 +521,34 @@ along with this software (see the LICENSE.md file). If not, see
     <m-dialog v-model="railDialog" :title="t('Folders')" width="320">
         <inbox-rail :inbox="self" :mini="false"></inbox-rail>
     </m-dialog>
+    <!-- Save to Files: a copy of one attachment in the folder shown; the message keeps its own -->
+    <m-dialog v-model="saveTo.open" :title="t('Save to Files')" width="640">
+        <div class="text-caption q-mb-xs ellipsis">{{saveTo.file ? saveTo.file.name : ''}}</div>
+        <div class="row items-center q-gutter-xs">
+            <q-chip v-for="drive in saveTo.drives" :key="drive.driveId" dense square clickable :class="saveTo.driveId === drive.driveId ? 'm-tonal text-primary' : ''"
+                    @click="saveFilesOpen(drive.driveId, '')">{{drive.driveName}}</q-chip>
+        </div>
+        <div class="row items-center no-wrap q-mt-xs" style="overflow:hidden">
+            <template v-for="(crumb, index) in saveTo.crumbs" :key="index">
+                <q-icon v-if="index" name="sym_o_chevron_right" size="16px" class="m-muted"></q-icon>
+                <q-btn flat dense no-caps size="sm" @click="saveFilesOpen(saveTo.driveId, crumb.path)">{{crumb.name}}</q-btn>
+            </template>
+        </div>
+        <q-list dense bordered separator class="q-mt-xs rounded-borders" style="max-height:320px;overflow:auto">
+            <q-item v-if="saveTo.loading"><q-item-section class="text-center"><q-spinner></q-spinner></q-item-section></q-item>
+            <q-item v-for="row in saveTo.rows" :key="row.path" :clickable="row.isDirectory" @click="row.isDirectory && saveFilesOpen(saveTo.driveId, row.path)">
+                <q-item-section avatar style="min-width:30px"><q-icon :name="row.icon || (row.isDirectory ? 'sym_o_folder' : 'sym_o_draft')" size="20px"></q-icon></q-item-section>
+                <q-item-section class="ellipsis">{{row.name}}</q-item-section>
+                <q-item-section v-if="row.isDirectory" side><q-icon name="sym_o_chevron_right" size="18px"></q-icon></q-item-section>
+            </q-item>
+            <q-item v-if="!saveTo.loading && !saveTo.rows.length"><q-item-section class="text-caption m-muted">{{t('No files here')}}</q-item-section></q-item>
+        </q-list>
+        <div class="row items-center q-mt-md q-gutter-sm">
+            <q-btn unelevated no-caps color="primary" icon="sym_o_drive_folder_upload" :label="t('Save here')" :disable="!saveTo.driveId" :loading="saveTo.saving" @click="saveFilesHere"></q-btn>
+            <q-btn flat no-caps :label="t('Cancel')" @click="saveTo.open = false"></q-btn>
+            <span class="text-caption m-muted">{{t('The message keeps its own copy')}}</span>
+        </div>
+    </m-dialog>
 
     <!-- Snooze: until when -->
     <m-dialog v-model="snooze.open" :title="t('Snooze until…')" width="380">
@@ -549,9 +582,9 @@ along with this software (see the LICENSE.md file). If not, see
         </div>
     </m-dialog>
 
-    <!-- Labels: on the selection's mail -->
+    <!-- Labels: the selection's mail accounts, and the Internal account when an internal thread is selected -->
     <m-dialog v-model="labels.open" :title="t('Labels')" width="380">
-        <div v-if="!labelAccounts.length" class="m-muted">{{t('Labels are for mail')}}</div>
+        <div v-if="!labelAccounts.length" class="m-muted">{{t('No account to label')}}</div>
         <template v-for="account in labelAccounts" :key="account.emailAccountId">
             <div v-if="labelAccounts.length > 1" class="text-caption m-muted q-mt-sm">{{account.accountName}}</div>
             <q-list dense>
@@ -729,7 +762,8 @@ const railTemplate = '' +
                     '<q-separator spaced></q-separator>' +
                     '<q-item dense clickable @click="inbox.toggleAccount(account)">' +
                         '<q-item-section class="text-caption text-weight-medium ellipsis">{{account.accountName}}' +
-                            '<div v-if="account.accountName !== account.emailAddress" class="text-caption m-muted ellipsis">{{account.emailAddress}}</div></q-item-section>' +
+                            '<div v-if="account.accountName !== account.emailAddress" class="text-caption m-muted ellipsis">{{account.emailAddress}}</div>' +
+                            '<div v-if="account.storageText" class="text-caption m-muted ellipsis">{{t(\'Storage\')}} · {{account.storageText}}</div></q-item-section>' +
                         '<q-item-section side class="row no-wrap items-center">' +
                             '<q-spinner v-if="account.syncing" size="14px" color="info"><q-tooltip>{{t(\'Syncing…\')}}</q-tooltip></q-spinner>' +
                             '<q-btn v-if="account.warning" dense flat no-caps size="sm" color="warning" icon="sym_o_warning" :label="t(\'Fix\')" @click.stop="inbox.go(inbox.fixUrl(account))">' +
@@ -761,6 +795,12 @@ const railTemplate = '' +
                     '<q-item-section avatar style="min-width:30px"><q-icon :name="item.icon" size="18px"></q-icon></q-item-section>' +
                     '<q-item-section class="ellipsis">{{item.label}}</q-item-section>' +
                     '<q-item-section v-if="item.count" side><span class="text-caption text-weight-bold">{{item.count}}</span></q-item-section>' +
+                '</q-item>' +
+                '<q-item v-for="label in (inbox.internalAccount ? inbox.internalAccount.labelList : [])" :key="label.emailLabelId" clickable dense ' +
+                        ':active="inbox.isActiveView({account: inbox.internalAccount.emailAccountId, label: label.emailLabelId})" active-class="text-primary text-weight-medium" ' +
+                        '@click="inbox.openView({account: inbox.internalAccount.emailAccountId, label: label.emailLabelId})">' +
+                    '<q-item-section avatar style="min-width:30px"><q-icon name="sym_o_label" size="18px" :color="label.color || undefined"></q-icon></q-item-section>' +
+                    '<q-item-section class="ellipsis">{{label.labelName}}</q-item-section>' +
                 '</q-item>' +
                 '<q-item-label header class="q-py-xs text-caption text-weight-medium">{{t(\'Mailboxes\')}}</q-item-label>' +
                 '<q-item v-for="box in inbox.data.mailboxList" :key="box.contactListId" clickable dense :active="inbox.isActiveView({mailbox: box.contactListId})" ' +
@@ -833,6 +873,8 @@ module.exports = {
             snooze: { open: false, targets: [], custom: '' }, move: { open: false, targets: [], filter: '', newFolder: '' },
             labels: { open: false, targets: [], choice: {}, original: {}, newName: {} }, link: { open: false, message: null, value: null, busy: false },
             saveSearch: { open: false, name: '' }, goto: { open: false, filter: '' }, browse: { open: false, search: '', list: [], loading: false },
+            saveTo: { open: false, file: null, message: null, drives: [], driveId: null, path: '', crumbs: [], rows: [], loading: false, saving: false },
+            swipe: null, swipeSuppress: null,
             newMailbox: { open: false, key: 0 }, mailboxDialog: { open: false, tab: 'members', key: 0, addPartyId: null }, pendingCreateFrom: false, markReadTimer: null
         };
     },
@@ -880,7 +922,8 @@ module.exports = {
             const p = this.params;
             if (p.q) return t('Search results');
             if (p.mailbox) return (this.mailbox && this.mailbox.contactListName) || t('Mailbox');
-            const account = p.account ? this.mailAccounts.find((item) => item.emailAccountId === p.account) : null;
+            const account = p.account ? (this.mailAccounts.find((item) => item.emailAccountId === p.account) ||
+                (this.internalAccount && this.internalAccount.emailAccountId === p.account ? this.internalAccount : null)) : null;
             if (account && p.folder) { const folder = account.folderList.find((item) => item.emailFolderId === p.folder); return folder ? folder.folderName + ' · ' + account.accountName : t('Folder'); }
             if (account && p.label) { const label = account.labelList.find((item) => item.emailLabelId === p.label); return label ? label.labelName : t('Label'); }
             const item = this.viewItems.concat(this.internalItems).find((entry) => entry.params.view === (p.view || 'inbox'));
@@ -924,6 +967,10 @@ module.exports = {
         headerCheck() { return this.selectedKeys.length === 0 ? false : (this.allLoadedSelected ? true : null); },
         selectionRows() { return this.threads.filter((row) => this.selected[row.rowKey]); },
         selectionHasEmail() { return this.allInView ? this.storeList.includes('email') : this.selectionRows.some((row) => row.store === 'email'); },
+        selectionCanLabel() {
+            const internal = this.allInView ? this.storeList.includes('internal') : this.selectionRows.some((row) => row.store === 'internal');
+            return this.selectionHasEmail || internal;
+        },
         activeClass() { return this.$q.dark.isActive ? 'bg-grey-9 text-white' : 'bg-blue-1 text-dark'; },
         selectedClass() { return this.$q.dark.isActive ? 'bg-grey-10' : 'bg-blue-grey-1'; },
         splitMode() { return this.pane !== 'off' && !this.isPhone && (this.pane === 'bottom' || this.$q.screen.gt.sm); },
@@ -981,15 +1028,21 @@ module.exports = {
                 accountName: account.accountName, folders: account.folderList.filter((folder) => folder.folderKindEnumId !== 'EfkDrafts' &&
                     (!filter || String(folder.folderName).toLowerCase().includes(filter))) }));
         },
+        accountsWithLabels() { return this.mailAccounts.concat(this.internalAccount ? [this.internalAccount] : []); },
         labelAccounts() {
-            const ids = new Set(this.snoozeOrMoveRows(this.labels.targets).filter((row) => row.store === 'email').map((row) => row.emailAccountId));
-            return this.mailAccounts.filter((account) => ids.has(account.emailAccountId));
+            const internal = this.internalAccount;
+            const ids = new Set();
+            this.snoozeOrMoveRows(this.labels.targets).forEach((row) => {
+                if (row.store === 'email' && row.emailAccountId) ids.add(row.emailAccountId);
+                if (row.store === 'internal' && internal) ids.add(internal.emailAccountId);
+            });
+            return this.accountsWithLabels.filter((account) => ids.has(account.emailAccountId));
         },
         gotoTargets() {
             const filter = String(this.goto.filter || '').toLowerCase();
             const targets = [];
             this.viewItems.concat(this.internalItems).forEach((item) => targets.push({ key: 'v' + item.key, label: item.label, icon: item.icon, params: item.params, group: t('Views') }));
-            this.mailAccounts.forEach((account) => {
+            this.accountsWithLabels.forEach((account) => {
                 account.folderList.forEach((folder) => targets.push({ key: 'f' + folder.emailFolderId, label: folder.folderName, icon: folder.icon,
                     params: { account: account.emailAccountId, folder: folder.emailFolderId }, group: account.accountName }));
                 account.labelList.forEach((label) => targets.push({ key: 'l' + label.emailLabelId, label: label.labelName, icon: 'sym_o_label',
@@ -1214,7 +1267,44 @@ module.exports = {
             return chips;
         },
         flatIndex(key) { return this.threads.findIndex((row) => row.rowKey === key); },
+        // a phone swipe runs the two preferred actions (MAIL_SWIPE_LEFT, MAIL_SWIPE_RIGHT), the same posts as the row buttons
+        swipeStart(row, event) {
+            if (!this.isPhone || !event.changedTouches || !event.changedTouches[0]) return;
+            const touch = event.changedTouches[0];
+            this.swipe = { key: row.rowKey, x: touch.clientX, y: touch.clientY, dx: 0, active: true };
+        },
+        swipeMove(row, event) {
+            if (!this.swipe || this.swipe.key !== row.rowKey || !this.swipe.active || !event.changedTouches) return;
+            const touch = event.changedTouches[0];
+            const dx = touch.clientX - this.swipe.x;
+            const dy = touch.clientY - this.swipe.y;
+            if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 12) { this.swipe.active = false; this.swipe.dx = 0; return; }
+            this.swipe.dx = dx;
+        },
+        swipeEnd(row) {
+            if (!this.swipe || this.swipe.key !== row.rowKey) return;
+            const dx = this.swipe.active ? this.swipe.dx : 0;
+            this.swipe = null;
+            if (Math.abs(dx) < 72) return;
+            const prefs = this.data.prefs || {};
+            const name = dx < 0 ? (prefs.swipeLeft || 'archive') : (prefs.swipeRight || 'read');
+            this.swipeSuppress = row.rowKey;
+            this.rowAction(row, this.swipeAction(row, name));
+        },
+        swipeStyle(row) {
+            if (!this.swipe || this.swipe.key !== row.rowKey || !this.swipe.dx) return null;
+            const dx = Math.max(-120, Math.min(120, this.swipe.dx));
+            return { transform: 'translateX(' + dx + 'px)', transition: 'none' };
+        },
+        swipeAction(row, action) {
+            if (action === 'trash' && this.view === 'trash') return 'deleteForever';
+            if (action === 'read' && !row.isUnread) return 'unread';
+            if (action === 'unread' && row.isUnread) return 'read';
+            if (action === 'flag') return row.isFlagged ? 'unflag' : 'flag';
+            return action;
+        },
         clickRow(row, event) {
+            if (this.swipeSuppress === row.rowKey) { this.swipeSuppress = null; return; }
             if (event && (event.shiftKey || event.ctrlKey || event.metaKey) && !this.isPhone) { this.checkRow(row, !this.selected[row.rowKey], event.shiftKey); return; }
             this.focusKey = row.rowKey;
             // a draft opens in the composer, as Gmail does
@@ -1312,7 +1402,8 @@ module.exports = {
                 if (action === 'flag') row.isFlagged = true;
                 if (action === 'unflag') row.isFlagged = false;
                 if (action === 'labels') {
-                    const accountLabels = (this.mailAccounts.find((account) => account.emailAccountId === row.emailAccountId) || { labelList: [] }).labelList;
+                    const accountId = row.store === 'internal' ? (this.internalAccount || {}).emailAccountId : row.emailAccountId;
+                    const accountLabels = (this.accountsWithLabels.find((account) => account.emailAccountId === accountId) || { labelList: [] }).labelList;
                     const add = String((extra && extra.addLabelIds) || '').split(',').filter((id) => id);
                     const remove = String((extra && extra.removeLabelIds) || '').split(',').filter((id) => id);
                     const kept = (row.labelList || []).filter((label) => !remove.includes(label.emailLabelId));
@@ -1514,6 +1605,37 @@ module.exports = {
             if (n >= 1024) return Math.round(n / 1024) + ' KB';
             return n + ' B';
         },
+        openSaveFiles(message, file) {
+            this.saveTo = { open: true, file, message, drives: [], driveId: null, path: '', crumbs: [], rows: [], loading: true, saving: false };
+            moqui.request(this.url('pickerData')).then((result) => {
+                const json = result.json || {};
+                this.saveTo.drives = json.driveList || [];
+                this.saveTo.loading = false;
+                if (json.personalDriveId) this.saveFilesOpen(json.personalDriveId, '');
+            }, () => { this.saveTo.loading = false; });
+        },
+        saveFilesOpen(driveId, path) {
+            Object.assign(this.saveTo, { driveId, path: path || '', loading: true });
+            moqui.request(this.url('pickerFolder'), { params: { driveId, path: path || '' } }).then((result) => {
+                const json = result.json || {};
+                this.saveTo.rows = json.fileList || [];
+                this.saveTo.crumbs = (json.breadcrumbList || []).filter((crumb) => !crumb.view);
+                this.saveTo.loading = false;
+            }, () => { this.saveTo.loading = false; this.saveTo.rows = []; });
+        },
+        saveFilesHere() {
+            const file = this.saveTo.file, message = this.saveTo.message;
+            if (!file || !message || !this.saveTo.driveId) return;
+            this.saveTo.saving = true;
+            this.request('saveFiles', { store: message.store, id: file.id, driveId: this.saveTo.driveId, path: this.saveTo.path || '' }, 'POST').then((json) => {
+                this.saveTo.saving = false;
+                const saved = (json.savedList || [])[0];
+                if (saved) {
+                    this.saveTo.open = false;
+                    moqui.notifyMessages([{ type: 'success', message: t('Saved to Files') + ': ' + (saved.name || file.name) }]);
+                } else moqui.notifyMessages(null, (json.failedList && json.failedList[0] && json.failedList[0].error) || t('Not saved'));
+            }, () => { this.saveTo.saving = false; });
+        },
         openAttachment(message, file) {
             const href = (inline) => this.url('attachment') + '?' + moqui.objToSearch({ store: message.store, id: file.id, inline: inline ? 'true' : 'false' });
             const name = String(file.name || '').toLowerCase();
@@ -1704,11 +1826,12 @@ module.exports = {
             }, () => {});
         },
         openLabels(targets) {
-            const rows = this.snoozeOrMoveRows(targets).filter((row) => row.store === 'email');
+            const internal = this.internalAccount;
+            const rows = this.snoozeOrMoveRows(targets).filter((row) => row.store === 'email' || row.store === 'internal');
             if (!rows.length) { moqui.notifyMessages(null, t('Labels are for mail')); return; }
             const choice = {};
-            const accounts = new Set(rows.map((row) => row.emailAccountId));
-            this.mailAccounts.filter((account) => accounts.has(account.emailAccountId)).forEach((account) => account.labelList.forEach((label) => {
+            const accounts = new Set(rows.map((row) => row.store === 'internal' && internal ? internal.emailAccountId : row.emailAccountId));
+            this.accountsWithLabels.filter((account) => accounts.has(account.emailAccountId)).forEach((account) => account.labelList.forEach((label) => {
                 const has = rows.filter((row) => (row.labelList || (this.thread && targets === 'thread' ? this.thread.labelList : [])).some((item) => item.emailLabelId === label.emailLabelId)).length;
                 choice[label.emailLabelId] = has === 0 ? false : (has === rows.length ? true : null);
             }));

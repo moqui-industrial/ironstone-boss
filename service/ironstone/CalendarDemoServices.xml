@@ -34,8 +34,9 @@ along with this software (see the LICENSE.md file). If not, see
               interview" on D+2 11:00 (shown to john.doe as busy), with the Maple room booked;
             - BOSS_DEMO_EV_WORKSHOP, john.doe's "Client workshop" on D+2 09:00-11:00, the Board room requested (Bob approves
               its bookings) and the projector booked;
-            - rooms BOSS_DEMO_ROOM_MAPLE (no approval) and BOSS_DEMO_ROOM_BOARD (Bob approves) in the Main office, equipment
-              BOSS_DEMO_PROJECTOR (no approval) and BOSS_DEMO_VC_KIT (Bob approves).</description>
+            - rooms BOSS_DEMO_ROOM_MAPLE (bookable, 8 seats, no approval) and BOSS_DEMO_ROOM_BOARD (bookable, 16 seats, Bob
+              approves) in the Main office, equipment BOSS_DEMO_PROJECTOR (bookable, no approval) and BOSS_DEMO_VC_KIT
+              (bookable, Bob approves).</description>
         <out-parameters><parameter name="workEffortIdList" type="List"/></out-parameters>
         <actions><script><![CDATA[
             workEffortIdList = []
@@ -71,14 +72,18 @@ along with this software (see the LICENSE.md file). If not, see
                 // ===== rooms and equipment =====
                 store('mantle.facility.Facility', {facilityId: 'BOSS_DEMO_SITE', facilityTypeEnumId: 'FcTpOffice', facilityName: 'Main office', ownerPartyId: org})
                 store('mantle.facility.Facility', {facilityId: 'BOSS_DEMO_ROOM_MAPLE', facilityTypeEnumId: 'FcTpRoom', facilityName: 'Maple meeting room',
-                    parentFacilityId: 'BOSS_DEMO_SITE', ownerPartyId: org, description: 'Eight seats, a screen and a whiteboard, by the kitchen.', closedDate: null})
+                    parentFacilityId: 'BOSS_DEMO_SITE', ownerPartyId: org, description: 'Eight seats, a screen and a whiteboard, by the kitchen.', closedDate: null,
+                    bookable: 'Y', capacity: 8})
                 store('mantle.facility.Facility', {facilityId: 'BOSS_DEMO_ROOM_BOARD', facilityTypeEnumId: 'FcTpRoom', facilityName: 'Board room',
-                    parentFacilityId: 'BOSS_DEMO_SITE', ownerPartyId: org, description: 'Sixteen seats and the video wall; Bob approves its bookings.', closedDate: null})
+                    parentFacilityId: 'BOSS_DEMO_SITE', ownerPartyId: org, description: 'Sixteen seats and the video wall; Bob approves its bookings.', closedDate: null,
+                    bookable: 'Y', capacity: 16})
                 store('mantle.facility.FacilityParty', {facilityId: 'BOSS_DEMO_ROOM_BOARD', partyId: bob, roleTypeId: 'BookingApprover', fromDate: since})
                 store('mantle.product.asset.Asset', {assetId: 'BOSS_DEMO_PROJECTOR', assetTypeEnumId: 'AstTpEquipment', classEnumId: 'AsClsComputerHard',
-                    assetName: 'Portable projector', ownerPartyId: org, facilityId: 'BOSS_DEMO_SITE', serialNumber: 'PJ-2041', comments: 'With an HDMI and a USB-C cable, in the supply room.'})
+                    assetName: 'Portable projector', ownerPartyId: org, facilityId: 'BOSS_DEMO_SITE', serialNumber: 'PJ-2041',
+                    comments: 'With an HDMI and a USB-C cable, in the supply room.', bookable: 'Y', capacity: 1})
                 store('mantle.product.asset.Asset', {assetId: 'BOSS_DEMO_VC_KIT', assetTypeEnumId: 'AstTpEquipment', classEnumId: 'AsClsComputerHard',
-                    assetName: 'Video conference kit', ownerPartyId: org, facilityId: 'BOSS_DEMO_SITE', serialNumber: 'VC-0007', comments: 'Camera, speaker and microphone; Bob approves its bookings.'})
+                    assetName: 'Video conference kit', ownerPartyId: org, facilityId: 'BOSS_DEMO_SITE', serialNumber: 'VC-0007',
+                    comments: 'Camera, speaker and microphone; Bob approves its bookings.', bookable: 'Y', capacity: 1})
                 store('mantle.product.asset.AssetPartyAssignment', {assetId: 'BOSS_DEMO_VC_KIT', partyId: bob, roleTypeId: 'BookingApprover', fromDate: since})
 
                 // ===== calendars =====

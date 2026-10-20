@@ -78,9 +78,10 @@ along with this software (see the LICENSE.md file). If not, see
                             <q-tooltip>{{showQuote ? t('Hide the quoted text') : t('Show the quoted text')}}</q-tooltip></q-btn>
                         <template v-if="showQuote">
                             <m-html-view :html="draft.quoteHtml" :collapse-quotes="false" :images-bar="false" title="Quoted text"></m-html-view>
-                            <q-btn flat dense no-caps size="sm" color="negative" :label="t('Remove the quoted text')" @click="draft.quoteHtml = null"></q-btn>
+                            <q-btn flat dense no-caps size="sm" color="negative" :label="t('Remove the quoted text')" @click="removeQuote"></q-btn>
                         </template>
                     </div>
+                    <m-html-view v-if="belowSignature" :html="signatureBlock(belowSignature)" :collapse-quotes="false" :images-bar="false" title="Signature" class="q-mt-xs"></m-html-view>
                     <div v-if="draft.attachments.length || draft.uploads.length || uploading" class="row q-gutter-xs q-mt-xs">
                         <q-chip v-for="file in draft.attachments" :key="'a' + file.id" dense square removable icon="sym_o_attach_file" class="m-tonal q-ml-none"
                                 @remove="removeAttachment(file)">{{file.name}}<span v-if="file.size" class="m-muted q-ml-xs">{{sizeText(file.size)}}</span></q-chip>
@@ -221,7 +222,8 @@ module.exports = {
             uid: composeCount, query: {}, state: 'loading', error: null, draft: this.emptyDraft(), identities: [], me: {}, undoSeconds: 10, kind: 'new',
             adding: { to: null, cc: null, bcc: null }, showCc: false, showBcc: false, showQuote: false, dragOver: false, uploading: false, picked: null,
             sending: false, sent: false, savedAt: null, saving: false, dirty: false, saveTimer: null, scheduleOpen: false, scheduleCustom: '',
-            blocksOpen: false, blocks: [], blockSearch: '', slashPending: false, signature: null, loadedOnce: false, pageLayoutOverride: null,
+            blocksOpen: false, blocks: [], blockSearch: '', slashPending: false, signature: null, signaturePlacement: 'above', belowSignature: null,
+            loadedOnce: false, pageLayoutOverride: null,
             picker: { open: false, drives: [], driveId: null, path: '', crumbs: [], rows: [], loading: false, text: '', searching: false, chosen: {}, saving: false }
         };
     },
@@ -326,6 +328,8 @@ module.exports = {
             this.identities = compose.identityList || [];
             this.me = compose.me || {};
             this.undoSeconds = compose.undoSeconds != null ? Number(compose.undoSeconds) : 10;
+            this.signaturePlacement = compose.signaturePlacement === 'below' ? 'below' : 'above';
+            this.belowSignature = null;
             this.kind = compose.kind || 'new';
             const draft = this.emptyDraft();
             Object.assign(draft, { fromValue: compose.fromValue, to: compose.to || [], cc: compose.cc || [], bcc: compose.bcc || [], subject: compose.subject || '',
@@ -334,10 +338,12 @@ module.exports = {
                 replyToSenderOnly: !!compose.replyToSenderOnly, contactListId: compose.contactListId || null, contactListName: compose.contactListName || null,
                 record: compose.record || null, attachments: compose.attachmentList || [], threadStore: compose.threadStore || null, threadId: compose.threadId || null });
             if (!draft.fromValue && this.identities.length) draft.fromValue = this.identities[0].value;
-            // the identity's signature, on a new message, a forward, or a reply when the identity says so
+            // the identity's signature, on a new message, a forward, or a reply when the identity says so.
+            // Below the quote it stays out of the body and is sent after the quoted text; with no quote it goes in the body.
             const identity = this.identities.find((item) => item.value === draft.fromValue);
             if (identity && identity.signatureHtml && this.kind !== 'draft' && (['new', 'forward'].includes(this.kind) || identity.useForReplies)) {
-                draft.body = (draft.body || '<p></p>') + this.signatureBlock(identity.signatureHtml);
+                if (this.signaturePlacement === 'below' && draft.quoteHtml) this.belowSignature = identity.signatureHtml;
+                else draft.body = (draft.body || '<p></p>') + this.signatureBlock(identity.signatureHtml);
                 this.signature = identity.value;
             }
             this.showCc = draft.cc.length > 0;
@@ -347,15 +353,31 @@ module.exports = {
             if (draft.emailMessageId) { this.savedAt = Date.now(); if (this.mComposeHost && this.dockKey) this.mComposeHost.draftSaved(this.dockKey, draft.emailMessageId); }
         },
         signatureBlock(html) { return '<p></p><p>-- </p>' + html; },
+        wantsSignature(identity) { return !!(identity && identity.signatureHtml && (['new', 'forward'].includes(this.kind) || identity.useForReplies)); },
+        removeQuote() {
+            this.draft.quoteHtml = null;
+            if (this.belowSignature) {
+                this.draft.body = (this.draft.body || '<p></p>') + this.signatureBlock(this.belowSignature);
+                this.belowSignature = null;
+            }
+        },
         swapSignature(oldValue, newValue) {
             const before = this.identities.find((item) => item.value === oldValue);
             const after = this.identities.find((item) => item.value === newValue);
+            if (this.belowSignature) {
+                this.belowSignature = this.wantsSignature(after) ? after.signatureHtml : null;
+                if (newValue === 'internal') { this.draft.bcc = []; this.showBcc = false; }
+                return;
+            }
             let body = String(this.draft.body || '');
             if (before && before.signatureHtml) {
                 const block = this.signatureBlock(before.signatureHtml);
                 if (body.endsWith(block)) body = body.substring(0, body.length - block.length);
             }
-            if (after && after.signatureHtml && (['new', 'forward'].includes(this.kind) || after.useForReplies)) body = (body || '<p></p>') + this.signatureBlock(after.signatureHtml);
+            if (this.wantsSignature(after)) {
+                if (this.signaturePlacement === 'below' && this.draft.quoteHtml) this.belowSignature = after.signatureHtml;
+                else body = (body || '<p></p>') + this.signatureBlock(after.signatureHtml);
+            }
             this.draft.body = body;
             // an internal message has no Bcc
             if (newValue === 'internal') { this.draft.bcc = []; this.showBcc = false; }
@@ -369,7 +391,12 @@ module.exports = {
         },
 
         // ---- recipients ----
-        chipIcon(chip) { return chip.kind === 'mailbox' ? 'sym_o_forum' : (chip.kind === 'party' ? 'sym_o_person' : undefined); },
+        chipIcon(chip) {
+            if (chip.kind === 'mailbox') return 'sym_o_forum';
+            if (chip.kind === 'group') return 'sym_o_group';
+            if (chip.kind === 'party') return 'sym_o_person';
+            return undefined;
+        },
         chipClass(chip) {
             if (chip.kind === 'address' && this.mode === 'internal') return 'text-warning';
             if (chip.kind === 'mailbox' && this.mode === 'email') return 'text-negative';
@@ -397,7 +424,13 @@ module.exports = {
                 if (input) { input.value = ''; input.focus(); }
             });
         },
-        kindOf(value) { return String(value).startsWith('party:') ? 'party' : (String(value).startsWith('list:') ? 'mailbox' : 'address'); },
+        kindOf(value) {
+            const text = String(value);
+            if (text.startsWith('party:')) return 'party';
+            if (text.startsWith('list:')) return 'mailbox';
+            if (text.startsWith('group:')) return 'group';
+            return 'address';
+        },
         removeChip(field, chip) { this.draft[field] = this.draft[field].filter((item) => item !== chip); },
         // what is typed in a recipient field and not added yet (an address, then a comma or a send)
         collectPending() {
@@ -420,8 +453,12 @@ module.exports = {
         chipsJson(field) { return JSON.stringify(this.draft[field].map((chip) => ({ value: chip.value, label: chip.label }))); },
         draftParams() {
             const d = this.draft;
+            let body = d.plain ? moqui.richText.fromPlain(d.body || '') : (d.body || '');
+            let quote = d.quoteHtml || '';
+            // a signature kept below the quote is sent after it; with the quote gone it is already in the body
+            if (this.belowSignature) quote = quote + this.signatureBlock(this.belowSignature);
             const params = { fromValue: d.fromValue, toJson: this.chipsJson('to'), ccJson: this.chipsJson('cc'), bccJson: this.chipsJson('bcc'), subject: d.subject || '',
-                body: d.plain ? moqui.richText.fromPlain(d.body || '') : (d.body || ''), quoteHtml: d.quoteHtml || '' };
+                body: body, quoteHtml: quote };
             if (d.plain) params.bodyText = d.body || '';
             if (d.emailMessageId) params.emailMessageId = d.emailMessageId;
             else if (d.parentEmailMessageId) { params.parentEmailMessageId = d.parentEmailMessageId; params.isForward = d.isForward ? 'true' : 'false'; }

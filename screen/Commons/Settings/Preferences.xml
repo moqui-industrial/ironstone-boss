@@ -19,9 +19,10 @@ along with this software (see the LICENSE.md file). If not, see
     a page loads; and CalendarDefaults: how the calendar opens and new events start (the default view, the first day of the week, the
     working days and hours, the length and reminder of a new event, the default calendar, declined events and week numbers;
     ironstone.CalendarServices.set#CalendarDefaults, which Calendar.qvue reads); and MailDefaults: where the reading pane goes,
-    whether archive opens the next conversation, when an open message is marked read, how long Undo send waits and whether
-    pictures in mail show at once (ironstone.MailSettingsServices.set#MailDefaults, the preferences the Inbox and Compose
-    read). Sound defaults come later. -->
+    whether archive opens the next conversation, when an open message is marked read, how long Undo send waits, whether
+    pictures in mail show at once, threads or messages, the default account, where the signature goes and the two phone
+    swipe actions (ironstone.MailSettingsServices.set#MailDefaults, the preferences the Inbox and Compose read). Sound
+    defaults come later. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Preferences" default-menu-index="2">
 
@@ -48,7 +49,9 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="saveMailDefaults">
         <service-call name="ironstone.MailSettingsServices.set#MailDefaults" in-map="{readingPane:readingPane, archiveOpensNext:(archiveOpensNext == 'Y' ? 'Y' : 'N'),
-                markReadSeconds:markReadSeconds, undoSeconds:undoSeconds, remoteImages:(remoteImages == 'always' ? 'always' : 'ask')}"/>
+                markReadSeconds:markReadSeconds, undoSeconds:undoSeconds, remoteImages:(remoteImages == 'always' ? 'always' : 'ask'),
+                conversationView:conversationView, defaultAccountId:defaultAccountId, signaturePlacement:signaturePlacement,
+                swipeLeft:swipeLeft, swipeRight:swipeRight}"/>
         <actions><if condition="!ec.message.hasError()"><message type="success">Mail settings saved</message></if></actions>
         <default-response url="."/>
         <error-response url="."/>
@@ -157,11 +160,26 @@ along with this software (see the LICENSE.md file). If not, see
                         <field name="archiveOpensNext"><default-field title=""><check><option key="Y" text="After archive or delete, open the next conversation"/></check></default-field></field>
                         <field name="remoteImages"><default-field title="Pictures in mail"><radio>
                             <option key="ask" text="Ask first (senders can tell when you read their mail)"/><option key="always" text="Always show them"/></radio></default-field></field>
+                        <field name="conversationView"><default-field title="Conversation view"><radio>
+                            <option key="threads" text="Threads"/><option key="messages" text="Messages"/></radio></default-field></field>
+                        <field name="defaultAccountId"><default-field title="Default account"><drop-down allow-empty="true">
+                            <list-options list="mailDefaultsOut.accountOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                        <field name="signaturePlacement"><default-field title="Signature"><radio>
+                            <option key="above" text="Above the quote"/><option key="below" text="Below the quote"/></radio></default-field></field>
+                        <field name="swipeLeft"><default-field title="Swipe left"><drop-down>
+                            <option key="archive" text="Archive"/><option key="trash" text="Delete"/><option key="read" text="Mark read"/>
+                            <option key="unread" text="Mark unread"/><option key="flag" text="Flag"/><option key="spam" text="Report spam"/></drop-down></default-field></field>
+                        <field name="swipeRight"><default-field title="Swipe right"><drop-down>
+                            <option key="archive" text="Archive"/><option key="trash" text="Delete"/><option key="read" text="Mark read"/>
+                            <option key="unread" text="Mark unread"/><option key="flag" text="Flag"/><option key="spam" text="Report spam"/></drop-down></default-field></field>
                         <field name="saveButton"><default-field title="Save"><submit/></default-field></field>
                         <field-layout>
-                            <field-ref name="readingPane"/>
+                            <field-ref name="readingPane"/><field-ref name="conversationView"/>
                             <field-row><field-ref name="markReadSeconds"/><field-ref name="undoSeconds"/></field-row>
-                            <field-ref name="archiveOpensNext"/><field-ref name="remoteImages"/><field-ref name="saveButton"/>
+                            <field-ref name="archiveOpensNext"/><field-ref name="remoteImages"/>
+                            <field-ref name="defaultAccountId"/><field-ref name="signaturePlacement"/>
+                            <field-row><field-ref name="swipeLeft"/><field-ref name="swipeRight"/></field-row>
+                            <field-ref name="saveButton"/>
                         </field-layout>
                     </form-single>
                     <label type="p" text="Accounts, signatures, rules and the automatic reply are in Comms settings." style="text-caption m-muted q-mb-none q-mt-sm"/>

@@ -164,6 +164,7 @@ along with this software (see the LICENSE.md file). If not, see
         folderRows = Array.from(detail.folderList || [])
         memberRows = Array.from(detail.memberList || [])
         showSetupDone = setup === 'done'
+        deliveredHere = account.deliveredHere === true
         // how it signs in: a password, or a provider's sign-in (get#OAuthStatus), and whether this server offers that sign-in
         const signInState = detail.signIn || {}
         isOAuth = signInState.isOAuth === true
@@ -253,6 +254,12 @@ along with this software (see the LICENSE.md file). If not, see
                 <link url="resume" link-type="hidden-form" text="Resume" icon="sym_o_play_arrow" condition="account.canResume" parameter-map="{emailAccountId:emailAccountId}"/>
                 <link url="../List" text="Mail accounts" icon="sym_o_arrow_back"/>
             </container>
+            <section name="AccountStorage" condition="account.storageText"><widgets>
+                <container style="text-caption m-muted q-mb-sm">
+                    <label type="span" text="Storage"/>
+                    <label type="span" text=" · ${account.storageText}"/>
+                </container>
+            </widgets></section>
             <!-- while it syncs: how far it is -->
             <section name="AccountSyncProgress" condition="account.hasServer"><widgets>
                 <dynamic-container id="AccountSyncProgress" transition="../SyncProgress">
@@ -262,7 +269,12 @@ along with this software (see the LICENSE.md file). If not, see
 
             <section name="SetupDone" condition="showSetupDone"><widgets>
                 <container-box type="success"><box-header title="Your account is set up"/><box-body>
-                    <label type="p" text="The first sync is under way: your mail shows in the Inbox as it arrives, the newest first. A large mailbox takes a while; you can use the Inbox meanwhile."/>
+                    <section name="SetupDoneGateway" condition="deliveredHere"><widgets>
+                        <label type="p" text="The account is on. The mail gateway delivers its mail. A tag after a plus sign still arrives here: sales+news@example.com goes to sales@example.com."/>
+                    </widgets></section>
+                    <section name="SetupDoneSync" condition="!deliveredHere"><widgets>
+                        <label type="p" text="The first sync is under way: your mail shows in the Inbox as it arrives, the newest first. A large mailbox takes a while; you can use the Inbox meanwhile."/>
+                    </widgets></section>
                     <container style="row q-gutter-sm">
                         <link url="//Comms/Inbox" text="Open the Inbox" icon="sym_o_inbox" btn-type="primary" parameter-map="{account:emailAccountId}"/>
                         <link url="." text="Refresh" icon="sym_o_refresh" parameter-map="{emailAccountId:emailAccountId}"/>
@@ -272,7 +284,8 @@ along with this software (see the LICENSE.md file). If not, see
             </widgets></section>
             <section name="SetupIncomplete" condition="account.setupIncomplete"><widgets>
                 <container-box type="warning"><box-body>
-                    <label type="p" text="The setup of this account was not finished, so it is not syncing yet." style="q-mb-sm"/>
+                    <label type="p" text="The setup of this account was not finished, so it is not syncing yet." style="q-mb-sm" condition="!deliveredHere"/>
+                    <label type="p" text="The setup of this account was not finished, so it is not on yet." style="q-mb-sm" condition="deliveredHere"/>
                     <link url="../Add/Test" text="Continue setup" icon="sym_o_arrow_forward" btn-type="primary" parameter-map="{emailAccountId:emailAccountId}"/>
                 </box-body></container-box>
             </widgets></section>
@@ -377,7 +390,13 @@ along with this software (see the LICENSE.md file). If not, see
                         </container>
                     </box-body></container-box>
 
-                    <section name="Servers" condition="canManage"><widgets>
+                    <section name="DeliveredHere" condition="canManage &amp;&amp; deliveredHere"><widgets>
+                        <container-box><box-header title="How mail arrives"/><box-body>
+                            <label type="p" text="The mail gateway delivers mail for this address. There is no mail server and no password."/>
+                            <label type="p" text="A tag after a plus sign still arrives here: sales+news@example.com goes to sales@example.com." style="m-muted q-mb-none"/>
+                        </box-body></container-box>
+                    </widgets></section>
+                    <section name="Servers" condition="canManage &amp;&amp; !deliveredHere"><widgets>
                         <container-box><box-header title="Sign-in and servers"/><box-body>
                             <section name="OAuthSignedIn" condition="isOAuth"><widgets>
                                 <container style="row items-center q-gutter-sm q-mb-sm">

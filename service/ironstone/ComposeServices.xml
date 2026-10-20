@@ -27,7 +27,8 @@ along with this software (see the LICENSE.md file). If not, see
         <description>The identities the user may send as: each identity of an account the user may send from ({value
             identity:id or account:id, label, emailAccountId, emailIdentityId, emailAddress, displayName, accountName,
             signatureHtml, signaturePlacementEnumId, useForReplies, isDefault}), then the Internal identity (value internal:
-            an internal message as the user). defaultValue is the default identity of the first account, else internal.</description>
+            an internal message as the user). defaultValue is the default identity of MAIL_DEFAULT_ACCOUNT when that account
+            is one the user may send from, else the default identity of the first account, else internal.</description>
         <out-parameters>
             <parameter name="identityList" type="List"/>
             <parameter name="defaultValue"/>
@@ -65,6 +66,11 @@ along with this software (see the LICENSE.md file). If not, see
                 emailIdentityId: null, emailAddress: null, displayName: name, accountName: ec.l10n.localize('Internal'), signatureHtml: null,
                 signaturePlacementEnumId: null, useForReplies: false, isDefault: false, isInternal: true})
             if (!defaultValue) defaultValue = partyId ? 'internal' : null
+            const preferred = String(ec.user.getPreference('MAIL_DEFAULT_ACCOUNT') || '').trim()
+            if (preferred) {
+                const mine = identityList.filter((item) => item.emailAccountId === preferred)
+                if (mine.length) defaultValue = (mine.find((item) => item.isDefault) || mine[0]).value
+            }
         ]]></script></actions>
     </service>
 
@@ -129,10 +135,11 @@ along with this software (see the LICENSE.md file). If not, see
             if (ec.message.hasError()) return
             const identities = Array.from(ids.identityList || [])
             const prefUndo = ec.user.getPreference('MAIL_UNDO_SECONDS')
+            const placement = ec.user.getPreference('MAIL_SIGNATURE_PLACEMENT')
             const result = {identityList: identities, fromValue: ids.defaultValue, me: ids.me, to: [], cc: [], bcc: [], subject: '', body: '', quoteHtml: null,
                 emailMessageId: null, parentEmailMessageId: null, isForward: false, parentCommEventId: null, replyToSenderOnly: false, contactListId: null,
                 contactListName: null, record: null, attachmentList: [], undoSeconds: prefUndo != null && prefUndo !== '' ? Number(prefUndo) : 10,
-                threadStore: null, threadId: null, kind: 'new'}
+                signaturePlacement: placement === 'below' ? 'below' : 'above', threadStore: null, threadId: null, kind: 'new'}
             const identityFor = (accountId, addresses) => {
                 const wanted = new Set(Array.from(addresses || []).map((address) => String(address || '').toLowerCase()))
                 const mine = identities.filter((item) => item.emailAccountId === accountId)
@@ -360,10 +367,11 @@ along with this software (see the LICENSE.md file). If not, see
 
     <service verb="search" noun="Recipients">
         <description>The recipients the To, Cc and Bcc chips offer for the term: for email (mode email), the email addresses
-            of the parties the user may see (the directory and the user's own personal contacts, R7: name or address) and the
+            of the parties the user may see (the directory and the user's own personal contacts, R7: name or address), the
+            contact groups of the books the user may see (a group chip expands to its members on send), and the
             addresses of the user's recent mail; for an internal message (mode internal), the users (by name or user name)
             and the mailboxes the user may post to. Options {value, label, kind}: value is the address as a header ("Name"
-            &lt;address&gt;), party:id or list:id.</description>
+            &lt;address&gt;), party:id, group:id or list:id.</description>
         <in-parameters>
             <parameter name="term" allow-html="any"/>
             <parameter name="mode" default-value="email"/>
@@ -449,6 +457,26 @@ along with this software (see the LICENSE.md file). If not, see
                     }
                 }
             }
+            // contact groups of the books the user may see; a failure here leaves the addresses already found
+            if (optionList.length < max) {
+                ec.message.pushErrors()
+                try {
+                    const books = ec.service.sync().name('mantle.party.ContactBookServices.get#UserContactBooks').requireNewTransaction(true).call()
+                    if (!ec.message.hasError()) {
+                        const lower = text.toLowerCase()
+                        for (const book of Array.from(books?.contactBookList || [])) {
+                            for (const group of Array.from(book.groupList || [])) {
+                                if (optionList.length >= max) break
+                                if (!String(group.groupName || '').toLowerCase().includes(lower)) continue
+                                optionList.push({value: 'group:' + group.contactBookGroupId,
+                                    label: book.contactBookName ? `${group.groupName} · ${book.contactBookName}` : group.groupName, kind: 'group'})
+                            }
+                        }
+                    }
+                } catch (err) {
+                    ec.logger.warn(`Recipient search: contact groups left out: ${err && err.message ? err.message : err}`)
+                } finally { ec.message.clearErrors(); ec.message.popErrors() }
+            }
             // what was typed, when it is an address
             if (/^[^\s@<>,]+@[^\s@<>,]+\.[^\s@<>,]+$/.test(text)) add(text, null)
             optionList = optionList.slice(0, max)
@@ -457,9 +485,11 @@ along with this software (see the LICENSE.md file). If not, see
 
     <service verb="resolve" noun="Recipients" allow-remote="false">
         <description>The chips of a recipient field ([{value, label}] or their JSON) for a send: for email the header text
-            (an address as given; a party:id chip by its primary email address, for a party the user may see), for an
-            internal message the party ids (party:id; an address chip by the party with it, match#Addresses) and the
-            mailboxes (list:id). An entry that cannot be resolved is an error naming it.</description>
+            (an address as given; a party:id chip by its primary email address, for a party the user may see; a group:id
+            chip by the current members of that contact group who have an email address), for an internal message the
+            party ids (party:id; an address chip by the party with it, match#Addresses; a group:id chip by its members)
+            and the mailboxes (list:id). A group the user may not see is not found. A member with no email address is
+            skipped; a group with none is an error naming it. An entry that cannot be resolved is an error naming it.</description>
         <in-parameters>
             <parameter name="chipList" type="List"/>
             <parameter name="chipsJson" allow-html="any"/>
@@ -480,6 +510,38 @@ along with this software (see the LICENSE.md file). If not, see
             contactListIdList = []
             const visibleParty = (id) => ec.entity.find('mantle.party.Party').condition('partyId', id).condition(cf.makeCondition([
                 cf.makeCondition('privateOwnerUserId', 'equals', null), cf.makeCondition('privateOwnerUserId', 'equals', ec.user.userId)], 'or')).disableAuthz().count() > 0
+            const seenAddress = new Set()
+            const expandGroup = (groupId, label) => {
+                const group = ec.entity.find('mantle.party.contact.ContactBookGroup').condition('contactBookGroupId', groupId).one()
+                if (group == null) { ec.message.addError(ec.resource.expand('Contact group ${name} not found', '', {name: label})); return null }
+                ec.message.pushErrors()
+                let allowed = false
+                try {
+                    ec.service.sync().name('mantle.party.ContactBookServices.check#ContactBookAccess')
+                            .parameters({contactBookId: group.contactBookId, permissionEnumId: 'CbpView'}).call()
+                    allowed = !ec.message.hasError()
+                } finally { ec.message.clearErrors(); ec.message.popErrors() }
+                if (!allowed) { ec.message.addError(ec.resource.expand('Contact group ${name} not found', '', {name: label})); return null }
+                const found = []
+                for (const member of ec.entity.find('mantle.party.contact.ContactBookGroupParty').condition('contactBookGroupId', groupId).list()) {
+                    const id = member.partyId
+                    const inBook = ec.entity.find('mantle.party.contact.ContactBookParty').condition('contactBookId', group.contactBookId)
+                            .condition('partyId', id).condition(cf.makeConditionDate('fromDate', 'thruDate', null)).count() > 0
+                    if (!inBook || !visibleParty(id)) continue
+                    if (mode === 'internal') { found.push({partyId: id}); continue }
+                    const address = ec.service.sync().name('mantle.party.ContactServices.get#PrimaryEmailAddress').parameter('partyId', id).call()?.emailAddress
+                    ec.message.clearErrors()
+                    if (!address) continue
+                    const detail = ec.entity.find('mantle.party.PartyDetail').condition('partyId', id).disableAuthz().one()
+                    const name = detail ? (detail.organizationName || [detail.firstName, detail.lastName].filter((part) => part).join(' ')) : ''
+                    found.push({partyId: id, address: String(address).trim(), name: name})
+                }
+                if (!found.length) {
+                    ec.message.addError(ec.resource.expand(mode === 'internal' ? 'Contact group ${name} has no one to message' : 'Contact group ${name} has no email addresses', '', {name: label}))
+                    return null
+                }
+                return found
+            }
             for (const chip of chips) {
                 const value = String((chip && (chip.value ?? chip)) || '').trim()
                 const label = String((chip && chip.label) || value)
@@ -487,6 +549,19 @@ along with this software (see the LICENSE.md file). If not, see
                 if (value.startsWith('list:')) {
                     if (mode !== 'internal') { ec.message.addError(ec.resource.expand('${name} is a mailbox: send it as an internal message', '', {name: label})); return }
                     contactListIdList.push(value.substring(5))
+                } else if (value.startsWith('group:')) {
+                    const found = expandGroup(value.substring(6), label)
+                    if (!found) return
+                    for (const member of found) {
+                        if (mode === 'internal') { if (!partyIdList.includes(member.partyId)) partyIdList.push(member.partyId) }
+                        else {
+                            const key = member.address.toLowerCase()
+                            if (seenAddress.has(key)) continue
+                            seenAddress.add(key)
+                            const clean = String(member.name || '').replace(/"/g, '').trim()
+                            addresses.push(clean ? `"${clean}" <${member.address}>` : member.address)
+                        }
+                    }
                 } else if (value.startsWith('party:')) {
                     const id = value.substring(6)
                     if (!visibleParty(id)) { ec.message.addError(ec.resource.expand('Recipient ${name} not found', '', {name: label})); return }
@@ -495,7 +570,8 @@ along with this software (see the LICENSE.md file). If not, see
                         const address = ec.service.sync().name('mantle.party.ContactServices.get#PrimaryEmailAddress').parameter('partyId', id).call()?.emailAddress
                         ec.message.clearErrors()
                         if (!address) { ec.message.addError(ec.resource.expand('${name} has no email address', '', {name: label})); return }
-                        addresses.push(`"${label.replace(/<.*$/, '').replace(/"/g, '').trim()}" <${address}>`)
+                        const key = String(address).trim().toLowerCase()
+                        if (!seenAddress.has(key)) { seenAddress.add(key); addresses.push(`"${label.replace(/<.*$/, '').replace(/"/g, '').trim()}" <${address}>`) }
                     }
                 } else if (mode === 'internal') {
                     const match = /<([^>]+)>/.exec(value)
@@ -507,7 +583,8 @@ along with this software (see the LICENSE.md file). If not, see
                     const match = /<([^>]+)>/.exec(value)
                     const address = (match ? match[1] : value).trim()
                     if (!/^[^\s@<>,]+@[^\s@<>,]+$/.test(address)) { ec.message.addError(ec.l10n.localize('Not an email address') + ': ' + label); return }
-                    addresses.push(value)
+                    const key = address.toLowerCase()
+                    if (!seenAddress.has(key)) { seenAddress.add(key); addresses.push(value) }
                 }
             }
             addressText = addresses.join(', ')

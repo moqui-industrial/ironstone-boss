@@ -291,7 +291,8 @@ along with this software (see the LICENSE.md file). If not, see
 
     <service verb="create" noun="Request">
         <description>A request filed by the user and submitted (mantle.request.RequestServices.create#Request), with its
-            customer (the party in context by default); on a work effort in context through RequestWorkEffort.</description>
+            customer (the party in context by default); on the record in context through link#RequestRecord (a work effort
+            through RequestWorkEffort, a wiki page through WikiPageRequest, any other record through RequestRecord).</description>
         <in-parameters>
             <parameter name="requestName" required="true"/>
             <parameter name="requestTypeEnumId" default-value="RqtSupport"/>
@@ -314,8 +315,9 @@ along with this software (see the LICENSE.md file). If not, see
                     requestTypeEnumId:requestTypeEnumId, priority:priority, customerPartyId:customerPartyId, description:description,
                     statusId:'ReqSubmitted'}"/>
             <if condition="ec.message.hasError()"><return/></if>
-            <if condition="recordInfo?.recordEntityName == 'mantle.work.effort.WorkEffort'">
-                <service-call name="create#mantle.request.RequestWorkEffort" in-map="{requestId:requestId, workEffortId:recordId}"/>
+            <if condition="recordEntity &amp;&amp; recordId">
+                <service-call name="mantle.request.RequestServices.link#RequestRecord" in-map="{requestId:requestId,
+                        recordEntityName:recordEntity, recordId:recordId}"/>
             </if>
             <service-call name="ironstone.PaletteServices.get#RecordLink" out-map="linkOut" in-map="{docType:'MantleRequest', id:requestId}"/>
             <set field="url" from="linkOut.url"/>

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- PublishedCalendar (design-drawers-commons.md §7 Calendar; impl-drawers-commons.md §8): the page of a calendar published
+    by link, for a visitor who is not signed in, at /cal/<token>: the token-route "cal" of MoquiConf.xml renders it in the
+    public shell (no header, drawers or session user) after ironstone.CalendarServices.check#PublishedCalendarToken let the
+    token through (an unknown one, or a share that names a user, gets the route's "not found" page; an ended one reaches
+    the page only to say it has expired). The component is PublishedCalendar.qvue next to this file: the calendar's name,
+    a password when the link has one, then the events of the month on screen. The transition below calls
+    get#PublishedCalendar with the token the route gives (the token parameter, whatever the request says), which checks it
+    again before it reads anything; a missing password answers needsPassword and no events, and a wrong one is its own
+    error. Nothing else is read here. No CalDAV. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        require-authentication="false" default-menu-include="false" default-menu-title="Calendar" render-modes="vue,qvue" server-static="vue,qvue">
+
+    <transition name="events" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.CalendarServices.get#PublishedCalendar').parameters({token: token || '',
+                password: password || null, start: start || null, end: end || null}).call()
+            if (ec.message.hasError()) { ec.web.sendJsonResponse({}); return }
+            ec.web.sendJsonResponse({needsPassword: !!out.needsPassword, calendarName: out.calendarName ?? null, color: out.color ?? null,
+                eventList: Array.from(out.eventList || [])})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+
+    <widgets>
+        <render-mode>
+            <text type="qvue" location="component://ironstone-boss/screen/PublishedCalendar.qvue" template="false"/>
+            <text type="html,qvt"><![CDATA[<p>This calendar opens in a browser with JavaScript.</p>]]></text>
+        </render-mode>
+    </widgets>
+</screen>

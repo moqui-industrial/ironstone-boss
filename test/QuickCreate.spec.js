@@ -211,15 +211,23 @@ feature("a request with the party in context as its customer", {
         const created = post("createRequest", { requestName: "Calendar access for Bob", requestTypeEnumId: "RqtSupport", priority: "5",
             recordEntity: "mantle.party.Party", recordId: "ORG_ACME_BA" })
         const id = created.json.requestId
+        const onTask = post("createRequest", { requestName: "Follow up the call", recordEntity: "mantle.work.effort.WorkEffort", recordId: "BOSS_DEMO_TODAY_CALL" })
         return { created, req: one("mantle.request.Request", { requestId: id }),
-            customer: one("mantle.request.RequestParty", { requestId: id, partyId: "ORG_ACME_BA", roleTypeId: "Customer" }) }
+            customer: one("mantle.request.RequestParty", { requestId: id, partyId: "ORG_ACME_BA", roleTypeId: "Customer" }),
+            partyLink: one("mantle.request.RequestRecord", { requestId: id, recordEntityName: "mantle.party.Party", recordId: "ORG_ACME_BA" }),
+            onTask, taskLink: one("mantle.request.RequestWorkEffort", { requestId: onTask.json.requestId, workEffortId: "BOSS_DEMO_TODAY_CALL" }),
+            taskGeneric: one("mantle.request.RequestRecord", { requestId: onTask.json.requestId, recordEntityName: "mantle.work.effort.WorkEffort", recordId: "BOSS_DEMO_TODAY_CALL" }) }
     },
-    then({ created, req, customer }) {
+    then({ created, req, customer, partyLink, onTask, taskLink, taskGeneric }) {
         created.errors == ""
         message(created) == "Request created: Calendar access for Bob"
         created.json.url == `/qapps/Commons/Requests/RequestDetail?requestId=${req.requestId}`
         req.statusId == "ReqSubmitted"
         customer != null
+        partyLink != null
+        onTask.errors == ""
+        taskLink != null
+        taskGeneric == null
     },
 })
 

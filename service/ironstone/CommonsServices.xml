@@ -668,4 +668,23 @@ along with this software (see the LICENSE.md file). If not, see
             partyContentId = rows[0].partyContentId
         ]]></script></actions>
     </service>
+    <service verb="get" noun="UserAvatar" allow-remote="false">
+        <description>The face image of a user account's own party (the latest PcntFaceImage), for m-avatar given only a user id
+            (the header, and any avatar that does not already pass an image). Null when that user has no account, no party
+            or no photo. A signed-in user may see another user's photo: it is the picture shown beside their name.</description>
+        <in-parameters><parameter name="userId" required="true"/></in-parameters>
+        <out-parameters><parameter name="contentLocation"/><parameter name="partyContentId"/></out-parameters>
+        <actions><script><![CDATA[
+            contentLocation = null
+            partyContentId = null
+            const account = ec.entity.find('moqui.security.UserAccount').condition('userId', String(userId)).useCache(true).one()
+            const partyId = account?.partyId
+            if (!partyId) return
+            const rows = ec.entity.find('mantle.party.PartyContent').condition('partyId', partyId).condition('partyContentTypeEnumId', 'PcntFaceImage')
+                    .orderBy('-contentDate,-partyContentId').limit(1).list()
+            if (!rows.length) return
+            contentLocation = rows[0].contentLocation || null
+            partyContentId = rows[0].partyContentId
+        ]]></script></actions>
+    </service>
 </services>

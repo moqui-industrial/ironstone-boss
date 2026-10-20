@@ -52,6 +52,19 @@ spec({
 
 feature("the bookable rooms and equipment with their policies; the type and text filters; no manufacturing equipment", {
     when() {
+        // a room or piece of equipment is listed only when bookable is Y; type alone does not make it bookable, and a closed room stays out
+        sys(() => {
+            const store = (entityName, fields) => {
+                const row = ec.entity.makeValue(entityName)
+                row.setFields(fields, true, null, null)
+                row.createOrUpdate()
+            }
+            store("mantle.facility.Facility", { facilityId: "BOSS_TEST_ROOM_PLAIN", facilityTypeEnumId: "FcTpRoom", facilityName: "Storeroom", ownerPartyId: "ORG_ZIZI_SERVICES" })
+            store("mantle.facility.Facility", { facilityId: "BOSS_TEST_ROOM_CLOSED", facilityTypeEnumId: "FcTpRoom", facilityName: "Old room", bookable: "Y",
+                closedDate: ec.user.nowTimestamp, ownerPartyId: "ORG_ZIZI_SERVICES" })
+            store("mantle.product.asset.Asset", { assetId: "BOSS_TEST_EQUIP_PLAIN", assetTypeEnumId: "AstTpEquipment", classEnumId: "AsClsComputerHard",
+                assetName: "Spare monitor", ownerPartyId: "ORG_ZIZI_SERVICES" })
+        })
         const everything = get("resources")
         const rooms = get("resources", { type: "room" })
         const kit = get("resources", { text: "video" })
@@ -64,14 +77,18 @@ feature("the bookable rooms and equipment with their policies; the type and text
         everything.json.timeZone == "US/Central"
         list.some((item) => item.key === "equipment|BOSS_DEMO_PROJECTOR")
         !list.some((item) => item.resourceId === "EQUIP_AB4_1")
+        !list.some((item) => item.resourceId === "BOSS_TEST_ROOM_PLAIN" || item.resourceId === "BOSS_TEST_ROOM_CLOSED" || item.resourceId === "BOSS_TEST_EQUIP_PLAIN")
         board.requiresApproval
         board.approverNames == ["Bob Developer"]
         board.site == "Main office"
         board.url == "/qapps/Commons/Calendar/Schedules/ResourceDetail?resourceType=room&resourceId=BOSS_DEMO_ROOM_BOARD"
+        Number(board.capacity) == 16
         !maple.requiresApproval
         maple.policyText.startsWith("Booked at once")
+        Number(maple.capacity) == 8
         rooms.every((item) => item.resourceType === "room")
         kit.map((item) => item.resourceId) == ["BOSS_DEMO_VC_KIT"]
+        Number(kit[0].capacity) == 1
     },
 })
 
@@ -155,6 +172,8 @@ feature("ResourceDetail: what the Board room is, its policy, john.doe's booking 
         detail.found
         detail.myBookingList.some((booking) => booking.workEffortId === "BOSS_DEMO_EV_WORKSHOP")
         detail.facts.some((fact) => fact.label === "Where" && fact.value === "Main office")
+        detail.facts.some((fact) => fact.label === "Capacity" && String(fact.value).includes("16"))
+        Number(detail.resource.capacity) == 16
         booked.errors == ""
         projectorEvent.sourceReferenceId == "BossBooking"
     },

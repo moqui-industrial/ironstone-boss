@@ -28,11 +28,13 @@ along with this software (see the LICENSE.md file). If not, see
     delete#RemovedMailAccount); the Rules editor tries a rule without acting (test#Rule); the automatic reply has its audience.
 
     The wizard (MailAccounts/Add): Address suggests the servers (suggest#MailServer: the providers IronStone knows, else
-    discover#EmailServer), Connect makes the account, paused until the wizard ends (save#AccountConnection with a password;
-    with a provider's sign-in, start#MailSignIn, the framework makes it when the sign-in succeeds), Test signs in
-    (test#MailAccount, with what to try for each failure), Options (save#AccountOptions: name, sync window, filing, members
-    of a shared account) and Finish (finish#AccountSetup: active, and the first sync on a worker). An account still paused
-    from a wizard that was left is "Setup not finished" in the list, with the way back into it.
+    discover#EmailServer), or, for a hosted address and for a shared address the gateway delivers, carries no servers.
+    Connect makes the account, paused until the wizard ends (save#AccountConnection with a password; with a provider's
+    sign-in, start#MailSignIn, the framework makes it when the sign-in succeeds; gatewayDelivery makes it with no mail
+    server and no password). Test signs in (test#MailAccount, with what to try for each failure), or, when there is no
+    incoming server, confirms that the gateway delivers. Options (save#AccountOptions: name, sync window, filing, members
+    of a shared account) and Finish (finish#AccountSetup: active, and the first sync on a worker when there is an incoming
+    server). An account still paused from a wizard that was left is "Setup not finished" in the list, with the way back into it.
 
     Failure tolerant (AGENTS.md): each account of the list, each member added and each part of a view stands alone; one that
     fails is logged by name and the rest is answered. -->
@@ -291,6 +293,14 @@ along with this software (see the LICENSE.md file). If not, see
             mailAccountCount = 0
             problemCount = 0
             const nowMillis = toMillis(ec.user.nowTimestamp)
+            const fmtSize = (bytes) => {
+                const n = Number(bytes)
+                if (!Number.isFinite(n) || n < 0) return null
+                if (n >= 1073741824) return (n / 1073741824).toFixed(1) + ' GB'
+                if (n >= 1048576) return (n / 1048576).toFixed(1) + ' MB'
+                if (n >= 1024) return Math.round(n / 1024) + ' KB'
+                return Math.round(n) + ' B'
+            }
             const agoText = (millis) => {
                 if (millis == null) return null
                 const minutes = Math.round(Math.max(0, nowMillis - millis) / 60000)
@@ -316,6 +326,7 @@ along with this software (see the LICENSE.md file). If not, see
                     statusId: account.statusId || 'EasActive', statusLabel: L('Active'), statusColor: 'positive', problemText: null, lastSyncText: null,
                     lastSyncError: account.lastSyncError ?? null, syncing: false, setupIncomplete: false, hasServer: !!account.emailServerId, isOAuth: false,
                     canSync: false, canPause: false, canResume: false, serverText: null, memberText: null, memberCount: 0,
+                    usedBytes: null, storageText: null,
                     folderCount: Array.from(account.folderList || []).filter((folder) => !folder.removed).length,
                     filingText: account.recordFilingEnumId === 'ErfAllMatches' ? L('Files mail with known contacts on their records')
                         : (account.recordFilingEnumId === 'ErfLinkedOnly' ? L('Files only the mail you link') : null)}
@@ -332,15 +343,25 @@ along with this software (see the LICENSE.md file). If not, see
                             .selectField('emailAccountId').selectField('syncLockedUntil').selectField('lastSyncDate').one()
                     const lockedUntil = toMillis(row?.syncLockedUntil)
                     const lastSync = toMillis(account.lastSyncDate ?? row?.lastSyncDate)
+                    item.deliveredHere = !item.hasServer && (account.accountKindEnumId === 'EakHosted' || account.accountKindEnumId === 'EakShared')
+                    try {
+                        item.usedBytes = ec.resource.getTreeSize('dbresource://email/' + id)
+                        item.storageText = fmtSize(item.usedBytes)
+                    } catch (sizeErr) {
+                        ec.logger.warn(`Mail account ${id}: its storage could not be sized: ${sizeErr && sizeErr.message ? sizeErr.message : sizeErr}`)
+                    }
                     item.syncing = lockedUntil != null && lockedUntil > nowMillis
                     item.lastSyncText = lastSync != null ? agoText(lastSync) : null
-                    item.setupIncomplete = item.statusId === 'EasPaused' && lastSync == null && item.hasServer && item.canManage
+                    item.setupIncomplete = item.statusId === 'EasPaused' && lastSync == null && item.canManage && (item.hasServer || item.deliveredHere)
                     const auth = account.emailServerId ? ec.entity.find('moqui.basic.email.EmailServer').condition('emailServerId', account.emailServerId)
                             .selectField('authTypeEnumId,oauthProviderEnumId').one() : null
                     item.isOAuth = auth?.authTypeEnumId === 'EatOAuth2'
                     const providerName = item.isOAuth ? ({EopGoogle: 'Google', EopMicrosoft: 'Microsoft'}[auth.oauthProviderEnumId] || L('the provider')) : null
                     const status = item.statusId
-                    if (!item.hasServer) Object.assign(item, {statusLabel: L('Local only'), statusColor: 'info',
+                    if (item.deliveredHere && item.setupIncomplete) Object.assign(item, {statusLabel: L('Setup not finished'), statusColor: 'warning',
+                        problemText: L('The account is not on until its setup is finished')})
+                    else if (item.deliveredHere) Object.assign(item, {statusLabel: L('Delivered here'), statusColor: 'positive', problemText: null})
+                    else if (!item.hasServer) Object.assign(item, {statusLabel: L('Local only'), statusColor: 'info',
                         problemText: L('No server: the mail here is kept only here and does not sync')})
                     else if (item.setupIncomplete) Object.assign(item, {statusLabel: L('Setup not finished'), statusColor: 'warning',
                         problemText: L('The account is not syncing until its setup is finished')})
@@ -499,9 +520,11 @@ along with this software (see the LICENSE.md file). If not, see
             smtpUsername makes SMTP sign in as the incoming server does again; the same user with no password keeps the one
             stored. Not for an account that signs in with a provider.
 
-            accountKindEnumId: a new account's kind (EakExternal, the default, or EakShared); given for an account there it
-            changes the kind (update#EmailAccount, by the framework's rules: personal again only when one person is left on
-            it). Strict on access: an emailAccountId the user does not manage is not found.</description>
+            accountKindEnumId: a new account's kind (EakExternal, the default, EakShared, or EakHosted); given for an account
+            there it changes the kind (update#EmailAccount, by the framework's rules: personal again only when one person is
+            left on it). gatewayDelivery makes a hosted or shared account with no mail server and no password, so the SMTP
+            listener delivers its mail (a personal account cannot; an account that already has a server keeps it, and the
+            listener then leaves the mail to the sync). Strict on access: an emailAccountId the user does not manage is not found.</description>
         <in-parameters>
             <parameter name="emailAccountId"/>
             <parameter name="emailAddress" required="true" allow-html="any"/>
@@ -523,6 +546,8 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="authTypeEnumId" default-value="EatPassword"><description>EatPassword, or EatOAuth2 for an account
                 that signs in with oauthProviderEnumId</description></parameter>
             <parameter name="oauthProviderEnumId"/>
+            <parameter name="gatewayDelivery" type="Boolean" default="false"><description>Hosted or shared, delivered by the
+                gateway: no mail server and no password</description></parameter>
         </in-parameters>
         <out-parameters>
             <parameter name="emailAccountId"/>
@@ -551,8 +576,11 @@ along with this software (see the LICENSE.md file). If not, see
             }
             // the kind: a new account's, or a change of an account's (its own kind given back is no change)
             const kind = accountKindEnumId ? String(accountKindEnumId) : null
-            if (kind && !['EakExternal', 'EakShared'].includes(kind) && !(existing && kind === existing.accountKindEnumId)) {
+            if (kind && !['EakExternal', 'EakShared', 'EakHosted'].includes(kind) && !(existing && kind === existing.accountKindEnumId)) {
                 ec.message.addError(ec.resource.expand('Unknown account kind ${kind}', '', {kind: kind})); return }
+            const gateway = gatewayDelivery === true || gatewayDelivery === 'Y' || gatewayDelivery === 'true'
+            if (gateway && kind !== 'EakHosted' && kind !== 'EakShared') {
+                ec.message.addError(L('Mail delivered here is a hosted or a shared account')); return }
             const password = oauth || mailPassword == null ? '' : String(mailPassword).trim()
             if (passwordOnly) {
                 if (!existing) { ec.message.addError(L('Which account? The account is required')); return }
@@ -577,8 +605,10 @@ along with this software (see the LICENSE.md file). If not, see
                     {name: row.description || oauthProviderEnumId}))
                 return true
             }
-            // an account for a provider's sign-in: the servers given, else the provider's own
-            if (oauth && !existing && !storeName && !smtpName) {
+            // an account for a provider's sign-in: the servers given, else the provider's own. Gateway delivery has no server.
+            if (gateway) {
+                servers = null
+            } else if (oauth && !existing && !storeName && !smtpName) {
                 const row = providerRow()
                 if (row == null) { ec.message.addError(ec.resource.expand('No sign-in provider ${id}', '', {id: oauthProviderEnumId})); return }
                 if (storeKind === 'pop' && noPop(row)) return
@@ -635,6 +665,14 @@ along with this software (see the LICENSE.md file). If not, see
                     if (identity.length && !identity[0].displayName) ec.service.sync().name('org.moqui.impl.EmailClientServices.update#EmailIdentity')
                             .parameters({emailIdentityId: identity[0].emailIdentityId, displayName: String(displayName).trim()}).call()
                 }
+            } else if (gateway) {
+                // paused, and no EmailServer: the listener delivers while there is no incoming server
+                const made = ec.service.sync().name('org.moqui.impl.EmailClientServices.create#EmailAccount').parameters({
+                    accountKindEnumId: kind, emailAddress: address, accountName: address, syncWindowDays: 365, statusId: 'EasPaused',
+                    displayName: String(displayName || '').trim() || null}).call()
+                if (ec.message.hasError()) return
+                emailAccountId = made.emailAccountId
+                created = true
             } else {
                 if (!oauth && !password) { invalid('mailPassword', 'Enter the password (or app password)'); return }
                 // paused: not synced until the wizard's Finish
@@ -646,7 +684,7 @@ along with this software (see the LICENSE.md file). If not, see
                 emailAccountId = made.emailAccountId
                 created = true
             }
-            if (!trySmtp) return
+            if (gateway || !trySmtp) return
             // the outgoing sign-in, tried on the servers just written (in this transaction) before it is stored
             const tried = ec.service.sync().name('ironstone.MailSettingsServices.test#MailAccount').parameters({emailAccountId: emailAccountId,
                 testStore: false, smtpUsername: smtpUser, smtpPassword: smtpPass}).call()
@@ -838,8 +876,8 @@ along with this software (see the LICENSE.md file). If not, see
     <service verb="save" noun="AccountOptions">
         <description>The wizard's Options step and the account page's options (manage permission): the account's name, color,
             sync window (days; empty for all mail), sync interval, filing policy (ErfLinkedOnly: only the mail the user links
-            goes on a record; ErfAllMatches: every message with a known contact) and kind, personal (EakExternal) or shared
-            (EakShared), by the framework's rules (update#EmailAccount: shared at any time, personal again only when one person
+            goes on a record; ErfAllMatches: every message with a known contact) and kind, personal (EakExternal), shared
+            (EakShared) or hosted (EakHosted), by the framework's rules (update#EmailAccount: shared at any time, personal again only when one person
             is left on it; when the kind changes and the filing given is the one the account had, it follows the new kind's
             default), and for a shared account the users to add as members (add#EmailAccountUser), each on its own: one that is
             refused (an unknown user, the owner) is logged and named in failedMemberList. They are added in the caller's
@@ -882,7 +920,7 @@ along with this software (see the LICENSE.md file). If not, see
             }
             const oldKind = access.account.accountKindEnumId
             if (accountKindEnumId != null && accountKindEnumId !== '' && accountKindEnumId !== oldKind) {
-                if (!['EakExternal', 'EakShared'].includes(accountKindEnumId)) { ec.message.addError(L('An account is personal or shared')); return }
+                if (!['EakExternal', 'EakShared', 'EakHosted'].includes(accountKindEnumId)) { ec.message.addError(L('An account is personal, shared or hosted here')); return }
                 changes.accountKindEnumId = accountKindEnumId
             }
             if (recordFilingEnumId != null && recordFilingEnumId !== '') {
@@ -913,19 +951,26 @@ along with this software (see the LICENSE.md file). If not, see
     </service>
 
     <service verb="finish" noun="AccountSetup">
-        <description>The wizard's Finish (manage permission): the account becomes active and its first sync starts on a
-            service worker as the user (org.moqui.impl.EmailClientServices.sync#EmailAccount); the sync job keeps it in sync
-            from then on. syncStarted is false, logged, when the sync could not start (the job starts it within minutes).</description>
+        <description>The wizard's Finish (manage permission): the account becomes active. One with an incoming server
+            starts its first sync on a service worker as the user (org.moqui.impl.EmailClientServices.sync#EmailAccount); the
+            sync job keeps it in sync from then on. One with no incoming server (hosted here, or shared and delivered by the
+            gateway) becomes active and no sync starts. syncStarted is false when no sync was started, and, logged, when the
+            sync could not start (the job starts it within minutes).</description>
         <in-parameters><parameter name="emailAccountId" required="true"/></in-parameters>
         <out-parameters><parameter name="syncStarted" type="Boolean"/></out-parameters>
         <actions><script><![CDATA[
-            const L = (text) => text.length > 255 ? text : ec.l10n.localize(text)
             syncStarted = false
             const access = ec.service.sync().name('org.moqui.impl.EmailClientServices.get#EmailAccountAccess').parameter('emailAccountId', emailAccountId).call()
             if (ec.message.hasError()) return
             if (!(access?.level >= 1) || access.account?.isInternal) { ec.message.addError(ec.resource.expand('Email account ${id} not found', '', {id: emailAccountId})); return }
             if (access.level < 3) { ec.message.addError(ec.resource.expand('You may not change email account ${id}', '', {id: emailAccountId})); return }
-            if (!access.account.emailServerId) { ec.message.addError(L('Connect the account to its server first')); return }
+            if (!access.account.emailServerId) {
+                // hosted, or shared and delivered here: active, and the gateway brings the mail (no IMAP sync)
+                if (access.account.statusId === 'EasPaused') {
+                    ec.service.sync().name('org.moqui.impl.EmailClientServices.update#EmailAccount').parameters({emailAccountId: emailAccountId, statusId: 'EasActive'}).call()
+                }
+                return
+            }
             if (access.account.statusId === 'EasPaused') {
                 ec.service.sync().name('org.moqui.impl.EmailClientServices.update#EmailAccount').parameters({emailAccountId: emailAccountId, statusId: 'EasActive'}).call()
                 if (ec.message.hasError()) return
@@ -1450,29 +1495,58 @@ along with this software (see the LICENSE.md file). If not, see
         <description>The Mail box of Commons Preferences (design-drawers-commons.md §11 MailDefaults), from the user preferences
             the Inbox and Compose read (ironstone.InboxServices.get#InboxData, ComposeServices): MAIL_READING_PANE (right, bottom,
             off), MAIL_ARCHIVE_NEXT (N to go back to the list after archive), MAIL_MARK_READ_SECONDS, MAIL_UNDO_SECONDS (10 by
-            default) and MAIL_REMOTE_IMAGES (always, else ask: each sender's pictures are allowed in the reading pane).</description>
-        <out-parameters><parameter name="mailDefaults" type="Map"/></out-parameters>
+            default), MAIL_REMOTE_IMAGES (always, else ask: each sender's pictures are allowed in the reading pane),
+            MAIL_CONVERSATION (threads, or messages: the Inbox lists mail one message at a time), MAIL_DEFAULT_ACCOUNT (the
+            account Compose starts from, empty for the first account), MAIL_SIGNATURE_PLACEMENT (above or below the quote)
+            and MAIL_SWIPE_LEFT / MAIL_SWIPE_RIGHT (archive, trash, read, unread, flag or spam: the phone list runs that
+            action). accountOptions is the accounts the user may send from, for the default-account field; a failure listing
+            them leaves the choices empty and the rest of the box still loads.</description>
+        <out-parameters>
+            <parameter name="mailDefaults" type="Map"/>
+            <parameter name="accountOptions" type="List"/>
+        </out-parameters>
         <actions><script><![CDATA[
             const pref = (key) => ec.user.getPreference(key)
             const pane = pref('MAIL_READING_PANE')
             const undo = pref('MAIL_UNDO_SECONDS')
+            const swipe = (key, fallback) => ['archive', 'trash', 'read', 'unread', 'flag', 'spam'].includes(pref(key)) ? pref(key) : fallback
             mailDefaults = {readingPane: ['right', 'bottom', 'off'].includes(pane) ? pane : 'right', archiveOpensNext: pref('MAIL_ARCHIVE_NEXT') === 'N' ? 'N' : 'Y',
                 markReadSeconds: String(Number(pref('MAIL_MARK_READ_SECONDS') || 0)), undoSeconds: undo != null && undo !== '' ? String(Number(undo)) : '10',
-                remoteImages: pref('MAIL_REMOTE_IMAGES') === 'always' ? 'always' : 'ask'}
+                remoteImages: pref('MAIL_REMOTE_IMAGES') === 'always' ? 'always' : 'ask',
+                conversationView: pref('MAIL_CONVERSATION') === 'messages' ? 'messages' : 'threads',
+                defaultAccountId: pref('MAIL_DEFAULT_ACCOUNT') || '',
+                signaturePlacement: pref('MAIL_SIGNATURE_PLACEMENT') === 'below' ? 'below' : 'above',
+                swipeLeft: swipe('MAIL_SWIPE_LEFT', 'archive'), swipeRight: swipe('MAIL_SWIPE_RIGHT', 'read')}
+            accountOptions = []
+            ec.message.pushErrors()
+            try {
+                const accounts = ec.service.sync().name('org.moqui.impl.EmailClientServices.get#UserEmailAccounts').call()
+                if (ec.message.hasError()) throw new Error(ec.message.getErrorsString())
+                accountOptions = Array.from(accounts.accountList || []).filter((account) => !account.isInternal && account.canSend)
+                        .map((account) => ({key: account.emailAccountId, text: account.accountName || account.emailAddress || account.emailAccountId}))
+            } catch (err) {
+                ec.logger.error(`Mail defaults for user ${ec.user.userId}: the account list failed and the default-account choices are left out: ${err && err.message ? err.message : err}`)
+            } finally { ec.message.clearErrors(); ec.message.popErrors() }
         ]]></script></actions>
     </service>
     <service verb="set" noun="MailDefaults">
         <description>Save the Mail box of Commons Preferences: the user preferences get#MailDefaults reads, each checked against
-            its choices. A value not given is left as it is.</description>
+            its choices. A value not given is left as it is. An empty default account clears MAIL_DEFAULT_ACCOUNT.</description>
         <in-parameters>
             <parameter name="readingPane"/>
             <parameter name="archiveOpensNext"/>
             <parameter name="markReadSeconds"/>
             <parameter name="undoSeconds"/>
             <parameter name="remoteImages"/>
+            <parameter name="conversationView"/>
+            <parameter name="defaultAccountId"/>
+            <parameter name="signaturePlacement"/>
+            <parameter name="swipeLeft"/>
+            <parameter name="swipeRight"/>
         </in-parameters>
         <actions><script><![CDATA[
             const L = (text) => ec.l10n.localize(text)
+            const SWIPE = ['archive', 'trash', 'read', 'unread', 'flag', 'spam']
             if (readingPane != null) {
                 if (!['right', 'bottom', 'off'].includes(readingPane)) { ec.message.addError(L('The reading pane is right, bottom or off')); return }
                 ec.user.setPreference('MAIL_READING_PANE', readingPane)
@@ -1487,6 +1561,33 @@ along with this software (see the LICENSE.md file). If not, see
                 ec.user.setPreference('MAIL_UNDO_SECONDS', String(undoSeconds))
             }
             if (remoteImages != null) ec.user.setPreference('MAIL_REMOTE_IMAGES', remoteImages === 'always' ? 'always' : 'ask')
+            if (conversationView != null) {
+                if (!['threads', 'messages'].includes(conversationView)) { ec.message.addError(L('The conversation view is threads or messages')); return }
+                ec.user.setPreference('MAIL_CONVERSATION', conversationView)
+            }
+            if (defaultAccountId != null) {
+                const id = String(defaultAccountId).trim()
+                if (!id) ec.user.setPreference('MAIL_DEFAULT_ACCOUNT', '')
+                else {
+                    const accounts = ec.service.sync().name('org.moqui.impl.EmailClientServices.get#UserEmailAccounts').call()
+                    if (ec.message.hasError()) return
+                    const found = Array.from(accounts.accountList || []).find((account) => account.emailAccountId === id && !account.isInternal && account.canSend)
+                    if (!found) { ec.message.addError(L('That mail account is not one you send from')); return }
+                    ec.user.setPreference('MAIL_DEFAULT_ACCOUNT', id)
+                }
+            }
+            if (signaturePlacement != null) {
+                if (!['above', 'below'].includes(signaturePlacement)) { ec.message.addError(L('The signature goes above or below the quote')); return }
+                ec.user.setPreference('MAIL_SIGNATURE_PLACEMENT', signaturePlacement)
+            }
+            const saveSwipe = (name, key) => {
+                if (name == null) return true
+                if (!SWIPE.includes(name)) { ec.message.addError(L('A swipe action is archive, trash, read, unread, flag or spam')); return false }
+                ec.user.setPreference(key, name)
+                return true
+            }
+            if (!saveSwipe(swipeLeft, 'MAIL_SWIPE_LEFT')) return
+            if (!saveSwipe(swipeRight, 'MAIL_SWIPE_RIGHT')) return
         ]]></script></actions>
     </service>
 </services>

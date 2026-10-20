@@ -638,8 +638,9 @@ along with this software (see the LICENSE.md file). If not, see
             add pages to (WikiServices.update#WikiPage checks it). Each copy starts its own history, its first version noted with
             the page it was copied from. Each page is copied in a transaction of its own (copy#Page), so one that fails is
             logged and named in failedPaths, with the pages under it, and the others are kept; the first one failing refuses
-            the whole. The framework's clone#WikiPage keeps the page's name, copies no pages under it and writes the files at
-            the source's path, so this reads each page through get#WikiPageInfo and writes it through update#WikiPage.</description>
+            the whole. The framework's clone#WikiPage now takes a name and children and writes files on the new path. This
+            service stays: each page is its own transaction and a failure is named in failedPaths, which one clone call is not.
+            It reads each page through get#WikiPageInfo and writes it through update#WikiPage.</description>
         <in-parameters>
             <parameter name="wikiPageId" required="true"/>
             <parameter name="toWikiSpaceId"/>

@@ -32,9 +32,13 @@ along with this software (see the LICENSE.md file). If not, see
             and Outbox counts, and its sync state: syncing while its sync lock holds, a warning when its sign-in or its last
             sync failed), the mailboxes the user is in or asked to join with their unread counts, the saved searches, the
             Unified, Drafts and Outbox totals, me (the user, party and own addresses) and the Inbox preferences (reading pane,
-            pane sizes, the rail collapsed, archive opens next, mark read after seconds, the undo-send seconds, the trusted
-            senders, and remoteImages: always shows the pictures of every sender, Commons Preferences' Mail box). A part that
-            fails is named in failedParts and logged; the rest is answered.
+            pane sizes, the rail collapsed, archive opens next, mark read after seconds, the undo-send seconds, threads or
+            messages, the default account, signature placement, the two phone swipe actions, the trusted
+            senders, and remoteImages: always shows the pictures of every sender, Commons Preferences' Mail box). Each mail
+            account has usedBytes and storageText: the bytes its files use under dbresource://email/, sized the way
+            FileServices sizes a drive (ec.resource.getTreeSize). Mail has no quota of its own, so the line is the size
+            only. A part that fails is named in failedParts and logged; the rest is answered. A size that cannot be read
+            is logged and that account's line is left out.
         </description>
         <out-parameters>
             <parameter name="accountList" type="List"/>
@@ -72,6 +76,14 @@ along with this software (see the LICENSE.md file). If not, see
                     .selectField('emailAccountId').selectField('syncLockedUntil').list()) rowsById[row.emailAccountId] = row
             const myAddresses = new Set()
             if (ec.user.userAccount?.emailAddress) myAddresses.add(String(ec.user.userAccount.emailAddress).toLowerCase())
+            const fmtSize = (bytes) => {
+                const n = Number(bytes)
+                if (!Number.isFinite(n) || n < 0) return null
+                if (n >= 1073741824) return (n / 1073741824).toFixed(1) + ' GB'
+                if (n >= 1048576) return (n / 1048576).toFixed(1) + ' MB'
+                if (n >= 1024) return Math.round(n / 1024) + ' KB'
+                return Math.round(n) + ' B'
+            }
             const KIND_LABELS = {EfkInbox: 'Inbox', EfkDrafts: 'Drafts', EfkSent: 'Sent', EfkArchive: 'Archive', EfkJunk: 'Spam', EfkTrash: 'Trash'}
             const KIND_ICONS = {EfkInbox: 'sym_o_inbox', EfkDrafts: 'sym_o_draft', EfkSent: 'sym_o_send', EfkArchive: 'sym_o_archive',
                 EfkJunk: 'sym_o_report', EfkTrash: 'sym_o_delete', EfkOther: 'sym_o_folder'}
@@ -87,6 +99,15 @@ along with this software (see the LICENSE.md file). If not, see
                 const depthOf = (folder) => { let depth = 0, at = folder; while (at && at.parentFolderId && byId[at.parentFolderId] && depth < 6) { depth++; at = byId[at.parentFolderId] } return depth }
                 const lockedUntil = toMillis(rowsById[account.emailAccountId]?.syncLockedUntil)
                 const status = account.statusId || 'EasActive'
+                let usedBytes = null
+                let storageText = null
+                if (!account.isInternal) {
+                    try { usedBytes = ec.resource.getTreeSize('dbresource://email/' + account.emailAccountId) }
+                    catch (err) {
+                        ec.logger.warn(`Inbox of user ${ec.user.userId}: the storage of mail account ${account.emailAccountId} could not be sized: ${err && err.message ? err.message : err}`)
+                    }
+                    if (usedBytes != null) storageText = fmtSize(usedBytes)
+                }
                 accountList.push({emailAccountId: account.emailAccountId, accountName: account.accountName || account.emailAddress ||
                         (account.isInternal ? ec.l10n.localize('Internal') : account.emailAccountId),
                     emailAddress: account.emailAddress ?? null, color: account.color ?? null, accountKindEnumId: account.accountKindEnumId ?? null,
@@ -95,7 +116,7 @@ along with this software (see the LICENSE.md file). If not, see
                     lastSyncDate: account.lastSyncDate ?? null, syncing: lockedUntil != null && lockedUntil > nowMillis,
                     warning: status === 'EasAuthFailed' ? 'authFailed' : (status === 'EasError' ? 'error' : (status === 'EasPaused' ? 'paused' : null)),
                     unreadCount: account.unreadCount ?? null, draftCount: account.draftCount || 0, outboxCount: account.outboxCount || 0,
-                    outboxErrorCount: account.outboxErrorCount || 0,
+                    outboxErrorCount: account.outboxErrorCount || 0, usedBytes: usedBytes, storageText: storageText,
                     folderList: folders.filter((folder) => folder.subscribed !== false || folder.folderKindEnumId !== 'EfkOther').map((folder) => ({
                         emailFolderId: folder.emailFolderId, folderName: folder.folderKindEnumId !== 'EfkOther' && KIND_LABELS[folder.folderKindEnumId]
                             ? ec.l10n.localize(KIND_LABELS[folder.folderKindEnumId]) : (folder.folderName || folder.folderPath || folder.emailFolderId),
@@ -145,11 +166,16 @@ along with this software (see the LICENSE.md file). If not, see
             let trusted = []
             try { trusted = JSON.parse(pref('MAIL_TRUSTED_SENDERS') || '[]') } catch (err) { trusted = [] }
             const pane = pref('MAIL_READING_PANE')
+            const swipe = (key, fallback) => ['archive', 'trash', 'read', 'unread', 'flag', 'spam'].includes(pref(key)) ? pref(key) : fallback
             prefs = {readingPane: ['right', 'bottom', 'off'].includes(pane) ? pane : 'right', splitRight: Number(pref('MAIL_SPLIT_RIGHT')) || null,
                 splitBottom: Number(pref('MAIL_SPLIT_BOTTOM')) || null, railCollapsed: pref('MAIL_RAIL_COLLAPSED') === 'Y',
                 archiveOpensNext: pref('MAIL_ARCHIVE_NEXT') !== 'N', markReadSeconds: Number(pref('MAIL_MARK_READ_SECONDS') || 0),
                 undoSeconds: pref('MAIL_UNDO_SECONDS') != null && pref('MAIL_UNDO_SECONDS') !== '' ? Number(pref('MAIL_UNDO_SECONDS')) : 10,
                 remoteImages: pref('MAIL_REMOTE_IMAGES') === 'always' ? 'always' : 'ask',
+                conversationView: pref('MAIL_CONVERSATION') === 'messages' ? 'messages' : 'threads',
+                defaultAccountId: pref('MAIL_DEFAULT_ACCOUNT') || null,
+                signaturePlacement: pref('MAIL_SIGNATURE_PLACEMENT') === 'below' ? 'below' : 'above',
+                swipeLeft: swipe('MAIL_SWIPE_LEFT', 'archive'), swipeRight: swipe('MAIL_SWIPE_RIGHT', 'read'),
                 trustedSenders: Array.isArray(trusted) ? trusted.map((address) => String(address).toLowerCase()) : []}
         ]]></script></actions>
     </service>
@@ -187,8 +213,10 @@ along with this software (see the LICENSE.md file). If not, see
             user's mail and internal messages (each view reads the stores it has), with emailAccountId one account's (and
             emailFolderId one folder, emailLabelId one label); internal, internalSent, internalArchive and comments the
             Internal account's; contactListId a mailbox's. A search (searchText, with Gmail's operators) is a view of all
-            mail and messages, or of the account, Internal account or mailbox open, unless it names an in:. The rows are
-            find#InboxThreads' with its cursor and stores; termList is the search's operators for the query chips.
+            mail and messages, or of the account, Internal account or mailbox open, unless it names an in:. MAIL_CONVERSATION
+            messages lists the mail one message at a time (threadMode false); threads, the default, keeps a thread as one row.
+            Internal rows stay threads either way. The rows are find#InboxThreads' with its cursor and stores; termList is
+            the search's operators for the query chips. conversationView is the mode this page used.
         </description>
         <in-parameters>
             <parameter name="view"/>
@@ -209,6 +237,7 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="failedStores" type="List"/>
             <parameter name="termList" type="List"/>
             <parameter name="findView"><description>The view find#InboxThreads was asked for</description></parameter>
+            <parameter name="conversationView"><description>threads or messages, from MAIL_CONVERSATION</description></parameter>
         </out-parameters>
         <actions><script><![CDATA[
             const params = {unreadOnly: unreadOnly, cursor: cursor || null, pageSize: Math.min(Math.max(pageSize || 50, 1), 200)}
@@ -230,6 +259,8 @@ along with this software (see the LICENSE.md file). If not, see
                 }
             }
             if (text) params.searchText = text
+            conversationView = ec.user.getPreference('MAIL_CONVERSATION') === 'messages' ? 'messages' : 'threads'
+            params.threadMode = conversationView !== 'messages'
             findView = params.view
             const out = ec.service.sync().name('mantle.party.CommunicationServices.find#InboxThreads').parameters(params).call()
             threadList = []
@@ -529,7 +560,7 @@ along with this software (see the LICENSE.md file). If not, see
             thread = {store: 'internal', threadId: out.rootCommEventId, subject: out.subject, canSend: false, canReply: out.canReply === true,
                 canModerate: out.canModerate === true, isClosed: out.isClosed === true, contactListId: out.contactListId ?? null,
                 contactListName: out.contactListName ?? null, mailbox: mailbox, unreadCount: out.unreadCount || 0,
-                isFlagged: messageList.some((message) => message.isFlagged), labelList: [], linkList: linkList, messageList: messageList}
+                isFlagged: messageList.some((message) => message.isFlagged), labelList: Array.from(out.labelList || []), linkList: linkList, messageList: messageList}
         ]]></script></actions>
     </service>
 
@@ -591,10 +622,11 @@ along with this software (see the LICENSE.md file). If not, see
             unread, flag (the thread's newest message, or the message), unflag, archive, unarchive, trash (mail to its Trash;
             an internal thread is archived, as internal messages have no trash), deleteForever (mail in Trash), spam and
             notSpam (mail), snooze (snoozedThruDate) and unsnooze, move (emailFolderId; mail only, internal messages have no
-            folders), labels (addLabelIdList and removeLabelIdList; mail only), close and reopen (a mailbox thread, for its
+            folders), labels (addLabelIdList and removeLabelIdList; mail through apply#Labels, an internal thread through
+            set#InternalMessageLabels, each label of that store's account), close and reopen (a mailbox thread, for its
             owners and moderators). Mail goes through org.moqui.impl.EmailClientServices (set#MessageFlags, archive#Messages,
             trash#Messages, report#Spam, snooze#Messages, move#Messages, apply#Labels), internal messages through
-            mantle.party.CommunicationServices.set#InternalMessageState and close#ListThread; each checks the user's access, and
+            mantle.party.CommunicationServices.set#InternalMessageState, set#InternalMessageLabels and close#ListThread; each checks the user's access, and
             a target the user does not reach is "not found". Each target is changed in a transaction of its own: one that is
             refused or fails is named in failedList with why, and the others are changed.
         </description>
@@ -631,7 +663,7 @@ along with this software (see the LICENSE.md file). If not, see
             const MAIL = 'org.moqui.impl.EmailClientServices'
             const COMM = 'mantle.party.CommunicationServices'
             const internalOnly = {spam: 'Spam is for mail', notSpam: 'Spam is for mail', move: 'Internal messages have no folders',
-                labels: 'Labels are for mail', deleteForever: 'Internal messages are archived, not deleted'}
+                deleteForever: 'Internal messages are archived, not deleted'}
             for (const target of targets) {
                 const store = target?.store
                 const key = `${store}:${target?.emailMessageId || target?.communicationEventId || target?.threadId}`
@@ -670,6 +702,9 @@ along with this software (see the LICENSE.md file). If not, see
                         if (action === 'close' || action === 'reopen') {
                             name = COMM + '.close#ListThread'
                             parameters = {communicationEventId: target.communicationEventId || target.threadId, reopen: action === 'reopen'}
+                        } else if (action === 'labels') {
+                            name = COMM + '.set#InternalMessageLabels'
+                            parameters = Object.assign({addLabelIdList: asList(addLabelIdList), removeLabelIdList: asList(removeLabelIdList)}, one)
                         } else {
                             name = COMM + '.set#InternalMessageState'
                             let flagOne = one
@@ -1327,6 +1362,83 @@ along with this software (see the LICENSE.md file). If not, see
                 linkList: linkList, threadKey: row.emailAccountId ? 'email:' + (row.rootEmailMessageId || emailMessageId) : null,
                 canResend: (!row.emailAccountId && ec.user.isInGroup('ADMIN')) || (row.statusId === 'ES_BOUNCED' && canSend),
                 isSystemMail: !row.emailAccountId}
+        ]]></script></actions>
+    </service>
+
+    <service verb="save" noun="MessageFiles">
+        <description>Save to Files: copy a message's attachments into a folder of a drive (FileServices.upload#Resource, keepBoth
+            when the name is already there). id is one attachment (store email or internal, the same id get#MessageAttachment
+            reads); without an id, emailMessageId or communicationEventId copies every file of that message. The message
+            keeps its own copies. Each file stands alone: one that fails is named in failedList and the others are saved.
+            A message the user may not read, or a folder the user may not write, is an error.</description>
+        <in-parameters>
+            <parameter name="store"/>
+            <parameter name="id"/>
+            <parameter name="emailMessageId"/>
+            <parameter name="communicationEventId"/>
+            <parameter name="driveId" required="true"/>
+            <parameter name="path"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="savedList" type="List"/>
+            <parameter name="failedList" type="List"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            savedList = []
+            failedList = []
+            const safe = (name) => String(name || 'attachment').replace(/[\/\\?#%:*"<>|]/g, '_').substring(0, 120)
+            const files = []
+            if (id) {
+                const one = ec.service.sync().name('ironstone.InboxServices.get#MessageAttachment').parameters({store: store || '', id: id}).call()
+                if (ec.message.hasError()) return
+                files.push({name: one.fileName || 'attachment', location: one.location})
+            } else if (emailMessageId) {
+                ec.message.pushErrors()
+                let readable = false
+                try {
+                    const out = ec.service.sync().name('org.moqui.impl.EmailClientServices.get#Thread').parameter('emailMessageId', emailMessageId).requireNewTransaction(true).call()
+                    readable = !ec.message.hasError() && Array.from(out.messageList || []).some((message) => message.emailMessageId === emailMessageId)
+                } finally { ec.message.clearErrors(); ec.message.popErrors() }
+                if (!readable) { ec.message.addError(L('Attachment not found') + ': ' + emailMessageId); return }
+                for (const file of ec.entity.find('moqui.basic.email.EmailMessageAttachment').condition('emailMessageId', emailMessageId).list()) {
+                    if (file.attachmentLocation) files.push({name: file.fileName || 'attachment', location: file.attachmentLocation})
+                }
+            } else if (communicationEventId) {
+                ec.message.pushErrors()
+                let readable = false
+                try {
+                    const out = ec.service.sync().name('mantle.party.CommunicationServices.get#InternalThread').parameter('communicationEventId', communicationEventId).requireNewTransaction(true).call()
+                    readable = !ec.message.hasError() && Array.from(out.messageList || []).some((message) => message.communicationEventId === communicationEventId)
+                } finally { ec.message.clearErrors(); ec.message.popErrors() }
+                if (!readable) { ec.message.addError(L('Attachment not found') + ': ' + communicationEventId); return }
+                for (const file of ec.entity.find('mantle.party.communication.CommunicationEventContent').condition('communicationEventId', communicationEventId).disableAuthz().list()) {
+                    if (file.contentLocation) files.push({name: file.description || String(file.contentLocation).split('/').pop() || 'attachment', location: file.contentLocation})
+                }
+            } else { ec.message.addError(L('Name the file to save')); return }
+            if (!files.length) { ec.message.addError(L('This message has no files')); return }
+            for (const file of files) {
+                const label = file.name
+                ec.message.pushErrors()
+                try {
+                    const stream = ec.resource.getLocationReference(file.location).openStream()
+                    if (!stream) throw new Error(L('Attachment not found') + ': ' + label)
+                    try {
+                        const out = ec.service.sync().name('org.moqui.impl.FileServices.upload#Resource').parameters({driveId: driveId, path: path || '',
+                            file: stream, relativePathList: [safe(label)], conflictPolicy: 'keepBoth',
+                            versionNote: L('Saved from a message')}).call()
+                        if (ec.message.hasError()) throw new Error(ec.message.getErrorsString())
+                        const row = Array.from(out.uploadedList || [])[0]
+                        if (!row || row.outcome === 'failed') throw new Error((row && row.error) || L('Not saved'))
+                        savedList.push({name: row.name, path: row.path, outcome: row.outcome})
+                    } finally { if (stream.close) stream.close() }
+                } catch (err) {
+                    const why = err && err.message ? err.message : String(err)
+                    ec.logger.warn(`Save to Files: ${label} not saved: ${why}`)
+                    failedList.push({name: label, error: why})
+                } finally { ec.message.clearErrors(); ec.message.popErrors() }
+            }
+            if (!savedList.length && failedList.length) ec.message.addError(failedList[0].error)
         ]]></script></actions>
     </service>
 </services>

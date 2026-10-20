@@ -1,0 +1,141 @@
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- PublishedCalendar (design-drawers-commons.md §7 Calendar), the component PublishedCalendar.xml serves in the qvue
+    render mode in the public shell (WebrootPublic.qvt.js): a visitor who is not signed in, at /cal/<token>. What the
+    route's token check answered is $root.context (expired, the calendar's name and color, whether a password is needed);
+    the transition is under $root.basePath. The page asks for the password when the link has one, then lists the events
+    of the month on screen (a free/busy link shows them as Busy). An ended link is the expired page. Brand color names
+    and Quasar classes only (style-guide §4.8, §5). -->
+<template><div class="boss-published-calendar q-py-md q-mx-auto" style="max-width:640px">
+    <div class="row items-center no-wrap q-gutter-x-md q-mb-md">
+        <q-avatar size="48px" :style="swatch ? {background: swatch} : null" :color="swatch ? undefined : 'primary'" text-color="white" icon="sym_o_calendar_month"></q-avatar>
+        <div class="col" style="min-width:0">
+            <div class="text-caption m-muted">{{t('Shared calendar')}}</div>
+            <div class="text-h6 ellipsis">{{calendarName || t('Calendar')}}</div>
+        </div>
+    </div>
+
+    <q-card v-if="state === 'expired'" flat bordered data-state="expired">
+        <q-card-section class="row no-wrap q-gutter-x-md">
+            <q-icon name="sym_o_link_off" size="32px" color="warning"></q-icon>
+            <div class="col">
+                <div class="text-subtitle1 text-weight-medium">{{t('This link has expired')}}</div>
+                <div class="text-body2 q-mt-xs">{{t('Ask the person who shared this calendar for a new link.')}}</div>
+            </div>
+        </q-card-section>
+    </q-card>
+
+    <q-card v-else-if="state === 'password'" flat bordered data-state="password">
+        <q-card-section>
+            <div class="text-subtitle1 q-mb-sm">{{t('This link has a password')}}</div>
+            <div @keydown.enter.prevent="open"><m-text-line v-model="password" name="calendarPassword" id="CalendarPassword" type="password" :label="t('Password')"></m-text-line></div>
+            <div v-if="passwordError" class="text-negative text-body2 q-mt-xs">{{passwordError}}</div>
+            <q-btn unelevated no-caps color="primary" class="q-mt-md" icon="sym_o_lock_open" :label="t('Open')" :loading="busy" :disable="!password" data-action="open" @click="open"></q-btn>
+        </q-card-section>
+    </q-card>
+
+    <div v-else-if="state === 'loading'" class="q-pa-xl text-center"><q-spinner size="32px" color="primary"></q-spinner></div>
+
+    <q-banner v-else-if="state === 'error'" rounded class="m-tonal text-negative">
+        <template v-slot:avatar><q-icon name="sym_o_error"></q-icon></template>
+        {{error}}
+        <template v-slot:action><q-btn flat no-caps :label="t('Try again')" @click="load"></q-btn></template>
+    </q-banner>
+
+    <q-card v-else flat bordered data-state="events">
+        <q-card-section class="row items-center no-wrap">
+            <q-btn flat round icon="sym_o_chevron_left" :aria-label="t('Previous month')" data-action="prev" @click="shift(-1)"></q-btn>
+            <div class="col text-center text-subtitle1">{{monthLabel}}</div>
+            <q-btn flat round icon="sym_o_chevron_right" :aria-label="t('Next month')" data-action="next" @click="shift(1)"></q-btn>
+        </q-card-section>
+        <q-separator></q-separator>
+        <q-list v-if="eventList.length" separator>
+            <q-item v-for="event in eventList" :key="event.id + '|' + event.start">
+                <q-item-section>
+                    <q-item-label>{{event.title}}</q-item-label>
+                    <q-item-label caption>{{when(event)}}<span v-if="event.location"> · {{event.location}}</span></q-item-label>
+                </q-item-section>
+            </q-item>
+        </q-list>
+        <q-card-section v-else class="text-body2 m-muted">{{t('Nothing on this calendar in these dates.')}}</q-card-section>
+    </q-card>
+</div></template>
+
+<script>
+const t = (text) => (moqui.l10n && moqui.l10n.localize ? moqui.l10n.localize(text) : text);
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+module.exports = {
+    name: 'BossPublishedCalendar',
+    data() {
+        const now = new Date();
+        return { state: 'loading', error: null, passwordError: null, password: '', busy: false, calendarName: '', swatch: '',
+            eventList: [], year: now.getFullYear(), month: now.getMonth() };
+    },
+    computed: {
+        base() { return this.$root.basePath || ''; },
+        context() { return this.$root.context || {}; },
+        monthLabel() { return t(MONTHS[this.month]) + ' ' + this.year; }
+    },
+    methods: {
+        t,
+        when(event) {
+            const start = String(event.start || '');
+            if (!start) return '';
+            if (event.allDay) return start.substring(0, 10);
+            return start.replace('T', ' ').substring(0, 16);
+        },
+        range() {
+            const pad = (n) => String(n).padStart(2, '0');
+            const last = new Date(this.year, this.month + 1, 0).getDate();
+            return { start: this.year + '-' + pad(this.month + 1) + '-01', end: this.year + '-' + pad(this.month + 1) + '-' + pad(last) };
+        },
+        start() {
+            this.calendarName = this.context.calendarName || '';
+            this.swatch = /^#[0-9A-Fa-f]{3,8}$/.test(String(this.context.color || '')) ? this.context.color : '';
+            if (this.context.expired) { this.state = 'expired'; return; }
+            if (this.context.needsPassword) { this.state = 'password'; return; }
+            this.load();
+        },
+        open() { this.passwordError = null; this.load(); },
+        shift(by) {
+            const next = new Date(this.year, this.month + by, 1);
+            this.year = next.getFullYear();
+            this.month = next.getMonth();
+            this.load();
+        },
+        load() {
+            this.state = 'loading';
+            this.busy = true;
+            const params = Object.assign({ password: this.password || '' }, this.range());
+            moqui.request(this.base + '/events', { params: params }).then((result) => {
+                this.busy = false;
+                const json = result.json || {};
+                if (json.needsPassword) { this.state = 'password'; this.passwordError = this.password ? t('The password is not right') : null; return; }
+                this.calendarName = json.calendarName || this.calendarName;
+                if (/^#[0-9A-Fa-f]{3,8}$/.test(String(json.color || ''))) this.swatch = json.color;
+                this.eventList = json.eventList || [];
+                this.state = 'events';
+            }, (err) => {
+                this.busy = false;
+                const text = (err && err.json && err.json.errors) || '';
+                if (/password is not right/i.test(text)) { this.state = 'password'; this.passwordError = t('The password is not right'); return; }
+                if (/not valid/i.test(text)) { this.state = 'expired'; return; }
+                this.state = 'error';
+                this.error = text && !/^\s*</.test(text) ? text : t('This calendar cannot be opened now. Try again in a moment.');
+            });
+        }
+    },
+    mounted() { this.start(); }
+};
+</script>

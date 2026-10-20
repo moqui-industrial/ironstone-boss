@@ -18,7 +18,8 @@ along with this software (see the LICENSE.md file). If not, see
     the assignee, Edit of one's own draft and Attach. The tabs: Overview (name, type, priority, customer, description, dates,
     people), Conversation (Chatter: notes, messages and the comments of add#RequestComment, which are Comment communication
     events joined by RequestCommEvent; the right column of the overview from 1440 px, a tab below), Tasks (the work efforts of
-    RequestWorkEffort, add a task) and Files (record files). No queue, SLA or category widgets: those are Customer Service's.
+    RequestWorkEffort, add a task), the other records it is on (link#RequestRecord) and Files (record files). No queue, SLA or
+    category widgets: those are Customer Service's.
     The request is found under the record visibility rule (R5, R28): one the user may not see is "not available". -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Request" default-menu-include="false">
@@ -71,6 +72,31 @@ along with this software (see the LICENSE.md file). If not, see
         <default-response url="."><parameter name="requestId"/><parameter name="tab" value="tasks"/></default-response>
         <error-response url="."/>
     </transition>
+    <transition name="linkRecord">
+        <actions>
+            <service-call name="ironstone.RequestServices.link#RequestRecord" out-map="linkOut" in-map="{requestId:requestId, record:record,
+                    recordEntityName:recordEntityName, recordId:recordId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(linkOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="requestId"/><parameter name="tab"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="unlinkRecord">
+        <actions>
+            <service-call name="ironstone.RequestServices.unlink#RequestRecord" out-map="unlinkOut" in-map="{requestId:requestId,
+                    recordEntityName:recordEntityName, recordId:recordId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(unlinkOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="requestId"/><parameter name="tab"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="searchRecords" read-only="true">
+        <actions>
+            <service-call name="ironstone.InboxServices.search#LinkRecords" in-map="{term:term}" out-map="found"/>
+            <script>ec.web.sendJsonResponse(Array.from(found.optionList || []).map((option) =&gt; ({value: option.value, label: option.label})))</script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
     <transition name="assigneeSearch" read-only="true">
         <actions>
             <service-call name="ironstone.TaskServices.search#Assignees" in-map="{term:term}" out-map="found"/>
@@ -114,6 +140,9 @@ along with this software (see the LICENSE.md file). If not, see
             canEdit = !!detail.canEdit
             canReassign = !!detail.canReassign
             canAddTask = !!detail.canAddTask
+            canLink = !!detail.canLink
+            linkedRecordList = (detail.linkedRecordList || []).map((record) => Object.assign({}, record, {cardHtml: '<m-record-card record-entity="' + enc(record.recordEntityName)
+                    + '" record-id="' + enc(record.recordId) + '" card-url="/apps/Commons/Chatter/recordCard" dense></m-record-card>'}))
             // the status-bar: the stages and the requester's Submit and Cancel
             stageStatusIds = detail.stageStatusIds || []
             allowedStatusIds = detail.allowedStatusIds || []
@@ -264,6 +293,32 @@ along with this software (see the LICENSE.md file). If not, see
                                 </box-body-nopad></container-box>
                             </container>
                         </container>
+                        <container-box><box-header title="Linked records"/><box-body>
+                            <section name="RequestLinked" condition="linkedRecordList.length || canLink"><widgets>
+                                <section-iterate name="RequestLinkedItems" list="linkedRecordList" entry="linked"><widgets>
+                                    <container style="row items-center no-wrap q-mb-xs">
+                                        <container style="col"><render-mode><text type="qvt"><![CDATA[${linked.cardHtml}]]></text></render-mode></container>
+                                        <link url="unlinkRecord" link-type="hidden-form-link" icon="sym_o_link_off" text="" tooltip="Take the request off this record"
+                                                style="m-btn-flat q-ml-xs" condition="linked.canRemove" confirmation="Take the request off this record?"
+                                                parameter-map="{requestId:requestId, tab:tab, recordEntityName:linked.recordEntityName, recordId:linked.recordId}"/>
+                                    </container>
+                                </widgets></section-iterate>
+                                <label type="p" text="Not on any record yet" style="m-muted text-caption q-mb-xs" condition="!linkedRecordList.length"/>
+                                <section name="RequestLinkAdd" condition="canLink"><widgets>
+                                    <form-single name="RequestLinkRecord" transition="linkRecord">
+                                        <field name="requestId"><default-field><hidden/></default-field></field>
+                                        <field name="tab" from="tab"><default-field><hidden/></default-field></field>
+                                        <field name="record"><default-field title="Link to a record (an id or a name)">
+                                            <drop-down allow-empty="true"><dynamic-options transition="searchRecords" server-search="true" min-length="2"/></drop-down>
+                                        </default-field></field>
+                                        <field name="submitButton"><default-field title="Link"><submit/></default-field></field>
+                                        <field-layout><field-row-big><field-ref name="record"/><field-ref name="submitButton"/></field-row-big></field-layout>
+                                    </form-single>
+                                </widgets></section>
+                            </widgets><fail-widgets>
+                                <label type="p" text="Not on any record yet" style="m-muted q-mb-none"/>
+                            </fail-widgets></section>
+                        </box-body></container-box>
                     </container>
                     <!-- the conversation beside the overview from 1440 px -->
                     <container style="col-12 col-lg-4 gt-md">

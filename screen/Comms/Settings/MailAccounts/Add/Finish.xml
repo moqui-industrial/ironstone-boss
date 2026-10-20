@@ -13,8 +13,10 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 <!-- Add account step 5, finish (design-drawers-commons.md §17 MailAccounts): what was set up, and what Start syncing does.
-    It makes the account active and starts its first sync on a worker (ironstone.MailSettingsServices.finish#AccountSetup),
-    then shows the account's page, which says the sync is under way, with the way to the Inbox and how far it is (the
+    It makes the account active and, when it has an incoming server, starts its first sync on a worker
+    (ironstone.MailSettingsServices.finish#AccountSetup), then shows the account's page. A hosted account, or a shared one
+    the gateway delivers, becomes active with no sync: the review says Hosted or Shared and that the gateway delivers.
+    The account's page says the sync is under way when one starts, with the way to the Inbox and how far it is (the
     SyncProgress screen on the emailSyncProgress topic, here too while a sync of the account runs). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Finish" default-menu-index="5">
@@ -31,6 +33,7 @@ along with this software (see the LICENSE.md file). If not, see
     <actions><script><![CDATA[
         const L = (text) => text.length > 255 ? text : ec.l10n.localize(text)
         hasAccount = false
+        deliveredHere = false
         if (!emailAccountId) return
         const detail = ec.service.sync().name('ironstone.MailSettingsServices.get#MailAccountDetail').parameter('emailAccountId', emailAccountId).call()
         if (ec.message.hasError() || !detail?.found) { finishError = ec.message.getErrorsString(); ec.message.clearErrors(); return }
@@ -41,9 +44,14 @@ along with this software (see the LICENSE.md file). If not, see
         const security = (value) => value === 'ssl' ? 'SSL/TLS' : (value === 'starttls' ? 'STARTTLS' : L('no security'))
         const windowText = options.syncWindowDays ? ({'30': L('the last 30 days'), '90': L('the last 3 months'), '365': L('the last year')}[options.syncWindowDays]
             || ec.resource.expand('the last ${n} days', '', {n: options.syncWindowDays})) : L('all of it')
-        review = {accountName: account.accountName, emailAddress: account.emailAddress, kindText: account.isShared ? L('Shared') : L('Just mine'),
-            incomingText: server.storeHost ? (server.storeKind === 'pop' ? 'POP ' : 'IMAP ') + server.storeHost + ':' + server.storePort + ' · ' + security(server.storeSecurity) : '',
-            outgoingText: server.smtpHost ? 'SMTP ' + server.smtpHost + ':' + server.smtpPort + ' · ' + security(server.smtpSecurity) : '',
+        const hosted = account.accountKindEnumId === 'EakHosted'
+        deliveredHere = !server.storeHost && (hosted || account.isShared === true)
+        review = {accountName: account.accountName, emailAddress: account.emailAddress,
+            kindText: hosted ? L('Hosted') : (account.isShared ? L('Shared') : L('Just mine')),
+            incomingText: server.storeHost ? (server.storeKind === 'pop' ? 'POP ' : 'IMAP ') + server.storeHost + ':' + server.storePort + ' · ' + security(server.storeSecurity)
+                : (deliveredHere ? L('The mail gateway delivers it here') : ''),
+            outgoingText: server.smtpHost ? 'SMTP ' + server.smtpHost + ':' + server.smtpPort + ' · ' + security(server.smtpSecurity)
+                : (deliveredHere ? L('Replies go out through the gateway') : ''),
             windowText: windowText, filingText: options.recordFilingEnumId === 'ErfAllMatches' ? L('Every message with a known contact goes on their records')
                 : L('Only the mail you link goes on a record'),
             membersText: Array.from(detail.memberList || []).map((member) => member.name + ' (' + member.permissionText + ')').join(', ') || (account.isShared ? L('Nobody yet') : '')}
@@ -80,7 +88,12 @@ along with this software (see the LICENSE.md file). If not, see
                         <field-ref name="filingText"/><field-ref name="membersText"/>
                     </field-layout>
                 </form-single>
-                <label type="p" text="Start syncing brings your mail in, the newest first: it shows in the Inbox as it arrives, and keeps in step with the server from then on. What you do here (read, move, delete, send) happens on the server too, as in any mail app." style="m-muted q-mt-md"/>
+                <section name="FinishSyncNote" condition="!deliveredHere"><widgets>
+                    <label type="p" text="Start syncing brings your mail in, the newest first: it shows in the Inbox as it arrives, and keeps in step with the server from then on. What you do here (read, move, delete, send) happens on the server too, as in any mail app." style="m-muted q-mt-md"/>
+                </widgets></section>
+                <section name="FinishGatewayNote" condition="deliveredHere"><widgets>
+                    <label type="p" text="Start syncing turns the account on. The mail gateway delivers the mail, and there is no mail server to sync. A tag after a plus sign still arrives here: sales+news@example.com goes to sales@example.com." style="m-muted q-mt-md"/>
+                </widgets></section>
                 <dynamic-container id="FinishSyncProgress" transition="../../SyncProgress">
                     <parameter name="emailAccountId" from="emailAccountId"/>
                 </dynamic-container>

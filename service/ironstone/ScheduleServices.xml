@@ -12,9 +12,10 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Rooms and equipment schedules of IronStone Commons (design-drawers-commons.md §7 Schedules and ResourceDetail; impl M7): the
-    bookable resources are the meeting rooms (Facility of type FcTpRoom, not closed) and the equipment (Asset of type
-    AstTpEquipment, not of the manufacturing class AsClsMfgEquip, which Manufacturing schedules); a booking is an event
+<!-- Rooms and equipment schedules of IronStone Commons (design-drawers-commons.md §7 Schedules and ResourceDetail; impl M7):
+    a resource is bookable only when bookable is Y (FcTpRoom or AstTpEquipment alone does not make it bookable): meeting
+    rooms are Facility of type FcTpRoom and not closed, equipment is Asset of type AstTpEquipment and not the manufacturing
+    class AsClsMfgEquip (which Manufacturing schedules); a booking is an event
     (WetEvent) with a WorkEffortFacility or WorkEffortAssetAssign row whose status mantle.work.EventServices.book#Resource sets
     by the resource's policy (its approvers, the role BookingApprover: requested until one approves, in Maintenance; booked at
     once without). Each resource's bookings are read on their own: one that fails is logged and named in failedSources. -->
@@ -22,8 +23,8 @@ along with this software (see the LICENSE.md file). If not, see
 
     <service verb="get" noun="Resources">
         <description>The bookable resources, rooms then equipment, narrowed by type (room, equipment or all) and text (name, site):
-            each {resourceType, resourceId, key (type|id), name, typeLabel, site, description, approverNames, requiresApproval
-            (the user is not an approver of one with approvers), policyText, url (ResourceDetail)}.</description>
+            each {resourceType, resourceId, key (type|id), name, typeLabel, site, description, capacity, approverNames,
+            requiresApproval (the user is not an approver of one with approvers), policyText, url (ResourceDetail)}.</description>
         <in-parameters>
             <parameter name="resourceType" default-value="all"/>
             <parameter name="text"/>
@@ -58,20 +59,21 @@ along with this software (see the LICENSE.md file). If not, see
                 return facilityName.get(facilityId)
             }
             if (resourceType !== 'equipment') {
-                for (const room of ec.entity.find('mantle.facility.Facility').condition('facilityTypeEnumId', 'FcTpRoom').condition('closedDate', 'is-null', null)
-                        .orderBy('facilityName').limit(200).list()) {
+                for (const room of ec.entity.find('mantle.facility.Facility').condition('facilityTypeEnumId', 'FcTpRoom').condition('bookable', 'Y')
+                        .condition('closedDate', 'is-null', null).orderBy('facilityName').limit(200).list()) {
                     const site = siteOf(room.parentFacilityId)
                     if (term && !(String(room.facilityName || '') + ' ' + (site || '')).toLowerCase().includes(term)) continue
                     const approvers = Array.from(new Set(Array.from(ec.entity.find('mantle.facility.FacilityParty').condition('facilityId', room.facilityId)
                             .condition('roleTypeId', 'BookingApprover').condition(cf.makeConditionDate('fromDate', 'thruDate', null)).list()).map((row) => row.partyId)))
                     resourceList.push(Object.assign({resourceType: 'room', resourceId: room.facilityId, key: 'room|' + room.facilityId,
                         name: room.facilityName || room.facilityId, typeLabel: L('Meeting room'), icon: 'sym_o_meeting_room', site: site,
-                        description: room.description || null, sizeText: room.facilitySize != null ? ec.l10n.format(room.facilitySize, '#,##0') : null,
+                        description: room.description || null, capacity: room.capacity != null ? toNumber(room.capacity) : null,
+                        sizeText: room.facilitySize != null ? ec.l10n.format(room.facilitySize, '#,##0') : null,
                         url: '/qapps/Commons/Calendar/Schedules/ResourceDetail?resourceType=room&resourceId=' + encodeURIComponent(room.facilityId)}, policy(approvers)))
                 }
             }
             if (resourceType !== 'room') {
-                for (const asset of ec.entity.find('mantle.product.asset.Asset').condition('assetTypeEnumId', 'AstTpEquipment')
+                for (const asset of ec.entity.find('mantle.product.asset.Asset').condition('assetTypeEnumId', 'AstTpEquipment').condition('bookable', 'Y')
                         .condition(cf.makeCondition('classEnumId', 'not-in', ['AsClsMfgEquip'], true)).orderBy('assetName').limit(200).list()) {
                     const site = siteOf(asset.facilityId)
                     if (term && !(String(asset.assetName || '') + ' ' + (site || '')).toLowerCase().includes(term)) continue
@@ -80,7 +82,7 @@ along with this software (see the LICENSE.md file). If not, see
                     const classLabel = asset.classEnumId ? ec.entity.find('moqui.basic.Enumeration').condition('enumId', asset.classEnumId).useCache(true).one()?.description : null
                     resourceList.push(Object.assign({resourceType: 'equipment', resourceId: asset.assetId, key: 'equipment|' + asset.assetId,
                         name: asset.assetName || asset.assetId, typeLabel: classLabel || L('Equipment'), icon: 'sym_o_devices', site: site,
-                        description: asset.comments || null, sizeText: null,
+                        description: asset.comments || null, capacity: asset.capacity != null ? toNumber(asset.capacity) : null, sizeText: null,
                         url: '/qapps/Commons/Calendar/Schedules/ResourceDetail?resourceType=equipment&resourceId=' + encodeURIComponent(asset.assetId)}, policy(approvers)))
                 }
             }
@@ -186,7 +188,8 @@ along with this software (see the LICENSE.md file). If not, see
             const isRoom = resourceType === 'room'
             const resource = isRoom ? ec.entity.find('mantle.facility.Facility').condition('facilityId', resourceId).one()
                     : ec.entity.find('mantle.product.asset.Asset').condition('assetId', resourceId).one()
-            if (resource == null || (isRoom && resource.facilityTypeEnumId !== 'FcTpRoom') || (!isRoom && resource.assetTypeEnumId !== 'AstTpEquipment')) {
+            if (resource == null || resource.bookable !== 'Y' || (isRoom && resource.facilityTypeEnumId !== 'FcTpRoom')
+                    || (!isRoom && resource.assetTypeEnumId !== 'AstTpEquipment')) {
                 ec.message.addError(ec.resource.expand('${id} is not a room or equipment to book', '', {id: resourceId})); return }
             const name = String(purpose || '').trim() || (isRoom ? resource.facilityName : resource.assetName) || resourceId
             const calendarId = ec.service.sync().name('mantle.work.CalendarServices.ensure#UserDefaultCalendar').call()?.calendarId || null
@@ -265,8 +268,10 @@ along with this software (see the LICENSE.md file). If not, see
             if (!resource) return
             found = true
             const add = (label, value) => { if (value != null && String(value) !== '') facts.push({label: L(label), value: String(value)}) }
+            const capacityUom = row.capacityUomId ? ec.entity.find('moqui.basic.Uom').condition('uomId', row.capacityUomId).useCache(true).one()?.abbreviation : null
             add('Kind', resource.typeLabel)
             add('Where', resource.site)
+            add('Capacity', row.capacity != null ? ec.l10n.format(row.capacity, '#,##0.##') + (capacityUom ? ' ' + capacityUom : '') : null)
             if (isRoom) add('Size', resource.sizeText ? resource.sizeText + (row.facilitySizeUomId ? ' ' + (ec.entity.find('moqui.basic.Uom').condition('uomId', row.facilitySizeUomId).useCache(true).one()?.abbreviation || '') : '') : null)
             else {
                 add('Serial number', row.serialNumber)

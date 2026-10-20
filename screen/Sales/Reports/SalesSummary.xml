@@ -158,35 +158,35 @@ along with this software (see the LICENSE.md file). If not, see
         <set field="statsPanelColStyle" value="col-lg-3 col-md-4 col-sm-4 col-xs-6"/>
         <set field="statsChartColStyle" value="col-md-6 col-sm-6"/>
 
-        <if condition="vendorPartyIds">
+        <if condition="vendorPartyIds &amp;&amp; (!Array.isArray(vendorPartyIds) || vendorPartyIds.length)">
             <set field="vendorPartyIdList" from="Array.isArray(vendorPartyIds) ? vendorPartyIds : String(vendorPartyIds).split(',')"/>
             <entity-find entity-name="mantle.party.PartyDetail" list="selectedVendorPartyList">
                 <econdition field-name="partyId" operator="in" from="vendorPartyIdList"/>
                 <order-by field-name="pseudoId"/>
             </entity-find>
         </if>
-        <if condition="productStoreIds">
+        <if condition="productStoreIds &amp;&amp; (!Array.isArray(productStoreIds) || productStoreIds.length)">
             <set field="productStoreIdList" from="Array.isArray(productStoreIds) ? productStoreIds : String(productStoreIds).split(',')"/>
             <entity-find entity-name="mantle.product.store.ProductStore" list="selectedProductStoreList">
                 <econdition field-name="productStoreId" operator="in" from="productStoreIdList"/>
                 <order-by field-name="storeName"/>
             </entity-find>
         </if>
-        <if condition="customerClassificationIds">
+        <if condition="customerClassificationIds &amp;&amp; (!Array.isArray(customerClassificationIds) || customerClassificationIds.length)">
             <set field="customerClassificationIdList" from="Array.isArray(customerClassificationIds) ? customerClassificationIds : String(customerClassificationIds).split(',')"/>
             <entity-find entity-name="mantle.party.PartyClassification" list="selectedClassificationList">
                 <econdition field-name="partyClassificationId" operator="in" from="customerClassificationIdList"/>
                 <order-by field-name="description"/>
             </entity-find>
         </if>
-        <if condition="customerPartyIds">
+        <if condition="customerPartyIds &amp;&amp; (!Array.isArray(customerPartyIds) || customerPartyIds.length)">
             <set field="customerPartyIdList" from="Array.isArray(customerPartyIds) ? customerPartyIds : String(customerPartyIds).split(',')"/>
             <entity-find entity-name="mantle.party.PartyDetail" list="selectedCustomerPartyList">
                 <econdition field-name="partyId" operator="in" from="customerPartyIdList"/>
                 <order-by field-name="pseudoId"/>
             </entity-find>
         </if>
-        <if condition="productIds">
+        <if condition="productIds &amp;&amp; (!Array.isArray(productIds) || productIds.length)">
             <set field="productIdList" from="Array.isArray(productIds) ? productIds : String(productIds).split(',')"/>
             <entity-find entity-name="mantle.product.Product" list="selectedProductList">
                 <econdition field-name="productId" operator="in" from="productIdList"/>

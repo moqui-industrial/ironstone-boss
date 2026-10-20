@@ -122,9 +122,9 @@ along with this software (see the LICENSE.md file). If not, see
                 equipmentOptions = []
                 const startMs = event.startText ? toMillis(ec.l10n.parseTimestamp((event.allDay ? event.startText + ' 00:00' : event.startText) + ':00.000', pattern)) : null
                 const endMs = event.endText ? toMillis(ec.l10n.parseTimestamp((event.allDay ? event.endText + ' 00:00' : event.endText) + ':00.000', pattern)) : (startMs != null ? startMs + 3600000 : null)
-                const rooms = Array.from(ec.entity.find('mantle.facility.Facility').condition('facilityTypeEnumId', 'FcTpRoom').condition('closedDate', 'is-null', null)
-                        .orderBy('facilityName').limit(100).list())
-                const assets = Array.from(ec.entity.find('mantle.product.asset.Asset').condition('assetTypeEnumId', 'AstTpEquipment')
+                const rooms = Array.from(ec.entity.find('mantle.facility.Facility').condition('facilityTypeEnumId', 'FcTpRoom').condition('bookable', 'Y')
+                        .condition('closedDate', 'is-null', null).orderBy('facilityName').limit(100).list())
+                const assets = Array.from(ec.entity.find('mantle.product.asset.Asset').condition('assetTypeEnumId', 'AstTpEquipment').condition('bookable', 'Y')
                         .condition(cf.makeCondition('classEnumId', 'not-in', ['AsClsMfgEquip'], true)).orderBy('assetName').limit(100).list())
                 const busyText = (list) => {
                     const overlapping = (list || []).filter((busy) => toMillis(busy.fromDate) < endMs && toMillis(busy.thruDate) > startMs)

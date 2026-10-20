@@ -23,8 +23,9 @@ along with this software (see the LICENSE.md file). If not, see
     for a provider whose SMTP takes another user (prefilled when the lookup found one; tried before it is saved). Next saves
     them (ironstone.MailSettingsServices.save#AccountConnection): the first time it makes the account, paused until Finish,
     and answers its emailAccountId; later it changes it (an empty password keeps the one saved; an account signed in with its
-    provider keeps that sign-in and asks no password). The settings shown are the URL's (from Address, or from the last save),
-    else the account's, else a new lookup. A password is never shown again. -->
+    provider keeps that sign-in and asks no password). delivery=gateway (hosted, or shared and delivered here) asks for no
+    password and no server: the address, the plus-tag note, and that the gateway delivers the mail. The settings shown are
+    the URL's (from Address, or from the last save), else the account's, else a new lookup. A password is never shown again. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Connect" default-menu-index="2">
 
@@ -37,27 +38,31 @@ along with this software (see the LICENSE.md file). If not, see
     <parameter name="smtpUsername"/>
     <parameter name="source"/>
     <parameter name="oauthProvider"/>
+    <parameter name="delivery"/>
 
     <transition name="saveConnection">
         <service-call name="ironstone.MailSettingsServices.save#AccountConnection" out-map="saveOut" in-map="{emailAccountId:emailAccountId,
                 emailAddress:emailAddress, displayName:displayName, accountKindEnumId:accountKindEnumId, storeKind:storeKind, storeSecurity:storeSecurity,
                 storeHost:storeHost, storePort:storePort, smtpHost:smtpHost, smtpPort:smtpPort, smtpSecurity:smtpSecurity, mailUsername:mailUsername,
-                mailPassword:mailPassword, smtpUsername:(smtpUsername ?? null), smtpPassword:(smtpPassword ?? null)}"/>
+                mailPassword:mailPassword, smtpUsername:(smtpUsername ?? null), smtpPassword:(smtpPassword ?? null),
+                gatewayDelivery:(gatewayDelivery == 'Y' || gatewayDelivery == true)}"/>
         <actions>
             <set field="emailAccountId" from="saveOut?.emailAccountId || emailAccountId"/>
             <set field="source" value="saved"/>
+            <set field="delivery" from="(gatewayDelivery == 'Y' || gatewayDelivery == true) ? 'gateway' : 'server'"/>
         </actions>
         <default-response url=".">
             <parameter name="emailAccountId"/><parameter name="emailAddress"/><parameter name="displayName"/><parameter name="accountKindEnumId"/>
             <parameter name="storeKind"/><parameter name="storeSecurity"/><parameter name="storeHost"/><parameter name="storePort"/>
             <parameter name="smtpHost"/><parameter name="smtpPort"/><parameter name="smtpSecurity"/><parameter name="mailUsername"/>
-            <parameter name="source"/><parameter name="oauthProvider"/>
+            <parameter name="source"/><parameter name="oauthProvider"/><parameter name="delivery"/>
         </default-response>
         <error-response url="."/>
     </transition>
 
     <actions><script><![CDATA[
         const L = (text) => text.length > 255 ? text : ec.l10n.localize(text)
+        gateway = false
         let settings = storeHost ? {storeKind: storeKind, storeSecurity: storeSecurity, storeHost: storeHost, storePort: storePort, smtpHost: smtpHost,
             smtpPort: smtpPort, smtpSecurity: smtpSecurity, mailUsername: mailUsername, smtpUsername: smtpUsername || '', source: source || 'guess'} : null
         hasSmtpPassword = false
@@ -68,9 +73,11 @@ along with this software (see the LICENSE.md file). If not, see
         let address = emailAddress
         let suggestion = null
         let accountProvider = null
+        let opened = false
         if (emailAccountId) {
             const detail = ec.service.sync().name('ironstone.MailSettingsServices.get#MailAccountDetail').parameter('emailAccountId', emailAccountId).call()
             if (!ec.message.hasError() && detail?.found) {
+                opened = true
                 hasPassword = detail.server?.hasPassword === true
                 hasSmtpPassword = detail.server?.hasSmtpPassword === true
                 if (!settings && detail.server) settings = Object.assign({source: 'saved'}, detail.server)
@@ -82,6 +89,18 @@ along with this software (see the LICENSE.md file). If not, see
                 oauthSignedIn = detail.signIn?.isOAuth === true && detail.signIn.signedIn === true
                 signedInAddress = detail.server?.mailUsername || address
             }
+        }
+        // hosted, or shared with no incoming server: the gateway delivers. No lookup and no password.
+        // A personal account with no server (the demo mailbox) stays on the server form.
+        const deliveredKind = kind === 'EakHosted' || kind === 'EakShared'
+        gateway = (delivery === 'gateway' && (deliveredKind || !opened)) || (opened && !settings && deliveredKind)
+        if (gateway) {
+            hasAddress = !!address
+            if (!hasAddress) return
+            if (!deliveredKind) kind = 'EakHosted'
+            connect = {emailAccountId: emailAccountId || '', emailAddress: address, displayName: displayName || '',
+                accountKindEnumId: kind, gatewayDelivery: 'Y'}
+            return
         }
         if (!settings && address) {
             suggestion = ec.service.sync().name('ironstone.MailSettingsServices.suggest#MailServer').parameter('emailAddress', address).call()?.suggestion || null
@@ -138,6 +157,21 @@ along with this software (see the LICENSE.md file). If not, see
             </box-body></container-box>
         </widgets></section>
         <section name="Connect" condition="hasAddress"><widgets>
+            <section name="GatewayConnect" condition="gateway"><widgets>
+                <container-box><box-header title="Delivered here: ${connect.emailAddress}"/><box-body>
+                    <label type="p" text="The mail gateway delivers mail for this address. There is no mail server to sign in to, and no password." style="m-muted"/>
+                    <label type="p" text="A tag after a plus sign still arrives here: sales+news@example.com goes to sales@example.com." style="m-muted"/>
+                    <form-single name="AccountGatewayConnect" transition="saveConnection" map="connect">
+                        <field name="emailAccountId"><default-field><hidden/></default-field></field>
+                        <field name="emailAddress"><default-field><hidden/></default-field></field>
+                        <field name="displayName"><default-field><hidden/></default-field></field>
+                        <field name="accountKindEnumId"><default-field><hidden/></default-field></field>
+                        <field name="gatewayDelivery"><default-field><hidden/></default-field></field>
+                    </form-single>
+                    <label type="p" text="Next adds the account, paused until the last step. Nothing is signed in to." style="text-caption m-muted q-mb-none"/>
+                </box-body></container-box>
+            </widgets></section>
+            <section name="ServerConnect" condition="!gateway"><widgets>
             <container-box><box-header title="Sign in to ${connect.emailAddress}"/><box-body>
                 <section name="SignedIn" condition="oauthSignedIn"><widgets>
                     <render-mode><text type="qvt"><![CDATA[<q-banner dense rounded class="m-tonal text-positive q-mb-sm"><template v-slot:avatar><q-icon name="sym_o_check_circle" color="positive"></q-icon></template><div class="text-body2">]]></text></render-mode>
@@ -223,6 +257,7 @@ along with this software (see the LICENSE.md file). If not, see
                 <label type="p" text="${sourceText}" style="${isGuess ? 'text-warning' : 'm-muted'} text-caption q-mt-sm q-mb-none"/>
                 <label type="p" text="Next tests the settings before anything syncs." style="text-caption m-muted q-mb-none"/>
             </box-body></container-box>
+            </widgets></section>
         </widgets></section>
     </widgets>
 </screen>

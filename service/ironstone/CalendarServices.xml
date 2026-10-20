@@ -248,7 +248,7 @@ along with this software (see the LICENSE.md file). If not, see
                 }
             })
             attempt('rooms', () => {
-                for (const room of ec.entity.find('mantle.facility.Facility').condition('facilityTypeEnumId', 'FcTpRoom')
+                for (const room of ec.entity.find('mantle.facility.Facility').condition('facilityTypeEnumId', 'FcTpRoom').condition('bookable', 'Y')
                         .condition('closedDate', 'is-null', null).orderBy('facilityName').limit(200).list())
                     roomOptions.push({value: room.facilityId, label: room.facilityName || room.facilityId})
             })
@@ -1036,6 +1036,100 @@ along with this software (see the LICENSE.md file). If not, see
             fileName = String(out.fileName || 'calendar.ics').replace(/[^A-Za-z0-9 _.-]/g, '_').replace(/\s+/g, '-')
             location = `dbresource://ironstone/CalendarExport/${ec.user.userId}/${fileName}`
             ec.resource.getLocationReference(location).putText(out.fileText || '')
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== A published calendar's public page (/cal/<token>) ========== -->
+
+    <service verb="check" noun="PublishedCalendarToken" authenticate="anonymous-view" allow-remote="false">
+        <description>
+            The token check of the public calendar page's token-route (/cal/&lt;token&gt;; the framework calls it with token
+            and routeName before anything of the page runs). An unknown or malformed token, or a share that also names a
+            user, group or party, is not valid, so the route answers its "link expired or not found" page. A publish link
+            is valid: routeContext {expired: false, calendarName, color, needsPassword} while it is current, and
+            {expired: true} once it has ended (or not started), so the page can say so. Read only; the page's calls check
+            the token again. The password is not checked here: a current link with a password still reaches the page.
+        </description>
+        <in-parameters>
+            <parameter name="token" required="true"/>
+            <parameter name="routeName"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="valid" type="Boolean"/>
+            <parameter name="routeContext" type="Map"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const toMillis = (value) => {
+                if (value == null || value === '') return null
+                if (typeof value === 'number') return value
+                if (value instanceof Date) return value.getTime()
+                const text = String(value)
+                if (/^-?\d+$/.test(text)) return Number(text)
+                const parsed = Date.parse(text)
+                return Number.isNaN(parsed) ? null : parsed
+            }
+            valid = false
+            routeContext = null
+            const tokenText = token == null ? '' : String(token).trim()
+            if (!/^[A-Za-z0-9_-]{16,128}$/.test(tokenText)) return
+            const share = ec.entity.find('mantle.work.calendar.CalendarShare').condition('publishToken', tokenText).disableAuthz().one()
+            if (share == null || share.userId || share.userGroupId || share.partyId) return
+            valid = true
+            const now = toMillis(ec.user.nowTimestamp)
+            const from = toMillis(share.fromDate)
+            const thru = toMillis(share.thruDate)
+            if ((from != null && from > now) || (thru != null && thru <= now)) { routeContext = {expired: true}; return }
+            const calendar = ec.entity.find('mantle.work.calendar.Calendar').condition('calendarId', share.calendarId).disableAuthz().one()
+            if (calendar == null) { routeContext = {expired: true}; return }
+            routeContext = {expired: false, calendarName: calendar.calendarName ?? null, color: calendar.color ?? null,
+                needsPassword: !!share.passwordHash}
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="PublishedCalendar" authenticate="anonymous-view" allow-remote="false">
+        <description>
+            The events of a published calendar for its public page. The token is checked first. A current link with a
+            password and none given answers needsPassword and no events, without an error, so the page can ask. A wrong
+            password is "The password is not right" and no events. Otherwise mantle.work.CalendarServices.get#PublishedCalendarEvents
+            gives that calendar's events for start and end (yyyy-MM-dd), as Busy when the link is free/busy only.
+        </description>
+        <in-parameters>
+            <parameter name="token" required="true"/>
+            <parameter name="password"/>
+            <parameter name="start"/>
+            <parameter name="end"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="needsPassword" type="Boolean"/>
+            <parameter name="calendarName"/>
+            <parameter name="color"/>
+            <parameter name="eventList" type="List"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            needsPassword = false
+            calendarName = null
+            color = null
+            eventList = []
+            const tokenText = token == null ? '' : String(token).trim()
+            if (!/^[A-Za-z0-9_-]{16,128}$/.test(tokenText)) { ec.message.addError(L('This calendar link is not valid')); return }
+            const share = ec.entity.find('mantle.work.calendar.CalendarShare').condition('publishToken', tokenText)
+                    .condition(ec.entity.conditionFactory.makeConditionDate('fromDate', 'thruDate', null)).disableAuthz().one()
+            if (share == null || share.userId || share.userGroupId || share.partyId) {
+                ec.message.addError(L('This calendar link is not valid')); return }
+            const calendar = ec.entity.find('mantle.work.calendar.Calendar').condition('calendarId', share.calendarId).disableAuthz().one()
+            calendarName = calendar?.calendarName ?? null
+            color = calendar?.color ?? null
+            if (share.passwordHash) {
+                const given = password == null ? '' : String(password)
+                if (!given) { needsPassword = true; return }
+                if (!ec.user.passwordsMatch(given, share.passwordHash)) { ec.message.addError(L('The password is not right')); return }
+            }
+            if (!start || !end) { ec.message.addError(L('Choose the dates to show')); return }
+            const out = ec.service.sync().name('mantle.work.CalendarServices.get#PublishedCalendarEvents').parameters({publishToken: tokenText,
+                password: password || null, start: start, end: end}).call()
+            if (ec.message.hasError()) return
+            eventList = out?.eventList || []
         ]]></script></actions>
     </service>
 </services>

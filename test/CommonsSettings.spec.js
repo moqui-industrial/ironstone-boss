@@ -171,6 +171,8 @@ feature("Account photo: john.doe's own face image, whatever party the request na
         const disguised = post("Settings/Account/uploadPhoto", { contentFile: uploadedFile("page.png", "<svg/>", "image/svg+xml") })
         const page = render("Settings/Account")
         const photo = get("Settings/Account/myPhoto")
+        const byUser = get("Settings/Account/userPhoto", { userId: "john.doe" })
+        const noUser = get("Settings/Account/userPhoto", { userId: "no-such-user" })
         // Chatter: a note by john.doe has his face image, which the panel's avatar transition serves
         const request = { recordEntity: "mantle.request.Request", recordId: "BOSS_DEMO_REQUEST" }
         const noteId = post("Chatter/logNote", Object.assign({ body: "<p>With my photo.</p>" }, request)).json.communicationEventId
@@ -181,12 +183,13 @@ feature("Account photo: john.doe's own face image, whatever party the request na
         const afterJoe = faces("EX_JOHN_DOE").length
         const removed = post("Settings/Account/removePhoto", {})
         const noPhoto = get("Settings/Account/myPhoto")
+        const noByUser = get("Settings/Account/userPhoto", { userId: "john.doe" })
         const pageAfter = render("Settings/Account")
         sys(() => call("ironstone.ChatterServices.delete#Entry", Object.assign({ communicationEventId: noteId, recordEntityName: request.recordEntity }, request)))
-        return { joeBefore, first, firstRows, second, secondRows, refused, disguised, page, photo, entry, avatar, joeRemove, afterJoe, removed, noPhoto, pageAfter,
+        return { joeBefore, first, firstRows, second, secondRows, refused, disguised, page, photo, byUser, noUser, entry, avatar, joeRemove, afterJoe, removed, noPhoto, noByUser, pageAfter,
             joeAfter: faces("ORG_ZIZI_JD").length, johnAfter: faces("EX_JOHN_DOE").length }
     },
-    then({ joeBefore, first, firstRows, second, secondRows, refused, disguised, page, photo, entry, avatar, joeRemove, afterJoe, removed, noPhoto, pageAfter, joeAfter, johnAfter }) {
+    then({ joeBefore, first, firstRows, second, secondRows, refused, disguised, page, photo, byUser, noUser, entry, avatar, joeRemove, afterJoe, removed, noPhoto, noByUser, pageAfter, joeAfter, johnAfter }) {
         first.errors == ""
         firstRows.length == 1
         firstRows[0].description == "john.png"
@@ -201,12 +204,15 @@ feature("Account photo: john.doe's own face image, whatever party the request na
         page.output.includes("myPhoto?v=" + secondRows[0].partyContentId)
         page.output.includes("Remove photo")
         photo.status == 200
+        byUser.status == 200
+        noUser.status == 404
         entry.authorImage
         avatar.status == 200
         joeRemove.errors == ""
         afterJoe == 1
         removed.errors == ""
         noPhoto.status == 404
+        noByUser.status == 404
         pageAfter.output.includes("Add a photo")
         !pageAfter.output.includes("Remove photo")
         joeAfter == joeBefore

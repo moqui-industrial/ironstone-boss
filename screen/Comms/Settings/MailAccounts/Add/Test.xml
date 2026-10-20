@@ -16,8 +16,9 @@ along with this software (see the LICENSE.md file). If not, see
     server now (ironstone.MailSettingsServices.test#MailAccount over org.moqui.impl.EmailClientServices.test#EmailAccount),
     each step with what the server said and, when it failed, what it most likely means and what to try, with the provider's
     help; on success how the server's folders map to Inbox, Sent, Drafts, Spam, Trash and Archive. The test runs each time the
-    step shows (Test again reloads it). Next goes on when it passed, or with "Continue anyway" (the account stays as it is
-    and its sync reports the problem). -->
+    step shows (Test again reloads it). An account with no incoming server (hosted, or shared and delivered here) is not
+    signed in to: the step says the gateway delivers, and Next goes on. Otherwise Next goes on when the test passed, or with
+    "Continue anyway" (the account stays as it is and its sync reports the problem). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Test" default-menu-index="3">
 
@@ -37,9 +38,21 @@ along with this software (see the LICENSE.md file). If not, see
         const L = (text) => text.length > 255 ? text : ec.l10n.localize(text)
         hasAccount = false
         testRan = false
+        gatewayDelivery = false
         stepRows = []
         folderRows = []
         if (!emailAccountId) return
+        const detail = ec.service.sync().name('ironstone.MailSettingsServices.get#MailAccountDetail').parameter('emailAccountId', emailAccountId).call()
+        if (ec.message.hasError() || !detail?.found) { testError = ec.message.hasError() ? ec.message.getErrorsString() : L('Connect the account first'); ec.message.clearErrors(); return }
+        if (!detail.server?.storeHost && (detail.account?.accountKindEnumId === 'EakHosted' || detail.account?.isShared === true)) {
+            // nothing to sign in to: the gateway delivers (hosted, or shared with no incoming server)
+            hasAccount = true
+            gatewayDelivery = true
+            passed = true
+            gatewayAddress = detail.account?.emailAddress || ''
+            confirm = {emailAccountId: emailAccountId, testPassed: 'Y', continueAnyway: ''}
+            return
+        }
         const out = ec.service.sync().name('ironstone.MailSettingsServices.test#MailAccount').parameter('emailAccountId', emailAccountId).call()
         if (ec.message.hasError()) { testError = ec.message.getErrorsString(); ec.message.clearErrors(); return }
         hasAccount = true
@@ -62,7 +75,18 @@ along with this software (see the LICENSE.md file). If not, see
                 <link url="../Connect" text="Connect" icon="sym_o_arrow_back"/>
             </box-body></container-box>
         </widgets></section>
-        <section name="Result" condition="hasAccount"><widgets>
+        <section name="Gateway" condition="gatewayDelivery"><widgets>
+            <container-box type="success"><box-header title="Delivered here"/><box-body>
+                <label type="p" text="Nothing to sign in to. The mail gateway delivers mail for ${gatewayAddress}." style="q-mb-sm"/>
+                <label type="p" text="A tag after a plus sign still arrives here: sales+news@example.com goes to sales@example.com." style="m-muted"/>
+                <form-single name="AccountGatewayConfirm" transition="confirmTest" map="confirm">
+                    <field name="emailAccountId"><default-field><hidden/></default-field></field>
+                    <field name="testPassed"><default-field><hidden/></default-field></field>
+                    <field name="continueAnyway"><default-field><hidden/></default-field></field>
+                </form-single>
+            </box-body></container-box>
+        </widgets></section>
+        <section name="Result" condition="hasAccount &amp;&amp; !gatewayDelivery"><widgets>
             <container-box type="${passed ? 'success' : 'danger'}"><box-header title="${passed ? 'It works' : 'It did not work yet'}"/>
                 <box-toolbar>
                     <link url="." text="Test again" icon="sym_o_refresh" parameter-map="{emailAccountId:emailAccountId}"/>

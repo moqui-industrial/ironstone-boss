@@ -12,8 +12,9 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 <!-- The sync progress of one mail account (SyncProgress.xml): its query (mScreen) names the account (emailAccountId). One
-    listener per page on the topic emailSyncProgress (moqui.webrootVue.notificationClient.registerListener, which has no way to
-    take a listener back, so every mounted progress shares it and a gone one leaves it), each message
+    listener per page on the topic emailSyncProgress (notificationClient.registerListener, which returns an unregister
+    function). The progress widgets on the page share it, and the last one to leave calls that function, so a gone page
+    unsubscribes. Each message
     {emailAccountId, done, folderCount, foldersDone, folderName, folderPath, folderKept, folderFetched, folderToFetch,
     folderPending, fetched, toFetch, pending} shown as "Syncing {folderKept + folderFetched} of {folderKept + folderPending}"
     in the folder, a bar under it, and the end ({done, outcome, message, newCount}) as what came in, with Refresh to show the
@@ -36,15 +37,18 @@ const count = (value) => { const n = Number(value) || 0; try { return n.toLocale
 
 // the page's one listener on the topic, shared by the progress components mounted on it
 function syncHub(client) {
-    const hub = moqui.bossSyncProgress || (moqui.bossSyncProgress = { listeners: new Set(), clients: [] });
-    if (client && hub.clients.indexOf(client) < 0) {
-        hub.clients.push(client);
-        client.registerListener('emailSyncProgress', (jsonObj) => {
+    const hub = moqui.bossSyncProgress || (moqui.bossSyncProgress = { listeners: new Set(), unregister: null });
+    if (client && !hub.unregister) {
+        const onProgress = (jsonObj) => {
             let message = jsonObj ? jsonObj.message : null;
             if (typeof message === 'string') { try { message = JSON.parse(message); } catch (err) { message = null; } }
             if (!message || !message.emailAccountId) return;
             hub.listeners.forEach((listener) => { try { listener(message); } catch (err) { console.warn('Sync progress', err); } });
-        });
+        };
+        const stop = client.registerListener('emailSyncProgress', onProgress);
+        hub.unregister = typeof stop === 'function' ? stop : function () {
+            if (client.unregisterListener) client.unregisterListener('emailSyncProgress', onProgress);
+        };
     }
     return hub;
 }
@@ -95,8 +99,13 @@ module.exports = {
         syncHub(client).listeners.add(this.listener);
     },
     beforeUnmount() {
-        if (this.listener && moqui.bossSyncProgress) moqui.bossSyncProgress.listeners.delete(this.listener);
+        const hub = moqui.bossSyncProgress;
+        if (this.listener && hub) hub.listeners.delete(this.listener);
         this.listener = null;
+        if (hub && hub.listeners.size === 0 && hub.unregister) {
+            hub.unregister();
+            hub.unregister = null;
+        }
     }
 };
 </script>
