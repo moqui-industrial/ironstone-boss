@@ -95,7 +95,7 @@ change.
 | --- | --- | --- | --- |
 | Menu toggle | flat round button | Framework | Opens and closes the app drawer |
 | App launcher | the theme logo as a button with a drop-down | Framework | A `q-menu` grid of the apps the user may open (the `/apps` menu items), each a tonal button with the app icon of §5.6; the current app marked; "All applications" at the bottom opens the AppList screen |
-| App title | `q-toolbar-title shrink`, `text-subtitle1 text-weight-medium` | Framework, from the app root's menu title | The current app's name, "IronStone Sales"; the theme title is shown on the AppList only |
+| App title | `q-btn` flat, `text-subtitle1 text-weight-medium`, or `q-toolbar-title shrink` when it has no menu | Framework, from the app root's menu title | The current app's name, "IronStone Sales"; in an app it opens a menu of the app root's subscreens (the top-level screens). The theme title is shown on the AppList only |
 | Breadcrumbs | `q-breadcrumbs`, hidden below 600 px | Framework | The screen path from the app root; a crumb with subscreens opens a `q-menu` of its siblings |
 | Search | flat button with label "Search" and a keyboard hint, icon only below 1024 px | Framework | Opens the palette (§2.4); Ctrl+K or Cmd+K anywhere |
 | Quick create | flat round `+` | Framework; items from app providers | A `q-menu` of record kinds (task, event, note, contact, request, and what the current app registers); each opens that record's create form in a dialog, prefilled from the screen context (link to the current record, current customer, current product) |
