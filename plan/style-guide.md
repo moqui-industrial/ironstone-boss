@@ -36,7 +36,8 @@ Sections: [1 principles](#1-principles) · [2 shell](#2-the-shell-what-every-scr
 3. **XML widgets first.** A screen is written with the elements of §4. Raw Quasar markup appears
    only inside a `render-mode` `text type="qvt"` block or a `.qvue` screen, only from the allowed
    list in §4.8, and never for inputs. A piece of raw markup that a second screen wants is a
-   candidate for a new XML element (§8).
+   candidate for a new XML element (§8). Custom presentation does not carry across render modes:
+   a screen that goes custom for the browser also gets a `tui` text for the terminal (§4.8).
 4. **One action hierarchy.** Primary, tonal, flat and text link, as §4.6 defines; one primary per
    form or dialog; destructive actions confirm.
 5. **Dense, consistent spacing.** Dense fields, 28 px list rows, Quasar's spacing scale only
@@ -614,6 +615,28 @@ and a `hide()` method. The component is cached as server-static, so a screen who
 the URL watches `$root.currentParameters` (deep) and reloads its data; navigation is
 `this.$root.setUrl(path)`.
 
+**The terminal twin.** A screen that goes custom in one render mode is implemented again for
+each other mode it should work in. For the terminal (the `tui` render mode, planned in mr-moqui
+`plans/Screen-TUI-Impl.md`, §2.9 there) that means:
+
+- **A raw `qvt` text** gets a `text type="tui"` in the same `render-mode` element: a fragment of
+  the TUI screen model, as JSON. A chart names the `chart` component with the same data expression
+  the qvt text uses.
+- **A `.qvue` screen** adds `tui` to its `render-modes` (`vue,qvue,tui`) and gets a
+  `<text type="tui" location="component://…/Name.tui.json" template="false"/>` beside its `qvue`
+  text. The file is usually one `component` node with its props, naming a terminal component that
+  BOSS registers from its crate behind a `tui` feature.
+- **Data stays shared.** The component calls the same transitions as the `.qvue` file, so only the
+  presentation is written twice. The gallery's `Board.tui.json` and `Calendar.tui.json` are the
+  examples.
+- **Expansions are JSON.** In a `tui` text, every `${}` is written as `${JSON.stringify(value)}`.
+  A bare expansion is a JSON injection, as a bare one in qvt text is an HTML injection, and the
+  lint flags it.
+
+Until a screen has its `tui` text, the terminal shows a placeholder with a link to open the screen
+in the browser, and `moqui lint` lists the screen. A plain XML screen needs no terminal work: the
+`tui` macros render its widgets.
+
 ### 4.9 Actions, scripts and transitions
 
 - Expressions and scripts are JavaScript: `a || b`, not Groovy's `?:`; the lint flags Groovy idioms.
@@ -781,9 +804,11 @@ width at `xs`.
 | Tablet | `sm` | List, Detail, 360 (tabs scroll), Split (stacked), Task, Panel, Landing |
 | Phone | `xs` | Landing, Task, Panel (Today, Chat, Notifications), Split in stacked form, the Chatter column as a tab, the quick-create dialog, Calendar day view, Comms chat and inbox; a List in horizontal scroll |
 | Handheld | `xs` with the handheld density (§8) | Warehouse and Manufacturing Task screens: 48 px controls, 18 px text, scan field focus, no drawer |
+| Terminal | The `tui` render mode: one column below 120 canvas columns, two from 120 (mr-moqui `plans/Screen-TUI-Impl.md` §1.3) | Every XML screen with no design work; a raw `qvt` text or a `.qvue` screen once it has its `tui` text (§4.8) |
 
 A design marks a screen `phone` or `handheld` in its **Devices** line only when it is in one
-of these rows; everything else is desktop and tablet.
+of these rows; everything else is desktop and tablet. The terminal needs no mark: a screen works
+there when it is plain XML, or once its custom parts have their `tui` texts.
 
 ## 8. Framework changes
 
@@ -795,15 +820,22 @@ crosscut design's roll-up is the work list.
 
 1. The XSD: `framework/xsd/xml-screen-3.xsd` or `xml-form-3.xsd`, with documentation.
 2. The qvt macro in `framework/template/screen/ScreenQvt.js` and its mirror in
-   `ScreenQvtStatic.js`; a plain fallback in `ScreenHtml.js` for the html render mode.
+   `ScreenQvtStatic.js`; a plain fallback in `ScreenHtml.js` for the html render mode; the `tui`
+   macro in `ScreenTui.js`, a node of the TUI screen model, and its terminal widget in
+   `crates/moqui-tui` when the element needs one (once the `tui` mode is built).
 3. The `m-*` wrapper in `webroot/screen/webroot/js/WebrootVue.qvt.js` when the element needs a
    component; regenerate the precompiled `WebrootVue.qvt.render.js`
    (`UPDATE_GOLDEN=1 cargo test -p moqui-core --lib client_components_are_precompiled`).
 4. Styles, if any, as `m-*` classes in `webroot/screen/webroot/css/WebrootVue.qvt.css`.
 5. Goldens: `UPDATE_GOLDEN=1 cargo test -p moqui-core --lib screen::tests::qvt`, review the diff
    under `crates/moqui-core/src/script/testdata/screen/qvt/render/`; the node tests of the
-   client; the Gate 3 browser smoke when behavior changed.
+   client; the Gate 3 browser smoke when behavior changed; the `tui` render goldens and terminal
+   snapshots once that mode exists.
 6. A row in `js/README.md`'s component table; a gallery screen (§10) that shows it.
+
+A new custom screen (a `.qvue`, or a raw `qvt` text) is not an XML element, but it has a checklist
+item too: its `tui` text (§4.8), or an entry in the design's needs table saying it is browser-only
+for now.
 
 ### 8.2 The items
 
@@ -849,6 +881,7 @@ crosscut design's roll-up is the work list.
 | The style decisions this guide continues | `plans/archive/QvtStylePlan.txt` |
 | Render goldens and the browser smoke | `crates/moqui-core/src/script/testdata/screen/qvt/render/`, `crates/moqui-host/tests/gate3_browser.rs` |
 | Status flows (for §5.2) | `runtime/base-component/tools/screen/Tools/StatusFlows.xml` |
+| The terminal render mode: design, widget map, keys, the `tui` text and components (planned) | `plans/Screen-TUI-Impl.md`; later `framework/template/screen/ScreenTui.js`, `crates/moqui-tui`, `docs/TUI.md` |
 
 **Quasar 2.35.1** (paths under `~/work/moquiwork/3p_other/quasar/`):
 
