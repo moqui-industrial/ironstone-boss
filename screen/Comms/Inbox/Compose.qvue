@@ -453,13 +453,17 @@ module.exports = {
         chipsJson(field) { return JSON.stringify(this.draft[field].map((chip) => ({ value: chip.value, label: chip.label }))); },
         draftParams() {
             const d = this.draft;
-            let body = d.plain ? moqui.richText.fromPlain(d.body || '') : (d.body || '');
+            // the editor keeps HTML in the model while the plain-text toggle is on, so body stays that HTML
+            let body = d.body || '';
             let quote = d.quoteHtml || '';
             // a signature kept below the quote is sent after it; with the quote gone it is already in the body
             if (this.belowSignature) quote = quote + this.signatureBlock(this.belowSignature);
             const params = { fromValue: d.fromValue, toJson: this.chipsJson('to'), ccJson: this.chipsJson('cc'), bccJson: this.chipsJson('bcc'), subject: d.subject || '',
                 body: body, quoteHtml: quote };
-            if (d.plain) params.bodyText = d.body || '';
+            if (d.plain) {
+                const editor = this.$refs.editor;
+                params.bodyText = editor && editor.plainValue ? editor.plainValue() : moqui.richText.toPlain(body);
+            }
             if (d.emailMessageId) params.emailMessageId = d.emailMessageId;
             else if (d.parentEmailMessageId) { params.parentEmailMessageId = d.parentEmailMessageId; params.isForward = d.isForward ? 'true' : 'false'; }
             return params;
