@@ -352,6 +352,10 @@ along with this software (see the LICENSE.md file). If not, see
                 const ids = Array.from(new Set(rps.map((rp) => rp.partyId).concat(row.filedByPartyId ? [row.filedByPartyId] : [])))
                 const parties = {}
                 if (ids.length) for (const party of ec.entity.find('mantle.party.PartyDetail').condition('partyId', 'in', ids).list()) parties[party.partyId] = party
+                // the users among them, so an avatar shows the user's photo
+                const userIds = {}
+                if (ids.length) for (const account of ec.entity.find('moqui.security.UserAccount').condition('partyId', 'in', ids)
+                        .selectField('partyId,userId').disableAuthz().list()) userIds[account.partyId] = account.userId
                 const nameOf = (id) => {
                     const party = parties[id]
                     if (!party) return id
@@ -371,7 +375,9 @@ along with this software (see the LICENSE.md file). If not, see
                     statusLabel: statusItem ? statusItem.description : (row.statusId || ''), statusColor: statusColor,
                     priorityText: priority == null ? '' : (priority <= 3 ? L('High') : priority <= 6 ? L('Normal') : L('Low')) + ' (' + priority + ')',
                     customerPartyId: customer?.partyId || null, customerName: customer ? nameOf(customer.partyId) : '',
+                    customerUserId: customer ? (userIds[customer.partyId] || null) : null,
                     assigneePartyId: assignee?.partyId || null, assigneeName: assignee ? nameOf(assignee.partyId) : '',
+                    assigneeUserId: assignee ? (userIds[assignee.partyId] || null) : null,
                     filedByName: row.filedByPartyId ? nameOf(row.filedByPartyId) : '',
                     requestDateText: fmt(toMillis(row.requestDate), 'MMM d, yyyy h:mm a'), responseRequiredText: fmt(toMillis(row.responseRequiredDate), 'MMM d, yyyy h:mm a'),
                     responseRequiredEdit: fmt(toMillis(row.responseRequiredDate), 'yyyy-MM-dd HH:mm'),

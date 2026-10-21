@@ -23,7 +23,8 @@ along with this software (see the LICENSE.md file). If not, see
     The URL holds partyId (and the record's tab); the side list's find (scope, group, text, letter) is kept in the session
     (bossContactsFind) when a find gives it (find=Y, or a scope or text in the URL), so choosing a row or editing the record
     keeps the list as it was. The rows come from ironstone.ContactServices.find#ContactRows (Mantle's find#Party and the book
-    services, with the personal-contact condition): another user's personal contact is never one of them. -->
+    services, with the personal-contact condition): another user's personal contact is never one of them. Print opens the
+    list as found with renderMode=html-print, a contact sheet (name, organization, email, phone) of up to 200 rows. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Contacts" default-menu-include="false">
 
@@ -144,8 +145,9 @@ along with this software (see the LICENSE.md file). If not, see
             findGroupId = state.contactBookGroupId
             findText = state.text || ''
             findLetter = state.letter || ''
+            const isPrint = sri.getRenderMode() == 'html-print'
             const out = ec.service.sync().name('ironstone.ContactServices.find#ContactRows').parameters({scope: findScope, contactBookGroupId: findGroupId,
-                text: findText || null, letter: findLetter || null, limit: 50}).call() || {}
+                text: findText || null, letter: findLetter || null, limit: isPrint ? 200 : 50}).call() || {}
             findScope = out.scope || 'all'
             const rows = Array.from(out.rowList || [])
             book = out.contactBook || null
@@ -188,110 +190,130 @@ along with this software (see the LICENSE.md file). If not, see
                     text: entry.contactBookName + ' · ' + group.groupName})))
             bookScopeEditable = !!book && ['CbpEdit', 'CbpManage'].includes(book.permissionEnumId)
             emptyText = filtered ? L('No contacts match') : (book || findScope === 'mine' ? L('No contacts yet · Import or add one') : L('No contacts'))
+            // Print: this find as a contact sheet
+            printUrl = '/apps/Commons/Contacts/List?' + Object.entries({renderMode: 'html-print', find: 'Y', scope: findScope, contactBookGroupId: findGroupId,
+                text: findText || null, letter: findLetter || null}).filter(([, value]) => value != null && value !== '')
+                .map(([name, value]) => encodeURIComponent(name) + '=' + encodeURIComponent(value)).join('&')
+            printMode = isPrint
+            if (isPrint) {
+                const scopeText = (scopeOptions.find((option) => option.key === findScope) || {}).text || ''
+                const cell = (text) => '<td>' + enc(text) + '</td>'
+                printHtml = '<div class="box-header">' + enc(L('Contacts')) + (scopeText ? ' · ' + enc(scopeText) : '') + (findText ? ' · ' + enc(findText) : '')
+                    + (findLetter ? ' · ' + enc(findLetter) : '') + '</div>'
+                    + '<table class="form-list"><thead><tr><th>' + enc(L('Name')) + '</th><th>' + enc(L('Organization')) + '</th><th>' + enc(L('Email'))
+                    + '</th><th>' + enc(L('Phone')) + '</th></tr></thead><tbody>'
+                    + rows.map((row) => '<tr>' + cell(row.name) + cell(row.subtitle || row.organizationName) + cell(row.emailAddress) + cell(row.phone) + '</tr>').join('')
+                    + '</tbody></table>' + (hasMore ? '<p style="color:#555">' + enc(ec.resource.expand('The first ${shown} of ${count}', '', {shown: rows.length, count: rowCount})) + '</p>' : '')
+            }
             newContactHtml = '<q-btn unelevated no-caps dense color="primary" class="q-ml-sm" icon="sym_o_person_add" label="' + enc(L('New contact')) + '"'
                     + ' @click="$root.openQuickCreate({url: \'/qapps/Commons/QuickCreate?kind=contact&amp;openAfter=Y\', label: \'' + enc(L('New contact').replace(/['\\]/g, '')) + '\'})"></q-btn>'
         ]]></script>
     </actions>
 
     <widgets>
-        <!-- title row: New contact, Import, Find duplicates (contact admins) -->
-        <container style="row items-center q-mb-sm">
-            <label text="Contacts" type="h5" style="q-my-none"/>
-            <container style="col"/>
-            <render-mode><text type="qvt"><![CDATA[${newContactHtml}]]></text></render-mode>
-            <link url="../Import" text="Import" icon="sym_o_upload_file" style="q-ml-sm"/>
-            <link url="../Duplicates" text="Find duplicates" icon="sym_o_join" condition="isContactAdmin" style="q-ml-sm"/>
-        </container>
+        <section name="ContactsPrint" condition="printMode"><widgets>
+            <render-mode><text type="html-print"><![CDATA[${printHtml}]]></text></render-mode>
+        </widgets><fail-widgets>
+            <!-- title row: New contact, Import, Find duplicates (contact admins) -->
+            <container style="row items-center q-mb-sm">
+                <label text="Contacts" type="h5" style="q-my-none"/>
+                <container style="col"/>
+                <render-mode><text type="qvt"><![CDATA[${newContactHtml}]]></text></render-mode>
+                <link url="../Import" text="Import" icon="sym_o_upload_file" style="q-ml-sm"/>
+                <link url="../Duplicates" text="Find duplicates" icon="sym_o_join" condition="isContactAdmin" style="q-ml-sm"/>
+                <link url="${printUrl}" url-type="plain" text="Print" icon="sym_o_print" target-window="_blank" style="q-ml-sm"/>
+            </container>
 
-        <container-split id="ContactsSplit" side-width="320" min-main="480" select-parameter="partyId" back-text="Contacts">
-            <split-side>
-                <!-- the search line and the scope -->
-                <form-single name="ContactFind" transition=".">
-                    <field name="find" from="'Y'"><default-field><hidden/></default-field></field>
-                    <field name="text" from="findText"><default-field title="Search"><text-line size="20"/></default-field></field>
-                    <field name="scope" from="findScope"><default-field title="Show">
-                        <drop-down submit-on-select="true"><list-options list="scopeOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
-                    <field name="findButton"><default-field title="Find"><submit icon="sym_o_search"/></default-field></field>
-                    <field-layout>
-                        <field-row-big><field-ref name="text"/><field-ref name="findButton"/></field-row-big>
-                        <field-ref name="scope"/>
-                    </field-layout>
-                </form-single>
+            <container-split id="ContactsSplit" side-width="320" min-main="480" select-parameter="partyId" back-text="Contacts">
+                <split-side>
+                    <!-- the search line and the scope -->
+                    <form-single name="ContactFind" transition=".">
+                        <field name="find" from="'Y'"><default-field><hidden/></default-field></field>
+                        <field name="text" from="findText"><default-field title="Search"><text-line size="20"/></default-field></field>
+                        <field name="scope" from="findScope"><default-field title="Show">
+                            <drop-down submit-on-select="true"><list-options list="scopeOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                        <field name="findButton"><default-field title="Find"><submit icon="sym_o_search"/></default-field></field>
+                        <field-layout>
+                            <field-row-big><field-ref name="text"/><field-ref name="findButton"/></field-row-big>
+                            <field-ref name="scope"/>
+                        </field-layout>
+                    </form-single>
 
-                <!-- the groups of the book shown -->
-                <section name="GroupChips" condition="groupChips.length &gt; 1"><widgets>
-                    <container style="row q-gutter-xs q-mb-xs m-contact-groups">
-                        <section-iterate name="GroupChip" list="groupChips" entry="chip"><widgets>
-                            <link url="." link-type="anchor-button" text="${chip.label}" btn-type="${chip.on ? 'primary' : ''}"
-                                    parameter-map="{find:'Y', scope:findScope, contactBookGroupId:chip.id, text:findText}"/>
+                    <!-- the groups of the book shown -->
+                    <section name="GroupChips" condition="groupChips.length &gt; 1"><widgets>
+                        <container style="row q-gutter-xs q-mb-xs m-contact-groups">
+                            <section-iterate name="GroupChip" list="groupChips" entry="chip"><widgets>
+                                <link url="." link-type="anchor-button" text="${chip.label}" btn-type="${chip.on ? 'primary' : ''}"
+                                        parameter-map="{find:'Y', scope:findScope, contactBookGroupId:chip.id, text:findText}"/>
+                            </widgets></section-iterate>
+                        </container>
+                    </widgets></section>
+
+                    <!-- the alphabet jump -->
+                    <container style="row justify-between text-caption q-px-xs q-mb-xs m-contact-letters">
+                        <section-iterate name="LetterLink" list="letters" entry="item"><widgets>
+                            <link url="." link-type="anchor" text="${item.letter}" style="${item.on ? 'text-weight-bold' : 'm-muted'}"
+                                    parameter-map="{find:'Y', scope:findScope, contactBookGroupId:findGroupId, text:findText, letter:(item.on ? '' : item.letter)}"/>
                         </widgets></section-iterate>
                     </container>
-                </widgets></section>
 
-                <!-- the alphabet jump -->
-                <container style="row justify-between text-caption q-px-xs q-mb-xs m-contact-letters">
-                    <section-iterate name="LetterLink" list="letters" entry="item"><widgets>
-                        <link url="." link-type="anchor" text="${item.letter}" style="${item.on ? 'text-weight-bold' : 'm-muted'}"
-                                parameter-map="{find:'Y', scope:findScope, contactBookGroupId:findGroupId, text:findText, letter:(item.on ? '' : item.letter)}"/>
-                    </widgets></section-iterate>
-                </container>
-
-                <form-list name="ContactRows" list="contactRows" multi="true" transition="bulkAddToBook" paginate="false">
-                    <row-selection id-field="partyId" parameter="selectedPartyIds" list-mode="true">
-                        <action><dialog button-text="Add to group" button-icon="sym_o_label" title="Add the selected contacts to a group"/>
-                            <form-single name="BulkAddToGroup" transition="bulkAddToGroup">
+                    <form-list name="ContactRows" list="contactRows" multi="true" transition="bulkAddToBook" paginate="false">
+                        <row-selection id-field="partyId" parameter="selectedPartyIds" list-mode="true">
+                            <action><dialog button-text="Add to group" button-icon="sym_o_label" title="Add the selected contacts to a group"/>
+                                <form-single name="BulkAddToGroup" transition="bulkAddToGroup">
+                                    <field name="partyId" from="partyId"><default-field><hidden/></default-field></field>
+                                    <field name="contactBookGroupId"><default-field title="Group">
+                                        <drop-down><list-options list="groupChoices" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                    <field name="submitButton"><default-field title="Add to group"><submit/></default-field></field>
+                                </form-single></action>
+                            <action><dialog button-text="Add to book" button-icon="sym_o_bookmark_add" title="Add the selected contacts to a book"/>
+                                <form-single name="BulkAddToBook" transition="bulkAddToBook">
+                                    <field name="partyId" from="partyId"><default-field><hidden/></default-field></field>
+                                    <field name="contactBookId"><default-field title="Book">
+                                        <drop-down><list-options list="bookChoices" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                    <field name="submitButton"><default-field title="Add to book"><submit/></default-field></field>
+                                </form-single></action>
+                            <action><form-single name="BulkRemoveFromBook" transition="bulkRemoveFromBook">
                                 <field name="partyId" from="partyId"><default-field><hidden/></default-field></field>
-                                <field name="contactBookGroupId"><default-field title="Group">
-                                    <drop-down><list-options list="groupChoices" key="${key}" text="${text}"/></drop-down></default-field></field>
-                                <field name="submitButton"><default-field title="Add to group"><submit/></default-field></field>
+                                <field name="contactBookId" from="book?.contactBookId"><default-field><hidden/></default-field></field>
+                                <field name="submitButton"><conditional-field condition="bookScopeEditable" title="Remove from this book"><submit type="danger"/></conditional-field>
+                                    <default-field><ignored/></default-field></field>
                             </form-single></action>
-                        <action><dialog button-text="Add to book" button-icon="sym_o_bookmark_add" title="Add the selected contacts to a book"/>
-                            <form-single name="BulkAddToBook" transition="bulkAddToBook">
+                            <action><form-single name="BulkExportVcard" transition="bulkExport">
+                                <field name="format" from="'vcard'"><default-field><hidden/></default-field></field>
+                                <field name="submitButton"><default-field title="Export vCard"><submit/></default-field></field>
+                            </form-single></action>
+                            <action><form-single name="BulkExportCsv" transition="bulkExport">
+                                <field name="format" from="'csv'"><default-field><hidden/></default-field></field>
+                                <field name="submitButton"><default-field title="Export CSV"><submit/></default-field></field>
+                            </form-single></action>
+                            <action><form-single name="BulkMerge" transition="bulkMerge">
+                                <field name="submitButton"><default-field title="Merge two"><submit/></default-field></field>
+                            </form-single></action>
+                            <action><form-single name="BulkDelete" transition="bulkDelete">
                                 <field name="partyId" from="partyId"><default-field><hidden/></default-field></field>
-                                <field name="contactBookId"><default-field title="Book">
-                                    <drop-down><list-options list="bookChoices" key="${key}" text="${text}"/></drop-down></default-field></field>
-                                <field name="submitButton"><default-field title="Add to book"><submit/></default-field></field>
+                                <field name="submitButton"><default-field title="Delete"><submit type="danger" confirmation="Delete the selected contacts?"/></default-field></field>
                             </form-single></action>
-                        <action><form-single name="BulkRemoveFromBook" transition="bulkRemoveFromBook">
-                            <field name="partyId" from="partyId"><default-field><hidden/></default-field></field>
-                            <field name="contactBookId" from="book?.contactBookId"><default-field><hidden/></default-field></field>
-                            <field name="submitButton"><conditional-field condition="bookScopeEditable" title="Remove from this book"><submit type="danger"/></conditional-field>
-                                <default-field><ignored/></default-field></field>
-                        </form-single></action>
-                        <action><form-single name="BulkExportVcard" transition="bulkExport">
-                            <field name="format" from="'vcard'"><default-field><hidden/></default-field></field>
-                            <field name="submitButton"><default-field title="Export vCard"><submit/></default-field></field>
-                        </form-single></action>
-                        <action><form-single name="BulkExportCsv" transition="bulkExport">
-                            <field name="format" from="'csv'"><default-field><hidden/></default-field></field>
-                            <field name="submitButton"><default-field title="Export CSV"><submit/></default-field></field>
-                        </form-single></action>
-                        <action><form-single name="BulkMerge" transition="bulkMerge">
-                            <field name="submitButton"><default-field title="Merge two"><submit/></default-field></field>
-                        </form-single></action>
-                        <action><form-single name="BulkDelete" transition="bulkDelete">
-                            <field name="partyId" from="partyId"><default-field><hidden/></default-field></field>
-                            <field name="submitButton"><default-field title="Delete"><submit type="danger" confirmation="Delete the selected contacts?"/></default-field></field>
-                        </form-single></action>
-                    </row-selection>
-                    <field name="contact"><default-field title="${rowCount} ${rowCount == 1 ? 'contact' : 'contacts'}">
-                        <render-mode><text type="qvt"><![CDATA[${rowHtml}]]></text></render-mode>
-                    </default-field></field>
-                </form-list>
-                <section name="NoRows" condition="!contactRows.length"><widgets>
-                    <container style="q-pa-sm">
-                        <label type="p" text="${emptyText}" style="m-muted q-mb-xs"/>
-                        <section name="ClearFind" condition="filtered"><widgets>
-                            <link url="." link-type="anchor" text="Clear the search" parameter-map="{find:'Y', scope:findScope}"/>
-                        </widgets></section>
-                    </container>
-                </widgets></section>
-                <label text="${shownCount} of ${rowCount} shown; narrow the list with the search or a letter." type="p"
-                        style="text-caption m-muted q-px-sm q-mt-xs" condition="hasMore"/>
-            </split-side>
-            <split-main>
-                <section-include name="ContactRecordSection" location="component://ironstone-boss/template/ContactRecord.xml"/>
-            </split-main>
-        </container-split>
+                        </row-selection>
+                        <field name="contact"><default-field title="${rowCount} ${rowCount == 1 ? 'contact' : 'contacts'}">
+                            <render-mode><text type="qvt"><![CDATA[${rowHtml}]]></text></render-mode>
+                        </default-field></field>
+                    </form-list>
+                    <section name="NoRows" condition="!contactRows.length"><widgets>
+                        <container style="q-pa-sm">
+                            <label type="p" text="${emptyText}" style="m-muted q-mb-xs"/>
+                            <section name="ClearFind" condition="filtered"><widgets>
+                                <link url="." link-type="anchor" text="Clear the search" parameter-map="{find:'Y', scope:findScope}"/>
+                            </widgets></section>
+                        </container>
+                    </widgets></section>
+                    <label text="${shownCount} of ${rowCount} shown; narrow the list with the search or a letter." type="p"
+                            style="text-caption m-muted q-px-sm q-mt-xs" condition="hasMore"/>
+                </split-side>
+                <split-main>
+                    <section-include name="ContactRecordSection" location="component://ironstone-boss/template/ContactRecord.xml"/>
+                </split-main>
+            </container-split>
+        </fail-widgets></section>
     </widgets>
 </screen>

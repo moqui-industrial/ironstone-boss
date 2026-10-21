@@ -15,17 +15,21 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- Import step 5, ImportResult (design-drawers-commons.md §6): the wizard's Import submits runImport
     (ironstone.ContactServices.run#Import: mantle.party.ContactImportServices.import#Contacts, each row in its own
     transaction), then the step shows the outcome: created, updated, skipped and failed with the reasons, the failures as a
-    CSV download, and the way to the book. The import runs in the request: the wizard's button shows it is running; a job with
-    progress for large files is later (impl M4 "import as a job"). -->
+    CSV download, and the way to the book. A file of up to 100 rows is imported in the request (the wizard's button shows it
+    is running); a larger one runs on as a job, and the step shows how far it is (the ImportProgress screen, on the topic
+    contactImportProgress) until it is done, then the outcome. The user may leave the page; the import goes on. An import that
+    stopped shows why and can be run again. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Import" default-menu-index="5">
 
     <parameter name="importId"/>
 
     <transition name="runImport">
+        <parameter name="background"/>
         <actions>
-            <service-call name="ironstone.ContactServices.run#Import" in-map="{importId:importId}"/>
-            <set field="done" value="Y"/>
+            <service-call name="ironstone.ContactServices.run#Import" in-map="{importId:importId, background:(background == 'Y' ? true : null)}" out-map="runOut"/>
+            <if condition="runOut?.running"><then><message type="info">The import runs on; this page shows how far it is</message></then>
+                <else><set field="done" value="Y"/></else></if>
         </actions>
         <default-response url="."><parameter name="importId"/><parameter name="done"/></default-response>
         <error-response url="."/>
@@ -55,6 +59,8 @@ along with this software (see the LICENSE.md file). If not, see
         if (!hasDraft) return
         draft = current.draft
         isDone = draft.status === 'done' && !!draft.result
+        isRunning = draft.status === 'running'
+        failedText = draft.status === 'failed' ? (draft.error || L('The import stopped')) : null
         ready = !!draft.options
         result = draft.result || {}
         failureRows = Array.from(result.failureList || []).map((failure) => ({rowNumber: failure.rowNumber, error: failure.error,
@@ -76,8 +82,20 @@ along with this software (see the LICENSE.md file). If not, see
         <section name="NoDraft" condition="!hasDraft"><widgets>
             <container-box type="warning"><box-body><label type="p" text="Start with the file."/></box-body></container-box>
         </widgets></section>
-        <section name="NotDone" condition="hasDraft &amp;&amp; !isDone"><widgets>
+        <section name="Running" condition="hasDraft &amp;&amp; isRunning"><widgets>
+            <container-box><box-header title="Importing"/><box-body>
+                <label type="p" text="${planText}"/>
+                <dynamic-container id="ContactImportProgress" transition="../../ImportProgress">
+                    <parameter name="importId" from="importId"/><parameter name="total" from="draft.rowCount"/>
+                </dynamic-container>
+                <label type="p" text="The import goes on if you leave this page; come back to the import's result here." style="m-muted"/>
+            </box-body></container-box>
+        </widgets></section>
+        <section name="NotDone" condition="hasDraft &amp;&amp; !isDone &amp;&amp; !isRunning"><widgets>
             <container-box><box-header title="Ready to import"/><box-body>
+                <section name="Stopped" condition="failedText"><widgets>
+                    <container-box type="warning"><box-body><label type="p" text="The last run stopped: ${failedText}"/></box-body></container-box>
+                </widgets></section>
                 <label type="p" text="${ready ? planText : 'Choose the options first.'}"/>
                 <label type="p" text="Each row is imported on its own: a row that fails is listed with its reason and the others are imported." style="m-muted"/>
                 <section name="RunForm" condition="ready"><widgets>

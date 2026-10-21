@@ -366,7 +366,7 @@ along with this software (see the LICENSE.md file). If not, see
                                 <div class="text-caption text-weight-medium">{{t('People and groups')}}</div>
                                 <q-list dense separator class="q-mb-md">
                                     <q-item v-for="share in detail.shareList" :key="share.shareId" class="q-px-none">
-                                        <q-item-section avatar style="min-width:36px"><m-avatar :name="share.sharedWithName || share.sharedWithUserGroupId || '?'" size="28px"></m-avatar></q-item-section>
+                                        <q-item-section avatar style="min-width:36px"><m-avatar :name="share.sharedWithName || share.sharedWithUserGroupId || '?'" :user-id="share.sharedWithUserId" size="28px"></m-avatar></q-item-section>
                                         <q-item-section><q-item-label class="ellipsis">{{share.sharedWithName || share.sharedWithUserGroupId || share.sharedWithEmail}}</q-item-label>
                                             <q-item-label caption>{{permissionLabel(share.permissionEnumId)}}<span v-if="share.expireDate"> · {{t('until')}} {{shortDate(share.expireDate)}}</span>
                                                 <span v-if="share.declinedDate"> · {{t('declined')}}</span></q-item-label></q-item-section>
@@ -525,7 +525,7 @@ along with this software (see the LICENSE.md file). If not, see
         <div class="row q-mt-sm"><q-btn unelevated no-caps color="primary" icon="sym_o_person_add" :label="t('Share')" :disable="!share.withValue" :loading="share.saving" @click="sharePeople"></q-btn></div>
         <q-list dense separator class="q-mt-sm">
             <q-item v-for="item in share.shareList" :key="item.shareId" class="q-px-none">
-                <q-item-section avatar style="min-width:36px"><m-avatar :name="item.sharedWithName || item.sharedWithUserGroupId || '?'" size="28px"></m-avatar></q-item-section>
+                <q-item-section avatar style="min-width:36px"><m-avatar :name="item.sharedWithName || item.sharedWithUserGroupId || '?'" :user-id="item.sharedWithUserId" size="28px"></m-avatar></q-item-section>
                 <q-item-section><q-item-label>{{item.sharedWithName || item.sharedWithUserGroupId || item.sharedWithEmail}}</q-item-label>
                     <q-item-label caption>{{permissionLabel(item.permissionEnumId)}}<span v-if="item.expireDate"> · {{t('until')}} {{shortDate(item.expireDate)}}</span></q-item-label></q-item-section>
                 <q-item-section side><q-btn flat dense no-caps size="sm" color="negative" :label="t('Remove')" @click="revokeShare(item)"></q-btn></q-item-section>

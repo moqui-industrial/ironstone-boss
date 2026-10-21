@@ -370,6 +370,8 @@ along with this software (see the LICENSE.md file). If not, see
                                 </container>
                             </container-dialog>
                             <link url="contactExport" link-type="hidden-form-link" text="Export vCard" icon="sym_o_contact_page" parameter-map="{partyId:recordPartyId, format:'vcard'}"/>
+                            <link url="/apps/Commons/Contacts/ContactDetail?renderMode=html-print&amp;partyId=${recordPartyId}" url-type="plain" text="Print"
+                                    icon="sym_o_print" target-window="_blank"/>
                             <container-dialog id="ContactLinkDialog" button-text="Link to a directory party" icon="sym_o_link" width="560" title="Link to a directory party"
                                     condition="access.isMine">
                                 <label type="p" text="Make this personal contact a directory contact your organization sees, or merge it into a directory party that is the same person or organization." style="m-muted"/>

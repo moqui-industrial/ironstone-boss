@@ -37,6 +37,8 @@ along with this software (see the LICENSE.md file). If not, see
         </div>
         <div class="row items-center q-mb-sm q-gutter-sm">
             <div style="width:260px;max-width:100%"><m-text-line id="boss-sched-filter" name="resourceFilter" v-model="filter" :label="t('Find a room or equipment')"></m-text-line></div>
+            <div v-if="type !== 'equipment'" style="width:150px"><m-text-line id="boss-sched-capacity" name="minCapacity" type="number" v-model="minCapacity"
+                    :label="t('Seats at least')" @update:model-value="keepCapacity"></m-text-line></div>
             <div class="text-caption m-muted">
                 <span class="rounded-borders bg-primary q-mr-xs" style="display:inline-block;width:10px;height:10px"></span>{{t('Booked')}}
                 <span class="rounded-borders m-tonal text-warning q-ml-md q-mr-xs" style="display:inline-block;width:10px;height:10px;border:1px solid currentColor"></span>{{t('Waiting for approval')}}
@@ -174,7 +176,7 @@ module.exports = {
     data() {
         return {
             resources: [], bookings: [], failed: [], loading: false, ready: false, timeZone: '', todayText: '', workStart: '09:00', workEnd: '17:00', weekStart: 0,
-            view: 'day', date: '', type: 'all', filter: '', requestSeq: 0, nowMinutes: null,
+            view: 'day', date: '', type: 'all', minCapacity: '', filter: '', requestSeq: 0, nowMinutes: null,
             drag: null, selection: null,
             booking: { open: false, key: 0, initial: {} },
             detail: { open: false, booking: null, resource: null }
@@ -195,7 +197,10 @@ module.exports = {
         viewOptions() { return [{ label: this.t('Day'), value: 'day' }, { label: this.t('Week'), value: 'week' }]; },
         shownResources() {
             const term = this.filter.trim().toLowerCase();
+            // seats at least: a room holds that many people (a room without a capacity is left out); equipment is not narrowed
+            const seats = Number(this.minCapacity) || 0;
             return this.resources.filter((resource) => (this.type === 'all' || resource.resourceType === this.type)
+                && (!seats || resource.resourceType !== 'room' || (resource.capacity != null && Number(resource.capacity) >= seats))
                 && (!term || (resource.name + ' ' + (resource.site || '') + ' ' + (resource.typeLabel || '')).toLowerCase().includes(term)));
         },
         resourceOptions() { return this.resources.map((resource) => ({ value: resource.key, label: resource.name + (resource.requiresApproval ? ' · ' + this.t('needs approval') : '') })); },
@@ -300,6 +305,7 @@ module.exports = {
             this.view = this.phone ? 'day' : (params.view === 'week' ? 'week' : 'day');
             this.date = isDay(params.date) ? String(params.date) : this.todayText;
             this.type = ['room', 'equipment'].includes(params.type) ? params.type : 'all';
+            this.minCapacity = Number(params.capacity) > 0 ? String(Math.floor(Number(params.capacity))) : '';
         },
         setState(changes) {
             const params = Object.assign({}, this.$root.currentParameters || {});
@@ -308,9 +314,12 @@ module.exports = {
             if (next.date === this.todayText) delete next.date;
             if (next.type === 'all') delete next.type;
             if (next.view === 'day') delete next.view;
+            if (!(Number(next.capacity) > 0)) delete next.capacity;
             const search = moqui.objToSearch(next);
             this.$root.setUrl(this.linkPath + (search ? '?' + search : ''));
         },
+        // the list narrows as the user types; the URL keeps the number once typing stops
+        keepCapacity() { clearTimeout(this.capacityTimer); this.capacityTimer = setTimeout(() => this.setState({ capacity: this.minCapacity }), 600); },
         goToday() { this.setState({ date: this.todayText }); },
         shift(direction) { this.setState({ date: addDays(this.date || this.todayText, (this.view === 'day' ? 1 : 7) * direction) }); },
         updateNow() {
@@ -453,6 +462,6 @@ module.exports = {
         this.nowTimer = setInterval(() => this.updateNow(), 60000);
         this.loadResources().then(() => { this.readState(); this.loadBookings(); });
     },
-    beforeUnmount() { clearInterval(this.nowTimer); this.unlisten(); }
+    beforeUnmount() { clearInterval(this.nowTimer); clearTimeout(this.capacityTimer); this.unlisten(); }
 };
 </script>

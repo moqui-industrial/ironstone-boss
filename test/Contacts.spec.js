@@ -678,3 +678,41 @@ feature("delete: john.doe's personal contact goes; a directory party with histor
         patBooks == 0
     },
 })
+
+// Print (design §18 Print documents, html-print): the record's Print is a printed contact card, the list's a contact sheet of the
+// find; another user's personal contact prints as not available.
+function printed(path, parameters) {
+    const str = ec.screen.makeTest().rootScreen(webroot).renderMode("html-print").render(path, parameters || {}, null)
+    const output = String(str.output || "")
+    ec.message.clearErrors()
+    return { status: str.status, errors: str.errorMessages.join(" | "), output }
+}
+feature("Print: Mary Doe's contact card and the contact sheet of the find; another user's personal contact is not printed", {
+    when() {
+        return { card: printed("apps/Commons/Contacts/ContactDetail", { partyId: "BOSS_DEMO_PC_MARY" }),
+            sheet: printed("apps/Commons/Contacts/List", { find: "Y", scope: "all", text: "Bob" }),
+            record: render("apps/Commons/Contacts/ContactDetail", { partyId: "BOSS_DEMO_PC_MARY" }),
+            list: render("apps/Commons/Contacts/List", { find: "Y", scope: "all" }),
+            stranger: as("joe.developer", () => printed("apps/Commons/Contacts/ContactDetail", { partyId: "BOSS_DEMO_PC_MARY" })) }
+    },
+    then({ card, sheet, record, list, stranger }) {
+        card.status == 200
+        card.errors == ""
+        card.output.includes("Mary Doe")
+        card.output.includes("mary.doe@example.com")
+        card.output.includes("12 Elm Street<br>Springfield, IL 62701")
+        card.output.includes("Prefers a call to an email.")
+        card.output.includes("My Contacts · Family")
+        // a printed card has no actions
+        !card.output.includes("contactFavorite")
+        sheet.status == 200
+        sheet.output.includes("Bob Developer")
+        sheet.output.includes("bob.developer@test.com")
+        sheet.output.includes("Ziziwork Services")
+        !sheet.output.includes("Mary Doe")
+        record.output.includes("renderMode=html-print&amp;partyId=BOSS_DEMO_PC_MARY")
+        list.output.includes("/apps/Commons/Contacts/List?renderMode=html-print&amp;find=Y&amp;scope=all")
+        !stranger.output.includes("mary.doe@example.com")
+        stranger.output.includes("This contact is not available")
+    },
+})

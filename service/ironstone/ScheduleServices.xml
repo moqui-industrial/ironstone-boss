@@ -22,12 +22,14 @@ along with this software (see the LICENSE.md file). If not, see
 <services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
 
     <service verb="get" noun="Resources">
-        <description>The bookable resources, rooms then equipment, narrowed by type (room, equipment or all) and text (name, site):
+        <description>The bookable resources, rooms then equipment, narrowed by type (room, equipment or all), text (name, site)
+            and minCapacity (rooms that hold at least that many people; a room without a capacity is left out, equipment is not narrowed):
             each {resourceType, resourceId, key (type|id), name, typeLabel, site, description, capacity, approverNames,
             requiresApproval (the user is not an approver of one with approvers), policyText, url (ResourceDetail)}.</description>
         <in-parameters>
             <parameter name="resourceType" default-value="all"/>
             <parameter name="text"/>
+            <parameter name="minCapacity" type="Integer"/>
         </in-parameters>
         <out-parameters><parameter name="resourceList" type="List"/></out-parameters>
         <actions><script><![CDATA[
@@ -63,6 +65,7 @@ along with this software (see the LICENSE.md file). If not, see
                         .condition('closedDate', 'is-null', null).orderBy('facilityName').limit(200).list()) {
                     const site = siteOf(room.parentFacilityId)
                     if (term && !(String(room.facilityName || '') + ' ' + (site || '')).toLowerCase().includes(term)) continue
+                    if (minCapacity > 0 && !(room.capacity != null && toNumber(room.capacity) >= minCapacity)) continue
                     const approvers = Array.from(new Set(Array.from(ec.entity.find('mantle.facility.FacilityParty').condition('facilityId', room.facilityId)
                             .condition('roleTypeId', 'BookingApprover').condition(cf.makeConditionDate('fromDate', 'thruDate', null)).list()).map((row) => row.partyId)))
                     resourceList.push(Object.assign({resourceType: 'room', resourceId: room.facilityId, key: 'room|' + room.facilityId,

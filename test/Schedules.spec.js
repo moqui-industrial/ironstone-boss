@@ -1,7 +1,7 @@
 // Commons Calendar/Schedules and Schedules/ResourceDetail (screen/Commons/Calendar/Schedules.xml and Schedules.qvue,
 // ResourceDetail.xml, service/ironstone/ScheduleServices.xml; impl-drawers-commons.md M7, design-drawers-commons.md §7): the
 // meeting rooms and equipment john.doe may book, on the calendar demo (data/BossCalendarDemoData.xml, loaded again here). The
-// resources with their policy (Bob Developer approves the Board room and the video kit) and the type and text filters, not the
+// resources with their policy (Bob Developer approves the Board room and the video kit) and the type, text and seats filters, not the
 // manufacturing equipment; the bookings of a week with their status; a booking made at once, one waiting for approval, a clash
 // refused with no event left behind, a booking cancelled with the event made for it; ResourceDetail with its policy, the user's
 // bookings and Book. Joe Developer may not cancel john.doe's booking.
@@ -50,7 +50,7 @@ spec({
     cleanup() { login("john.doe") },
 })
 
-feature("the bookable rooms and equipment with their policies; the type and text filters; no manufacturing equipment", {
+feature("the bookable rooms and equipment with their policies; the type, text and seats filters; no manufacturing equipment", {
     when() {
         // a room or piece of equipment is listed only when bookable is Y; type alone does not make it bookable, and a closed room stays out
         sys(() => {
@@ -68,11 +68,13 @@ feature("the bookable rooms and equipment with their policies; the type and text
         const everything = get("resources")
         const rooms = get("resources", { type: "room" })
         const kit = get("resources", { text: "video" })
+        // seats at least 10: the Board room (16) and not Maple (8) or a room without a capacity; equipment is not narrowed
+        const seats = get("resources", { minCapacity: "10" })
         const list = everything.json.resourceList || []
-        return { everything, list, rooms: rooms.json.resourceList || [], kit: kit.json.resourceList || [],
+        return { everything, list, rooms: rooms.json.resourceList || [], kit: kit.json.resourceList || [], seats: seats.json.resourceList || [],
             board: list.find((item) => item.key === "room|BOSS_DEMO_ROOM_BOARD") || {}, maple: list.find((item) => item.key === "room|BOSS_DEMO_ROOM_MAPLE") || {} }
     },
-    then({ everything, list, rooms, kit, board, maple }) {
+    then({ everything, list, rooms, kit, seats, board, maple }) {
         everything.status == 200
         everything.json.timeZone == "US/Central"
         list.some((item) => item.key === "equipment|BOSS_DEMO_PROJECTOR")
@@ -89,6 +91,8 @@ feature("the bookable rooms and equipment with their policies; the type and text
         rooms.every((item) => item.resourceType === "room")
         kit.map((item) => item.resourceId) == ["BOSS_DEMO_VC_KIT"]
         Number(kit[0].capacity) == 1
+        seats.filter((item) => item.resourceType === "room").map((item) => item.resourceId) == ["BOSS_DEMO_ROOM_BOARD"]
+        seats.some((item) => item.key === "equipment|BOSS_DEMO_PROJECTOR")
     },
 })
 

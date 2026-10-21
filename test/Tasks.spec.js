@@ -446,6 +446,8 @@ feature("TaskDetail renders the task with its stage chips, the next status as th
         overview.errors == ""
         !overview.broken
         overview.output.includes("Plan the office move")
+        // an assignee who is a user has an avatar with the user id (the user's photo)
+        /<m-avatar name="[^"]*" user-id="EX_JOHN_DOE"/.test(overview.output)
         stagesOf(overview.output) == { WeInPlanning: "done grey-7", WeInProgress: "current primary", WeComplete: "todo positive" }
         // the next status, Complete, is the primary action; Hold and Cancel are the others, Cancel in the danger color
         transitionsOf(overview.output).Complete == "next"

@@ -1,0 +1,85 @@
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The progress of one contact import (ImportProgress.xml): its query (mScreen) names the import (importId) and the file's rows
+    (total). It listens on the topic contactImportProgress (notificationClient.registerListener, which returns an unregister
+    function, called when it leaves) for {progressKey, done, total, createdCount, updatedCount, skippedCount, failedCount,
+    finished} of this import, shows "Imported {done} of {total}" with a bar and the counts, and when the import finishes reloads
+    the page's screens so the Result step shows the outcome. Brand color names and Quasar classes only (style-guide §4.8, §5). -->
+<template><div class="m-contact-import-progress q-my-sm" role="status" aria-live="polite">
+    <div class="row items-center no-wrap q-gutter-x-sm">
+        <q-spinner v-if="!finished" size="18px" color="primary"></q-spinner>
+        <q-icon v-else name="sym_o_check_circle" color="positive" size="20px"></q-icon>
+        <div class="col text-body2">{{text}}</div>
+        <q-btn flat dense no-caps color="primary" icon="sym_o_refresh" :label="t('Refresh')" @click="refresh"></q-btn>
+    </div>
+    <q-linear-progress :value="ratio" :indeterminate="ratio == null" rounded size="10px" color="primary" class="q-mt-sm"></q-linear-progress>
+    <div v-if="counts" class="text-caption m-muted q-mt-xs">{{counts}}</div>
+</div></template>
+
+<script>
+const t = (text) => (moqui.l10n && moqui.l10n.localize ? moqui.l10n.localize(text) : text);
+const fill = (text, values) => String(text).replace(/\{(\w+)\}/g, (match, key) => (values[key] == null ? '' : String(values[key])));
+const count = (value) => { const n = Number(value) || 0; try { return n.toLocaleString(); } catch (err) { return String(n); } };
+
+module.exports = {
+    name: 'BossContactImportProgress',
+    inject: { mScreen: { default: null } },
+    data() { return { message: null, unregister: null, reloadTimer: null }; },
+    computed: {
+        query() { return this.mScreen ? this.mScreen.parameters : {}; },
+        importId() { return this.query.importId || null; },
+        total() { return Number(this.message ? this.message.total : this.query.total) || 0; },
+        done() { return this.message ? Number(this.message.done) || 0 : 0; },
+        finished() { return !!(this.message && (this.message.finished === true || this.message.finished === 'true')); },
+        ratio() { return this.message && this.total > 0 ? Math.max(0, Math.min(1, this.done / this.total)) : null; },
+        text() {
+            if (this.finished) return t('Imported; showing the result');
+            if (!this.message) return this.total ? fill(t('Importing {total} rows'), { total: count(this.total) }) : t('Importing');
+            return fill(t('Imported {done} of {total}'), { done: count(this.done), total: count(this.total) });
+        },
+        counts() {
+            const m = this.message;
+            if (!m) return null;
+            return fill(t('{created} created · {updated} updated · {skipped} skipped · {failed} failed'), { created: count(m.createdCount),
+                updated: count(m.updatedCount), skipped: count(m.skippedCount), failed: count(m.failedCount) });
+        }
+    },
+    methods: {
+        t,
+        receive(jsonObj) {
+            let message = jsonObj ? jsonObj.message : null;
+            if (typeof message === 'string') { try { message = JSON.parse(message); } catch (err) { message = null; } }
+            if (!message || !this.importId || message.progressKey !== this.importId) return;
+            this.message = message;
+            if (this.finished && !this.reloadTimer) this.reloadTimer = setTimeout(() => this.refresh(), 800);
+        },
+        // the Result step read again: the outcome once the import is done, else where it is
+        refresh() {
+            if (this.$root.reloadSubscreens) this.$root.reloadSubscreens();
+        }
+    },
+    mounted() {
+        const client = this.$root.notificationClient || (moqui.webrootVue ? moqui.webrootVue.notificationClient : null);
+        if (!client || !client.registerListener) return;
+        const onProgress = (jsonObj) => this.receive(jsonObj);
+        const stop = client.registerListener('contactImportProgress', onProgress);
+        this.unregister = typeof stop === 'function' ? stop : () => { if (client.unregisterListener) client.unregisterListener('contactImportProgress', onProgress); };
+    },
+    beforeUnmount() {
+        clearTimeout(this.reloadTimer);
+        if (this.unregister) this.unregister();
+        this.unregister = null;
+    }
+};
+</script>

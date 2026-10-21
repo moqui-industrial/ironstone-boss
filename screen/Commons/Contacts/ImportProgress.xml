@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- How far a contact import that runs as a job is (design-drawers-commons.md §6 ImportResult): ImportProgress.qvue next to
+    this file, which the import's Result step loads in a dynamic-container with the importId and the file's row count while the
+    draft is running. It listens on the notification socket for the topic contactImportProgress, which
+    mantle.party.ContactImportServices.import#Contacts sends the user who runs the import (every 25 rows and at the end), and
+    shows "Imported 250 of 2,000" with the counts so far; at the end it shows the Result step again. The messages carry counts
+    only, and only to that user; this screen reads nothing itself. No socket: the step says the import goes on, and Refresh
+    shows where it is. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Import progress" default-menu-include="false" render-modes="vue,qvue" server-static="vue,qvue">
+    <widgets>
+        <render-mode><text type="qvue" location="component://ironstone-boss/screen/Commons/Contacts/ImportProgress.qvue" template="false"/></render-mode>
+    </widgets>
+</screen>

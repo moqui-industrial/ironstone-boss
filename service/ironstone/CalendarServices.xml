@@ -539,9 +539,9 @@ along with this software (see the LICENSE.md file). If not, see
             const partyIds = Array.from(new Set(parties.map((party) => party.partyId).concat(row.ownerPartyId ? [row.ownerPartyId] : [])))
             const details = new Map()
             if (partyIds.length) for (const detail of ec.entity.find('mantle.party.PartyDetail').condition(cf.makeCondition('partyId', 'in', partyIds)).list()) details.set(detail.partyId, detail)
-            const userParties = new Set()
+            const userParties = new Map()
             if (partyIds.length) for (const account of ec.entity.find('moqui.security.UserAccount').condition(cf.makeCondition('partyId', 'in', partyIds))
-                    .selectField('partyId').disableAuthz().list()) userParties.add(account.partyId)
+                    .selectField('partyId,userId').disableAuthz().list()) userParties.set(account.partyId, account.userId)
             const shownName = (partyId) => {
                 const detail = details.get(partyId)
                 if (!detail) return partyId
@@ -560,7 +560,7 @@ along with this software (see the LICENSE.md file). If not, see
                 attendees.push({partyId: party.partyId, name: shownName(party.partyId), roleTypeId: party.roleTypeId, fromDate: party.fromDate,
                     statusId: party.statusId || null, statusLabel: L(info[0]), statusColor: info[1], isMe: party.partyId === myPartyId,
                     isOrganizer: party.partyId === row.ownerPartyId, optional: party.expectationEnumId === 'WepeInvRequested',
-                    hasUser: userParties.has(party.partyId), invited: party.invitationSentDate != null,
+                    hasUser: userParties.has(party.partyId), userId: userParties.get(party.partyId) || null, invited: party.invitationSentDate != null,
                     invitedText: party.invitationSentDate != null ? ec.l10n.format(party.invitationSentDate, 'MMM d, h:mm a') : null, comments: party.comments || null})
             }
             attendees.sort((a, b) => (b.isOrganizer ? 1 : 0) - (a.isOrganizer ? 1 : 0) || String(a.name).localeCompare(String(b.name)))

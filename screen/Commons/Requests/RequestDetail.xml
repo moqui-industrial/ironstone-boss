@@ -151,11 +151,12 @@ along with this software (see the LICENSE.md file). If not, see
             captionText = [L('Request') + ' ' + requestId, request.typeLabel, request.filedByName ? L('raised by') + ' ' + request.filedByName : null,
                 request.requestDateText].filter((part) => part).join(' · ')
             const fact = (label, value, cls) => '<div class="col-auto"><div class="text-caption m-muted">' + enc(L(label)) + '</div><div class="text-body2' + (cls ? ' ' + cls : '') + '">' + value + '</div></div>'
-            const person = (name) => name ? '<span class="row inline items-center no-wrap"><m-avatar name="' + enc(name) + '" size="22px" class="q-mr-xs"></m-avatar>' + enc(name) + '</span>' : '—'
+            const person = (name, userId) => name ? '<span class="row inline items-center no-wrap"><m-avatar name="' + enc(name) + '"'
+                    + (userId ? ' user-id="' + enc(userId) + '"' : '') + ' size="22px" class="q-mr-xs"></m-avatar>' + enc(name) + '</span>' : '—'
             factsHtml = '<div class="row q-col-gutter-lg q-mb-sm m-request-facts">'
                 + fact('Priority', enc(request.priorityText || '—'), '')
-                + fact('Customer', person(request.customerName), '')
-                + fact('Assigned', person(request.assigneeName), '')
+                + fact('Customer', person(request.customerName, request.customerUserId), '')
+                + fact('Assigned', person(request.assigneeName, request.assigneeUserId), '')
                 + (request.responseRequiredText ? fact('Response wanted by', enc(request.responseRequiredText), '') : '')
                 + fact('Updated', enc(request.updatedText || '—'), '')
                 + '</div>'

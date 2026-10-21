@@ -187,7 +187,7 @@ along with this software (see the LICENSE.md file). If not, see
             captionText = [L('Task') + ' ' + workEffortId, task.purposeLabel, task.projectName ? L('Project') + ': ' + task.projectName : null].filter((part) => part).join(' · ')
             // the key facts: due, priority, assignees
             const fact = (label, value, cls) => '<div class="col-auto"><div class="text-caption m-muted">' + enc(L(label)) + '</div><div class="text-body2' + (cls ? ' ' + cls : '') + '">' + value + '</div></div>'
-            const assignees = (task.assigneeList || []).map((party) => '<span class="row inline items-center no-wrap q-mr-sm"><m-avatar name="' + enc(party.name) + '" size="22px" class="q-mr-xs"></m-avatar>'
+            const assignees = (task.assigneeList || []).map((party) => '<span class="row inline items-center no-wrap q-mr-sm"><m-avatar name="' + enc(party.name) + '"' + (party.userId ? ' user-id="' + enc(party.userId) + '"' : '') + ' size="22px" class="q-mr-xs"></m-avatar>'
                     + enc(party.name) + '</span>').join('')
             factsHtml = '<div class="row q-col-gutter-lg q-mb-sm m-task-facts">'
                 + fact('Due', task.dueText ? enc(task.dueText) + (task.overdue ? ' · ' + enc(L('overdue')) : '') : enc(L('No due date')), task.overdue ? 'text-warning text-weight-medium' : '')

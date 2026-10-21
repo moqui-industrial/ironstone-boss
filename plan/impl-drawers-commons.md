@@ -416,8 +416,9 @@ Built Oct 19 (M5 remainder and BOSS screens):
   - The iMIP card (Accept, Tentative, Decline) is built in the reading pane.
   - Internal messages have no labels or folders. Delete on an internal thread archives it.
   - "All in this view" acts on every conversation of the view, with no count. Sync shows a chip, not a progress count.
-  - Not built: the quota line, phone swipe actions, contact groups that expand in the recipients, the Assist
-    actions and Save to Files (M8).
+  - Not built then, since built (Oct 19, §8): the phone swipe actions, contact groups that expand in the recipients,
+    Save to Files, and the bytes an account's files use in place of a quota line (mail has no quota). Still not built:
+    the Assist actions.
   - `save#Draft` takes as attachments only the draft's own files and files under the account's mail folder;
     an internal caller with authorization disabled may name any.
 
@@ -487,7 +488,8 @@ Built Oct 19 (BOSS screens):
     has services for it. Delete cancels an event (`WeCancelled`).
   - Saving the working hours in Preferences writes a weekly `WetAvailable` work effort, so `get#FreeBusy` and Find a
     time keep to them.
-  - Not built: publish links, the CalDAV address and a room capacity filter.
+  - Not built then, since built (§8): publish links (`/cal/<token>`) and the room capacity filter (Oct 21). Still not
+    built: the CalDAV address.
 
 ### M8 — Files and drives (mr-moqui, BOSS)
 
@@ -645,35 +647,39 @@ plans/Remaining-Work.md.
 **Decided**
 - view-calendar `range-find` stays opt-in (Tasks and the gallery Views screen set it). A calendar view paints the list's current page. With `range-find="true"`, and only while that view is showing, the client GETs `{screen}/actions/{form}` once (twice when the calendar has an end field) with `{field}_from`, `{field}_thru` and `pageNoLimit=true` for the dates on screen. Making that the default would fire the request for every form-list that has a view-calendar, including a list whose actions ignore the range or honor `pageNoLimit` without it. It does not add a request to Calendar.qvue or to the table and board.
 
+**Built after the save point** (Oct 19–21; commits are named in each repo's log)
+- Framework: the header avatar through `STRT_AVATAR_URL` (BOSS seeds it); `clone#WikiPage` with a new name, `withChildren`,
+  attachments at the new path and `copyAliases`; `send#EmailTemplate` `extraHeaders` and MailCapture headers (so the
+  List-Unsubscribe headers go out); a `section-include` inside an included section; the app-title menu and the breadcrumb
+  sibling menus. Oct 21: the search feed's pending rows are claimed by deleting them before delivery, and a worker given
+  ids also claims the record's other pending rows, so two deliveries of one record never finish out of order (the
+  MailClient search flake: 2 in 30 runs before, 0 in 30 after).
+- Mantle: RequestRecord (`link#RequestRecord`); `bookable` on Facility and Asset and Facility `capacity`; internal labels
+  (`set#InternalMessageLabels`); `import#Contacts` sends progress (`progressUserId`, topic `contactImportProgress`).
+- BOSS: everything in the Mail list of the save point (SyncProgress unregistering, MailDefaults, internal labels, the
+  gateway-delivered hosted and shared accounts, bytes used, contact groups on send, Save to Files); `/cal/<token>`. Oct 21:
+  Schedules "Seats at least" (`get#Resources minCapacity`); a contact import of more than 100 rows runs as a job with live
+  progress (`run#ImportNow`, `Contacts/ImportProgress`), a stopped one says why and runs again; Print of a contact (a card)
+  and of the Contacts find (a contact sheet) in `html-print`; avatars with the user's photo wherever a person is a user
+  (attendees, assignees, requesters, shares, read receipts, Compare); `moqui lint --screens` has no BOSS flags.
+
 **Left to build**
 - Framework:
-  - `m-avatar` given only a user id has no way to find a face image (the header avatar shows initials): a hook such as
-    a theme value with `${userId}` or a shell data URL.
-  - `WikiServices.clone#WikiPage`: no new name or children option, attachments copied to the source path, aliases
-    copied (BOSS duplicates pages with its own service).
-  - A rare flaky spec: MailClient's search feature (about 1 run in 15) — the search index's pending queue processed by
-    two workers at once.
-  - Not run against real Google and Microsoft OAuth clients yet; access tokens are per node in a cluster.
-  - SMTP listener: no TLS to the gateway (loopback or a private network), no LMTP mode, no DSN.
-  - Files: PDF previews, extracted text for search, office previews. Chat: polls, calls, link previews, a room's
-    files and threads lists, forward, offline sends.
+  - Chat: polls, link previews, a room's files and threads lists, forward, offline sends (designed Oct 21, a session of its
+    own); calls are later.
+  - Files: PDF previews through the Chromium page (pdf.js), XLSX previews (calamine), extracted text for search (designed
+    Oct 21, a session of its own); other office previews wait.
+  - SMTP listener: STARTTLS to the gateway, LMTP mode, CHUNKING, DSN (designed Oct 21, a session of its own).
+  - OAuth: access tokens are per node in a cluster (a stored, encrypted token row with the EmailServer row lock is
+    designed, a session of its own); not run against real Google and Microsoft clients yet.
+  - `clone#WikiPage` copies no history, takes the latest text rather than the published version, and finds children
+    only from WikiPage rows (BOSS duplicates pages with its own service).
   - Older open items still listed in Remaining-Work.md.
-- Mantle: a generic request-to-record link (only RequestWorkEffort exists); a bookable flag and capacity on Facility
-  and Asset. A published calendar's public page is `/cal/<token>` (`check#PublishedCalendarToken`,
-  `screen/PublishedCalendar`); no CalDAV. Consent per organization was decided against (§16, §19).
 - BOSS:
-  - Mail: SyncProgress unregisters `emailSyncProgress` when its last widget unmounts. MailDefaults stores the
-    conversation view, the default account, where the signature goes, and the two phone swipe actions. Internal
-    labels are an EmailLabel of the user's Internal account, kept per message as CommunicationEventPartyLabel
-    (`set#InternalMessageLabels`); the Inbox shows them on the thread, in the label dialog and on the Internal
-    rail. Internal messages have no folders. A hosted or shared account can be set up for the SMTP listener with no
-    mail-server password (the gateway delivers it; a plus tag still arrives). Each mail account's rail and account
-    page show the bytes its files use; mail has no quota of its own. A contact group in the recipients expands to
-    its members on send. Save to Files copies a message's attachments into a drive folder, and the message keeps
-    its own copies.
-  - Contacts: import as a job with progress, print, calls.
+  - The server-static pass: 147 BOSS screens are eligible ("static half only" in `moqui lint --screens --qvt-static`),
+    34 have violations and 32 stay server merges. Marking one makes its specs fail, since they check data in the merged
+    qvt output (tried on Settings/Notifications, Oct 21), so the pass needs the specs to read the screens' `/actions` data.
+  - Contacts: calls (§14, later).
   - Calls (§14) and the Assist drawer (Phase 13) are later, as §6 lists.
-  - The server-static pass: `moqui lint --screens --qvt-static` over BOSS and marking the screens that fit.
-  - Old ported screens outside Commons and Comms are clear of `moqui lint --screens` flags: report names use the
-    entity's pretty name, the sales margin percent rounds with `'HALF_EVEN'`, and the summary's multi-select checks
-    test length so an empty list is skipped. Commons/Search and Commons/Tasks/List still have flags.
+  - The TUI texts for the custom screens (style-guide §8.1): the lint's TUI worklist lists 250 browser-only parts in 68
+    screens.

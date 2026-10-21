@@ -1355,7 +1355,46 @@ along with this software (see the LICENSE.md file). If not, see
         <description>The import's last step: mantle.party.ContactImportServices.import#Contacts of the draft's file with its mapping
             and options (each row in its own transaction: a row that fails is reported and the rest are imported), the result
             kept in the draft (counts, the failures with their reasons and values, the rows) for the result view and the
-            failures download. A directory import is for contact admins.</description>
+            failures download. A directory import is for contact admins. A file of up to 100 rows is imported in the request;
+            a larger one (or background true) runs on as a job (run#ImportNow): the draft is running, the user gets the
+            progress on the topic contactImportProgress (progressKey the importId), and the draft ends done or failed. An
+            import running or done is not started again.</description>
+        <in-parameters>
+            <parameter name="importId" required="true"/>
+            <parameter name="background" type="Boolean"><description>Run as a job; by default, a file of more than 100 rows</description></parameter>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="result" type="Map"/>
+            <parameter name="running" type="Boolean"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            running = false
+            const current = ec.service.sync().name('ironstone.ContactServices.get#ImportDraft').parameters({importId: importId}).call()
+            if (!current?.found || !current.fileLocation) { ec.message.addError(L('This import is not available; start again from the file')); return }
+            const draft = current.draft
+            if (draft.status === 'done') { result = draft.result; return }
+            if (draft.status === 'running') { running = true; return }
+            const options = draft.options || {}
+            if (options.asPersonal === false && !(ec.user.hasPermission('CONTACT_ADMIN') || ec.user.isInGroup('BOSS_CONTACT_ADMIN') || ec.user.isInGroup('ADMIN'))) {
+                ec.message.addError(L('Only contact admins import into the directory')); return }
+            const inBackground = background != null ? !!background : Number(draft.rowCount || 0) > 100
+            if (!inBackground) {
+                result = ec.service.sync().name('ironstone.ContactServices.run#ImportNow').parameters({importId: importId}).call()?.result || null
+                return
+            }
+            ec.service.sync().name('ironstone.ContactServices.store#ImportDraft').parameters({importId: importId, fields: {status: 'running',
+                error: null, started: Number(String(ec.user.nowTimestamp))}}).call()
+            if (ec.message.hasError()) return
+            ec.service.async().name('ironstone.ContactServices.run#ImportNow').parameters({importId: importId}).call()
+            running = true
+        ]]></script></actions>
+    </service>
+    <service verb="run" noun="ImportNow" allow-remote="false">
+        <description>Imports the draft's file now (for run#Import, in the request or as its job, as the user who started it):
+            mantle.party.ContactImportServices.import#Contacts with the progress going to the user, then the draft done with
+            its result. An import that stops (an error before the rows, say) leaves the draft failed with the error, never
+            running, so it can be run again.</description>
         <in-parameters><parameter name="importId" required="true"/></in-parameters>
         <out-parameters><parameter name="result" type="Map"/></out-parameters>
         <actions><script><![CDATA[
@@ -1366,20 +1405,28 @@ along with this software (see the LICENSE.md file). If not, see
             if (draft.status === 'done') { result = draft.result; return }
             const options = draft.options || {}
             const asPersonal = options.asPersonal !== false
-            if (!asPersonal && !(ec.user.hasPermission('CONTACT_ADMIN') || ec.user.isInGroup('BOSS_CONTACT_ADMIN') || ec.user.isInGroup('ADMIN'))) {
-                ec.message.addError(L('Only contact admins import into the directory')); return }
-            const out = ec.service.sync().name('mantle.party.ContactImportServices.import#Contacts').parameters({fileLocation: current.fileLocation,
-                fileName: draft.fileExt === 'vcf' ? 'source.vcf' : 'source.csv', presetId: draft.fileKind === 'csv' ? draft.presetId : null,
-                columnMapping: draft.columnMapping || null, duplicatePolicy: options.duplicatePolicy || 'skip', asPersonal: asPersonal,
-                roleTypeId: asPersonal ? null : (options.roleTypeId || 'Contact'), contactBookId: options.contactBookId || null,
-                contactBookGroupIdList: options.contactBookGroupIdList || [], groupNames: options.groupNames || null,
-                useFileGroups: options.useFileGroups !== false}).call()
-            if (ec.message.hasError()) return
+            const fail = (error) => {
+                ec.logger.warn(`Contact import ${importId} of ${ec.user.userId} stopped: ${error}`)
+                ec.service.sync().name('ironstone.ContactServices.store#ImportDraft').parameters({importId: importId, fields: {status: 'failed',
+                    error: error, finished: Number(String(ec.user.nowTimestamp))}}).ignorePreviousError(true).requireNewTransaction(true).call()
+            }
+            let out = null
+            try {
+                out = ec.service.sync().name('mantle.party.ContactImportServices.import#Contacts').parameters({fileLocation: current.fileLocation,
+                    fileName: draft.fileExt === 'vcf' ? 'source.vcf' : 'source.csv', presetId: draft.fileKind === 'csv' ? draft.presetId : null,
+                    columnMapping: draft.columnMapping || null, duplicatePolicy: options.duplicatePolicy || 'skip', asPersonal: asPersonal,
+                    roleTypeId: asPersonal ? null : (options.roleTypeId || 'Contact'), contactBookId: options.contactBookId || null,
+                    contactBookGroupIdList: options.contactBookGroupIdList || [], groupNames: options.groupNames || null,
+                    useFileGroups: options.useFileGroups !== false, progressUserId: ec.user.userId, progressKey: importId}).call()
+            } catch (err) {
+                fail(String(err && err.message ? err.message : err)); throw err
+            }
+            if (ec.message.hasError()) { fail(ec.message.getErrorsString()); return }
             result = {contactBookId: out.contactBookId || null, rowCount: out.rowCount || 0, createdCount: out.createdCount || 0, updatedCount: out.updatedCount || 0,
                 skippedCount: out.skippedCount || 0, failedCount: out.failedCount || 0, failureList: Array.from(out.failureList || []),
                 resultList: Array.from(out.resultList || []).slice(0, 1000)}
             ec.service.sync().name('ironstone.ContactServices.store#ImportDraft').parameters({importId: importId, fields: {status: 'done', result: result,
-                finished: Number(String(ec.user.nowTimestamp))}}).call()
+                error: null, finished: Number(String(ec.user.nowTimestamp))}}).call()
         ]]></script></actions>
     </service>
 </services>

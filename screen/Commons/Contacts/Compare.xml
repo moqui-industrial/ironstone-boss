@@ -72,7 +72,12 @@ along with this software (see the LICENSE.md file). If not, see
             reason = pair.reason || ''
             isContactAdmin = ec.user.hasPermission('CONTACT_ADMIN') || ec.user.isInGroup('BOSS_CONTACT_ADMIN') || ec.user.isInGroup('ADMIN')
             canDismiss = returnTo === 'duplicates' && isContactAdmin && !left.access.isPersonal && !right.access.isPersonal
-            const card = (side) => '<div class="row no-wrap items-center q-gutter-x-sm"><m-avatar name="' + enc(side.name) + '" size="40px"></m-avatar><div>'
+            // a contact that is also a user shows the user's photo
+            const userIds = {}
+            for (const account of ec.entity.find('moqui.security.UserAccount').condition('partyId', 'in', [left.partyId, right.partyId].filter((id) => id))
+                    .selectField('partyId,userId').disableAuthz().list()) userIds[account.partyId] = account.userId
+            const card = (side) => '<div class="row no-wrap items-center q-gutter-x-sm"><m-avatar name="' + enc(side.name) + '"'
+                    + (userIds[side.partyId] ? ' user-id="' + enc(userIds[side.partyId]) + '"' : '') + ' size="40px"></m-avatar><div>'
                     + '<div class="text-subtitle1 text-weight-medium">' + enc(side.name) + '</div><div class="text-caption m-muted">'
                     + enc([side.kindLabel, side.pseudoId, side.access.isPersonal ? L('personal') : L('directory')].join(' · ')) + '</div></div></div>'
             leftCardHtml = card(left)

@@ -16,7 +16,8 @@ along with this software (see the LICENSE.md file). If not, see
     Detail): the link of a contact from the palette's People group, Chatter author links, record cards and the other apps,
     and a phone's full screen. The record is template/ContactRecord.xml's ContactRecordSection, the same one the Contacts split
     shows in its main pane, with Chatter beside the overview from 1440 px. The party is found under the user's filters, so
-    another user's personal contact is "not available". -->
+    another user's personal contact is "not available". With renderMode=html-print (the record's Print) it is a printed
+    contact card: the name, organization, contact info, addresses, birthday and about, books and groups, and the notes. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Contact" default-menu-include="false">
 
@@ -50,11 +51,40 @@ along with this software (see the LICENSE.md file). If not, see
         <set field="recordPartyId" from="partyId"/>
         <set field="inSplit" from="false"/>
         <set field="recordBase" value="/qapps/Commons/Contacts/ContactDetail"/>
+        <set field="isPrint" from="sri.getRenderMode() == 'html-print'"/>
+        <if condition="isPrint"><script><![CDATA[
+            // the printed card (design §18 Print documents), every value escaped
+            const L = (text) => ec.l10n.localize(text)
+            const enc = (text) => String(text == null ? '' : text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+            const rec = ec.service.sync().name('ironstone.ContactServices.get#ContactRecord').parameters({partyId: partyId}).call() || {}
+            if (!rec.found) { printHtml = '<p>' + enc(L('This contact is not available')) + '</p>'; return }
+            const record = rec.record
+            const row = (label, value) => value ? '<tr><td class="field-title">' + enc(L(label)) + '</td><td class="field-value">' + value + '</td></tr>' : ''
+            const lines = (text) => enc(text).replace(/\n/g, '<br>')
+            const current = (list) => Array.from(list || []).filter((item) => !item.expired)
+            const mechs = current(rec.contactMechList).map((mech) => enc(mech.value) + ' <span style="color:#555">(' + enc([mech.typeLabel, mech.purposeText]
+                    .filter((part) => part).join(' · ')) + ')</span>').join('<br>')
+            const addresses = current(rec.addressList).map((address) => lines(address.text) + (address.purposeText ? ' <span style="color:#555">('
+                    + enc(address.purposeText) + ')</span>' : '')).join('<br><br>')
+            const organizations = Array.from(rec.organizationList || []).map((org) => enc([org.organizationName, org.jobTitle]
+                    .filter((part) => part).join(' · '))).join('<br>')
+            const books = Array.from(rec.bookList || []).map((book) => enc(book.contactBookName + (book.memberGroupText ? ' · ' + book.memberGroupText : ''))).join('<br>')
+            const notes = Array.from(rec.noteList || []).map((note) => '<p>' + lines(note.noteText) + '<br><span style="color:#555">'
+                    + enc([note.userName, note.noteDateText].filter((part) => part).join(' · ')) + '</span></p>').join('')
+            printHtml = '<div class="box-header">' + enc(record.name) + '</div><p style="color:#555">' + enc([record.kindLabel, record.pseudoId].filter((part) => part).join(' · '))
+                + '</p><table class="field">' + row('Organization', organizations) + row('Contact info', mechs) + row('Addresses', addresses)
+                + row('Birthday', enc(record.birthDate)) + row('About', record.comments ? lines(record.comments) : '') + row('Books and groups', books)
+                + '</table>' + (notes ? '<div class="group-title" style="margin-top:8pt">' + enc(L('Notes')) + '</div>' + notes : '')
+        ]]></script></if>
     </actions>
     <widgets>
-        <container style="q-mb-xs">
-            <link url="//Commons/Contacts" link-type="anchor" text="Contacts" icon="arrow_back" parameter-map="{partyId:partyId}"/>
-        </container>
-        <section-include name="ContactRecordSection" location="component://ironstone-boss/template/ContactRecord.xml"/>
+        <section name="ContactPrint" condition="isPrint"><widgets>
+            <render-mode><text type="html-print"><![CDATA[${printHtml}]]></text></render-mode>
+        </widgets><fail-widgets>
+            <container style="q-mb-xs">
+                <link url="//Commons/Contacts" link-type="anchor" text="Contacts" icon="arrow_back" parameter-map="{partyId:partyId}"/>
+            </container>
+            <section-include name="ContactRecordSection" location="component://ironstone-boss/template/ContactRecord.xml"/>
+        </fail-widgets></section>
     </widgets>
 </screen>

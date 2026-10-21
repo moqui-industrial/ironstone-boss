@@ -281,6 +281,88 @@ feature("the generic preset maps by header words, and the ISO-8859-1 choice keep
     },
 })
 
+// A file of more than 100 rows (or background) is imported as a job: runImport answers at once with the draft running, the
+// user hears how far it is on the topic contactImportProgress (every 25 rows and at the end; the notification capture listens
+// as the server's socket does), and the draft ends done. The Result step shows the progress while it runs.
+feature("a large import runs as a job: the draft runs, progress every 25 rows and at the end, then the result", {
+    when() {
+        const lines = ["First Name,Last Name,E-mail Address"]
+        for (let n = 1; n <= 30; n++) lines.push(`Batch${n},Jobspec,batch${n}@jobs.example`)
+        post("Contacts/Import/Source/saveSource", { contactFile: uploadedFile("batch.csv", lines.join("\r\n") + "\r\n", "text/csv"), presetId: "outlook", characterSet: "UTF-8" })
+        const id = newestImport("EX_JOHN_DOE")
+        post("Contacts/Import/Mapping/saveMapping", mappingFields(id))
+        post("Contacts/Import/Options/saveOptions", { importId: id, asPersonal: "Y", duplicatePolicy: "skip" })
+        const capture = ec.factory.getTool("NotificationCapture")
+        capture.enable()
+        capture.clear()
+        try {
+            const ran = post("Contacts/Import/Result/runImport", { importId: id, background: "Y" })
+            ec.factory.waitWorkerPoolEmpty(600)
+            const messages = capture.getMessages("contactImportProgress").filter((row) => row.message && row.message.progressKey === id)
+            return { ran, messages, draft: draftOf("EX_JOHN_DOE", id), again: sys(() => call("ironstone.ContactServices.run#Import", { importId: id, background: true })),
+                people: sys(() => ec.entity.find("mantle.party.PartyDetail").condition("lastName", "Jobspec").count()) }
+        } finally {
+            capture.disable()
+            capture.clear()
+        }
+    },
+    then({ ran, messages, draft, again, people }) {
+        ran.errors == ""
+        draft.status == "done"
+        draft.result.createdCount == 30
+        draft.error == null
+        people == 30
+        messages.length == 2
+        messages[0].userIds == ["EX_JOHN_DOE"]
+        messages[0].message.done == 25
+        messages[0].message.total == 30
+        !messages[0].message.finished
+        messages[1].message.finished == true
+        messages[1].message.createdCount == 30
+        // run again once done: the result, not a second import
+        !again.running
+        again.result.createdCount == 30
+    },
+})
+
+feature("while an import runs the step shows its progress; one that stopped says why and offers to run it again", {
+    when() {
+        const text = "First Name,Last Name,E-mail Address\r\nStop,Jobspec,stop@jobs.example\r\n"
+        post("Contacts/Import/Source/saveSource", { contactFile: uploadedFile("stop.csv", text, "text/csv"), presetId: "outlook", characterSet: "UTF-8" })
+        const id = newestImport("EX_JOHN_DOE")
+        post("Contacts/Import/Mapping/saveMapping", mappingFields(id))
+        post("Contacts/Import/Options/saveOptions", { importId: id, asPersonal: "Y", duplicatePolicy: "skip" })
+        sys(() => call("ironstone.ContactServices.store#ImportDraft", { importId: id, fields: { status: "running" } }))
+        const running = render("apps/Commons/Contacts/Import/Result", { importId: id })
+        // the progress screen is a qvue component, loaded by the step's dynamic-container
+        const progress = ec.screen.makeTest().rootScreen(webroot).renderMode("qvue").render("apps/Commons/Contacts/ImportProgress", { importId: id, total: "1" }, null)
+        const notAgain = sys(() => call("ironstone.ContactServices.run#Import", { importId: id }))
+        // the source file gone: the run stops before the rows, and the draft says why rather than running
+        sys(() => call("ironstone.ContactServices.store#ImportDraft", { importId: id, fields: { status: "options" } }))
+        sys(() => ec.resource.getLocationReference(`dbresource://ironstone/ContactImport/EX_JOHN_DOE/${id}/source.csv`).delete())
+        let errors = ""
+        try { sys(() => call("ironstone.ContactServices.run#ImportNow", { importId: id })) } catch (err) { errors = String(err && err.message ? err.message : err) }
+        ec.message.clearErrors()
+        const draft = draftOf("EX_JOHN_DOE", id)
+        sys(() => call("ironstone.ContactServices.store#ImportDraft", { importId: id, fields: { status: "failed" } }))
+        const stopped = render("apps/Commons/Contacts/Import/Result", { importId: id })
+        return { running, progress, notAgain, errors, draft, stopped }
+    },
+    then({ running, progress, notAgain, errors, draft, stopped }) {
+        running.errors == ""
+        running.output.includes("Importing")
+        running.output.includes("/Commons/Contacts/ImportProgress")
+        !running.output.includes("ImportRun")
+        progress.status == 200
+        notAgain.running == true
+        errors.includes("The contact file is empty")
+        draft.status == "failed"
+        draft.error != null
+        stopped.output.includes("The last run stopped")
+        stopped.output.includes("ImportRun")
+    },
+})
+
 feature("another user's wizard never opens john.doe's import", {
     when() {
         login("joe.developer")

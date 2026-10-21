@@ -93,6 +93,8 @@ feature("EventDetail shows the sync's instance with its calendar, repeat, room a
         facts.edit.endTime == "10:30"
         facts.recurrence.freq == "WEEKLY"
         facts.event.attendees.find((party) => party.partyId === "ORG_ZIZI_JD").freeBusyText != null
+        // a user among the attendees carries the user id, so the avatar shows the user's photo
+        facts.event.attendees.find((party) => party.partyId === "EX_JOHN_DOE").userId == "EX_JOHN_DOE"
         facts.roomOptions.some((room) => room.value === "BOSS_DEMO_ROOM_BOARD")
     },
 })

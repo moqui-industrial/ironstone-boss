@@ -411,7 +411,7 @@ along with this software (see the LICENSE.md file). If not, see
                 <div v-if="pop.event.attendees.length" class="q-mt-sm">
                     <div class="text-caption m-muted">{{attendeeSummary(pop.event)}}</div>
                     <div v-for="person in pop.event.attendees.slice(0, 8)" :key="person.partyId" class="row items-center no-wrap q-mt-xs">
-                        <m-avatar :name="person.name" size="22px" class="q-mr-sm"></m-avatar>
+                        <m-avatar :name="person.name" :user-id="person.userId" size="22px" class="q-mr-sm"></m-avatar>
                         <span class="text-body2 ellipsis col">{{person.name}}<span v-if="person.isOrganizer" class="m-muted"> · {{t('organizer')}}</span><span v-if="person.optional" class="m-muted"> · {{t('optional')}}</span></span>
                         <q-chip v-if="!person.isOrganizer" dense square class="q-my-none m-tonal" :class="'text-' + person.statusColor">{{person.statusLabel}}</q-chip>
                     </div>

@@ -55,7 +55,7 @@ along with this software (see the LICENSE.md file). If not, see
             <script><![CDATA[
                 let kept = {}
                 try { kept = JSON.parse(keep || '{}') || {} } catch (err) { kept = {} }
-                for (const name of Object.keys(kept)) context.put(name, kept[name])
+                ec.context.putAll(kept)
             ]]></script>
         </actions>
         <default-response url=".">
@@ -72,7 +72,7 @@ along with this software (see the LICENSE.md file). If not, see
             <script><![CDATA[
                 let kept = {}
                 try { kept = JSON.parse(keep || '{}') || {} } catch (err) { kept = {} }
-                for (const name of Object.keys(kept)) context.put(name, kept[name])
+                ec.context.putAll(kept)
             ]]></script>
         </actions>
         <default-response url=".">
@@ -89,7 +89,7 @@ along with this software (see the LICENSE.md file). If not, see
             <script><![CDATA[
                 let kept = {}
                 try { kept = JSON.parse(keep || '{}') || {} } catch (err) { kept = {} }
-                for (const name of Object.keys(kept)) context.put(name, kept[name])
+                ec.context.putAll(kept)
             ]]></script>
         </actions>
         <default-response url=".">
@@ -108,7 +108,7 @@ along with this software (see the LICENSE.md file). If not, see
             <script><![CDATA[
                 let kept = {}
                 try { kept = JSON.parse(keep || '{}') || {} } catch (err) { kept = {} }
-                for (const name of Object.keys(kept)) context.put(name, kept[name])
+                ec.context.putAll(kept)
             ]]></script>
         </actions>
         <default-response url=".">
@@ -238,8 +238,8 @@ along with this software (see the LICENSE.md file). If not, see
                 overdue: 'Nothing overdue', assigned: 'No open tasks assigned to you', created: 'No open tasks you created',
                 watching: 'You are not watching any open task', done: 'No tasks done yet'}
             emptyText = filtered ? L('No tasks match') : L(empty[list])
-            newTaskHtml = '<q-btn unelevated no-caps dense color="primary" class="q-ml-sm" icon="sym_o_add_task" label="' + WebUtilities.encodeHtml(L('New task')) + '"'
-                    + ' @click="$root.openQuickCreate({url: \'/qapps/Commons/QuickCreate?kind=task\', label: \'' + WebUtilities.encodeHtml(L('New task').replace(/['\\]/g, '')) + '\'})"></q-btn>'
+            newTaskHtml = '<q-btn unelevated no-caps dense color="primary" class="q-ml-sm" icon="sym_o_add_task" label="' + sri.encodeHtml(L('New task')) + '"'
+                    + ' @click="$root.openQuickCreate({url: \'/qapps/Commons/QuickCreate?kind=task\', label: \'' + sri.encodeHtml(L('New task').replace(/['\\]/g, '')) + '\'})"></q-btn>'
         ]]></script>
     </actions>
 

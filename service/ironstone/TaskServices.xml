@@ -859,17 +859,22 @@ along with this software (see the LICENSE.md file). If not, see
                 const partyIds = Array.from(new Set(weps.map((wep) => wep.partyId).concat(workEffort.ownerPartyId ? [workEffort.ownerPartyId] : [])))
                 const parties = {}
                 if (partyIds.length) for (const party of ec.entity.find('mantle.party.PartyDetail').condition('partyId', 'in', partyIds).list()) parties[party.partyId] = party
+                // the users among them, so an avatar shows the user's photo
+                const userIds = {}
+                if (partyIds.length) for (const account of ec.entity.find('moqui.security.UserAccount').condition('partyId', 'in', partyIds)
+                        .selectField('partyId,userId').disableAuthz().list()) userIds[account.partyId] = account.userId
                 const nameOf = (id) => {
                     const party = parties[id]
                     if (!party) return id
                     return party.privateOwnerUserId && party.privateOwnerUserId !== ec.user.userId ? id : partyName(party)
                 }
                 if (workEffort.ownerPartyId) partyList.push({partyId: workEffort.ownerPartyId, name: nameOf(workEffort.ownerPartyId), roleTypeId: 'Owner',
-                    roleText: L('Owner'), statusText: '', isMe: workEffort.ownerPartyId === partyId})
+                    roleText: L('Owner'), statusText: '', isMe: workEffort.ownerPartyId === partyId, userId: userIds[workEffort.ownerPartyId] || null})
                 const order = {Assignee: 1, Watcher: 3}
                 weps.sort((left, right) => (order[left.roleTypeId] || 2) - (order[right.roleTypeId] || 2))
                 for (const wep of weps) partyList.push({partyId: wep.partyId, name: nameOf(wep.partyId), roleTypeId: wep.roleTypeId, roleText: roleName(wep.roleTypeId),
-                    statusText: statusName(wep.statusId), declined: ['WeptDeclined', 'WeptUnassigned'].includes(wep.statusId), isMe: wep.partyId === partyId})
+                    statusText: statusName(wep.statusId), declined: ['WeptDeclined', 'WeptUnassigned'].includes(wep.statusId), isMe: wep.partyId === partyId,
+                    userId: userIds[wep.partyId] || null})
                 task.assigneeList = partyList.filter((party) => party.roleTypeId === 'Assignee' && !party.declined)
 
                 // the records it is on
