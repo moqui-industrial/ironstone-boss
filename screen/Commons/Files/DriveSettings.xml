@@ -17,7 +17,10 @@ along with this software (see the LICENSE.md file). If not, see
     for a disk drive the path to clone from, for a mirror the URL, the interval, the last fetch and its error, with Fetch now),
     its members with their permission (view, edit, manage), export (a folder drive as a zip, a database repository as a bare
     repository on disk) and archive. Those who manage the drive change it; members see it. Through
-    org.moqui.impl.FileServices (update#Drive, add#DriveMember, remove#DriveMember, archive#Drive, export#Drive). -->
+    org.moqui.impl.FileServices (update#Drive, add#DriveMember, remove#DriveMember, archive#Drive, export#Drive). Devices: the
+    drive's WebDAV folder and SFTP path (org.moqui.impl.DavServices.get#SyncAddresses with the drive) and, for a
+    version-controlled drive, its git clone addresses (GitServices.get#GitCloneUrls), which every member may clone and editors
+    push to, by the drive's own permissions. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Drive" default-menu-include="false">
 
@@ -94,6 +97,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <actions>
         <service-call name="ironstone.DriveServices.get#DriveSettings" in-map="{driveId:driveId}" out-map="settings"/>
+        <service-call name="org.moqui.impl.DavServices.get#SyncAddresses" in-map="{driveId:driveId}" out-map="syncAddresses"/>
         <script><![CDATA[
             const L = (text) => ec.l10n.localize(text)
             drive = settings.drive || {}
@@ -120,6 +124,22 @@ along with this software (see the LICENSE.md file). If not, see
             }
             if (drive.archivedDate) facts.push({label: L('Archived'), value: fmt(drive.archivedDate)})
             facts = facts.filter((fact) => fact.value)
+            // where a device or a git client reaches the drive
+            deviceRows = []
+            if (syncAddresses.driveUrl) deviceRows.push({what: L('WebDAV'), address: syncAddresses.driveUrl,
+                use: L('Finder, File Explorer, a phone\'s files app, rclone')})
+            if (syncAddresses.driveSftpPath && syncAddresses.sftpUrl) deviceRows.push({what: L('SFTP'),
+                address: syncAddresses.sftpUrl.replace(/\/$/, '') + encodeURI(syncAddresses.driveSftpPath), use: L('Scripts and file transfer apps')})
+            if (drive.repositoryId) {
+                const clone = ec.service.sync().name('org.moqui.impl.GitServices.get#GitCloneUrls').parameters({repositoryId: drive.repositoryId}).call()
+                if (ec.message.hasError()) ec.message.clearErrors()
+                else {
+                    const write = isMirror ? L('fetch only: a mirror') : ((settings.level || 0) >= 2 ? L('clone and push') : L('clone; editors push'))
+                    if (clone.httpsUrl) deviceRows.push({what: L('git over HTTPS'), address: clone.httpsUrl, use: write})
+                    // git over SSH needs the SSH_GIT permission besides the drive
+                    if (clone.sshUrl && ec.user.hasPermission('SSH_GIT')) deviceRows.push({what: L('git over SSH'), address: clone.sshUrl, use: L('with an SSH key of yours')})
+                }
+            }
         ]]></script>
     </actions>
     <widgets>
@@ -190,6 +210,18 @@ along with this software (see the LICENSE.md file). If not, see
                         <section name="NoMembers" condition="!memberList.length"><widgets>
                             <label type="p" text="Only the owner so far" style="m-muted q-pa-sm q-mb-none"/>
                         </widgets></section>
+                    </box-body-nopad></container-box>
+                </widgets></section>
+
+                <section name="DriveDevices" condition="deviceRows.length"><widgets>
+                    <container-box><box-header title="On your devices"/><box-body-nopad>
+                        <label type="p" text="Log in with your username ${syncAddresses.username} and an app password (Settings, Sync); git over HTTPS takes an app password too." style="m-muted q-pa-sm q-mb-none"/>
+                        <form-list name="DriveDeviceAddresses" list="deviceRows" skip-form="true" paginate="false">
+                            <field name="what"><default-field title=""><display/></default-field></field>
+                            <field name="address"><default-field title="Address"><display style="text-weight-medium"/></default-field></field>
+                            <field name="use"><default-field title=""><display style="m-muted"/></default-field></field>
+                        </form-list>
+                        <container style="q-pa-sm"><link url="//Commons/Settings/Sync" text="Set up a device" icon="sym_o_sync" link-type="anchor"/></container>
                     </box-body-nopad></container-box>
                 </widgets></section>
 

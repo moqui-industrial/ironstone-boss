@@ -119,7 +119,10 @@ along with this software (see the LICENSE.md file). If not, see
                     </template>
                 </q-banner>
 
-                <m-text-area id="boss-notes-editor" name="pageText" v-model="text" editor-type="md" rows="18" :label="t('Note (Markdown)')"></m-text-area>
+                <!-- the note's co-edited document (each device and tab live; saved as a version when left a while), else the markdown text -->
+                <m-coedit v-if="useCoedit" id="boss-notes-editor" :key="'coedit-' + note.wikiPageId" :doc-key="'WikiPage:' + note.wikiPageId" rows="18"
+                        :placeholder="t('Write the note')" @fallback="coeditFallback" @saved="coeditSaved"></m-coedit>
+                <m-text-area v-else id="boss-notes-editor" name="pageText" v-model="text" editor-type="md" rows="18" :label="t('Note (Markdown)')"></m-text-area>
 
                 <!-- the records it is linked to -->
                 <div class="q-mt-md">
@@ -203,7 +206,7 @@ module.exports = {
         return {
             ready: false, notes: [], tags: [], totalCount: 0, tag: null, searchText: '', loadingList: false, listSeq: 0, creating: false,
             note: null, loadingNote: false, notFound: false, noteSeq: 0, text: '', savedText: '', baseVersion: null, saving: false, saveFailed: false,
-            savedAt: '', conflict: null, newTag: '', linkRecordValue: null,
+            savedAt: '', conflict: null, newTag: '', linkRecordValue: null, coeditOff: false,
             named: { open: false, note: '' },
             move: { open: false, spaceId: null, spaceOptions: [], parentPath: '', options: [], name: '', busy: false },
             history: { open: false, loading: false, versions: [], canRestore: false },
@@ -220,7 +223,9 @@ module.exports = {
         screenPath() { return this.$root.basePath + '/' + (this.nIndex >= 0 ? this.pathList.slice(0, this.nIndex + 1) : ['Commons', 'Notes']).join('/'); },
         linkPath() { return this.$root.linkBasePath + '/' + (this.nIndex >= 0 ? this.pathList.slice(0, this.nIndex + 1) : ['Commons', 'Notes']).join('/'); },
         selectedId() { return (this.$root.currentParameters || {}).wikiPageId || null; },
-        dirty() { return !!this.note && this.text !== this.savedText; },
+        // edited together when the page has its notification socket: the server keeps each change and saves it
+        useCoedit() { return !this.coeditOff && !!(this.note && this.note.wikiPageId && this.$root.notificationClient); },
+        dirty() { return !!this.note && !this.useCoedit && this.text !== this.savedText; },
         liveTitle() {
             const heading = String(this.text || '').match(/^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$/m);
             return heading ? heading[1].replace(/[*_`]/g, '').trim() : (this.note ? this.note.pageName : '');
@@ -338,6 +343,16 @@ module.exports = {
         saveNow(versionNote, force) {
             clearTimeout(this.saveTimer);
             if (!this.note || this.saving) return Promise.resolve();
+            if (this.useCoedit) {
+                // the server saves the co-edited note; a named version is saved now
+                if (!versionNote) return Promise.resolve();
+                const note = this.note;
+                this.saving = true;
+                return this.post('saveNote', { wikiPageId: note.wikiPageId, versionNote: versionNote, collab: 'true' }).then((json) => {
+                    this.saving = false;
+                    this.savedAt = json.savedText || '';
+                }, () => { this.saving = false; this.saveFailed = true; });
+            }
             if (!this.dirty && !versionNote) return Promise.resolve();
             const note = this.note;
             const text = this.text;
@@ -357,6 +372,14 @@ module.exports = {
             }, () => { this.saving = false; this.saveFailed = true; });
         },
         flush() { return this.dirty && !this.conflict ? this.saveNow(null, false).catch(() => {}) : Promise.resolve(); },
+        // the shared editor did not start: the markdown text, from the last saved version
+        coeditFallback(event) {
+            this.coeditOff = true;
+            this.text = this.note ? (this.note.text || '') : '';
+            this.savedText = this.text;
+            moqui.notifyMessages(null, this.t('Live editing is not available here now; edit the markdown text') + (event && event.message ? ' (' + event.message + ')' : ''));
+        },
+        coeditSaved(event) { this.savedAt = event && event.name ? this.t('by') + ' ' + event.name : ''; },
         openNamed() { this.named = { open: true, note: '' }; },
         saveNamed() {
             const note = String(this.named.note || '').trim();

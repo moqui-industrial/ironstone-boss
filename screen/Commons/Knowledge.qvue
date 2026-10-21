@@ -181,7 +181,8 @@ along with this software (see the LICENSE.md file). If not, see
                     <div class="row items-center no-wrap q-gutter-x-xs" :class="phone ? 'col-12 justify-end' : 'col-auto q-pl-sm'">
                         <template v-if="editing">
                             <span class="text-caption m-muted q-mr-xs">{{editStateText}}</span>
-                            <q-btn flat dense no-caps :label="t('Cancel')" @click="cancelEdit"></q-btn>
+                            <q-btn flat dense no-caps :label="useCoedit ? t('Done') : t('Cancel')" @click="cancelEdit">
+                                <q-tooltip v-if="useCoedit">{{t('Close the editor; the changes stay for the others and are saved when the last editor leaves')}}</q-tooltip></q-btn>
                             <q-btn unelevated no-caps color="primary" icon="sym_o_save" :label="t('Save')" :loading="saving" @click="save(false)">
                                 <q-tooltip>{{t('Save a new version')}} (Ctrl+S)</q-tooltip></q-btn>
                         </template>
@@ -253,7 +254,11 @@ along with this software (see the LICENSE.md file). If not, see
                     <div class="col" style="min-width:0">
                         <!-- the editor -->
                         <template v-if="editing">
-                            <m-text-area id="boss-knowledge-editor" name="pageText" v-model="editText" editor-type="md" rows="20" :label="t('Text (Markdown)')"></m-text-area>
+                            <!-- edited together (m-coedit over the page's co-edited document), else the markdown text -->
+                            <m-coedit v-if="useCoedit" id="boss-knowledge-editor" :key="'coedit-' + page.wikiPageId" :doc-key="'WikiPage:' + page.wikiPageId" rows="20"
+                                    :placeholder="t('Write the page; others editing it now see each change')" @status="coeditStatus = $event" @fallback="coeditFallback"
+                                    @saved="coeditSaved"></m-coedit>
+                            <m-text-area v-else id="boss-knowledge-editor" name="pageText" v-model="editText" editor-type="md" rows="20" :label="t('Text (Markdown)')"></m-text-area>
                             <div class="row items-center q-col-gutter-sm q-mt-xs">
                                 <div class="col-12 col-sm"><m-text-line id="boss-knowledge-note" name="versionNote" v-model="versionNote" :label="t('Version note (optional)')"
                                         @keyup.enter="save(false)"></m-text-line></div>
@@ -561,7 +566,7 @@ module.exports = {
             treeCache: {}, treeNodes: [], expandedKeys: [], treeReady: false, treeSpaceId: null,
             drag: null, dropHint: { key: null, position: null },
             searchText: '', search: { active: false, loading: false, results: [], seq: 0 },
-            editing: false, editText: '', versionNote: '', baseVersion: null, saving: false, conflict: null, savedAt: '',
+            editing: false, editText: '', versionNote: '', baseVersion: null, saving: false, conflict: null, savedAt: '', coeditOff: false, coeditStatus: null,
             newTag: '', linkRecordValue: null, uploadOpen: false, uploadFiles: [], uploading: false,
             history: { open: false, loading: false, versions: [], picked: [], canRestore: false, canPublish: false, storage: null, review: null },
             diff: { open: false, loading: false, html: '', stats: {}, fromShort: '', toShort: '' },
@@ -633,7 +638,10 @@ module.exports = {
             if (this.page.versionCount > 1) parts.push(this.page.versionCount + ' ' + this.t('versions'));
             return parts.join(' · ');
         },
-        editDirty() { return this.editing && this.page && this.editText !== this.page.text; },
+        // co-edited when the page exists and the page has its notification socket; the markdown text otherwise
+        useCoedit() { return this.editing && !this.coeditOff && !!(this.page && this.page.exists && this.page.wikiPageId && this.$root.notificationClient); },
+        // a co-edited page's changes are kept by the server, so leaving loses nothing
+        editDirty() { return this.editing && !this.useCoedit && this.page && this.editText !== this.page.text; },
         editStateText() { return this.saving ? this.t('Saving…') : this.editDirty ? this.t('Not saved yet') : (this.savedAt ? this.t('Saved') + ' ' + this.savedAt : ''); },
         historyCaption() {
             const count = this.history.versions.length;
@@ -943,6 +951,7 @@ module.exports = {
         },
         cancelEdit() {
             const done = () => { this.editing = false; this.conflict = null; };
+            if (this.useCoedit) { done(); this.reloadPage(); return; }
             if (!this.editDirty) { done(); return; }
             this.ask(this.t('Discard your changes?'), this.t('What you changed since the last save is lost.'), this.t('Discard'), true, done);
         },
@@ -950,6 +959,18 @@ module.exports = {
             if (!this.editing || this.saving || !this.page) return true;
             this.saving = true;
             const page = this.page;
+            if (this.useCoedit) {
+                // the co-edited document as a version, with the note
+                this.post('savePage', { wikiPageId: page.wikiPageId, wikiSpaceId: page.wikiSpaceId, pagePath: page.pagePath, versionNote: this.versionNote || '',
+                    collab: 'true' }).then((json) => {
+                    this.saving = false;
+                    this.savedAt = json.savedText || '';
+                    this.versionNote = '';
+                    this.editing = false;
+                    this.reloadPage();
+                }, () => { this.saving = false; });
+                return true;
+            }
             this.post('savePage', { wikiPageId: page.wikiPageId || '', wikiSpaceId: page.wikiSpaceId, pagePath: page.pagePath, pageText: this.editText,
                 versionNote: this.versionNote || '', baseVersionName: this.baseVersion || '', force: force ? 'true' : 'false' }).then((json) => {
                 this.saving = false;
@@ -960,6 +981,15 @@ module.exports = {
                 this.reloadPage();
             }, () => { this.saving = false; });
             return true;
+        },
+        // the shared editor did not start: the markdown text, from the last saved version
+        coeditFallback(event) {
+            this.coeditOff = true;
+            this.editText = this.page ? (this.page.text || '') : '';
+            moqui.notifyMessages(null, this.t('Editing together is not available here now; edit the markdown text') + (event && event.message ? ' (' + event.message + ')' : ''));
+        },
+        coeditSaved(event) {
+            this.savedAt = event && event.name ? this.t('by') + ' ' + event.name : '';
         },
         // ===== tags, records, files, watch =====
         addTag() {

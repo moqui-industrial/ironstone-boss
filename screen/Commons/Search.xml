@@ -14,7 +14,9 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Search" default-menu-include="false">
-    <!-- One search box over the authorized Mantle documents: mantle.search.UniversalSearchServices.search#Universal -->
+    <!-- One search box over the authorized Mantle documents (mantle.search.UniversalSearchServices.search#Universal), and the
+        files of the drives the user may open by name, tag and the text in them (PDFs, spreadsheets and text files:
+        ironstone.DriveServices.find#FileRows over FileServices.find#Resources) on the first page, without a type filter. -->
 
     <parameter name="q"/><parameter name="entityType"/><parameter name="mode"/><parameter name="pageIndex"/>
 
@@ -44,6 +46,20 @@ along with this software (see the LICENSE.md file). If not, see
             total = searchOut ? searchOut.total : 0
             typeFacets = searchOut && searchOut.facetCounts ? (searchOut.facetCounts.entityType || []) : []
             categoryFacets = searchOut && searchOut.facetCounts ? (searchOut.facetCounts.category || []) : []
+            // the files whose name, tags or text match, on the first page of results for any type
+            fileHits = []
+            if (q && !entityType && pageIndexNum === 0) {
+                ec.message.pushErrors()
+                try {
+                    const found = ec.service.sync().name('ironstone.DriveServices.find#FileRows').parameters({view: 'search', text: q, limit: 8}).call()
+                    if (!ec.message.hasError()) fileHits = Array.from(found.fileList || []).slice(0, 8).map((row) => Object.assign({}, row,
+                        {placeText: [row.driveName, row.folderPath].filter((part) => part).join(' / '),
+                            url: `/qapps/Commons/Files?drive=${encodeURIComponent(row.driveId)}&path=${encodeURIComponent(row.isDirectory ? row.path : (row.folderPath || ''))}`
+                                + (row.isDirectory ? '' : `&file=${encodeURIComponent(row.path)}`)}))
+                } catch (err) {
+                    ec.logger.warn(`Commons search: the files were not searched: ${err}`)
+                } finally { ec.message.clearErrors(); ec.message.popErrors() }
+            }
             hasPrevious = pageIndexNum > 0
             hasNext = (pageIndexNum + 1) * pageSize < total
             modeOptions = [{key: 'lexical', text: 'Words'}].concat(capabilities.includes('hybrid') ? [{key: 'hybrid', text: 'Words and meaning'}] : [])
@@ -104,6 +120,19 @@ along with this software (see the LICENSE.md file). If not, see
                     <label text="${facet.label} (${facet.count})" type="span" style="q-mr-md text-grey-8"/>
                 </widgets></section-iterate>
             </container>
+
+            <section name="FileHits" condition="fileHits.length"><widgets>
+                <container-box><box-header title="Files"/><box-body>
+                    <section-iterate name="FileHitRows" list="fileHits" entry="file"><widgets>
+                        <container style="q-my-xs">
+                            <link url="${file.url}" url-type="plain" text="${file.name}" link-type="anchor"/>
+                            <label text=" ${file.placeText}" type="span" style="text-grey-7"/>
+                            <label text="${file.whenText ? ' · ' + file.whenText : ''}${file.byName ? ' · ' + file.byName : ''}" type="span" style="text-grey-7"/>
+                        </container>
+                    </widgets></section-iterate>
+                    <link url="/qapps/Commons/Files" url-type="plain" text="All matching files" link-type="anchor" parameter-map="{q:q}"/>
+                </box-body></container-box>
+            </widgets></section>
 
             <section-iterate name="SearchResults" list="results" entry="result"><widgets>
                 <container style="q-my-md">

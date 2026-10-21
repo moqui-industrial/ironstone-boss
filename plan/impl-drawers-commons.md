@@ -601,21 +601,27 @@ Built Oct 19:
 
 ## 6. Later
 
-Designed in design-drawers-commons.md; each of these gets its own plan:
+Designed in design-drawers-commons.md; each of these gets its own plan. Reviewed Oct 21, 2026: what is built is marked,
+with what the drawers and Commons gained for it.
 
-- Server-static pass (agreed Oct 19): run `moqui lint --screens --qvt-static` over the BOSS screens and mark each
-  compatible screen server-static, as design §20 asks; the screens are server-merged qvt until then.
+- Server-static pass (agreed Oct 19): built Oct 21 (§8): 19 Commons and Comms screens are server-static, the others left
+  as server merges for the reasons §8 gives.
 - Calls: WebRTC with Calls, Call, LiveCall, CallSettings, CallSession and CallLink, and the `Call` comm type.
-- Sync: CalDAV, CardDAV, WebDAV, and SFTP over drives, with app passwords and Settings/Sync.
-- `m-coedit` with `yrs` and CollabDocument.
+- Sync: built Oct 21 (§8, mr-moqui docs/Sync.md): CalDAV, CardDAV and WebDAV at `/dav`, SFTP to the drives, app passwords,
+  Settings/Sync, and the addresses on Calendars, Contact books and a drive's settings.
+- `m-coedit` with `yrs` and CollabDocument: built Oct 21 (§8; mr-moqui docs/Revision-Management.md, Co-editing); Knowledge
+  and Notes edit with it.
 - The Assist drawer port (Phase 13), BOSS skills and agent room members.
 - PWA install and web push.
-- Search: extracted text from PDF and office files.
+- Search: extracted text from PDF and office files. PDFs, spreadsheets and text files built Oct 21 in the framework; Commons
+  Search now lists the matching files beside the records (Oct 21). Office files (docx, pptx, odt) are left.
 - Calendar: Google and Microsoft 365 subscriptions over OAuth.
-- Smaller items: the org chart and polls.
+- Smaller items: the org chart and polls. Polls built Oct 21 in Chat (§8); the org chart is left.
 - Mail: the mailbox email bridge, an IMAP or JMAP server, S/MIME and PGP, and an archive policy.
 - Retention: a job for the personal books of disabled users.
-- Git: push and an HTTPS git server.
+- Git: push and an HTTPS git server: built in the framework (mr-moqui docs/Git-Hosting.md). Oct 21: a version-controlled
+  drive's repository takes the drive's members by the drive's own rule, and a drive's settings show its clone addresses with
+  its WebDAV and SFTP addresses.
 
 ## 7. Verification
 
@@ -671,6 +677,31 @@ plans/Remaining-Work.md.
   - OAuth: the access token stored encrypted and shared across a cluster, refreshed under the EmailServer row lock.
 - Oct 21: an avatar given a user id shows that user's photo. `userPhoto` read the always-actions `userId`, which is the
   viewer's, so every such avatar showed the viewer's own photo.
+
+**Built Oct 21, the Later items Sync and `m-coedit`** (this session; mr-moqui docs/Sync.md and docs/Revision-Management.md)
+- Framework:
+  - App passwords: `moqui.security.UserAppPassword`, `UserServices` `create#`, `revoke#UserAppPassword` and
+    `get#UserAppPasswords`; taken by the DAV server, SFTP and git over HTTPS, never by the web login.
+  - The DAV server at `/dav` (`moqui-core` `dav/`, `moqui-host` `dav_http.rs`): WebDAV over every drive the user may open,
+    through the file services as the user (seed group `DriveDeviceServices`); CalDAV and CardDAV over the adapter services
+    the conf's `dav-server` names; the well-known addresses; `DavServices` `get#SyncAddresses` and `serve#DavRequest`.
+  - SFTP to the drives for a user without `SSH_SFTP` (`dav-server` `sftp-drives`).
+  - The ICalendar tool reads and writes VTODO and writes CalDAV objects (`calendarObject`); a vCard keeps its `uid`.
+  - Git: drive members reach the drive's repository by the drive's rule; `get#GitCloneUrls` follows it.
+  - Co-editing: `moqui.resource.CollabDocument`, the `yrs` rooms (`collab/`), markdown to and from Tiptap's Yjs structure,
+    the frames on `/notws` with the cluster topic `collab-update`, `CollabServices` `save#` and `get#CollabDocument`, and
+    `m-coedit` with its provider (the Tiptap bundle gained Collaboration, CollaborationCaret and Yjs).
+- Mantle: `mantle.work.CalendarDavServices` (calendars, and a Tasks collection of the user's tasks as VTODO) and
+  `mantle.party.ContactDavServices` (contact books as vCard 3.0, personal books written), named in mr-mantle-usl
+  `MoquiConf.xml`, granted to all users by the seed group `MantleDavServices`; `CalendarWorkEffort.davName`,
+  `ContactBookParty.davName` and `davUid`; `export#Contacts` `vcardVersion`; `test/Dav.spec.js`.
+- BOSS: Commons Settings/Sync (devices and their app passwords, the password shown once, the addresses, the steps for
+  iPhone and iPad, Mac, Android, Windows, Thunderbird and Linux); CalDavInfo on Calendars and CardDavInfo on Contact books
+  (each one's address); "On your devices" on a drive's settings (WebDAV, SFTP, git over HTTPS and SSH); Knowledge and Notes
+  edit with `m-coedit` (Save is a version with its note, Done closes the editor; the markdown text area when the shared
+  editor cannot start); Commons Search lists the matching files; `test/SyncSettings.spec.js`.
+- Not built: sync-collection and CalDAV scheduling, attendees a phone writes, writing a shared contact book from a phone,
+  persistent WebDAV locks and dead properties, a version per co-editing session on git spaces other than on Save and close.
 
 **Left to build** (round 2, planned Oct 21)
 - Framework:

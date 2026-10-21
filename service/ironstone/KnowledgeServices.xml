@@ -516,7 +516,8 @@ along with this software (see the LICENSE.md file). If not, see
             git, the history note on database files), as a user who may update it. With baseVersionName (the version the
             editor opened) and not force, a page changed since by someone else is not overwritten: conflict is true with who
             changed it. A save with a note on a Knowledge page tells the page's followers (RecordFollow, kind changes;
-            failure tolerant). versionName is empty when the text was unchanged.</description>
+            failure tolerant). versionName is empty when the text was unchanged. With collab the page's co-edited document
+            is saved instead of pageText.</description>
         <in-parameters>
             <parameter name="wikiPageId"/>
             <parameter name="wikiSpaceId"/>
@@ -525,6 +526,9 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="versionNote"/>
             <parameter name="baseVersionName"/>
             <parameter name="force" type="Boolean" default="false"/>
+            <parameter name="collab" type="Boolean" default="false"><description>Save the page's co-edited document (m-coedit) as
+                the version instead of pageText (CollabServices.save#CollabDocument): edits merge as they are made, so there
+                is no conflict to check</description></parameter>
         </in-parameters>
         <out-parameters>
             <parameter name="wikiPageId"/>
@@ -543,30 +547,43 @@ along with this software (see the LICENSE.md file). If not, see
                 wikiSpaceId: wikiSpaceId || null, pagePath: pagePath || '', need: 'update'}).call()
             if (ec.message.hasError() || !ref?.found) return
             const pageRef = ref.pageReference
-            const current = ref.exists && pageRef.supportsVersion() ? (pageRef.getCurrentVersion()?.versionName ?? null) : null
-            if (baseVersionName && !force && current && current !== baseVersionName) {
-                const change = ec.resource.getLastChange(pageRef.location)
-                const account = change?.userId ? ec.entity.find('moqui.security.UserAccount').condition('userId', change.userId).useCache(true).disableAuthz().one() : null
-                conflict = true
-                currentVersionName = current
-                conflictText = ec.resource.expand('${name} saved this page since you opened it', '', {name: account ? (account.userFullName || account.username) : L('Someone')})
-                wikiPageId = ref.wikiPageId
-                wikiSpaceId = ref.wikiSpaceId
-                pagePath = ref.pagePath
-                return
-            }
             const path = ref.pagePath || ''
             const name = path ? path.substring(path.lastIndexOf('/') + 1) : ref.wikiSpaceId
             const note = versionNote ? String(versionNote).trim().substring(0, 255) : null
-            const saved = ec.service.sync().name('org.moqui.impl.WikiServices.update#WikiPage').parameters({wikiSpaceId: ref.wikiSpaceId,
-                wikiPageId: ref.wikiPageId || null, pagePath: path || null, pageName: name,
-                parentPath: path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : null, pageText: pageText ?? '', versionNote: note}).call()
-            if (ec.message.hasError()) return
-            wikiPageId = saved.wikiPageId || ref.wikiPageId
-            wikiSpaceId = ref.wikiSpaceId
-            pagePath = saved.pagePath ?? path
-            versionName = saved.versionName || null
-            currentVersionName = versionName || current
+            if (collab && ref.wikiPageId) {
+                // the co-edited document is the text: edits merged as they were made, so no conflict to check
+                const out = ec.service.sync().name('org.moqui.impl.CollabServices.save#CollabDocument').parameters({documentKey: `WikiPage:${ref.wikiPageId}`,
+                    versionNote: note}).call()
+                if (ec.message.hasError()) return
+                wikiPageId = ref.wikiPageId
+                wikiSpaceId = ref.wikiSpaceId
+                pagePath = path
+                versionName = out.versionName || null
+                currentVersionName = versionName
+                pageText = versionName ? ec.resource.getLocationReference(pageRef.location).getText() : null
+            } else {
+                const current = ref.exists && pageRef.supportsVersion() ? (pageRef.getCurrentVersion()?.versionName ?? null) : null
+                if (baseVersionName && !force && current && current !== baseVersionName) {
+                    const change = ec.resource.getLastChange(pageRef.location)
+                    const account = change?.userId ? ec.entity.find('moqui.security.UserAccount').condition('userId', change.userId).useCache(true).disableAuthz().one() : null
+                    conflict = true
+                    currentVersionName = current
+                    conflictText = ec.resource.expand('${name} saved this page since you opened it', '', {name: account ? (account.userFullName || account.username) : L('Someone')})
+                    wikiPageId = ref.wikiPageId
+                    wikiSpaceId = ref.wikiSpaceId
+                    pagePath = ref.pagePath
+                    return
+                }
+                const saved = ec.service.sync().name('org.moqui.impl.WikiServices.update#WikiPage').parameters({wikiSpaceId: ref.wikiSpaceId,
+                    wikiPageId: ref.wikiPageId || null, pagePath: path || null, pageName: name,
+                    parentPath: path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : null, pageText: pageText ?? '', versionNote: note}).call()
+                if (ec.message.hasError()) return
+                wikiPageId = saved.wikiPageId || ref.wikiPageId
+                wikiSpaceId = ref.wikiSpaceId
+                pagePath = saved.pagePath ?? path
+                versionName = saved.versionName || null
+                currentVersionName = versionName || current
+            }
             savedText = ec.l10n.format(ec.user.nowTimestamp, 'h:mm a')
             if (versionName && note && !ref.isNotes && wikiPageId) {
                 ec.message.pushErrors()

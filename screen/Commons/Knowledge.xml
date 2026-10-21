@@ -128,7 +128,7 @@ along with this software (see the LICENSE.md file). If not, see
         <actions><script><![CDATA[
             const out = ec.service.sync().name('ironstone.KnowledgeServices.save#Page').parameters({wikiPageId: wikiPageId || null,
                 wikiSpaceId: wikiSpaceId || null, pagePath: pagePath || '', pageText: pageText ?? '', versionNote: versionNote || null,
-                baseVersionName: baseVersionName || null, force: String(force) === 'true'}).call()
+                baseVersionName: baseVersionName || null, force: String(force) === 'true', collab: String(collab) === 'true'}).call()
             if (ec.message.hasError()) { ec.web.sendJsonResponse({}); return }
             const message = out.conflict ? null : out.versionName ? ec.resource.expand('Saved as version ${name}', '', {name: String(out.versionName).length > 12
                     ? String(out.versionName).substring(0, 10) : out.versionName}) : ec.l10n.localize('No changes to save')

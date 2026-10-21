@@ -76,6 +76,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <actions>
         <service-call name="mantle.party.ContactBookServices.get#UserContactBooks" out-map="booksOut"/>
+        <service-call name="org.moqui.impl.DavServices.get#SyncAddresses" out-map="syncAddresses"/>
         <script><![CDATA[
             const L = (text) => ec.l10n.localize(text)
             const cf = ec.entity.conditionFactory
@@ -105,6 +106,9 @@ along with this software (see the LICENSE.md file). If not, see
                     summary: ec.resource.expand('${contacts} contacts · ${groups} groups', '', {contacts: book.partyCount || 0, groups: book.groupCount || 0}),
                     shareList: shares, groupRows: Array.from(book.groupList || [])})
             })
+            davBookRows = syncAddresses.addressBooksUrl ? bookList.map((book) => ({contactBookName: book.contactBookName,
+                davAddress: syncAddresses.addressBooksUrl + encodeURIComponent(book.contactBookId) + '/',
+                accessText: book.isOwner && !book.isShared ? L('Read and change') : L('Read only: change its contacts here')})) : []
             orgOptions = Array.from(userOrgList || []).map((org) => ({key: org.partyId, text: org.organizationName || org.partyId}))
         ]]></script>
     </actions>
@@ -225,9 +229,21 @@ along with this software (see the LICENSE.md file). If not, see
             </widgets></section-iterate>
         </container>
 
-        <!-- CardDavInfo: later, with the CardDAV server (design §11 Sync) -->
-        <container-box type="info"><box-header title="Phones and desktop apps (CardDAV)"/><box-body>
-            <label type="p" text="Coming later: each book will have a CardDAV address, so a phone or a desktop contacts app can read and change it with an app password (Settings, Sync). Until then, export a book as vCard from Contacts and import it on the device."/>
-        </box-body></container-box>
+        <!-- CardDavInfo: the CardDAV addresses (design §11 Sync) -->
+        <section name="CardDavInfo" condition="syncAddresses.addressBooksUrl"><widgets>
+            <container-box><box-header title="Phones and desktop apps (CardDAV)"/><box-body-nopad>
+                <label type="p" text="A phone or a contacts app logged in with your username ${syncAddresses.username} and an app password (Settings, Sync) finds these books from ${syncAddresses.davUrl}. A contact made or changed on the device is a personal contact of yours; a shared book is read there and changed here." style="m-muted q-pa-sm q-mb-none"/>
+                <form-list name="CardDavBooks" list="davBookRows" skip-form="true" paginate="false">
+                    <field name="contactBookName"><default-field title="Book"><display/></default-field></field>
+                    <field name="davAddress"><default-field title="CardDAV address"><display/></default-field></field>
+                    <field name="accessText"><default-field title="On the device"><display/></default-field></field>
+                </form-list>
+                <container style="q-pa-sm"><link url="../Sync" text="Set up a device" icon="sym_o_sync" link-type="anchor"/></container>
+            </box-body-nopad></container-box>
+        </widgets><fail-widgets>
+            <container-box type="info"><box-header title="Phones and desktop apps"/><box-body>
+                <label type="p" text="This server does not serve contact books over CardDAV. Export a book as vCard from Contacts and import it on the device."/>
+            </box-body></container-box>
+        </fail-widgets></section>
     </widgets>
 </screen>

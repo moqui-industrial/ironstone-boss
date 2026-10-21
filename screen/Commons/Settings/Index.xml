@@ -13,8 +13,7 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 <!-- The Commons settings index (design-drawers-commons.md §11 Settings; style-guide §3.9 Settings): a card per settings group
-    with a line about it and the links into its pages, Comms settings last. Sync comes later with the CalDAV, CardDAV and
-    WebDAV servers. -->
+    with a line about it and the links into its pages, Comms settings last. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="All settings" default-menu-include="false" server-static="qvt">
     <widgets>
@@ -41,7 +40,7 @@ along with this software (see the LICENSE.md file). If not, see
                 <link url="../Calendars" text="Calendars" icon="sym_o_calendar_month"/>
             </box-body></container-box></row-col>
             <row-col md="4" sm="6"><container-box><box-header title="Sync"/><box-body>
-                <label type="p" text="Phones and desktop apps reading your calendars, contacts and files: coming with the sync servers." style="m-muted"/>
+                <label type="p" text="Phones and desktop apps reading your calendars, tasks, contacts and files, each with an app password of its own." style="m-muted"/>
                 <link url="../Sync" text="Sync" icon="sym_o_sync"/>
             </box-body></container-box></row-col>
             <row-col md="4" sm="6"><container-box><box-header title="Mail and chat"/><box-body>

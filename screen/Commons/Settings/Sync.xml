@@ -12,10 +12,122 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for Sync: design-drawers-commons.md §11, settings archetype, xml, scope later. -->
+<!-- Sync (design-drawers-commons.md §11 Sync; style-guide §3.9 Settings): phones and desktop apps reading the user's calendars
+    and tasks (CalDAV), contacts (CardDAV) and drives (WebDAV, SFTP) on the framework's DAV and SSH servers, each logging in
+    with an app password of its own. Devices (the app passwords: name, made, last used; Revoke), NewAppPassword (a dialog: the
+    device's name; the password is shown once, after the redirect), the addresses (org.moqui.impl.DavServices.get#SyncAddresses)
+    and SetupGuides (the steps for iOS and iPadOS, macOS, Android, Windows, Thunderbird and Linux). Services:
+    org.moqui.impl.UserServices create#UserAppPassword, revoke#UserAppPassword, get#UserAppPasswords. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Sync" default-menu-index="6">
+
+    <transition name="createAppPassword">
+        <service-call name="org.moqui.impl.UserServices.create#UserAppPassword" in-map="{name:name}" out-map="passwordOut"/>
+        <actions><!-- shown once, after the redirect -->
+            <script>if (!ec.message.hasError()) { ec.web.sessionAttributes.newAppPassword = passwordOut.password ?? ''; ec.web.sessionAttributes.newAppPasswordName = name ?? '' }</script></actions>
+        <default-response url="."/><error-response url="."/>
+    </transition>
+    <transition name="revokeAppPassword">
+        <service-call name="org.moqui.impl.UserServices.revoke#UserAppPassword" in-map="{appPasswordId:appPasswordId}"/>
+        <actions><if condition="!ec.message.hasError()"><message type="success">Revoked: the device using it is signed out of sync</message></if></actions>
+        <default-response url="."/>
+    </transition>
+
+    <actions>
+        <set field="newAppPassword" from="ec.web.sessionAttributes.remove('newAppPassword') || null"/>
+        <set field="newAppPasswordName" from="ec.web.sessionAttributes.remove('newAppPasswordName') || ''"/>
+        <service-call name="org.moqui.impl.UserServices.get#UserAppPasswords" out-map="passwordsOut"/>
+        <service-call name="org.moqui.impl.DavServices.get#SyncAddresses" out-map="addresses"/>
+        <script><![CDATA[
+            const when = (value) => value == null ? '' : ec.l10n.format(value, 'MMM d, yyyy h:mm a')
+            deviceList = Array.from(passwordsOut.appPasswordList || []).map((row) => Object.assign({}, row,
+                    {createdText: when(row.createdDate), lastUsedText: row.lastUsedDate ? when(row.lastUsedDate) : ec.l10n.localize('Not used yet')}))
+            addressRows = [
+                {what: ec.l10n.localize('Server'), address: addresses.serverHost, use: ec.l10n.localize('The server name an account form asks for')},
+                {what: ec.l10n.localize('Username'), address: addresses.username, use: ec.l10n.localize('With an app password below, never your own password')},
+                {what: ec.l10n.localize('Calendars and tasks (CalDAV)'), address: addresses.calendarsUrl || ec.l10n.localize('Not served here'),
+                    use: ec.l10n.localize('Or the server address alone: the apps find your calendars from it')},
+                {what: ec.l10n.localize('Contacts (CardDAV)'), address: addresses.addressBooksUrl || ec.l10n.localize('Not served here'),
+                    use: ec.l10n.localize('Or the server address alone: the apps find your contact books from it')},
+                {what: ec.l10n.localize('Files (WebDAV)'), address: addresses.filesUrl, use: ec.l10n.localize('A folder for each drive you may open')},
+                {what: ec.l10n.localize('Files (SFTP)'), address: addresses.sftpUrl || ec.l10n.localize('Not served here'),
+                    use: ec.l10n.localize('For scripts and file transfer apps')}]
+            davUrl = addresses.davUrl
+            syncUsername = addresses.username
+        ]]></script>
+    </actions>
+
     <widgets>
-        <label text="Placeholder: Device setup for CalDAV, CardDAV and WebDAV with app passwords." type="p"/>
+        <container style="row items-center q-mb-sm">
+            <label type="h5" text="Sync" style="q-my-none"/>
+            <container style="col"/>
+            <container-dialog id="NewAppPasswordDialog" button-text="New app password" icon="sym_o_add" width="480" title="New app password">
+                <label type="p" text="Make one for each phone, computer or app, so that losing one means revoking only its password. You see the password once, when it is made." style="m-muted"/>
+                <form-single name="NewAppPassword" transition="createAppPassword" focus-field="name">
+                    <field name="name"><default-field title="Device or app"><text-line size="40"/></default-field></field>
+                    <field name="submitButton"><default-field title="Make the password"><submit/></default-field></field>
+                </form-single>
+            </container-dialog>
+        </container>
+        <label type="p" text="Your phone and desktop apps read and change your calendars, tasks, contacts and files here: the calendar, contacts and files apps the device has, logged in with your username and an app password. An app password works only for sync; it does not open this site, and your second factor stays on your own sign-in." style="m-muted"/>
+
+        <section name="NewPassword" condition="newAppPassword"><widgets>
+            <container-box type="success"><box-header title="App password for ${newAppPasswordName}"/><box-body>
+                <label type="p" text="Enter it in the device now, as the password of the account with the username ${syncUsername}. It is shown only this once; make another if you lose it."/>
+                <label type="pre" text="${newAppPassword}" style="text-h6"/>
+            </box-body></container-box>
+        </widgets></section>
+
+        <!-- Devices: the app passwords -->
+        <container-box><box-header title="Devices"/><box-body-nopad>
+            <form-list name="Devices" list="deviceList" skip-form="true" paginate="false">
+                <field name="name"><default-field title="Device or app"><display/></default-field></field>
+                <field name="createdText"><default-field title="Made"><display/></default-field></field>
+                <field name="lastUsedText"><default-field title="Last synced"><display/></default-field></field>
+                <field name="revoke" align="right"><default-field title="">
+                    <link url="revokeAppPassword" link-type="hidden-form-link" icon="sym_o_block" text="Revoke" style="m-btn-flat"
+                            confirmation="Revoke the app password of ${name}? That device stops syncing until it gets a new one." parameter-map="{appPasswordId:appPasswordId}"/>
+                </default-field></field>
+            </form-list>
+            <section name="NoDevices" condition="!deviceList.length"><widgets>
+                <label type="p" text="No devices yet · Make an app password for the first one" style="m-muted q-pa-sm q-mb-none"/>
+            </widgets></section>
+        </box-body-nopad></container-box>
+
+        <!-- The addresses -->
+        <container-box><box-header title="Addresses"/><box-body-nopad>
+            <form-list name="Addresses" list="addressRows" skip-form="true" paginate="false">
+                <field name="what"><default-field title=""><display/></default-field></field>
+                <field name="address"><default-field title="Address"><display style="text-weight-medium"/></default-field></field>
+                <field name="use"><default-field title=""><display style="m-muted"/></default-field></field>
+            </form-list>
+        </box-body-nopad></container-box>
+
+        <!-- SetupGuides: the steps per platform -->
+        <label type="h6" text="Set up a device" style="q-mt-md q-mb-sm"/>
+        <container-row>
+            <row-col md="6" sm="12"><container-box><box-header title="iPhone and iPad"/><box-body>
+                <label type="p" text="Settings, Calendar (or Contacts), Accounts, Add Account, Other: Add CalDAV Account for calendars and reminders, Add CardDAV Account for contacts. Server: ${addresses.serverHost}; User Name: ${syncUsername}; Password: an app password. The account finds your calendars, tasks (in Reminders) and contact books."/>
+                <label type="p" text="Files: in the Files app, the menu (…) then Connect to Server, with ${addresses.filesUrl}." style="m-muted"/>
+            </box-body></container-box></row-col>
+            <row-col md="6" sm="12"><container-box><box-header title="Mac"/><box-body>
+                <label type="p" text="System Settings, Internet Accounts, Add Account, Add Other Account: CalDAV account and CardDAV account, type Manual, with ${syncUsername}, an app password and the server ${addresses.serverHost}. Calendar, Reminders and Contacts then show them."/>
+                <label type="p" text="Files: in the Finder, Go, Connect to Server (Command-K), with ${addresses.filesUrl}." style="m-muted"/>
+            </box-body></container-box></row-col>
+            <row-col md="6" sm="12"><container-box><box-header title="Android"/><box-body>
+                <label type="p" text="Install DAVx⁵ (from Google Play or F-Droid), add an account with Login with URL and user name: the URL ${davUrl}, ${syncUsername} and an app password. Pick the calendars, task lists (with jtx Board or Tasks.org) and contact books to sync; they show in the phone's own Calendar and Contacts apps."/>
+                <label type="p" text="Files: a file manager with WebDAV (Material Files, Solid Explorer) with ${addresses.filesUrl}." style="m-muted"/>
+            </box-body></container-box></row-col>
+            <row-col md="6" sm="12"><container-box><box-header title="Windows"/><box-body>
+                <label type="p" text="Files: File Explorer, This PC, Map network drive, Connect to a Web site that you can use to store your documents and pictures, with ${addresses.filesUrl}, then your username and an app password. The server must be reached over HTTPS."/>
+                <label type="p" text="Calendars and contacts: Thunderbird (below), or Outlook with a CalDAV synchronizer add-in." style="m-muted"/>
+            </box-body></container-box></row-col>
+            <row-col md="6" sm="12"><container-box><box-header title="Thunderbird"/><box-body>
+                <label type="p" text="Calendar: New Calendar, On the Network, with ${syncUsername} and the location ${davUrl}; Find Calendars lists them all. Contacts: New Address Book, Add CardDAV Address Book, with the same location. Use an app password when it asks."/>
+            </box-body></container-box></row-col>
+            <row-col md="6" sm="12"><container-box><box-header title="Linux and scripts"/><box-body>
+                <label type="p" text="GNOME Online Accounts and KDE accounts take the CalDAV and CardDAV address ${davUrl}. A file manager opens davs:// with the WebDAV address; rclone and other tools take it as a WebDAV remote. SFTP, when it is served: ${addresses.sftpUrl || 'not served here'}, logged in with the app password."/>
+            </box-body></container-box></row-col>
+        </container-row>
     </widgets>
 </screen>

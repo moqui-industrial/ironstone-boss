@@ -33,7 +33,7 @@ spec({
     cleanupSpec() { login("john.doe") },
 })
 
-feature("the settings list john.doe's personal and shared books with their size and sharing, and CardDAV as later", {
+feature("the settings list john.doe's personal and shared books with their size and sharing, and their CardDAV addresses", {
     when() { return { shown: render("apps/Commons/Settings/ContactBooks", {}) } },
     then({ shown }) {
         shown.status == 200
@@ -45,7 +45,8 @@ feature("the settings list john.doe's personal and shared books with their size 
         shown.output.includes("Shared · Ziziwork Services")
         shown.output.includes("John Doe (manage), Joe Developer (edit)")
         shown.output.includes("Customers")
-        shown.output.includes("Coming later: each book will have a CardDAV address")
+        shown.output.includes("Phones and desktop apps (CardDAV)")
+        shown.output.includes("/dav/addressbooks/john.doe/")
         shown.output.includes("New book")
         // Joe Developer's personal book is his alone
         !shown.output.includes("BOSS_DEMO_BOOK_JOE")

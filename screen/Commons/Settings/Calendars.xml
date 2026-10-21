@@ -19,7 +19,8 @@ along with this software (see the LICENSE.md file). If not, see
     last fetch and its status or error, Fetch now, Unsubscribe) with Subscribe; and Import .ics into a calendar the user may
     change. Everything goes through mantle.work.CalendarServices, which checks the user's permission on each calendar
     (ironstone.CalendarServices.get#CalendarSettings reads the shares only of the calendars the user manages: IronStone R21).
-    Google and Microsoft 365 accounts, publish links and the CalDAV address come later. -->
+    CalDavInfo: the CalDAV address of the user's calendars and of each one (org.moqui.impl.DavServices.get#SyncAddresses), for a
+    phone or a desktop app logged in with an app password (Settings, Sync). Google and Microsoft 365 accounts come later. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Calendars" default-menu-index="5">
 
@@ -106,6 +107,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <actions>
         <service-call name="ironstone.CalendarServices.get#CalendarSettings" out-map="settings"/>
+        <service-call name="org.moqui.impl.DavServices.get#SyncAddresses" out-map="syncAddresses"/>
         <script><![CDATA[
             const L = (text) => ec.l10n.localize(text)
             const enc = (text) => String(text == null ? '' : text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
@@ -125,6 +127,11 @@ along with this software (see the LICENSE.md file). If not, see
                 statusHtml: '<q-chip dense square class="q-ma-none m-tonal text-' + (calendar.fetchStatus === 'ok' ? 'positive' : calendar.fetchStatus === 'error' ? 'negative' : 'grey-7') + '">'
                     + enc(calendar.fetchStatusText) + '</q-chip>', refreshText: calendar.refreshMinutes ? L('every') + ' ' + (Number(calendar.refreshMinutes) % 60 === 0
                     ? (Number(calendar.refreshMinutes) / 60) + ' h' : calendar.refreshMinutes + ' min') : ''}))
+            // each calendar a phone may read over CalDAV: those the user may see the events of
+            davCalendarRows = syncAddresses.calendarsUrl ? calendarList.concat(subscriptionList).filter((calendar) => calendar.permissionEnumId !== 'CalpFreeBusy')
+                    .map((calendar) => ({calendarName: calendar.calendarName, davAddress: syncAddresses.calendarsUrl + encodeURIComponent(calendar.calendarId) + '/',
+                        accessText: ['CalpEdit', 'CalpManage'].includes(calendar.permissionEnumId) && calendar.calendarKindEnumId !== 'CalkSubscription'
+                            ? L('Read and change') : L('Read only')})) : []
             importOptions = calendarList.filter((calendar) => ['CalpEdit', 'CalpManage'].includes(calendar.permissionEnumId) && calendar.calendarKindEnumId !== 'CalkSubscription')
                     .map((calendar) => ({key: calendar.calendarId, text: calendar.calendarName}))
             importCalendarId = settings.defaultCalendarId || (importOptions[0] ? importOptions[0].key : null)
@@ -270,9 +277,24 @@ along with this software (see the LICENSE.md file). If not, see
             </widgets></section>
         </box-body-nopad></container-box>
 
-        <!-- CalDavInfo and publish links: later -->
-        <container-box type="info"><box-header title="Phones, desktop apps and Google or Microsoft 365"/><box-body>
-            <label type="p" text="Coming later: each calendar will have a CalDAV address for a phone or a desktop calendar app (Settings, Sync), a link to publish it, and Google and Microsoft 365 accounts as subscriptions. Until then, export a calendar as .ics, or subscribe here to a feed's address."/>
+        <!-- CalDavInfo: the CalDAV addresses -->
+        <section name="CalDavInfo" condition="syncAddresses.calendarsUrl"><widgets>
+            <container-box><box-header title="Phones and desktop apps (CalDAV)"/><box-body-nopad>
+                <label type="p" text="A phone or a calendar app logged in with your username ${syncAddresses.username} and an app password (Settings, Sync) finds all of these from ${syncAddresses.davUrl}, with your tasks as a Tasks list. An app that asks for one calendar takes its address." style="m-muted q-pa-sm q-mb-none"/>
+                <form-list name="CalDavCalendars" list="davCalendarRows" skip-form="true" paginate="false">
+                    <field name="calendarName"><default-field title="Calendar"><display/></default-field></field>
+                    <field name="davAddress"><default-field title="CalDAV address"><display/></default-field></field>
+                    <field name="accessText"><default-field title="On the device"><display/></default-field></field>
+                </form-list>
+                <container style="q-pa-sm"><link url="../Sync" text="Set up a device" icon="sym_o_sync" link-type="anchor"/></container>
+            </box-body-nopad></container-box>
+        </widgets><fail-widgets>
+            <container-box type="info"><box-header title="Phones and desktop apps"/><box-body>
+                <label type="p" text="This server does not serve calendars over CalDAV. Export a calendar as .ics, or subscribe here to a feed's address."/>
+            </box-body></container-box>
+        </fail-widgets></section>
+        <container-box type="info"><box-header title="Google and Microsoft 365"/><box-body>
+            <label type="p" text="Coming later: a Google or Microsoft 365 account as a subscription. Until then, subscribe here to the calendar's secret iCal address."/>
         </box-body></container-box>
     </widgets>
 </screen>
