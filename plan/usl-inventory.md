@@ -9,6 +9,7 @@ Per-service inventory of the mr-mantle-usl component, for tracking service-level
 - **Implemented in** was filled on Oct 19, 2026 from the drawers-commons build (the Commons, Comms, `Shared`, `PublicShare` and `Unsubscribe` screens): each screen whose transitions, actions or forms call the service, directly or through the `ironstone.*` services of `service/ironstone/` (followed from one to the next, but not into Mantle's own calls, so `save#*ContentFile`, which `create#*Content` calls, stays blank). A screen that includes a `template/` record (ContactRecord, ConsentRecord) has that record's calls, so the contact record's are on both `Commons/Contacts/ContactDetail` and `Commons/Contacts/List`; a `.qvue` screen goes by its `.xml` path; a service the shell calls through a BOSS theme value names the value, and `Unsubscribe` includes its token route's check. The other apps' screens from the first port (Sales/Reports, Projects/Timesheets) are not counted.
 - **Added** tables, at the end of Party, Request and Work and as the Marketing section: the services Mantle gained during that build that a built screen calls (102 of the 143 new ones; the rest are not listed yet).
 - **Implemented in** of the design gaps closed on Oct 19, 2026 (Chatter edit and delete, the contact info card, EventDetail's linked records, the Account photo, Duplicate page): `update#RequestComment` and `delete#RequestComment` are reached from Chatter through Mantle's `update#RecordNote` and `delete#RecordNote` for a note on a request, and are filled with `Shared/Chatter`, which edits and deletes notes on every record (the Commons hosts, RequestDetail among them). Their **Designed in** is blank until design-drawers-commons, which names most of them in its form summaries and §19, is reviewed again.
+- **Designed in** for [design-projects.md](design-projects.md) was filled on Oct 21, 2026 from the Mantle services its screen sections name (the form summaries, the actions and the Context passed blocks), each screen by the path the design gives it, after what an earlier design wrote; the `Projects` root calls `setup#UserOrganizationInfo` as the Commons and Comms roots do. Services the design names as new are not rows until Mantle has them. The 17 services of `work/GitServices.xml`, added to Mantle on Oct 20, joined the Work table (no BOSS screen calls them yet), and `link#RequestRecord` and `unlink#RequestRecord`, added after the drawers-commons save point, joined Request's Added table with the Commons screens that call them.
 
 ## Account (162 services)
 
@@ -61,13 +62,13 @@ Per-service inventory of the mr-mantle-usl component, for tracking service-level
 | InvoiceServices | create#SalesShipmentInvoices |  |  |
 | InvoiceServices | create#PurchaseShipmentInvoices |  |  |
 | InvoiceServices | create#ProjectExpenseInvoice |  |  |
-| InvoiceServices | create#ProjectInvoiceItems |  |  |
-| InvoiceServices | create#WorkerInvoiceItems |  |  |
+| InvoiceServices | create#ProjectInvoiceItems | Projects/Time/MyTime; Projects/Billing/Unbilled |  |
+| InvoiceServices | create#WorkerInvoiceItems | Projects/Billing/Unbilled |  |
 | InvoiceServices | create#TimeEntryInvoiceItems |  |  |
 | InvoiceServices | create#InvoiceBillThroughItems |  |  |
 | InvoiceServices | create#InvoiceCreditMemo |  |  |
 | InvoiceServices | reverse#Invoice |  |  |
-| InvoiceServices | cancel#Invoice |  |  |
+| InvoiceServices | cancel#Invoice | Projects/Billing/InvoiceDetail |  |
 | InvoiceServices | cancel#InvoiceAndPayments |  |  |
 | InvoiceServices | unpay#Invoice |  |  |
 | InvoiceServices | autoApplyTo#Invoice |  |  |
@@ -237,8 +238,8 @@ Per-service inventory of the mr-mantle-usl component, for tracking service-level
 | PayrollServices | delete#PayrollAdjustmentAndDetail |  |  |
 | PayrollServices | create#PayrollInvoice |  |  |
 | PositionServices | get#PartyEmployersAndPositionClasses |  |  |
-| RateServices | create#RateAmount |  |  |
-| RateServices | update#RateAmount |  |  |
+| RateServices | create#RateAmount | Projects/Projects/NewProject; Projects/Projects/ProjectDetail/Money; Projects/Billing/Rates |  |
+| RateServices | update#RateAmount | Projects/Projects/ProjectDetail/Money; Projects/Billing/Rates |  |
 
 ## Ledger (81 services)
 
@@ -410,7 +411,7 @@ Added in the drawers-commons build (Oct 18–19, 2026), called by built screens:
 | OrderServices | create#OrderContent | Shared/RecordFiles | Shared/RecordFiles |
 | OrderServices | update#OrderContent |  |  |
 | OrderServices | save#OrderContentFile | Shared/RecordFiles |  |
-| OrderServices | create#PurchaseRequestOrder |  |  |
+| OrderServices | create#PurchaseRequestOrder | Projects/Requests/RequestDetail |  |
 | ReturnServices | get#ReturnDisplayInfo |  |  |
 | ReturnServices | create#Return |  |  |
 | ReturnServices | create#ReturnFromOrder |  |  |
@@ -473,8 +474,8 @@ Added in the drawers-commons build (Oct 18–19, 2026), called by built screens:
 | AgreementServices | update#AgreementContent |  |  |
 | AgreementServices | save#AgreementContentFile | Shared/RecordFiles |  |
 | CommunicationServices | find#PartyCommunicationEvents | Shared/Chatter |  |
-| CommunicationServices | create#Message | Commons/QuickCreate; Commons/Files; Comms/Inbox/Compose; Shared/Chatter | Comms/Inbox/Compose; Shared/Chatter |
-| CommunicationServices | reply#CommunicationEvent | Comms/Inbox/Compose; Shared/Chatter | Comms/Inbox/Compose; Shared/Chatter |
+| CommunicationServices | create#Message | Commons/QuickCreate; Commons/Files; Comms/Inbox/Compose; Projects/Requests/RequestDetail; Projects/Code/MergeRequestDetail/Changes; Shared/Chatter | Comms/Inbox/Compose; Shared/Chatter |
+| CommunicationServices | reply#CommunicationEvent | Comms/Inbox/Compose; Projects/Code/MergeRequestDetail/Changes; Shared/Chatter | Comms/Inbox/Compose; Shared/Chatter |
 | CommunicationServices | add#WikiPageComment | Commons/Knowledge; Commons/Knowledge/Review |  |
 | CommunicationServices | get#CommunicationEventContentLocation |  |  |
 | CommunicationServices | create#CommunicationEventContent | Shared/RecordFiles | Shared/RecordFiles |
@@ -516,7 +517,7 @@ Added in the drawers-commons build (Oct 18–19, 2026), called by built screens:
 | PartyServices | search#Party | Commons/Contacts; Comms/Panel/Chat; Comms/Inbox |  |
 | PartyServices | search#Person |  | Commons/Calendar; Commons/Calendar/EventDetail; Commons/QuickCreate |
 | PartyServices | get#UserNoticeCounts |  |  |
-| PartyServices | setup#UserOrganizationInfo | Commons; Comms | Commons; Comms |
+| PartyServices | setup#UserOrganizationInfo | Commons; Comms; Projects | Commons; Comms |
 | PartyServices | get#PartyOrganizationInfo |  |  |
 | PartyServices | create#Account |  |  |
 | PartyServices | update#Account |  | Commons/Settings/Account |
@@ -569,7 +570,7 @@ Added in the drawers-commons build (Oct 18–19, 2026), called by built screens:
 | CommunicationServices | findOrCreate#EmailCommunicationEvent |  | Comms/Inbox/Mail |
 | CommunicationServices | link#CommunicationEventRecord |  | Comms/Chat; Comms/Inbox/Compose; Comms/Inbox/Mail; Comms/Inbox/MessageDetail; Shared/Chatter |
 | CommunicationServices | unlink#CommunicationEventRecord |  | Comms/Inbox/Mail; Shared/Chatter |
-| CommunicationServices | send#EmailDraft |  | Comms/Inbox/Compose |
+| CommunicationServices | send#EmailDraft | Projects/Requests/RequestDetail | Comms/Inbox/Compose |
 | CommunicationServices | get#RecordTimeline |  | Shared/Chatter |
 | CommunicationServices | log#RecordNote |  | Commons/QuickCreate; Shared/Chatter |
 | CommunicationServices | update#RecordNote |  | Shared/Chatter |
@@ -733,21 +734,21 @@ Added in the drawers-commons build (Oct 18–19, 2026), called by built screens:
 | TenantSubscriptionServices | restore#TenantAccess |  |  |
 | TenantSubscriptionServices | destroy#Tenant |  |  |
 
-## Request (12 services, 1 added)
+## Request (12 services, 3 added)
 
 | Service XML | Service | Designed in | Implemented in |
 | --- | --- | --- | --- |
-| RequestServices | create#Request | Commons/QuickCreate; Commons/Requests; Comms/Inbox; Comms/Chat | Commons/QuickCreate; Commons/Requests/List; Commons/Tasks/TaskDetail |
-| RequestServices | update#Request | Commons/Requests/RequestDetail | Commons/Requests/RequestDetail |
-| RequestServices | create#ContactRequest |  |  |
-| RequestServices | create#ContactRequestReCaptcha |  |  |
-| RequestServices | replace#RequestParty | Commons/Requests/RequestDetail | Commons/Requests/RequestDetail |
-| RequestServices | add#RequestComment | Commons/Requests/RequestDetail | Commons/Requests/RequestDetail |
-| RequestServices | update#RequestComment | Commons/Requests/RequestDetail | Shared/Chatter |
-| RequestServices | delete#RequestComment | Commons/Requests/RequestDetail | Shared/Chatter |
+| RequestServices | create#Request | Commons/QuickCreate; Commons/Requests; Comms/Inbox; Comms/Chat; Projects/Requests | Commons/QuickCreate; Commons/Requests/List; Commons/Tasks/TaskDetail |
+| RequestServices | update#Request | Commons/Requests/RequestDetail; Projects/Requests; Projects/Requests/RequestDetail | Commons/Requests/RequestDetail |
+| RequestServices | create#ContactRequest | Projects/Requests/Intake |  |
+| RequestServices | create#ContactRequestReCaptcha | Projects/Requests/Intake |  |
+| RequestServices | replace#RequestParty | Commons/Requests/RequestDetail; Projects/Requests; Projects/Requests/RequestDetail | Commons/Requests/RequestDetail |
+| RequestServices | add#RequestComment | Commons/Requests/RequestDetail; Projects/Requests/RequestDetail | Commons/Requests/RequestDetail |
+| RequestServices | update#RequestComment | Commons/Requests/RequestDetail; Projects/Requests/RequestDetail | Shared/Chatter |
+| RequestServices | delete#RequestComment | Commons/Requests/RequestDetail; Projects/Requests/RequestDetail | Shared/Chatter |
 | RequestServices | get#RequestContentLocation |  |  |
-| RequestServices | create#RequestContent | Commons/Requests/RequestDetail; Shared/RecordFiles | Shared/RecordFiles |
-| RequestServices | update#RequestContent |  |  |
+| RequestServices | create#RequestContent | Commons/Requests/RequestDetail; Projects/Requests/RequestDetail; Shared/RecordFiles | Shared/RecordFiles |
+| RequestServices | update#RequestContent | Projects/Requests/RequestDetail |  |
 | RequestServices | save#RequestContentFile | Commons/Requests/RequestDetail; Shared/RecordFiles |  |
 
 Added in the drawers-commons build (Oct 18–19, 2026), called by built screens:
@@ -755,6 +756,8 @@ Added in the drawers-commons build (Oct 18–19, 2026), called by built screens:
 | Service XML | Service | Designed in | Implemented in |
 | --- | --- | --- | --- |
 | RequestServices | get#UserTodayRequests |  | Commons |
+| RequestServices | link#RequestRecord | Projects/Requests/RequestDetail | Commons/QuickCreate; Commons/Requests/RequestDetail |
+| RequestServices | unlink#RequestRecord | Projects/Requests/RequestDetail | Commons/Requests/RequestDetail |
 
 ## Sales (8 services)
 
@@ -848,14 +851,31 @@ Added in the drawers-commons build (Oct 18–19, 2026), called by built screens:
 | ShipmentServices | update#ShipmentContent |  |  |
 | ShipmentServices | save#ShipmentContentFile | Shared/RecordFiles |  |
 
-## Work (87 services, 31 added)
+## Work (104 services, 31 added)
 
 | Service XML | Service | Designed in | Implemented in |
 | --- | --- | --- | --- |
-| EventServices | get#FullCalendarData | Commons/Home; Commons/Calendar; Commons/Calendar/Schedules; Commons/Calendar/Schedules/ResourceDetail; Comms/Home; Comms/Calls | Commons/Calendar; Commons/Calendar/Schedules; Commons/Calendar/Schedules/ResourceDetail; Commons/Contacts/ContactDetail; Commons/Contacts/List; Commons/Home; Comms/Home |
+| EventServices | get#FullCalendarData | Commons/Home; Commons/Calendar; Commons/Calendar/Schedules; Commons/Calendar/Schedules/ResourceDetail; Comms/Home; Comms/Calls; Projects/Projects/ProjectDetail/Plan/Calendar | Commons/Calendar; Commons/Calendar/Schedules; Commons/Calendar/Schedules/ResourceDetail; Commons/Contacts/ContactDetail; Commons/Contacts/List; Commons/Home; Comms/Home |
 | EventServices | create#Event | Commons/QuickCreate; Commons/Calendar; Commons/Calendar/EventDetail; Commons/Calendar/Schedules; Commons/Calendar/Schedules/ResourceDetail; Comms/Inbox; Comms/Chat | Commons/Calendar; Commons/Calendar/Schedules; Commons/Calendar/Schedules/ResourceDetail; Commons/QuickCreate; Shared/Chatter |
 | EventServices | get#NextBusinessDay |  |  |
-| EventServices | get#FutureBusinessDay |  |  |
+| EventServices | get#FutureBusinessDay | Projects/WorkItems/Timeline |  |
+| GitServices | add#ProjectRepository | Projects/Projects/NewProject; Projects/Projects/ProjectDetail/Code; Projects/Code/Repositories; Projects/Code/RepositoryDetail/Settings |  |
+| GitServices | remove#ProjectRepository | Projects/Projects/ProjectDetail/Code; Projects/Code/RepositoryDetail/Settings |  |
+| GitServices | create#ProjectRepository | Projects/Projects/NewProject; Projects/Projects/ProjectDetail/Code; Projects/Code/Repositories |  |
+| GitServices | get#RepositoryProjects | Projects/Code/RepositoryDetail/Settings |  |
+| GitServices | find#TaskReferences |  |  |
+| GitServices | store#TaskCommit |  |  |
+| GitServices | add#TaskCommit | Projects/WorkItems/WorkItemDetail; Projects/Code/CommitDetail |  |
+| GitServices | remove#TaskCommit | Projects/WorkItems/WorkItemDetail; Projects/Code/CommitDetail |  |
+| GitServices | link#CommitReferences |  |  |
+| GitServices | store#WorkEffortRef |  |  |
+| GitServices | add#WorkEffortRef | Projects/Projects/ReleaseDetail; Projects/WorkItems/WorkItemDetail; Projects/Code/RepositoryDetail/Tags |  |
+| GitServices | remove#WorkEffortRef | Projects/Projects/ProjectDetail/Code; Projects/WorkItems/WorkItemDetail; Projects/Code/RepositoryDetail/Tags |  |
+| GitServices | link#RefByName |  |  |
+| GitServices | close#RefLinks |  |  |
+| GitServices | apply#CommitKeywords |  |  |
+| GitServices | complete#TaskFromCommit |  |  |
+| GitServices | check#GitRepositoryAuthz |  |  |
 | ManufacturingServices | get#ProductionRunDisplayInfo |  |  |
 | ManufacturingServices | create#ProductionRun |  |  |
 | ManufacturingServices | create#ShipmentAssemblyWorkEffort |  |  |
@@ -872,18 +892,18 @@ Added in the drawers-commons build (Oct 18–19, 2026), called by built screens:
 | ManufacturingServices | get#ProductBomDetail |  |  |
 | ManufacturingServices | get#ProductionRunPickInfo |  |  |
 | MeasurementServices | get#MeasurementUomsByMeasurementType |  |  |
-| ProjectServices | clone#Project |  |  |
-| ProjectServices | create#Project |  |  |
-| ProjectServices | update#Project |  |  |
-| ProjectServices | get#ProjectStats |  |  |
-| ProjectServices | get#ProjectMilestoneSummary |  |  |
-| ProjectServices | get#WorkEffortChildStats |  |  |
-| ProjectServices | get#ProjectParties |  |  |
-| ProjectServices | get#ProjectTeams |  |  |
-| ProjectServices | get#ProjectTasks |  |  |
-| ProjectServices | get#ProjectMilestones |  |  |
-| ProjectServices | create#Milestone |  |  |
-| ProjectServices | update#Milestone |  |  |
+| ProjectServices | clone#Project | Projects/QuickCreate; Projects/Projects/NewProject; Projects/Projects/ProjectDetail; Projects/Projects/ProjectDetail/Settings; Projects/Settings/Templates |  |
+| ProjectServices | create#Project | Projects/QuickCreate; Projects/Projects/NewProject; Projects/Settings/Templates |  |
+| ProjectServices | update#Project | Projects/Projects; Projects/Projects/NewProject; Projects/Projects/ProjectDetail/Overview; Projects/Projects/ProjectDetail/Money; Projects/Projects/ProjectDetail/Settings |  |
+| ProjectServices | get#ProjectStats | Projects/Home; Projects/Projects; Projects/Projects/ProjectDetail/Overview; Projects/Projects/ProjectDetail/Money; Projects/Reports/Portfolio |  |
+| ProjectServices | get#ProjectMilestoneSummary | Projects/Projects/ProjectDetail/Overview; Projects/Projects/Roadmap; Projects/Projects/MilestoneDetail; Projects/Reports/Progress |  |
+| ProjectServices | get#WorkEffortChildStats | Projects/Reports/Progress |  |
+| ProjectServices | get#ProjectParties | Projects/WorkItems/WorkItemDetail |  |
+| ProjectServices | get#ProjectTeams | Projects/Projects/ProjectDetail/Team |  |
+| ProjectServices | get#ProjectTasks | Projects/WorkItems/WorkItemDetail |  |
+| ProjectServices | get#ProjectMilestones | Projects/WorkItems/WorkItemDetail |  |
+| ProjectServices | create#Milestone | Projects/Projects/Roadmap |  |
+| ProjectServices | update#Milestone | Projects/Projects/Roadmap; Projects/Projects/MilestoneDetail; Projects/Projects/ReleaseDetail; Projects/WorkItems/Backlog; Projects/WorkItems/SprintDetail |  |
 | ShipmentWorkServices | create#ShipmentLoadShip |  |  |
 | ShipmentWorkServices | add#ShipmentToShipmentLoad |  |  |
 | ShipmentWorkServices | add#OrderPartToShipmentLoad |  |  |
@@ -895,49 +915,49 @@ Added in the drawers-commons build (Oct 18–19, 2026), called by built screens:
 | ShipmentWorkServices | set#ShipmentLoadStatusFromShipments |  |  |
 | ShipmentWorkServices | complete#ShipmentLoadShip |  |  |
 | ShipmentWorkServices | close#ShipmentLoadShip |  |  |
-| TaskServices | get#FullCalendarData | Commons/Calendar | Commons/Calendar |
-| TaskServices | create#Task |  |  |
+| TaskServices | get#FullCalendarData | Commons/Calendar; Projects/Projects/ProjectDetail/Plan/Calendar | Commons/Calendar |
+| TaskServices | create#Task | Projects/QuickCreate; Projects/WorkItems; Projects/WorkItems/WorkItemDetail; Projects/WorkItems/Backlog; Projects/Requests; Projects/Requests/RequestDetail |  |
 | TaskServices | create#SimpleTask | Commons/Panel/Today; Commons/QuickCreate; Commons/Tasks; Comms/Inbox; Comms/Chat; Shared/Chatter | Commons/Panel/Today; Commons/QuickCreate; Commons/Requests/RequestDetail; Commons/Tasks/List; Commons/Tasks/TaskDetail; Shared/Chatter |
-| TaskServices | update#Task | Commons/Panel/Today; Commons/Tasks; Commons/Tasks/TaskDetail; Shared/Chatter | Commons/Panel/Today; Commons/Tasks/List; Commons/Tasks/TaskDetail; Shared/Chatter |
-| TaskServices | set#TaskMilestone |  |  |
+| TaskServices | update#Task | Commons/Panel/Today; Commons/Tasks; Commons/Tasks/TaskDetail; Projects/Projects/MilestoneDetail; Projects/WorkItems; Projects/WorkItems/WorkItemDetail; Projects/WorkItems/Timeline; Shared/Chatter | Commons/Panel/Today; Commons/Tasks/List; Commons/Tasks/TaskDetail; Shared/Chatter |
+| TaskServices | set#TaskMilestone | Projects/Projects/MilestoneDetail; Projects/WorkItems; Projects/WorkItems/WorkItemDetail |  |
 | TaskServices | set#TaskDefaults |  |  |
 | TaskServices | add#TaskComment | Commons/Tasks/TaskDetail |  |
 | TaskServices | update#TaskComment |  |  |
 | TaskServices | delete#TaskComment |  |  |
-| TaskServices | add#TaskTime | Commons/Tasks/TaskDetail | Commons/Tasks/TaskDetail |
+| TaskServices | add#TaskTime | Commons/Tasks/TaskDetail; Projects/WorkItems/WorkItemDetail | Commons/Tasks/TaskDetail |
 | TaskServices | update#TaskFromTime |  | Commons/Tasks/TaskDetail |
 | TaskServices | update#ProjectTimeFromTask |  |  |
-| TimeServices | store#TimeEntry |  | Commons/Tasks/TaskDetail |
-| TimeServices | create#TimeEntryClockIn | Commons/Tasks/TaskDetail | Commons/Tasks/TaskDetail |
-| TimeServices | delete#TimeEntry |  | Commons/Tasks/TaskDetail |
+| TimeServices | store#TimeEntry | Projects/Home; Projects/QuickCreate; Projects/WorkItems/WorkItemDetail; Projects/Time/MyTime; Projects/Time/TimeEntries | Commons/Tasks/TaskDetail |
+| TimeServices | create#TimeEntryClockIn | Commons/Tasks/TaskDetail; Projects/WorkItems/WorkItemDetail; Projects/Time/MyTime; Projects/Time/TimeEntries | Commons/Tasks/TaskDetail |
+| TimeServices | delete#TimeEntry | Projects/WorkItems/WorkItemDetail; Projects/Time/MyTime; Projects/Time/TimeEntries | Commons/Tasks/TaskDetail |
 | TimeServices | delete#TimeEntries |  |  |
-| TimeServices | store#TimeEntryWorkEffort |  |  |
-| TimeServices | store#WorkEffortPartyTime |  |  |
-| TimeServices | get#TeamTimesheetInfo |  |  |
-| TimeServices | get#TimeEntryAmount |  |  |
-| TimeServices | resetAndGet#TimeEntryRates |  |  |
-| TimeServices | resetAndGet#ProjectTimeEntryRates |  |  |
-| TimeServices | get#TimeEntryRate |  |  |
+| TimeServices | store#TimeEntryWorkEffort | Projects/Time/TimeEntries |  |
+| TimeServices | store#WorkEffortPartyTime | Projects/Time/TimeEntries |  |
+| TimeServices | get#TeamTimesheetInfo | Projects/Time/TimeEntries |  |
+| TimeServices | get#TimeEntryAmount | Projects/Time/TimeEntries |  |
+| TimeServices | resetAndGet#TimeEntryRates | Projects/Time/TimeEntries |  |
+| TimeServices | resetAndGet#ProjectTimeEntryRates | Projects/Projects/ProjectDetail/Time |  |
+| TimeServices | get#TimeEntryRate | Projects/Time/TimeEntries |  |
 | TimeServices | get#TimeEntryFacility |  |  |
 | TimeServices | get#TimeEntryRiskClassInfo |  |  |
-| TimeServices | find#RateAmount |  |  |
+| TimeServices | find#RateAmount | Projects/Billing/Rates |  |
 | TimeServices | find#TimeEntryRateAmount |  |  |
 | TimeServices | upload#TimeSummaryFile |  |  |
 | TimeServices | import#TimeSummaryFile |  |  |
 | TimeServices | import#TimeSummaryRecord |  |  |
-| TimeServices | upload#TimeDetailFile |  |  |
-| TimeServices | import#TimeDetailFile |  |  |
+| TimeServices | upload#TimeDetailFile | Projects/Time/TimeEntries |  |
+| TimeServices | import#TimeDetailFile | Projects/Time/TimeEntries |  |
 | TimeServices | import#TimeDetailRecord |  |  |
-| WorkEffortServices | clone#WorkEffort | Commons/Calendar/EventDetail; Commons/Tasks/TaskDetail | Commons/Calendar/EventDetail; Commons/Tasks/TaskDetail |
-| WorkEffortServices | delete#WorkEffort |  | Commons/Tasks/TaskDetail |
-| WorkEffortServices | add#WorkEffortParty | Commons/QuickCreate; Commons/Calendar; Commons/Calendar/EventDetail | Commons/Calendar; Commons/Calendar/EventDetail; Commons/QuickCreate; Commons/Tasks/TaskDetail |
-| WorkEffortServices | remove#WorkEffortParty | Commons/Calendar/EventDetail |  |
-| WorkEffortServices | replace#WorkEffortParty | Commons/Calendar/EventDetail; Commons/Tasks | Commons/Tasks/List; Commons/Tasks/TaskDetail; Shared/Chatter |
-| WorkEffortServices | add#WorkEffortProduct |  |  |
+| WorkEffortServices | clone#WorkEffort | Commons/Calendar/EventDetail; Commons/Tasks/TaskDetail; Projects/WorkItems/WorkItemDetail | Commons/Calendar/EventDetail; Commons/Tasks/TaskDetail |
+| WorkEffortServices | delete#WorkEffort | Projects/Projects/ProjectDetail/Settings; Projects/WorkItems; Projects/WorkItems/WorkItemDetail | Commons/Tasks/TaskDetail |
+| WorkEffortServices | add#WorkEffortParty | Commons/QuickCreate; Commons/Calendar; Commons/Calendar/EventDetail; Projects/Projects/NewProject; Projects/Projects/ProjectDetail/Team; Projects/WorkItems; Projects/WorkItems/WorkItemDetail | Commons/Calendar; Commons/Calendar/EventDetail; Commons/QuickCreate; Commons/Tasks/TaskDetail |
+| WorkEffortServices | remove#WorkEffortParty | Commons/Calendar/EventDetail; Projects/Projects/ProjectDetail/Team; Projects/WorkItems |  |
+| WorkEffortServices | replace#WorkEffortParty | Commons/Calendar/EventDetail; Commons/Tasks; Projects/WorkItems/WorkItemDetail | Commons/Tasks/List; Commons/Tasks/TaskDetail; Shared/Chatter |
+| WorkEffortServices | add#WorkEffortProduct | Projects/Projects/ProjectDetail/Money |  |
 | WorkEffortServices | get#WorkEffortStartEnd |  | Commons/Calendar; Commons/Calendar/EventDetail |
 | WorkEffortServices | get#WorkEffortContentLocation |  |  |
-| WorkEffortServices | create#WorkEffortContent | Commons/Tasks/TaskDetail; Shared/RecordFiles | Shared/RecordFiles |
-| WorkEffortServices | update#WorkEffortContent |  |  |
+| WorkEffortServices | create#WorkEffortContent | Commons/Tasks/TaskDetail; Projects/Projects/ProjectDetail/Files; Projects/WorkItems/WorkItemDetail; Shared/RecordFiles | Shared/RecordFiles |
+| WorkEffortServices | update#WorkEffortContent | Projects/Projects/ProjectDetail/Files; Projects/WorkItems/WorkItemDetail |  |
 | WorkEffortServices | save#WorkEffortContentFile | Commons/Tasks/TaskDetail; Shared/RecordFiles |  |
 
 Added in the drawers-commons build (Oct 18–19, 2026), called by built screens:
@@ -971,8 +991,8 @@ Added in the drawers-commons build (Oct 18–19, 2026), called by built screens:
 | EventServices | book#Resource |  | Commons/Calendar; Commons/Calendar/EventDetail; Commons/Calendar/Schedules; Commons/Calendar/Schedules/ResourceDetail |
 | EventServices | cancel#ResourceBooking |  | Commons/Calendar/EventDetail; Commons/Calendar/Schedules; Commons/Calendar/Schedules/ResourceDetail |
 | EventServices | store#WorkEffortReminders |  | Commons/Calendar; Commons/Calendar/EventDetail |
-| WorkEffortServices | link#WorkEffortRecord |  | Commons/Calendar; Commons/Calendar/EventDetail; Commons/Panel/Today; Commons/QuickCreate; Commons/Requests/RequestDetail; Commons/Tasks/List; Commons/Tasks/TaskDetail; Shared/Chatter |
-| WorkEffortServices | unlink#WorkEffortRecord |  | Commons/Calendar/EventDetail |
+| WorkEffortServices | link#WorkEffortRecord | Projects/QuickCreate; Projects/WorkItems/WorkItemDetail | Commons/Calendar; Commons/Calendar/EventDetail; Commons/Panel/Today; Commons/QuickCreate; Commons/Requests/RequestDetail; Commons/Tasks/List; Commons/Tasks/TaskDetail; Shared/Chatter |
+| WorkEffortServices | unlink#WorkEffortRecord | Projects/WorkItems/WorkItemDetail | Commons/Calendar/EventDetail |
 | WorkEffortServices | get#UserTodayItems |  | Commons/Home; Commons/Panel/Today |
 | WorkEffortServices | snooze#UserTodayItem |  | Commons/Panel/Today; Commons/Tasks/List; Commons/Tasks/TaskDetail |
 
