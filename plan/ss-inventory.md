@@ -6,17 +6,18 @@ Per-form inventory of the MrSimpleScreens component, for tracking form-level fea
 - Form: every `<form-single>` and `<form-list>` element, including forms nested in dialogs, sections and includes.
 - The **Designed in** column is filled when a design file is reviewed with the IronStone screen path(s) whose forms cover it (`—` when deliberately not carried forward, with the reason in that design's Decided table); the **Implemented in** column is filled during implementation with the screen and form that exist. See [design-doc-guide.md](design-doc-guide.md) §9.
 - **Implemented in** was filled on Oct 19, 2026 from the drawers-commons build, by the path of the built screen that carries each form of its **Designed in** cell: a designed screen built as a parent with subscreens is its default subscreen (`Commons/Tasks/List`, `Commons/Requests/List`, `Commons/Contacts/List`, `Comms/Inbox/Mail`); the contact record (`template/ContactRecord.xml`) is on both `Commons/Contacts/ContactDetail` and the main pane of `Commons/Contacts/List`; a space's settings are on `Commons/Knowledge/SpaceDetail`, and a page's attachments are Knowledge's own, not record files; a `—` row stays `—`. Filled: the 101 rows designed with a path (wiki `ClonePage` since Oct 19, Knowledge's Duplicate page), and the 5 `—` rows. The update note and comment forms the design gives to `Shared/Chatter` (`UpdateNoteForm`, the `…CommentUpdate` `ReplyCommentForm`) are Chatter's edit of a note in place (since Oct 19). Rows that other design files are to fill stay blank.
+- **Designed in** for [design-projects.md](design-projects.md) was filled on Oct 21, 2026 from that design's §13.1 and the **Derived from** cells of its form summaries, each screen by the path the design gives it: a project's tab is a subscreen of `Projects/Projects/ProjectDetail`, and a screen the design mounts in a tab with the project fixed (WorkItems, Requests, TimeEntries) is listed by its own path. Paths are added after what an earlier design wrote. The rows of the git forms added to SimpleScreens on Oct 20 came with it: `Project/EditRepositories`, `ProjectSummary`'s `ViewGitRepositoryList` and `ViewGitTagList`, `Task/EditSource` and `MyAccount/User/GitAccess` (`Project/GitCommit` has no forms); their **Implemented in** is blank. The My Account expense forms other than the worker invoice stay blank for design-people.
 
-## MyAccount (45 forms)
+## MyAccount (49 forms)
 
 | Screen XML | Form | Designed in | Implemented in |
 | --- | --- | --- | --- |
-| EditExpenseInvoice | WorkerInvoice |  |  |
+| EditExpenseInvoice | WorkerInvoice | Projects/Time/MyTime |  |
 | EditExpenseInvoice | EditInvoice |  |  |
 | EditExpenseInvoiceItems | CreateInvoiceItem |  |  |
 | EditExpenseInvoiceItems | EditInvoiceItems |  |  |
 | FindExpenseInvoice | CreateInvoice |  |  |
-| FindExpenseInvoice | WorkerInvoice |  |  |
+| FindExpenseInvoice | WorkerInvoice | Projects/Time/MyTime |  |
 | FindExpenseInvoice | InvoiceList |  |  |
 | Account | ChangePasswordForm | Commons/Settings/Account | Commons/Settings/Account |
 | Account | SecondFactorSendForm | Commons/Settings/Account | Commons/Settings/Account |
@@ -35,6 +36,10 @@ Per-form inventory of the MrSimpleScreens component, for tracking form-level fea
 | EventDetail | EquipmentList | Commons/Calendar/EventDetail | Commons/Calendar/EventDetail |
 | MyCalendar | NewEventForm | Commons/Calendar; Commons/QuickCreate | Commons/Calendar; Commons/QuickCreate |
 | UpdateContactInfo | ShippingInfo | Commons/Settings/Account | Commons/Settings/Account |
+| GitAccess | CreateAccessTokenForm | Projects/Code/GitAccess |  |
+| GitAccess | AccessTokenList | Projects/Code/GitAccess |  |
+| GitAccess | AddSshKeyForm | Projects/Code/GitAccess |  |
+| GitAccess | SshKeyList | Projects/Code/GitAccess |  |
 | EditMessage | ReplyMessageForm | Comms/Inbox/Compose | Comms/Inbox/Compose |
 | EditMessage | MessageForm | Comms/Inbox/Compose | Comms/Inbox/Compose |
 | EditMessage | AddPurposeForm | — | — |
@@ -44,8 +49,8 @@ Per-form inventory of the MrSimpleScreens component, for tracking form-level fea
 | SingleMessage | ReplyMessageForm | Comms/Inbox/Compose; Shared/Chatter | Comms/Inbox/Compose; Shared/Chatter |
 | Notifications | NotificationTopicList | Commons/Settings/Notifications | Commons/Settings/Notifications |
 | Notifications | NotificationList | Commons/Notifications; Commons/Panel/Notifications | Commons/Notifications; Commons/Panel/Notifications |
-| EditRequest | EditRequest | Commons/Requests/RequestDetail | Commons/Requests/RequestDetail |
-| EditRequest | UpdatePartyForm | Commons/Requests/RequestDetail | Commons/Requests/RequestDetail |
+| EditRequest | EditRequest | Commons/Requests/RequestDetail; Projects/Requests/RequestDetail | Commons/Requests/RequestDetail |
+| EditRequest | UpdatePartyForm | Commons/Requests/RequestDetail; Projects/Requests/RequestDetail | Commons/Requests/RequestDetail |
 | RequestCommentReply | ReplyCommentForm | Commons/Requests/RequestDetail; Shared/Chatter | Commons/Requests/RequestDetail; Shared/Chatter |
 | RequestCommentUpdate | ReplyCommentForm | Commons/Requests/RequestDetail; Shared/Chatter | Commons/Requests/RequestDetail; Shared/Chatter |
 | MyRequests | NewRequestForm | Commons/Requests; Commons/QuickCreate | Commons/Requests/List; Commons/QuickCreate |
@@ -53,9 +58,9 @@ Per-form inventory of the MrSimpleScreens component, for tracking form-level fea
 | ScheduledFinds | ScreenScheduledList |  |  |
 | EditScheduledFind | EditScreenScheduled |  |  |
 | MyTasks | NewTaskForm | Commons/Tasks; Commons/QuickCreate | Commons/Tasks/List; Commons/QuickCreate |
-| MyTasks | MyTasks | Commons/Panel/Today; Commons/Home; Commons/Tasks | Commons/Panel/Today; Commons/Home; Commons/Tasks/List |
+| MyTasks | MyTasks | Commons/Panel/Today; Commons/Home; Commons/Tasks; Projects/Home | Commons/Panel/Today; Commons/Home; Commons/Tasks/List |
 | TaskDetail | UpdateEvent | Commons/Tasks/TaskDetail | Commons/Tasks/TaskDetail |
-| TimeEntries | TimeEntryList | Commons/Tasks/TaskDetail | Commons/Tasks/TaskDetail |
+| TimeEntries | TimeEntryList | Commons/Tasks/TaskDetail; Projects/WorkItems/WorkItemDetail; Projects/Time/MyTime; Projects/Time/TimeEntries | Commons/Tasks/TaskDetail |
 
 ## Accounting (166 forms)
 
@@ -116,9 +121,9 @@ Per-form inventory of the MrSimpleScreens component, for tracking form-level fea
 | FindInvoice | NewReceivableForm |  |  |
 | FindInvoice | NewCustCreditForm |  |  |
 | FindInvoice | NewSupCreditForm |  |  |
-| FindInvoice | ProjectInvoice |  |  |
-| FindInvoice | ProjectWorkerInvoice |  |  |
-| FindInvoice | WorkerInvoice |  |  |
+| FindInvoice | ProjectInvoice | Projects/Billing/Unbilled |  |
+| FindInvoice | ProjectWorkerInvoice | Projects/Billing/Unbilled |  |
+| FindInvoice | WorkerInvoice | Projects/Billing/Unbilled |  |
 | FindInvoice | CustomerStatementForm |  |  |
 | FindInvoice | MainOptions |  |  |
 | FindInvoice | InvoiceList |  |  |
@@ -433,8 +438,8 @@ Per-form inventory of the MrSimpleScreens component, for tracking form-level fea
 
 | Screen XML | Form | Designed in | Implemented in |
 | --- | --- | --- | --- |
-| EditRateAmounts | CreateRateAmount |  |  |
-| EditRateAmounts | EditRateAmounts |  |  |
+| EditRateAmounts | CreateRateAmount | Projects/Projects/ProjectDetail/Money; Projects/Billing/Rates |  |
+| EditRateAmounts | EditRateAmounts | Projects/Projects/ProjectDetail/Money; Projects/Billing/Rates |  |
 
 ## Manufacturing (23 forms)
 
@@ -590,20 +595,20 @@ Per-form inventory of the MrSimpleScreens component, for tracking form-level fea
 | FindAgreement | NewAgreement |  |  |
 | FindAgreement | AgreementList |  |  |
 | PartyEmails | EmailMessageList | Comms/Inbox/MessageDetail; Shared/Chatter | Comms/Inbox/MessageDetail; Shared/Chatter |
-| PartyProjects | AddUserAssignForm |  |  |
-| PartyProjects | UpdateUserAssignForm |  |  |
+| PartyProjects | AddUserAssignForm | Projects/Projects/ProjectDetail/Team; Projects/Resources/PersonDetail |  |
+| PartyProjects | UpdateUserAssignForm | Projects/Projects/ProjectDetail/Team; Projects/Resources/PersonDetail |  |
 | PartyRelated | NewToRelForm | Commons/Contacts/ContactDetail | Commons/Contacts/ContactDetail; Commons/Contacts/List |
 | PartyRelated | NewFromRelForm | Commons/Contacts/ContactDetail | Commons/Contacts/ContactDetail; Commons/Contacts/List |
 | PartyRelated | ToRelationshipForm | Commons/Contacts/ContactDetail | Commons/Contacts/ContactDetail; Commons/Contacts/List |
 | PartyRelated | FromRelationshipForm | Commons/Contacts/ContactDetail | Commons/Contacts/ContactDetail; Commons/Contacts/List |
-| PartyRequests | AddUserForm |  |  |
-| PartyRequests | UpdateUserForm |  |  |
-| PartyTasks | AddUserAssignForm |  |  |
-| PartyTasks | UpdateUserAssignForm |  |  |
-| PartyTimeEntries | ClockInForm |  |  |
-| PartyTimeEntries | WorkerInvoice |  |  |
-| PartyTimeEntries | TimeEntryList |  |  |
-| EditTimeEntry | AddTimeForm |  |  |
+| PartyRequests | AddUserForm | Projects/Requests/RequestDetail |  |
+| PartyRequests | UpdateUserForm | Projects/Requests/RequestDetail |  |
+| PartyTasks | AddUserAssignForm | Projects/WorkItems/WorkItemDetail; Projects/Resources/PersonDetail |  |
+| PartyTasks | UpdateUserAssignForm | Projects/WorkItems/WorkItemDetail; Projects/Resources/PersonDetail |  |
+| PartyTimeEntries | ClockInForm | Projects/Time/TimeEntries |  |
+| PartyTimeEntries | WorkerInvoice | Projects/Billing/Unbilled |  |
+| PartyTimeEntries | TimeEntryList | Projects/Time/TimeEntries; Projects/Resources/PersonDetail |  |
+| EditTimeEntry | AddTimeForm | Projects/QuickCreate; Projects/WorkItems/WorkItemDetail; Projects/Time/MyTime; Projects/Time/TimeEntries |  |
 | EditPaymentMethod | PaymentMethodInfoForm |  |  |
 | EditPaymentMethod | NewContentForm |  |  |
 | EditPaymentMethod | UpdateContentForm |  |  |
@@ -661,57 +666,63 @@ Per-form inventory of the MrSimpleScreens component, for tracking form-level fea
 | FindPromoCode | NewPromoCodeForm |  |  |
 | FindPromoCode | PromoCodeForm |  |  |
 
-## Project (20 forms)
+## Project (26 forms)
 
 | Screen XML | Form | Designed in | Implemented in |
 | --- | --- | --- | --- |
-| EditMilestones | CreateMilestoneForm |  |  |
-| EditMilestones | MilestoneList |  |  |
-| EditProject | CloneProject |  |  |
-| EditProject | EditProject |  |  |
-| EditUsers | AddUserAssignForm |  |  |
-| EditUsers | UpdateUserAssignForm |  |  |
-| EditWikiPages | AddWpweForm |  |  |
-| EditWikiPages | DeleteWpweForm |  |  |
-| FindProject | NewProject |  |  |
-| FindProject | ListProjects |  |  |
-| MilestoneSummary | InactiveTaskList |  |  |
-| MilestoneSummary | ActiveTaskList |  |  |
-| MilestoneSummary | DoneTaskList |  |  |
-| ProjectProgressReport | ChildStatsListDays |  |  |
-| ProjectProgressReport | MilestoneStatsList |  |  |
-| ProjectSummary | ViewProject |  |  |
-| ProjectSummary | MilestoneList |  |  |
-| ProjectSummary | ViewWpweForm |  |  |
-| ProjectSummary | ViewUserAssignForm |  |  |
-| ProjectTimeEntries | TimeEntryListForm |  |  |
+| EditMilestones | CreateMilestoneForm | Projects/Projects/Roadmap |  |
+| EditMilestones | MilestoneList | Projects/Projects/Roadmap; Projects/Projects/MilestoneDetail |  |
+| EditProject | CloneProject | Projects/Projects/NewProject; Projects/Projects/ProjectDetail; Projects/Projects/ProjectDetail/Settings; Projects/Settings/Templates |  |
+| EditProject | EditProject | Projects/Projects/ProjectDetail/Overview; Projects/Projects/ProjectDetail/Money; Projects/Projects/ProjectDetail/Settings |  |
+| EditRepositories | AddRepositoryForm | Projects/Projects/ProjectDetail/Code; Projects/Code/Repositories |  |
+| EditRepositories | CreateRepositoryForm | Projects/Projects/ProjectDetail/Code; Projects/Code/Repositories |  |
+| EditRepositories | RepositoryList | Projects/Projects/ProjectDetail/Code; Projects/Code/Repositories |  |
+| EditRepositories | ProjectRefList | Projects/Projects/ProjectDetail/Code; Projects/Code/RepositoryDetail/Tags |  |
+| EditUsers | AddUserAssignForm | Projects/Projects/NewProject; Projects/Projects/ProjectDetail/Team |  |
+| EditUsers | UpdateUserAssignForm | Projects/Projects/ProjectDetail/Team |  |
+| EditWikiPages | AddWpweForm | Projects/Projects/ProjectDetail/Docs |  |
+| EditWikiPages | DeleteWpweForm | Projects/Projects/ProjectDetail/Docs |  |
+| FindProject | NewProject | Projects/QuickCreate; Projects/Projects/NewProject |  |
+| FindProject | ListProjects | Projects/Projects |  |
+| MilestoneSummary | InactiveTaskList | Projects/Projects/MilestoneDetail |  |
+| MilestoneSummary | ActiveTaskList | Projects/Projects/MilestoneDetail |  |
+| MilestoneSummary | DoneTaskList | Projects/Projects/MilestoneDetail |  |
+| ProjectProgressReport | ChildStatsListDays | Projects/Reports/Progress |  |
+| ProjectProgressReport | MilestoneStatsList | Projects/Projects/MilestoneDetail; Projects/Reports/Progress |  |
+| ProjectSummary | ViewProject | Projects/Projects/ProjectDetail; Projects/Projects/ProjectDetail/Overview |  |
+| ProjectSummary | MilestoneList | Projects/Projects/ProjectDetail/Overview; Projects/Projects/Roadmap |  |
+| ProjectSummary | ViewWpweForm | Projects/Projects/ProjectDetail/Docs |  |
+| ProjectSummary | ViewUserAssignForm | Projects/Projects/ProjectDetail/Overview |  |
+| ProjectSummary | ViewGitRepositoryList | Projects/Projects/ProjectDetail/Overview |  |
+| ProjectSummary | ViewGitTagList | Projects/Projects/ProjectDetail/Code; Projects/Code/RepositoryDetail/Tags |  |
+| ProjectTimeEntries | TimeEntryListForm | Projects/Projects/ProjectDetail/Time; Projects/Time/TimeEntries |  |
 
 ## Request (22 forms)
 
 | Screen XML | Form | Designed in | Implemented in |
 | --- | --- | --- | --- |
-| EditRequest | EditRequest |  |  |
-| EditRequest | AddCommentForm | Commons/Requests/RequestDetail; Shared/Chatter | Commons/Requests/RequestDetail; Shared/Chatter |
-| EditRequest | AddPartyForm |  |  |
-| EditRequest | UpdatePartyForm |  |  |
-| EditRequest | NewNoteForm | Commons/Requests/RequestDetail; Shared/Chatter | Commons/Requests/RequestDetail; Shared/Chatter |
-| EditRequest | UpdateNoteForm | Commons/Requests/RequestDetail; Shared/Chatter | Commons/Requests/RequestDetail; Shared/Chatter |
-| EditRequest | NewContentForm | Commons/Requests/RequestDetail; Shared/RecordFiles | Commons/Requests/RequestDetail; Shared/RecordFiles |
-| EditRequest | UpdateContentForm | Commons/Requests/RequestDetail; Shared/RecordFiles | Commons/Requests/RequestDetail; Shared/RecordFiles |
-| EditRequest | RequestTaskList | Commons/Requests/RequestDetail | Commons/Requests/RequestDetail |
-| RequestCommentReply | ReplyCommentForm |  |  |
-| RequestCommentUpdate | ReplyCommentForm |  |  |
-| EditRequestItems | NewRequestItemForm |  |  |
-| EditRequestItems | RequestItemListForm |  |  |
-| EditTasks | AddRweForm |  |  |
-| EditTasks | NewTaskForm |  |  |
-| EditTasks | UpdateRweForm |  |  |
-| EditUsers | AddUserForm |  |  |
-| EditUsers | UpdateUserForm |  |  |
-| EditWikiPages | AddWprForm | Commons/Knowledge | Commons/Knowledge |
-| EditWikiPages | DeleteWprForm | Commons/Knowledge | Commons/Knowledge |
-| FindRequest | NewRequestForm |  |  |
-| FindRequest | ListRequests | Commons/Requests | Commons/Requests/List |
+| EditRequest | EditRequest | Projects/Requests/RequestDetail |  |
+| EditRequest | AddCommentForm | Commons/Requests/RequestDetail; Projects/Requests/RequestDetail; Shared/Chatter | Commons/Requests/RequestDetail; Shared/Chatter |
+| EditRequest | AddPartyForm | Projects/Requests/RequestDetail |  |
+| EditRequest | UpdatePartyForm | Projects/Requests/RequestDetail |  |
+| EditRequest | NewNoteForm | Commons/Requests/RequestDetail; Projects/Requests/RequestDetail; Shared/Chatter | Commons/Requests/RequestDetail; Shared/Chatter |
+| EditRequest | UpdateNoteForm | Commons/Requests/RequestDetail; Projects/Requests/RequestDetail; Shared/Chatter | Commons/Requests/RequestDetail; Shared/Chatter |
+| EditRequest | NewContentForm | Commons/Requests/RequestDetail; Projects/Requests/RequestDetail; Shared/RecordFiles | Commons/Requests/RequestDetail; Shared/RecordFiles |
+| EditRequest | UpdateContentForm | Commons/Requests/RequestDetail; Projects/Requests/RequestDetail; Shared/RecordFiles | Commons/Requests/RequestDetail; Shared/RecordFiles |
+| EditRequest | RequestTaskList | Commons/Requests/RequestDetail; Projects/Requests/RequestDetail | Commons/Requests/RequestDetail |
+| RequestCommentReply | ReplyCommentForm | Projects/Requests/RequestDetail; Shared/Chatter |  |
+| RequestCommentUpdate | ReplyCommentForm | Projects/Requests/RequestDetail; Shared/Chatter |  |
+| EditRequestItems | NewRequestItemForm | Projects/Requests/RequestDetail |  |
+| EditRequestItems | RequestItemListForm | Projects/Requests/RequestDetail |  |
+| EditTasks | AddRweForm | Projects/Requests/RequestDetail |  |
+| EditTasks | NewTaskForm | Projects/Requests/RequestDetail |  |
+| EditTasks | UpdateRweForm | Projects/Requests/RequestDetail |  |
+| EditUsers | AddUserForm | Projects/Requests/RequestDetail |  |
+| EditUsers | UpdateUserForm | Projects/Requests/RequestDetail |  |
+| EditWikiPages | AddWprForm | Commons/Knowledge; Projects/Requests/RequestDetail | Commons/Knowledge |
+| EditWikiPages | DeleteWprForm | Commons/Knowledge; Projects/Requests/RequestDetail | Commons/Knowledge |
+| FindRequest | NewRequestForm | Projects/Requests |  |
+| FindRequest | ListRequests | Commons/Requests; Projects/Requests | Commons/Requests/List |
 
 ## Return (8 forms)
 
@@ -858,38 +869,42 @@ Per-form inventory of the MrSimpleScreens component, for tracking form-level fea
 | ResponseStats | FieldOptionForm |  |  |
 | Responses | ResponseListForm |  |  |
 
-## Task (28 forms)
+## Task (32 forms)
 
 | Screen XML | Form | Designed in | Implemented in |
 | --- | --- | --- | --- |
-| EditRelated | AddRelatedToForm |  |  |
-| EditRelated | AddRelatedFromForm |  |  |
-| EditRelated | DeleteRelatedToForm |  |  |
-| EditRelated | DeleteRelatedFromForm |  |  |
-| EditRequests | AddRweForm |  |  |
-| EditRequests | DeleteRweForm |  |  |
-| EditTask | EditTask |  |  |
-| EditTimeEntries | ClockInForm |  |  |
-| EditTimeEntries | AddTaskTime |  |  |
-| EditTimeEntries | TimeEntryList |  |  |
-| EditUsers | AddUserAssignForm |  |  |
-| EditUsers | AddTeamAssignForm |  |  |
-| EditUsers | UpdateAssignForm |  |  |
-| EditWikiPages | AddWpweForm | Commons/Knowledge | Commons/Knowledge |
-| EditWikiPages | DeleteWpweForm | Commons/Knowledge | Commons/Knowledge |
-| FindTask | SearchOptions | Commons/Tasks | Commons/Tasks/List |
-| FindTask | NewTaskForm | Commons/Tasks | Commons/Tasks/List |
-| FindTask | ListTasks | Commons/Tasks | Commons/Tasks/List |
-| FindTask | AssignTaskSelected | Commons/Tasks | Commons/Tasks/List |
-| FindTask | UnAssignTaskSelected | Commons/Tasks | Commons/Tasks/List |
-| FindTask | UpdateTaskSelected | Commons/Tasks | Commons/Tasks/List |
-| TaskSummary | ClockInForm | Commons/Tasks/TaskDetail | Commons/Tasks/TaskDetail |
-| TaskSummary | AddCommentForm | Commons/Tasks/TaskDetail; Shared/Chatter | Commons/Tasks/TaskDetail; Shared/Chatter |
-| TaskSummary | NewChildTaskForm | Commons/Tasks/TaskDetail | Commons/Tasks/TaskDetail |
-| TaskSummary | NewContentForm | Commons/Tasks/TaskDetail; Shared/RecordFiles | Commons/Tasks/TaskDetail; Shared/RecordFiles |
-| TaskSummary | UpdateContentForm | Commons/Tasks/TaskDetail; Shared/RecordFiles | Commons/Tasks/TaskDetail; Shared/RecordFiles |
-| TaskCommentReply | ReplyCommentForm | Commons/Tasks/TaskDetail; Shared/Chatter | Commons/Tasks/TaskDetail; Shared/Chatter |
-| TaskCommentUpdate | ReplyCommentForm | Commons/Tasks/TaskDetail; Shared/Chatter | Commons/Tasks/TaskDetail; Shared/Chatter |
+| EditRelated | AddRelatedToForm | Projects/WorkItems/WorkItemDetail |  |
+| EditRelated | AddRelatedFromForm | Projects/WorkItems/WorkItemDetail |  |
+| EditRelated | DeleteRelatedToForm | Projects/WorkItems/WorkItemDetail |  |
+| EditRelated | DeleteRelatedFromForm | Projects/WorkItems/WorkItemDetail |  |
+| EditRequests | AddRweForm | Projects/WorkItems/WorkItemDetail |  |
+| EditRequests | DeleteRweForm | Projects/WorkItems/WorkItemDetail |  |
+| EditSource | AddCommitForm | Projects/WorkItems/WorkItemDetail; Projects/Code/CommitDetail |  |
+| EditSource | AddRefForm | Projects/Projects/ReleaseDetail; Projects/WorkItems/WorkItemDetail |  |
+| EditSource | TaskCommitList | Projects/WorkItems/WorkItemDetail; Projects/Code/RepositoryDetail/Commits |  |
+| EditSource | TaskRefList | Projects/WorkItems/WorkItemDetail |  |
+| EditTask | EditTask | Projects/WorkItems/WorkItemDetail |  |
+| EditTimeEntries | ClockInForm | Projects/WorkItems/WorkItemDetail |  |
+| EditTimeEntries | AddTaskTime | Projects/QuickCreate; Projects/WorkItems/WorkItemDetail |  |
+| EditTimeEntries | TimeEntryList | Projects/WorkItems/WorkItemDetail |  |
+| EditUsers | AddUserAssignForm | Projects/WorkItems/WorkItemDetail |  |
+| EditUsers | AddTeamAssignForm | Projects/Projects/ProjectDetail/Team; Projects/WorkItems/WorkItemDetail |  |
+| EditUsers | UpdateAssignForm | Projects/WorkItems/WorkItemDetail |  |
+| EditWikiPages | AddWpweForm | Commons/Knowledge; Projects/WorkItems/WorkItemDetail | Commons/Knowledge |
+| EditWikiPages | DeleteWpweForm | Commons/Knowledge; Projects/WorkItems/WorkItemDetail | Commons/Knowledge |
+| FindTask | SearchOptions | Commons/Tasks; Projects/WorkItems | Commons/Tasks/List |
+| FindTask | NewTaskForm | Commons/Tasks; Projects/QuickCreate; Projects/WorkItems | Commons/Tasks/List |
+| FindTask | ListTasks | Commons/Tasks; Projects/WorkItems | Commons/Tasks/List |
+| FindTask | AssignTaskSelected | Commons/Tasks; Projects/WorkItems | Commons/Tasks/List |
+| FindTask | UnAssignTaskSelected | Commons/Tasks; Projects/WorkItems | Commons/Tasks/List |
+| FindTask | UpdateTaskSelected | Commons/Tasks; Projects/WorkItems | Commons/Tasks/List |
+| TaskSummary | ClockInForm | Commons/Tasks/TaskDetail; Projects/WorkItems/WorkItemDetail | Commons/Tasks/TaskDetail |
+| TaskSummary | AddCommentForm | Commons/Tasks/TaskDetail; Projects/WorkItems/WorkItemDetail; Shared/Chatter | Commons/Tasks/TaskDetail; Shared/Chatter |
+| TaskSummary | NewChildTaskForm | Commons/Tasks/TaskDetail; Projects/WorkItems/WorkItemDetail | Commons/Tasks/TaskDetail |
+| TaskSummary | NewContentForm | Commons/Tasks/TaskDetail; Projects/WorkItems/WorkItemDetail; Shared/RecordFiles | Commons/Tasks/TaskDetail; Shared/RecordFiles |
+| TaskSummary | UpdateContentForm | Commons/Tasks/TaskDetail; Projects/WorkItems/WorkItemDetail; Shared/RecordFiles | Commons/Tasks/TaskDetail; Shared/RecordFiles |
+| TaskCommentReply | ReplyCommentForm | Commons/Tasks/TaskDetail; Projects/WorkItems/WorkItemDetail; Shared/Chatter | Commons/Tasks/TaskDetail; Shared/Chatter |
+| TaskCommentUpdate | ReplyCommentForm | Commons/Tasks/TaskDetail; Projects/WorkItems/WorkItemDetail; Shared/Chatter | Commons/Tasks/TaskDetail; Shared/Chatter |
 
 ## Vendor (10 forms)
 
