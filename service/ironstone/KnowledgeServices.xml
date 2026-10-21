@@ -636,17 +636,19 @@ along with this software (see the LICENSE.md file). If not, see
             files and, with withChildren, the pages under it the user may view (each under the copy of its parent, by the same
             name), as new pages at toParentPath/toPageName in toWikiSpaceId (the page's space by default), a space the user may
             add pages to (WikiServices.update#WikiPage checks it). Each copy starts its own history, its first version noted with
-            the page it was copied from. Each page is copied in a transaction of its own (copy#Page), so one that fails is
+            the page it was copied from; with usePublished it is the text of the page's published version. Each page is copied
+            in a transaction of its own (copy#Page, one framework clone#WikiPage without its children), so one that fails is
             logged and named in failedPaths, with the pages under it, and the others are kept; the first one failing refuses
-            the whole. The framework's clone#WikiPage now takes a name and children and writes files on the new path. This
-            service stays: each page is its own transaction and a failure is named in failedPaths, which one clone call is not.
-            It reads each page through get#WikiPageInfo and writes it through update#WikiPage.</description>
+            the whole. This walk stays rather than one clone#WikiPage withChildren: each page is its own transaction, a page
+            the user may not view is left out as get#PageChildren does, and a failure is named in failedPaths.</description>
         <in-parameters>
             <parameter name="wikiPageId" required="true"/>
             <parameter name="toWikiSpaceId"/>
             <parameter name="toParentPath"/>
             <parameter name="toPageName" required="true"/>
             <parameter name="withChildren" type="Boolean" default="false"/>
+            <parameter name="usePublished" type="Boolean" default="false"><description>Copy each page's published version,
+                not its latest text (the latest for a page with none)</description></parameter>
         </in-parameters>
         <out-parameters>
             <parameter name="wikiPageId"/>
@@ -719,7 +721,8 @@ along with this software (see the LICENSE.md file). If not, see
                 let why = null
                 try {
                     out = ec.service.sync().name('ironstone.KnowledgeServices.copy#Page').parameters({fromWikiSpaceId: src.wikiSpaceId,
-                        fromPagePath: item.fromPath, toWikiSpaceId: spaceId, toParentPath: item.toParent, toPageName: item.toName, versionNote: noteOf(item.fromPath)})
+                        fromPagePath: item.fromPath, toWikiSpaceId: spaceId, toParentPath: item.toParent, toPageName: item.toName, versionNote: noteOf(item.fromPath),
+                        usePublished: !!usePublished})
                             .requireNewTransaction(true).call()
                     if (ec.message.hasError()) why = ec.message.getErrorsString()
                 } catch (err) {
@@ -743,9 +746,10 @@ along with this software (see the LICENSE.md file). If not, see
         ]]></script></actions>
     </service>
     <service verb="copy" noun="Page" allow-remote="false">
-        <description>One page of duplicate#Page: the text of a page the user may view (WikiServices.get#WikiPageInfo checks it) as
-            a new page (WikiServices.update#WikiPage, which checks the user may add it), with its files (a file that is not
-            copied is logged and named in failedFiles).</description>
+        <description>One page of duplicate#Page, through the framework's clone#WikiPage without the pages under it or its
+            aliases, and unpublished: the text of a page the user may view (its latest, or with usePublished its published
+            version's) as a new page the user may add (update#WikiPage checks both), with its page members and its files (a
+            file that is not copied is logged and named in failedFiles).</description>
         <in-parameters>
             <parameter name="fromWikiSpaceId" required="true"/>
             <parameter name="fromPagePath" required="true"/>
@@ -753,6 +757,7 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="toParentPath"/>
             <parameter name="toPageName" required="true"/>
             <parameter name="versionNote"/>
+            <parameter name="usePublished" type="Boolean" default="false"/>
         </in-parameters>
         <out-parameters>
             <parameter name="wikiPageId"/>
@@ -761,34 +766,18 @@ along with this software (see the LICENSE.md file). If not, see
         </out-parameters>
         <actions><script><![CDATA[
             failedFiles = []
-            const info = ec.service.sync().name('org.moqui.impl.WikiServices.get#WikiPageInfo').parameters({wikiSpaceId: fromWikiSpaceId,
-                pagePath: fromPagePath}).call()
+            // clone#WikiPage takes the space's id as the parent for the top level (an empty parent is the source page's)
+            const out = ec.service.sync().name('org.moqui.impl.WikiServices.clone#WikiPage').parameters({baseWikiSpaceId: fromWikiSpaceId,
+                pagePath: fromPagePath, wikiSpaceId: toWikiSpaceId, parentPath: toParentPath || toWikiSpaceId, pageName: toPageName,
+                withChildren: false, copyAliases: false, copyAttachments: true, publishNew: false, usePublished: !!usePublished,
+                versionNote: versionNote || null}).call()
             if (ec.message.hasError()) return
-            const text = info?.pageReference?.exists ? (info.pageReference.getText() ?? '') : ''
-            const saved = ec.service.sync().name('org.moqui.impl.WikiServices.update#WikiPage').parameters({wikiSpaceId: toWikiSpaceId,
-                pageName: toPageName, parentPath: toParentPath || null, wikiType: info.wikiType || 'md', pageText: text, versionNote: versionNote || null}).call()
-            if (ec.message.hasError()) return
-            wikiPageId = saved.wikiPageId
-            pagePath = saved.pagePath
-            for (const attachment of Array.from(info.attachmentList || [])) {
-                ec.message.pushErrors()
-                try {
-                    const target = ec.service.sync().name('org.moqui.impl.WikiServices.get#WikiPageAttachment').parameters({wikiPageId: wikiPageId,
-                        filename: attachment.filename}).call()?.attachmentReference
-                    if (ec.message.hasError()) throw new Error(ec.message.getErrorsString())
-                    if (target == null || attachment.resourceReference == null) throw new Error('no place for the file')
-                    target.copyFrom(attachment.resourceReference)
-                } catch (err) {
-                    ec.logger.warn(`Knowledge: file ${attachment.filename} of ${fromWikiSpaceId}/${fromPagePath} was not copied to ${toWikiSpaceId}/${pagePath}: ${err && err.message ? err.message : err}`)
-                    failedFiles.push(attachment.filename)
-                } finally {
-                    ec.message.clearErrors()
-                    ec.message.popErrors()
-                }
-            }
+            if (!out?.wikiPageId) { ec.message.addError(ec.resource.expand('There is a page ${path} already', '', {path: toPageName})); return }
+            wikiPageId = out.wikiPageId
+            pagePath = out.pagePath
+            failedFiles = Array.from(out.failedFiles || [])
         ]]></script></actions>
     </service>
-
     <service verb="rename" noun="Page">
         <description>A new name for a page, in the same place (WikiServices.move#WikiPage, which keeps its history and leaves an
             alias at the old path, so links to it keep working).</description>

@@ -674,18 +674,19 @@ plans/Remaining-Work.md.
 
 **Left to build** (round 2, planned Oct 21)
 - Framework:
-  - `clone#WikiPage`: copy history, the published text and file-only child pages; BOSS `copy#Page` over it.
-  - Mail:
-    - a "send a test message" step;
-    - the index search past 2000 matches;
-    - out-of-office internal domains as a setting;
-    - and, still open from M5d: IMAP's plain-text fallback, POP3 STLS, folders removed on the server, and the
-      createTask and createRequest rule actions.
-  - Chat:
-    - a retention job;
-    - a mention of a non-member of a record room who can see the record;
-    - per-room unread counts in one query;
-    - offline as soon as the last socket closes.
+  - Built Oct 21 (Part 3):
+    - Wiki: `clone#WikiPage` copies history (`copyHistory`), the published text (`usePublished`) and a `versionNote`, and
+      takes file-only child pages. BOSS `copy#Page` uses it. Left: the Duplicate dialog's "Copy the published version"
+      option, which `duplicatePage` would pass through.
+    - Mail: `send#TestMessage` (the wizard's Test step and the account page), the index search past 2000 matches, and
+      `EmailOutOfOffice.internalDomains`.
+    - Chat:
+      - the retention job (`clean#ChatRetention`);
+      - a mentioned non-member of a record room who can see the record is notified;
+      - unread and mention counts in one query each (`ChatMemberUnread`, `ChatMemberMentions`);
+      - offline 20 seconds after the last socket on a node closes.
+  - Still open from M5d: IMAP's plain-text fallback, POP3 STLS, folders removed on the server, and the createTask and
+    createRequest rule actions.
   - Older open items still listed in Remaining-Work.md.
 - BOSS:
   - Built Oct 21 (round 2):

@@ -15,7 +15,9 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- Add account step 3, the test (design-drawers-commons.md §17 AccountTest): signing in to the outgoing and the incoming
     server now (ironstone.MailSettingsServices.test#MailAccount over org.moqui.impl.EmailClientServices.test#EmailAccount),
     each step with what the server said and, when it failed, what it most likely means and what to try, with the provider's
-    help; on success how the server's folders map to Inbox, Sent, Drafts, Spam, Trash and Archive. The test runs each time the
+    help; on success how the server's folders map to Inbox, Sent, Drafts, Spam, Trash and Archive, and Send a test message
+    (ironstone.MailSettingsServices.send#AccountTestMessage: to the account's own address, back in the Inbox with the first
+    sync once the wizard ends, as its message says). The test runs each time the
     step shows (Test again reloads it). An account with no incoming server (hosted, or shared and delivered here) is not
     signed in to: the step says the gateway delivers, and Next goes on. Otherwise Next goes on when the test passed, or with
     "Continue anyway" (the account stays as it is and its sync reports the problem). -->
@@ -30,6 +32,12 @@ along with this software (see the LICENSE.md file). If not, see
             if (testPassed !== 'Y' && continueAnyway !== 'Y') ec.message.addValidationError(null, 'continueAnyway', null,
                 ec.l10n.localize('The test did not pass: go back to fix the settings, or choose Continue anyway'), null)
         ]]></script></actions>
+        <default-response url="."><parameter name="emailAccountId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="sendTestMessage">
+        <service-call name="ironstone.MailSettingsServices.send#AccountTestMessage" in-map="{emailAccountId:emailAccountId}" out-map="testMessageOut"/>
+        <actions><script>if (!ec.message.hasError() &amp;&amp; testMessageOut?.resultText) ec.message.addMessage(testMessageOut.resultText, testMessageOut.sent ? 'success' : 'danger')</script></actions>
         <default-response url="."><parameter name="emailAccountId"/></default-response>
         <error-response url="."/>
     </transition>
@@ -89,6 +97,8 @@ along with this software (see the LICENSE.md file). If not, see
         <section name="Result" condition="hasAccount &amp;&amp; !gatewayDelivery"><widgets>
             <container-box type="${passed ? 'success' : 'danger'}"><box-header title="${passed ? 'It works' : 'It did not work yet'}"/>
                 <box-toolbar>
+                    <link url="sendTestMessage" link-type="hidden-form" text="Send a test message" icon="sym_o_send" condition="passed"
+                            parameter-map="{emailAccountId:emailAccountId}"/>
                     <link url="." text="Test again" icon="sym_o_refresh" parameter-map="{emailAccountId:emailAccountId}"/>
                 </box-toolbar>
                 <box-body>

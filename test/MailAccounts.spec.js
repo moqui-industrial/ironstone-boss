@@ -3,10 +3,10 @@
 // step by step as its Next posts each step's form, with no network: the providers IronStone knows (Gmail, Outlook.com, iCloud,
 // Proton) and a reserved domain (acme.example) are answered without a lookup, and the servers are 127.0.0.1 port 1, where
 // nothing listens, so the test fails at once with what to try. Then the list (status, Fix, Continue setup), the account's page
-// (sign in again, servers, options, members, pause and resume, import of an .eml), the outgoing server's own sign-in (tried
-// before it is saved, so on port 1 it is refused and nothing of the save is kept), personal and shared by the framework's rules,
-// the folders a manager maps and stops syncing, and remove (keeping or deleting the mail here) with the removed accounts the
-// owner deletes later. Another user (joe.developer) reaches none of john.doe's accounts; a member who does not manage one sees
+// (sign in again, servers, options, members, pause and resume, a test message through MailCapture, import of an .eml), the
+// outgoing server's own sign-in (tried before it is saved, so on port 1 it is refused and nothing of the save is kept), personal
+// and shared by the framework's rules, the folders a manager maps and stops syncing, and remove (keeping or deleting the mail
+// here) with the removed accounts the owner deletes later. Another user (joe.developer) reaches none of john.doe's accounts; a member who does not manage one sees
 // it but changes nothing. Authorization stays on, as for a browser request; a password is never in a page.
 // Run: ./moq test ironstone-boss --spec MailAccounts
 const webroot = "component://webroot/screen/webroot.xml"
@@ -346,6 +346,53 @@ feature("the account's page: pause and resume, servers, and members", {
         page.output.includes("Shared with")
         page.output.includes("Joe Developer")
         page.output.includes("Remove the account")
+    },
+})
+
+feature("Send a test message: to the account's own address (MailCapture), saying when the sync brings it back; a send that fails says why and leaves nothing in the Outbox", {
+    when() {
+        const capture = ec.factory.getTool("MailCapture")
+        let sent, captured, posted, failed
+        try {
+            capture.enable()
+            capture.clear()
+            sent = sys(() => call(`${SETTINGS}.send#AccountTestMessage`, { emailAccountId: personalId }))
+            captured = Array.from(capture.getMessages())
+            posted = post("Account/sendTestMessage", { emailAccountId: personalId })
+            // nothing listens on the outgoing server's port 1
+            capture.disable()
+            failed = sys(() => call(`${SETTINGS}.send#AccountTestMessage`, { emailAccountId: personalId }))
+        } finally { capture.reset() }
+        const waiting = sys(() => ec.entity.find("moqui.basic.email.EmailMessage").condition("emailAccountId", personalId).condition("statusId", "ES_READY").count())
+        // the test messages sent go, so the import below counts only its own
+        sys(() => {
+            const ids = Array.from(ec.entity.find("moqui.basic.email.EmailMessage").condition("emailAccountId", personalId).condition("statusId", "ES_SENT").list())
+                .map((row) => row.emailMessageId)
+            if (ids.length) {
+                ec.entity.find("moqui.basic.email.EmailRemoteChange").condition("emailMessageId", "in", ids).deleteAll()
+                ec.entity.find("moqui.basic.email.EmailMessage").condition("emailMessageId", "in", ids).deleteAll()
+            }
+        })
+        const page = render("Account", { emailAccountId: personalId })
+        const wizard = render("Add/Test", { emailAccountId: personalId })
+        return { sent, captured, posted, failed, waiting, page, wizard }
+    },
+    then({ sent, captured, posted, failed, waiting, page, wizard }) {
+        sent.sent == true
+        sent.resultText.includes("Test message sent to pat@acme.example")
+        sent.resultText.includes("The next sync brings it to the Inbox")
+        captured.length == 1
+        Array.from(captured[0].toList).includes("pat@acme.example")
+        captured[0].subject.startsWith("[Test]")
+        posted.errors == ""
+        failed.sent == false
+        failed.resultText.includes("The test message was not sent")
+        waiting == 0
+        page.errors == ""
+        page.output.includes("Send a test message")
+        // the wizard offers it once the test passed; here it did not
+        wizard.errors == ""
+        !wizard.output.includes("Send a test message")
     },
 })
 

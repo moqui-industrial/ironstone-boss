@@ -3,7 +3,8 @@
 // MailDefaults): on the demo of data/BossMailDemoData.xml (load#MailSettingsDemo: the shared Support account whose sign-in failed,
 // john.doe's rules, automatic reply and text blocks) and on an account of this spec's own (127.0.0.1 port 1, nothing listens) with
 // an imported message, so the rules run on mail no other spec reads; its automatic reply to contacts goes (MailCapture) to
-// john.doe's personal contact and not to a stranger, by the contact hook BossSetupData sets (Mantle's filter#ContactAddresses).
+// john.doe's personal contact and not to a stranger, by the contact hook BossSetupData sets (Mantle's filter#ContactAddresses);
+// the more domains of people inside are kept with the reply.
 // Each signature, reply and text block is cleaned as safe HTML.
 // joe.developer may not change john.doe's identities, rules, automatic reply or text blocks; he sees the shared text block and,
 // as a member who sends from Support, its identity without changing it. Authorization stays on, as for a browser request.
@@ -282,20 +283,31 @@ feature("out of office: the demo's reply shows off; turned on for three days it 
         const afterOff = rows("moqui.basic.email.EmailOutOfOffice", {}).filter((row) => [DEMO, SUPPORT, ownId].includes(row.emailAccountId) && row.enabled == "Y")
         // who gets it: people inside only; contacts are the hook's (BossSetupData's STRT_EMAIL_CONTACT_SERVICE), so no note says otherwise
         const inside = settings("OutOfOffice/storeReply", { emailAccountId: DEMO, enabled: "Y", fromDate: fmt(now - 3600000), thruDate: fmt(now + 3 * 86400000),
-            subject: "Away", bodyHtml: "<p>Away until Thursday.</p>", replyOncePerDays: "2", replyAudienceEnumId: "EraInternal" })
+            subject: "Away", bodyHtml: "<p>Away until Thursday.</p>", replyOncePerDays: "2", replyAudienceEnumId: "EraInternal",
+            internalDomains: "Partner.example.org, @ally.example.com" })
         const insideRow = one("moqui.basic.email.EmailOutOfOffice", { emailAccountId: DEMO })
+        const badDomain = settings("OutOfOffice/storeReply", { emailAccountId: DEMO, enabled: "Y", bodyHtml: "<p>x</p>", replyAudienceEnumId: "EraInternal",
+            internalDomains: "partner.example.org, intranet" })
         const badAudience = settings("OutOfOffice/storeReply", { emailAccountId: DEMO, enabled: "Y", bodyHtml: "<p>x</p>", replyAudienceEnumId: "EraNobody" })
         const shownInside = render("Comms/Settings/OutOfOffice", { emailAccountId: DEMO })
         settings("OutOfOffice/turnOff", { emailAccountId: DEMO })
         const offKeepsAudience = one("moqui.basic.email.EmailOutOfOffice", { emailAccountId: DEMO })
-        return { shown, shownChips, noBody, on, stored, shownOn, inbox: inbox.json, all, supportReply, ownReply, afterOff, inside, insideRow, badAudience, shownInside, offKeepsAudience }
+        return { shown, shownChips, noBody, on, stored, shownOn, inbox: inbox.json, all, supportReply, ownReply, afterOff, inside, insideRow, badDomain, badAudience,
+            shownInside, offKeepsAudience }
     },
-    then({ shown, shownChips, noBody, on, stored, shownOn, inbox, all, supportReply, ownReply, afterOff, inside, insideRow, badAudience, shownInside, offKeepsAudience }) {
+    then({ shown, shownChips, noBody, on, stored, shownOn, inbox, all, supportReply, ownReply, afterOff, inside, insideRow, badDomain, badAudience, shownInside,
+            offKeepsAudience }) {
         shown.output.includes("Reply to")
         shown.output.includes("Only people inside the organization")
         stored.replyAudienceEnumId == "EraEveryone"
         inside.errors == ""
         insideRow.replyAudienceEnumId == "EraInternal"
+        // more domains of people inside: kept in lower case; one that is not a domain is refused; turning off keeps them
+        insideRow.internalDomains == "partner.example.org,ally.example.com"
+        badDomain.errors.includes("Not a domain: intranet")
+        shownInside.output.includes("Other domains inside the organization")
+        shownInside.output.includes("partner.example.org, ally.example.com")
+        offKeepsAudience.internalDomains == "partner.example.org,ally.example.com"
         badAudience.errors.includes("Choose who gets the reply")
         !shownInside.output.includes("counts as a contact")
         shownInside.output.includes("Your contacts are your personal contacts")

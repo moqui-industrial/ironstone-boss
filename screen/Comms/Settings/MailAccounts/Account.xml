@@ -19,7 +19,8 @@ along with this software (see the LICENSE.md file). If not, see
     signs it in again and then tests it; an account signed in with its provider says so in Sign-in and servers, with Sign
     out (org.moqui.impl.EmailClientServices.revoke#OAuthSignIn), and a password account at a provider this server is set up
     for may sign in with it instead; the test of both
-    servers (runTest=Y) with what to try; the server settings with the outgoing server's own sign-in (a user and password
+    servers (runTest=Y) with what to try; Send a test message to the account's own address (send#AccountTestMessage, which
+    says when the sync brings it back); the server settings with the outgoing server's own sign-in (a user and password
     for a provider whose SMTP takes another user, tried before it is saved); the folders as the sync maps them, where a
     manager chooses what a folder is used as (Sent, Drafts, Archive, Spam, Trash; the Inbox is the server's INBOX) and
     whether the sync reads it (org.moqui.impl.EmailClientServices.update#EmailFolder); the options (name, sync window,
@@ -102,6 +103,12 @@ along with this software (see the LICENSE.md file). If not, see
         <service-call name="org.moqui.impl.EmailClientServices.remove#EmailAccountUser" in-map="{emailAccountId:emailAccountId, userId:ec.user.userId}"/>
         <actions><if condition="!ec.message.hasError()"><message type="success">You left the account</message></if></actions>
         <default-response url="../List"/>
+        <error-response url="."/>
+    </transition>
+    <transition name="sendTestMessage">
+        <service-call name="ironstone.MailSettingsServices.send#AccountTestMessage" in-map="{emailAccountId:emailAccountId}" out-map="testMessageOut"/>
+        <actions><script>if (!ec.message.hasError() &amp;&amp; testMessageOut?.resultText) ec.message.addMessage(testMessageOut.resultText, testMessageOut.sent ? 'success' : 'danger')</script></actions>
+        <default-response url="."><parameter name="emailAccountId"/></default-response>
         <error-response url="."/>
     </transition>
     <transition name="syncNow">
@@ -386,6 +393,8 @@ along with this software (see the LICENSE.md file). If not, see
                         <label type="p" text="The last sync said: ${account.lastSyncError}" style="text-caption text-negative q-mt-sm q-mb-none" condition="account.lastSyncError &amp;&amp; !needsSignIn"/>
                         <container style="row q-gutter-sm q-mt-sm">
                             <link url="." text="Test the connection" icon="sym_o_network_check" condition="canManage &amp;&amp; account.hasServer" parameter-map="{emailAccountId:emailAccountId, runTest:'Y'}"/>
+                            <link url="sendTestMessage" link-type="hidden-form" text="Send a test message" icon="sym_o_send" condition="account.canSend &amp;&amp; account.hasServer"
+                                    parameter-map="{emailAccountId:emailAccountId}"/>
                             <link url="//Comms/Inbox" text="Open in the Inbox" icon="sym_o_inbox" parameter-map="{account:emailAccountId}"/>
                         </container>
                     </box-body></container-box>

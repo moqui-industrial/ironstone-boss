@@ -15,7 +15,7 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- Out of office (design-drawers-commons.md §17 OutOfOffice): the automatic reply of a mail account the user manages, chosen
     by the account chips when there are several: on or off, from and until (empty: from now, until turned off), the subject,
     the message everyone gets (m-rich-text) and, when it should differ, the one people inside the organization get (users of
-    this system and the domains of its shared and hosted accounts), once per sender every so many days; who gets it (Reply to:
+    this system, the domains of its shared and hosted accounts, and the other domains listed here), once per sender every so many days; who gets it (Reply to:
     everyone, your contacts and people inside, or people inside only; a contact is one of the owner's personal contacts, in
     the owner's own or shared contact books, or in the directory, as mantle.party.ContactBookServices.filter#ContactAddresses
     answers, the STRT_EMAIL_CONTACT_SERVICE theme value data/BossSetupData.xml sets); and the same reply on every account at
@@ -29,7 +29,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="storeReply">
         <service-call name="ironstone.MailSettingsServices.store#OutOfOffice" out-map="storeOut" in-map="{emailAccountId:emailAccountId, enabled:(enabled == 'Y' ? 'Y' : 'N'),
                 fromDate:(fromDate || null), thruDate:(thruDate || null), subject:subject, bodyHtml:bodyHtml, internalBodyHtml:internalBodyHtml,
-                replyOncePerDays:replyOncePerDays, replyAudienceEnumId:(replyAudienceEnumId || null), applyToAll:applyToAll}"/>
+                replyOncePerDays:replyOncePerDays, replyAudienceEnumId:(replyAudienceEnumId || null), internalDomains:internalDomains, applyToAll:applyToAll}"/>
         <actions><if condition="!ec.message.hasError()"><message type="success">${enabled == 'Y' ? (storeOut.storedCount &gt; 1 ? 'Automatic reply saved on ' + storeOut.storedCount + ' accounts' : 'Automatic reply saved') : 'Automatic reply off'}</message></if></actions>
         <default-response url="."><parameter name="emailAccountId"/></default-response>
         <error-response url="."/>
@@ -42,7 +42,7 @@ along with this software (see the LICENSE.md file). If not, see
             ec.service.sync().name('org.moqui.impl.EmailClientServices.store#EmailOutOfOffice').parameters({emailAccountId: emailAccountId, enabled: false,
                 fromDate: reply.fromDate ? new Date(reply.fromDate) : null, thruDate: reply.thruDate ? new Date(reply.thruDate) : null, subject: reply.subject || null,
                 bodyHtml: reply.bodyHtml || null, internalBodyHtml: reply.internalBodyHtml || null, replyOncePerDays: reply.replyOncePerDays ?? 4,
-                replyAudienceEnumId: reply.replyAudienceEnumId || 'EraEveryone'}).call()
+                replyAudienceEnumId: reply.replyAudienceEnumId || 'EraEveryone', internalDomains: reply.internalDomains || null}).call()
             if (!ec.message.hasError()) ec.message.addMessage(ec.l10n.localize('Automatic reply off'), 'success')
         ]]></script></actions>
         <default-response url="."><parameter name="emailAccountId"/></default-response>
@@ -106,6 +106,8 @@ along with this software (see the LICENSE.md file). If not, see
                             <option key="EraEveryone" text="Everyone who writes"/>
                             <option key="EraContacts" text="My contacts and people inside the organization"/>
                             <option key="EraInternal" text="Only people inside the organization"/></radio></default-field></field>
+                        <field name="internalDomains"><default-field title="Other domains inside the organization"
+                                tooltip="Separated by commas, such as example.org, example.net: people who write from these domains get the message for people inside"><text-line size="50"/></default-field></field>
                         <field name="applyToAll"><conditional-field condition="manyAccounts" title=""><check><option key="Y" text="The same reply on all my accounts"/></check></conditional-field>
                             <default-field><hidden/></default-field></field>
                         <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
@@ -114,11 +116,11 @@ along with this software (see the LICENSE.md file). If not, see
                             <field-row><field-ref name="fromDate"/><field-ref name="thruDate"/></field-row>
                             <field-ref name="subject"/><field-ref name="bodyHtml"/><field-ref name="internalBodyHtml"/>
                             <field-row><field-ref name="replyOncePerDays"/><field-ref name="applyToAll"/></field-row>
-                            <field-ref name="replyAudienceEnumId"/>
+                            <field-ref name="replyAudienceEnumId"/><field-ref name="internalDomains"/>
                             <field-ref name="submitButton"/>
                         </field-layout>
                     </form-single>
-                    <label type="p" text="Your contacts are your personal contacts, the people in your contact books and those shared with you, and the directory. People inside the organization are the users of IronStone and addresses at the domains of your shared accounts. Turning the reply on again sends it to everyone again." style="text-caption m-muted q-mb-none"/>
+                    <label type="p" text="Your contacts are your personal contacts, the people in your contact books and those shared with you, and the directory. People inside the organization are the users of IronStone and addresses at the domains of your shared accounts and the other domains you list. Turning the reply on again sends it to everyone again." style="text-caption m-muted q-mb-none"/>
                 </box-body>
             </container-box>
         </widgets></section>
