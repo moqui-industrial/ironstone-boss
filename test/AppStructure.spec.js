@@ -139,7 +139,7 @@ spec({
 feature("app root #app renders its default screen and its menu", {
     where: apps.map((app) => ({ app })),
     expect({ app }) {
-        const str = ec.screen.makeTest().rootScreen(`${base}/${app}.xml`).renderMode("qvt").render("", {}, null)
+        const str = ec.screen.makeTest().rootScreen(`${base}/${app}.xml`).renderMode("qvt").withStaticData().render("", {}, null)
         str.status == 200
         str.errorMessages.length == 0
         !/Error rendering|Exception in render/.test(str.output)
@@ -152,7 +152,7 @@ feature("every placeholder screen renders in qvt without errors, with its menu",
         const failures = []
         for (const [root, path] of placeholders) {
             // the screen as the shell fetches it: a fragment of the last standalone screen, not the root placeholder
-            const str = ec.screen.makeTest().rootScreen(root).renderMode("qvt").render(path, { lastStandalone: "-2" }, null)
+            const str = ec.screen.makeTest().rootScreen(root).renderMode("qvt").withStaticData().render(path, { lastStandalone: "-2" }, null)
             const where = `${root.substring(base.length + 1)} ${path}`.trim()
             if (str.status != 200 || str.errorMessages.length > 0 || !str.output.includes("Placeholder:")
                     || /Error rendering|Exception in render/.test(str.output))
@@ -185,7 +185,7 @@ feature("every other Commons, Comms, Insights and Shared screen renders in qvt (
             // a .qvue screen (render-modes "vue,qvue", with qvt and html after them for Inbox/Mail, a default subscreen whose
             // parents' levels the shell loads in qvt) answers its component in the qvue render mode
             const qvue = /render-modes="vue,qvue[",]/.test(ec.resource.getLocationReference(location).getText())
-            const str = ec.screen.makeTest().rootScreen(root).renderMode(qvue ? "qvue" : "qvt").render(path, parameters, null)
+            const str = ec.screen.makeTest().rootScreen(root).renderMode(qvue ? "qvue" : "qvt").withStaticData().render(path, parameters, null)
             const where = `${root.substring(base.length + 1)} ${path}`.trim()
             const output = str.output || ""
             if (str.status != 200 || str.errorMessages.length > 0 || /Error rendering|Exception in render/.test(output))

@@ -174,9 +174,9 @@ along with this software (see the LICENSE.md file). If not, see
             <section name="ServerConnect" condition="!gateway"><widgets>
             <container-box><box-header title="Sign in to ${connect.emailAddress}"/><box-body>
                 <section name="SignedIn" condition="oauthSignedIn"><widgets>
-                    <render-mode><text type="qvt"><![CDATA[<q-banner dense rounded class="m-tonal text-positive q-mb-sm"><template v-slot:avatar><q-icon name="sym_o_check_circle" color="positive"></q-icon></template><div class="text-body2">]]></text></render-mode>
+                    <render-mode><text type="qvt"><![CDATA[<q-banner dense rounded class="m-tonal text-positive q-mb-sm"><template v-slot:avatar><q-icon name="sym_o_check_circle" color="positive"></q-icon></template><div class="text-body2">]]></text><text type="tui" template="false">[]</text></render-mode>
                     <label type="span" text="${signedInText}"/>
-                    <render-mode><text type="qvt"><![CDATA[</div></q-banner>]]></text></render-mode>
+                    <render-mode><text type="qvt"><![CDATA[</div></q-banner>]]></text><text type="tui" template="false">[]</text></render-mode>
                 </widgets></section>
                 <section name="ProviderSignIn" condition="oauthConfigured &amp;&amp; !oauthSignedIn"><widgets>
                     <label type="p" text="${signInIntro}" style="text-body2 q-mb-sm"/>
@@ -191,25 +191,25 @@ along with this software (see the LICENSE.md file). If not, see
                         <parameter name="storeKind" from="connect.storeKind"/>
                         <parameter name="offerPop" from="oauthChoice.offersPop ? 'Y' : 'N'"/>
                     </dynamic-container>
-                    <render-mode><text type="qvt"><![CDATA[<q-separator class="q-my-md"></q-separator>]]></text></render-mode>
+                    <render-mode><text type="qvt"><![CDATA[<q-separator class="q-my-md"></q-separator>]]></text><text type="tui" template="false">[]</text></render-mode>
                     <label type="p" text="Or use a password or an app password instead:" style="text-subtitle2 q-mb-xs"/>
                 </widgets></section>
                 <section name="SignInOff" condition="signInOffText"><widgets>
                     <label type="p" text="${signInOffText}" style="text-caption m-muted q-mb-sm"/>
                 </widgets></section>
                 <section name="ProviderHelp" condition="helpText &amp;&amp; !oauthSignedIn"><widgets>
-                    <render-mode><text type="qvt"><![CDATA[<q-banner dense rounded class="m-tonal text-primary q-mb-sm"><template v-slot:avatar><q-icon name="sym_o_key" color="primary"></q-icon></template><div class="text-body2">]]></text></render-mode>
+                    <render-mode><text type="qvt"><![CDATA[<q-banner dense rounded class="m-tonal text-primary q-mb-sm"><template v-slot:avatar><q-icon name="sym_o_key" color="primary"></q-icon></template><div class="text-body2">]]></text><text type="tui" template="false">[]</text></render-mode>
                     <label type="span" text="${helpText}"/>
-                    <render-mode><text type="qvt"><![CDATA[</div>]]></text></render-mode>
+                    <render-mode><text type="qvt"><![CDATA[</div>]]></text><text type="tui" template="false">[]</text></render-mode>
                     <section name="ProviderNote" condition="noteText"><widgets>
                         <label type="div" text="${noteText}" style="text-caption q-mt-xs"/>
                     </widgets></section>
                     <section name="ProviderLink" condition="helpUrl"><widgets>
-                        <render-mode><text type="qvt"><![CDATA[<template v-slot:action><q-btn unelevated dense no-caps class="m-btn-tonal text-primary" icon="sym_o_open_in_new" type="a" href="${helpUrl}" target="_blank" rel="noopener noreferrer">]]></text></render-mode>
+                        <render-mode><text type="qvt"><![CDATA[<template v-slot:action><q-btn unelevated dense no-caps class="m-btn-tonal text-primary" icon="sym_o_open_in_new" type="a" href="${helpUrl}" target="_blank" rel="noopener noreferrer">]]></text><text type="tui" template="false">[]</text></render-mode>
                         <label type="span" text="${helpLinkText}"/>
-                        <render-mode><text type="qvt"><![CDATA[</q-btn></template>]]></text></render-mode>
+                        <render-mode><text type="qvt"><![CDATA[</q-btn></template>]]></text><text type="tui" template="false">[]</text></render-mode>
                     </widgets></section>
-                    <render-mode><text type="qvt"><![CDATA[</q-banner>]]></text></render-mode>
+                    <render-mode><text type="qvt"><![CDATA[</q-banner>]]></text><text type="tui" template="false">[]</text></render-mode>
                 </widgets></section>
                 <section name="ProviderWarning" condition="warningText"><widgets>
                     <label type="p" text="${warningText}" style="text-warning"/>

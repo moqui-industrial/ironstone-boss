@@ -3,10 +3,10 @@
 // step by step as its Next posts each step's form, with no network: the providers IronStone knows (Gmail, Outlook.com, iCloud,
 // Proton) and a reserved domain (acme.example) are answered without a lookup, and the servers are 127.0.0.1 port 1, where
 // nothing listens, so the test fails at once with what to try. Then the list (status, Fix, Continue setup), the account's page
-// (sign in again, servers, options, members, pause and resume, import of an .eml), the outgoing server's own sign-in (tried
-// before it is saved, so on port 1 it is refused and nothing of the save is kept), personal and shared by the framework's rules,
-// the folders a manager maps and stops syncing, and remove (keeping or deleting the mail here) with the removed accounts the
-// owner deletes later. Another user (joe.developer) reaches none of john.doe's accounts; a member who does not manage one sees
+// (sign in again, servers, options, members, pause and resume, a test message through MailCapture, import of an .eml), the
+// outgoing server's own sign-in (tried before it is saved, so on port 1 it is refused and nothing of the save is kept), personal
+// and shared by the framework's rules, the folders a manager maps and stops syncing, and remove (keeping or deleting the mail
+// here) with the removed accounts the owner deletes later. Another user (joe.developer) reaches none of john.doe's accounts; a member who does not manage one sees
 // it but changes nothing. Authorization stays on, as for a browser request; a password is never in a page.
 // Run: ./moq test ironstone-boss --spec MailAccounts
 const webroot = "component://webroot/screen/webroot.xml"
@@ -16,7 +16,7 @@ const BASE = "Settings/MailAccounts"
 const PASSWORD = "s3cret-app-pass"
 
 function render(path, parameters) {
-    const str = ec.screen.makeTest().rootScreen(webroot).renderMode("qvt").render(`apps/Comms/${BASE}/${path}`, Object.assign({ lastStandalone: "true" }, parameters || {}), null)
+    const str = ec.screen.makeTest().rootScreen(webroot).renderMode("qvt").withStaticData().render(`apps/Comms/${BASE}/${path}`, Object.assign({ lastStandalone: "true" }, parameters || {}), null)
     const output = String(str.output || "")
     ec.message.clearErrors()
     return { status: str.status, errors: str.errorMessages.join(" | "), output, broken: /Error rendering|Exception in render/.test(output) }
@@ -57,7 +57,7 @@ spec({
 feature("the wizard has five steps, Address first; the list and the account's page render", {
     when() {
         const wizard = sys(() => {
-            const str = ec.screen.makeTest().rootScreen("component://ironstone-boss/screen/Comms/Settings/MailAccounts/Add.xml").renderMode("qvt").render("", {}, null)
+            const str = ec.screen.makeTest().rootScreen("component://ironstone-boss/screen/Comms/Settings/MailAccounts/Add.xml").renderMode("qvt").withStaticData().render("", {}, null)
             const output = String(str.output || "")
             ec.message.clearErrors()
             return { status: str.status, errors: str.errorMessages.join(" | "), output }
@@ -203,18 +203,20 @@ feature("Test fails at once on a server that is not there, with what to try; Nex
 feature("Options saves the name, the sync window and the filing; a personal account has no members", {
     when() {
         const shown = render("Add/Options", { emailAccountId: personalId })
+        // the step is server-static: whether the members fields show is its data, isShared, which the browser reads
+        const shownData = JSON.parse(ec.screen.makeTest().rootScreen(webroot).render(`apps/Comms/${BASE}/Add/Options/actions`, { emailAccountId: personalId }, null).output || "{}")
         const saved = post("Add/Options/saveOptions", { emailAccountId: personalId, accountName: "Acme", syncWindowDays: "90", recordFilingEnumId: "ErfAllMatches" })
         const members = post("Add/Options/saveOptions", { emailAccountId: personalId, memberUserIds: "ORG_ZIZI_JD" })
         const all = post("Add/Options/saveOptions", { emailAccountId: personalId, syncWindowDays: "all" })
         const account = accountOf("pat@acme.example")
         post("Add/Options/saveOptions", { emailAccountId: personalId, syncWindowDays: "90" })
-        return { shown, saved, members, all, account, after: accountOf("pat@acme.example") }
+        return { shown, shownData, saved, members, all, account, after: accountOf("pat@acme.example") }
     },
-    then({ shown, saved, members, all, account, after }) {
+    then({ shown, shownData, saved, members, all, account, after }) {
         shown.errors == ""
         shown.output.includes("Only what I link")
         shown.output.includes("Every message with a known contact")
-        !shown.output.includes("Add people who share it")
+        shownData.isShared === false
         saved.errors == ""
         members.errors.includes("Only a shared account has members")
         all.errors == ""
@@ -344,6 +346,53 @@ feature("the account's page: pause and resume, servers, and members", {
         page.output.includes("Shared with")
         page.output.includes("Joe Developer")
         page.output.includes("Remove the account")
+    },
+})
+
+feature("Send a test message: to the account's own address (MailCapture), saying when the sync brings it back; a send that fails says why and leaves nothing in the Outbox", {
+    when() {
+        const capture = ec.factory.getTool("MailCapture")
+        let sent, captured, posted, failed
+        try {
+            capture.enable()
+            capture.clear()
+            sent = sys(() => call(`${SETTINGS}.send#AccountTestMessage`, { emailAccountId: personalId }))
+            captured = Array.from(capture.getMessages())
+            posted = post("Account/sendTestMessage", { emailAccountId: personalId })
+            // nothing listens on the outgoing server's port 1
+            capture.disable()
+            failed = sys(() => call(`${SETTINGS}.send#AccountTestMessage`, { emailAccountId: personalId }))
+        } finally { capture.reset() }
+        const waiting = sys(() => ec.entity.find("moqui.basic.email.EmailMessage").condition("emailAccountId", personalId).condition("statusId", "ES_READY").count())
+        // the test messages sent go, so the import below counts only its own
+        sys(() => {
+            const ids = Array.from(ec.entity.find("moqui.basic.email.EmailMessage").condition("emailAccountId", personalId).condition("statusId", "ES_SENT").list())
+                .map((row) => row.emailMessageId)
+            if (ids.length) {
+                ec.entity.find("moqui.basic.email.EmailRemoteChange").condition("emailMessageId", "in", ids).deleteAll()
+                ec.entity.find("moqui.basic.email.EmailMessage").condition("emailMessageId", "in", ids).deleteAll()
+            }
+        })
+        const page = render("Account", { emailAccountId: personalId })
+        const wizard = render("Add/Test", { emailAccountId: personalId })
+        return { sent, captured, posted, failed, waiting, page, wizard }
+    },
+    then({ sent, captured, posted, failed, waiting, page, wizard }) {
+        sent.sent == true
+        sent.resultText.includes("Test message sent to pat@acme.example")
+        sent.resultText.includes("The next sync brings it to the Inbox")
+        captured.length == 1
+        Array.from(captured[0].toList).includes("pat@acme.example")
+        captured[0].subject.startsWith("[Test]")
+        posted.errors == ""
+        failed.sent == false
+        failed.resultText.includes("The test message was not sent")
+        waiting == 0
+        page.errors == ""
+        page.output.includes("Send a test message")
+        // the wizard offers it once the test passed; here it did not
+        wizard.errors == ""
+        !wizard.output.includes("Send a test message")
     },
 })
 

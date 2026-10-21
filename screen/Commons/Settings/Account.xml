@@ -55,10 +55,12 @@ along with this software (see the LICENSE.md file). If not, see
         <actions><if condition="!ec.message.hasError()"><message type="success">Photo removed</message></if></actions>
         <default-response url="."/><error-response url="."/>
     </transition>
-    <!-- a user's photo by user id, for m-avatar (theme STRT_AVATAR_URL). 404 without one, so the initials show -->
+    <!-- a user's photo by user id, for m-avatar (theme STRT_AVATAR_URL). 404 without one, so the initials show. The id is the
+        request's own: the always-actions userId is the signed-in user's, which would put the viewer's photo on every avatar -->
     <transition name="userPhoto" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = userId ? ec.service.sync().name('ironstone.CommonsServices.get#UserAvatar').parameters({userId: userId}).call() : null
+            const wanted = ec.web?.requestParameters?.userId
+            const out = wanted ? ec.service.sync().name('ironstone.CommonsServices.get#UserAvatar').parameters({userId: String(wanted)}).call() : null
             if (out?.contentLocation) ec.web.sendResourceResponse(out.contentLocation, true)
             else ec.web.sendJsonError(404, ec.l10n.localize('No photo'))
         ]]></script></actions>
@@ -200,7 +202,7 @@ along with this software (see the LICENSE.md file). If not, see
             <row-col md="6">
                 <container-box><box-header title="Photo"/><box-body>
                     <container style="row items-center no-wrap q-col-gutter-md m-account-photo-row">
-                        <render-mode><text type="qvt"><![CDATA[<div class="col-auto">${photoAvatarHtml}</div>]]></text></render-mode>
+                        <render-mode><text type="qvt"><![CDATA[<div class="col-auto">${photoAvatarHtml}</div>]]></text><text type="tui" template="false"><![CDATA[[]]]></text></render-mode>
                         <container style="col">
                             <label type="p" text="Your photo shows beside your name for the people you work with." style="text-body2 q-mb-xs"/>
                             <form-single name="PhotoUpload" transition="uploadPhoto">

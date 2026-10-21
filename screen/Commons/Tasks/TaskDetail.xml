@@ -205,6 +205,9 @@ along with this software (see the LICENSE.md file). If not, see
                         const cls = key === 'chatter' && tab !== 'chatter' ? ' class="lt-lg"' : ''
                         return '<q-tab name="' + key + '" label="' + enc(L(label)) + '"' + cls + ' data-tab="' + key + '" @click="$root.setUrl(\'' + enc(base + '&tab=' + key) + '\')"></q-tab>'
                     }).join('') + '</q-tabs><q-separator class="q-mb-sm"></q-separator>'
+            // the terminal's tabs: links to this screen with the tab
+            tabsTui = {t: 'row', id: 'TaskTabs', c: tabs.map(([key, label]) => ({t: 'link', id: 'TaskTab_' + key, text: key === tab ? '[' + L(label) + ']' : L(label),
+                url: sri.buildUrl('.').path + base.substring(base.indexOf('?')) + '&tab=' + key}))}
             linkedRecordsHtml = linkedRecordList.map((record) => '<m-record-card record-entity="' + enc(record.recordEntityName) + '" record-id="' + enc(record.recordId)
                     + '" card-url="/apps/Commons/Chatter/recordCard" class="q-mb-xs"></m-record-card>').join('')
             todayText = ec.l10n.format(ec.user.nowTimestamp, 'yyyy-MM-dd')
@@ -265,9 +268,9 @@ along with this software (see the LICENSE.md file). If not, see
                     </button-menu>
                 </container>
             </container>
-            <render-mode><text type="qvt"><![CDATA[${factsHtml}]]></text></render-mode>
+            <render-mode><text type="qvt"><![CDATA[${factsHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(Object.assign({t: "html", id: "TaskFacts"}, JSON.parse(sri.htmlText(factsHtml))))}]]></text></render-mode>
 
-            <render-mode><text type="qvt"><![CDATA[${tabsHtml}]]></text></render-mode>
+            <render-mode><text type="qvt"><![CDATA[${tabsHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(tabsTui)}]]></text></render-mode>
 
             <!-- ===== Overview ===== -->
             <section name="OverviewTab" condition="tab == 'overview'"><widgets>
@@ -328,7 +331,7 @@ along with this software (see the LICENSE.md file). If not, see
                             <container style="col-12 col-md-6">
                                 <container-box><box-header title="Linked records"/><box-body>
                                     <section name="LinkedRecords" condition="linkedRecordList.length"><widgets>
-                                        <render-mode><text type="qvt"><![CDATA[${linkedRecordsHtml}]]></text></render-mode>
+                                        <render-mode><text type="qvt"><![CDATA[${linkedRecordsHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(linkedRecordList.map((record) => ({t: "text", text: String(record.recordEntityName).split(".").pop() + " " + record.recordId})))}]]></text></render-mode>
                                     </widgets><fail-widgets>
                                         <label type="p" text="Not on a record. A task made from a record (a request, a contact, an order) shows it here." style="m-muted q-mb-none"/>
                                     </fail-widgets></section>
@@ -376,7 +379,7 @@ along with this software (see the LICENSE.md file). If not, see
                         <field name="workEffortName"><default-field title="Sub-task">
                             <link url="${url}" url-type="plain" text="${workEffortName}" style="${isDone ? 'm-muted' : ''}"/></default-field></field>
                         <field name="statusId"><default-field title="Status">
-                            <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${statusColor}">${WebUtilities.encodeHtml(statusLabel ?? '')}</q-chip>]]></text></render-mode>
+                            <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${statusColor}">${WebUtilities.encodeHtml(statusLabel ?? '')}</q-chip>]]></text><text type="tui"><![CDATA[{"t": "text", "style": "strong", "text": ${JSON.stringify(statusLabel ?? "")}}]]></text></render-mode>
                         </default-field></field>
                         <field name="dueText"><default-field title="Due"><label text="${dueText}" type="span" style="text-no-wrap ${overdue ? 'text-warning' : ''}"/></default-field></field>
                         <field name="assigneeText"><default-field title="Assignees"><display/></default-field></field>

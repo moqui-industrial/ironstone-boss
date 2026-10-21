@@ -662,24 +662,79 @@ plans/Remaining-Work.md.
   progress (`run#ImportNow`, `Contacts/ImportProgress`), a stopped one says why and runs again; Print of a contact (a card)
   and of the Contacts find (a contact sheet) in `html-print`; avatars with the user's photo wherever a person is a user
   (attendees, assignees, requesters, shares, read receipts, Compare); `moqui lint --screens` has no BOSS flags.
+- Oct 21, the four parts built in sessions of their own (mr-moqui 50677fb, f3856d8, 7c2fd51; BOSS 8671941):
+  - Chat: retries answered by `clientRef` and an offline outbox, a room's Files and Threads panes, forward, polls,
+    text-only link previews, read receipts by preference and `@room`.
+  - Files: a PDF's first page and page count through pdf.js in the PDF engine's Chromium page, a spreadsheet's first
+    rows by sheet, and extracted text for search.
+  - SMTP listener: LMTP, STARTTLS with require-tls, CHUNKING and DSN.
+  - OAuth: the access token stored encrypted and shared across a cluster, refreshed under the EmailServer row lock.
+- Oct 21: an avatar given a user id shows that user's photo. `userPhoto` read the always-actions `userId`, which is the
+  viewer's, so every such avatar showed the viewer's own photo.
 
-**Left to build**
+**Left to build** (round 2, planned Oct 21)
 - Framework:
-  - Chat: polls, link previews, a room's files and threads lists, forward, offline sends (designed Oct 21, a session of its
-    own); calls are later.
-  - Files: PDF previews through the Chromium page (pdf.js), XLSX previews (calamine), extracted text for search (designed
-    Oct 21, a session of its own); other office previews wait.
-  - SMTP listener: STARTTLS to the gateway, LMTP mode, CHUNKING, DSN (designed Oct 21, a session of its own).
-  - OAuth: access tokens are per node in a cluster (a stored, encrypted token row with the EmailServer row lock is
-    designed, a session of its own); not run against real Google and Microsoft clients yet.
-  - `clone#WikiPage` copies no history, takes the latest text rather than the published version, and finds children
-    only from WikiPage rows (BOSS duplicates pages with its own service).
+  - Built Oct 21 (Part 3):
+    - Wiki: `clone#WikiPage` copies history (`copyHistory`), the published text (`usePublished`) and a `versionNote`, and
+      takes file-only child pages. BOSS `copy#Page` uses it. Left: the Duplicate dialog's "Copy the published version"
+      option, which `duplicatePage` would pass through.
+    - Mail: `send#TestMessage` (the wizard's Test step and the account page), the index search past 2000 matches, and
+      `EmailOutOfOffice.internalDomains`.
+    - Chat:
+      - the retention job (`clean#ChatRetention`);
+      - a mentioned non-member of a record room who can see the record is notified;
+      - unread and mention counts in one query each (`ChatMemberUnread`, `ChatMemberMentions`);
+      - offline 20 seconds after the last socket on a node closes.
+  - Still open from M5d: IMAP's plain-text fallback, POP3 STLS, folders removed on the server, and the createTask and
+    createRequest rule actions.
   - Older open items still listed in Remaining-Work.md.
 - BOSS:
-  - The server-static pass: 147 BOSS screens are eligible ("static half only" in `moqui lint --screens --qvt-static`),
-    34 have violations and 32 stay server merges. Marking one makes its specs fail, since they check data in the merged
-    qvt output (tried on Settings/Notifications, Oct 21), so the pass needs the specs to read the screens' `/actions` data.
-  - Contacts: calls (§14, later).
-  - Calls (§14) and the Assist drawer (Phase 13) are later, as §6 lists.
-  - The TUI texts for the custom screens (style-guide §8.1): the lint's TUI worklist lists 250 browser-only parts in 68
-    screens.
+  - Built Oct 21 (round 2):
+    - TUI twins of every BOSS screen. `moqui lint --screens` lists none in its TUI worklist.
+      - Inline qvt texts have `tui` twins: `[]` for wrappers; text, link and html nodes (`sri.htmlText`) for content.
+      - The `.qvue` screens have a `dynamicContainer` of a hidden plain-XML twin screen (`MailTui`, `ComposeTui`,
+        `ChatTui`, `RulesTui`, `FilesTui`, `KnowledgeTui`, `NotesTui`, `CalendarTui`, `SchedulesTui`, `ChatterTui`,
+        `RecordFilesTui`).
+      - The widgets and public pages have a short text.
+      - `test/TuiRender.spec.js` renders every screen in tui with no error node.
+    - `ec.screen.staticReport` (the full check with real data) and `test/ServerStatic.spec.js`, which reports every
+      Commons and Comms XML screen.
+    - Fixes:
+      - `userPhoto` read the signed-in user's id, so every avatar showed the viewer's photo;
+      - `STRT_AVATAR_URL` pointed under `/qapps`, which answers an image request with the page shell; it is now
+        `/apps` (an existing database needs the BossSetupData row loaded again);
+      - the Files list showed "[object Object]" after the spreadsheet preview added a second `cellText` method.
+  - Server-static (Oct 21, the user's decision):
+    - A service call in `always-actions` or `pre-actions` is not a side effect when the service only reads: a get, find
+      or setup verb, or the new service attribute `read-only="true"`.
+    - The full check gained two checks the browser showed it missed:
+      - a form-list inside a `section-iterate` (`form-list-iterate`), whose one form request has no iteration entry;
+      - a condition outside the form-lists that reads a form-list's list (`form-list-key`): the browser read
+        `spaceList.length` of undefined on Knowledge/Spaces.
+    - 19 Commons and Comms screens are marked `server-static="qvt"` and come back clean: Commons Settings, Settings/Index
+      and Settings/Preferences, Panel, QuickCreate, Files/Drives, the Contacts Import steps (Source, Mapping, Options,
+      Preview and the wizard), Comms Panel, Settings, Settings/Index, Settings/Chat, Settings/OutOfOffice, and
+      MailAccounts/Add with its Address and Finish steps.
+    - `test/ServerStatic.spec.js` fails when a marked screen is not clean.
+    - The specs' qvt renders use the screen test's new `withStaticData()`: a static template also gets the text of its
+      `/actions` data and its form-lists' rows. A few assertions read the JSON, since the browser composes those labels.
+    - Left as server merges: screens whose empty states, dialogs or iterations read their form-lists' lists (Contacts,
+      Requests, Tasks, Notifications, Files Shares and DriveSettings, Knowledge Spaces, SpaceDetail and Review, Consent,
+      TextBlocks, MailAccounts Add/Options, Identities, Duplicates), EventDetail and ResourceDetail (inline texts of
+      request data on some paths), and the screens with `${…Html}` texts built in actions.
+    - A browser keeps a `.qvt` template for a day (`max-age=86400`), so a screen unmarked after a visit is served from the
+      stale static template until then.
+  - TUI client gaps the twins found:
+    - a transition download link (Files, RecordFiles, EventDetail's Export .ics) is followed as a screen;
+    - a parent level's twin shows above its subscreen (the Calendar agenda above EventDetail);
+    - a `.json` tui location is not expanded unless `template="fancy"`, and the lint checks only inline tui texts
+      for a bare `${}`.
+  - Browser findings (Oct 21, the desktop app's built-in browser):
+    - a server-static `.qvue` component is cached by the browser for a day (`max-age=86400`), so an edited component
+      stays stale in development;
+    - the qapps page sets no `body` background, so a dark host shows through a light theme;
+    - Files' details pane in a narrow window opens without the selected file.
+    - Verified there: a PDF's page image through the installed Chrome, an offline chat send (waiting, then posted
+      once), Schedules' seats filter at 390 px, and avatar photos per user.
+- Later, as §6 lists: Calls (§14), the Assist drawer (Phase 13), office-file previews, the chat link preview's picture
+  (an image proxy), PDF fonts and cmaps (a license review), and the rest of §6.

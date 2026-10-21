@@ -31,8 +31,9 @@ along with this software (see the LICENSE.md file). If not, see
     discover#EmailServer), or, for a hosted address and for a shared address the gateway delivers, carries no servers.
     Connect makes the account, paused until the wizard ends (save#AccountConnection with a password; with a provider's
     sign-in, start#MailSignIn, the framework makes it when the sign-in succeeds; gatewayDelivery makes it with no mail
-    server and no password). Test signs in (test#MailAccount, with what to try for each failure), or, when there is no
-    incoming server, confirms that the gateway delivers. Options (save#AccountOptions: name, sync window, filing, members
+    server and no password). Test signs in (test#MailAccount, with what to try for each failure) and may send a test
+    message (send#AccountTestMessage, as the account page may too), or, when there is no incoming server, confirms that the
+    gateway delivers. Options (save#AccountOptions: name, sync window, filing, members
     of a shared account) and Finish (finish#AccountSetup: active, and the first sync on a worker when there is an incoming
     server). An account still paused from a wizard that was left is "Setup not finished" in the list, with the way back into it.
 
@@ -872,6 +873,39 @@ along with this software (see the LICENSE.md file). If not, see
             else adviceText = L('Go back to fix what failed, then test again.')
         ]]></script></actions>
     </service>
+    <service verb="send" noun="AccountTestMessage">
+        <description>Send a test message from an account to its own address (send permission;
+            org.moqui.impl.EmailClientServices.send#TestMessage), and say when it comes back: an account still in the wizard
+            (paused, never synced) gets it with its first sync after Finish; a paused one when it is resumed; any other with
+            its next sync (its interval, else every few minutes, or Sync now). A send that fails answers sent false and
+            resultText with what the server said; nothing is left in the Outbox.</description>
+        <in-parameters><parameter name="emailAccountId" required="true"/></in-parameters>
+        <out-parameters>
+            <parameter name="sent" type="Boolean"/>
+            <parameter name="resultText"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => text.length > 255 ? text : ec.l10n.localize(text)
+            sent = false; resultText = null
+            const access = ec.service.sync().name('org.moqui.impl.EmailClientServices.get#EmailAccountAccess').parameter('emailAccountId', emailAccountId).call()
+            if (ec.message.hasError()) return
+            const account = access?.account
+            if (!(access?.level >= 1) || account?.isInternal) { ec.message.addError(ec.resource.expand('Email account ${id} not found', '', {id: emailAccountId})); return }
+            const out = ec.service.sync().name('org.moqui.impl.EmailClientServices.send#TestMessage').parameter('emailAccountId', emailAccountId).call()
+            if (ec.message.hasError()) return
+            sent = out?.sent === true
+            if (!sent) { resultText = ec.resource.expand('The test message was not sent: ${error}', '', {error: out?.sendError || L('the server did not take it')}); return }
+            const server = account.emailServerId ? ec.entity.find('moqui.basic.email.EmailServer').condition('emailServerId', account.emailServerId)
+                    .selectField('storeHost').one() : null
+            let when
+            if (!server?.storeHost) when = L('It arrives in the Inbox when the mail gateway delivers it.')
+            else if (account.statusId === 'EasPaused' && account.lastSyncDate == null) when = L('The first sync brings it to the Inbox once you finish adding the account.')
+            else if (account.statusId === 'EasPaused') when = L('The account is paused: the sync brings it to the Inbox when you resume it.')
+            else if (Number(account.syncIntervalMinutes) > 0) when = ec.resource.expand('The next sync brings it to the Inbox, within ${n} minutes, or now with Sync now.', '', {n: account.syncIntervalMinutes})
+            else when = L('The next sync brings it to the Inbox in a few minutes, or now with Sync now.')
+            resultText = ec.resource.expand('Test message sent to ${address}.', '', {address: out.toAddress}) + ' ' + when
+        ]]></script></actions>
+    </service>
 
     <service verb="save" noun="AccountOptions">
         <description>The wizard's Options step and the account page's options (manage permission): the account's name, color,
@@ -1140,7 +1174,8 @@ along with this software (see the LICENSE.md file). If not, see
         <description>The OutOfOffice screen: the accounts the user manages (not the Internal one) with whether their automatic
             reply is on now, and the chosen account's reply (emailAccountId, else the first) for the form, from
             org.moqui.impl.EmailClientServices.get#EmailOutOfOffice, with who gets it (replyAudienceEnumId: EraEveryone,
-            EraContacts, EraInternal; who is a contact is the hook BossSetupData sets, STRT_EMAIL_CONTACT_SERVICE). Each
+            EraContacts, EraInternal; who is a contact is the hook BossSetupData sets, STRT_EMAIL_CONTACT_SERVICE) and the
+            more domains whose senders count as inside the organization (internalDomains, shown comma and space). Each
             account's state stands alone: one that fails is logged and shown as unknown.</description>
         <in-parameters><parameter name="emailAccountId"/></in-parameters>
         <out-parameters>
@@ -1182,7 +1217,8 @@ along with this software (see the LICENSE.md file). If not, see
             isActive = states[selectedAccountId]?.isActive === true
             reply = {emailAccountId: selectedAccountId, enabled: current?.enabled ? 'Y' : 'N', fromDate: fmt(current?.fromDate), thruDate: fmt(current?.thruDate),
                 subject: current?.subject || '', bodyHtml: current?.bodyHtml || '', internalBodyHtml: current?.internalBodyHtml || '',
-                replyOncePerDays: String(current?.replyOncePerDays ?? 4), replyAudienceEnumId: current?.replyAudienceEnumId || 'EraEveryone', applyToAll: 'N'}
+                replyOncePerDays: String(current?.replyOncePerDays ?? 4), replyAudienceEnumId: current?.replyAudienceEnumId || 'EraEveryone',
+                internalDomains: String(current?.internalDomains || '').split(',').filter((domain) => domain).join(', '), applyToAll: 'N'}
             const now = Number(ec.user.nowTimestamp)
             if (isActive) statusText = current?.thruDate ? ec.resource.expand('On now, until ${until}: people who write get your reply.', '', {until: nice(current.thruDate)})
                 : L('On now: people who write get your reply until you turn it off.')
@@ -1193,8 +1229,8 @@ along with this software (see the LICENSE.md file). If not, see
     </service>
     <service verb="store" noun="OutOfOffice">
         <description>Set an account's automatic reply (manage permission, checked by store#EmailOutOfOffice), with who gets it
-            (replyAudienceEnumId: EraEveryone, EraContacts for contacts and people inside, EraInternal for people inside only),
-            or with applyToAll the same reply on every account the user manages that has a server, each on its own in a
+            (replyAudienceEnumId: EraEveryone, EraContacts for contacts and people inside, EraInternal for people inside only)
+            and the more domains of people inside (internalDomains, separated by commas or spaces), or with applyToAll the same reply on every account the user manages that has a server, each on its own in a
             transaction of its own (one that fails is logged and named in failedList). The messages are cleaned as safe HTML.
             Dates are yyyy-MM-dd HH:mm in the user's zone.</description>
         <in-parameters>
@@ -1207,6 +1243,7 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="internalBodyHtml" allow-html="safe"/>
             <parameter name="replyOncePerDays"/>
             <parameter name="replyAudienceEnumId"/>
+            <parameter name="internalDomains"/>
             <parameter name="applyToAll"/>
         </in-parameters>
         <out-parameters>
@@ -1225,7 +1262,8 @@ along with this software (see the LICENSE.md file). If not, see
             const audience = replyAudienceEnumId ? String(replyAudienceEnumId) : 'EraEveryone'
             if (!['EraEveryone', 'EraContacts', 'EraInternal'].includes(audience)) { ec.message.addValidationError(null, 'replyAudienceEnumId', null, L('Choose who gets the reply'), null); return }
             const fields = {enabled: on, fromDate: fromDate, thruDate: thruDate, subject: String(subject || '').trim() || null, bodyHtml: empty(bodyHtml) ? null : bodyHtml,
-                internalBodyHtml: empty(internalBodyHtml) ? null : internalBodyHtml, replyOncePerDays: days ? Number(days) : 4, replyAudienceEnumId: audience}
+                internalBodyHtml: empty(internalBodyHtml) ? null : internalBodyHtml, replyOncePerDays: days ? Number(days) : 4, replyAudienceEnumId: audience,
+                internalDomains: String(internalDomains || '').trim() || null}
             let ids = [emailAccountId]
             if (applyToAll === 'Y') {
                 const access = ec.service.sync().name('org.moqui.impl.EmailClientServices.get#EmailAccountAccess').call()

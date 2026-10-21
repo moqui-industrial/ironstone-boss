@@ -15,7 +15,9 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- Add account step 3, the test (design-drawers-commons.md §17 AccountTest): signing in to the outgoing and the incoming
     server now (ironstone.MailSettingsServices.test#MailAccount over org.moqui.impl.EmailClientServices.test#EmailAccount),
     each step with what the server said and, when it failed, what it most likely means and what to try, with the provider's
-    help; on success how the server's folders map to Inbox, Sent, Drafts, Spam, Trash and Archive. The test runs each time the
+    help; on success how the server's folders map to Inbox, Sent, Drafts, Spam, Trash and Archive, and Send a test message
+    (ironstone.MailSettingsServices.send#AccountTestMessage: to the account's own address, back in the Inbox with the first
+    sync once the wizard ends, as its message says). The test runs each time the
     step shows (Test again reloads it). An account with no incoming server (hosted, or shared and delivered here) is not
     signed in to: the step says the gateway delivers, and Next goes on. Otherwise Next goes on when the test passed, or with
     "Continue anyway" (the account stays as it is and its sync reports the problem). -->
@@ -30,6 +32,12 @@ along with this software (see the LICENSE.md file). If not, see
             if (testPassed !== 'Y' && continueAnyway !== 'Y') ec.message.addValidationError(null, 'continueAnyway', null,
                 ec.l10n.localize('The test did not pass: go back to fix the settings, or choose Continue anyway'), null)
         ]]></script></actions>
+        <default-response url="."><parameter name="emailAccountId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="sendTestMessage">
+        <service-call name="ironstone.MailSettingsServices.send#AccountTestMessage" in-map="{emailAccountId:emailAccountId}" out-map="testMessageOut"/>
+        <actions><script>if (!ec.message.hasError() &amp;&amp; testMessageOut?.resultText) ec.message.addMessage(testMessageOut.resultText, testMessageOut.sent ? 'success' : 'danger')</script></actions>
         <default-response url="."><parameter name="emailAccountId"/></default-response>
         <error-response url="."/>
     </transition>
@@ -89,31 +97,33 @@ along with this software (see the LICENSE.md file). If not, see
         <section name="Result" condition="hasAccount &amp;&amp; !gatewayDelivery"><widgets>
             <container-box type="${passed ? 'success' : 'danger'}"><box-header title="${passed ? 'It works' : 'It did not work yet'}"/>
                 <box-toolbar>
+                    <link url="sendTestMessage" link-type="hidden-form" text="Send a test message" icon="sym_o_send" condition="passed"
+                            parameter-map="{emailAccountId:emailAccountId}"/>
                     <link url="." text="Test again" icon="sym_o_refresh" parameter-map="{emailAccountId:emailAccountId}"/>
                 </box-toolbar>
                 <box-body>
-                    <render-mode><text type="qvt"><![CDATA[<q-list dense class="q-mb-sm">]]></text></render-mode>
+                    <render-mode><text type="qvt"><![CDATA[<q-list dense class="q-mb-sm">]]></text><text type="tui" template="false">[]</text></render-mode>
                     <section-iterate name="TestSteps" list="stepRows" entry="step"><widgets>
-                        <render-mode><text type="qvt"><![CDATA[<q-item class="q-px-none"><q-item-section avatar style="min-width:32px"><q-icon name="${step.icon}" color="${step.color}"></q-icon></q-item-section><q-item-section><q-item-label class="text-weight-medium">]]></text></render-mode>
+                        <render-mode><text type="qvt"><![CDATA[<q-item class="q-px-none"><q-item-section avatar style="min-width:32px"><q-icon name="${step.icon}" color="${step.color}"></q-icon></q-item-section><q-item-section><q-item-label class="text-weight-medium">]]></text><text type="tui" template="false">[]</text></render-mode>
                         <label type="span" text="${step.label}"/>
-                        <render-mode><text type="qvt"><![CDATA[</q-item-label><q-item-label caption>]]></text></render-mode>
+                        <render-mode><text type="qvt"><![CDATA[</q-item-label><q-item-label caption>]]></text><text type="tui" template="false">[]</text></render-mode>
                         <label type="span" text="${step.message}"/>
-                        <render-mode><text type="qvt"><![CDATA[</q-item-label>]]></text></render-mode>
+                        <render-mode><text type="qvt"><![CDATA[</q-item-label>]]></text><text type="tui" template="false">[]</text></render-mode>
                         <section name="StepHint" condition="step.hint"><widgets>
-                            <render-mode><text type="qvt"><![CDATA[<q-item-label class="text-body2 text-negative">]]></text></render-mode>
+                            <render-mode><text type="qvt"><![CDATA[<q-item-label class="text-body2 text-negative">]]></text><text type="tui" template="false">[]</text></render-mode>
                             <label type="span" text="${step.hint}"/>
-                            <render-mode><text type="qvt"><![CDATA[</q-item-label>]]></text></render-mode>
+                            <render-mode><text type="qvt"><![CDATA[</q-item-label>]]></text><text type="tui" template="false">[]</text></render-mode>
                         </widgets></section>
-                        <render-mode><text type="qvt"><![CDATA[</q-item-section></q-item>]]></text></render-mode>
+                        <render-mode><text type="qvt"><![CDATA[</q-item-section></q-item>]]></text><text type="tui" template="false">[]</text></render-mode>
                     </widgets></section-iterate>
-                    <render-mode><text type="qvt"><![CDATA[</q-list>]]></text></render-mode>
+                    <render-mode><text type="qvt"><![CDATA[</q-list>]]></text><text type="tui" template="false">[]</text></render-mode>
                     <label type="p" text="${adviceText}" style="text-weight-medium"/>
                     <section name="Help" condition="helpText"><widgets>
                         <label type="p" text="${helpText}" style="text-body2"/>
                         <section name="HelpLink" condition="helpUrl"><widgets>
-                            <render-mode><text type="qvt"><![CDATA[<q-btn unelevated dense no-caps class="m-btn-tonal text-primary q-mb-sm" icon="sym_o_open_in_new" type="a" href="${helpUrl}" target="_blank" rel="noopener noreferrer">]]></text></render-mode>
+                            <render-mode><text type="qvt"><![CDATA[<q-btn unelevated dense no-caps class="m-btn-tonal text-primary q-mb-sm" icon="sym_o_open_in_new" type="a" href="${helpUrl}" target="_blank" rel="noopener noreferrer">]]></text><text type="tui" template="false">[]</text></render-mode>
                             <label type="span" text="${helpLinkText}"/>
-                            <render-mode><text type="qvt"><![CDATA[</q-btn>]]></text></render-mode>
+                            <render-mode><text type="qvt"><![CDATA[</q-btn>]]></text><text type="tui" template="false">[]</text></render-mode>
                         </widgets></section>
                     </widgets></section>
                     <section name="FixLink" condition="!passed"><widgets>

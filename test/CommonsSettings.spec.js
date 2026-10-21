@@ -8,7 +8,7 @@ const webroot = "component://webroot/screen/webroot.xml"
 const commons = "component://ironstone-boss/screen/Commons.xml"
 
 function render(path, parameters) {
-    const str = ec.screen.makeTest().rootScreen(webroot).renderMode("qvt").render(`apps/Commons/${path}`, Object.assign({ lastStandalone: "true" }, parameters || {}), null)
+    const str = ec.screen.makeTest().rootScreen(webroot).renderMode("qvt").withStaticData().render(`apps/Commons/${path}`, Object.assign({ lastStandalone: "true" }, parameters || {}), null)
     const output = String(str.output || "")
     ec.message.clearErrors()
     return { status: str.status, errors: str.errorMessages.join(" | "), output, broken: /Error rendering|Exception in render/.test(output) }
@@ -53,8 +53,9 @@ feature("NotificationSettings lists the topics by inbox, the providers' private 
         output.includes("Notifications inbox")
         output.includes("Updates inbox")
         // ChatterMention is private, a Commons notification-topic provider
-        output.indexOf("Mentioned on a Record") < output.indexOf("Updates inbox")
-        output.indexOf("Updates inbox") < output.indexOf("Activity on a Followed Record")
+        // the Notifications inbox's topics before the Updates inbox's (each list in its own form-list, read in screen order)
+        output.indexOf("Mentioned on a Record") >= 0
+        output.indexOf("Mentioned on a Record") < output.indexOf("Activity on a Followed Record")
         output.includes("Daily digest")
     },
 })
@@ -81,17 +82,24 @@ feature("Preferences shows the keys of the shell and of the apps, saves an overr
         const saved = post("Settings/Preferences/setKey", { scope: "global", id: "g c", keys: "g x", defaultKeys: "g c" })
         const keymap = ec.user.getPreference("KEYMAP")
         const after = render("Settings/Preferences")
+        // the keymap rows as the server-static page reads them (its form-list's data)
+        const keyRows = JSON.parse(ec.screen.makeTest().rootScreen(webroot).render("apps/Commons/Settings/Preferences/actions/Keymap", {}, null).output || "{}").keyRows || []
+        const changed = keyRows.find((row) => row.scope === "global" && row.id === "g c") || {}
         const reset = post("Settings/Preferences/resetKey", { scope: "global", id: "g c" })
-        return { before, saved, keymap, after, reset, cleared: ec.user.getPreference("KEYMAP") }
+        return { before, saved, keymap, after, changed, reset, cleared: ec.user.getPreference("KEYMAP") }
     },
-    then({ before, saved, keymap, after, reset, cleared }) {
+    then({ before, saved, keymap, after, changed, reset, cleared }) {
         before.status == 200
         before.errors == ""
         before.output.includes("Search and go to (the palette)")
         before.output.includes("Contacts")
         saved.errors == ""
         JSON.parse(keymap).global["g c"] == "g x"
-        after.output.includes("Reset to g c")
+        after.status == 200
+        // the row now has the override and offers Reset to g c
+        changed.overridden
+        changed.keys == "g x"
+        changed.defaultKeys == "g c"
         reset.errors == ""
         !cleared
     },
@@ -171,8 +179,11 @@ feature("Account photo: john.doe's own face image, whatever party the request na
         const disguised = post("Settings/Account/uploadPhoto", { contentFile: uploadedFile("page.png", "<svg/>", "image/svg+xml") })
         const page = render("Settings/Account")
         const photo = get("Settings/Account/myPhoto")
-        const byUser = get("Settings/Account/userPhoto", { userId: "john.doe" })
+        const byUser = get("Settings/Account/userPhoto", { userId: "EX_JOHN_DOE" })
         const noUser = get("Settings/Account/userPhoto", { userId: "no-such-user" })
+        // another user's id is that user's photo, not the viewer's: Joe Developer has none
+        const joeId = sys(() => ec.entity.find("moqui.security.UserAccount").condition("username", "joe.developer").one()).userId
+        const otherUser = get("Settings/Account/userPhoto", { userId: joeId })
         // Chatter: a note by john.doe has his face image, which the panel's avatar transition serves
         const request = { recordEntity: "mantle.request.Request", recordId: "BOSS_DEMO_REQUEST" }
         const noteId = post("Chatter/logNote", Object.assign({ body: "<p>With my photo.</p>" }, request)).json.communicationEventId
@@ -183,13 +194,13 @@ feature("Account photo: john.doe's own face image, whatever party the request na
         const afterJoe = faces("EX_JOHN_DOE").length
         const removed = post("Settings/Account/removePhoto", {})
         const noPhoto = get("Settings/Account/myPhoto")
-        const noByUser = get("Settings/Account/userPhoto", { userId: "john.doe" })
+        const noByUser = get("Settings/Account/userPhoto", { userId: "EX_JOHN_DOE" })
         const pageAfter = render("Settings/Account")
         sys(() => call("ironstone.ChatterServices.delete#Entry", Object.assign({ communicationEventId: noteId, recordEntityName: request.recordEntity }, request)))
-        return { joeBefore, first, firstRows, second, secondRows, refused, disguised, page, photo, byUser, noUser, entry, avatar, joeRemove, afterJoe, removed, noPhoto, noByUser, pageAfter,
+        return { joeBefore, first, firstRows, second, secondRows, refused, disguised, page, photo, byUser, noUser, otherUser, entry, avatar, joeRemove, afterJoe, removed, noPhoto, noByUser, pageAfter,
             joeAfter: faces("ORG_ZIZI_JD").length, johnAfter: faces("EX_JOHN_DOE").length }
     },
-    then({ joeBefore, first, firstRows, second, secondRows, refused, disguised, page, photo, byUser, noUser, entry, avatar, joeRemove, afterJoe, removed, noPhoto, noByUser, pageAfter, joeAfter, johnAfter }) {
+    then({ joeBefore, first, firstRows, second, secondRows, refused, disguised, page, photo, byUser, noUser, otherUser, entry, avatar, joeRemove, afterJoe, removed, noPhoto, noByUser, pageAfter, joeAfter, johnAfter }) {
         first.errors == ""
         firstRows.length == 1
         firstRows[0].description == "john.png"
@@ -206,6 +217,7 @@ feature("Account photo: john.doe's own face image, whatever party the request na
         photo.status == 200
         byUser.status == 200
         noUser.status == 404
+        otherUser.status == 404
         entry.authorImage
         avatar.status == 200
         joeRemove.errors == ""

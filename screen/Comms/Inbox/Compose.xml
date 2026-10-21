@@ -20,7 +20,7 @@ along with this software (see the LICENSE.md file). If not, see
     from mScreen wherever it is. The JSON transitions below are service/ironstone/ComposeServices.xml: the sender is always the
     user, from an account the user may send from, and a file is one these services stored. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Compose" default-menu-include="false" render-modes="vue,qvue" server-static="vue,qvue">
+        default-menu-title="Compose" default-menu-include="false" render-modes="vue,qvue,tui" server-static="vue,qvue">
 
     <parameter name="emailMessageId"/>
     <parameter name="to"/>
@@ -138,6 +138,8 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
 
     <widgets>
-        <render-mode><text type="qvue" location="component://ironstone-boss/screen/Comms/Inbox/Compose.qvue" template="false"/></render-mode>
+        <render-mode><text type="qvue" location="component://ironstone-boss/screen/Comms/Inbox/Compose.qvue" template="false"/>
+            <!-- the terminal twin (style-guide 4.8): ComposeTui, a plain form over the same services, with these parameters -->
+            <text type="tui" location="component://ironstone-boss/screen/Comms/Inbox/Compose.tui.json" template="fancy"/></render-mode>
     </widgets>
 </screen>

@@ -50,14 +50,14 @@ along with this software (see the LICENSE.md file). If not, see
         </container>
 
         <section-iterate name="ProblemAccounts" list="problemAccountList" entry="problem"><widgets>
-            <render-mode><text type="qvt"><![CDATA[<q-banner dense rounded class="m-tonal text-negative q-mb-sm"><template v-slot:avatar><q-icon name="sym_o_sync_problem"></q-icon></template>]]></text></render-mode>
+            <render-mode><text type="qvt"><![CDATA[<q-banner dense rounded class="m-tonal text-negative q-mb-sm"><template v-slot:avatar><q-icon name="sym_o_sync_problem"></q-icon></template>]]></text><text type="tui" template="false">[]</text></render-mode>
             <label type="span" text="${problem.accountName}: ${problem.problemText}; its mail is not syncing.${problem.canManage ? '' : ' Its owner can fix it.'}"/>
             <section name="ProblemFix" condition="problem.canManage"><widgets>
-                <render-mode><text type="qvt"><![CDATA[<template v-slot:action>]]></text></render-mode>
+                <render-mode><text type="qvt"><![CDATA[<template v-slot:action>]]></text><text type="tui" template="false">[]</text></render-mode>
                 <link url="${problem.link}" url-type="plain" text="Fix" icon="sym_o_key" btn-type="primary"/>
-                <render-mode><text type="qvt"><![CDATA[</template>]]></text></render-mode>
+                <render-mode><text type="qvt"><![CDATA[</template>]]></text><text type="tui" template="false">[]</text></render-mode>
             </widgets></section>
-            <render-mode><text type="qvt"><![CDATA[</q-banner>]]></text></render-mode>
+            <render-mode><text type="qvt"><![CDATA[</q-banner>]]></text><text type="tui" template="false">[]</text></render-mode>
         </widgets></section-iterate>
 
         <!-- no mail account yet: the way in -->
@@ -138,15 +138,15 @@ along with this software (see the LICENSE.md file). If not, see
             <row-col md="4">
                 <container-box><box-header title="Shortcuts"/><box-body>
                     <render-mode><text type="qvt"><![CDATA[<div class="row q-gutter-sm">
-                        <q-btn unelevated dense no-caps class="m-btn-tonal" icon="sym_o_edit_square" @click="$root.openQuickCreate && $root.openQuickCreate(($root.quickCreateItems || []).find((kind) => kind.kind === 'email'))">]]></text></render-mode>
+                        <q-btn unelevated dense no-caps class="m-btn-tonal" icon="sym_o_edit_square" @click="$root.openQuickCreate && $root.openQuickCreate(($root.quickCreateItems || []).find((kind) => kind.kind === 'email'))">]]></text><text type="tui" template="false">[]</text></render-mode>
                     <label type="span" text="Compose" style="q-ml-sm"/>
-                    <render-mode><text type="qvt"><![CDATA[</q-btn><q-btn unelevated dense no-caps class="m-btn-tonal" icon="sym_o_add_comment" @click="$root.setUrl('/qapps/Comms/Chat')">]]></text></render-mode>
+                    <render-mode><text type="qvt"><![CDATA[</q-btn><q-btn unelevated dense no-caps class="m-btn-tonal" icon="sym_o_add_comment" @click="$root.setUrl('/qapps/Comms/Chat')">]]></text><text type="tui" template="false">[]</text></render-mode>
                     <label type="span" text="New room" style="q-ml-sm"/>
-                    <render-mode><text type="qvt"><![CDATA[</q-btn><q-btn v-if="${hasMailAccount ? 'false' : 'true'}" unelevated dense no-caps class="m-btn-tonal" icon="sym_o_add" @click="$root.setUrl('/qapps/Comms/Settings/MailAccounts/Add?fresh=Y')">]]></text></render-mode>
+                    <render-mode><text type="qvt"><![CDATA[</q-btn><q-btn v-if="${hasMailAccount ? 'false' : 'true'}" unelevated dense no-caps class="m-btn-tonal" icon="sym_o_add" @click="$root.setUrl('/qapps/Comms/Settings/MailAccounts/Add?fresh=Y')">]]></text><text type="tui" template="false">[]</text></render-mode>
                     <label type="span" text="Add a mail account" style="q-ml-sm"/>
-                    <render-mode><text type="qvt"><![CDATA[</q-btn><q-btn unelevated dense no-caps class="m-btn-tonal" icon="sym_o_settings" @click="$root.setUrl('/qapps/Comms/Settings')">]]></text></render-mode>
+                    <render-mode><text type="qvt"><![CDATA[</q-btn><q-btn unelevated dense no-caps class="m-btn-tonal" icon="sym_o_settings" @click="$root.setUrl('/qapps/Comms/Settings')">]]></text><text type="tui" template="false">[]</text></render-mode>
                     <label type="span" text="Settings" style="q-ml-sm"/>
-                    <render-mode><text type="qvt"><![CDATA[</q-btn></div>]]></text></render-mode>
+                    <render-mode><text type="qvt"><![CDATA[</q-btn></div>]]></text><text type="tui" template="false">[]</text></render-mode>
                 </box-body></container-box>
 
                 <container-box><box-header title="Mailboxes with unread"/><box-body-nopad>

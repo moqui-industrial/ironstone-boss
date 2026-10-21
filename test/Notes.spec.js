@@ -180,7 +180,7 @@ feature("delete takes a note away; QuickCreate's note kind without a record land
         const list = get("notes")
         call_("Knowledge/page", { wikiSpaceId: "BOSSKB", pagePath: "Office" }, null)
         const recent = sys(() => call("ironstone.KnowledgeServices.get#RecentPages", { limit: 5 })).pageList
-        const home = ec.screen.makeTest().rootScreen(commons).renderMode("qvt").render("Home", { lastStandalone: "-2" }, null)
+        const home = ec.screen.makeTest().rootScreen(commons).renderMode("qvt").withStaticData().render("Home", { lastStandalone: "-2" }, null)
         ec.message.clearErrors()
         return { deleted, gone: pageId("NOTES_EX_JOHN_DOE", `Spec delete ${RUN}`), quick, list, recent, home: String(home.output || "") }
     },

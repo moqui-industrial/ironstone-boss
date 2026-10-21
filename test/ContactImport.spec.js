@@ -10,7 +10,7 @@ const commons = "component://ironstone-boss/screen/Commons.xml"
 const demo = "component://ironstone-boss/data/demo"
 
 function render(path, parameters) {
-    const str = ec.screen.makeTest().rootScreen(webroot).renderMode("qvt").render(path, Object.assign({ lastStandalone: "true" }, parameters || {}), null)
+    const str = ec.screen.makeTest().rootScreen(webroot).renderMode("qvt").withStaticData().render(path, Object.assign({ lastStandalone: "true" }, parameters || {}), null)
     const output = String(str.output || "")
     ec.message.clearErrors()
     return { status: str.status, errors: str.errorMessages.join(" | "), output, broken: /Error rendering|Exception in render/.test(output) }
@@ -62,7 +62,7 @@ spec({
 feature("the wizard shows its five steps, Source first", {
     when() {
         // the wizard's own screen, as its root
-        const str = sys(() => ec.screen.makeTest().rootScreen("component://ironstone-boss/screen/Commons/Contacts/Import.xml").renderMode("qvt").render("", {}, null))
+        const str = sys(() => ec.screen.makeTest().rootScreen("component://ironstone-boss/screen/Commons/Contacts/Import.xml").renderMode("qvt").withStaticData().render("", {}, null))
         const shown = { status: str.status, errors: str.errorMessages.join(" | "), output: String(str.output || ""), broken: /Error rendering|Exception in render/.test(String(str.output || "")) }
         ec.message.clearErrors()
         return { shown, source: render("apps/Commons/Contacts/Import/Source", {}) }
@@ -98,7 +98,9 @@ feature("Google CSV, step 1: the file is kept in john.doe's import folder and pa
         draft.rowCount == 3
         draft.columnMapping["E-mail 1 - Value"] == "email1"
         draft.columnMapping["Labels"] == "groups"
-        source.output.includes("Now: contacts-google.csv (3 contacts, CSV)")
+        // the server-static step composes "Now: <file> (<rows> contacts, CSV)" in the browser from the draft's data
+        source.output.includes("Now: ")
+        source.output.includes("contacts-google.csv")
     },
 })
 
@@ -287,7 +289,8 @@ feature("the generic preset maps by header words, and the ISO-8859-1 choice keep
 feature("a large import runs as a job: the draft runs, progress every 25 rows and at the end, then the result", {
     when() {
         const lines = ["First Name,Last Name,E-mail Address"]
-        for (let n = 1; n <= 30; n++) lines.push(`Batch${n},Jobspec,batch${n}@jobs.example`)
+        // named to sort after the demo contacts, so the Contacts list spec still finds them on its first page in a full run
+        for (let n = 1; n <= 30; n++) lines.push(`Zz Batch${n},Jobspec,batch${n}@jobs.example`)
         post("Contacts/Import/Source/saveSource", { contactFile: uploadedFile("batch.csv", lines.join("\r\n") + "\r\n", "text/csv"), presetId: "outlook", characterSet: "UTF-8" })
         const id = newestImport("EX_JOHN_DOE")
         post("Contacts/Import/Mapping/saveMapping", mappingFields(id))

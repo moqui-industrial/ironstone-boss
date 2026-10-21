@@ -9,7 +9,7 @@ const commons = "component://ironstone-boss/screen/Commons.xml"
 const request = { recordEntity: "mantle.request.Request", recordId: "BOSS_DEMO_REQUEST", recordTitle: "Set up the shared team calendar" }
 
 function render(parameters) {
-    const str = ec.screen.makeTest().rootScreen(webroot).renderMode("qvt").render("apps/Commons/QuickCreate", Object.assign({ lastStandalone: "true" }, parameters || {}), null)
+    const str = ec.screen.makeTest().rootScreen(webroot).renderMode("qvt").withStaticData().render("apps/Commons/QuickCreate", Object.assign({ lastStandalone: "true" }, parameters || {}), null)
     const output = String(str.output || "")
     ec.message.clearErrors()
     return { status: str.status, errors: str.errorMessages.join(" | "), output, broken: /Error rendering|Exception in render/.test(output) }
@@ -36,12 +36,13 @@ spec({
 feature("the #kind form renders in qvt (#label)", {
     where: [
         { kind: "task", label: "Due", parameters: {} },
-        { kind: "task", label: "Linked to Set up the shared team calendar", parameters: request },
+        // the server-static form composes "Linked to <record>" in the browser: the record's title is in its data
+        { kind: "task", label: "Set up the shared team calendar", parameters: request },
         { kind: "activity", label: "An activity is always on a record", parameters: {} },
         { kind: "activity", label: "Meeting", parameters: request },
         { kind: "event", label: "Attendees", parameters: {} },
         { kind: "note", label: "Saved in your notes", parameters: {} },
-        { kind: "note", label: "A note on Set up the shared team calendar", parameters: request },
+        { kind: "note", label: "A note on", parameters: request },
         { kind: "note", label: "rich-light", parameters: request },
         { kind: "contact", label: "Directory (everyone)", parameters: {} },
         { kind: "request", label: "Customer", parameters: {} },

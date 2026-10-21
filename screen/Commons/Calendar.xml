@@ -20,7 +20,7 @@ along with this software (see the LICENSE.md file). If not, see
     change go through the JSON transitions below (service/ironstone/CalendarServices.xml), as the user: each checks what the user
     may see and change, and every day and time is wall-clock text in the user's time zone. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Calendar" default-menu-index="3" render-modes="vue,qvue" server-static="vue,qvue">
+        default-menu-title="Calendar" default-menu-index="3" render-modes="vue,qvue,tui" server-static="vue,qvue">
 
     <parameter name="view"/>
     <parameter name="date"/>
@@ -178,6 +178,9 @@ along with this software (see the LICENSE.md file). If not, see
     <widgets>
         <render-mode>
             <text type="qvue" location="component://ironstone-boss/screen/Commons/Calendar.qvue" template="false"/>
+            <!-- the terminal: CalendarTui, the plain screen beside this one, an agenda from the same date -->
+            <text type="tui"><![CDATA[${JSON.stringify([{t: "dynamicContainer", id: "CalendarTui",
+                url: sri.buildUrl("../CalendarTui").addParameters({date: date || null, showTasks: showTasks || null}).getUrlWithParams()}])}]]></text>
             <text type="html,qvt"><![CDATA[<p class="m-muted">The Calendar is a .qvue screen: open it under /qapps.</p>]]></text>
         </render-mode>
     </widgets>

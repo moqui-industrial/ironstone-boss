@@ -3,7 +3,8 @@
 // MailDefaults): on the demo of data/BossMailDemoData.xml (load#MailSettingsDemo: the shared Support account whose sign-in failed,
 // john.doe's rules, automatic reply and text blocks) and on an account of this spec's own (127.0.0.1 port 1, nothing listens) with
 // an imported message, so the rules run on mail no other spec reads; its automatic reply to contacts goes (MailCapture) to
-// john.doe's personal contact and not to a stranger, by the contact hook BossSetupData sets (Mantle's filter#ContactAddresses).
+// john.doe's personal contact and not to a stranger, by the contact hook BossSetupData sets (Mantle's filter#ContactAddresses);
+// the more domains of people inside are kept with the reply.
 // Each signature, reply and text block is cleaned as safe HTML.
 // joe.developer may not change john.doe's identities, rules, automatic reply or text blocks; he sees the shared text block and,
 // as a member who sends from Support, its identity without changing it. Authorization stays on, as for a browser request.
@@ -15,7 +16,7 @@ const DEMO = "BOSS_DEMO_MAIL_ACCT"
 const SUPPORT = "BOSS_DEMO_MAIL_SUPPORT"
 
 function render(path, parameters) {
-    const str = ec.screen.makeTest().rootScreen(webroot).renderMode("qvt").render(`apps/${path}`, Object.assign({ lastStandalone: "true" }, parameters || {}), null)
+    const str = ec.screen.makeTest().rootScreen(webroot).renderMode("qvt").withStaticData().render(`apps/${path}`, Object.assign({ lastStandalone: "true" }, parameters || {}), null)
     const output = String(str.output || "")
     ec.message.clearErrors()
     return { status: str.status, errors: str.errorMessages.join(" | "), output, broken: /Error rendering|Exception in render/.test(output) }
@@ -72,7 +73,8 @@ feature("the settings index has a card per group and says an account needs atten
         index.errors == ""
         !index.broken
         ["Mail accounts", "Identities and signatures", "Rules", "Out of office", "Text blocks", "Chat settings", "Reading and keys"].every((text) => index.output.includes(text))
-        index.output.includes("1 needs your attention")
+        // the demo's Support account needs attention; in a full run other specs' accounts may too
+        /\b(1 needs|\d+ need) your attention/.test(index.output)
         root.includes("Identities and signatures")
     },
 })
@@ -265,6 +267,8 @@ feature("rules: the demo's in words with the blocked sender apart; a new rule sa
 feature("out of office: the demo's reply shows off; turned on for three days it is on now, the Inbox says so; on every account at once; off again", {
     when() {
         const shown = render("Comms/Settings/OutOfOffice", { emailAccountId: DEMO })
+        // the page is server-static: its account chips ("Support · off") are composed in the browser from this data
+        const shownChips = JSON.parse(ec.screen.makeTest().rootScreen(webroot).render("apps/Comms/Settings/OutOfOffice/actions", { emailAccountId: DEMO }, null).output || "{}").oooAccounts || []
         const noBody = settings("OutOfOffice/storeReply", { emailAccountId: DEMO, enabled: "Y", bodyHtml: "<p></p>" })
         const now = Date.now()
         const on = settings("OutOfOffice/storeReply", { emailAccountId: DEMO, enabled: "Y", fromDate: fmt(now - 3600000), thruDate: fmt(now + 3 * 86400000),
@@ -279,20 +283,31 @@ feature("out of office: the demo's reply shows off; turned on for three days it 
         const afterOff = rows("moqui.basic.email.EmailOutOfOffice", {}).filter((row) => [DEMO, SUPPORT, ownId].includes(row.emailAccountId) && row.enabled == "Y")
         // who gets it: people inside only; contacts are the hook's (BossSetupData's STRT_EMAIL_CONTACT_SERVICE), so no note says otherwise
         const inside = settings("OutOfOffice/storeReply", { emailAccountId: DEMO, enabled: "Y", fromDate: fmt(now - 3600000), thruDate: fmt(now + 3 * 86400000),
-            subject: "Away", bodyHtml: "<p>Away until Thursday.</p>", replyOncePerDays: "2", replyAudienceEnumId: "EraInternal" })
+            subject: "Away", bodyHtml: "<p>Away until Thursday.</p>", replyOncePerDays: "2", replyAudienceEnumId: "EraInternal",
+            internalDomains: "Partner.example.org, @ally.example.com" })
         const insideRow = one("moqui.basic.email.EmailOutOfOffice", { emailAccountId: DEMO })
+        const badDomain = settings("OutOfOffice/storeReply", { emailAccountId: DEMO, enabled: "Y", bodyHtml: "<p>x</p>", replyAudienceEnumId: "EraInternal",
+            internalDomains: "partner.example.org, intranet" })
         const badAudience = settings("OutOfOffice/storeReply", { emailAccountId: DEMO, enabled: "Y", bodyHtml: "<p>x</p>", replyAudienceEnumId: "EraNobody" })
         const shownInside = render("Comms/Settings/OutOfOffice", { emailAccountId: DEMO })
         settings("OutOfOffice/turnOff", { emailAccountId: DEMO })
         const offKeepsAudience = one("moqui.basic.email.EmailOutOfOffice", { emailAccountId: DEMO })
-        return { shown, noBody, on, stored, shownOn, inbox: inbox.json, all, supportReply, ownReply, afterOff, inside, insideRow, badAudience, shownInside, offKeepsAudience }
+        return { shown, shownChips, noBody, on, stored, shownOn, inbox: inbox.json, all, supportReply, ownReply, afterOff, inside, insideRow, badDomain, badAudience,
+            shownInside, offKeepsAudience }
     },
-    then({ shown, noBody, on, stored, shownOn, inbox, all, supportReply, ownReply, afterOff, inside, insideRow, badAudience, shownInside, offKeepsAudience }) {
+    then({ shown, shownChips, noBody, on, stored, shownOn, inbox, all, supportReply, ownReply, afterOff, inside, insideRow, badDomain, badAudience, shownInside,
+            offKeepsAudience }) {
         shown.output.includes("Reply to")
         shown.output.includes("Only people inside the organization")
         stored.replyAudienceEnumId == "EraEveryone"
         inside.errors == ""
         insideRow.replyAudienceEnumId == "EraInternal"
+        // more domains of people inside: kept in lower case; one that is not a domain is refused; turning off keeps them
+        insideRow.internalDomains == "partner.example.org,ally.example.com"
+        badDomain.errors.includes("Not a domain: intranet")
+        shownInside.output.includes("Other domains inside the organization")
+        shownInside.output.includes("partner.example.org, ally.example.com")
+        offKeepsAudience.internalDomains == "partner.example.org,ally.example.com"
         badAudience.errors.includes("Choose who gets the reply")
         !shownInside.output.includes("counts as a contact")
         shownInside.output.includes("Your contacts are your personal contacts")
@@ -302,7 +317,7 @@ feature("out of office: the demo's reply shows off; turned on for three days it 
         !shown.broken
         shown.output.includes("Away until Monday")
         shown.output.includes("Off.")
-        shown.output.includes("Support · off")
+        shownChips.some((chip) => chip.accountName === "Support" && chip.stateText === "off")
         noBody.errors.includes("Write the reply people get")
         on.errors == ""
         stored.enabled == "Y"
@@ -412,7 +427,8 @@ feature("the Mail box of Preferences saves what the Inbox and Compose read", {
         const inboxAfter = json("Inbox/Mail/inboxData", {}, null)
         const listed = json("Inbox/Mail/threads", { view: "inbox" }, null)
         const compose = json("Inbox/Compose/composeData", {}, null)
-        const again = render("Commons/Settings/Preferences", {})
+        // Preferences is server-static: the form's values are its data, mailDefaultsOut.mailDefaults
+        const again = (JSON.parse(ec.screen.makeTest().rootScreen(webroot).render("apps/Commons/Settings/Preferences/actions", {}, null).output || "{}").mailDefaultsOut || {}).mailDefaults || {}
         const from = (compose.json.compose && compose.json.compose.identityList || []).find((item) => item.value == (compose.json.compose || {}).fromValue)
         return { shown, bad, saved, prefs: inbox.json.prefs, badView, badAccount, more, after: inboxAfter.json.prefs, listed: listed.json,
             compose: compose.json, from, again }
@@ -450,9 +466,9 @@ feature("the Mail box of Preferences saves what the Inbox and Compose read", {
         listed.conversationView == "messages"
         compose.compose.signaturePlacement == "below"
         from.emailAccountId == DEMO
-        again.output.includes("'readingPane':'bottom'")
-        again.output.includes("'conversationView':'messages'")
-        again.output.includes("'signaturePlacement':'below'")
+        again.readingPane == "bottom"
+        again.conversationView == "messages"
+        again.signaturePlacement == "below"
     },
 })
 

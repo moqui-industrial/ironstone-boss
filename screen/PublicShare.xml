@@ -22,7 +22,7 @@ along with this software (see the LICENSE.md file). If not, see
     which checks the token again (the route gives it as the token parameter, whatever the request says) and the grant
     open#PublicShare made after the password, before it reads anything; nothing else is read here. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        require-authentication="false" default-menu-include="false" default-menu-title="Shared files" render-modes="vue,qvue" server-static="vue,qvue">
+        require-authentication="false" default-menu-include="false" default-menu-title="Shared files" render-modes="vue,qvue,tui" server-static="vue,qvue">
 
     <!-- the password (when the link has one), the opening counted, the grant for the calls below -->
     <transition name="open" require-session-token="false">
@@ -65,7 +65,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <widgets>
         <render-mode>
-            <text type="qvue" location="component://ironstone-boss/screen/PublicShare.qvue" template="false"/>
+            <text type="qvue" location="component://ironstone-boss/screen/PublicShare.qvue" template="false"/><text type="tui" location="component://ironstone-boss/screen/PublicShare.tui.json" template="false"/>
             <text type="html,qvt"><![CDATA[<p>This shared item opens in a browser with JavaScript.</p>]]></text>
         </render-mode>
     </widgets>

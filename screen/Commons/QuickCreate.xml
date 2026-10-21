@@ -19,7 +19,7 @@ along with this software (see the LICENSE.md file). If not, see
     Each form's transition creates the record through ironstone.QuickCreateServices and answers JSON messages, so the shell's
     dialog closes (an m-form in it that answers without errors hides it) and the page under it stays. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Quick create" default-menu-include="false">
+        default-menu-title="Quick create" default-menu-include="false" server-static="qvt">
 
     <parameter name="kind"/>
     <parameter name="recordEntity"/>
@@ -176,14 +176,14 @@ along with this software (see the LICENSE.md file). If not, see
     <widgets>
         <!-- the record of the screen context; remove loads the form again without it -->
         <section name="RecordChip" condition="hasRecord"><widgets>
-            <render-mode><text type="qvt"><![CDATA[<q-chip dense square icon="sym_o_link" class="q-ml-none q-mb-sm">]]></text></render-mode>
+            <render-mode><text type="qvt"><![CDATA[<q-chip dense square icon="sym_o_link" class="q-ml-none q-mb-sm">]]></text><text type="tui" template="false">[]</text></render-mode>
             <label type="span" text="Linked to ${recordLabel}"/>
             <section name="RecordChipRemove" condition="kind != 'activity'"><widgets>
-                <render-mode><text type="qvt"><![CDATA[<span class="q-mx-xs">&#183;</span>]]></text></render-mode>
+                <render-mode><text type="qvt"><![CDATA[<span class="q-mx-xs">&#183;</span>]]></text><text type="tui" template="false">[]</text></render-mode>
                 <link url="." link-type="anchor" text="remove" dynamic-load-id="m-quick-create-body"
                         parameter-map="{kind:kind, recordEntity:'', recordId:'', recordTitle:''}"/>
             </widgets></section>
-            <render-mode><text type="qvt"><![CDATA[</q-chip>]]></text></render-mode>
+            <render-mode><text type="qvt"><![CDATA[</q-chip>]]></text><text type="tui" template="false">[]</text></render-mode>
         </widgets></section>
 
         <!-- task -->

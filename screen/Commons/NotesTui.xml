@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The terminal twin of Notes (style-guide §4.8): Notes.xml's tui text is a dynamic container of this screen. The user's
+    notes, pinned first, the note open (wikiPageId) with its text, and a form for a new note. The same services as Notes.qvue
+    (KnowledgeServices get#NotesList, get#PageView with the same isMyNotes check as its note transition, create#Note), over the
+    user's own notes space: another user's note is not found. Editing, tags, history and moving a note are the browser's. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Notes" default-menu-include="false">
+
+    <parameter name="wikiPageId"/>
+
+    <!-- a new note (Notes' createNote calls the same service), then Notes on it -->
+    <transition name="createNote">
+        <service-call name="ironstone.KnowledgeServices.create#Note" in-map="{title:(title || null), pageText:(pageText || null)}" out-map="createOut"/>
+        <default-response url="//Commons/Notes"><parameter name="wikiPageId" from="createOut.wikiPageId"/></default-response>
+    </transition>
+
+    <actions><script><![CDATA[
+        const L = (text) => ec.l10n.localize(text)
+        const out = ec.service.sync().name('ironstone.KnowledgeServices.get#NotesList').call()
+        noteList = ec.message.hasError() ? [] : Array.from(out.noteList || []).map((note) => ({noteId: note.wikiPageId,
+            title: (note.pinned ? '* ' : '') + (note.title || L('Untitled')), whenText: note.whenText || '', snippet: note.snippet || '',
+            tagsText: Array.from(note.tags || []).join(', ')}))
+        note = null
+        if (wikiPageId && !ec.message.hasError()) {
+            const view = ec.service.sync().name('ironstone.KnowledgeServices.get#PageView').parameter('wikiPageId', wikiPageId).call()
+            if (!ec.message.hasError() && !view.page?.isMyNotes) ec.message.addError(L('Note not found'))
+            if (!ec.message.hasError()) note = view.page
+        }
+    ]]></script></actions>
+    <widgets>
+        <section name="NotesTuiNote" condition="note"><widgets>
+            <container-box><box-header title="${note.title || note.pageName}"/><box-body>
+                <label type="p" style="text-caption m-muted" condition="note.lastChange" text="Changed ${note.lastChange?.dateText || ''}"/>
+                <markdown-view text="${note.text || ''}"/>
+                <link url="//Commons/Notes" link-type="anchor" text="All notes"/>
+            </box-body></container-box>
+        </widgets></section>
+
+        <container-box><box-header title="Notes"/><box-body-nopad>
+            <form-list name="NotesTuiList" list="noteList" skip-form="true" paginate="false">
+                <field name="title"><default-field title="Note">
+                    <link url="//Commons/Notes" link-type="anchor" text="${title}" parameter-map="{wikiPageId:noteId}"/></default-field></field>
+                <field name="whenText"><default-field title="Changed"><display/></default-field></field>
+                <field name="snippet"><default-field title="Text"><display/></default-field></field>
+                <field name="tagsText"><default-field title="Tags"><display style="text-caption"/></default-field></field>
+            </form-list>
+        </box-body-nopad></container-box>
+        <label type="p" style="text-caption m-muted" condition="!noteList || noteList.length == 0" text="No notes yet."/>
+
+        <container-box><box-header title="New note"/><box-body>
+            <form-single name="NotesTuiNew" transition="createNote">
+                <field name="title"><default-field title="Title"><text-line size="50"/></default-field></field>
+                <field name="pageText"><default-field title="Text (markdown)"><text-area rows="6" cols="60"/></default-field></field>
+                <field name="submitButton"><default-field title="Create note"><submit/></default-field></field>
+            </form-single>
+        </box-body></container-box>
+        <label type="p" style="text-caption m-muted q-mt-sm" text="Editing, tags, history and moving a note are in the browser."/>
+    </widgets>
+</screen>

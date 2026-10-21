@@ -74,7 +74,7 @@ feature("joe.developer sees the share waiting, accepts it, opens and changes the
         const reshare = post("share", { driveId: personalDriveId, path: "Documents/Budget 2027.csv", isLink: "Y" })
         const declined = post("answerShare", { shareId: viewOnly.shareId, answer: "decline" })
         const afterDecline = get("detail", { driveId: personalDriveId, path: "Documents/Budget 2027.csv" })
-        const page = ec.screen.makeTest().rootScreen(commons).renderMode("qvt").render("Files/Shares", { lastStandalone: "-2" }, null)
+        const page = ec.screen.makeTest().rootScreen(commons).renderMode("qvt").withStaticData().render("Files/Shares", { lastStandalone: "-2" }, null)
         ec.message.clearErrors()
         login("john.doe")
         return { share, accepted, after, folder, wrote, reshare, declined, afterDecline, page }

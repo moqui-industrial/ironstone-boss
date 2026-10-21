@@ -20,7 +20,7 @@ function call_(name, parameters, method) {
 const get = (name, parameters) => call_(`Calendar/Schedules/${name}`, parameters, null)
 const post = (name, parameters) => call_(`Calendar/Schedules/${name}`, parameters, "post")
 function render(path, parameters) {
-    const str = ec.screen.makeTest().rootScreen(webroot).renderMode("qvt").render(path, Object.assign({ lastStandalone: "true" }, parameters || {}), null)
+    const str = ec.screen.makeTest().rootScreen(webroot).renderMode("qvt").withStaticData().render(path, Object.assign({ lastStandalone: "true" }, parameters || {}), null)
     const output = String(str.output || "")
     ec.message.clearErrors()
     return { status: str.status, errors: str.errorMessages.join(" | "), output, broken: /Error rendering|Exception in render/.test(output) }

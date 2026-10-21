@@ -20,8 +20,8 @@ along with this software (see the LICENSE.md file). If not, see
     name, then what the sync brought. The messages carry counts only, and only to the users of the account; this screen reads
     nothing itself. No socket (none configured, or not signed in): nothing shows. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Sync progress" default-menu-include="false" render-modes="vue,qvue" server-static="vue,qvue">
+        default-menu-title="Sync progress" default-menu-include="false" render-modes="vue,qvue,tui" server-static="vue,qvue">
     <widgets>
-        <render-mode><text type="qvue" location="component://ironstone-boss/screen/Comms/Settings/MailAccounts/SyncProgress.qvue" template="false"/></render-mode>
+        <render-mode><text type="qvue" location="component://ironstone-boss/screen/Comms/Settings/MailAccounts/SyncProgress.qvue" template="false"/><text type="tui" location="component://ironstone-boss/screen/Comms/Settings/MailAccounts/SyncProgress.tui.json" template="false"/></render-mode>
     </widgets>
 </screen>

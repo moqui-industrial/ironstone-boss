@@ -107,7 +107,7 @@ along with this software (see the LICENSE.md file). If not, see
         </widgets></section>
         <section name="Done" condition="hasDraft &amp;&amp; isDone"><widgets>
             <container-box type="${result.failedCount ? 'warning' : 'success'}"><box-header title="Imported"/><box-body>
-                <render-mode><text type="qvt"><![CDATA[${progressHtml}]]></text></render-mode>
+                <render-mode><text type="qvt"><![CDATA[${progressHtml}]]></text><text type="tui" template="false"><![CDATA[[]]]></text></render-mode>
                 <form-single name="ImportCounts" map="result">
                     <field name="createdCount"><default-field title="Created"><display/></default-field></field>
                     <field name="updatedCount"><default-field title="Updated"><display/></default-field></field>

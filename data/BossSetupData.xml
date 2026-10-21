@@ -151,10 +151,11 @@ along with this software (see the LICENSE.md file). If not, see
         the owner's personal contacts, own and shared contact books, and the directory of the owner's organizations) -->
     <moqui.screen.ScreenThemeResource screenThemeId="DEFAULT_QUASAR" sequenceNum="310" resourceTypeEnumId="STRT_EMAIL_CONTACT_SERVICE"
             resourceValue="mantle.party.ContactBookServices.filter#ContactAddresses"/>
-    <!-- m-avatar given only a user id (the header). ${userId} is replaced in the browser. 404 leaves the initials.
+    <!-- m-avatar given only a user id (the header). ${userId} is replaced in the browser. 404 leaves the initials. Under
+        /apps, where a transition answers an image request: under /qapps the request gets the page shell, so no image loads.
         An existing database needs this row loaded (the STRT_AVATAR_URL enumeration comes with the framework seed). -->
     <moqui.screen.ScreenThemeResource screenThemeId="DEFAULT_QUASAR" sequenceNum="311" resourceTypeEnumId="STRT_AVATAR_URL"
-            resourceValue="/qapps/Commons/Settings/Account/userPhoto?userId=${userId}"/>
+            resourceValue="/apps/Commons/Settings/Account/userPhoto?userId=${userId}"/>
     <!-- the do not disturb hours of Comms Settings, Chat (ironstone.ChatServices.apply#DndHours) -->
     <moqui.service.job.ServiceJob jobName="apply_ChatDndHours" description="Do not disturb hours of the chat users (IronStone)"
             serviceName="ironstone.ChatServices.apply#DndHours" cronExpression="0 */5 * * * ?" paused="N"/>

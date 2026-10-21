@@ -616,7 +616,7 @@ feature("the sender alone removes a message's link previews; read receipts off b
 feature("the Chat screen answers its component in qvue, its one client mode (the shell loads it so); a .qvt is not found", {
     when() {
         const vue = ec.screen.makeTest().rootScreen(comms).renderMode("qvue").render("Chat", { lastStandalone: "-2" }, null)
-        const qvt = ec.screen.makeTest().rootScreen(comms).renderMode("qvt").render("Chat", { lastStandalone: "-2" }, null)
+        const qvt = ec.screen.makeTest().rootScreen(comms).renderMode("qvt").withStaticData().render("Chat", { lastStandalone: "-2" }, null)
         ec.message.clearErrors()
         return { vue: { status: vue.status, output: String(vue.output || "") }, qvt: { status: qvt.status, errors: qvt.errorMessages.join(" | ") } }
     },

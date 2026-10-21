@@ -11,7 +11,7 @@ const comms = "component://ironstone-boss/screen/Comms.xml"
 const DND_USER = "BOSS_TEST_CHAT_DND"
 
 function render(path, parameters, method) {
-    const str = ec.screen.makeTest().rootScreen(comms).renderMode("qvt").render(path, Object.assign({ lastStandalone: "-2" }, parameters || {}), method || null)
+    const str = ec.screen.makeTest().rootScreen(comms).renderMode("qvt").withStaticData().render(path, Object.assign({ lastStandalone: "-2" }, parameters || {}), method || null)
     const output = String(str.output || "")
     ec.message.clearErrors()
     return { status: str.status, errors: str.errorMessages.join(" | "), output }
