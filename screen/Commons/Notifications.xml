@@ -143,13 +143,13 @@ along with this software (see the LICENSE.md file). If not, see
             <row-col md="3" sm="4">
                 <container-box><box-header title="Inboxes"/><box-body-nopad>
                     <render-mode><text type="qvt"><![CDATA[<q-list dense>
-                        <q-item class="${isUpdates ? '' : 'm-tonal text-primary'}"><q-item-section avatar style="min-width: 32px;"><q-icon name="sym_o_notifications" size="xs"></q-icon></q-item-section><q-item-section>]]></text></render-mode>
+                        <q-item class="${isUpdates ? '' : 'm-tonal text-primary'}"><q-item-section avatar style="min-width: 32px;"><q-icon name="sym_o_notifications" size="xs"></q-icon></q-item-section><q-item-section>]]></text><text type="tui" template="false">[]</text></render-mode>
                     <link url="." link-type="anchor" text="Notifications" parameter-map="{inboxEnumId:'NinNotifications'}"/>
                     <render-mode><text type="qvt"><![CDATA[</q-item-section><q-item-section side>${notificationsUnread ? '<q-badge rounded color="primary">' + notificationsUnread + '</q-badge>' : ''}</q-item-section></q-item>
-                        <q-item class="${isUpdates ? 'm-tonal text-primary' : ''}"><q-item-section avatar style="min-width: 32px;"><q-icon name="sym_o_dynamic_feed" size="xs"></q-icon></q-item-section><q-item-section>]]></text></render-mode>
+                        <q-item class="${isUpdates ? 'm-tonal text-primary' : ''}"><q-item-section avatar style="min-width: 32px;"><q-icon name="sym_o_dynamic_feed" size="xs"></q-icon></q-item-section><q-item-section>]]></text><text type="tui"><![CDATA[${JSON.stringify(notificationsUnread ? {t: "text", style: "strong", text: String(notificationsUnread)} : [])}]]></text></render-mode>
                     <link url="." link-type="anchor" text="Updates" parameter-map="{inboxEnumId:'NinUpdates'}"/>
                     <render-mode><text type="qvt"><![CDATA[</q-item-section><q-item-section side>${updatesUnread ? '<q-badge rounded color="grey-7">' + updatesUnread + '</q-badge>' : ''}</q-item-section></q-item>
-                        </q-list>]]></text></render-mode>
+                        </q-list>]]></text><text type="tui"><![CDATA[${JSON.stringify(updatesUnread ? {t: "text", style: "strong", text: String(updatesUnread)} : [])}]]></text></render-mode>
                     <section name="ReasonChips" condition="reasonChips &amp;&amp; reasonChips.length"><widgets>
                         <container style="q-pa-sm">
                             <label type="div" text="Unread by reason" style="text-caption m-muted q-mb-xs"/>
@@ -219,9 +219,9 @@ along with this software (see the LICENSE.md file). If not, see
                                 </form-single></action>
                             </row-selection>
                             <field name="titleText"><default-field title="What">
-                                <render-mode><text type="qvt"><![CDATA[<q-btn flat dense no-caps align="left" type="submit" form="NotificationOpen_${notificationMessageId}" padding="none" color="primary" class="text-left"><div class="full-width text-left">]]></text></render-mode>
+                                <render-mode><text type="qvt"><![CDATA[<q-btn flat dense no-caps align="left" type="submit" form="NotificationOpen_${notificationMessageId}" padding="none" color="primary" class="text-left"><div class="full-width text-left">]]></text><text type="tui" template="false">[]</text></render-mode>
                                 <label type="span" text="${titleText}"/>
-                                <render-mode><text type="qvt"><![CDATA[</div></q-btn>]]></text></render-mode>
+                                <render-mode><text type="qvt"><![CDATA[</div></q-btn>]]></text><text type="tui" template="false">[]</text></render-mode>
                             </default-field></field>
                             <field name="caption"><default-field title="Summary"><display/></default-field></field>
                             <field name="requestedByName"><default-field title="Requested by"><display/></default-field></field>
@@ -266,9 +266,9 @@ along with this software (see the LICENSE.md file). If not, see
                             </form-single></action>
                         </row-selection>
                         <field name="titleText"><default-field title="Notification">
-                            <render-mode><text type="qvt"><![CDATA[<q-btn flat dense no-caps align="left" type="submit" form="NotificationOpen_${notificationMessageId}" padding="none" color="primary" class="text-left${unread ? ' text-weight-medium' : ''}"><div class="full-width text-left">]]></text></render-mode>
+                            <render-mode><text type="qvt"><![CDATA[<q-btn flat dense no-caps align="left" type="submit" form="NotificationOpen_${notificationMessageId}" padding="none" color="primary" class="text-left${unread ? ' text-weight-medium' : ''}"><div class="full-width text-left">]]></text><text type="tui" template="false">[]</text></render-mode>
                             <label type="span" text="${titleText}"/>
-                            <render-mode><text type="qvt"><![CDATA[</div></q-btn>]]></text></render-mode>
+                            <render-mode><text type="qvt"><![CDATA[</div></q-btn>]]></text><text type="tui" template="false">[]</text></render-mode>
                         </default-field></field>
                         <field name="reasonLabel"><default-field title="Reason"><display/></default-field></field>
                         <field name="appLabel"><default-field title="App"><display/></default-field></field>
@@ -293,7 +293,7 @@ along with this software (see the LICENSE.md file). If not, see
         <!-- the forms the row titles post (open marks read): outside the lists, whose rows are forms, as the macros do for a
             hidden-form-link in a cell; the title is a left-aligned text button with form= (a hidden-form-link centers its text) -->
         <section-iterate name="OpenForms" list="openRows" entry="row"><widgets>
-            <render-mode><text type="qvt"><![CDATA[<m-form action="${openAction}" id="NotificationOpen_${row.notificationMessageId}" name="NotificationOpen_${row.notificationMessageId}"><input type="hidden" name="notificationMessageId" value="${row.notificationMessageId}"></m-form>]]></text></render-mode>
+            <render-mode><text type="qvt"><![CDATA[<m-form action="${openAction}" id="NotificationOpen_${row.notificationMessageId}" name="NotificationOpen_${row.notificationMessageId}"><input type="hidden" name="notificationMessageId" value="${row.notificationMessageId}"></m-form>]]></text><text type="tui" template="false">[]</text></render-mode>
         </widgets></section-iterate>
     </widgets>
 </screen>

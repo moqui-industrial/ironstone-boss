@@ -34,7 +34,7 @@ feature("the shell names the tab and the + menu kind without an extension; the s
         let shell = null
         try { shell = JSON.parse(str.output) } catch (err) { shell = null }
         const comp = ec.screen.makeTest().rootScreen(comms).renderMode("qvue").render("Panel/Chat", { lastStandalone: "-2" }, null)
-        const qvt = ec.screen.makeTest().rootScreen(comms).renderMode("qvt").render("Panel/Chat", { lastStandalone: "-2" }, null)
+        const qvt = ec.screen.makeTest().rootScreen(comms).renderMode("qvt").withStaticData().render("Panel/Chat", { lastStandalone: "-2" }, null)
         ec.message.clearErrors()
         const commsApp = ((shell || {}).apps || []).find((app) => app.name === "Comms") || {}
         return { trayChat: shell && shell.shell ? shell.shell.trayChat : null,

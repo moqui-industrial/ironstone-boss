@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The terminal twin of Rooms and equipment (style-guide §4.8): Schedules.xml's tui text is a dynamic container of this
+    screen. The bookable resources (type: room, equipment or all, as the browser's parameter) with their type, site and
+    capacity, each opening ResourceDetail, and the bookings of the day (date, else today), each opening its event when the
+    user may see it. The same services as Schedules.qvue (ScheduleServices get#Resources and get#ResourceBookings). Booking
+    by a click or a drag on the grid is the browser's. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Rooms and equipment" default-menu-include="false">
+
+    <parameter name="date"/>
+    <parameter name="type"/>
+
+    <actions><script><![CDATA[
+        const L = (text) => ec.l10n.localize(text)
+        const num = (value) => value == null ? null : (typeof value === 'object' && value.toNumber ? value.toNumber() : Number(value))
+        bookingDay = /^\d{4}-\d{2}-\d{2}/.test(String(date || '')) ? String(date).substring(0, 10) : ec.l10n.format(ec.user.nowTimestamp, 'yyyy-MM-dd')
+        // the day's noon in the user's time zone, so the day does not shift
+        dayText = ec.l10n.format(ec.l10n.parseTimestamp(bookingDay + ' 12:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS'), 'EEEE, MMM d, yyyy')
+        const [year, month, day] = bookingDay.split('-').map(Number)
+        const dayAfter = (count) => new Date(Date.UTC(year, month - 1, day + count)).toISOString().substring(0, 10)
+        previousDay = dayAfter(-1)
+        nextDay = dayAfter(1)
+        const out = ec.service.sync().name('ironstone.ScheduleServices.get#Resources').parameter('resourceType', type || 'all').call()
+        const resources = ec.message.hasError() ? [] : Array.from(out.resourceList || [])
+        resourceList = resources.map((resource) => ({name: resource.name, resourceType: resource.resourceType, resourceId: resource.resourceId,
+            typeLabel: resource.typeLabel || '', site: resource.site || '', capacityText: resource.capacity != null ? String(num(resource.capacity)) : '',
+            policyText: resource.requiresApproval ? L('Needs approval') : ''}))
+        bookingList = []
+        if (resources.length && !ec.message.hasError()) {
+            const names = {}
+            for (const resource of resources) names[resource.key] = resource.name
+            const booked = ec.service.sync().name('ironstone.ScheduleServices.get#ResourceBookings').parameters({start: bookingDay, end: bookingDay,
+                keys: resources.map((resource) => resource.key).join(',')}).call()
+            if (!ec.message.hasError()) bookingList = Array.from(booked.bookingList || []).map((booking) => {
+                const start = String(booking.start || ''), end = String(booking.end || '')
+                return {sortKey: start + '|' + (names[booking.resourceKey] || ''), resourceName: names[booking.resourceKey] || booking.resourceKey,
+                    timeText: booking.allDay ? L('All day') : start.substring(11, 16) + (end.length > 11 ? ' – ' + end.substring(11, 16) : ''),
+                    title: booking.title || '', eventId: booking.url ? booking.workEffortId : null, statusLabel: booking.statusLabel || '',
+                    organizerName: booking.organizerName || ''}
+            }).sort((left, right) => left.sortKey < right.sortKey ? -1 : left.sortKey > right.sortKey ? 1 : 0)
+        }
+    ]]></script></actions>
+    <widgets>
+        <container-box><box-header title="Rooms and equipment"/><box-body-nopad>
+            <form-list name="SchedulesTuiResources" list="resourceList" skip-form="true" paginate="false">
+                <field name="name"><default-field title="Name">
+                    <link url="//Commons/Calendar/Schedules/ResourceDetail" link-type="anchor" text="${name}"
+                            parameter-map="{resourceType:resourceType, resourceId:resourceId}"/></default-field></field>
+                <field name="typeLabel"><default-field title="Type"><display/></default-field></field>
+                <field name="site"><default-field title="Site"><display/></default-field></field>
+                <field name="capacityText"><default-field title="Capacity"><display/></default-field></field>
+                <field name="policyText"><default-field title=""><display style="text-caption"/></default-field></field>
+            </form-list>
+        </box-body-nopad></container-box>
+        <label type="p" style="text-caption m-muted" condition="!resourceList || resourceList.length == 0" text="No bookable rooms or equipment."/>
+
+        <container style="row items-center q-gutter-sm q-mt-md">
+            <label type="h6" text="Bookings on ${dayText}" style="q-my-none"/>
+            <link url="//Commons/Calendar/Schedules" link-type="anchor" text="Day before" parameter-map="{date:previousDay, type:type}"/>
+            <link url="//Commons/Calendar/Schedules" link-type="anchor" text="Today" parameter-map="{type:type}"/>
+            <link url="//Commons/Calendar/Schedules" link-type="anchor" text="Day after" parameter-map="{date:nextDay, type:type}"/>
+        </container>
+        <form-list name="SchedulesTuiBookings" list="bookingList" skip-form="true" paginate="false">
+            <field name="timeText"><default-field title="When"><display/></default-field></field>
+            <field name="resourceName"><default-field title="Resource"><display/></default-field></field>
+            <field name="title">
+                <conditional-field condition="eventId" title="Booking">
+                    <link url="//Commons/Calendar/EventDetail" link-type="anchor" text="${title}" parameter-map="{workEffortId:eventId}"/></conditional-field>
+                <default-field title="Booking"><display/></default-field>
+            </field>
+            <field name="statusLabel"><default-field title="Status"><display/></default-field></field>
+            <field name="organizerName"><default-field title="Organizer"><display/></default-field></field>
+        </form-list>
+        <label type="p" style="text-caption m-muted" condition="!bookingList || bookingList.length == 0" text="Nothing booked on this day."/>
+        <label type="p" style="text-caption m-muted q-mt-sm" text="Booking a room or equipment and cancelling a booking are in the browser."/>
+    </widgets>
+</screen>

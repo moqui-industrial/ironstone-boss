@@ -8,7 +8,7 @@ const webroot = "component://webroot/screen/webroot.xml"
 const FOLLOW_UP = "BOSS_TEST_HOME_FOLLOWUP", MEETING = "BOSS_TEST_HOME_MEETING"
 
 function render(parameters) {
-    const str = ec.screen.makeTest().rootScreen(webroot).renderMode("qvt").render("apps/Comms/Home", Object.assign({ lastStandalone: "true" }, parameters || {}), null)
+    const str = ec.screen.makeTest().rootScreen(webroot).renderMode("qvt").withStaticData().render("apps/Comms/Home", Object.assign({ lastStandalone: "true" }, parameters || {}), null)
     const output = String(str.output || "")
     ec.message.clearErrors()
     return { status: str.status, errors: str.errorMessages.join(" | "), output, broken: /Error rendering|Exception in render/.test(output) }

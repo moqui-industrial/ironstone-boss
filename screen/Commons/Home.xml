@@ -153,32 +153,32 @@ along with this software (see the LICENSE.md file). If not, see
             <container-box type="info"><box-header title="Set up IronStone"/><box-toolbar>
                 <link url="setSetup" link-type="hidden-form-link" text="Dismiss all" parameter-map="{item:'all', state:'dismissed'}"/>
             </box-toolbar><box-body-nopad>
-                <render-mode><text type="qvt"><![CDATA[<q-list separator>]]></text></render-mode>
+                <render-mode><text type="qvt"><![CDATA[<q-list separator>]]></text><text type="tui" template="false">[]</text></render-mode>
                 <section-iterate name="SetupItems" list="setupItems" entry="entry"><widgets>
-                    <render-mode><text type="qvt"><![CDATA[<q-item><q-item-section avatar><q-icon name="${entry.icon}" color="info"></q-icon></q-item-section><q-item-section><q-item-label>]]></text></render-mode>
+                    <render-mode><text type="qvt"><![CDATA[<q-item><q-item-section avatar><q-icon name="${entry.icon}" color="info"></q-icon></q-item-section><q-item-section><q-item-label>]]></text><text type="tui" template="false">[]</text></render-mode>
                     <section name="SetupLink" condition="entry.url"><widgets>
-                        <render-mode><text type="qvt"><![CDATA[<m-link href="${entry.url}">]]></text></render-mode>
+                        <render-mode><text type="qvt"><![CDATA[<m-link href="${entry.url}">]]></text><text type="tui" template="false">[]</text></render-mode>
                         <label type="span" text="${entry.label}" style="text-weight-medium"/>
-                        <render-mode><text type="qvt"><![CDATA[</m-link>]]></text></render-mode>
+                        <render-mode><text type="qvt"><![CDATA[</m-link>]]></text><text type="tui" template="false">[]</text></render-mode>
                     </widgets><fail-widgets>
                         <label type="span" text="${entry.label}" style="text-weight-medium"/>
                     </fail-widgets></section>
-                    <render-mode><text type="qvt"><![CDATA[</q-item-label><q-item-label caption>]]></text></render-mode>
+                    <render-mode><text type="qvt"><![CDATA[</q-item-label><q-item-label caption>]]></text><text type="tui" template="false">[]</text></render-mode>
                     <label type="span" text="${entry.description}"/>
-                    <render-mode><text type="qvt"><![CDATA[</q-item-label></q-item-section><q-item-section side><div class="row no-wrap items-center q-gutter-xs">]]></text></render-mode>
+                    <render-mode><text type="qvt"><![CDATA[</q-item-label></q-item-section><q-item-section side><div class="row no-wrap items-center q-gutter-xs">]]></text><text type="tui" template="false">[]</text></render-mode>
                     <link url="setSetup" link-type="hidden-form-link" text="Done" icon="sym_o_check" parameter-map="{item:entry.item, state:'done'}"/>
                     <link url="setSetup" link-type="hidden-form-link" text="Dismiss" btn-type="secondary" parameter-map="{item:entry.item, state:'dismissed'}"/>
-                    <render-mode><text type="qvt"><![CDATA[</div></q-item-section></q-item>]]></text></render-mode>
+                    <render-mode><text type="qvt"><![CDATA[</div></q-item-section></q-item>]]></text><text type="tui" template="false">[]</text></render-mode>
                 </widgets></section-iterate>
-                <render-mode><text type="qvt"><![CDATA[</q-list>]]></text></render-mode>
+                <render-mode><text type="qvt"><![CDATA[</q-list>]]></text><text type="tui" template="false">[]</text></render-mode>
             </box-body-nopad></container-box>
         </widgets></section>
 
         <!-- the Today strip: the panel's items, across on a wide screen -->
         <container-box><box-header title="Today"/><box-toolbar>
-            <render-mode><text type="qvt"><![CDATA[<q-btn v-if="$root.openTray" flat dense no-caps color="primary" icon="sym_o_today" @click="$root.openTray('today')">]]></text></render-mode>
+            <render-mode><text type="qvt"><![CDATA[<q-btn v-if="$root.openTray" flat dense no-caps color="primary" icon="sym_o_today" @click="$root.openTray('today')">]]></text><text type="tui" template="false">[]</text></render-mode>
             <label type="span" text="Open Today"/>
-            <render-mode><text type="qvt"><![CDATA[</q-btn>]]></text></render-mode>
+            <render-mode><text type="qvt"><![CDATA[</q-btn>]]></text><text type="tui" template="false">[]</text></render-mode>
         </box-toolbar><box-body>
             <section name="StripEmpty" condition="!(stripItems &amp;&amp; stripItems.length)"><widgets>
                 <label type="p" text="Nothing due today" style="m-muted q-mb-none"/>
@@ -187,17 +187,17 @@ along with this software (see the LICENSE.md file). If not, see
                 <section-iterate name="StripItems" list="stripItems" entry="item"><widgets>
                     <render-mode><text type="qvt"><![CDATA[<div class="col-12 col-sm-6 col-md-3"><q-card flat bordered class="q-pa-sm full-height">
                         <div class="row no-wrap items-start"><q-icon name="${item.icon}" color="${item.overdue ? 'warning' : 'primary'}" size="sm" class="q-mr-sm"></q-icon><div class="col">
-                        <div class="ellipsis-2-lines">]]></text></render-mode>
+                        <div class="ellipsis-2-lines">]]></text><text type="tui" template="false">[]</text></render-mode>
                     <section name="StripLink" condition="item.url"><widgets>
-                        <render-mode><text type="qvt"><![CDATA[<m-link href="${item.urlAttr}">]]></text></render-mode>
+                        <render-mode><text type="qvt"><![CDATA[<m-link href="${item.urlAttr}">]]></text><text type="tui" template="false">[]</text></render-mode>
                         <label type="span" text="${item.title}"/>
-                        <render-mode><text type="qvt"><![CDATA[</m-link>]]></text></render-mode>
+                        <render-mode><text type="qvt"><![CDATA[</m-link>]]></text><text type="tui" template="false">[]</text></render-mode>
                     </widgets><fail-widgets><label type="span" text="${item.title}"/></fail-widgets></section>
-                    <render-mode><text type="qvt"><![CDATA[</div><div class="text-caption ellipsis">]]></text></render-mode>
+                    <render-mode><text type="qvt"><![CDATA[</div><div class="text-caption ellipsis">]]></text><text type="tui" template="false">[]</text></render-mode>
                     <label type="span" text="${item.timeText}" style="${item.overdue ? 'text-warning' : 'm-muted'}"/>
-                    <render-mode><text type="qvt"><![CDATA[</div><div class="text-caption ellipsis m-muted">]]></text></render-mode>
+                    <render-mode><text type="qvt"><![CDATA[</div><div class="text-caption ellipsis m-muted">]]></text><text type="tui" template="false">[]</text></render-mode>
                     <label type="span" text="${item.recordCaption || item.source || item.kindLabel}"/>
-                    <render-mode><text type="qvt"><![CDATA[</div></div></div></q-card></div>]]></text></render-mode>
+                    <render-mode><text type="qvt"><![CDATA[</div></div></div></q-card></div>]]></text><text type="tui" template="false">[]</text></render-mode>
                 </widgets></section-iterate>
             </container>
             <section name="StripMore" condition="stripMore &gt; 0"><widgets>
@@ -279,21 +279,21 @@ along with this software (see the LICENSE.md file). If not, see
                 <!-- shortcuts: the shell's quick-create kinds -->
                 <container-box><box-header title="Shortcuts"/><box-body>
                     <render-mode><text type="qvt"><![CDATA[<div class="column q-gutter-sm items-start">
-                        <q-btn unelevated dense no-caps class="m-btn-tonal" icon="sym_o_task_alt" @click="$root.openQuickCreate && $root.openQuickCreate(($root.quickCreateItems || []).find((kind) => kind.kind === 'task'))">]]></text></render-mode>
+                        <q-btn unelevated dense no-caps class="m-btn-tonal" icon="sym_o_task_alt" @click="$root.openQuickCreate && $root.openQuickCreate(($root.quickCreateItems || []).find((kind) => kind.kind === 'task'))">]]></text><text type="tui" template="false">[]</text></render-mode>
                     <label type="span" text="New task"/>
                     <render-mode><text type="qvt"><![CDATA[</q-btn>
-                        <q-btn unelevated dense no-caps class="m-btn-tonal" icon="sym_o_event" @click="$root.openQuickCreate && $root.openQuickCreate(($root.quickCreateItems || []).find((kind) => kind.kind === 'event'))">]]></text></render-mode>
+                        <q-btn unelevated dense no-caps class="m-btn-tonal" icon="sym_o_event" @click="$root.openQuickCreate && $root.openQuickCreate(($root.quickCreateItems || []).find((kind) => kind.kind === 'event'))">]]></text><text type="tui" template="false">[]</text></render-mode>
                     <label type="span" text="New event"/>
                     <render-mode><text type="qvt"><![CDATA[</q-btn>
-                        <q-btn unelevated dense no-caps class="m-btn-tonal" icon="sym_o_sticky_note_2" @click="$root.openQuickCreate && $root.openQuickCreate(($root.quickCreateItems || []).find((kind) => kind.kind === 'note'))">]]></text></render-mode>
+                        <q-btn unelevated dense no-caps class="m-btn-tonal" icon="sym_o_sticky_note_2" @click="$root.openQuickCreate && $root.openQuickCreate(($root.quickCreateItems || []).find((kind) => kind.kind === 'note'))">]]></text><text type="tui" template="false">[]</text></render-mode>
                     <label type="span" text="New note"/>
                     <render-mode><text type="qvt"><![CDATA[</q-btn>
-                        <q-btn unelevated dense no-caps class="m-btn-tonal" icon="sym_o_person" @click="$root.openQuickCreate && $root.openQuickCreate(($root.quickCreateItems || []).find((kind) => kind.kind === 'contact'))">]]></text></render-mode>
+                        <q-btn unelevated dense no-caps class="m-btn-tonal" icon="sym_o_person" @click="$root.openQuickCreate && $root.openQuickCreate(($root.quickCreateItems || []).find((kind) => kind.kind === 'contact'))">]]></text><text type="tui" template="false">[]</text></render-mode>
                     <label type="span" text="New contact"/>
                     <render-mode><text type="qvt"><![CDATA[</q-btn>
-                        <q-btn unelevated dense no-caps class="m-btn-tonal" icon="sym_o_mail" @click="$root.openQuickCreate && $root.openQuickCreate(($root.quickCreateItems || []).find((kind) => kind.kind === 'email'))">]]></text></render-mode>
+                        <q-btn unelevated dense no-caps class="m-btn-tonal" icon="sym_o_mail" @click="$root.openQuickCreate && $root.openQuickCreate(($root.quickCreateItems || []).find((kind) => kind.kind === 'email'))">]]></text><text type="tui" template="false">[]</text></render-mode>
                     <label type="span" text="Compose email"/>
-                    <render-mode><text type="qvt"><![CDATA[</q-btn></div>]]></text></render-mode>
+                    <render-mode><text type="qvt"><![CDATA[</q-btn></div>]]></text><text type="tui" template="false">[]</text></render-mode>
                 </box-body></container-box>
 
                 <!-- M9: recent pages, to Knowledge (a note to Notes) -->

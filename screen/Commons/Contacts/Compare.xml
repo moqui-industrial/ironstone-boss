@@ -96,14 +96,14 @@ along with this software (see the LICENSE.md file). If not, see
             <label type="h5" text="Compare and merge" style="q-mt-none q-mb-sm" condition="returnTo != 'duplicates'"/>
             <container style="row q-col-gutter-sm q-mb-sm">
                 <container style="col-12 col-sm-6">
-                    <render-mode><text type="qvt"><![CDATA[<q-card flat bordered class="q-pa-sm row items-center no-wrap">${leftCardHtml}<q-space></q-space>]]></text></render-mode>
+                    <render-mode><text type="qvt"><![CDATA[<q-card flat bordered class="q-pa-sm row items-center no-wrap">${leftCardHtml}<q-space></q-space>]]></text><text type="tui"><![CDATA[${JSON.stringify({t: "text", text: String(leftCardHtml ?? "").replace(/<[^>]*>/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, "\"").replace(/&#39;/g, "'").replace(/\s+/g, " ").trim()})}]]></text></render-mode>
                     <link url="../ContactDetail" link-type="anchor" text="Open" parameter-map="{partyId:left.partyId}"/>
-                    <render-mode><text type="qvt"><![CDATA[</q-card>]]></text></render-mode>
+                    <render-mode><text type="qvt"><![CDATA[</q-card>]]></text><text type="tui" template="false">[]</text></render-mode>
                 </container>
                 <container style="col-12 col-sm-6">
-                    <render-mode><text type="qvt"><![CDATA[<q-card flat bordered class="q-pa-sm row items-center no-wrap">${rightCardHtml}<q-space></q-space>]]></text></render-mode>
+                    <render-mode><text type="qvt"><![CDATA[<q-card flat bordered class="q-pa-sm row items-center no-wrap">${rightCardHtml}<q-space></q-space>]]></text><text type="tui"><![CDATA[${JSON.stringify({t: "text", text: String(rightCardHtml ?? "").replace(/<[^>]*>/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, "\"").replace(/&#39;/g, "'").replace(/\s+/g, " ").trim()})}]]></text></render-mode>
                     <link url="../ContactDetail" link-type="anchor" text="Open" parameter-map="{partyId:right.partyId}"/>
-                    <render-mode><text type="qvt"><![CDATA[</q-card>]]></text></render-mode>
+                    <render-mode><text type="qvt"><![CDATA[</q-card>]]></text><text type="tui" template="false">[]</text></render-mode>
                 </container>
             </container>
 

@@ -19,7 +19,7 @@ along with this software (see the LICENSE.md file). If not, see
     of the user's can be cancelled; a resource's name opens ResourceDetail, its subscreen. The component is Schedules.qvue next
     to this file; its state (view, date, type) is in the URL. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Rooms and equipment" default-menu-index="1" render-modes="vue,qvue" server-static="vue,qvue">
+        default-menu-title="Rooms and equipment" default-menu-index="1" render-modes="vue,qvue,tui" server-static="vue,qvue">
 
     <parameter name="view"/>
     <parameter name="date"/>
@@ -72,6 +72,9 @@ along with this software (see the LICENSE.md file). If not, see
     <widgets>
         <render-mode>
             <text type="qvue" location="component://ironstone-boss/screen/Commons/Calendar/Schedules.qvue" template="false"/>
+            <!-- the terminal: SchedulesTui, the plain screen beside this one, on the same day and type -->
+            <text type="tui"><![CDATA[${JSON.stringify([{t: "dynamicContainer", id: "SchedulesTui",
+                url: sri.buildUrl("../SchedulesTui").addParameters({date: date || null, type: type || null}).getUrlWithParams()}])}]]></text>
             <text type="html,qvt"><![CDATA[<p class="m-muted">Rooms and equipment is a .qvue screen: open it under /qapps.</p>]]></text>
         </render-mode>
     </widgets>

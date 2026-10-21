@@ -26,7 +26,7 @@ along with this software (see the LICENSE.md file). If not, see
     room for the current user (IronStone R21): a room the user may not reach, and its files, are "not found". -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Chat" default-menu-index="3" menu-image="sym_o_chat" menu-image-type="icon"
-        render-modes="vue,qvue" server-static="vue,qvue">
+        render-modes="vue,qvue,tui" server-static="vue,qvue">
 
     <!-- ========== Reads ========== -->
 
@@ -373,6 +373,8 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
 
     <widgets>
-        <render-mode><text type="qvue" location="component://ironstone-boss/screen/Comms/Chat.qvue" template="false"/></render-mode>
+        <render-mode><text type="qvue" location="component://ironstone-boss/screen/Comms/Chat.qvue" template="false"/>
+            <!-- the terminal twin (style-guide 4.8): the rooms of ChatTui, or a room, with chatRoomId -->
+            <text type="tui" location="component://ironstone-boss/screen/Comms/Chat.tui.json" template="fancy"/></render-mode>
     </widgets>
 </screen>

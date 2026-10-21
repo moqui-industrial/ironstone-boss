@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The terminal twin of RecordFiles (style-guide §4.8): RecordFiles.xml mounts this screen as its hidden RecordFilesTui
+    subscreen, so it is under the app root the panel is (the app's authorization and entity filters apply, R5), and its tui
+    text is a dynamic container of it. The record's files newest first (name, type, size, who added it and when), each
+    downloading through RecordFiles' own download transition. As RecordFiles' filesData it first finds the record under the
+    user's filters (ChatterServices get#RecordInfo): a record the user may not see shows nothing of it; the files are
+    RecordFilesServices get#RecordFiles. Uploads, versions, removing and the records drive folder are the browser's. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Files" default-menu-include="false">
+
+    <parameter name="recordEntity"/>
+    <parameter name="recordId"/>
+    <parameter name="appRoot"/>
+
+    <actions><script><![CDATA[
+        asked = !!(recordEntity && recordId)
+        visible = false
+        recordTitle = ''
+        hasContent = false
+        fileList = []
+        fileCount = 0
+        listedCount = 0
+        if (asked) {
+            const recordOut = ec.service.sync().name('ironstone.ChatterServices.get#RecordInfo').parameters({recordEntityName: recordEntity,
+                recordId: recordId}).call()
+            visible = !ec.message.hasError() && recordOut.visible === true
+            if (visible) {
+                recordTitle = [recordOut.typeLabel, recordOut.title].filter((part) => part).join(': ')
+                const out = ec.service.sync().name('ironstone.RecordFilesServices.get#RecordFiles').parameters({recordEntityName: recordEntity,
+                    recordId: recordId}).call()
+                if (!ec.message.hasError()) {
+                    hasContent = out.hasContent === true
+                    fileCount = out.fileCount || 0
+                    fileList = Array.from(out.fileList || []).map((file) => ({fileName: file.fileName, contentKey: file.contentKey, hasFile: file.hasFile === true,
+                        typeLabel: file.typeLabel || '', description: file.description || '', sizeText: file.sizeText || '',
+                        addedText: [file.dateFull || file.dateText, file.byName].filter((part) => part).join(' · ')}))
+                    listedCount = fileList.length
+                }
+            }
+        }
+    ]]></script></actions>
+    <widgets>
+        <section name="RecordFilesTuiRecord" condition="visible"><widgets>
+            <label type="h6" text="${recordTitle}" style="q-my-none" condition="recordTitle"/>
+            <form-list name="RecordFilesTuiList" list="fileList" skip-form="true" paginate="false">
+                <field name="fileName"><conditional-field condition="hasFile" title="File">
+                    <link url="../download" link-type="anchor" text="${fileName}"
+                            parameter-map="{recordEntity:recordEntity, recordId:recordId, contentKey:contentKey}"/>
+                </conditional-field><default-field title="File"><display/></default-field></field>
+                <field name="typeLabel"><default-field title="Type"><display/></default-field></field>
+                <field name="description"><default-field title="Description"><display/></default-field></field>
+                <field name="sizeText"><default-field title="Size"><display/></default-field></field>
+                <field name="addedText"><default-field title="Added"><display/></default-field></field>
+            </form-list>
+            <label type="p" style="text-caption m-muted" condition="!hasContent" text="This kind of record has no files."/>
+            <label type="p" style="text-caption m-muted" condition="hasContent &amp;&amp; fileCount == 0" text="No files yet."/>
+            <label type="p" style="text-caption m-muted" condition="fileCount &gt; listedCount" text="Only the newest ${listedCount} of ${fileCount} files are listed."/>
+            <label type="p" style="text-caption m-muted q-mt-sm" text="Adding, removing and the versions of files are in the browser."/>
+        </widgets><fail-widgets>
+            <label type="p" style="text-caption m-muted" condition="asked" text="This record is not available."/>
+            <label type="p" style="text-caption m-muted" condition="!asked" text="Files shows the files of a record: open it from the record."/>
+        </fail-widgets></section>
+    </widgets>
+</screen>

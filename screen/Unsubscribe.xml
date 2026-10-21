@@ -32,7 +32,7 @@ along with this software (see the LICENSE.md file). If not, see
     (a mail program that opens the URL) goes to the page. The token is the capability on every call, so the page's own posts
     need no session token either. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        require-authentication="false" default-menu-include="false" default-menu-title="Email preferences" render-modes="vue,qvue" server-static="vue,qvue">
+        require-authentication="false" default-menu-include="false" default-menu-title="Email preferences" render-modes="vue,qvue,tui" server-static="vue,qvue">
 
     <!-- what the page shows: the organization, the token's list and the party's status on it, the masked address, the
         organization's other lists the party is on (resolve#UnsubscribeToken, read only) -->
@@ -114,7 +114,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <widgets>
         <render-mode>
-            <text type="qvue" location="component://ironstone-boss/screen/Unsubscribe.qvue" template="false"/>
+            <text type="qvue" location="component://ironstone-boss/screen/Unsubscribe.qvue" template="false"/><text type="tui" location="component://ironstone-boss/screen/Unsubscribe.tui.json" template="false"/>
             <text type="html,qvt"><![CDATA[<p>Your email preferences open in a browser with JavaScript.</p>]]></text>
         </render-mode>
     </widgets>

@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The terminal twin of Knowledge (style-guide §4.8): Knowledge.xml's tui text is a dynamic container of this screen. The
+    spaces the user may view, then the page open (wikiPageId, or wikiSpaceId and pagePath as the browser has them; a space's
+    home page when no page is named) with its breadcrumbs, its text and the pages under it. The same services as
+    Knowledge.qvue (KnowledgeServices get#KnowledgeSetup, get#PageView, get#PageChildren), which ask the wiki's own access
+    rule first: a page the user may not view is not found. Editing, history, reviews and the rest are the browser's. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Knowledge" default-menu-include="false">
+
+    <parameter name="wikiSpaceId"/>
+    <parameter name="pagePath"/>
+    <parameter name="wikiPageId"/>
+
+    <actions><script><![CDATA[
+        const setup = ec.service.sync().name('ironstone.KnowledgeServices.get#KnowledgeSetup').parameter('wikiSpaceId', wikiSpaceId || null).call()
+        const openSpaceId = wikiSpaceId || setup.defaultWikiSpaceId || null
+        spaceList = Array.from(setup.spaceList || []).map((space) => ({spaceId: space.wikiSpaceId, description: space.description || space.wikiSpaceId,
+            storageText: space.storageText || '', openText: !wikiPageId && space.wikiSpaceId === openSpaceId ? ec.l10n.localize('Open') : ''}))
+        page = null
+        crumbList = []
+        childList = []
+        changeText = ''
+        if (!ec.message.hasError() && (wikiPageId || openSpaceId)) {
+            const out = ec.service.sync().name('ironstone.KnowledgeServices.get#PageView').parameters(wikiPageId ? {wikiPageId: wikiPageId}
+                    : {wikiSpaceId: openSpaceId, pagePath: pagePath || ''}).call()
+            if (!ec.message.hasError() && out.page) {
+                page = out.page
+                crumbList = [{label: page.spaceDescription || page.wikiSpaceId, crumbPath: ''}].concat(Array.from(page.breadcrumbs || [])
+                        .map((crumb) => ({label: crumb.label, crumbPath: crumb.pagePath})))
+                if (page.isRoot) crumbList = []
+                const change = page.lastChange
+                changeText = change ? [change.dateText, change.userName, change.note].filter((part) => part).join(' · ') : ''
+                if (page.exists) {
+                    const children = ec.service.sync().name('ironstone.KnowledgeServices.get#PageChildren').parameters({wikiSpaceId: page.wikiSpaceId,
+                        pagePath: page.pagePath || ''}).call()
+                    if (!ec.message.hasError()) childList = Array.from(children.childList || []).map((child) => ({childSpaceId: page.wikiSpaceId,
+                        childPath: child.pagePath, name: child.name + (child.hasChildren ? ' …' : ''), restrictedText: child.restricted ? ec.l10n.localize('Restricted') : ''}))
+                }
+            }
+        }
+    ]]></script></actions>
+    <widgets>
+        <container-box><box-header title="Spaces"/><box-body-nopad>
+            <form-list name="KnowledgeTuiSpaces" list="spaceList" skip-form="true" paginate="false">
+                <field name="description"><default-field title="Space">
+                    <link url="//Commons/Knowledge" link-type="anchor" text="${description}" parameter-map="{wikiSpaceId:spaceId}"/></default-field></field>
+                <field name="storageText"><default-field title="Storage"><display/></default-field></field>
+                <field name="openText"><default-field title=""><display style="text-caption"/></default-field></field>
+            </form-list>
+        </box-body-nopad></container-box>
+        <label type="p" style="text-caption m-muted" condition="!spaceList || spaceList.length == 0" text="No spaces you may read."/>
+
+        <section name="KnowledgeTuiPage" condition="page"><widgets>
+            <container style="row items-center q-gutter-xs q-mt-md">
+                <section-iterate name="KnowledgeTuiCrumbs" list="crumbList" entry="crumb"><widgets>
+                    <link url="//Commons/Knowledge" link-type="anchor" text="${crumb.label}" parameter-map="{wikiSpaceId:page.wikiSpaceId, pagePath:crumb.crumbPath}"/>
+                </widgets></section-iterate>
+            </container>
+            <label type="h5" text="${page.title || page.pageName || page.spaceDescription}"/>
+            <label type="p" style="text-caption m-muted" condition="changeText" text="Changed ${changeText}"/>
+            <section name="KnowledgeTuiText" condition="page.exists"><widgets>
+                <markdown-view text="${page.text}"/>
+            </widgets><fail-widgets>
+                <label type="p" style="m-muted" text="This page is not written yet."/>
+            </fail-widgets></section>
+            <section name="KnowledgeTuiChildPages" condition="childList &amp;&amp; childList.length &gt; 0"><widgets>
+            <container-box><box-header title="Pages under it"/><box-body-nopad>
+                <form-list name="KnowledgeTuiChildren" list="childList" skip-form="true" paginate="false">
+                    <field name="name"><default-field title="Page">
+                        <link url="//Commons/Knowledge" link-type="anchor" text="${name}" parameter-map="{wikiSpaceId:childSpaceId, pagePath:childPath}"/></default-field></field>
+                    <field name="restrictedText"><default-field title=""><display style="text-caption"/></default-field></field>
+                </form-list>
+            </box-body-nopad></container-box>
+            </widgets></section>
+            <label type="p" style="text-caption m-muted q-mt-sm" text="Edit, history, reviews and files are in the browser."/>
+        </widgets></section>
+    </widgets>
+</screen>

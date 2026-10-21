@@ -283,6 +283,9 @@ along with this software (see the LICENSE.md file). If not, see
                         const cls = key === 'chatter' && tab !== 'chatter' ? ' class="lt-lg"' : ''
                         return '<q-tab name="' + key + '" label="' + enc(L(label)) + '"' + cls + ' data-tab="' + key + '" @click="$root.setUrl(\'' + enc(base + '&tab=' + key) + '\')"></q-tab>'
                     }).join('') + '</q-tabs><q-separator class="q-mb-sm"></q-separator>'
+            // the terminal's tabs: links to this screen with the tab
+            tabsTui = {t: 'row', id: 'EventTabs', c: tabs.map(([key, label]) => ({t: 'link', id: 'EventTab_' + key, text: key === tab ? '[' + L(label) + ']' : L(label),
+                url: sri.buildUrl('.').path + base.substring(base.indexOf('?')) + '&tab=' + key}))}
             // the people: answer, required or optional, free then
             const freeColor = {free: 'text-positive', busy: 'text-negative', tentative: 'text-warning', requested: 'text-warning'}
             attendeeRows = attendeeList.map((party) => Object.assign({}, party, {answerHtml: party.isOrganizer ? '<span class="text-caption m-muted">' + enc(L('Organizer')) + '</span>'
@@ -329,7 +332,7 @@ along with this software (see the LICENSE.md file). If not, see
                 <container style="col-12 col-md">
                     <label text="${event.name}" type="h5" style="q-my-none ${event.cancelled ? 'text-strike m-muted' : ''}"/>
                     <label text="${captionText}" type="div" style="text-caption m-muted q-mb-xs"/>
-                    <render-mode><text type="qvt"><![CDATA[${chipsHtml}]]></text></render-mode>
+                    <render-mode><text type="qvt"><![CDATA[${chipsHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(Object.assign({t: "html", id: "EventChips"}, JSON.parse(sri.htmlText(chipsHtml))))}]]></text></render-mode>
                 </container>
                 <container style="col-12 col-md-auto row items-center q-gutter-xs m-event-actions">
                     <!-- an attendee's answer -->
@@ -391,7 +394,7 @@ along with this software (see the LICENSE.md file). If not, see
                     </widgets></section>
                 </container>
             </container>
-            <render-mode><text type="qvt"><![CDATA[${factsHtml}]]></text></render-mode>
+            <render-mode><text type="qvt"><![CDATA[${factsHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(Object.assign({t: "html", id: "EventFacts"}, JSON.parse(sri.htmlText(factsHtml))))}]]></text></render-mode>
             <section name="InstanceNote" condition="event.isInstance"><widgets>
                 <container style="q-mb-sm text-body2">
                     <label type="span" text="This instance was changed on its own from its repeating series. " style="m-muted"/>
@@ -399,7 +402,7 @@ along with this software (see the LICENSE.md file). If not, see
                 </container>
             </widgets></section>
 
-            <render-mode><text type="qvt"><![CDATA[${tabsHtml}]]></text></render-mode>
+            <render-mode><text type="qvt"><![CDATA[${tabsHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(tabsTui)}]]></text></render-mode>
 
             <!-- ===== Overview ===== -->
             <section name="OverviewTab" condition="tab == 'overview'"><widgets>
@@ -482,7 +485,7 @@ along with this software (see the LICENSE.md file). If not, see
                                     <section name="RoomsList" condition="roomRows.length || equipmentRows.length"><widgets>
                                         <form-list name="EventRooms" list="roomRows" skip-form="true" skip-header="true" paginate="false">
                                             <field name="name"><default-field><label text="${name}" type="span"/></default-field></field>
-                                            <field name="statusHtml"><default-field><render-mode><text type="qvt"><![CDATA[${statusHtml}]]></text></render-mode></default-field></field>
+                                            <field name="statusHtml"><default-field><render-mode><text type="qvt"><![CDATA[${statusHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify({t: "text", text: String(statusHtml ?? "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()})}]]></text></render-mode></default-field></field>
                                             <field name="cancel" align="right"><conditional-field condition="canEdit" title="">
                                                 <link url="cancelBooking" link-type="hidden-form-link" icon="sym_o_close" text="" tooltip="Cancel the booking" style="m-btn-flat"
                                                         confirmation="Cancel the booking of ${name}?" parameter-map="{workEffortId:workEffortId, instanceStart:instanceStart, facilityId:facilityId}"/>
@@ -490,7 +493,7 @@ along with this software (see the LICENSE.md file). If not, see
                                         </form-list>
                                         <form-list name="EventEquipment" list="equipmentRows" skip-form="true" skip-header="true" paginate="false">
                                             <field name="name"><default-field><label text="${name}" type="span"/></default-field></field>
-                                            <field name="statusHtml"><default-field><render-mode><text type="qvt"><![CDATA[${statusHtml}]]></text></render-mode></default-field></field>
+                                            <field name="statusHtml"><default-field><render-mode><text type="qvt"><![CDATA[${statusHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify({t: "text", text: String(statusHtml ?? "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()})}]]></text></render-mode></default-field></field>
                                             <field name="cancel" align="right"><conditional-field condition="canEdit" title="">
                                                 <link url="cancelBooking" link-type="hidden-form-link" icon="sym_o_close" text="" tooltip="Cancel the booking" style="m-btn-flat"
                                                         confirmation="Cancel the booking of ${name}?" parameter-map="{workEffortId:workEffortId, instanceStart:instanceStart, assetId:assetId}"/>
@@ -555,7 +558,7 @@ along with this software (see the LICENSE.md file). If not, see
                                         <section-iterate name="LinkedRecordItems" list="linkedRecordList" entry="linked"><widgets>
                                             <container style="row items-center no-wrap q-mb-xs m-event-linked">
                                                 <container style="col">
-                                                    <render-mode><text type="qvt"><![CDATA[${linked.cardHtml}]]></text></render-mode>
+                                                    <render-mode><text type="qvt"><![CDATA[${linked.cardHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify({t: "text", text: String(linked.recordEntityName).split(".").pop() + " " + linked.recordId})}]]></text></render-mode>
                                                     <label type="div" text="${linked.linkedText}" style="text-caption m-muted q-mt-xs" condition="linked.linkedText"/>
                                                 </container>
                                                 <link url="unlinkRecord" link-type="hidden-form-link" icon="sym_o_link_off" text="" tooltip="Take the event off this record"
@@ -598,8 +601,8 @@ along with this software (see the LICENSE.md file). If not, see
                                 <label text="${reachText}" type="span" style="text-caption m-muted q-ml-xs" condition="reachText"/>
                             </default-field></field>
                             <field name="kindText"><default-field title="Role"><label text="${kindText}" type="span" style="m-muted"/></default-field></field>
-                            <field name="answerHtml"><default-field title="Answer"><render-mode><text type="qvt"><![CDATA[${answerHtml}]]></text></render-mode></default-field></field>
-                            <field name="freeHtml"><default-field title="Then"><render-mode><text type="qvt"><![CDATA[${freeHtml}]]></text></render-mode></default-field></field>
+                            <field name="answerHtml"><default-field title="Answer"><render-mode><text type="qvt"><![CDATA[${answerHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(Object.assign({t: "html", id: "EventAnswer"}, JSON.parse(sri.htmlText(answerHtml))))}]]></text></render-mode></default-field></field>
+                            <field name="freeHtml"><default-field title="Then"><render-mode><text type="qvt"><![CDATA[${freeHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(Object.assign({t: "html", id: "EventFree"}, JSON.parse(sri.htmlText(freeHtml))))}]]></text></render-mode></default-field></field>
                             <field name="inviteText"><default-field title="Invitation"><label text="${inviteText}" type="span" style="text-caption ${pendingInvite ? 'text-warning' : 'm-muted'}"/></default-field></field>
                             <field name="actions" align="right"><conditional-field condition="canEdit &amp;&amp; !isOrganizer" title="">
                                 <link url="setOptional" link-type="hidden-form-link" text="${optional ? 'Make required' : 'Make optional'}" parameter-map="{workEffortId:workEffortId,

@@ -179,7 +179,7 @@ along with this software (see the LICENSE.md file). If not, see
         <!-- Calendars: mine and shared with me -->
         <container-box><box-header title="My calendars and calendars shared with me"/><box-body-nopad>
             <form-list name="Calendars" list="calendarList" skip-form="true" paginate="false">
-                <field name="nameHtml"><default-field title="Calendar"><render-mode><text type="qvt"><![CDATA[${nameHtml}]]></text></render-mode></default-field></field>
+                <field name="nameHtml"><default-field title="Calendar"><render-mode><text type="qvt"><![CDATA[${nameHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify({t: "text", text: String(nameHtml ?? "").replace(/<[^>]*>/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, "\"").replace(/&#39;/g, "'").replace(/\s+/g, " ").trim()})}]]></text></render-mode></default-field></field>
                 <field name="kindLine"><default-field title="Kind"><display/></default-field></field>
                 <field name="sharedText"><default-field title="Shared with"><display style="text-caption"/></default-field></field>
                 <field name="youText"><default-field title="You"><display style="text-caption m-muted"/></default-field></field>
@@ -225,7 +225,7 @@ along with this software (see the LICENSE.md file). If not, see
                                 confirmation="Delete ${calendar.calendarName}? Its events stay for the people on them; the calendar and its shares go." parameter-map="{calendarId:calendar.calendarId}"/>
                     </box-toolbar>
                     <box-body>
-                        <render-mode><text type="qvt"><![CDATA[<div class="q-mb-xs">${calendar.nameHtml}</div>]]></text></render-mode>
+                        <render-mode><text type="qvt"><![CDATA[<div class="q-mb-xs">${calendar.nameHtml}</div>]]></text><text type="tui"><![CDATA[${JSON.stringify({t: "text", text: String(calendar.nameHtml ?? "").replace(/<[^>]*>/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, "\"").replace(/&#39;/g, "'").replace(/\s+/g, " ").trim()})}]]></text></render-mode>
                         <label type="p" text="${calendar.kindLine}" style="text-caption m-muted"/>
                         <label type="p" text="${calendar.description}" style="text-body2" condition="calendar.description"/>
                         <section name="CalendarShares" condition="calendar.shareRows.length"><widgets>
@@ -249,11 +249,11 @@ along with this software (see the LICENSE.md file). If not, see
         <!-- Subscriptions: the feeds, their fetch -->
         <container-box><box-header title="Subscriptions"/><box-body-nopad>
             <form-list name="Subscriptions" list="subscriptionList" skip-form="true" paginate="false">
-                <field name="nameHtml"><default-field title="Calendar"><render-mode><text type="qvt"><![CDATA[${nameHtml}]]></text></render-mode></default-field></field>
+                <field name="nameHtml"><default-field title="Calendar"><render-mode><text type="qvt"><![CDATA[${nameHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify({t: "text", text: String(nameHtml ?? "").replace(/<[^>]*>/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, "\"").replace(/&#39;/g, "'").replace(/\s+/g, " ").trim()})}]]></text></render-mode></default-field></field>
                 <field name="url"><default-field title="Address"><display style="text-caption"/></default-field></field>
                 <field name="refreshText"><default-field title="Read"><display style="text-caption m-muted"/></default-field></field>
                 <field name="lastFetchText"><default-field title="Last read"><display/></default-field></field>
-                <field name="statusHtml"><default-field title="Status"><render-mode><text type="qvt"><![CDATA[${statusHtml}]]></text></render-mode></default-field></field>
+                <field name="statusHtml"><default-field title="Status"><render-mode><text type="qvt"><![CDATA[${statusHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify({t: "text", text: String(statusHtml ?? "").replace(/<[^>]*>/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, "\"").replace(/&#39;/g, "'").replace(/\s+/g, " ").trim()})}]]></text></render-mode></default-field></field>
                 <field name="fetchError"><default-field title=""><display style="text-caption text-negative"/></default-field></field>
                 <field name="actions" align="right"><default-field title="">
                     <link url="fetchNow" link-type="hidden-form-link" icon="sym_o_sync" text="" tooltip="Read it now" style="m-btn-flat" parameter-map="{calendarId:calendarId}"/>

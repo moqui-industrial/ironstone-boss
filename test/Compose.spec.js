@@ -315,7 +315,7 @@ feature("quick create's Email loads the composer in its one client mode, qvue, w
     when() {
         const parameters = { recordEntity: "mantle.request.Request", recordId: "BOSS_DEMO_REQUEST", recordTitle: "Set up the shared team calendar", lastStandalone: "-2" }
         const str = ec.screen.makeTest().rootScreen(comms).renderMode("qvue").render("Inbox/Compose", parameters, null)
-        const qvt = ec.screen.makeTest().rootScreen(comms).renderMode("qvt").render("Inbox/Compose", parameters, null)
+        const qvt = ec.screen.makeTest().rootScreen(comms).renderMode("qvt").withStaticData().render("Inbox/Compose", parameters, null)
         ec.message.clearErrors()
         return { output: String(str.output || ""), errors: str.errorMessages.join(" | "), qvtStatus: qvt.status }
     },

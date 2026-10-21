@@ -203,7 +203,7 @@ along with this software (see the LICENSE.md file). If not, see
                     + '<table class="form-list"><thead><tr><th>' + enc(L('Name')) + '</th><th>' + enc(L('Organization')) + '</th><th>' + enc(L('Email'))
                     + '</th><th>' + enc(L('Phone')) + '</th></tr></thead><tbody>'
                     + rows.map((row) => '<tr>' + cell(row.name) + cell(row.subtitle || row.organizationName) + cell(row.emailAddress) + cell(row.phone) + '</tr>').join('')
-                    + '</tbody></table>' + (hasMore ? '<p style="color:#555">' + enc(ec.resource.expand('The first ${shown} of ${count}', '', {shown: rows.length, count: rowCount})) + '</p>' : '')
+                    + '</tbody></table>' + (hasMore ? '<p style="color:#555">' + enc(L('The first') + ' ' + rows.length + ' ' + L('of') + ' ' + rowCount) + '</p>' : '')
             }
             newContactHtml = '<q-btn unelevated no-caps dense color="primary" class="q-ml-sm" icon="sym_o_person_add" label="' + enc(L('New contact')) + '"'
                     + ' @click="$root.openQuickCreate({url: \'/qapps/Commons/QuickCreate?kind=contact&amp;openAfter=Y\', label: \'' + enc(L('New contact').replace(/['\\]/g, '')) + '\'})"></q-btn>'
@@ -218,7 +218,7 @@ along with this software (see the LICENSE.md file). If not, see
             <container style="row items-center q-mb-sm">
                 <label text="Contacts" type="h5" style="q-my-none"/>
                 <container style="col"/>
-                <render-mode><text type="qvt"><![CDATA[${newContactHtml}]]></text></render-mode>
+                <render-mode><text type="qvt"><![CDATA[${newContactHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify({t: "link", id: "ContactsNew", text: ec.l10n.localize("New contact"), url: sri.buildUrl("../../QuickCreate").path + "?kind=contact"})}]]></text></render-mode>
                 <link url="../Import" text="Import" icon="sym_o_upload_file" style="q-ml-sm"/>
                 <link url="../Duplicates" text="Find duplicates" icon="sym_o_join" condition="isContactAdmin" style="q-ml-sm"/>
                 <link url="${printUrl}" url-type="plain" text="Print" icon="sym_o_print" target-window="_blank" style="q-ml-sm"/>
@@ -296,7 +296,7 @@ along with this software (see the LICENSE.md file). If not, see
                             </form-single></action>
                         </row-selection>
                         <field name="contact"><default-field title="${rowCount} ${rowCount == 1 ? 'contact' : 'contacts'}">
-                            <render-mode><text type="qvt"><![CDATA[${rowHtml}]]></text></render-mode>
+                            <render-mode><text type="qvt"><![CDATA[${rowHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify({t: "link", id: "", text: [name, subtitle, emailAddress, phone].filter((part) => part).join(" · "), url: sri.buildUrl(".").path + "?partyId=" + encodeURIComponent(partyId)})}]]></text></render-mode>
                         </default-field></field>
                     </form-list>
                     <section name="NoRows" condition="!contactRows.length"><widgets>

@@ -150,7 +150,7 @@ along with this software (see the LICENSE.md file). If not, see
                         <label type="p" style="q-mb-xs" text="${ec.l10n.localize('Date')}: ${dateText}"/>
                     </container>
                     <container style="col-12 col-md-4">
-                        <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="m-tonal text-${statusColor} q-ml-none">${statusHtml}</q-chip>]]></text>
+                        <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="m-tonal text-${statusColor} q-ml-none">${statusHtml}</q-chip>]]></text><text type="tui"><![CDATA[${JSON.stringify(Object.assign({t: "html", id: "MessageStatus"}, JSON.parse(sri.htmlText(statusHtml))))}]]></text>
                             <text type="html,text"><![CDATA[${statusHtml}]]></text></render-mode>
                         <label type="p" style="q-mb-xs text-caption" text="${ec.l10n.localize('Account')}: ${detail.accountText}" condition="detail.accountText"/>
                         <label type="p" style="q-mb-xs text-caption" text="${ec.l10n.localize('Folder')}: ${detail.folderText}" condition="detail.folderText"/>

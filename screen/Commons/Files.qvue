@@ -348,7 +348,7 @@ along with this software (see the LICENSE.md file). If not, see
                                         <div class="text-caption m-muted q-mb-xs ellipsis">{{detail.preview.sheetName}}<template v-if="(detail.preview.sheetNames || []).length > 1"> · {{detail.preview.sheetNames.length}} {{t('sheets')}}</template></div>
                                         <q-markup-table dense flat bordered separator="cell" class="m-files-sheet">
                                             <tbody><tr v-for="(cells, index) in (detail.preview.rows || []).slice(0, 6)" :key="index">
-                                                <td v-for="(cell, column) in cells.slice(0, 5)" :key="column" :class="{ 'text-weight-medium': index === 0 }">{{cellText(cell)}}</td>
+                                                <td v-for="(cell, column) in cells.slice(0, 5)" :key="column" :class="{ 'text-weight-medium': index === 0 }">{{sheetCellText(cell)}}</td>
                                             </tr></tbody>
                                         </q-markup-table>
                                     </div>
@@ -483,7 +483,7 @@ along with this software (see the LICENSE.md file). If not, see
                     </q-tabs>
                     <q-markup-table dense flat bordered separator="cell" class="m-files-sheet scroll" style="max-height:66vh">
                         <tbody><tr v-for="(cells, index) in preview.sheet.rows || []" :key="index">
-                            <td v-for="(cell, column) in cells" :key="column" :class="{ 'text-weight-medium': index === 0, 'text-right': typeof cell === 'number' }">{{cellText(cell)}}</td>
+                            <td v-for="(cell, column) in cells" :key="column" :class="{ 'text-weight-medium': index === 0, 'text-right': typeof cell === 'number' }">{{sheetCellText(cell)}}</td>
                         </tr></tbody>
                     </q-markup-table>
                     <div v-if="!(preview.sheet.rows || []).length" class="q-pa-lg m-muted text-center">{{t('This sheet is empty')}}</div>
@@ -1259,7 +1259,7 @@ module.exports = {
             }, () => { this.preview.loading = false; });
         },
         pagesLabel(pages) { return pages == 1 ? t('1 page') : (pages || 0) + ' ' + t('pages'); },
-        cellText(cell) { return cell == null ? '' : (typeof cell === 'number' ? cell.toLocaleString() : String(cell)); },
+        sheetCellText(cell) { return cell == null ? '' : (typeof cell === 'number' ? cell.toLocaleString() : String(cell)); },
         movePreview(step) {
             const next = this.preview.index + step;
             if (next < 0 || next >= this.previewRows.length) return;

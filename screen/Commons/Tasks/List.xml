@@ -251,7 +251,7 @@ along with this software (see the LICENSE.md file). If not, see
         <container style="row items-center q-mb-sm q-gutter-y-xs">
             <label text="Tasks" type="h5" style="q-my-none q-mr-sm"/>
             <container style="col"/>
-            <render-mode><text type="qvt"><![CDATA[${newTaskHtml}]]></text></render-mode>
+            <render-mode><text type="qvt"><![CDATA[${newTaskHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify({t: "link", id: "TasksNew", text: ec.l10n.localize("New task"), url: sri.buildUrl("../../QuickCreate").path + "?kind=task"})}]]></text></render-mode>
         </container>
 
         <!-- the smart lists, each with its count -->
@@ -266,7 +266,7 @@ along with this software (see the LICENSE.md file). If not, see
         </container>
 
         <!-- the find: open beside the lists from 600 px; on a phone a "Find" line that opens it (style-guide §3.2 Phone) -->
-        <render-mode><text type="qvt"><![CDATA[<q-expansion-item dense switch-toggle-side icon="sym_o_search" label="${WebUtilities.encodeHtml(ec.l10n.localize('Find'))}" header-class="lt-sm" :default-opened="${filtered ? 'true' : '$q.screen.gt.xs'}" class="q-mb-xs m-list-find">]]></text></render-mode>
+        <render-mode><text type="qvt"><![CDATA[<q-expansion-item dense switch-toggle-side icon="sym_o_search" label="${WebUtilities.encodeHtml(ec.l10n.localize('Find'))}" header-class="lt-sm" :default-opened="${filtered ? 'true' : '$q.screen.gt.xs'}" class="q-mb-xs m-list-find">]]></text><text type="tui" template="false">[]</text></render-mode>
         <form-single name="TaskFind" transition=".">
             <field name="list"><default-field><hidden/></default-field></field>
             <field name="text"><default-field title="Search"><text-line size="16"/></default-field></field>
@@ -293,7 +293,7 @@ along with this software (see the LICENSE.md file). If not, see
         <section name="ClearFilters" condition="filtered"><widgets>
             <container style="q-mb-xs"><link url="." link-type="anchor" text="Clear filters" parameter-map="{list:list}"/></container>
         </widgets></section>
-        <render-mode><text type="qvt"><![CDATA[</q-expansion-item>]]></text></render-mode>
+        <render-mode><text type="qvt"><![CDATA[</q-expansion-item>]]></text><text type="tui" template="false">[]</text></render-mode>
 
         <container-box><box-header title="${listLabel} · ${taskRowsCount}"/><box-body-nopad>
             <!-- the quick-add row: a task for the user; Enter adds it and the cursor is back in the name -->
@@ -377,34 +377,34 @@ along with this software (see the LICENSE.md file). If not, see
                         <link url="taskDetail" text="${workEffortName}" parameter-map="{workEffortId:workEffortId}" style="${isDone ? 'm-muted' : ''}"/>
                     </default-field></field>
                 <field name="statusId"><header-field title="Status" show-order-by="true"/><default-field>
-                    <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${statusColor}" data-status="${statusId}">${WebUtilities.encodeHtml(statusLabel ?? '')}</q-chip>]]></text></render-mode>
+                    <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${statusColor}" data-status="${statusId}">${WebUtilities.encodeHtml(statusLabel ?? '')}</q-chip>]]></text><text type="tui"><![CDATA[{"t": "text", "style": "strong", "text": ${JSON.stringify(statusLabel ?? "")}}]]></text></render-mode>
                 </default-field></field>
                 <!-- the in-place edits keep their click (@click.stop), so on a board card they edit rather than open the task -->
                 <field name="estimatedCompletionDate"><header-field title="Due" show-order-by="true"/>
                     <conditional-field condition="canUpdate &amp;&amp; isOpen &amp;&amp; overdue">
                         <container style="text-warning text-no-wrap">
-                            <render-mode><text type="qvt"><![CDATA[<span @click.stop>]]></text></render-mode>
+                            <render-mode><text type="qvt"><![CDATA[<span @click.stop>]]></text><text type="tui" template="false">[]</text></render-mode>
                             <editable id="TaskDue" text="${dueText}" transition="updateTaskField" widget-type="select" parameter-map="{workEffortId:workEffortId, field:'due'}">
                                 <editable-load transition="taskFieldValue" parameter-map="{workEffortId:workEffortId, field:'due'}"/></editable>
-                            <render-mode><text type="qvt"><![CDATA[</span>]]></text></render-mode>
+                            <render-mode><text type="qvt"><![CDATA[</span>]]></text><text type="tui" template="false">[]</text></render-mode>
                         </container>
                     </conditional-field>
                     <conditional-field condition="canUpdate &amp;&amp; isOpen">
                         <container style="text-no-wrap">
-                            <render-mode><text type="qvt"><![CDATA[<span @click.stop>]]></text></render-mode>
+                            <render-mode><text type="qvt"><![CDATA[<span @click.stop>]]></text><text type="tui" template="false">[]</text></render-mode>
                             <editable id="TaskDue" text="${dueText || '—'}" transition="updateTaskField" widget-type="select" parameter-map="{workEffortId:workEffortId, field:'due'}">
                                 <editable-load transition="taskFieldValue" parameter-map="{workEffortId:workEffortId, field:'due'}"/></editable>
-                            <render-mode><text type="qvt"><![CDATA[</span>]]></text></render-mode>
+                            <render-mode><text type="qvt"><![CDATA[</span>]]></text><text type="tui" template="false">[]</text></render-mode>
                         </container>
                     </conditional-field>
                     <default-field><label text="${dueText}" type="span" style="text-no-wrap ${overdue ? 'text-warning' : ''}"/></default-field>
                 </field>
                 <field name="priority"><header-field title="Priority" show-order-by="true"/>
                     <conditional-field condition="canUpdate &amp;&amp; isOpen">
-                        <render-mode><text type="qvt"><![CDATA[<span @click.stop>]]></text></render-mode>
+                        <render-mode><text type="qvt"><![CDATA[<span @click.stop>]]></text><text type="tui" template="false">[]</text></render-mode>
                         <editable id="TaskPriority" text="${priorityText || '—'}" transition="updateTaskField" widget-type="select" parameter-map="{workEffortId:workEffortId, field:'priority'}">
                             <editable-load transition="taskFieldValue" parameter-map="{workEffortId:workEffortId, field:'priority'}"/></editable>
-                        <render-mode><text type="qvt"><![CDATA[</span>]]></text></render-mode>
+                        <render-mode><text type="qvt"><![CDATA[</span>]]></text><text type="tui" template="false">[]</text></render-mode>
                     </conditional-field>
                     <default-field><label text="${priorityText}" type="span"/></default-field>
                 </field>

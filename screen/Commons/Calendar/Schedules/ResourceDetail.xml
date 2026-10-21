@@ -97,7 +97,7 @@ along with this software (see the LICENSE.md file). If not, see
                             <field name="title"><default-field><link url="${url}" url-type="plain" text="${title}"/></default-field></field>
                             <field name="whenText"><default-field><label text="${whenText}" type="span" style="text-no-wrap"/></default-field></field>
                             <field name="statusLabel"><default-field>
-                                <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${statusColor}">${WebUtilities.encodeHtml(statusLabel ?? '')}</q-chip>]]></text></render-mode>
+                                <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${statusColor}">${WebUtilities.encodeHtml(statusLabel ?? '')}</q-chip>]]></text><text type="tui"><![CDATA[{"t": "text", "style": "strong", "text": ${JSON.stringify(statusLabel ?? "")}}]]></text></render-mode>
                             </default-field></field>
                             <field name="cancel" align="right"><conditional-field condition="canCancel" title="">
                                 <link url="cancelBooking" link-type="hidden-form-link" icon="sym_o_event_busy" text="Cancel" btn-type="danger"

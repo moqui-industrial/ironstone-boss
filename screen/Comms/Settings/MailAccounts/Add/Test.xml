@@ -92,28 +92,28 @@ along with this software (see the LICENSE.md file). If not, see
                     <link url="." text="Test again" icon="sym_o_refresh" parameter-map="{emailAccountId:emailAccountId}"/>
                 </box-toolbar>
                 <box-body>
-                    <render-mode><text type="qvt"><![CDATA[<q-list dense class="q-mb-sm">]]></text></render-mode>
+                    <render-mode><text type="qvt"><![CDATA[<q-list dense class="q-mb-sm">]]></text><text type="tui" template="false">[]</text></render-mode>
                     <section-iterate name="TestSteps" list="stepRows" entry="step"><widgets>
-                        <render-mode><text type="qvt"><![CDATA[<q-item class="q-px-none"><q-item-section avatar style="min-width:32px"><q-icon name="${step.icon}" color="${step.color}"></q-icon></q-item-section><q-item-section><q-item-label class="text-weight-medium">]]></text></render-mode>
+                        <render-mode><text type="qvt"><![CDATA[<q-item class="q-px-none"><q-item-section avatar style="min-width:32px"><q-icon name="${step.icon}" color="${step.color}"></q-icon></q-item-section><q-item-section><q-item-label class="text-weight-medium">]]></text><text type="tui" template="false">[]</text></render-mode>
                         <label type="span" text="${step.label}"/>
-                        <render-mode><text type="qvt"><![CDATA[</q-item-label><q-item-label caption>]]></text></render-mode>
+                        <render-mode><text type="qvt"><![CDATA[</q-item-label><q-item-label caption>]]></text><text type="tui" template="false">[]</text></render-mode>
                         <label type="span" text="${step.message}"/>
-                        <render-mode><text type="qvt"><![CDATA[</q-item-label>]]></text></render-mode>
+                        <render-mode><text type="qvt"><![CDATA[</q-item-label>]]></text><text type="tui" template="false">[]</text></render-mode>
                         <section name="StepHint" condition="step.hint"><widgets>
-                            <render-mode><text type="qvt"><![CDATA[<q-item-label class="text-body2 text-negative">]]></text></render-mode>
+                            <render-mode><text type="qvt"><![CDATA[<q-item-label class="text-body2 text-negative">]]></text><text type="tui" template="false">[]</text></render-mode>
                             <label type="span" text="${step.hint}"/>
-                            <render-mode><text type="qvt"><![CDATA[</q-item-label>]]></text></render-mode>
+                            <render-mode><text type="qvt"><![CDATA[</q-item-label>]]></text><text type="tui" template="false">[]</text></render-mode>
                         </widgets></section>
-                        <render-mode><text type="qvt"><![CDATA[</q-item-section></q-item>]]></text></render-mode>
+                        <render-mode><text type="qvt"><![CDATA[</q-item-section></q-item>]]></text><text type="tui" template="false">[]</text></render-mode>
                     </widgets></section-iterate>
-                    <render-mode><text type="qvt"><![CDATA[</q-list>]]></text></render-mode>
+                    <render-mode><text type="qvt"><![CDATA[</q-list>]]></text><text type="tui" template="false">[]</text></render-mode>
                     <label type="p" text="${adviceText}" style="text-weight-medium"/>
                     <section name="Help" condition="helpText"><widgets>
                         <label type="p" text="${helpText}" style="text-body2"/>
                         <section name="HelpLink" condition="helpUrl"><widgets>
-                            <render-mode><text type="qvt"><![CDATA[<q-btn unelevated dense no-caps class="m-btn-tonal text-primary q-mb-sm" icon="sym_o_open_in_new" type="a" href="${helpUrl}" target="_blank" rel="noopener noreferrer">]]></text></render-mode>
+                            <render-mode><text type="qvt"><![CDATA[<q-btn unelevated dense no-caps class="m-btn-tonal text-primary q-mb-sm" icon="sym_o_open_in_new" type="a" href="${helpUrl}" target="_blank" rel="noopener noreferrer">]]></text><text type="tui" template="false">[]</text></render-mode>
                             <label type="span" text="${helpLinkText}"/>
-                            <render-mode><text type="qvt"><![CDATA[</q-btn>]]></text></render-mode>
+                            <render-mode><text type="qvt"><![CDATA[</q-btn>]]></text><text type="tui" template="false">[]</text></render-mode>
                         </widgets></section>
                     </widgets></section>
                     <section name="FixLink" condition="!passed"><widgets>

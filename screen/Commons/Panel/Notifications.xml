@@ -175,28 +175,28 @@ along with this software (see the LICENSE.md file). If not, see
 
         <section name="CaughtUp" condition="caughtUp"><widgets>
             <render-mode><text type="qvt"><![CDATA[<q-list dense bordered class="rounded-borders q-mb-sm"><q-item class="q-px-sm">
-                <q-item-section avatar style="min-width: 28px;"><q-icon name="sym_o_check_circle" color="positive" size="xs"></q-icon></q-item-section><q-item-section>]]></text></render-mode>
+                <q-item-section avatar style="min-width: 28px;"><q-icon name="sym_o_check_circle" color="positive" size="xs"></q-icon></q-item-section><q-item-section>]]></text><text type="tui" template="false">[]</text></render-mode>
             <label type="span" text="You are caught up" style="m-muted"/>
-            <render-mode><text type="qvt"><![CDATA[</q-item-section></q-item></q-list>]]></text></render-mode>
+            <render-mode><text type="qvt"><![CDATA[</q-item-section></q-item></q-list>]]></text><text type="tui" template="false">[]</text></render-mode>
         </widgets></section>
 
         <!-- Approvals waiting: the two decisions inline -->
         <section name="Approvals" condition="approvalRows &amp;&amp; approvalRows.length"><widgets>
             <container style="row items-center q-mt-sm q-mb-xs">
                 <label type="span" text="Approvals waiting" style="text-subtitle2"/>
-                <render-mode><text type="qvt"><![CDATA[<q-badge class="q-ml-xs" rounded color="info">${approvalRows.length}</q-badge>]]></text></render-mode>
+                <render-mode><text type="qvt"><![CDATA[<q-badge class="q-ml-xs" rounded color="info">${approvalRows.length}</q-badge>]]></text><text type="tui"><![CDATA[{"t": "text", "style": "strong", "text": ${JSON.stringify(String(approvalRows.length))}}]]></text></render-mode>
             </container>
-            <render-mode><text type="qvt"><![CDATA[<q-list dense bordered separator class="rounded-borders">]]></text></render-mode>
+            <render-mode><text type="qvt"><![CDATA[<q-list dense bordered separator class="rounded-borders">]]></text><text type="tui" template="false">[]</text></render-mode>
             <section-iterate name="ApprovalRows" list="approvalRows" entry="row"><widgets>
                 <render-mode><text type="qvt"><![CDATA[<q-item class="q-px-sm">
                     <q-item-section avatar style="min-width: 28px;"><q-icon name="sym_o_how_to_reg" color="info" size="xs"></q-icon></q-item-section>
-                    <q-item-section><q-item-label lines="2">]]></text></render-mode>
-                <render-mode><text type="qvt"><![CDATA[<m-form action="${openAction}"><input type="hidden" name="notificationMessageId" value="${row.notificationMessageId}"><q-btn flat dense no-caps align="left" type="submit" padding="none" color="primary" class="full-width text-left"><div class="full-width text-left">]]></text></render-mode>
+                    <q-item-section><q-item-label lines="2">]]></text><text type="tui" template="false">[]</text></render-mode>
+                <render-mode><text type="qvt"><![CDATA[<m-form action="${openAction}"><input type="hidden" name="notificationMessageId" value="${row.notificationMessageId}"><q-btn flat dense no-caps align="left" type="submit" padding="none" color="primary" class="full-width text-left"><div class="full-width text-left">]]></text><text type="tui" template="false">[]</text></render-mode>
                 <label type="span" text="${row.titleText}"/>
-                <render-mode><text type="qvt"><![CDATA[</div></q-btn></m-form></q-item-label><q-item-label caption lines="2">]]></text></render-mode>
+                <render-mode><text type="qvt"><![CDATA[</div></q-btn></m-form></q-item-label><q-item-label caption lines="2">]]></text><text type="tui" template="false">[]</text></render-mode>
                 <label type="span" text="${row.caption}"/>
                 <render-mode><text type="qvt"><![CDATA[</q-item-label>
-                    <div class="row no-wrap items-center q-gutter-xs q-mt-xs">]]></text></render-mode>
+                    <div class="row no-wrap items-center q-gutter-xs q-mt-xs">]]></text><text type="tui" template="false">[]</text></render-mode>
                 <link url="approve" link-type="hidden-form-link" btn-type="success" icon="sym_o_check" text="Approve"
                         parameter-map="{notificationMessageId:row.notificationMessageId}"/>
                 <section name="RefuseWithReason" condition="row.refuseReasonRequired"><widgets>
@@ -214,9 +214,9 @@ along with this software (see the LICENSE.md file). If not, see
                                 confirmation="Refuse ${row.titleText}?" parameter-map="{notificationMessageId:row.notificationMessageId}"/>
                     </widgets></section>
                 </fail-widgets></section>
-                <render-mode><text type="qvt"><![CDATA[</div></q-item-section></q-item>]]></text></render-mode>
+                <render-mode><text type="qvt"><![CDATA[</div></q-item-section></q-item>]]></text><text type="tui" template="false">[]</text></render-mode>
             </widgets></section-iterate>
-            <render-mode><text type="qvt"><![CDATA[</q-list>]]></text></render-mode>
+            <render-mode><text type="qvt"><![CDATA[</q-list>]]></text><text type="tui" template="false">[]</text></render-mode>
         </widgets></section>
 
         <!-- Unread, then Earlier: a row opens its link and marks it read -->
@@ -225,33 +225,33 @@ along with this software (see the LICENSE.md file). If not, see
                 <container style="row items-center q-mt-sm q-mb-xs">
                     <label type="span" text="${group.label}" style="text-subtitle2"/>
                     <section name="UnreadCount" condition="group.key == 'unread'"><widgets>
-                        <render-mode><text type="qvt"><![CDATA[<q-badge class="q-ml-xs" rounded color="primary">${group.rows.length}</q-badge>]]></text></render-mode>
+                        <render-mode><text type="qvt"><![CDATA[<q-badge class="q-ml-xs" rounded color="primary">${group.rows.length}</q-badge>]]></text><text type="tui"><![CDATA[{"t": "text", "style": "strong", "text": ${JSON.stringify(String(group.rows.length))}}]]></text></render-mode>
                     </widgets></section>
                 </container>
-                <render-mode><text type="qvt"><![CDATA[<q-list dense bordered separator class="rounded-borders">]]></text></render-mode>
+                <render-mode><text type="qvt"><![CDATA[<q-list dense bordered separator class="rounded-borders">]]></text><text type="tui" template="false">[]</text></render-mode>
                 <section-iterate name="NotificationRows" list="group.rows" entry="row"><widgets>
                     <render-mode><text type="qvt"><![CDATA[<q-item class="q-px-sm">
-                        <q-item-section avatar style="min-width: 28px;"><q-icon name="${row.icon}" color="${row.unread ? 'primary' : 'grey-6'}" size="xs"></q-icon>]]></text></render-mode>
+                        <q-item-section avatar style="min-width: 28px;"><q-icon name="${row.icon}" color="${row.unread ? 'primary' : 'grey-6'}" size="xs"></q-icon>]]></text><text type="tui" template="false">[]</text></render-mode>
                     <section name="ReasonTip" condition="row.reasonLabel"><widgets>
-                        <render-mode><text type="qvt"><![CDATA[<q-tooltip>]]></text></render-mode>
+                        <render-mode><text type="qvt"><![CDATA[<q-tooltip>]]></text><text type="tui" template="false">[]</text></render-mode>
                         <label type="span" text="${row.reasonLabel}"/>
-                        <render-mode><text type="qvt"><![CDATA[</q-tooltip>]]></text></render-mode>
+                        <render-mode><text type="qvt"><![CDATA[</q-tooltip>]]></text><text type="tui" template="false">[]</text></render-mode>
                     </widgets></section>
-                    <render-mode><text type="qvt"><![CDATA[</q-item-section><q-item-section><q-item-label lines="2" class="${row.unread ? 'text-weight-medium' : ''}">]]></text></render-mode>
-                    <render-mode><text type="qvt"><![CDATA[<m-form action="${openAction}"><input type="hidden" name="notificationMessageId" value="${row.notificationMessageId}"><q-btn flat dense no-caps align="left" type="submit" padding="none" color="primary" class="full-width text-left"><div class="full-width text-left">]]></text></render-mode>
+                    <render-mode><text type="qvt"><![CDATA[</q-item-section><q-item-section><q-item-label lines="2" class="${row.unread ? 'text-weight-medium' : ''}">]]></text><text type="tui" template="false">[]</text></render-mode>
+                    <render-mode><text type="qvt"><![CDATA[<m-form action="${openAction}"><input type="hidden" name="notificationMessageId" value="${row.notificationMessageId}"><q-btn flat dense no-caps align="left" type="submit" padding="none" color="primary" class="full-width text-left"><div class="full-width text-left">]]></text><text type="tui" template="false">[]</text></render-mode>
                     <label type="span" text="${row.titleText}"/>
-                    <render-mode><text type="qvt"><![CDATA[</div></q-btn></m-form></q-item-label><q-item-label caption lines="1">]]></text></render-mode>
+                    <render-mode><text type="qvt"><![CDATA[</div></q-btn></m-form></q-item-label><q-item-label caption lines="1">]]></text><text type="tui" template="false">[]</text></render-mode>
                     <label type="span" text="${row.caption}"/>
-                    <render-mode><text type="qvt"><![CDATA[</q-item-label></q-item-section>]]></text></render-mode>
+                    <render-mode><text type="qvt"><![CDATA[</q-item-label></q-item-section>]]></text><text type="tui" template="false">[]</text></render-mode>
                     <section name="MarkReadAction" condition="row.unread"><widgets>
-                        <render-mode><text type="qvt"><![CDATA[<q-item-section side class="q-pl-none"><q-badge rounded color="primary" class="q-mb-xs" style="padding: 4px;"></q-badge>]]></text></render-mode>
+                        <render-mode><text type="qvt"><![CDATA[<q-item-section side class="q-pl-none"><q-badge rounded color="primary" class="q-mb-xs" style="padding: 4px;"></q-badge>]]></text><text type="tui" template="false">[]</text></render-mode>
                         <link url="markRead" link-type="hidden-form-link" icon="sym_o_mark_email_read" text="" tooltip="Mark read"
                                 parameter-map="{notificationMessageId:row.notificationMessageId}"/>
-                        <render-mode><text type="qvt"><![CDATA[</q-item-section>]]></text></render-mode>
+                        <render-mode><text type="qvt"><![CDATA[</q-item-section>]]></text><text type="tui" template="false">[]</text></render-mode>
                     </widgets></section>
-                    <render-mode><text type="qvt"><![CDATA[</q-item>]]></text></render-mode>
+                    <render-mode><text type="qvt"><![CDATA[</q-item>]]></text><text type="tui" template="false">[]</text></render-mode>
                 </widgets></section-iterate>
-                <render-mode><text type="qvt"><![CDATA[</q-list>]]></text></render-mode>
+                <render-mode><text type="qvt"><![CDATA[</q-list>]]></text><text type="tui" template="false">[]</text></render-mode>
             </widgets></section>
         </widgets></section-iterate>
 

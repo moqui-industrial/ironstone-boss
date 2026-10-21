@@ -21,7 +21,7 @@ along with this software (see the LICENSE.md file). If not, see
     folder in the records drive through FileServices: each file's versions (download, restore, a new version), the folder's
     other files, files added from Files (the picker of template/FilePickerTransitions.xml) and Open in Files. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Files" default-menu-include="false" render-modes="vue,qvue" server-static="vue,qvue">
+        default-menu-title="Files" default-menu-include="false" render-modes="vue,qvue,tui" server-static="vue,qvue">
 
     <parameter name="recordEntity"/>
     <parameter name="recordId"/>
@@ -128,9 +128,15 @@ along with this software (see the LICENSE.md file). If not, see
         <default-response type="none"/>
     </transition>
 
+    <!-- the terminal twin, a plain screen under this one so it is under the same app root -->
+    <subscreens><subscreens-item name="RecordFilesTui" location="component://ironstone-boss/screen/Shared/RecordFilesTui.xml" menu-include="false"/></subscreens>
+
     <widgets>
         <render-mode>
             <text type="qvue" location="component://ironstone-boss/screen/Shared/RecordFiles.qvue" template="false"/>
+            <!-- the terminal: RecordFilesTui on the same record -->
+            <text type="tui"><![CDATA[${JSON.stringify([{t: "dynamicContainer", id: "RecordFilesTui", url: sri.buildUrl("RecordFilesTui")
+                .addParameters({recordEntity: recordEntity || null, recordId: recordId || null, appRoot: appRoot || null}).getUrlWithParams()}])}]]></text>
             <text type="html,qvt"><![CDATA[<p class="m-muted">Files is a panel: a record screen's record-files element loads it under /qapps.</p>]]></text>
         </render-mode>
     </widgets>

@@ -10,7 +10,7 @@ const commons = "component://ironstone-boss/screen/Commons.xml"
 const updatesToggle = new RegExp("Updates \u00b7 [0-9]+")
 
 function render(path, parameters) {
-    const str = ec.screen.makeTest().rootScreen(webroot).renderMode("qvt").render(`apps/Commons/${path}`, Object.assign({ lastStandalone: "true" }, parameters || {}), null)
+    const str = ec.screen.makeTest().rootScreen(webroot).renderMode("qvt").withStaticData().render(`apps/Commons/${path}`, Object.assign({ lastStandalone: "true" }, parameters || {}), null)
     const output = String(str.output || "")
     return { status: str.status, errors: str.errorMessages.join(" | "), output, broken: /Error rendering|Exception in render/.test(output) }
 }

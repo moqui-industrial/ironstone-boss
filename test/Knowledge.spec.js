@@ -21,7 +21,7 @@ function call_(path, parameters, method) {
 const get = (name, parameters) => call_(`Knowledge/${name}`, parameters, null)
 const post = (name, parameters) => call_(`Knowledge/${name}`, parameters, "post")
 const render = (path, parameters) => {
-    const str = ec.screen.makeTest().rootScreen(commons).renderMode("qvt").render(path, Object.assign({ lastStandalone: "-2" }, parameters || {}), null)
+    const str = ec.screen.makeTest().rootScreen(commons).renderMode("qvt").withStaticData().render(path, Object.assign({ lastStandalone: "-2" }, parameters || {}), null)
     ec.message.clearErrors()
     return { status: str.status, errors: str.errorMessages.join(" | "), output: String(str.output || "") }
 }

@@ -379,8 +379,8 @@ feature("the drives: a new folder drive with members, its settings, a member add
         const archived = render(commons, "Files/DriveSettings/archiveDrive", { driveId: drive.driveId, archived: "true" }, "post")
         const rail = get("filesData")
         const back = render(commons, "Files/DriveSettings/archiveDrive", { driveId: drive.driveId, archived: "false" }, "post")
-        const drivesPage = ec.screen.makeTest().rootScreen(commons).renderMode("qvt").render("Files/Drives", { lastStandalone: "-2" }, null)
-        const settingsPage = ec.screen.makeTest().rootScreen(commons).renderMode("qvt").render("Files/DriveSettings", { driveId: drive.driveId, lastStandalone: "-2" }, null)
+        const drivesPage = ec.screen.makeTest().rootScreen(commons).renderMode("qvt").withStaticData().render("Files/Drives", { lastStandalone: "-2" }, null)
+        const settingsPage = ec.screen.makeTest().rootScreen(commons).renderMode("qvt").withStaticData().render("Files/DriveSettings", { driveId: drive.driveId, lastStandalone: "-2" }, null)
         const exported = ec.screen.makeTest().rootScreen(commons).render("Files/DriveSettings/exportZip", { driveId: "BOSS_DEMO_TEAM" }, null)
         ec.message.clearErrors()
         return { created, drive, added, settings, archived, rail, back, drivesPage, settingsPage, exported }
@@ -409,7 +409,7 @@ feature("the drives: a new folder drive with members, its settings, a member add
 
 feature("Commons Home lists the recent files; the palette finds files", {
     when() {
-        const home = ec.screen.makeTest().rootScreen(commons).renderMode("qvt").render("Home", { lastStandalone: "-2" }, null)
+        const home = ec.screen.makeTest().rootScreen(commons).renderMode("qvt").withStaticData().render("Home", { lastStandalone: "-2" }, null)
         ec.message.clearErrors()
         return { home, palette: sys(() => call("ironstone.DriveServices.search#PaletteFiles", { text: "meeting", limit: 5 })) }
     },

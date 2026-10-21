@@ -320,8 +320,8 @@ feature("the palette's Messages group finds threads and mailboxes, and MessageDe
     when() {
         const rows = sys(() => call("ironstone.InboxServices.search#Messages", { text: "onboarding", limit: 5 })).rows
         const boxes = sys(() => call("ironstone.InboxServices.search#Messages", { text: "Office", limit: 5 })).rows
-        const detail = ec.screen.makeTest().rootScreen(comms).renderMode("qvt").render("Inbox/MessageDetail", { emailMessageId: "BOSS_DEMO_MAIL_ACME1", lastStandalone: "-2" }, null)
-        const internal = ec.screen.makeTest().rootScreen(comms).renderMode("qvt").render("Inbox/MessageDetail", { communicationEventId: "BOSS_DEMO_MAIL_IM1", lastStandalone: "-2" }, null)
+        const detail = ec.screen.makeTest().rootScreen(comms).renderMode("qvt").withStaticData().render("Inbox/MessageDetail", { emailMessageId: "BOSS_DEMO_MAIL_ACME1", lastStandalone: "-2" }, null)
+        const internal = ec.screen.makeTest().rootScreen(comms).renderMode("qvt").withStaticData().render("Inbox/MessageDetail", { communicationEventId: "BOSS_DEMO_MAIL_IM1", lastStandalone: "-2" }, null)
         // an empty id is refused before any export
         const internalEml = ec.screen.makeTest().rootScreen(comms).render("Inbox/MessageDetail/downloadEml", { emailMessageId: "" }, null)
         ec.message.clearErrors()
@@ -376,7 +376,7 @@ feature("another user reaches none of john.doe's mail: threads, files, state cha
             const createFrom = post("createFrom", { kind: "task", emailMessageId: "BOSS_DEMO_MAIL_ACME1" })
             const internalThread = get("thread", { store: "internal", threadId: "BOSS_DEMO_MAIL_IM4" })
             const notMine = get("thread", { store: "internal", threadId: "BOSS_DEMO_MAIL_POST3" })
-            const detail = ec.screen.makeTest().rootScreen(comms).renderMode("qvt").render("Inbox/MessageDetail", { emailMessageId: "BOSS_DEMO_MAIL_ACME1", lastStandalone: "-2" }, null)
+            const detail = ec.screen.makeTest().rootScreen(comms).renderMode("qvt").withStaticData().render("Inbox/MessageDetail", { emailMessageId: "BOSS_DEMO_MAIL_ACME1", lastStandalone: "-2" }, null)
             ec.message.clearErrors()
             const eml = ec.screen.makeTest().rootScreen(comms).render("Inbox/MessageDetail/downloadEml", { emailMessageId: "BOSS_DEMO_MAIL_ACME1" }, null)
             const emlErrors = eml.errorMessages.join(" | ")

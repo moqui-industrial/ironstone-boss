@@ -16,7 +16,7 @@ along with this software (see the LICENSE.md file). If not, see
     with a line about it and the links into its pages, Comms settings last. Sync comes later with the CalDAV, CardDAV and
     WebDAV servers. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="All settings" default-menu-include="false">
+        default-menu-title="All settings" default-menu-include="false" server-static="qvt">
     <widgets>
         <label type="h5" text="Settings" style="q-mt-none q-mb-sm"/>
         <container-row>
@@ -46,9 +46,9 @@ along with this software (see the LICENSE.md file). If not, see
             </box-body></container-box></row-col>
             <row-col md="4" sm="6"><container-box><box-header title="Mail and chat"/><box-body>
                 <label type="p" text="Mail accounts, identities and signatures, rules, out of office, text blocks, chat and calls are set in Comms." style="m-muted"/>
-                <render-mode><text type="qvt"><![CDATA[<m-link href="/qapps/Comms/Settings"><q-btn dense unelevated no-caps class="m-btn-tonal" icon="sym_o_forum">]]></text></render-mode>
+                <render-mode><text type="qvt"><![CDATA[<m-link href="/qapps/Comms/Settings"><q-btn dense unelevated no-caps class="m-btn-tonal" icon="sym_o_forum">]]></text><text type="tui" template="false">[]</text></render-mode>
                 <label type="span" text="Comms settings"/>
-                <render-mode><text type="qvt"><![CDATA[</q-btn></m-link>]]></text></render-mode>
+                <render-mode><text type="qvt"><![CDATA[</q-btn></m-link>]]></text><text type="tui" template="false">[]</text></render-mode>
             </box-body></container-box></row-col>
         </container-row>
     </widgets>

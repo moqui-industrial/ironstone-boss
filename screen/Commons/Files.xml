@@ -25,7 +25,7 @@ along with this software (see the LICENSE.md file). If not, see
     R5) or of service/ironstone/DriveServices.xml over it. A download is sent by ec.web.sendResourceResponse under the file's
     own name (a past version by its location#version, a zip under its folder's name). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Files" default-menu-index="6" render-modes="vue,qvue" server-static="vue,qvue">
+        default-menu-title="Files" default-menu-index="6" render-modes="vue,qvue,tui" server-static="vue,qvue">
 
     <parameter name="drive"/>
     <parameter name="path"/>
@@ -350,6 +350,9 @@ along with this software (see the LICENSE.md file). If not, see
     <widgets>
         <render-mode>
             <text type="qvue" location="component://ironstone-boss/screen/Commons/Files.qvue" template="false"/>
+            <!-- the terminal: FilesTui, the plain screen beside this one, on the same drive and folder -->
+            <text type="tui"><![CDATA[${JSON.stringify([{t: "dynamicContainer", id: "FilesTui",
+                url: sri.buildUrl("../FilesTui").addParameters({drive: drive || null, path: path || null}).getUrlWithParams()}])}]]></text>
             <text type="html,qvt"><![CDATA[<p class="m-muted">Files is a .qvue screen: open it under /qapps.</p>]]></text>
         </render-mode>
     </widgets>

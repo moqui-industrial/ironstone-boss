@@ -16,7 +16,7 @@ const BASE = "Settings/MailAccounts"
 const PASSWORD = "s3cret-app-pass"
 
 function render(path, parameters) {
-    const str = ec.screen.makeTest().rootScreen(webroot).renderMode("qvt").render(`apps/Comms/${BASE}/${path}`, Object.assign({ lastStandalone: "true" }, parameters || {}), null)
+    const str = ec.screen.makeTest().rootScreen(webroot).renderMode("qvt").withStaticData().render(`apps/Comms/${BASE}/${path}`, Object.assign({ lastStandalone: "true" }, parameters || {}), null)
     const output = String(str.output || "")
     ec.message.clearErrors()
     return { status: str.status, errors: str.errorMessages.join(" | "), output, broken: /Error rendering|Exception in render/.test(output) }
@@ -57,7 +57,7 @@ spec({
 feature("the wizard has five steps, Address first; the list and the account's page render", {
     when() {
         const wizard = sys(() => {
-            const str = ec.screen.makeTest().rootScreen("component://ironstone-boss/screen/Comms/Settings/MailAccounts/Add.xml").renderMode("qvt").render("", {}, null)
+            const str = ec.screen.makeTest().rootScreen("component://ironstone-boss/screen/Comms/Settings/MailAccounts/Add.xml").renderMode("qvt").withStaticData().render("", {}, null)
             const output = String(str.output || "")
             ec.message.clearErrors()
             return { status: str.status, errors: str.errorMessages.join(" | "), output }
@@ -203,18 +203,20 @@ feature("Test fails at once on a server that is not there, with what to try; Nex
 feature("Options saves the name, the sync window and the filing; a personal account has no members", {
     when() {
         const shown = render("Add/Options", { emailAccountId: personalId })
+        // the step is server-static: whether the members fields show is its data, isShared, which the browser reads
+        const shownData = JSON.parse(ec.screen.makeTest().rootScreen(webroot).render(`apps/Comms/${BASE}/Add/Options/actions`, { emailAccountId: personalId }, null).output || "{}")
         const saved = post("Add/Options/saveOptions", { emailAccountId: personalId, accountName: "Acme", syncWindowDays: "90", recordFilingEnumId: "ErfAllMatches" })
         const members = post("Add/Options/saveOptions", { emailAccountId: personalId, memberUserIds: "ORG_ZIZI_JD" })
         const all = post("Add/Options/saveOptions", { emailAccountId: personalId, syncWindowDays: "all" })
         const account = accountOf("pat@acme.example")
         post("Add/Options/saveOptions", { emailAccountId: personalId, syncWindowDays: "90" })
-        return { shown, saved, members, all, account, after: accountOf("pat@acme.example") }
+        return { shown, shownData, saved, members, all, account, after: accountOf("pat@acme.example") }
     },
-    then({ shown, saved, members, all, account, after }) {
+    then({ shown, shownData, saved, members, all, account, after }) {
         shown.errors == ""
         shown.output.includes("Only what I link")
         shown.output.includes("Every message with a known contact")
-        !shown.output.includes("Add people who share it")
+        shownData.isShared === false
         saved.errors == ""
         members.errors.includes("Only a shared account has members")
         all.errors == ""

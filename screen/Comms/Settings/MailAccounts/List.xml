@@ -74,9 +74,9 @@ along with this software (see the LICENSE.md file). If not, see
         </widgets></section>
 
         <section name="Problems" condition="problemCount &gt; 1"><widgets>
-            <render-mode><text type="qvt"><![CDATA[<q-banner dense rounded class="m-tonal text-negative q-mb-sm"><template v-slot:avatar><q-icon name="sym_o_sync_problem"></q-icon></template>]]></text></render-mode>
+            <render-mode><text type="qvt"><![CDATA[<q-banner dense rounded class="m-tonal text-negative q-mb-sm"><template v-slot:avatar><q-icon name="sym_o_sync_problem"></q-icon></template>]]></text><text type="tui" template="false">[]</text></render-mode>
             <label type="span" text="${problemCount} accounts need your attention: their mail is not syncing."/>
-            <render-mode><text type="qvt"><![CDATA[</q-banner>]]></text></render-mode>
+            <render-mode><text type="qvt"><![CDATA[</q-banner>]]></text><text type="tui" template="false">[]</text></render-mode>
         </widgets></section>
         <section name="Failed" condition="failedCount &gt; 0"><widgets>
             <label type="p" text="Some details of your accounts could not be read just now." style="text-caption text-warning"/>
@@ -87,9 +87,9 @@ along with this software (see the LICENSE.md file). If not, see
                 <row-col md="6"><container-box type="${account.statusColor == 'negative' ? 'danger' : (account.statusColor == 'warning' ? 'warning' : 'default')}">
                     <box-header title="${account.accountName}"/>
                     <box-toolbar>
-                        <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="m-tonal text-${account.statusColor}"><q-spinner v-if="${account.syncing ? 'true' : 'false'}" size="12px" class="q-mr-xs"></q-spinner>]]></text></render-mode>
+                        <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="m-tonal text-${account.statusColor}"><q-spinner v-if="${account.syncing ? 'true' : 'false'}" size="12px" class="q-mr-xs"></q-spinner>]]></text><text type="tui" template="false">[]</text></render-mode>
                         <label type="span" text="${account.statusLabel}"/>
-                        <render-mode><text type="qvt"><![CDATA[</q-chip>]]></text></render-mode>
+                        <render-mode><text type="qvt"><![CDATA[</q-chip>]]></text><text type="tui" template="false">[]</text></render-mode>
                     </box-toolbar>
                     <box-body>
                         <label type="div" text="${account.emailAddress}" style="text-body2" condition="account.emailAddress != account.accountName"/>
@@ -139,9 +139,9 @@ along with this software (see the LICENSE.md file). If not, see
             <section name="Internal" condition="internalAccount"><widgets>
                 <row-col md="6"><container-box><box-header title="${internalAccount.accountName}"/>
                     <box-toolbar>
-                        <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="m-tonal text-primary">]]></text></render-mode>
+                        <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="m-tonal text-primary">]]></text><text type="tui" template="false">[]</text></render-mode>
                         <label type="span" text="${internalAccount.statusLabel}"/>
-                        <render-mode><text type="qvt"><![CDATA[</q-chip>]]></text></render-mode>
+                        <render-mode><text type="qvt"><![CDATA[</q-chip>]]></text><text type="tui" template="false">[]</text></render-mode>
                     </box-toolbar>
                     <box-body>
                         <label type="p" text="${internalAccount.accessText}." style="m-muted"/>

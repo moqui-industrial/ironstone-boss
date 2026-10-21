@@ -21,7 +21,7 @@ along with this software (see the LICENSE.md file). If not, see
     /apps/Comms.qvt or /apps/Comms/Inbox.qvt (the shell loading those levels) resolves to this screen as its target, and the
     framework refuses a render mode the target does not name. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Inbox" default-menu-include="false" render-modes="vue,qvue,qvt,html" server-static="vue,qvue">
+        default-menu-title="Inbox" default-menu-include="false" render-modes="vue,qvue,qvt,html,tui" server-static="vue,qvue">
 
     <!-- ========== Reads ========== -->
 
@@ -312,6 +312,8 @@ along with this software (see the LICENSE.md file). If not, see
     <widgets>
         <render-mode>
             <text type="qvue" location="component://ironstone-boss/screen/Comms/Inbox/Mail.qvue" template="false"/>
+            <!-- the terminal twin (style-guide 4.8): MailTui, a plain screen of the same services, with this view's parameters -->
+            <text type="tui" location="component://ironstone-boss/screen/Comms/Inbox/Mail.tui.json" template="fancy"/>
             <text type="html,qvt"><![CDATA[<p><strong>Inbox</strong>: open it under /qapps to read and send mail.</p>]]></text>
         </render-mode>
     </widgets>

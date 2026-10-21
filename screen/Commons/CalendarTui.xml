@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The terminal twin of the Calendar (style-guide §4.8): Calendar.xml's tui text is a dynamic container of this screen. An
+    agenda of 14 days from date (the browser's parameter, else today), from the calendars the user has on and the events the
+    user is on, each opening EventDetail (a task its TaskDetail). The same services as Calendar.qvue (CalendarServices
+    get#CalendarSetup and get#CalendarEvents, which check what the user may see; times are wall-clock text in the user's time
+    zone). The grid views, the rail and the quick event are the browser's. The framework calendar component wants a month
+    transition answering {month, events} with an id per event, which the Calendar's transitions do not answer. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Calendar" default-menu-include="false">
+
+    <parameter name="date"/>
+    <parameter name="showTasks"/>
+
+    <actions><script><![CDATA[
+        const L = (text) => ec.l10n.localize(text)
+        const setup = ec.service.sync().name('ironstone.CalendarServices.get#CalendarSetup').call()
+        const defaults = setup.defaults || {}
+        const today = setup.todayText || ec.l10n.format(ec.user.nowTimestamp, 'yyyy-MM-dd')
+        startDay = /^\d{4}-\d{2}-\d{2}/.test(String(date || '')) ? String(date).substring(0, 10) : today
+        const [year, month, day] = startDay.split('-').map(Number)
+        const dayAfter = (count) => new Date(Date.UTC(year, month - 1, day + count)).toISOString().substring(0, 10)
+        endDay = dayAfter(13)
+        // a day's label: its noon in the user's time zone, so the day does not shift
+        const dayLabel = (text) => ec.l10n.format(ec.l10n.parseTimestamp(String(text).substring(0, 10) + ' 12:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS'), 'EEE, MMM d')
+        rangeText = dayLabel(startDay) + ' – ' + dayLabel(endDay)
+        previousDay = dayAfter(-14)
+        nextDay = dayAfter(14)
+        const tasks = showTasks != null && showTasks !== '' ? (showTasks === 'Y' || showTasks === 'true') : !!defaults.showTasks
+        const calendars = Array.from(setup.calendarList || [])
+        eventList = []
+        if (!ec.message.hasError()) {
+            const out = ec.service.sync().name('ironstone.CalendarServices.get#CalendarEvents').parameters({start: startDay, end: endDay,
+                calendarIds: calendars.filter((cal) => cal.shown !== false).map((cal) => cal.calendarId).join(','),
+                hiddenCalendarIds: calendars.filter((cal) => cal.shown === false).map((cal) => cal.calendarId).join(','),
+                showDeclined: !!defaults.showDeclined, showTasks: tasks}).call()
+            if (!ec.message.hasError()) eventList = Array.from(out.eventList || []).map((event) => {
+                const start = String(event.start || ''), end = String(event.end || '')
+                const timeText = event.allDay ? L('All day') : start.substring(11, 16) + (event.kind === 'task' ? ' ' + L('due') :
+                    (end.length > 11 ? ' – ' + (end.substring(0, 10) === start.substring(0, 10) ? end.substring(11, 16) : dayLabel(end) + ' ' + end.substring(11, 16)) : ''))
+                return {sortKey: start, dayText: start ? dayLabel(start) : '', timeText: timeText, title: event.title || L('(no title)'),
+                    eventId: event.workEffortId, isTask: event.kind === 'task', freeBusyOnly: !!event.freeBusyOnly,
+                    linkInstanceStart: event.instanceStart && event.recurringEventId === event.workEffortId ? event.instanceStart : null,
+                    location: event.location || '',
+                    noteText: event.kind === 'task' ? (event.done ? L('Task done') : L('Task')) : event.statusId === 'WeCancelled' ? L('Cancelled')
+                        : event.partyStatusId === 'WeptOffered' ? L('Invitation') : event.partyStatusId === 'WeptTentative' ? L('Tentative') : (event.recurring ? L('Repeats') : '')}
+            }).sort((left, right) => left.sortKey < right.sortKey ? -1 : left.sortKey > right.sortKey ? 1 : 0)
+            // the day only on its first event, as an agenda
+            let lastDay = null
+            for (const event of eventList) { if (event.dayText === lastDay) event.dayText = ''; else lastDay = event.dayText }
+        }
+    ]]></script></actions>
+    <widgets>
+        <container style="row items-center q-gutter-sm">
+            <label type="h6" text="${rangeText}" style="q-my-none"/>
+            <link url="//Commons/Calendar" link-type="anchor" text="Earlier" parameter-map="{date:previousDay}"/>
+            <link url="//Commons/Calendar" link-type="anchor" text="Today"/>
+            <link url="//Commons/Calendar" link-type="anchor" text="Later" parameter-map="{date:nextDay}"/>
+            <link url="//Commons/Calendar/Schedules" link-type="anchor" text="Rooms and equipment"/>
+        </container>
+        <form-list name="CalendarTuiAgenda" list="eventList" skip-form="true" paginate="false">
+            <field name="dayText"><default-field title="Day"><display/></default-field></field>
+            <field name="timeText"><default-field title="When"><display/></default-field></field>
+            <field name="title">
+                <conditional-field condition="freeBusyOnly" title="Event"><display/></conditional-field>
+                <conditional-field condition="isTask" title="Event">
+                    <link url="//Commons/Tasks/TaskDetail" link-type="anchor" text="${title}" parameter-map="{workEffortId:eventId}"/></conditional-field>
+                <default-field title="Event">
+                    <link url="//Commons/Calendar/EventDetail" link-type="anchor" text="${title}" parameter-map="{workEffortId:eventId, instanceStart:linkInstanceStart}"/></default-field>
+            </field>
+            <field name="location"><default-field title="Where"><display/></default-field></field>
+            <field name="noteText"><default-field title=""><display style="text-caption"/></default-field></field>
+        </form-list>
+        <label type="p" style="text-caption m-muted" condition="!eventList || eventList.length == 0" text="Nothing on your calendars in these days."/>
+        <label type="p" style="text-caption m-muted q-mt-sm" text="The day, week and month grids, new events and the calendars to show are in the browser."/>
+    </widgets>
+</screen>
