@@ -617,7 +617,7 @@ the URL watches `$root.currentParameters` (deep) and reloads its data; navigatio
 
 **The terminal twin.** A screen that goes custom in one render mode is implemented again for
 each other mode it should work in. For the terminal (the `tui` render mode, planned in mr-moqui
-`plans/Screen-TUI-Impl.md`, §2.9 there) that means:
+`plans/archive/Screen-TUI-Impl.md`, §2.9 there) that means:
 
 - **A raw `qvt` text** gets a `text type="tui"` in the same `render-mode` element: a fragment of
   the TUI screen model, as JSON. A chart names the `chart` component with the same data expression
@@ -804,7 +804,7 @@ width at `xs`.
 | Tablet | `sm` | List, Detail, 360 (tabs scroll), Split (stacked), Task, Panel, Landing |
 | Phone | `xs` | Landing, Task, Panel (Today, Chat, Notifications), Split in stacked form, the Chatter column as a tab, the quick-create dialog, Calendar day view, Comms chat and inbox; a List in horizontal scroll |
 | Handheld | `xs` with the handheld density (§8) | Warehouse and Manufacturing Task screens: 48 px controls, 18 px text, scan field focus, no drawer |
-| Terminal | The `tui` render mode: one column below 120 canvas columns, two from 120 (mr-moqui `plans/Screen-TUI-Impl.md` §1.3) | Every XML screen with no design work; a raw `qvt` text or a `.qvue` screen once it has its `tui` text (§4.8) |
+| Terminal | The `tui` render mode: one column below 120 canvas columns, two from 120 (mr-moqui `plans/archive/Screen-TUI-Impl.md` §1.3) | Every XML screen with no design work; a raw `qvt` text or a `.qvue` screen once it has its `tui` text (§4.8) |
 
 A design marks a screen `phone` or `handheld` in its **Devices** line only when it is in one
 of these rows; everything else is desktop and tablet. The terminal needs no mark: a screen works
@@ -881,7 +881,7 @@ for now.
 | The style decisions this guide continues | `plans/archive/QvtStylePlan.txt` |
 | Render goldens and the browser smoke | `crates/moqui-core/src/script/testdata/screen/qvt/render/`, `crates/moqui-host/tests/gate3_browser.rs` |
 | Status flows (for §5.2) | `runtime/base-component/tools/screen/Tools/StatusFlows.xml` |
-| The terminal render mode: design, widget map, keys, the `tui` text and components (planned) | `plans/Screen-TUI-Impl.md`; later `framework/template/screen/ScreenTui.js`, `crates/moqui-tui`, `docs/TUI.md` |
+| The terminal render mode: design, widget map, keys, the `tui` text and components (planned) | `plans/archive/Screen-TUI-Impl.md`; later `framework/template/screen/ScreenTui.js`, `crates/moqui-tui`, `docs/TUI.md` |
 
 **Quasar 2.35.1** (paths under `~/work/moquiwork/3p_other/quasar/`):
 
