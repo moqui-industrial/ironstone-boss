@@ -19,7 +19,9 @@ along with this software (see the LICENSE.md file). If not, see
     pane: breadcrumbs, the folder as a list or a grid (name with its type icon or a thumbnail, modified, by, size, tags, shared
     and favorite marks), sort, the type chips, search across the drives or in the folder, selection with the checkboxes (Shift
     for a range) and the actions on it, a drop zone for files and folders, the upload tracker; the preview overlay with
-    previous and next; the details pane (preview, details and tags, sharing, versions with compare and restore, activity).
+    previous and next (a PDF in the browser's viewer, on a phone its first page drawn by the server; a spreadsheet's first
+    rows with a tab per sheet); the details pane (preview: a PDF's first page with its page count or a spreadsheet's first
+    rows; details and tags, sharing, versions with compare and restore, activity).
     The view is in the URL (drive, path, view, tag, q, file) read from $root.currentParameters, so a view is a link; every
     read and change is a JSON transition of Files.xml. While a subscreen (Drives, DriveSettings, Shares) is in the path only it
     shows. On a phone the rail and the details open over the page and the folder is a list. Keys (the Files scope): Up and
@@ -338,6 +340,18 @@ along with this software (see the LICENSE.md file). If not, see
                             <template v-if="detail.tab === 'details'">
                                 <q-card flat bordered class="q-mb-md flex flex-center cursor-pointer" style="min-height:120px;overflow:hidden" @click="previewDetailItem">
                                     <img v-if="detail.item.fileType === 'image'" :src="thumbUrl(detail.item, 320)" :alt="detail.item.name" style="max-width:100%;max-height:220px">
+                                    <div v-else-if="detail.preview && detail.preview.hasImage" class="column items-center q-pa-sm">
+                                        <img :src="thumbUrl(detail.item, 320)" :alt="detail.item.name" class="m-files-page" style="max-width:100%;max-height:220px">
+                                        <div class="text-caption m-muted q-mt-xs">{{pagesLabel(detail.preview.pages)}}</div>
+                                    </div>
+                                    <div v-else-if="detail.preview && detail.preview.kind === 'spreadsheet'" class="full-width q-pa-xs" style="max-height:220px;overflow:hidden">
+                                        <div class="text-caption m-muted q-mb-xs ellipsis">{{detail.preview.sheetName}}<template v-if="(detail.preview.sheetNames || []).length > 1"> · {{detail.preview.sheetNames.length}} {{t('sheets')}}</template></div>
+                                        <q-markup-table dense flat bordered separator="cell" class="m-files-sheet">
+                                            <tbody><tr v-for="(cells, index) in (detail.preview.rows || []).slice(0, 6)" :key="index">
+                                                <td v-for="(cell, column) in cells.slice(0, 5)" :key="column" :class="{ 'text-weight-medium': index === 0 }">{{cellText(cell)}}</td>
+                                            </tr></tbody>
+                                        </q-markup-table>
+                                    </div>
                                     <div v-else-if="detail.preview && detail.preview.kind === 'text'" class="q-pa-sm text-caption full-width" style="white-space:pre-wrap;max-height:180px;overflow:hidden">{{detail.preview.text}}</div>
                                     <q-icon v-else :name="detail.item.icon" size="64px" :color="iconColor(detail.item)"></q-icon>
                                 </q-card>
@@ -454,7 +468,27 @@ along with this software (see the LICENSE.md file). If not, see
             <div class="text-center">
                 <div v-if="preview.loading" class="q-pa-xl"><q-spinner size="32px"></q-spinner></div>
                 <img v-else-if="preview.kind === 'image'" :src="thumbUrl(preview.row, 1600)" :alt="preview.row.name" style="max-width:100%;max-height:72vh">
-                <iframe v-else-if="preview.kind === 'pdf'" :src="downloadUrl(preview.row, true)" :title="preview.row.name" style="width:100%;height:72vh;border:0"></iframe>
+                <div v-else-if="preview.kind === 'pdf' && isPhone && preview.hasImage" class="column items-center">
+                    <img :src="thumbUrl(preview.row, 1200)" :alt="preview.row.name" class="m-files-page" style="max-width:100%;max-height:64vh">
+                    <div class="text-caption m-muted q-mt-sm">{{pagesLabel(preview.pages)}}</div>
+                    <q-btn flat no-caps color="primary" class="q-mt-sm" icon="sym_o_open_in_new" :label="t('Open')" :href="downloadUrl(preview.row, true)" target="_blank"></q-btn>
+                </div>
+                <template v-else-if="preview.kind === 'pdf'">
+                    <iframe :src="downloadUrl(preview.row, true)" :title="preview.row.name" style="width:100%;height:72vh;border:0"></iframe>
+                    <div v-if="preview.pages" class="text-caption m-muted q-mt-xs">{{pagesLabel(preview.pages)}}</div>
+                </template>
+                <div v-else-if="preview.kind === 'spreadsheet' && preview.sheet" class="text-left">
+                    <q-tabs v-if="(preview.sheet.sheetNames || []).length > 1" :model-value="preview.sheet.sheetName" dense no-caps inline-label outside-arrows mobile-arrows align="left" class="q-mb-sm" @update:model-value="showSheet">
+                        <q-tab v-for="name in preview.sheet.sheetNames" :key="name" :name="name" :label="name"></q-tab>
+                    </q-tabs>
+                    <q-markup-table dense flat bordered separator="cell" class="m-files-sheet scroll" style="max-height:66vh">
+                        <tbody><tr v-for="(cells, index) in preview.sheet.rows || []" :key="index">
+                            <td v-for="(cell, column) in cells" :key="column" :class="{ 'text-weight-medium': index === 0, 'text-right': typeof cell === 'number' }">{{cellText(cell)}}</td>
+                        </tr></tbody>
+                    </q-markup-table>
+                    <div v-if="!(preview.sheet.rows || []).length" class="q-pa-lg m-muted text-center">{{t('This sheet is empty')}}</div>
+                    <div v-if="preview.sheet.truncated" class="text-caption m-muted q-mt-sm">{{t('The first rows and columns of the sheet; download it for the rest.')}}</div>
+                </div>
                 <video v-else-if="preview.kind === 'video'" :src="downloadUrl(preview.row, true)" controls style="max-width:100%;max-height:72vh"></video>
                 <audio v-else-if="preview.kind === 'audio'" :src="downloadUrl(preview.row, true)" controls class="q-my-xl"></audio>
                 <q-card v-else-if="preview.kind === 'text'" flat bordered class="text-left q-pa-md scroll" style="max-height:72vh">
@@ -643,7 +677,7 @@ module.exports = {
             loadedKey: null, requestSeq: 0, selected: {}, lastIndex: null, focusIndex: -1, dragOver: false, dragDepth: 0, draggedRows: null,
             detail: { key: null, driveId: null, path: null, loading: false, error: null, item: null, drive: null, access: null, shareList: [], linkList: [],
                 record: null, tab: 'details', versions: null, activity: null, preview: null },
-            preview: { open: false, index: 0, row: null, kind: 'none', text: null, loading: false },
+            preview: { open: false, index: 0, row: null, kind: 'none', text: null, loading: false, hasImage: false, pages: null, sheet: null },
             nameDialog: { open: false, kind: 'folder', title: '', okLabel: '', name: '', row: null, saving: false },
             editor: { open: false, isNew: true, folder: '', path: '', name: '', text: '', note: '', saving: false, loading: false, driveId: null },
             move: { open: false, mode: 'move', items: [], fromDriveId: null, driveId: null, path: '', rows: [], crumbs: [], loading: false, saving: false, canWrite: false },
@@ -1131,8 +1165,8 @@ module.exports = {
             const detail = this.detail;
             if (!detail.item) return;
             const params = { driveId: detail.driveId, path: detail.path };
-            if (tab === 'details' && !detail.preview && detail.item.isText) {
-                moqui.request(this.url('preview'), { params }).then((result) => { if (this.detail.key === detail.key) this.detail.preview = result.json || null; }, () => {});
+            if (tab === 'details' && !detail.preview && (detail.item.isText || ['pdf', 'spreadsheet'].includes(detail.item.fileType))) {
+                moqui.request(this.url('preview'), { params: Object.assign({ size: 320 }, params) }).then((result) => { if (this.detail.key === detail.key) this.detail.preview = result.json || null; }, () => {});
             } else if (tab === 'versions' && detail.versions == null) {
                 moqui.request(this.url('versions'), { params }).then((result) => { if (this.detail.key === detail.key) this.detail.versions = (result.json || {}).versionList || []; },
                     () => { this.detail.versions = []; });
@@ -1188,21 +1222,44 @@ module.exports = {
             const row = index >= 0 ? this.previewRows[index] : fallback;
             if (!row) return;
             const kinds = { image: 'image', pdf: 'pdf', video: 'video', audio: 'audio' };
-            Object.assign(this.preview, { index: Math.max(0, index), row, text: null, kind: kinds[row.fileType] || 'none', loading: false });
+            Object.assign(this.preview, { index: Math.max(0, index), row, text: null, kind: kinds[row.fileType] || 'none', loading: false,
+                hasImage: false, pages: null, sheet: null });
             if (!kinds[row.fileType]) {
                 this.preview.loading = true;
                 moqui.request(this.url('preview'), { params: { driveId: this.rowDriveId(row), path: row.path } }).then((result) => {
                     if (this.preview.row !== row) return;
                     const json = result.json || {};
-                    this.preview.kind = json.kind === 'text' ? 'text' : (json.kind === 'pdf' ? 'pdf' : 'none');
+                    this.preview.kind = ['text', 'pdf', 'spreadsheet'].includes(json.kind) ? json.kind : 'none';
                     this.preview.text = json.text || '';
+                    if (json.kind === 'spreadsheet') this.preview.sheet = json;
                     this.preview.loading = false;
                 }, () => { this.preview.loading = false; this.preview.kind = 'none'; });
+            } else if (row.fileType === 'pdf') {
+                // the first page (drawn once per version) and the page count; the open counts as recent
+                moqui.request(this.url('preview'), { params: { driveId: this.rowDriveId(row), path: row.path, size: 1200 } }).then((result) => {
+                    if (this.preview.row !== row) return;
+                    const json = result.json || {};
+                    Object.assign(this.preview, { hasImage: !!json.hasImage, pages: json.pages || null });
+                }, () => {});
             } else {
                 // the open counts as recent (the preview transition records it)
                 moqui.request(this.url('preview'), { params: { driveId: this.rowDriveId(row), path: row.path } }).catch(() => {});
             }
         },
+        // another sheet of the spreadsheet in the preview
+        showSheet(name) {
+            const row = this.preview.row;
+            if (!row || !this.preview.sheet || name === this.preview.sheet.sheetName) return;
+            this.preview.loading = true;
+            moqui.request(this.url('preview'), { params: { driveId: this.rowDriveId(row), path: row.path, sheetName: name } }).then((result) => {
+                if (this.preview.row !== row) return;
+                const json = result.json || {};
+                if (json.kind === 'spreadsheet') this.preview.sheet = json;
+                this.preview.loading = false;
+            }, () => { this.preview.loading = false; });
+        },
+        pagesLabel(pages) { return pages == 1 ? t('1 page') : (pages || 0) + ' ' + t('pages'); },
+        cellText(cell) { return cell == null ? '' : (typeof cell === 'number' ? cell.toLocaleString() : String(cell)); },
         movePreview(step) {
             const next = this.preview.index + step;
             if (next < 0 || next >= this.previewRows.length) return;

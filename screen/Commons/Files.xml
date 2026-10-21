@@ -106,16 +106,20 @@ along with this software (see the LICENSE.md file). If not, see
         ]]></script></actions>
         <default-response type="none"/>
     </transition>
-    <!-- what a preview shows: the kind (image, pdf, text, none) and a text file's first characters; the open is recent -->
+    <!-- what a preview shows: the kind (image, pdf, spreadsheet, text, none); a text file's first characters; a PDF's page
+        count and whether its first page is drawn at size (hasImage: the thumb transition sends it); a spreadsheet's first
+        rows of sheetName, else the first sheet, with the sheet names. The open is recent. -->
     <transition name="preview" method="get" read-only="true">
         <actions><script><![CDATA[
             const out = ec.service.sync().name('org.moqui.impl.FileServices.get#Preview').parameters({driveId: driveId || '',
-                path: path || '', size: 64}).call()
-            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {kind: out.kind, text: out.text, contentType: out.contentType})
+                path: path || '', size: Math.max(16, Math.min(Number(size) || 64, 2048)), sheetName: sheetName || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {kind: out.kind, text: out.text, contentType: out.contentType,
+                hasImage: out.kind === 'pdf' && !!out.previewLocation, pages: out.pages, rows: out.rows, sheetNames: out.sheetNames,
+                sheetName: out.sheetName, truncated: out.truncated})
         ]]></script></actions>
         <default-response type="none"/>
     </transition>
-    <!-- an image's thumbnail (PNG, made once per version and size) -->
+    <!-- an image's thumbnail or a PDF's first page (PNG, made once per version and size) -->
     <transition name="thumb" method="get" read-only="true">
         <actions><script><![CDATA[
             const out = ec.service.sync().name('org.moqui.impl.FileServices.get#Preview').parameters({driveId: driveId || '',

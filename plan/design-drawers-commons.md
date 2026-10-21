@@ -1564,7 +1564,7 @@ answered, and the two stay separate stores.
 | `RoomSettings` | dialog | Sectioned settings | name, topic, avatar; visibility and who may join; notifications level for me (all, mentions, none); members and roles (owner, moderator, member, agent); retention; record binding; leave, archive, delete (owner) | | `ChatServices.update#Room`, `set#MemberRole`, `set#Notification` (new) | Talk ConversationSettingsDialog; Signal conversation details; Slack channel details |
 | `MessageActions` | component | Per message | reply in thread, react, edit, delete, copy link, pin, forward, remind me (an activity `WepToDo`), create task, request or event, link to record, mark unread from here | | `create#SimpleTask`, `create#Request`, `create#Event` with the message text; `link#CommunicationEventRecord` | Talk MessageButtonsBar; Nextcloud create task from Talk; Slack message menu |
 | `Members` | list | Who is here | name, presence, role; add, remove, change role | | `ChatServices.add#Member`, `remove#Member` | Talk Participants |
-| `Poll` | dialog | A poll in the room (`later`) | question, options, anonymous, multiple | | `ChatServices.create#Poll`, `vote#Poll` (new) | Talk PollCard; Gameplan polls |
+| `Poll` | dialog | A poll in the room (the composer's poll button or `/poll`), shown as a card to vote on | question, 2 to 10 options, anonymous, multiple, closes | | `ChatServices.create#Poll`, `vote#Poll`, `close#Poll` (new) | Talk PollCard; Gameplan polls |
 
 - **Actions:** New direct message, New room, Join; room: call, search, pin, mark read, mute,
   leave; message: the action bar.
@@ -1573,12 +1573,13 @@ answered, and the two stay separate stores.
   ("Chat").
 - **States:** no rooms: "Start a conversation" with the people picker; a public room not joined
   shows its timeline read-only with Join; a message the sender deleted shows "message removed";
-  offline: the composer queues and shows "Sending…" (later).
+  offline: a banner says so, the composer queues each message in the page's outbox and its row
+  shows "Sending…", "Waiting" or "Not sent" (Retry, Delete) until it goes; no files go up offline.
 - **Devices:** phone: the rail is the screen, a room opens full screen; push notifications
   through the PWA later.
 - **Source:** research §6 (Nextcloud Talk, Signal Desktop, Odoo Discuss, Zimbra IM), §18 "No chat";
   Slack and Teams for the shape people expect.
-- **Needs:** Chat store (polls later); Chat services; Presence and status; `m-rich-text`; Search
+- **Needs:** Chat store (polls included); Chat services; Presence and status; `m-rich-text`; Search
   DataDocuments (`MoquiChatEvent`); Record cards; Assist drawer (agent members, later).
 
 ## 14. Calls

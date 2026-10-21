@@ -32,7 +32,8 @@ along with this software (see the LICENSE.md file). If not, see
     <service verb="get" noun="ChatPrefs">
         <description>The current user's chat preferences with their defaults: enterSends (CHAT_ENTER_SENDS, Y: Enter sends and
             Shift+Enter is a new line; N: Ctrl+Enter sends), sounds (CHAT_SOUNDS, Y), readReceipts (CHAT_READ_RECEIPTS, Y),
-            typing (CHAT_TYPING, Y: send and show typing), notifyDefault (CHAT_NOTIFY_DEFAULT: all, mentions or none for the
+            typing (CHAT_TYPING, Y: send and show typing), linkPreviews (CHAT_LINK_PREVIEWS, Y: the framework fetches the
+            previews of the links the user sends; N: none), notifyDefault (CHAT_NOTIFY_DEFAULT: all, mentions or none for the
             rooms the user makes or joins, which the framework's ChatServices start a membership at; empty for the room's own
             default), notifyPreview (CHAT_NOTIFY_PREVIEW, Y: a mention's notification has the message text; N: only who
             mentioned the user where, read by the framework's notify#Mention), autoAwayMinutes (CHAT_AUTO_AWAY_MINUTES,
@@ -53,7 +54,7 @@ along with this software (see the LICENSE.md file). If not, see
             const level = pref('CHAT_NOTIFY_DEFAULT')
             const minutes = Number(pref('CHAT_AUTO_AWAY_MINUTES'))
             prefs = {enterSends: flag('CHAT_ENTER_SENDS', true), sounds: flag('CHAT_SOUNDS', true), readReceipts: flag('CHAT_READ_RECEIPTS', true),
-                typing: flag('CHAT_TYPING', true), notifyDefault: ['all', 'mentions', 'none'].includes(level) ? level : '', notifyPreview: flag('CHAT_NOTIFY_PREVIEW', true),
+                typing: flag('CHAT_TYPING', true), linkPreviews: flag('CHAT_LINK_PREVIEWS', true), notifyDefault: ['all', 'mentions', 'none'].includes(level) ? level : '', notifyPreview: flag('CHAT_NOTIFY_PREVIEW', true),
                 autoAwayMinutes: minutes > 0 ? minutes : 10, dndFrom: pref('CHAT_DND_FROM'), dndTo: pref('CHAT_DND_TO'),
                 statusPresets: presets.filter((item) => item && (item.text || item.emoji)).slice(0, 12).map((item) => ({emoji: String(item.emoji || ''),
                     text: String(item.text || ''), clearAfter: String(item.clearAfter ?? '0')}))}
@@ -68,6 +69,7 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="sounds"/>
             <parameter name="readReceipts"/>
             <parameter name="typing"/>
+            <parameter name="linkPreviews"/>
             <parameter name="notifyPreview"/>
             <parameter name="notifyDefault"/>
             <parameter name="autoAwayMinutes"/>
@@ -84,12 +86,14 @@ along with this software (see the LICENSE.md file). If not, see
                 ec.user.setPreference('CHAT_SOUNDS', yn(sounds))
                 ec.user.setPreference('CHAT_READ_RECEIPTS', yn(readReceipts))
                 ec.user.setPreference('CHAT_TYPING', yn(typing))
+                ec.user.setPreference('CHAT_LINK_PREVIEWS', yn(linkPreviews))
                 ec.user.setPreference('CHAT_NOTIFY_PREVIEW', yn(notifyPreview))
             } else {
                 if (enterSends != null) ec.user.setPreference('CHAT_ENTER_SENDS', yn(enterSends))
                 if (sounds != null) ec.user.setPreference('CHAT_SOUNDS', yn(sounds))
                 if (readReceipts != null) ec.user.setPreference('CHAT_READ_RECEIPTS', yn(readReceipts))
                 if (typing != null) ec.user.setPreference('CHAT_TYPING', yn(typing))
+                if (linkPreviews != null) ec.user.setPreference('CHAT_LINK_PREVIEWS', yn(linkPreviews))
                 if (notifyPreview != null) ec.user.setPreference('CHAT_NOTIFY_PREVIEW', yn(notifyPreview))
             }
             if (notifyDefault != null) {
@@ -382,7 +386,8 @@ along with this software (see the LICENSE.md file). If not, see
     <service verb="get" noun="TimelinePage">
         <description>A page of a room's timeline (org.moqui.impl.ChatServices.get#Timeline: beforeSeq, afterSeq, aroundSeq, a
             thread by threadRootEventSeq, or pinnedOnly) with userNames, the names of the users its events name (senders,
-            reactions, the users of membership and system events), so the client words those rows.</description>
+            reactions, the users of membership and system events, a thread's last replier, a forward's sender, a poll's
+            voters), so the client words those rows. eventSeq gives that one event.</description>
         <in-parameters>
             <parameter name="chatRoomId" required="true"/>
             <parameter name="beforeSeq" type="Integer"/>
@@ -390,13 +395,14 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="aroundSeq" type="Integer"/>
             <parameter name="threadRootEventSeq" type="Integer"/>
             <parameter name="pinnedOnly" type="Boolean" default="false"/>
+            <parameter name="eventSeq" type="Integer"/>
             <parameter name="limit" type="Integer" default="50"/>
         </in-parameters>
         <out-parameters><parameter name="page" type="Map"/></out-parameters>
         <actions><script><![CDATA[
             const out = ec.service.sync().name('org.moqui.impl.ChatServices.get#Timeline').parameters({chatRoomId: chatRoomId, beforeSeq: beforeSeq ?? null,
                 afterSeq: afterSeq ?? null, aroundSeq: aroundSeq ?? null, threadRootEventSeq: threadRootEventSeq ?? null, pinnedOnly: !!pinnedOnly,
-                limit: Math.max(1, Math.min(limit || 50, 200))}).call()
+                eventSeq: eventSeq ?? null, limit: Math.max(1, Math.min(limit || 50, 200))}).call()
             if (ec.message.hasError()) return
             const events = Array.from(out.eventList || [])
             const ids = new Set()
@@ -407,6 +413,9 @@ along with this software (see the LICENSE.md file). If not, see
                 for (const id of Array.from(content.userIds || [])) ids.add(String(id))
                 for (const reaction of Array.from(event.reactions || [])) for (const id of Array.from(reaction.userIds || [])) ids.add(String(id))
                 if (event.replyTo && event.replyTo.senderUserId) ids.add(event.replyTo.senderUserId)
+                if (event.threadLastUserId) ids.add(event.threadLastUserId)
+                if (event.forwardOf && event.forwardOf.senderUserId) ids.add(event.forwardOf.senderUserId)
+                if (event.poll) for (const option of Array.from(event.poll.options || [])) for (const id of Array.from(option.voterIds || [])) ids.add(String(id))
             }
             const userNames = {}
             if (ids.size) for (const account of ec.entity.find('moqui.security.UserAccount').condition('userId', 'in', Array.from(ids))
@@ -420,7 +429,8 @@ along with this software (see the LICENSE.md file). If not, see
     <service verb="find" noun="MentionUsers">
         <description>The @ mention list of a room's composer: the room's members whose name has the term, and in a public room
             (where anyone may be mentioned) the other users too (ironstone.ChatterServices.search#Users), as [{id (the userId),
-            label}]; the user is left out. A room the user may not read answers no one.</description>
+            label}]; the user is left out. First @room (id @room: every member), for a moderator or owner, or anyone in a room
+            of 20 members or fewer, as the framework's send#Message takes it. A room the user may not read answers no one.</description>
         <in-parameters>
             <parameter name="chatRoomId" required="true"/>
             <parameter name="term"/>
@@ -437,6 +447,9 @@ along with this software (see the LICENSE.md file). If not, see
             if (ec.message.hasError() || !access || !access.canRead) return
             const out = ec.service.sync().name('org.moqui.impl.ChatServices.get#Room').parameter('chatRoomId', chatRoomId).call()
             if (ec.message.hasError() || !out || !out.room) return
+            const everyone = Array.from(out.memberList || []).filter((member) => !member.isAgent)
+            if ((access.canModerate || access.isOwner || everyone.length <= 20) && (!text || 'room'.startsWith(text) || 'everyone'.startsWith(text)))
+                userList.push({id: '@room', label: 'room'})
             for (const member of Array.from(out.memberList || [])) {
                 if (member.userId === me || member.isAgent) continue
                 if (text && !String(member.name || '').toLowerCase().includes(text)) continue
@@ -565,8 +578,10 @@ along with this software (see the LICENSE.md file). If not, see
     <service verb="send" noun="ChatMessage">
         <description>Send a message from the composer (org.moqui.impl.ChatServices.send#Message, as the current user, a member
             of the room): its body (the m-rich-text light HTML with @ mentions), files uploaded to the room (chatAttachmentIds,
-            comma separated, or chatAttachmentIdList), a reply or a thread, and as its records the records its /qapps links
-            name (find#MessageRecords). The mention notifications link to the room (roomUrl).</description>
+            comma separated, or chatAttachmentIdList), a reply or a thread, a forward (forwardOfChatRoomId and
+            forwardOfEventSeq: the server makes the quote), and as its records the records its /qapps links name
+            (find#MessageRecords). The mention notifications link to the room (roomUrl). clientRef: a send tried again (the
+            page's outbox) is answered with its first message, duplicate true.</description>
         <in-parameters>
             <parameter name="chatRoomId" required="true"/>
             <parameter name="body" allow-html="safe"/>
@@ -575,11 +590,14 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="chatAttachmentIds"/>
             <parameter name="chatAttachmentIdList" type="List"/>
             <parameter name="clientRef"/>
+            <parameter name="forwardOfChatRoomId"/>
+            <parameter name="forwardOfEventSeq" type="Integer"/>
         </in-parameters>
         <out-parameters>
             <parameter name="eventSeq" type="Integer"/>
             <parameter name="event" type="Map"/>
             <parameter name="clientRef"/>
+            <parameter name="duplicate" type="Boolean"/>
         </out-parameters>
         <actions><script><![CDATA[
             const ids = Array.from(chatAttachmentIdList || []).concat(chatAttachmentIds ? String(chatAttachmentIds).split(',') : [])
@@ -587,9 +605,10 @@ along with this software (see the LICENSE.md file). If not, see
             const records = ec.service.sync().name('ironstone.ChatServices.find#MessageRecords').parameter('body', body || '').call().recordList
             const out = ec.service.sync().name('org.moqui.impl.ChatServices.send#Message').parameters({chatRoomId: chatRoomId, body: body || null,
                 replyToEventSeq: replyToEventSeq ?? null, threadRootEventSeq: threadRootEventSeq ?? null, chatAttachmentIdList: ids,
-                recordList: records, roomUrl: '/qapps/Comms/Chat?chatRoomId=' + encodeURIComponent(chatRoomId), clientRef: clientRef || null}).call()
+                recordList: records, roomUrl: '/qapps/Comms/Chat?chatRoomId=' + encodeURIComponent(chatRoomId), clientRef: clientRef || null,
+                forwardOfChatRoomId: forwardOfChatRoomId || null, forwardOfEventSeq: forwardOfEventSeq ?? null}).call()
             if (ec.message.hasError()) return
-            eventSeq = out.eventSeq; event = out.event; clientRef = out.clientRef
+            eventSeq = out.eventSeq; event = out.event; clientRef = out.clientRef; duplicate = !!out.duplicate
         ]]></script></actions>
     </service>
 

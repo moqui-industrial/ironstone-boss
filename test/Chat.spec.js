@@ -7,8 +7,11 @@
 // messages once per set of people, new rooms with the default notification level, join, leave, members, roles and the
 // room's settings; a record's room through STRT_RECORD_VISIBLE_SERVICE (made on first use, read and joined by those who may
 // see the record); a task or request made from a message and a message filed on a record (Mantle's chat services), the
-// record's Chatter with its room's messages; the mention list, search and the palette's rooms. Joe Developer reads
-// none of john.doe's private rooms nor their files. Authorization stays on, as for a browser request.
+// record's Chatter with its room's messages; the mention list (with @room), search and the palette's rooms; a send tried
+// again with its clientRef, one event by its eventSeq; a room's files and threads; a forward; a poll; a sender removing
+// link previews; read receipts off by preference. Joe Developer reads none of john.doe's private rooms nor their files,
+// threads or messages to forward. Authorization stays on, as for a browser request. john's link previews are off here,
+// so a link in a message reaches no page (the framework's chat_tests.rs tests the previews with a stub of the pages).
 // Run: ./moq test ironstone-boss --spec Chat
 const comms = "component://ironstone-boss/screen/Comms.xml"
 const JOHN = "EX_JOHN_DOE", JOE = "ORG_ZIZI_JD", BOB = "ORG_ZIZI_BD"
@@ -48,8 +51,14 @@ spec({
         login("john.doe")
         // the demo again, so this spec sees its rooms as loaded whatever ran before
         sys(() => call("ironstone.ChatDemoServices.load#ChatDemo", {}))
+        ec.user.setPreference("CHAT_LINK_PREVIEWS", "N")
     },
-    cleanupSpec() { login("john.doe"); ec.user.setPreference("CHAT_NOTIFY_DEFAULT", "") },
+    cleanupSpec() {
+        as("joe.developer", () => ec.user.setPreference("CHAT_READ_RECEIPTS", ""))
+        login("john.doe")
+        ec.user.setPreference("CHAT_NOTIFY_DEFAULT", "")
+        ec.user.setPreference("CHAT_LINK_PREVIEWS", "")
+    },
 })
 
 feature("the rail: john's rooms with their records, pinned first, with unread and mention counts", {
@@ -363,6 +372,8 @@ feature("Joe Developer reads none of john's private rooms nor their files", {
                 createFrom: post("createFrom", { chatRoomId: ROOM.leads, eventSeq: 2, kind: "task" }),
                 mentions: get("mentionUsers", { chatRoomId: ROOM.leads, term: "" }), search: get("search", { searchText: "budget" }),
                 rooms: get("chatData"), own: get("roomView", { chatRoomId: ROOM.joe }),
+                files: get("files", { chatRoomId: ROOM.leads }), threads: get("threads", { chatRoomId: ROOM.leads }),
+                forward: post("send", { chatRoomId: ROOM.joe, forwardOfChatRoomId: ROOM.leads, forwardOfEventSeq: 2 }),
             }
         })
     },
@@ -384,6 +395,9 @@ feature("Joe Developer reads none of john's private rooms nor their files", {
         roomOf(v.rooms, ROOM.leads) == null
         roomOf(v.rooms, ROOM.joe) != null
         v.own.errors == ""
+        v.files.errors.includes("not found")
+        v.threads.errors.includes("not found")
+        v.forward.errors.includes("not found")
     },
 })
 
@@ -457,7 +471,7 @@ feature("the mention list is a room's members, and anyone in a public room; sear
     then(v) {
         v.team.map((user) => user.id) == [JOE]
         v.team[0].label == "Joe Developer"
-        v.leads.map((user) => user.id) == [BOB]
+        v.leads.map((user) => user.id) == ["@room", BOB]
         v.general.some((user) => user.id === JOE) && v.general.some((user) => user.id === BOB)
         !v.general.some((user) => user.id === JOHN)
         v.users.some((user) => user.value === JOE && user.label === "Joe Developer")
@@ -470,6 +484,132 @@ feature("the mention list is a room's members, and anyone in a public room; sear
         v.palette.rows[0].url == "/qapps/Comms/Chat?chatRoomId=BOSS_DEMO_CHAT_GENERAL"
         v.palette.moreUrl == "/qapps/Comms/Chat"
         v.latest.rows.length >= 1
+    },
+})
+
+feature("a send tried again with its clientRef answers its first message; one event read by its eventSeq", {
+    when() {
+        const first = post("send", { chatRoomId: ROOM.team, clientRef: "spec-retry-1", body: "<p>Only once</p>" })
+        const again = post("send", { chatRoomId: ROOM.team, clientRef: "spec-retry-1", body: "<p>Only once</p>" })
+        const bad = post("send", { chatRoomId: ROOM.team, clientRef: "not a ref", body: "<p>Bad ref</p>" })
+        return { first, again, bad, one: get("timeline", { chatRoomId: ROOM.team, eventSeq: first.json.eventSeq }).json,
+            count: list("moqui.chat.ChatEvent", { chatRoomId: ROOM.team, clientRef: "spec-retry-1" }).length }
+    },
+    allowMessageErrors: true,
+    then(v) {
+        v.first.errors == ""
+        v.first.json.duplicate == false
+        v.again.errors == ""
+        v.again.json.duplicate == true
+        v.again.json.eventSeq == v.first.json.eventSeq
+        v.count == 1
+        v.bad.errors.includes("clientRef")
+        v.one.eventList.length == 1
+        v.one.eventList[0].bodyText == "Only once"
+        v.one.eventList[0].clientRef == "spec-retry-1"
+    },
+})
+
+feature("a room's files, newest first, the pictures alone; its threads, the latest reply first, and mine", {
+    when() {
+        const up = post("upload", { chatRoomId: ROOM.joe, file: uploadedFile("minutes.txt", "Lunch moved to Thursday") })
+        const sent = post("send", { chatRoomId: ROOM.joe, chatAttachmentIds: up.json.uploadList[0].chatAttachmentId })
+        const all = get("files", { chatRoomId: ROOM.joe }).json
+        const pictures = get("files", { chatRoomId: ROOM.joe, contentTypePrefix: "image/" }).json
+        const threads = get("threads", { chatRoomId: ROOM.general }).json
+        const mineBefore = get("threads", { chatRoomId: ROOM.general, mine: "true" }).json
+        const root = threads.threadList.length ? threads.threadList[0].eventSeq : null
+        const reply = post("send", { chatRoomId: ROOM.general, threadRootEventSeq: root, body: "<p>Thanks for the heads up</p>" })
+        return { sent, all, pictures, threads, mineBefore, root, reply, mineAfter: get("threads", { chatRoomId: ROOM.general, mine: "true" }).json,
+            rootEvent: get("timeline", { chatRoomId: ROOM.general, eventSeq: root }).json }
+    },
+    then(v) {
+        v.sent.errors == ""
+        v.all.fileList[0].fileName == "minutes.txt"
+        v.all.fileList[0].eventSeq == v.sent.json.eventSeq
+        anyOf(v.all.fileList, (file) => file.fileName === "floor-plan.png")
+        v.pictures.fileList.map((file) => file.fileName) == ["floor-plan.png"]
+        v.threads.threadList[0].threadReplyCount == 2
+        v.threads.threadList[0].threadLastUserName == "Bob Developer"
+        !anyOf(v.mineBefore.threadList, (thread) => thread.eventSeq === v.root && thread.senderUserId !== JOHN)
+        v.reply.errors == ""
+        anyOf(v.mineAfter.threadList, (thread) => thread.eventSeq === v.root)
+        v.rootEvent.eventList[0].threadLastEventSeq == v.reply.json.eventSeq
+        v.rootEvent.eventList[0].threadLastUserId == JOHN
+    },
+})
+
+feature("a forward: the server quotes the message, with its sender and none of its room, into a room of mine", {
+    when() {
+        const source = messages(get("timeline", { chatRoomId: ROOM.joe, limit: 50 }).json)
+                .find((event) => event.bodyText === "Can we move the team lunch to Thursday?")
+        const forwarded = post("send", { chatRoomId: ROOM.team, body: "<p>FYI</p>", forwardOfChatRoomId: ROOM.joe, forwardOfEventSeq: source.eventSeq })
+        const rooms = get("forwardRooms", { term: "" })
+        return { source, forwarded, rooms, shown: get("timeline", { chatRoomId: ROOM.team, eventSeq: forwarded.json.eventSeq }).json }
+    },
+    then(v) {
+        v.forwarded.errors == ""
+        v.shown.eventList[0].forwardOf.senderName == "Joe Developer"
+        v.shown.eventList[0].forwardOf.bodyText == "Can we move the team lunch to Thursday?"
+        !("chatRoomId" in v.shown.eventList[0].forwardOf)
+        v.shown.eventList[0].body == "<p>FYI</p>"
+        anyOf(v.rooms.json, (room) => room.value === ROOM.team)
+        !anyOf(v.rooms.json, (room) => room.value === ROOM.random)
+    },
+})
+
+feature("a poll: votes replace the voter's, its creator closes it, then it takes no more", {
+    when() {
+        const made = post("createPoll", { chatRoomId: ROOM.team, question: "Team lunch?", optionsJson: JSON.stringify(["Pizza", "Sushi", "Tacos"]) })
+        const seq = made.json.eventSeq
+        const tooFew = post("createPoll", { chatRoomId: ROOM.team, question: "Yes?", optionsJson: JSON.stringify(["Yes"]) })
+        const voted = post("votePoll", { chatRoomId: ROOM.team, eventSeq: seq, optionIds: "2" })
+        const two = post("votePoll", { chatRoomId: ROOM.team, eventSeq: seq, optionIds: "1,2" })
+        const joe = as("joe.developer", () => ({ vote: post("votePoll", { chatRoomId: ROOM.team, eventSeq: seq, optionIds: "2" }),
+            close: post("closePoll", { chatRoomId: ROOM.team, eventSeq: seq }) }))
+        const edit = post("edit", { chatRoomId: ROOM.team, eventSeq: seq, body: "<p>Dinner?</p>" })
+        const closed = post("closePoll", { chatRoomId: ROOM.team, eventSeq: seq })
+        const late = post("votePoll", { chatRoomId: ROOM.team, eventSeq: seq, optionIds: "3" })
+        return { made, tooFew, voted, two, joe, edit, closed, late, shown: get("timeline", { chatRoomId: ROOM.team, eventSeq: seq }).json }
+    },
+    allowMessageErrors: true,
+    then(v) {
+        v.made.errors == ""
+        v.made.json.event.poll.options.map((option) => option.text) == ["Pizza", "Sushi", "Tacos"]
+        v.tooFew.errors.includes("2 to 10 options")
+        v.voted.json.poll.options[1].mine == true
+        v.two.errors.includes("Choose one")
+        v.joe.vote.json.poll.options[1].voteCount == 2
+        v.joe.close.errors.includes("creator or a moderator")
+        v.edit.errors.includes("A poll is not edited")
+        v.closed.json.poll.closed == true
+        v.late.errors.includes("closed")
+        v.shown.eventList[0].poll.voterCount == 2
+        v.shown.eventList[0].poll.options[1].voterIds.length == 2
+        v.shown.eventList[0].poll.mine == [2]
+    },
+})
+
+feature("the sender alone removes a message's link previews; read receipts off by preference show no marker", {
+    when() {
+        const sent = post("send", { chatRoomId: ROOM.joe, body: "<p>Notes at https://example.com/notes</p>" })
+        const seq = sent.json.eventSeq
+        const byJoe = as("joe.developer", () => {
+            ec.user.setPreference("CHAT_READ_RECEIPTS", "N")
+            return { remove: post("removePreviews", { chatRoomId: ROOM.joe, eventSeq: seq }), read: post("markRead", { chatRoomId: ROOM.joe }) }
+        })
+        const removed = post("removePreviews", { chatRoomId: ROOM.joe, eventSeq: seq })
+        return { sent, byJoe, removed, row: one("moqui.chat.ChatEvent", { chatRoomId: ROOM.joe, eventSeq: seq }), view: get("roomView", { chatRoomId: ROOM.joe }).json }
+    },
+    allowMessageErrors: true,
+    then(v) {
+        v.sent.errors == ""
+        v.byJoe.remove.errors.includes("Only the sender")
+        v.byJoe.read.errors == ""
+        v.removed.errors == ""
+        v.row.linkPreviewJson == '{"removed":true}'
+        v.view.memberList.find((member) => member.userId === JOE).lastReadEventSeq == null
+        v.view.memberList.find((member) => member.userId === JOHN).lastReadEventSeq >= v.sent.json.eventSeq
     },
 })
 

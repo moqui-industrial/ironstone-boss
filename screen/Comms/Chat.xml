@@ -15,8 +15,9 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- Chat (design-drawers-commons.md §13 Chat; style-guide §3.8 Split, §4.8 .qvue; impl-drawers-commons.md M10): rooms and
     direct messages. The component is Chat.qvue next to this file, served in the qvue render mode: the rail of rooms
     (search, filters, pinned first, unread and mention badges, presence dots, New direct message, New room, Browse rooms) and
-    the room view (its header, the timeline paged by eventSeq, threads, members, pinned messages, search in the room, the
-    composer with mentions and files, room settings), with the live parts from the page's chat store (moqui.chat). The room
+    the room view (its header, the timeline paged by eventSeq, threads and the room's thread list, members, pinned messages,
+    the room's files, search in the room, the composer with mentions, files and polls, sends that wait in the page's outbox
+    while offline, forwards, link previews, room settings), with the live parts from the page's chat store (moqui.chat). The room
     is in the URL (chatRoomId, eventSeq to open at a message, thread; dm to start a direct message with a user;
     recordEntity and recordId to open a record's room, made on first use), so a room is a link. The tray's Chat tab
     (Panel/Chat, ChatPanel.qvue) uses these transitions and the same room view.
@@ -65,14 +66,42 @@ along with this software (see the LICENSE.md file). If not, see
         ]]></script></actions>
         <default-response type="none"/>
     </transition>
-    <!-- a page of the timeline: before, after or around an eventSeq, a thread, or the pinned messages -->
+    <!-- a page of the timeline: before, after or around an eventSeq, a thread, the pinned messages, or one event -->
     <transition name="timeline" method="get" read-only="true">
         <actions><script><![CDATA[
             const number = (value) => value == null || value === '' ? null : Number(value)
             const out = ec.service.sync().name('ironstone.ChatServices.get#TimelinePage').parameters({chatRoomId: chatRoomId || '',
                 beforeSeq: number(beforeSeq), afterSeq: number(afterSeq), aroundSeq: number(aroundSeq), threadRootEventSeq: number(threadRootEventSeq),
-                pinnedOnly: String(pinnedOnly) === 'true', limit: number(limit) || 50}).call()
+                pinnedOnly: String(pinnedOnly) === 'true', eventSeq: number(eventSeq), limit: number(limit) || 50}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : (out.page || {}))
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- the files of the room's messages, newest first: all, or the pictures (contentTypePrefix image/) -->
+    <transition name="files" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('org.moqui.impl.ChatServices.find#RoomFiles').parameters({chatRoomId: chatRoomId || '',
+                contentTypePrefix: contentTypePrefix || null, searchText: searchText || null, limit: limit ? Number(limit) : 30,
+                beforeEventSeq: beforeEventSeq ? Number(beforeEventSeq) : null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {fileList: out.fileList, nextBeforeEventSeq: out.nextBeforeEventSeq})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- the room's threads, the latest reply first; mine for those I started or replied in -->
+    <transition name="threads" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('org.moqui.impl.ChatServices.find#RoomThreads').parameters({chatRoomId: chatRoomId || '',
+                limit: limit ? Number(limit) : 20, beforeDate: beforeDate ? Number(beforeDate) : null, mine: String(mine) === 'true'}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {threadList: out.threadList, hasMore: out.hasMore})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- the rooms a message may be forwarded to (mine, not archived): [{value (chatRoomId), label}] -->
+    <transition name="forwardRooms" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('org.moqui.impl.ChatServices.find#Rooms').parameters({searchText: term || null, limit: 30}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? [] : Array.from(out.roomList || []).filter((room) => room.isMember && !room.archivedDate)
+                    .map((room) => ({value: room.chatRoomId, label: room.displayName})))
         ]]></script></actions>
         <default-response type="none"/>
     </transition>
@@ -127,8 +156,8 @@ along with this software (see the LICENSE.md file). If not, see
             const number = (value) => value == null || value === '' ? null : Number(value)
             const out = ec.service.sync().name('ironstone.ChatServices.send#ChatMessage').parameters({chatRoomId: chatRoomId || '', body: body || null,
                 replyToEventSeq: number(replyToEventSeq), threadRootEventSeq: number(threadRootEventSeq), chatAttachmentIds: chatAttachmentIds || null,
-                clientRef: clientRef || null}).call()
-            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {eventSeq: out.eventSeq, event: out.event, clientRef: out.clientRef})
+                clientRef: clientRef || null, forwardOfChatRoomId: forwardOfChatRoomId || null, forwardOfEventSeq: number(forwardOfEventSeq)}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {eventSeq: out.eventSeq, event: out.event, clientRef: out.clientRef, duplicate: out.duplicate})
         ]]></script></actions>
         <default-response type="none"/>
     </transition>
@@ -160,6 +189,45 @@ along with this software (see the LICENSE.md file). If not, see
         <actions><script><![CDATA[
             ec.service.sync().name('org.moqui.impl.ChatServices.pin#Message').parameters({chatRoomId: chatRoomId || '', eventSeq: Number(eventSeq || 0),
                 pinned: String(pinned) !== 'false'}).call()
+            ec.web.sendJsonResponse({})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- a poll: the question, its options (optionsJson, a JSON list of texts), anonymous, multiple and when it closes -->
+    <transition name="createPoll">
+        <actions><script><![CDATA[
+            let options = []
+            try { options = JSON.parse(optionsJson || '[]') } catch (err) { options = [] }
+            const out = ec.service.sync().name('org.moqui.impl.ChatServices.create#Poll').parameters({chatRoomId: chatRoomId || '', question: question || '',
+                optionList: Array.isArray(options) ? options.map((option) => String(option ?? '')) : [], anonymous: String(anonymous) === 'true',
+                multiple: String(multiple) === 'true', closesDate: closesDate ? Number(closesDate) : null,
+                threadRootEventSeq: threadRootEventSeq ? Number(threadRootEventSeq) : null, clientRef: clientRef || null,
+                roomUrl: '/qapps/Comms/Chat?chatRoomId=' + encodeURIComponent(chatRoomId || '')}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {eventSeq: out.eventSeq, event: out.event, clientRef: clientRef || null})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- my vote: the options chosen (optionIds, comma separated; none takes the vote back) -->
+    <transition name="votePoll">
+        <actions><script><![CDATA[
+            const ids = optionIds ? String(optionIds).split(',').map((id) => id.trim()).filter((id) => id).map(Number) : []
+            const out = ec.service.sync().name('org.moqui.impl.ChatServices.vote#Poll').parameters({chatRoomId: chatRoomId || '',
+                eventSeq: Number(eventSeq || 0), optionIdList: ids}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {poll: out.poll})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="closePoll">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('org.moqui.impl.ChatServices.close#Poll').parameters({chatRoomId: chatRoomId || '', eventSeq: Number(eventSeq || 0)}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {poll: out.poll})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- the sender takes the link previews off their message -->
+    <transition name="removePreviews">
+        <actions><script><![CDATA[
+            ec.service.sync().name('org.moqui.impl.ChatServices.remove#LinkPreviews').parameters({chatRoomId: chatRoomId || '', eventSeq: Number(eventSeq || 0)}).call()
             ec.web.sendJsonResponse({})
         ]]></script></actions>
         <default-response type="none"/>

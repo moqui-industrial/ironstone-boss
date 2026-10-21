@@ -49,6 +49,7 @@ spec({
         for (const key of ["CHAT_NOTIFY_DEFAULT", "CHAT_NOTIFY_PREVIEW", "CHAT_DND_FROM", "CHAT_DND_TO", "CHAT_STATUS_PRESETS"]) ec.user.setPreference(key, "")
         ec.user.setPreference("CHAT_SOUNDS", "Y")
         ec.user.setPreference("CHAT_ENTER_SENDS", "Y")
+        ec.user.setPreference("CHAT_LINK_PREVIEWS", "Y")
         sys(() => ec.entity.find("moqui.security.UserPreference").condition("userId", DND_USER).deleteAll())
     },
 })
@@ -63,13 +64,15 @@ feature("the page renders the preferences, the do not disturb hours and the stat
         output.includes("Status presets")
         output.includes("In a meeting")
         output.includes("Show message previews in notifications")
+        output.includes("Show a preview of the links I send")
     },
 })
 
 feature("Save keeps the preferences, which get#ChatPrefs and the Chat screens read", {
     when() {
         const before = sys(() => call("ironstone.ChatServices.get#ChatPrefs", {})).prefs.notifyPreview
-        const saved = post("savePreferences", { notifyDefault: "mentions", notifyPreview: "", sounds: "", enterSends: "N", readReceipts: "Y", typing: "", autoAwayMinutes: "15" })
+        const saved = post("savePreferences", { notifyDefault: "mentions", notifyPreview: "", sounds: "", enterSends: "N", readReceipts: "Y", typing: "", linkPreviews: "",
+            autoAwayMinutes: "15" })
         const preview = pref("CHAT_NOTIFY_PREVIEW")
         const bad = post("savePreferences", { notifyDefault: "loud", autoAwayMinutes: "15" })
         return { before, saved, preview, bad, prefs: sys(() => call("ironstone.ChatServices.get#ChatPrefs", {})).prefs, away: pref("CHAT_AUTO_AWAY_MINUTES"),
@@ -86,6 +89,7 @@ feature("Save keeps the preferences, which get#ChatPrefs and the Chat screens re
         prefs.enterSends == false
         prefs.readReceipts == true
         prefs.typing == false
+        prefs.linkPreviews == false
         prefs.autoAwayMinutes == 15
         away == "15"
         presence.autoAwayMinutes == 15

@@ -467,3 +467,56 @@ feature("Attach from Files refuses a file the user may not open", {
         out.failedList[0].name == "Welcome.txt"
     },
 })
+
+// the bytes of a file under test/files, uploaded to a folder of My files as the demo loads its pictures
+function uploadFixture(folder, name) {
+    const stream = ec.resource.getLocationReference(`component://ironstone-boss/test/files/${name}`).openStream()
+    let bytes
+    try { bytes = stream.readAllBytes() } finally { if (stream && stream.close) stream.close() }
+    return sys(() => call(`${FILES}.upload#Resource`, { driveId: personalDriveId, path: folder, fileList: [bytes], relativePathList: [name],
+        conflictPolicy: "replace" }))
+}
+
+feature("a spreadsheet previews as its first rows with a tab per sheet", {
+    requires: ["xlsx"],
+    when() {
+        uploadFixture("Spec previews", "Move costs.xlsx")
+        const path = "Spec previews/Move costs.xlsx"
+        return { first: get("preview", { driveId: personalDriveId, path }), again: get("preview", { driveId: personalDriveId, path }),
+            notes: get("preview", { driveId: personalDriveId, path, sheetName: "Notes" }),
+            folder: get("folder", { driveId: personalDriveId, path: "Spec previews" }) }
+    },
+    then({ first, again, notes, folder }) {
+        first.status == 200
+        first.errors == ""
+        first.json.kind == "spreadsheet"
+        first.json.sheetNames == ["Costs", "Notes"]
+        first.json.sheetName == "Costs"
+        first.json.rows[0] == ["Item", "Cost"]
+        first.json.rows[1] == ["Movers", 1200]
+        first.json.rows[2] == ["Boxes", 85.5]
+        first.json.truncated == false
+        again.json.rows == first.json.rows
+        notes.json.sheetName == "Notes"
+        notes.json.rows == [["Book the movers by Friday"]]
+        row(folder, "Move costs.xlsx").fileType == "spreadsheet"
+    },
+})
+
+feature("a PDF previews as its first page with the page count when there is a PDF engine, and as kind pdf without one", {
+    when() {
+        uploadFixture("Spec previews", "Movers quote.pdf")
+        const path = "Spec previews/Movers quote.pdf"
+        const preview = get("preview", { driveId: personalDriveId, path, size: "320" })
+        const thumb = ec.screen.makeTest().rootScreen(commons).render("Files/thumb", { driveId: personalDriveId, path, size: "320" }, null)
+        return { preview, thumb, again: get("preview", { driveId: personalDriveId, path, size: "320" }) }
+    },
+    then({ preview, thumb, again }) {
+        preview.status == 200
+        preview.errors == ""
+        preview.json.kind == "pdf"
+        preview.json.hasImage ? preview.json.pages == 1 : preview.json.pages == null
+        String(thumb.header("Content-Type") || "").startsWith("image/png") == preview.json.hasImage
+        again.json.hasImage == preview.json.hasImage
+    },
+})
