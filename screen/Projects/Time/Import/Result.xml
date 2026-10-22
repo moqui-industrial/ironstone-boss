@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- Time import step 3 (design-projects.md §8 ImportTime): the wizard's Import submits runImport (ironstone.TimeImportServices.run#Import:
+    mantle.work.TimeServices.import#TimeEntryCsv, each row through store#TimeEntry in its own transaction), then the step shows the
+    outcome: made, skipped and failed with the reason by row (the failed rows also as a CSV download, the reason first), the hours
+    imported, the warnings, and the way to the time entries. A file of up to 200 rows is imported in the request; a larger one runs
+    on as a job, and the step shows how far it is (ImportProgress, on the topic timeImportProgress) until it is done. An import that
+    stopped shows why and can be run again. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Import" default-menu-index="3">
+
+    <parameter name="importId"/>
+
+    <transition name="runImport">
+        <parameter name="background"/>
+        <actions>
+            <service-call name="ironstone.TimeImportServices.run#Import" in-map="{importId:importId, background:(background == 'Y' ? true : null)}" out-map="runOut"/>
+            <if condition="runOut?.running"><then><message type="info">The import runs on; this page shows how far it is</message></then>
+                <else><set field="done" value="Y"/></else></if>
+        </actions>
+        <default-response url="."><parameter name="importId"/><parameter name="done"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <!-- the rows that failed, as a CSV file with the reason first -->
+    <transition name="failuresCsv">
+        <actions><script><![CDATA[
+            const current = ec.service.sync().name('ironstone.TimeImportServices.get#ImportDraft').parameters({importId: importId}).call()
+            const failures = Array.from(current?.draft?.result?.failureList || [])
+            if (!current?.found || !failures.length) { ec.web.sendJsonResponse({errors: ec.l10n.localize('No failures to download')}); return }
+            const columns = []
+            for (const failure of failures) for (const key of Object.keys(failure.values || {})) if (!columns.includes(key)) columns.push(key)
+            const quote = (value) => { const text = value == null ? '' : String(value); return /[",\r\n]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text }
+            const lines = [['Row', 'Error'].concat(columns).map(quote).join(',')]
+            for (const failure of failures) lines.push([failure.rowNumber, failure.error].concat(columns.map((key) => (failure.values || {})[key])).map(quote).join(','))
+            const location = current.folder + '/import-failures.csv'
+            ec.resource.getLocationReference(location).putText(lines.join('\r\n') + '\r\n')
+            ec.web.sendResourceResponse(location, false)
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+
+    <actions><script><![CDATA[
+        const L = (text) => ec.l10n.localize(text)
+        const current = ec.service.sync().name('ironstone.TimeImportServices.get#ImportDraft').parameters({importId: importId}).call() || {}
+        hasDraft = !!current.found
+        if (!hasDraft) return
+        draft = current.draft
+        isDone = draft.status === 'done' && !!draft.result
+        isRunning = draft.status === 'running'
+        failedText = draft.status === 'failed' ? (draft.error || L('The import stopped')) : null
+        result = Object.assign({}, draft.result || {})
+        result.hoursText = ec.l10n.format(result.hoursImported ?? 0, '#,##0.##')
+        failureRows = Array.from(result.failureList || []).map((failure) => ({rowNumber: failure.rowNumber, error: failure.error,
+            valuesText: Object.values(failure.values || {}).filter((value) => value != null && String(value).trim()).slice(0, 5).join(', ')}))
+        warningRows = Array.from(result.warningList || []).map((warning) => ({rowNumber: warning.rowNumber ?? '', warning: warning.warning}))
+        planText = ec.resource.expand('${rows} rows of ${file}; each row goes in on its own, a row of a submitted week fails.', '', {rows: draft.rowCount || 0, file: draft.fileName || ''})
+        const total = Number(result.rowCount || 0)
+        const doneCount = Number(result.createdCount || 0) + Number(result.skippedCount || 0) + Number(result.failedCount || 0)
+        progressHtml = '<q-linear-progress size="10px" rounded class="q-my-sm" color="' + (Number(result.failedCount || 0) ? 'warning' : 'positive') + '" :value="'
+                + (total ? Math.min(1, doneCount / total).toFixed(3) : '1') + '"></q-linear-progress>'
+    ]]></script></actions>
+    <widgets>
+        <section name="NoDraft" condition="!hasDraft"><widgets>
+            <container-box type="warning"><box-body><label type="p" text="Start with the file."/></box-body></container-box>
+        </widgets></section>
+        <section name="Running" condition="hasDraft &amp;&amp; isRunning"><widgets>
+            <container-box><box-header title="Importing"/><box-body>
+                <label type="p" text="${planText}"/>
+                <dynamic-container id="TimeImportProgress" transition="../../ImportProgress">
+                    <parameter name="importId" from="importId"/><parameter name="total" from="draft.rowCount"/><parameter name="topic" from="'timeImportProgress'"/>
+                </dynamic-container>
+                <label type="p" text="The import goes on if you leave this page; come back to the import's result here." style="m-muted"/>
+            </box-body></container-box>
+        </widgets></section>
+        <section name="NotDone" condition="hasDraft &amp;&amp; !isDone &amp;&amp; !isRunning"><widgets>
+            <container-box><box-header title="Ready to import"/><box-body>
+                <section name="Stopped" condition="failedText"><widgets>
+                    <container-box type="warning"><box-body><label type="p" text="The last run stopped: ${failedText}"/></box-body></container-box>
+                </widgets></section>
+                <label type="p" text="${planText}"/>
+                <label type="p" text="A row that fails is listed with its reason and the others are imported." style="m-muted"/>
+                <form-single name="TimeImportRun" transition="runImport">
+                    <field name="importId" from="importId"><default-field><hidden/></default-field></field>
+                </form-single>
+            </box-body></container-box>
+        </widgets></section>
+        <section name="Done" condition="hasDraft &amp;&amp; isDone"><widgets>
+            <container-box type="${result.failedCount ? 'warning' : 'success'}"><box-header title="Imported"/><box-body>
+                <render-mode><text type="qvt"><![CDATA[${progressHtml}]]></text><text type="tui" template="false"><![CDATA[[]]]></text></render-mode>
+                <form-single name="TimeImportCounts" map="result">
+                    <field name="createdCount"><default-field title="Made"><display/></default-field></field>
+                    <field name="hoursText"><default-field title="Hours"><display/></default-field></field>
+                    <field name="skippedCount"><default-field title="Skipped (logged already)"><display/></default-field></field>
+                    <field name="failedCount"><default-field title="Failed"><display/></default-field></field>
+                    <field-layout><field-row><field-ref name="createdCount"/><field-ref name="hoursText"/><field-ref name="skippedCount"/><field-ref name="failedCount"/></field-row></field-layout>
+                </form-single>
+                <container style="row q-gutter-sm q-mt-sm">
+                    <link url="../../TimeEntries" text="Open the time entries" icon="sym_o_list_alt" parameter-map="{list:'all'}"/>
+                    <link url="failuresCsv" link-type="hidden-form-link" text="Download the failed rows (CSV)" icon="sym_o_download" condition="failureRows.length"
+                            parameter-map="{importId:importId}"/>
+                    <link url="../Source" text="Import another file" icon="sym_o_upload_file" parameter-map="{fresh:'Y'}"/>
+                </container>
+            </box-body></container-box>
+            <section name="Failures" condition="failureRows.length"><widgets>
+                <container-box><box-header title="Rows that failed"/><box-body-nopad>
+                    <form-list name="TimeImportFailures" list="failureRows" skip-form="true" paginate="false">
+                        <field name="rowNumber" align="right"><default-field title="Row"><display/></default-field></field>
+                        <field name="error"><default-field title="Reason"><display style="text-negative"/></default-field></field>
+                        <field name="valuesText"><default-field title="Values"><display style="text-caption"/></default-field></field>
+                    </form-list>
+                </box-body-nopad></container-box>
+            </widgets></section>
+            <section name="Warnings" condition="warningRows.length"><widgets>
+                <container-box><box-header title="Warnings"/><box-body-nopad>
+                    <form-list name="TimeImportWarnings" list="warningRows" skip-form="true" paginate="false">
+                        <field name="rowNumber" align="right"><default-field title="Row"><display/></default-field></field>
+                        <field name="warning"><default-field title="Warning"><display style="text-warning"/></default-field></field>
+                    </form-list>
+                </box-body-nopad></container-box>
+            </widgets></section>
+        </widgets></section>
+    </widgets>
+</screen>

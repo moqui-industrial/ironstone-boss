@@ -222,7 +222,16 @@ const demoRecords = {
     "Projects/Time/TimesheetDetail": { timesheet: true, text: "Upgraded the client servers" },
     "Projects/Resources": { text: "Placeholder: Team planner" },
     "Projects/Billing": { text: "Placeholder: Unbilled" },
-    "Projects/Time/TimeEntries": { text: "Walked the new floor and listed the rooms" },
+    // Projects P6b: Time entries (All: the demo's support desk time John Doe manages), the entry dialog (a new entry), the time import
+    // wizard's steps (no import yet; test/TimeEntries.spec.js walks them) and its progress, and the time settings
+    "Projects/Time/TimeEntries": { parameters: { list: "all" }, text: "Upgraded the client servers" },
+    "Projects/Time/TimeEntries/EditEntry": { text: "Log time" },
+    "Projects/Time/Import": { text: "Import time" },
+    "Projects/Time/Import/Source": {},
+    "Projects/Time/Import/Preview": {},
+    "Projects/Time/Import/Result": {},
+    "Projects/Time/ImportProgress": {},
+    "Projects/Settings/Time": { text: "Timesheet policy" },
 }
 
 spec({

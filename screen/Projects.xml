@@ -36,7 +36,7 @@ along with this software (see the LICENSE.md file). If not, see
         managers' Projects/QuickProject for a project, impl-projects.md F8; Commons keeps its Task kind for a personal task), the palette's actions and the document types of its records, whose palette
         and notification links open here for its users (ironstone.PaletteServices.get#RecordLink), and the go-to keys of the
         projects scope, on only in this app (the global c creates the first kind here, a work item); the Code palette group and
-        the notification topics of the phases built (impl-projects.md P3b). The Today source comes with its phase. -->
+        the notification topics of the phases built (impl-projects.md P3b). The Today source: mantle.work.ProjectServices.get#ProjectTodayItems. -->
     <shell-providers>
         <quick-create kind="workItem" label="Work item" icon="sym_o_add_task" screen="Projects/QuickCreate" sequence="80">
             <parameter name="kind" value="workItem"/></quick-create>
@@ -55,6 +55,9 @@ along with this software (see the LICENSE.md file). If not, see
             the user may view (ironstone.CodeServices.search#CodePalette over mantle.work.GitServices.search#Code) -->
         <palette-source group="Code" label="Code" icon="sym_o_code" prefix="!" service="ironstone.CodeServices.search#CodePalette" sequence="40"/>
 
+        <!-- Today (design-projects.md §1.4): the running timer with Stop, merge requests waiting for my review, my timesheets to
+            submit, and the new requests of the projects I triage (impl-projects.md P6b); work items due reach Today as tasks -->
+        <today-source service="mantle.work.ProjectServices.get#ProjectTodayItems" label="Projects"/>
         <notification-topic topic="WorkItemAssigned"/>
         <notification-topic topic="ProjectStatusUpdate"/>
         <notification-topic topic="MergeRequestReview"/>

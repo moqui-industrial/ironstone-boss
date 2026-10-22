@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The time import (design-projects.md §8 ImportTime; style-guide §3.10 Wizard; impl-projects.md P6b): time entries from the Time
+    entries CSV (date, person, work item or project key, hours or start and end, work type, billable, comment; the detailed exports of
+    Toggl, Harvest and Clockify read with at most a column renamed, their presets are later), as a subscreens-panel type="wizard" over
+    the step screens in Import/: Source (the file, its character set and the person of rows with none), Preview (the first 50 rows
+    as they will be made, each with its problems, and the counts) and Import (run it, then the result with the failed rows and their
+    reasons). Next submits a step's form to its transition, whose answer carries importId on to the next step; the file and the
+    choices are kept in the user's own import folder between the steps (service/ironstone/TimeImportServices.xml). Each row goes
+    through store#TimeEntry on its own: a bad row is named, the others are imported; a row of a submitted week fails. Opened from
+    TimeEntries' Import; for every internal user (their own time, and the time of those whose weeks they approve). -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Import time" default-menu-include="false" server-static="qvt">
+
+    <parameter name="importId"/>
+    <subscreens default-item="Source"/>
+
+    <widgets>
+        <container style="row items-center q-mb-sm">
+            <label type="h5" text="Import time" style="q-my-none"/>
+            <container style="col"/>
+            <link url="../TimeEntries" text="Time entries" icon="sym_o_list_alt" style="q-ml-sm"/>
+        </container>
+        <subscreens-panel id="TimeImportWizard" type="wizard" finish-text="Import"/>
+    </widgets>
+</screen>

@@ -688,6 +688,14 @@ along with this software (see the LICENSE.md file). If not, see
                             url: entry.url || ('/qapps/Comms/Chat?chatRoomId=' + encodeURIComponent(entry.chatRoomId) + '&eventSeq=' + entry.eventSeq),
                             toName: entry.roomName || null})
                         searchText += ' ' + parts.text + ' ' + (entry.authorName || '')
+                    } else if (entry.kind === 'time') {
+                        // time logged on a work item (mantle.work.TimeServices.get#TimeEntryTimeline): who, how long, the work type and
+                        // the comment, never a rate (impl-projects.md P6b)
+                        const parts = bodyParts(entry.body, 'text/plain')
+                        const span = entry.fromDate != null && entry.thruDate != null ? fmt(toMillis(entry.fromDate), 'MMM d, HH:mm') + '–' + fmt(toMillis(entry.thruDate), 'HH:mm') : ''
+                        Object.assign(decorated, {key: 'time-' + entry.timeEntryId, icon: 'sym_o_schedule', color: 'teal', kindLabel: L('Time logged'),
+                            title: entry.title + (entry.billable === false ? ' · ' + L('not billable') : '') + (span ? ' · ' + span : ''), bodyHtml: parts.bodyHtml})
+                        searchText += ' ' + parts.text
                     } else {
                         // a registered source's entry
                         const parts = bodyParts(entry.body, entry.contentType)

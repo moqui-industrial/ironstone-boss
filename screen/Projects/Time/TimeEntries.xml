@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-This software is in the public domain under CC0 1.0 Universal plus a 
+This software is in the public domain under CC0 1.0 Universal plus a
 Grant of Patent License.
 
 To the extent possible under law, the author(s) have dedicated all
@@ -12,114 +12,393 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Time entries (design-projects.md §8 TimeEntries; impl-projects.md P6 rewrites it): for now the user's own time entries, the
-    first port's Projects/Timesheets (My Account's time entry list). -->
-<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-        xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+<!-- TimeEntries (design-projects.md §8 TimeEntries; style-guide §3.2 List; impl-projects.md P6b): every time entry the user may see
+    (mantle.work.TimeServices.find#TimeEntries: their own, and the time of the projects they manage and of the people they
+    manage; all for ADMIN) through service/ironstone/TimeServices.xml find#TimeEntryRows. The chips: This week (the default),
+    Last week, This month, Unbilled (billable and on no client invoice), Not on a work item, All; the find in the list's dialog
+    (person, work item, work type, billable, client and worker invoiced, the week's status, text in the comment, the date
+    period). Each row: the day, from and to, the person, the work item and project, hours, break, work type, billable, the client
+    and worker rates and amounts (for those who manage money: the Projects managers and ADMIN), the invoices, the week's status
+    chip (Open, Returned, Submitted, Approved, Invoiced, Running) and the comment; Edit opens EditEntry (TimeEntries/EditEntry.xml,
+    a dialog: the entry in full while its week is open, its rates for those who manage money). Log time opens the same dialog for
+    a new entry (a manager may log for the people they approve), Import the time import wizard (Time/Import). The bulk changes on
+    the selected rows (TimeEntryBulk: move to a work item, work type, billable or not, update rates, delete), each entry on its
+    own within the lock: an invoiced entry is never changed, an entry of a submitted or approved week only in its money (billable
+    and rates, by those who manage money).
+
+    ProjectDetail mounts this screen as its Time tab (design-projects.md §4 ProjectTime; tab 10): its always-actions put the project
+    in projectTabId, so the project is fixed (its column and find field are left out, the list opens on All), and the Totals box
+    sits above the list: the hours against the project's estimate, billable against not billable, and the hours by person, by work
+    item (against each item's estimate) and by work type over the find, with the amounts and Update rates
+    (mantle.work.TimeServices.resetAndGet#ProjectTimeEntryRates) for a manager of the project who manages money. A transition's
+    project falls back to workEffortId when projectTabId is not set (impl-projects.md F43). Log team time (design §8 TeamTime) is
+    impl-projects.md §7. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Time entries" default-menu-index="3">
 
-    <transition name="taskDetail"><default-response url="//Commons/Tasks/TaskDetail"/></transition>
+    <parameter name="list"/>
+    <parameter name="partyId"/>
+    <parameter name="itemId"/>
+    <parameter name="workTypeEnumId"/>
+    <parameter name="billable"/>
+    <parameter name="clientInvoiced"/>
+    <parameter name="workerInvoiced"/>
+    <parameter name="sheetStatus"/>
+    <parameter name="text"/>
+    <parameter name="orderByField"/>
+    <parameter name="pageIndex"/>
+    <parameter name="entryDate_period"/>
+    <parameter name="entryDate_poffset"/>
+    <parameter name="entryDate_pdate"/>
+    <parameter name="entryDate_from"/>
+    <parameter name="entryDate_thru"/>
 
-    <!-- TODO: add new service for this screen that is more limited, ie can't specify rates/etc -->
-    <transition name="recordTimeEntry">
+    <!-- the bulk changes: selectedIds (a comma list), the change and its value; keep is the list's state -->
+    <transition name="bulkAction">
         <actions>
-            <entity-find-one entity-name="mantle.work.time.TimeEntry" value-field="timeEntry"/>
-            <if condition="timeEntry != null &amp;&amp; timeEntry.partyId != ec.user.userAccount?.partyId">
-                <return error="true" message="You may only update your own time entries, Time Entry ${timeEntryId} owned by different party"/></if>
-            <service-call name="mantle.work.TimeServices.store#TimeEntry" in-map="context"/>
+            <service-call name="ironstone.TimeServices.bulk#TimeEntries" out-map="bulkOut" in-map="{action:bulk, selectedIds:(selectedIds || ''), value:(value ?? null)}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(bulkOut.message, bulkOut.failedCount ? 'warning' : 'success')</script></if>
+            <script><![CDATA[
+                let kept = {}
+                try { kept = JSON.parse(keep || '{}') || {} } catch (err) { kept = {} }
+                ec.context.putAll(kept)
+            ]]></script>
         </actions>
-        <default-response url="."/>
+        <default-response url=".">
+            <parameter name="workEffortId"/><parameter name="list"/><parameter name="partyId"/><parameter name="itemId"/><parameter name="workTypeEnumId"/>
+            <parameter name="billable"/><parameter name="clientInvoiced"/><parameter name="workerInvoiced"/><parameter name="sheetStatus"/><parameter name="text"/>
+            <parameter name="orderByField"/><parameter name="pageIndex"/><parameter name="entryDate_period"/><parameter name="entryDate_poffset"/>
+            <parameter name="entryDate_pdate"/><parameter name="entryDate_from"/><parameter name="entryDate_thru"/>
+        </default-response>
+        <error-response url="."/>
     </transition>
-    <transition name="clockInTimeEntry"><service-call name="mantle.work.TimeServices.create#TimeEntryClockIn"/>
-        <default-response url="."/></transition>
-
-    <transition-include name="getFacilityList" location="component://SimpleScreens/template/facility/FacilityTransitions.xml"/>
-    <transition-include name="getTaskList" location="component://SimpleScreens/template/work/WorkTransitions.xml"/>
-
-    <subscreens>
-        <subscreens-item name="EditTimeEntry" location="component://SimpleScreens/screen/SimpleScreens/Party/PartyTimeEntries/EditTimeEntry.xml"/>
-    </subscreens>
+    <!-- ProjectTime's Update rates, for a manager of the project who manages money -->
+    <transition name="updateRates">
+        <actions>
+            <service-call name="ironstone.TimeServices.update#ProjectRates" out-map="ratesOut"
+                    in-map="{workEffortId:(ec.context.get('projectTabId') || workEffortId || '')}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(ratesOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <!-- the work items the user logs time on (EditEntry, the move and the find) -->
+    <transition name="itemOptions" read-only="true">
+        <actions>
+            <service-call name="ironstone.TimeServices.search#TimeItems" in-map="{term:term}" out-map="found"/>
+            <script>ec.web.sendJsonResponse(found.optionList || [])</script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="import"><default-response url="//Projects/Time/Import"/></transition>
 
     <actions>
-        <!-- the user's own, as in My Account, whose root screen set partyId -->
-        <set field="partyId" from="ec.user.userAccount.partyId"/>
-        <entity-find entity-name="mantle.work.time.TimeEntry" list="timeEntryList">
-            <search-form-inputs default-order-by="-fromDate"/>
-            <econdition field-name="partyId"/>
-        </entity-find>
-
-        <service-call name="mantle.humanres.PositionServices.get#PartyEmployersAndPositionClasses"
-                in-map="{partyId:partyId}" out-map="context"/>
+        <script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            // in the Time tab of ProjectDetail its always-actions put the project it shows in projectTabId: the project is fixed
+            projectFixed = !!ec.context.get('projectTabId')
+            fixedProjectId = projectFixed ? ec.context.get('projectTabId') : null
+            const lists = [['thisWeek', 'This week', 'sym_o_date_range'], ['lastWeek', 'Last week', 'sym_o_history'], ['thisMonth', 'This month', 'sym_o_calendar_month'],
+                ['unbilled', 'Unbilled', 'sym_o_request_quote'], ['noItem', 'Not on a work item', 'sym_o_link_off'], ['all', 'All', 'sym_o_select_all']]
+            if (!lists.some((entry) => entry[0] === list)) list = projectFixed ? 'all' : 'thisWeek'
+            const ctx = (name) => { const value = ec.context.get(name); return value == null || value === '' ? null : String(value) }
+            let dateFrom = null, dateThru = null
+            if (ctx('entryDate_period')) {
+                const range = ec.user.getPeriodRange(ctx('entryDate_period'), ctx('entryDate_poffset') || '0', ctx('entryDate_pdate'))
+                if (range) { dateFrom = range[0]; dateThru = range[1] }
+            } else {
+                if (ctx('entryDate_from')) dateFrom = ec.l10n.parseTimestamp(ctx('entryDate_from').substring(0, 10) + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS')
+                if (ctx('entryDate_thru')) dateThru = new Date(Number(String(ec.l10n.parseTimestamp(ctx('entryDate_thru').substring(0, 10) + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS'))) + 86400000)
+            }
+            const findParameters = {list: list, partyId: partyId || null, itemId: itemId || null, workTypeEnumId: workTypeEnumId || null, billable: billable || null,
+                clientInvoiced: clientInvoiced || null, workerInvoiced: workerInvoiced || null, sheetStatus: sheetStatus || null, text: text || null,
+                dateFrom: dateFrom, dateThru: dateThru}
+            const out = ec.service.sync().name('ironstone.TimeServices.find#TimeEntryRows').parameters(Object.assign({}, findParameters, {rootWorkEffortId: fixedProjectId,
+                orderByField: orderByField || null, pageIndex: Number(pageIndex || 0) || 0, pageSize: 50, pageNoLimit: ec.web?.parameters?.pageNoLimit === 'true'})).call() || {}
+            ec.message.clearErrors()
+            list = out.list || list
+            entryRows = Array.from(out.rowList || [])
+            entryRowsCount = out.rowCount || 0
+            entryRowsPageIndex = out.pageIndex || 0
+            entryRowsPageSize = out.pageSize || 50
+            entryRowsPageMaxIndex = out.pageMaxIndex || 0
+            entryRowsPageRangeLow = out.pageRangeLow || 0
+            entryRowsPageRangeHigh = out.pageRangeHigh || 0
+            ratesShown = !!out.ratesShown
+            const find = {partyId: partyId || null, itemId: itemId || null, workTypeEnumId: workTypeEnumId || null, billable: billable || null,
+                clientInvoiced: clientInvoiced || null, workerInvoiced: workerInvoiced || null, sheetStatus: sheetStatus || null, text: text || null,
+                orderByField: orderByField || null, entryDate_period: ctx('entryDate_period'), entryDate_poffset: ctx('entryDate_poffset'),
+                entryDate_pdate: ctx('entryDate_pdate'), entryDate_from: ctx('entryDate_from'), entryDate_thru: ctx('entryDate_thru')}
+            Object.keys(find).forEach((key) => { if (find[key] == null) delete find[key] })
+            filtered = Object.keys(find).some((key) => key !== 'orderByField')
+            const keepMap = Object.assign({list: list}, find, entryRowsPageIndex ? {pageIndex: String(entryRowsPageIndex)} : {}, projectFixed ? {workEffortId: fixedProjectId} : {})
+            keepJson = JSON.stringify(keepMap)
+            listChips = lists.map(([key, label, icon]) => ({key: key, label: L(label), icon: icon, on: key === list,
+                params: Object.assign({}, find, {list: key}, projectFixed ? {workEffortId: fixedProjectId} : {})}))
+            listLabel = L(lists.find((entry) => entry[0] === list)[1])
+            clearParams = Object.assign({list: list}, projectFixed ? {workEffortId: fixedProjectId} : {})
+            personOptions = ec.service.sync().name('ironstone.TimeServices.get#TimePeople').parameters({partyId: partyId || null}).call()?.personOptions || []
+            workTypeOptions = Array.from(ec.service.sync().name('mantle.work.TimesheetServices.get#WorkTypes').call()?.typeList || [])
+                    .map((type) => ({key: type.enumId, text: type.label}))
+            offeredTypeOptions = Array.from(ec.service.sync().name('mantle.work.TimesheetServices.get#WorkTypes').call()?.offeredList || [])
+                    .map((type) => ({key: type.enumId, text: type.label}))
+            canDelete = entryRows.some((row) => row.canEdit)
+            isMoneyManager = ec.user.isInGroup('BOSS_PROJECT_MANAGER') || ec.user.isInGroup('ADMIN')
+            newEntryParams = projectFixed ? {workEffortId: fixedProjectId, itemId: fixedProjectId} : {}
+            const empty = {thisWeek: 'No time this week', lastWeek: 'No time last week', thisMonth: 'No time this month', unbilled: 'No unbilled time',
+                noItem: 'No time off the work items', all: 'No time entries'}
+            emptyText = filtered ? L('No time entries match') : L(empty[list])
+            // the ProjectTime box: the totals of the project over the find
+            projectTime = null
+            if (projectFixed) {
+                ec.message.pushErrors()
+                try {
+                    projectTime = ec.service.sync().name('ironstone.TimeServices.get#ProjectTime').parameters({workEffortId: fixedProjectId,
+                        findParameters: findParameters}).call()?.projectTime || null
+                } finally { ec.message.clearErrors(); ec.message.popErrors() }
+            }
+            hasProjectTime = !!projectTime
+            if (projectTime) {
+                const bar = (pct, color) => '<q-linear-progress rounded size="6px" class="q-mt-xs" color="' + color + '" :value="' + Math.min(1, Math.max(0, (pct || 0) / 100)).toFixed(3) + '"></q-linear-progress>'
+                estimateBarHtml = projectTime.estimatePct == null ? '' : bar(projectTime.estimatePct, projectTime.overEstimate ? 'warning' : 'primary')
+                billableBarHtml = bar(projectTime.billablePct, 'positive')
+                hoursCaption = projectTime.estimateText ? ec.resource.expand('of ${estimate} h estimated (${pct}%)', '', {estimate: projectTime.estimateText, pct: projectTime.estimatePct})
+                        : L('no estimate')
+                billableCaption = ec.resource.expand('${billable} h billable, ${other} h not', '', {billable: projectTime.billableText, other: projectTime.nonBillableText})
+            }
+        ]]></script>
     </actions>
+
+    <subscreens>
+        <subscreens-item name="EditEntry" location="component://ironstone-boss/screen/Projects/Time/TimeEntries/EditEntry.xml" menu-include="false"/>
+    </subscreens>
+
     <widgets>
-        <section-include name="ClockInOutSection" location="component://SimpleScreens/screen/SimpleScreens/Party/PartyTimeEntries.xml"/>
+        <context selection-form="TimeEntryList"/>
 
-        <dynamic-dialog id="AddTimeDialogDyn" button-text="Record Time" transition="EditTimeEntry"
-                parameter-map="{partyId:partyId, timeEntryId:null}"/>
+        <!-- title row: Log time and Import -->
+        <container style="row items-center q-mb-sm q-gutter-y-xs">
+            <label text="Time entries" type="h5" style="q-my-none q-mr-sm" condition="!projectFixed"/>
+            <container style="col"/>
+            <link url="import" text="Import" icon="sym_o_upload_file" link-type="anchor-button" style="q-mr-sm"/>
+            <link url="../MyTime" text="My time" icon="sym_o_schedule" link-type="anchor-button" style="q-mr-sm" condition="!projectFixed"/>
+            <dynamic-dialog id="LogTimeDialog" button-text="Log time" icon="sym_o_more_time" transition="EditEntry" width="640" title="Log time"
+                    parameter-map="newEntryParams"/>
+        </container>
 
-        <form-list name="TimeEntryList" list="timeEntryList" transition="recordTimeEntry" header-dialog="true" saved-finds="true">
-            <field name="timeEntryId"><default-field><hidden/></default-field></field>
+        <!-- ProjectTime's totals (the project's time over the find) -->
+        <section name="ProjectTimeBox" condition="hasProjectTime"><widgets>
+            <container-box><box-header title="Time on the project"/>
+                <box-toolbar>
+                    <link url="updateRates" link-type="hidden-form-link" text="Update rates" icon="sym_o_currency_exchange" condition="projectTime.canUpdateRates"
+                            confirmation="Find the rates of the project's time not invoiced again?" parameter-map="{workEffortId:fixedProjectId}"/>
+                </box-toolbar>
+                <box-body>
+                <container style="row q-col-gutter-md m-project-time">
+                    <container style="col-12 col-sm-6 col-md-3">
+                        <label text="Hours" type="div" style="text-caption m-muted"/>
+                        <label text="${projectTime.hoursText} h" type="div" style="text-h6"/>
+                        <label text="${hoursCaption}" type="div" style="text-caption ${projectTime.overEstimate ? 'text-warning' : 'm-muted'}"/>
+                        <render-mode><text type="qvt"><![CDATA[${estimateBarHtml}]]></text><text type="tui" template="false">[]</text></render-mode>
+                    </container>
+                    <container style="col-12 col-sm-6 col-md-3">
+                        <label text="Billable" type="div" style="text-caption m-muted"/>
+                        <label text="${projectTime.billablePct}%" type="div" style="text-h6"/>
+                        <label text="${billableCaption}" type="div" style="text-caption m-muted"/>
+                        <render-mode><text type="qvt"><![CDATA[${billableBarHtml}]]></text><text type="tui" template="false">[]</text></render-mode>
+                    </container>
+                    <section name="ProjectTimeAmounts" condition="projectTime.ratesShown"><widgets>
+                        <container style="col-12 col-sm-6 col-md-3">
+                            <label text="Client amount" type="div" style="text-caption m-muted"/>
+                            <label text="${projectTime.clientAmountText || '—'}" type="div" style="text-h6"/>
+                            <label text="Worker cost ${projectTime.vendorAmountText || '—'}" type="div" style="text-caption m-muted"/>
+                        </container>
+                    </widgets></section>
+                    <container style="col-12 col-sm-6 col-md-3">
+                        <label text="Entries" type="div" style="text-caption m-muted"/>
+                        <label text="${projectTime.entryCount}" type="div" style="text-h6"/>
+                        <label text="${listLabel}${filtered ? ' · ' + ec.l10n.localize('as found') : ''}" type="div" style="text-caption m-muted"/>
+                    </container>
+                </container>
+                <container style="row q-col-gutter-md q-mt-xs">
+                    <container style="col-12 col-md-4">
+                        <label text="By person" type="div" style="text-subtitle2 q-mb-xs"/>
+                        <section-iterate name="ByPerson" list="projectTime.byPerson" entry="person"><widgets>
+                            <container style="row items-center no-wrap q-py-xs m-time-total">
+                                <render-mode><text type="qvt"><![CDATA[<m-avatar name="${WebUtilities.encodeHtml(person.name ?? '')}" size="22px" class="q-mr-sm"></m-avatar>]]></text>
+                                    <text type="tui" template="false">[]</text></render-mode>
+                                <label text="${person.name}" type="span" style="col ellipsis"/>
+                                <label text="${person.hoursText} h" type="span" style="text-weight-medium q-ml-sm"/>
+                                <label text="${person.billableText} billable" type="span" style="text-caption m-muted q-ml-sm"/>
+                            </container>
+                        </widgets></section-iterate>
+                        <label text="No time yet" type="div" style="m-muted" condition="!projectTime.byPerson.length"/>
+                    </container>
+                    <container style="col-12 col-md-5">
+                        <label text="By work item, against its estimate" type="div" style="text-subtitle2 q-mb-xs"/>
+                        <section-iterate name="ByItem" list="projectTime.byItem" entry="item"><widgets>
+                            <container style="row items-center no-wrap q-py-xs m-time-total">
+                                <section name="ByItemLink" condition="item.url"><widgets>
+                                    <link url="${item.url}" url-type="plain" link-type="anchor" text="${item.label}" style="col ellipsis"/>
+                                </widgets><fail-widgets>
+                                    <label text="${item.label}" type="span" style="col ellipsis"/>
+                                </fail-widgets></section>
+                                <label text="${item.hoursText} h" type="span" style="text-weight-medium q-ml-sm ${item.over ? 'text-warning' : ''}"/>
+                                <label text="of ${item.estimateText} h" type="span" style="text-caption m-muted q-ml-xs" condition="item.estimateText"/>
+                            </container>
+                        </widgets></section-iterate>
+                        <label text="The 15 with the most time are shown" type="div" style="text-caption m-muted" condition="projectTime.itemsCut"/>
+                    </container>
+                    <container style="col-12 col-md-3">
+                        <label text="By work type" type="div" style="text-subtitle2 q-mb-xs"/>
+                        <section-iterate name="ByWorkType" list="projectTime.byWorkType" entry="type"><widgets>
+                            <container style="row items-center no-wrap q-py-xs m-time-total">
+                                <label text="${type.label}" type="span" style="col ellipsis"/>
+                                <label text="${type.hoursText} h" type="span" style="text-weight-medium q-ml-sm"/>
+                                <label text="${type.pct}%" type="span" style="text-caption m-muted q-ml-xs"/>
+                            </container>
+                        </widgets></section-iterate>
+                    </container>
+                </container>
+            </box-body></container-box>
+        </widgets></section>
 
-            <field name="editButton"><default-field title="">
-                <dynamic-dialog id="EditTimeEntryDialog" button-text=" " icon="fa fa-pencil" transition="EditTimeEntry"
-                        parameter-map="{partyId:partyId, timeEntryId:timeEntryId}"/>
-            </default-field></field>
+        <!-- the lists -->
+        <container style="row q-gutter-xs q-mb-sm m-time-chips">
+            <section-iterate name="ListChip" list="listChips" entry="chip"><widgets>
+                <section name="ListChipOn" condition="chip.on"><widgets>
+                    <link url="." link-type="anchor-button" btn-type="primary" text="${chip.label}" icon="${chip.icon}" parameter-map="chip.params"/>
+                </widgets><fail-widgets>
+                    <link url="." link-type="anchor-button" text="${chip.label}" icon="${chip.icon}" parameter-map="chip.params"/>
+                </fail-widgets></section>
+            </widgets></section-iterate>
+        </container>
+        <section name="ClearFilters" condition="filtered"><widgets>
+            <container style="q-mb-xs"><link url="." link-type="anchor" text="Clear filters" parameter-map="clearParams"/></container>
+        </widgets></section>
 
-            <field name="fromDate"><header-field show-order-by="true"><date-period allow-empty="true"/></header-field>
-                <default-field><display also-hidden="false"/></default-field></field>
-            <field name="thruDate"><header-field show-order-by="true"><date-period allow-empty="true"/></header-field>
-                <default-field><display also-hidden="false"/></default-field></field>
+        <container-box><box-header title="${listLabel} · ${entryRowsCount} ${entryRowsCount == 1 ? 'entry' : 'entries'}"/><box-body-nopad>
+            <form-list name="TimeEntryList" list="entryRows" skip-form="true" paginate="true" show-page-size="false" header-dialog="true" saved-finds="true"
+                    select-columns="true" show-csv-button="true" show-xlsx-button="true">
+                <row-selection id-field="timeEntryId" parameter="selectedIds" list-mode="true">
+                    <action><dialog button-text="Move" button-icon="sym_o_drive_file_move" title="Move the selected entries to a work item"/>
+                        <form-single name="BulkMove" transition="bulkAction">
+                            <field name="bulk" from="'move'"><default-field><hidden/></default-field></field>
+                            <field name="keep" from="keepJson"><default-field><hidden/></default-field></field>
+                            <field name="value"><default-field title="Work item (a key or title)">
+                                <drop-down><dynamic-options transition="itemOptions" server-search="true" min-length="0"/></drop-down></default-field></field>
+                            <field name="submitButton"><default-field title="Move"><submit/></default-field></field>
+                        </form-single></action>
+                    <action><dialog button-text="Work type" button-icon="sym_o_category" title="Work type of the selected entries"/>
+                        <form-single name="BulkWorkType" transition="bulkAction">
+                            <field name="bulk" from="'workType'"><default-field><hidden/></default-field></field>
+                            <field name="keep" from="keepJson"><default-field><hidden/></default-field></field>
+                            <field name="value"><default-field title="Work type (empty: none)">
+                                <drop-down allow-empty="true"><list-options list="offeredTypeOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                            <field name="submitButton"><default-field title="Set work type"><submit/></default-field></field>
+                        </form-single></action>
+                    <action><form-single name="BulkBillable" transition="bulkAction">
+                        <field name="bulk" from="'billable'"><default-field><hidden/></default-field></field>
+                        <field name="keep" from="keepJson"><default-field><hidden/></default-field></field>
+                        <field name="value" from="'Y'"><default-field><hidden/></default-field></field>
+                        <field name="submitButton"><default-field title="Billable"><submit icon="sym_o_paid"/></default-field></field>
+                    </form-single></action>
+                    <action><form-single name="BulkNotBillable" transition="bulkAction">
+                        <field name="bulk" from="'billable'"><default-field><hidden/></default-field></field>
+                        <field name="keep" from="keepJson"><default-field><hidden/></default-field></field>
+                        <field name="value" from="'N'"><default-field><hidden/></default-field></field>
+                        <field name="submitButton"><default-field title="Not billable"><submit icon="sym_o_money_off"/></default-field></field>
+                    </form-single></action>
+                    <action><form-single name="BulkRates" transition="bulkAction">
+                        <field name="bulk" from="'rates'"><default-field><hidden/></default-field></field>
+                        <field name="keep" from="keepJson"><default-field><hidden/></default-field></field>
+                        <field name="submitButton"><conditional-field condition="isMoneyManager" title="Update rates"><submit icon="sym_o_currency_exchange"
+                                confirmation="Find the rates of the selected entries again (those not invoiced)?"/></conditional-field>
+                            <default-field><hidden/></default-field></field>
+                    </form-single></action>
+                    <action><form-single name="BulkDelete" transition="bulkAction">
+                        <field name="bulk" from="'delete'"><default-field><hidden/></default-field></field>
+                        <field name="keep" from="keepJson"><default-field><hidden/></default-field></field>
+                        <field name="submitButton"><default-field title="Delete"><submit icon="sym_o_delete" confirmation="Remove the selected entries? Invoiced ones and those of submitted weeks stay."/></default-field></field>
+                    </form-single></action>
+                </row-selection>
 
-            <field name="hours"><header-field show-order-by="true"/>
-                <default-field><display format="0.00" also-hidden="false"/></default-field></field>
-            <field name="breakHours"><header-field show-order-by="true"/>
-                <default-field title="Break"><display format="0.00" also-hidden="false"/></default-field></field>
-            <field name="pieceCount"><header-field show-order-by="true"/>
-                <default-field><display also-hidden="false"/></default-field></field>
+                <!-- the find (the list's dialog): fields with a header widget only are find fields -->
+                <field name="list"><header-field><hidden/></header-field></field>
+                <field name="text"><header-field title="Text in the comment"><text-line size="20"/></header-field></field>
+                <field name="itemId"><header-field title="Work item">
+                    <drop-down allow-empty="true"><dynamic-options transition="itemOptions" server-search="true" min-length="0"/></drop-down></header-field></field>
+                <field name="clientInvoiced"><header-field title="Client invoiced">
+                    <drop-down allow-empty="true"><option key="Y" text="Invoiced"/><option key="N" text="Not invoiced"/></drop-down></header-field></field>
+                <field name="workerInvoiced"><header-field title="Worker invoiced">
+                    <drop-down allow-empty="true"><option key="Y" text="Invoiced"/><option key="N" text="Not invoiced"/></drop-down></header-field></field>
+                <field name="sheetStatus"><header-field title="Week">
+                    <drop-down allow-empty="true"><option key="open" text="Open"/><option key="returned" text="Returned"/><option key="submitted" text="Submitted"/>
+                        <option key="approved" text="Approved"/><option key="locked" text="Submitted or approved"/></drop-down></header-field></field>
+                <field name="entryDate"><header-field title="Date"><date-period allow-empty="true"/></header-field></field>
 
-            <field name="clientPartyId">
-                <header-field title="Employer"><drop-down allow-empty="true">
-                    <list-options list="employerPartyList" key="${partyId}" text="PartyNameTemplate"/></drop-down></header-field>
-                <default-field><display-entity entity-name="mantle.party.PartyDetail" text="PartyNameTemplate"/></default-field>
-            </field>
-            <field name="workEffortId">
-                <header-field title="Task" show-order-by="true">
-                    <drop-down allow-empty="true"><dynamic-options transition="getTaskList" min-length="0" server-search="true"
-                            parameter-map="{assignedPartyId:partyId}"/></drop-down>
-                </header-field>
-                <default-field><link url="taskDetail" entity-name="mantle.work.effort.WorkEffort" text="WorkEffortNameTemplate" link-type="anchor"/></default-field>
-            </field>
-            <field name="workTypeEnumId">
-                <header-field title="Work Type"><drop-down allow-empty="true">
-                    <list-options list="workTypeEnumerationList" key="${enumId}" text="${description}"/></drop-down></header-field>
-                <default-field><display-entity entity-name="moqui.basic.Enumeration" also-hidden="false"/></default-field>
-            </field>
-            <field name="emplPositionClassId">
-                <header-field title="Position Class" show-order-by="true"><drop-down allow-empty="true">
-                    <list-options list="emplPositionClassList" key="${emplPositionClassId}" text="${title}"/></drop-down></header-field>
-                <default-field><display-entity entity-name="mantle.humanres.position.EmplPositionClass" text="${title}"/></default-field>
-            </field>
-            <field name="rateTypeEnumId">
-                <header-field title="Rate Type" show-order-by="true">
-                    <widget-template-include location="component://webroot/template/screen/BasicWidgetTemplates.xml#enumGroupDropDown">
-                        <set field="enumGroupEnumId" value="EngRateCommonEntry"/><set field="allowEmpty" value="true"/></widget-template-include>
-                </header-field>
-                <default-field><display-entity entity-name="moqui.basic.Enumeration" key-field-name="enumId" also-hidden="false"/></default-field>
-            </field>
+                <!-- the columns -->
+                <field name="edit"><default-field title="">
+                    <dynamic-dialog id="EditEntryDialog" button-text="" icon="sym_o_edit" transition="EditEntry" width="640" title="Time entry ${timeEntryId}"
+                            parameter-map="{workEffortId:(fixedProjectId || null), timeEntryId:timeEntryId}"/>
+                </default-field></field>
+                <field name="fromDate"><header-field title="Day" show-order-by="true"/><default-field title="Day">
+                    <label text="${dateText}" type="div" style="text-no-wrap"/>
+                    <label text="${spanText}" type="div" style="text-caption m-muted text-no-wrap"/></default-field></field>
+                <field name="partyId"><header-field title="Person" show-order-by="true">
+                        <drop-down allow-empty="true"><list-options list="personOptions" key="${key}" text="${text}"/></drop-down></header-field>
+                    <default-field title="Person">
+                        <render-mode><text type="qvt"><![CDATA[<div class="row items-center no-wrap"><m-avatar name="${WebUtilities.encodeHtml(personName ?? '')}" size="22px" class="q-mr-sm"></m-avatar><span>${WebUtilities.encodeHtml(personName ?? '')}</span></div>]]></text>
+                            <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify(personName ?? "")}}]]></text></render-mode>
+                    </default-field></field>
+                <field name="workEffortId"><header-field title="Work item" show-order-by="true"/><default-field title="Work item">
+                    <section name="ItemLink" condition="itemUrl"><widgets>
+                        <link url="${itemUrl}" url-type="plain" link-type="anchor" text="${itemText}"/>
+                    </widgets><fail-widgets><label text="${itemText}" type="span" style="m-muted"/></fail-widgets></section>
+                </default-field></field>
+                <field name="projectName" hide="projectFixed"><default-field title="Project">
+                    <section name="ProjectLink" condition="projectUrl"><widgets>
+                        <link url="${projectUrl}" url-type="plain" link-type="anchor" text="${projectName}" style="text-caption"/>
+                    </widgets></section></default-field></field>
+                <field name="hours" align="right"><header-field title="Hours" show-order-by="true"/><default-field title="Hours">
+                    <label text="${hoursText}" type="span" style="text-weight-medium"/></default-field></field>
+                <field name="breakText" align="right"><default-field title="Break"><label text="${breakText ? breakText + ' break' : ''}" type="span" style="text-caption m-muted"/></default-field></field>
+                <field name="workTypeEnumId"><header-field title="Work type">
+                        <drop-down allow-empty="true"><list-options list="workTypeOptions" key="${key}" text="${text}"/></drop-down></header-field>
+                    <default-field title="Work type"><display text="${workTypeLabel}"/></default-field></field>
+                <field name="billable"><header-field title="Billable">
+                        <drop-down allow-empty="true"><option key="Y" text="Billable"/><option key="N" text="Not billable"/></drop-down></header-field>
+                    <default-field title="Billable"><label text="${billableText}" type="span" style="text-caption ${billable ? '' : 'm-muted'}"/></default-field></field>
+                <field name="clientRateText" align="right" hide="!ratesShown"><default-field title="Client rate"><display/></default-field></field>
+                <field name="clientAmountText" align="right" hide="!ratesShown"><default-field title="Client amount"><display/></default-field></field>
+                <field name="vendorRateText" align="right" hide="!ratesShown"><default-field title="Worker rate"><display/></default-field></field>
+                <field name="vendorAmountText" align="right" hide="!ratesShown"><default-field title="Worker amount"><display/></default-field></field>
+                <field name="invoiceText"><default-field title="Invoices"><label text="${invoiceText}" type="span" style="text-caption"/></default-field></field>
+                <field name="statusLabel"><default-field title="Week">
+                    <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${statusColor}" data-status="${sheetStatusId ?? ''}">${WebUtilities.encodeHtml(statusLabel ?? '')}</q-chip>]]></text>
+                        <text type="tui"><![CDATA[{"t": "text", "style": "strong", "text": ${JSON.stringify(statusLabel ?? "")}}]]></text></render-mode>
+                </default-field></field>
+                <field name="comments"><default-field title="Comment"><label text="${comments}" type="span" style="text-body2"/></default-field></field>
+                <field name="findButton"><header-field title="Find"><submit/></header-field></field>
 
-            <field name="comments"><default-field><text-area cols="50" rows="2"/></default-field></field>
-
-            <field name="findButton"><header-field title="Find"><submit/></header-field>
-                <default-field><submit text="Update"/></default-field></field>
-
-            <form-list-column><field-ref name="editButton"/></form-list-column>
-            <form-list-column><field-ref name="fromDate"/><field-ref name="thruDate"/></form-list-column>
-            <form-list-column><field-ref name="hours"/><field-ref name="breakHours"/><field-ref name="pieceCount"/></form-list-column>
-            <form-list-column><field-ref name="clientPartyId"/><field-ref name="workEffortId"/></form-list-column>
-            <form-list-column><field-ref name="workTypeEnumId"/><field-ref name="emplPositionClassId"/>
-                <field-ref name="rateTypeEnumId"/></form-list-column>
-            <form-list-column><field-ref name="comments"/></form-list-column>
-            <form-list-column><field-ref name="findButton"/></form-list-column>
-        </form-list>
+                <form-list-column><field-ref name="edit"/></form-list-column>
+                <form-list-column><field-ref name="fromDate"/></form-list-column>
+                <form-list-column><field-ref name="partyId"/></form-list-column>
+                <form-list-column><field-ref name="workEffortId"/><field-ref name="projectName"/></form-list-column>
+                <form-list-column><field-ref name="hours"/><field-ref name="breakText"/></form-list-column>
+                <form-list-column><field-ref name="workTypeEnumId"/><field-ref name="billable"/></form-list-column>
+                <form-list-column><field-ref name="clientRateText"/><field-ref name="clientAmountText"/></form-list-column>
+                <form-list-column><field-ref name="vendorRateText"/><field-ref name="vendorAmountText"/></form-list-column>
+                <form-list-column><field-ref name="statusLabel"/><field-ref name="invoiceText"/></form-list-column>
+                <form-list-column><field-ref name="comments"/></form-list-column>
+                <columns type="mobile">
+                    <column><field-ref name="fromDate"/><field-ref name="workEffortId"/></column>
+                    <column><field-ref name="hours"/><field-ref name="statusLabel"/></column>
+                </columns>
+            </form-list>
+            <section name="NoEntries" condition="!entryRows.length"><widgets>
+                <label type="p" text="${emptyText}" style="m-muted q-pa-sm q-mb-none"/>
+            </widgets></section>
+        </box-body-nopad></container-box>
     </widgets>
 </screen>

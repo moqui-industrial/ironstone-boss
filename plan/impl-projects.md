@@ -58,7 +58,7 @@ Sections: [1 scope](#1-scope-and-order) · [2 rules](#2-ground-rules) · [3 phas
 | P3b Code: Mantle and BOSS | Mantle, BOSS | every §7 screen, ProjectCode, CodeSettings | done Oct 22 |
 | P4 Planning | Mantle, BOSS (mr-moqui) | Backlog, SprintDetail, Timeline, WorkItemImport, Roadmap, MilestoneDetail, ReleaseDetail, ProjectBacklog, ProjectTimeline, ProjectCalendar, ProjectRoadmap, ProjectDocs | done Oct 22 |
 | P5 Requests | Mantle, BOSS | Requests, RequestDetail, RequestIntake, ProjectRequests, IntakeSettings | done Oct 22 |
-| P6 Time | Mantle, BOSS | MyTime, Timesheets, TimesheetDetail, TimeEntries, ProjectTime, TimeSettings | in progress (P6a built Oct 22; P6b TimeEntries, ProjectTime, import, TimeSettings, Today, Chatter) |
+| P6 Time | Mantle, BOSS | MyTime, Timesheets, TimesheetDetail, TimeEntries, ProjectTime, TimeSettings | done Oct 22 |
 | P7 Resources | Mantle, BOSS | TeamPlanner, Allocations, PersonDetail | planned |
 | P8 Billing and money | Mantle, BOSS | Unbilled, Invoices, InvoiceDetail, OrderDetail, Rates, ProjectMoney, BillingSettings | planned |
 | P9 Reports and outputs | Mantle, BOSS | Reports and its seven reports | planned |
@@ -338,6 +338,17 @@ tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
   `test/TimeWalk.spec.js` (the walk with authorization on).
 - Runs (Debug): ironstone-boss 527/527, mantle-usl 638/640 (ContactListSend), lint clean.
 
+**Built, P6b** (Oct 22, 2026):
+- Mantle udm: setting type `ProjWorkTypes`. Mantle usl: `get#`/`store#WorkTypes`; `TimeServices` `find#TimeEntries`
+  (who sees time; rates for money managers; unbilled and invoiced filters with totals), `import#TimeEntryCsv`,
+  `get#TimeEntryTimeline` (a RecordTimelineSource, kind time, no rates); `get#ProjectTodayItems`;
+  `test/WorkTimeEntries.spec.js`.
+- BOSS: Time/TimeEntries (find, edit dialog, bulk within the lock, each entry on its own), ProjectDetail's Time tab,
+  WorkItemDetail's all-time box, the time import wizard (Source, Preview, Result; generic CSV; re-import adds nothing;
+  over 200 rows as a job), Settings/Time (the policy and work types offered), the Today source (timer with Stop, reviews,
+  weeks to submit, requests to triage), time in Chatter; TIME_ENTRY_RATE for managers; `test/TimeEntries.spec.js`.
+- Runs (Debug): ironstone-boss 533/533, mantle-usl 643/645 (ContactListSend), lint clean.
+
 ### P7 — Resources
 
 - Design §9: capacity, allocations, TeamPlanner (`.qvue`), Allocations, PersonDetail; allocations in ProjectTeam and
@@ -424,6 +435,8 @@ Made during the build; each one that changes the design is also written into des
 | Oct 22, 2026 | F9: `ProjTimesheetPolicy` uses short keys (ws, ap, lk, ri, rc, mh, fu, dh, wd, rd, rh) under 255 characters; dh and wd give working hours until P7's capacity | P6a |
 | Oct 22, 2026 | Only the person submits their week; nobody approves their own; approvers are the week's project managers (default), line managers, or TIMESHEET_APPROVE holders by policy; the lock leaves rates changeable for P8 | P6a |
 | Oct 22, 2026 | One timer per person (starting another stops the first; under a minute is discarded); a running timer blocks submitting its week | P6a |
+| Oct 22, 2026 | Time is seen by the person, the managers of its projects, their line managers, ADMIN and (policy any) TIMESHEET_APPROVE holders; rates and amounts only by TIME_ENTRY_RATE holders (managers) and ADMIN; a submitted or approved week's entries change only in money, by them; nothing changes an invoiced or running entry | P6b |
+| Oct 22, 2026 | The offered work types are the organization's `ProjWorkTypes` setting, read by MyTime, QuickTime, the entry dialog and bulk | P6b |
 | Oct 22, 2026 | A recurring item counted from completion takes the completion day at the due date's time of day (UTC days) and the rule without its COUNT, which counts the items made | P2 |
 
 ## 5. Open questions
@@ -511,6 +524,13 @@ Design assumptions found wrong in the code, with the resolution (written into th
 | F69 | P6a: `find#Timesheets` checks each candidate's access one by one; Home calls it twice | A join by managed projects at scale (with F17) |
 | F70 | P6a: any project with time but no estimate, or past its estimate, reads At risk | Demo time on SUPP; revisit the rule with P9's reports |
 | F71 | P6a: Chatter labels a timesheet by id (as F35) | With F35 |
+| F72 | P6b: demo bob is joe's line manager, so bob sees joe's time read only | Specs follow it |
+| F73 | P6b: a screen-test result has errors but no info messages | Bulk counts checked by calling the service |
+| F74 | P6b: a `hide` column's title stays in the static qvt output | Specs check row data |
+| F75 | P6b: the lint's quote tracking again (F37) | Worked around |
+| F76 | P6b: the lint calls a property ending in `Items` a collection (F60) | Renamed |
+| F77 | P6b (security): after a spec renders a Commons screen (root authz ALWAYS), authorization stays disabled in that execution context | Investigated after P6b (see the next rows) |
+| F78 | P6b: `find#TimeEntries` and the timesheet status filter use IN lists up to 20000 ids (F17, F69) | A subquery or view at scale |
 | F7 | P0: a wiki space under an existing repository is documented for a repository root (`rootPageDirectory: "git://docs"`, or `rootPageLocation` `git://<repositoryId>/<SPACE>.md`), not for a subdirectory such as `git://<repositoryId>/docs` | Checked in P4 as the design's §15 row says, before ProjectDocs is built |
 
 ## 7. Later
@@ -562,6 +582,10 @@ Designed, not in this build:
 - Time (P6a): Start timer on the last item from Home; MyTime's global pins; leave and capacity in working hours (P7); a
   TimesheetDetail print view; clock-in for another and InvoiceMyTime; time in the terminal (P11); reminders in each
   person's time zone.
+
+- Time (P6b): TeamTime; import presets for Toggl, Harvest and Clockify (§16); item search in the entry dialog; chip
+  counts on TimeEntries; clock-in for another; time edits in the terminal (P11); ProjectTime's client states (P10);
+  imported rows stacked after a day's existing entries.
 
 ## 8. Verification
 

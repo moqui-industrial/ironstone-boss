@@ -178,6 +178,9 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the Projects managers approve anyone's week when the organization's timesheet policy says any (mantle.work.TimesheetServices;
         under the default policy a week's approvers are the managers of the projects its time is on) -->
     <moqui.security.UserGroupPermission userGroupId="BOSS_PROJECT_MANAGER" userPermissionId="TIMESHEET_APPROVE" fromDate="0"/>
+    <!-- the Projects managers manage money (design-projects.md §1.1): they see and set time entry rates and amounts
+        (mantle.work.TimeServices.find#TimeEntries withRates; TimeEntries, ProjectTime; impl-projects.md P6b) -->
+    <moqui.security.UserGroupPermission userGroupId="BOSS_PROJECT_MANAGER" userPermissionId="TIME_ENTRY_RATE" fromDate="0"/>
     <artifactGroups artifactGroupId="BOSS_INSIGHTS" description="IronStone Insights App (via root screen)">
         <artifacts artifactName="component://ironstone-boss/screen/Insights.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
         <authz artifactAuthzId="BOSS_INSIGHTS_ADMIN" userGroupId="ADMIN" authzTypeEnumId="AUTHZT_ALWAYS" authzActionEnumId="AUTHZA_ALL">

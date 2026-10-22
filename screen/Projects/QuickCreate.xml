@@ -104,9 +104,9 @@ along with this software (see the LICENSE.md file). If not, see
             }
             if (!defaultTimeItem && timeItemOptions.length) defaultTimeItem = timeItemOptions[0].value
             todayText = ec.l10n.format(ec.user.nowTimestamp, 'yyyy-MM-dd')
-            const offeredTypes = ['WktpDevelopment', 'WktpDesign', 'WktpTesting', 'WktpMeeting', 'WktpSupport', 'WktpProjectMgmt', 'WktpConsulting', 'WktpTravel']
-            workTypeOptions = Array.from(ec.entity.find('moqui.basic.Enumeration').condition('enumId', 'in', offeredTypes).useCache(true).list())
-                    .map((row) => ({key: row.enumId, text: row.description || row.enumId})).sort((a, b) => offeredTypes.indexOf(a.key) - offeredTypes.indexOf(b.key))
+            // the work types the user's organization offers (Settings, Time: mantle.work.TimesheetServices.get#WorkTypes)
+            workTypeOptions = Array.from(ec.service.sync().name('mantle.work.TimesheetServices.get#WorkTypes').call()?.offeredList || [])
+                    .map((type) => ({key: type.enumId, text: type.label}))
         ]]></script>
     </actions>
 

@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- Time import step 1 (design-projects.md §8 ImportTime): the CSV file, its character set and the person of the rows that name none
+    (the user, or a person whose weeks the user approves). The template link gives the Time entries CSV's header line and a row.
+    saveSource keeps it in the import's draft (ironstone.TimeImportServices.save#ImportSource, which checks the file has a date and
+    hours or start and end) and answers the importId the next steps carry. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Source" default-menu-index="1" server-static="qvt">
+
+    <parameter name="importId"/>
+    <parameter name="fresh"><description>Y: a new import, leaving the one in the URL</description></parameter>
+
+    <transition name="saveSource">
+        <service-call name="ironstone.TimeImportServices.save#ImportSource" in-map="{importId:importId, timeEntryFile:timeEntryFile, characterSet:characterSet,
+                partyId:partyId}" out-map="sourceOut"/>
+        <actions><set field="importId" from="sourceOut?.importId || importId"/></actions>
+        <default-response url="."><parameter name="importId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <!-- the Time entries CSV's columns, as a file to fill in -->
+    <transition name="template" read-only="true">
+        <actions><script><![CDATA[
+            const today = ec.l10n.format(ec.user.nowTimestamp, 'yyyy-MM-dd')
+            const text = 'date,person,work item,hours,start,end,work type,billable,comment\r\n'
+                    + today + ',' + (ec.user.username || '') + ',PROJ-1,1.5,,,Development,yes,What was done\r\n'
+                    + today + ',' + (ec.user.username || '') + ',PROJ,,13:00,14:30,Meeting,no,Planning\r\n'
+            ec.web.sendTextResponse(text, 'text/csv', 'time-entries-template.csv')
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+
+    <actions>
+        <if condition="fresh == 'Y'"><set field="importId" from="null"/></if>
+        <service-call name="ironstone.TimeImportServices.get#ImportDraft" in-map="{importId:importId}" out-map="draftOut"/>
+        <service-call name="ironstone.TimeServices.get#TimePeople" out-map="peopleOut"/>
+        <script><![CDATA[
+            draft = draftOut.draft || {}
+            hasFile = !!draftOut.found
+            personOptions = Array.from(peopleOut.personOptions || [])
+            showPerson = personOptions.length > 1
+            source = {importId: hasFile ? importId : null, characterSet: draft.characterSet || 'UTF-8', partyId: draft.partyId || ec.user.userAccount?.partyId || ''}
+        ]]></script>
+    </actions>
+    <widgets>
+        <container-box><box-header title="The file"/><box-body>
+            <label type="p" text="A CSV file with a header line and a row per entry: date (yyyy-MM-dd), person (email or user name), work item or project key, hours (or start and end times), work type, billable (yes or no) and comment. Detailed exports of Toggl, Harvest and Clockify read with at most a column renamed. Nothing is imported until the last step." style="m-muted"/>
+            <link url="template" text="Download the template" icon="sym_o_download" link-type="anchor" style="q-mb-sm"/>
+            <section name="CurrentFile" condition="hasFile"><widgets>
+                <label type="p" text="Now: ${draft.fileName} (${draft.rowCount} ${draft.rowCount == 1 ? 'row' : 'rows'}). Choose another file to replace it, or go on."/>
+            </widgets></section>
+            <form-single name="TimeImportSource" transition="saveSource" map="source">
+                <field name="importId"><default-field><hidden/></default-field></field>
+                <field name="timeEntryFile"><default-field title="File"><file/></default-field></field>
+                <field name="characterSet"><default-field title="Character set">
+                    <drop-down><option key="UTF-8" text="UTF-8 (most files)"/><option key="WINDOWS-1252" text="Windows (Western)"/>
+                        <option key="ISO-8859-1" text="ISO-8859-1 (Latin 1)"/><option key="UTF-16" text="UTF-16"/></drop-down></default-field></field>
+                <field name="partyId"><conditional-field condition="showPerson" title="The person of rows with no person">
+                        <drop-down><list-options list="personOptions" key="${key}" text="${text}"/></drop-down></conditional-field>
+                    <default-field><hidden/></default-field></field>
+            </form-single>
+        </box-body></container-box>
+    </widgets>
+</screen>
