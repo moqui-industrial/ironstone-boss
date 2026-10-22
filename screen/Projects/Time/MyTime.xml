@@ -12,10 +12,108 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for my week of time (design-projects.md §8 MyTime; impl-projects.md P6). -->
+<!-- MyTime (design-projects.md §8 MyTime; style-guide §4.8 .qvue): one person's week, the component MyTime.qvue next to this file. The
+    user's own week, or (partyId) a person whose week the user approves; weekDate any day of the week, default this week. Every read
+    and change is a JSON transition below over service/ironstone/TimeServices.xml and mantle.work.TimesheetServices: the week (rows by
+    work item and day, totals against the working hours, the timesheet's status, the running timer), a cell's hours, one entry in
+    full, a row added or removed, last week's rows copied, the timer started, stopped or commented, and the week submitted, approved,
+    returned or reopened. The terminal: MyTimeTui beside this file, a read-only agenda of the week (impl-projects.md P11 adds the
+    terminal's changes). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="My time" default-menu-index="1">
+        default-menu-title="My time" default-menu-index="1" render-modes="vue,qvue,qvt,html,tui" server-static="vue,qvue">
+
+    <parameter name="partyId"/>
+    <parameter name="weekDate"/>
+
+    <!-- the week -->
+    <transition name="week" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.TimeServices.get#MyWeek').parameters({partyId: partyId || null, weekDate: weekDate || null}).call() || {}
+            if (ec.message.hasError() || !out.myWeek) { ec.message.clearErrors(); ec.web.sendJsonResponse({notAvailable: true}); return }
+            ec.web.sendJsonResponse({week: out.myWeek})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- a cell of the grid: the hours of an item on a day -->
+    <transition name="saveCell">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.TimeServices.save#WeekCell').parameters({partyId: partyId || null, workEffortId: workEffortId || null,
+                day: day || '', hours: hours ?? '', billable: billable || null, workTypeEnumId: workTypeEnumId ?? null, comments: comments ?? null}).call() || {}
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {timeEntryId: out.timeEntryId || null, hours: out.hours})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- one entry in full (EntryForm) -->
+    <transition name="saveEntry">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.TimeServices.save#TimeEntry').parameters({timeEntryId: timeEntryId || null, partyId: partyId || null,
+                workEffortId: workEffortId || null, day: day || null, fromTime: fromTime || null, thruTime: thruTime || null, hours: hours || null,
+                breakHours: breakHours || null, billable: billable || 'Y', workTypeEnumId: workTypeEnumId || null, comments: comments || null}).call() || {}
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {timeEntryId: out.timeEntryId, messageInfos: [{type: 'success', message: out.message}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="deleteEntry">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.TimeServices.delete#WeekEntry').parameters({timeEntryId: timeEntryId || ''}).call() || {}
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {deleted: true, messageInfos: [{type: 'success', message: out.message}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- Add row, a row's Remove, Copy last week's rows -->
+    <transition name="rows">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.TimeServices.change#WeekRows').parameters({change: change || '', weekDate: weekDate || null,
+                workEffortId: workEffortId || null}).call() || {}
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {addedCount: out.addedCount, messageInfos: [{type: 'success', message: out.message}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- the work items to log on: mine and recent, or by key or name -->
+    <transition name="itemOptions" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.TimeServices.search#TimeItems').parameters({term: term || null}).call() || {}
+            ec.web.sendJsonResponse(Array.from(out.optionList || []))
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- the timer -->
+    <transition name="startTimer">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.TimeServices.start#Timer').parameters({workEffortId: workEffortId || '', comments: comments || null}).call() || {}
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {timeEntryId: out.timeEntryId, messageInfos: [{type: 'success', message: out.message}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="stopTimer">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('mantle.work.TimesheetServices.stop#Timer').parameters({timeEntryId: timeEntryId || null}).call() || {}
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {stopped: true, messageInfos: [{type: 'success', message: out.message}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="updateTimer">
+        <actions><script><![CDATA[
+            ec.service.sync().name('mantle.work.TimesheetServices.update#Timer').parameters({timeEntryId: timeEntryId || null, comments: comments ?? ''}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {updated: true})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- submit, approve, return, reopen -->
+    <transition name="decide">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.TimeServices.decide#Week').parameters({action: action || '', timesheetId: timesheetId || null,
+                weekDate: weekDate || null, reason: reason || null}).call() || {}
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {timesheetId: out.timesheetId, messageInfos: [{type: 'success', message: out.message}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+
     <widgets>
-        <label text="Placeholder: My time: a grid of work items by day, the timer and submit." type="p"/>
+        <render-mode><text type="qvue" location="component://ironstone-boss/screen/Projects/Time/MyTime.qvue" template="false"/>
+            <!-- the terminal: MyTimeTui, the plain screen beside this one, on the same week -->
+            <text type="tui"><![CDATA[${JSON.stringify([{t: "dynamicContainer", id: "MyTimeTui",
+                url: sri.buildUrl("//Projects/Time/MyTimeTui").addParameters({partyId: partyId || null, weekDate: weekDate || null}).getUrlWithParams()}])}]]></text>
+            <text type="html,qvt"><![CDATA[<p>${ec.l10n.localize('My time opens in the browser app (the qvue render mode).')}</p>]]></text></render-mode>
     </widgets>
 </screen>

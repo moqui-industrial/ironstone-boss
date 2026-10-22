@@ -12,10 +12,148 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for the timesheets (design-projects.md §8 Timesheets; impl-projects.md P6). -->
+<!-- Timesheets (design-projects.md §8 Timesheets; style-guide §3.2 List): the weekly timesheets the user may see
+    (service/ironstone/TimeServices.xml find#TimesheetRows over mantle.work.TimesheetServices.find#Timesheets: their own, those they
+    approve, all for ADMIN). The chips with their counts: To approve (submitted weeks the user approves; the default for one who
+    has any, and for the managers), Mine, Returned, Missing (the time keepers of the projects the user manages whose week, last week
+    by default, is not submitted), Approved and All (the last eight weeks, or the week found). The find (the list's dialog): the
+    person and a day of the week. Each row: the person, the week, the status chip, hours, billable, working hours, the difference,
+    when submitted and the approvers; it opens TimesheetDetail (a missing week opens the person's week in MyTime). The bulk
+    decisions on the selected rows (TimesheetBulk: Approve, Return with a reason; RemindMissing: Remind), each on its own. The
+    tray's Approvals group decides the same weeks through the TimesheetApproval topic (design §8 Context passed). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Timesheets" default-menu-index="2">
+
+    <parameter name="list"/>
+    <parameter name="partyId"/>
+    <parameter name="weekDate"/>
+
+    <transition name="timesheetDetail"><default-response url="../TimesheetDetail"/></transition>
+    <!-- the bulk decisions: selectedIds (a comma list of timesheets, or P:partyId of a missing week), the action and a reason -->
+    <transition name="bulkAction">
+        <actions>
+            <service-call name="ironstone.TimeServices.bulk#Timesheets" out-map="bulkOut" in-map="{action:bulk, selectedIds:(selectedIds || ''), reason:(reason || null),
+                    weekDate:(weekDate || null)}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(bulkOut.message, bulkOut.failedCount ? 'warning' : 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="list"/><parameter name="partyId"/><parameter name="weekDate"/></default-response>
+        <error-response url="."/>
+    </transition>
+
+    <actions>
+        <script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const out = ec.service.sync().name('ironstone.TimeServices.find#TimesheetRows').parameters({list: list || null, partyId: partyId || null,
+                weekDate: weekDate || null}).call() || {}
+            ec.message.clearErrors()
+            list = out.list || 'mine'
+            timesheetRows = Array.from(out.rowList || [])
+            timesheetRowsCount = timesheetRows.length
+            const counts = out.counts || {}
+            const lists = [['toApprove', 'To approve', 'sym_o_approval'], ['mine', 'Mine', 'sym_o_person'], ['returned', 'Returned', 'sym_o_undo'],
+                ['missing', 'Missing', 'sym_o_running_with_errors'], ['approved', 'Approved', 'sym_o_verified'], ['all', 'All', 'sym_o_select_all']]
+            const find = {partyId: partyId || null, weekDate: weekDate || null}
+            Object.keys(find).forEach((key) => { if (find[key] == null) delete find[key] })
+            filtered = Object.keys(find).length > 0
+            listChips = lists.map(([key, label, icon]) => ({key: key, label: L(label) + (counts[key] == null ? '' : ' · ' + counts[key]), icon: icon, on: key === list,
+                params: Object.assign({}, find, {list: key})}))
+            listLabel = L(lists.find((entry) => entry[0] === list)[1])
+            isMissing = list === 'missing'
+            canDecide = timesheetRows.some((row) => row.canApprove || row.canReturn)
+            canRemind = timesheetRows.some((row) => !row.isMe && (row.missing || row.statusId === 'TmshInProcess' || !row.statusId))
+            // the people of the find: those of the rows, and the one found
+            const people = {}
+            for (const row of timesheetRows) people[row.partyId] = row.personName
+            personOptions = Object.keys(people).map((id) => ({key: id, text: people[id]})).sort((a, b) => a.text.localeCompare(b.text))
+            const empty = {toApprove: 'No week waits for your approval', mine: 'No timesheets of yours in the last eight weeks', returned: 'No returned weeks',
+                missing: 'Every week is submitted', approved: 'No approved weeks in the last eight weeks', all: 'No timesheets'}
+            emptyText = filtered ? L('No timesheets match') : L(empty[list] || 'No timesheets')
+        ]]></script>
+    </actions>
+
     <widgets>
-        <label text="Placeholder: Timesheets: weekly timesheets to submit, approve or return; missing time." type="p"/>
+        <context selection-form="TimesheetList"/>
+
+        <container style="row items-center q-mb-sm q-gutter-y-xs">
+            <label text="Timesheets" type="h5" style="q-my-none q-mr-sm"/>
+            <container style="col"/>
+            <link url="../MyTime" text="My time" icon="sym_o_schedule" link-type="anchor-button"/>
+        </container>
+
+        <container style="row q-gutter-xs q-mb-sm m-timesheet-chips">
+            <section-iterate name="ListChip" list="listChips" entry="chip"><widgets>
+                <section name="ListChipOn" condition="chip.on"><widgets>
+                    <link url="." link-type="anchor-button" btn-type="primary" text="${chip.label}" icon="${chip.icon}" parameter-map="chip.params"/>
+                </widgets><fail-widgets>
+                    <link url="." link-type="anchor-button" text="${chip.label}" icon="${chip.icon}" parameter-map="chip.params"/>
+                </fail-widgets></section>
+            </widgets></section-iterate>
+        </container>
+        <section name="ClearFilters" condition="filtered"><widgets>
+            <container style="q-mb-xs"><link url="." link-type="anchor" text="Clear filters" parameter-map="{list:list}"/></container>
+        </widgets></section>
+
+        <container-box><box-header title="${listLabel} · ${timesheetRowsCount}"/><box-body-nopad>
+            <form-list name="TimesheetList" list="timesheetRows" skip-form="true" paginate="false" header-dialog="true" select-columns="true" show-csv-button="true">
+                <row-selection id-field="rowKey" parameter="selectedIds" list-mode="true">
+                    <action><form-single name="BulkApprove" transition="bulkAction">
+                        <field name="bulk" from="'approve'"><default-field><hidden/></default-field></field>
+                        <field name="list"><default-field><hidden/></default-field></field>
+                        <field name="partyId"><default-field><hidden/></default-field></field>
+                        <field name="weekDate"><default-field><hidden/></default-field></field>
+                        <field name="submitButton"><default-field title="Approve"><submit icon="sym_o_task_alt"/></default-field></field>
+                    </form-single></action>
+                    <action><dialog button-text="Return" button-icon="sym_o_undo" title="Return the selected weeks"/>
+                        <form-single name="BulkReturn" transition="bulkAction">
+                            <field name="bulk" from="'return'"><default-field><hidden/></default-field></field>
+                            <field name="list"><default-field><hidden/></default-field></field>
+                            <field name="partyId"><default-field><hidden/></default-field></field>
+                            <field name="weekDate"><default-field><hidden/></default-field></field>
+                            <field name="reason"><default-field title="What to change"><text-area rows="3" cols="50"/></default-field></field>
+                            <field name="submitButton"><default-field title="Return them"><submit/></default-field></field>
+                        </form-single></action>
+                    <action><form-single name="BulkRemind" transition="bulkAction">
+                        <field name="bulk" from="'remind'"><default-field><hidden/></default-field></field>
+                        <field name="list"><default-field><hidden/></default-field></field>
+                        <field name="partyId"><default-field><hidden/></default-field></field>
+                        <field name="weekDate"><default-field><hidden/></default-field></field>
+                        <field name="submitButton"><default-field title="Remind"><submit icon="sym_o_notifications" confirmation="Remind the selected people to submit their week?"/></default-field></field>
+                    </form-single></action>
+                </row-selection>
+
+                <!-- the find (the list's dialog) -->
+                <field name="list"><header-field><hidden/></header-field></field>
+                <field name="weekDate"><header-field title="A day of the week"><date-time type="date" format="yyyy-MM-dd"/></header-field></field>
+
+                <field name="partyId"><header-field title="Person">
+                        <drop-down allow-empty="true"><list-options list="personOptions" key="${key}" text="${text}"/></drop-down></header-field>
+                    <default-field title="Person">
+                        <render-mode><text type="qvt"><![CDATA[<div class="row items-center no-wrap"><m-avatar name="${WebUtilities.encodeHtml(personName ?? '')}" size="24px" class="q-mr-sm"></m-avatar><span>${WebUtilities.encodeHtml(personName ?? '')}</span></div>]]></text>
+                            <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify(personName ?? "")}}]]></text></render-mode>
+                    </default-field></field>
+                <field name="weekText"><default-field title="Week">
+                    <link url="${detailUrl || weekUrl}" url-type="plain" text="${weekText}" link-type="anchor"/></default-field></field>
+                <field name="statusLabel"><default-field title="Status">
+                    <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${statusColor}" data-status="${statusId ?? ''}">${WebUtilities.encodeHtml(statusLabel ?? '')}</q-chip>]]></text>
+                        <text type="tui"><![CDATA[{"t": "text", "style": "strong", "text": ${JSON.stringify(statusLabel ?? "")}}]]></text></render-mode>
+                </default-field></field>
+                <field name="hoursText" align="right"><default-field title="Hours"><display/></default-field></field>
+                <field name="billableText" align="right"><default-field title="Billable"><display/></default-field></field>
+                <field name="expectedText" align="right"><default-field title="Working hours"><display/></default-field></field>
+                <field name="differenceText" align="right"><default-field title="Difference">
+                    <label text="${differenceText}" type="span" style="${difference != null &amp;&amp; difference &lt; 0 ? 'text-warning' : ''}"/></default-field></field>
+                <field name="submittedText"><default-field title="Submitted"><display/></default-field></field>
+                <field name="approverNames"><default-field title="Approvers"><display/></default-field></field>
+                <field name="findButton"><header-field title="Find"><submit/></header-field></field>
+
+                <columns type="mobile">
+                    <column><field-ref name="partyId"/><field-ref name="weekText"/></column>
+                    <column><field-ref name="statusLabel"/><field-ref name="hoursText"/></column>
+                </columns>
+            </form-list>
+            <section name="NoTimesheets" condition="!timesheetRows.length"><widgets>
+                <label type="p" text="${emptyText}" style="m-muted q-pa-sm q-mb-none"/>
+            </widgets></section>
+        </box-body-nopad></container-box>
     </widgets>
 </screen>

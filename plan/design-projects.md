@@ -352,7 +352,7 @@ Profitability report), and a separate project expenses screen (ProjectMoney's Ex
   while the user's timer runs (the work item, the elapsed time, Stop), which is what a consultant sees first.
 - **Sections and tabs:**
   - Counters, team: My open work items, Due this week, Overdue, Reviews waiting on me, Hours this week (of my
-    working hours, with the timesheet's status as a chip). Managers add: Projects at risk (health At risk or Off
+    working hours, with the timesheet's status in the card's title; it opens My time). Managers add: Projects at risk (health At risk or Off
     track, or a budget or schedule warning from `mantle.work.ProjectServices.get#ProjectStats`), Milestones in 14
     days, Timesheets to approve,
     Allocation requests, Unbilled (amount). Clients get instead: Open requests, Waiting for your reply, Milestones in
@@ -395,7 +395,7 @@ Profitability report), and a separate project expenses screen (ProjectMoney's Ex
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
 | --- | --- | --- | --- | --- | --- | --- |
 | `QuickWorkItem` | dialog | A work item in a project | project (from context, else the last used), type, title, assignee (default unassigned; "me" one click), priority, due, sprint (when the project uses sprints) | `focus-field` on title; type as a `q-btn-toggle` of the project's offered types | `mantle.work.TaskServices.create#Task`; `mantle.work.TaskServices.set#TaskSprint` (new); the context link through `mantle.work.WorkEffortServices.link#WorkEffortRecord` | `FindTask` `NewTaskForm`; Commons `QuickTask`; OpenProject inline create |
-| `QuickTime` | dialog | Log time | work item (context, else my recent), date (today), hours or from and to, billable, work type, comment | hours as `0.25` steps; from and to as `date-time` time only | `mantle.work.TimeServices.store#TimeEntry` | `EditTimeEntries` `AddTaskTime`; `PartyTimeEntries/EditTimeEntry` `AddTimeForm` |
+| `QuickTime` | dialog | Log time | work item (context, else my recent), date (today), hours, billable, work type, comment (from and to are in MyTime's `EntryForm`, which More options opens) | hours rounded to the policy's smallest entry | `mantle.work.TimeServices.store#TimeEntry` (through `ironstone.TimeServices.save#TimeEntry`) | `EditTimeEntries` `AddTaskTime`; `PartyTimeEntries/EditTimeEntry` `AddTimeForm` |
 | `QuickProject` | dialog | A project in one step | name, key, client, template, manager (me) | key suggested from the name, upper case | `mantle.work.ProjectServices.create#Project`, or `clone#Project` from the template | `FindProject` `NewProject`; Odoo quick create project |
 
 - **Source:** design-drawers-commons §1.5 and §4 QuickCreate.
@@ -1509,10 +1509,15 @@ Testing, Meeting, Support and Project management), whether it is billable (rate 
 `RatpNoCharge` for time the client does not pay; the other rate types are People's), a comment, and the client
 and vendor rates `store#TimeEntry` finds from `RateAmount`. The timer is an entry with a start and no end
 (`create#TimeEntryClockIn`); one runs per person, and starting another stops the first. Each person has one
-**timesheet** a week (`Timesheet`, made on the first entry of the week): they submit it (In-Process to Completed),
-an approver approves it (to Approved) or returns it with a reason (back to In-Process, a new transition), and an
-approver can reopen an approved one until any of its entries is invoiced. Entries on a submitted or approved
-timesheet are locked. The approval is one approval for Projects and People: People shows the same timesheets with
+**timesheet** a week (`Timesheet`, made on the first entry of the week, with no status, read as In-Process, so its
+making writes no status audit row): only the person submits it (In-Process to Completed), an approver approves it
+(to Approved) or returns it with a reason (back to In-Process, a new transition; the reason is the timesheet's
+`comments` and a Chatter note on it), and an approver can reopen an approved one until any of its entries is
+invoiced. Nobody approves their own week. Entries on a submitted or approved timesheet are locked (their time,
+item, person, work type and comment; their rates may still change). The approvers are the timesheet policy's:
+the managers of the projects the week's time is on (the default), the person's line managers (`PrtManager`), or
+any holder of `TIMESHEET_APPROVE` (the Projects managers); ADMIN may decide any. A week's days are those of the
+viewer's time zone (impl-projects.md F65). The approval is one approval for Projects and People: People shows the same timesheets with
 its pay context (research-projects open question, §16).
 
 ### MyTime
@@ -1524,8 +1529,9 @@ its pay context (research-projects open question, §16).
   with time this week or pinned by me, a column per day with the hours (my working days shaded by the hours I
   should work, holidays and leave marked), row and day totals, a day below its hours in warning once past. A cell
   with one entry edits it in place; an empty cell makes an entry for that day; a cell with several opens the day's
-  entries. Add row (a search over my assigned and recent items), Copy last week's rows, a comment and billable
-  toggle per cell in a popover. On a phone, Day mode: the day's entries as a list with start and stop, the timer as
+  entries. Add row (a search over my assigned and recent items), Copy last week's rows; a cell's menu button opens its
+  entry in full (comment, billable, work type, from and to) rather than a popover. An approver viewing a submitted
+  week has Approve and Return there too. On a phone, Day mode: the day's entries as a list with start and stop, the timer as
   a large button, and Add.
 - **Forms:**
 
@@ -1906,7 +1912,7 @@ ProjectSettings. Global configuration defines and a project chooses among it, as
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
 | --- | --- | --- | --- | --- | --- | --- |
 | `WorkTypes` | list, editable rows | Work types | work type, description, sequence | | `Enumeration` of `WorkType` (`entity`) | Redmine time entry activities; OpenProject activities |
-| `TimesheetPolicy` | single | How time is kept | the week's first day, approvers (line manager, the projects' managers, any manager), lock on submit, required work item and comment, smallest entry (0.25 h), future entries allowed, the missing-time reminder's day and hour | | `PartySetting` (`entity`) | Redmine required time entry fields; Odoo timesheet reminders |
+| `TimesheetPolicy` | single | How time is kept | the week's first day, approvers (line manager, the projects' managers, any manager), lock on submit, required work item and comment, smallest entry (0.25 h), future entries allowed, the hours of a working day and the working days (the working hours until Capacity), the missing-time reminder's day and hour | | `PartySetting` `ProjTimesheetPolicy` with short keys to fit its 255 characters (`ws`, `ap`, `lk`, `ri`, `rc`, `mh`, `fu`, `dh`, `wd`, `rd`, `rh`; impl-projects.md F9), through `mantle.work.TimesheetServices.get#` and `store#TimesheetPolicy` | Redmine required time entry fields; Odoo timesheet reminders |
 
 ### BillingSettings
 
@@ -2141,7 +2147,7 @@ record is read through a service that checks the repository's rights (R21).
 
 | Need | Kind | Proposed as | Used by | Stub spec |
 | --- | --- | --- | --- | --- |
-| Timesheet services | service type + seed data | `mantle.work.TimesheetServices`: `get#PartyWeek` (the week's entries, timesheet and working hours), `get#PartyTimesheet` (find or make a person's timesheet for a week; `store#TimeEntry` sets `timesheetId`), `submit#Timesheet`, `approve#Timesheet`, `return#Timesheet`, `reopen#Timesheet`, `get#TimesheetSummary`, `send#MissingTimeReminders` (a weekly job); transitions `TmshCompleted` to `TmshInProcess` (Return) and `TmshApproved` to `TmshInProcess` (Reopen); `store#TimeEntry` and `delete#TimeEntry` refuse an entry on a submitted or approved timesheet; topics `TimesheetApproval` (with the approve and return services), `TimesheetReturned`, `TimesheetMissing` | MyTime, Timesheets, TimesheetDetail, TimeEntries | no timesheet service exists today; People uses the same |
+| Timesheet services | service type + seed data | `mantle.work.TimesheetServices` (built in impl-projects.md P6a): `get#TimesheetPolicy` and `store#TimesheetPolicy`, `get#WeekRange`, `get#WeekDays` (the policy's working hours less the organization's holidays), `get#PartyWeek` (the week's rows by item and day, totals, working hours, timesheet and access), `get#PartyTimesheet` (find or make a person's timesheet for a week; `store#TimeEntry` and `create#TimeEntryClockIn` set `timesheetId` through `TimeServices.check#TimeEntryTimesheet`), `get#TimesheetApprovers`, `get#TimesheetAccess`, `submit#Timesheet` (the person only), `approve#Timesheet`, `return#Timesheet`, `reopen#Timesheet`, `get#TimesheetSummary` (totals and flags), `find#Timesheets` (the lists and their counts), `get#TimeKeepers`, `send#MissingTimeReminders` (the hourly job `send_MissingTimeReminders` sends on each policy's day and hour, once a week each), and the timer `get#`, `start#`, `stop#` (under a minute discarded), `update#Timer`; transitions `TmshCompleted` to `TmshInProcess` (Return) and `TmshApproved` to `TmshInProcess` (Reopen); `store#TimeEntry` and `delete#TimeEntry` refuse an entry on a submitted or approved timesheet; permission `TIMESHEET_APPROVE`; topics `TimesheetApproval` (with the approve and return services), `TimesheetReturned`, `TimesheetApproved`, `TimesheetMissing`; `get#RecordLinkInfo` shows a timesheet to its person and approvers | MyTime, Timesheets, TimesheetDetail, TimeEntries | People uses the same |
 | Time import | service type | `mantle.work.TimeServices.import#TimeEntryCsv(file, preview)`: the Time entries CSV of §8 (date, person, work item or project key, hours or start and end, work type, billable, comment), people by email or user name, each row through `store#TimeEntry` on its own with the failures by row; a preview returns the first rows and their problems | TimeEntries | Toggl, Harvest and Clockify presets after the first release |
 | Work types | seed data | `Enumeration`s of `WorkType` for services work: `WktpDevelopment`, `WktpDesign`, `WktpTesting`, `WktpMeeting`, `WktpSupport`, `WktpProjectMgmt`, `WktpConsulting`, `WktpTravel` | the time forms, rates | the seeded types are labor and office |
 | Capacity | service type | `mantle.work.ResourceServices.get#PartyCapacity(partyId, fromDate, thruDate)`: weekly working hours from `WetAvailable` (else the organization's default week) less `WetTimeOff` and `WepHoliday`, by week | TeamPlanner, PersonDetail, MyTime, UtilizationReport | People's schedule record replaces the source later |
@@ -2164,7 +2170,7 @@ record is read through a service that checks the repository's rights (R21).
 
 | Need | Kind | Proposed as | Used by | Stub spec |
 | --- | --- | --- | --- | --- |
-| Notification topics | seed data | `WorkItemAssigned` (Notifications inbox), `MergeRequestReview` (review requested), `MergeRequestUpdate` (new commits, approvals, comments, merged; Updates), `CommitStatusFailed` (the head's author and the merge request's), `TimesheetApproval` (approval), `TimesheetReturned`, `TimesheetMissing` (reminder), `AllocationRequest` (approval), `AllocationDecision`, `MilestoneApproval` (approval), `ProjectStatusUpdate` (Updates), `RequestTriage` (a new request in a project I triage), `RequestUpdate` (a request moved by its work, to its followers; Updates; added in P5), `ReleasePublished` (Updates); each with title and link templates into Projects' screens | the screens above, the tray | design-drawers-commons §19 "Notification fields and approvals" |
+| Notification topics | seed data | `WorkItemAssigned` (Notifications inbox), `MergeRequestReview` (review requested), `MergeRequestUpdate` (new commits, approvals, comments, merged; Updates), `CommitStatusFailed` (the head's author and the merge request's), `TimesheetApproval` (approval), `TimesheetReturned`, `TimesheetApproved` (Updates; added in P6a), `TimesheetMissing` (reminder), `AllocationRequest` (approval), `AllocationDecision`, `MilestoneApproval` (approval), `ProjectStatusUpdate` (Updates), `RequestTriage` (a new request in a project I triage), `RequestUpdate` (a request moved by its work, to its followers; Updates; added in P5), `ReleasePublished` (Updates); each with title and link templates into Projects' screens | the screens above, the tray | design-drawers-commons §19 "Notification fields and approvals" |
 | Search documents | seed data | `MantleTask` gains sprint, release, component and labels; `MantleProject` and `MantleRequest` link to Projects' screens; the `MantleTask` and `MantleRequest` topics' links (seeded by MrSimpleScreens with `/vapps/my/…`) map to Projects for its users | WorkItems search, palette | |
 
 ## 16. Decided

@@ -1,0 +1,556 @@
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- MyTime (design-projects.md §8 MyTime), the component MyTime.xml serves in the qvue render mode. The header: the person (a
+    picker for an approver), the week with previous, next and This week, the timesheet's status chip, the week's total against the
+    working hours, and Submit (primary while the user's week is open) or, for an approver of a submitted week, Approve and Return
+    (Reopen an approved one); a banner with the return reason, who approved and when, or that it waits. The timer bar (the user's
+    own week): the running entry's item, elapsed time (ticking each second from the server's clock) and comment with Stop, or Start
+    on a chosen item (a timer on another item stops first). WeekGrid: a row per work item with time this week or added to it, a
+    column per day (working days with their hours, days off shaded, holidays marked, today in the primary color), row and day
+    totals, a past working day below its hours in warning. A cell with one entry edits its hours in place (Enter or a blur saves;
+    up and down move between rows), an empty cell makes an entry, a cell with several opens the day's entries; a cell's menu button
+    opens its entry in full (comment, billable, work type, from and to). Add row (a search over my assigned and recent items) and
+    Copy last week's rows below. Below 600 px, Day mode: the days as chips with their totals, the day's entries as a list with
+    start and stop, Add time, and the timer bar as a large button. Dialogs: EntryForm, DayEntries, SubmitWeek (the total and the
+    days below their hours, to confirm) and Decide (a return or reopen reason). -->
+<template><div class="boss-mytime" :class="dark ? 'boss-mt-dark' : ''">
+    <div v-if="loading && !week" class="q-pa-md">
+        <q-skeleton type="text" width="30%"></q-skeleton>
+        <q-skeleton type="rect" height="64px" class="q-mt-md"></q-skeleton>
+        <q-skeleton type="rect" height="240px" class="q-mt-md"></q-skeleton>
+    </div>
+    <div v-else-if="notAvailable" class="q-pa-lg text-center">
+        <q-icon name="sym_o_visibility_off" size="48px" class="m-muted"></q-icon>
+        <div class="text-h6 q-mt-sm">{{t('This week is not available')}}</div>
+        <div class="text-body2 m-muted">{{t('A week is seen by its person and those who approve it.')}}</div>
+        <q-btn flat no-caps color="primary" class="q-mt-sm" :label="t('Open my time')" @click="openPerson(null)"></q-btn>
+    </div>
+    <template v-else-if="week">
+        <!-- ===== the header ===== -->
+        <div class="row items-center q-col-gutter-sm q-mb-sm">
+            <div class="col-12 col-md row items-center no-wrap q-gutter-x-sm" style="min-width:0">
+                <div class="text-h5 ellipsis" style="min-width:0">{{week.isMine ? t('My time') : week.personName}}</div>
+                <q-chip dense square class="q-my-none m-tonal" :class="'text-' + statusColor" style="flex:none" data-status="1">{{statusLabel}}</q-chip>
+                <div v-if="week.personOptions.length" style="width:220px;max-width:45vw;flex:none" class="gt-xs">
+                    <q-select dense outlined emit-value map-options :model-value="week.partyId" :options="week.personOptions" :label="t('Person')"
+                            @update:model-value="openPerson"></q-select></div>
+            </div>
+            <div class="col-12 col-md-auto row items-center no-wrap q-gutter-x-xs">
+                <q-btn flat round dense icon="sym_o_chevron_left" :aria-label="t('Previous week')" @click="goWeek(week.prevWeek)"><q-tooltip>{{t('Previous week')}}</q-tooltip></q-btn>
+                <div class="text-subtitle1 text-weight-medium text-no-wrap boss-mt-week">{{week.label}}</div>
+                <q-btn flat round dense icon="sym_o_chevron_right" :aria-label="t('Next week')" @click="goWeek(week.nextWeek)"><q-tooltip>{{t('Next week')}}</q-tooltip></q-btn>
+                <q-btn v-if="!week.isThisWeek" flat dense no-caps color="primary" :label="t('This week')" @click="goWeek(null)"></q-btn>
+            </div>
+        </div>
+        <div class="row items-center q-col-gutter-sm q-mb-sm">
+            <div class="col-12 col-sm row items-center no-wrap" style="min-width:0">
+                <div class="text-h6 q-mr-sm text-no-wrap">{{fmt(week.total)}} <span class="text-body2 m-muted">/ {{fmt(week.expectedTotal)}} h</span></div>
+                <q-linear-progress rounded size="8px" class="col" style="max-width:260px" :value="week.expectedTotal ? Math.min(1, week.total / week.expectedTotal) : 0"
+                        :color="week.total >= week.expectedTotal ? 'positive' : 'primary'" track-color="grey-4"></q-linear-progress>
+                <div class="text-caption m-muted q-ml-sm text-no-wrap gt-xs">{{fmt(week.billableTotal)}} h {{t('billable')}}</div>
+            </div>
+            <div class="col-12 col-sm-auto row items-center justify-end q-gutter-xs">
+                <q-btn v-if="week.timesheetUrl && !week.isMine" flat dense no-caps icon="sym_o_open_in_new" :label="t('Timesheet')" @click="$root.setUrl(week.timesheetUrl)"></q-btn>
+                <q-btn v-if="week.access.canReopen" outline no-caps color="primary" icon="sym_o_lock_open" :label="t('Reopen')" @click="openDecide('reopen')"></q-btn>
+                <q-btn v-if="week.access.canReturn" outline no-caps color="primary" icon="sym_o_undo" :label="t('Return')" @click="openDecide('return')"></q-btn>
+                <q-btn v-if="week.access.canApprove" unelevated no-caps color="primary" icon="sym_o_task_alt" :label="t('Approve')" @click="decide('approve')"></q-btn>
+                <q-btn v-if="week.access.canSubmit" unelevated no-caps color="primary" icon="sym_o_send" :label="t('Submit week')" @click="openSubmit"></q-btn>
+            </div>
+        </div>
+
+        <!-- the timesheet's state -->
+        <q-banner v-if="week.timesheet.returned" dense rounded class="q-mb-sm boss-mt-banner text-body2" :class="dark ? 'bg-grey-9' : 'bg-orange-1'">
+            <template v-slot:avatar><q-icon name="sym_o_undo" color="warning"></q-icon></template>
+            <span class="text-weight-medium">{{t('Returned')}}:</span> {{week.timesheet.reason}}
+        </q-banner>
+        <q-banner v-else-if="week.timesheet.statusId === 'TmshApproved'" dense rounded class="q-mb-sm text-body2" :class="dark ? 'bg-grey-9' : 'bg-green-1'">
+            <template v-slot:avatar><q-icon name="sym_o_verified" color="positive"></q-icon></template>
+            {{t('Approved')}}<span v-if="week.timesheet.approvedByName"> {{t('by')}} {{week.timesheet.approvedByName}}</span><span v-if="week.approvedText"> · {{week.approvedText}}</span>.
+            {{t('This week is read only.')}}
+        </q-banner>
+        <q-banner v-else-if="week.timesheet.statusId === 'TmshCompleted'" dense rounded class="q-mb-sm text-body2" :class="dark ? 'bg-grey-9' : 'bg-blue-1'">
+            <template v-slot:avatar><q-icon name="sym_o_schedule_send" color="info"></q-icon></template>
+            {{t('Submitted')}}<span v-if="week.submittedText"> {{week.submittedText}}</span>, {{t('waiting for approval.')}}
+            <span v-if="week.access.locked">{{t('Its time is locked.')}}</span>
+        </q-banner>
+
+        <!-- ===== the timer bar ===== -->
+        <q-card v-if="week.isMine" flat bordered class="q-mb-md boss-mt-timer" :class="timer ? 'boss-mt-running' : ''">
+            <q-card-section v-if="timer" class="row items-center q-col-gutter-sm q-py-sm">
+                <div :class="phone ? 'col-12' : 'col'" style="min-width:0">
+                    <div class="text-caption m-muted row items-center no-wrap"><span class="boss-mt-dot q-mr-sm"></span>{{t('Timer running since')}} {{timer.startedText}}</div>
+                    <div class="row items-center no-wrap" style="min-width:0">
+                        <a v-if="timer.url" :href="timer.url" class="text-mono text-caption q-mr-sm text-no-wrap" @click.prevent="$root.setUrl(timer.url)">{{timer.workEffortId}}</a>
+                        <span class="ellipsis text-body1 text-weight-medium" :title="timer.workEffortName">{{timer.workEffortName || t('No work item')}}</span>
+                    </div>
+                    <div v-if="timer.projectName" class="text-caption m-muted ellipsis">{{timer.projectName}}</div>
+                    <q-input dense borderless v-model="timerComment" :placeholder="t('What are you working on?')" class="boss-mt-comment"
+                            @blur="saveTimerComment" @keyup.enter="saveTimerComment"><template v-slot:prepend><q-icon name="sym_o_edit_note" size="xs"></q-icon></template></q-input>
+                </div>
+                <div class="text-h5 text-mono boss-mt-elapsed" :class="phone ? 'col' : 'col-auto'">{{elapsedText}}</div>
+                <div class="col-auto"><q-btn unelevated no-caps color="negative" icon="sym_o_stop_circle" :label="t('Stop')" :size="phone ? 'lg' : 'md'" :loading="busy.timer" @click="stopTimer"></q-btn></div>
+            </q-card-section>
+            <q-card-section v-else class="row items-center q-col-gutter-sm q-py-sm">
+                <div class="col-auto"><q-icon name="sym_o_timer" size="sm" class="m-muted"></q-icon></div>
+                <div class="col" style="min-width:0">
+                    <q-select dense outlined use-input input-debounce="250" v-model="timerItem" :options="itemOptions" option-value="value" option-label="label"
+                            :label="t('Start a timer on')" @filter="filterItems" clearable>
+                        <template v-slot:no-option><q-item><q-item-section class="m-muted">{{t('Type a key or a title')}}</q-item-section></q-item></template></q-select>
+                </div>
+                <div class="col-auto"><q-btn unelevated no-caps color="primary" icon="sym_o_play_arrow" :label="t('Start')" :size="phone ? 'lg' : 'md'"
+                        :disable="!timerItem" :loading="busy.timer" @click="startTimer(timerItem && timerItem.value)"></q-btn></div>
+            </q-card-section>
+        </q-card>
+
+        <!-- ===== the week grid (from 600 px) ===== -->
+        <q-card v-if="!phone" flat bordered class="boss-mt-card">
+            <div class="boss-mt-scroll">
+                <table class="boss-mt-grid">
+                    <thead><tr>
+                        <th class="boss-mt-item text-left">{{t('Work item')}}</th>
+                        <th v-for="day in week.dayList" :key="day.day" class="boss-mt-day" :class="dayClass(day)">
+                            <div class="text-weight-medium">{{day.label}}</div>
+                            <div class="text-caption">{{day.dateLabel}}</div>
+                            <div class="text-caption m-muted">
+                                <q-icon v-if="day.holiday" name="sym_o_celebration" size="14px"><q-tooltip>{{day.holiday}}</q-tooltip></q-icon>
+                                <span v-else-if="day.isWorkday">{{fmt(day.expected)}} h</span><span v-else>{{t('off')}}</span>
+                            </div>
+                        </th>
+                        <th class="boss-mt-total">{{t('Total')}}</th>
+                        <th class="boss-mt-menu"></th>
+                    </tr></thead>
+                    <tbody>
+                        <tr v-for="(row, rowIndex) in week.rowList" :key="row.workEffortId || 'none'" class="boss-mt-row">
+                            <td class="boss-mt-item">
+                                <div class="row items-center no-wrap" style="min-width:0">
+                                    <a v-if="row.url" :href="row.url" class="text-mono text-caption q-mr-sm text-no-wrap" @click.prevent="$root.setUrl(row.url)">{{row.workEffortId}}</a>
+                                    <span class="ellipsis text-body2" :class="row.isOpen ? '' : 'm-muted'" :title="row.workEffortName">{{row.workEffortName}}</span>
+                                </div>
+                                <div v-if="row.projectName && row.workEffortId !== row.rootWorkEffortId" class="text-caption m-muted ellipsis">{{row.projectName}}</div>
+                            </td>
+                            <td v-for="(day, dayIndex) in week.dayList" :key="day.day" class="boss-mt-cell" :class="dayClass(day)">
+                                <template v-if="cellOf(row, day).entryIds.length > 1">
+                                    <q-btn flat dense no-caps class="full-width boss-mt-multi" :label="fmt(cellOf(row, day).hours)" @click="openDay(row, day)">
+                                        <q-tooltip>{{cellOf(row, day).entryIds.length}} {{t('entries')}}</q-tooltip></q-btn>
+                                </template>
+                                <template v-else-if="isRunningCell(row, day)">
+                                    <div class="text-center text-primary text-weight-medium"><q-icon name="sym_o_timer" size="xs"></q-icon> {{fmt(cellOf(row, day).hours)}}</div>
+                                </template>
+                                <template v-else-if="week.access.canEdit && !isInvoicedCell(row, day)">
+                                    <div class="row no-wrap items-center boss-mt-edit">
+                                        <input :id="cellId(rowIndex, dayIndex)" class="boss-mt-input" inputmode="decimal" autocomplete="off"
+                                                :value="cellText(row, day)" :aria-label="(row.workEffortId || t('No work item')) + ' ' + day.label"
+                                                @input="cellInput(row, day, $event)" @focus="$event.target.select()" @blur="commitCell(row, day)"
+                                                @keydown="cellKey(rowIndex, dayIndex, row, day, $event)"/>
+                                        <q-btn v-if="cellOf(row, day).entryIds.length === 1" flat round dense size="xs" icon="more_vert" class="boss-mt-more"
+                                                :aria-label="t('The entry in full')" @click="openEntry(entryOf(cellOf(row, day).entryIds[0]))"></q-btn>
+                                    </div>
+                                </template>
+                                <template v-else><div class="text-center">{{cellOf(row, day).hours ? fmt(cellOf(row, day).hours) : ''}}</div></template>
+                            </td>
+                            <td class="boss-mt-total text-weight-medium">{{row.total ? fmt(row.total) : ''}}</td>
+                            <td class="boss-mt-menu">
+                                <q-btn v-if="week.isMine && row.canRemove" flat round dense size="sm" icon="sym_o_close" :aria-label="t('Remove the row')" @click="removeRow(row)">
+                                    <q-tooltip>{{t('Remove the row')}}</q-tooltip></q-btn>
+                            </td>
+                        </tr>
+                        <tr v-if="!week.rowList.length"><td :colspan="week.dayList.length + 3" class="q-pa-lg text-center text-body2 m-muted">
+                            {{week.isMine ? t('No time this week yet. Start the timer, or add a row and type the hours.') : t('No time this week.')}}</td></tr>
+                    </tbody>
+                    <tfoot><tr>
+                        <td class="boss-mt-item text-weight-medium">{{t('Day total')}}</td>
+                        <td v-for="day in week.dayList" :key="day.day" class="boss-mt-cell text-center text-weight-medium" :class="[dayClass(day), day.below ? 'text-warning' : '']">
+                            {{day.total ? fmt(day.total) : '–'}}<q-tooltip v-if="day.below">{{t('Below the day\'s hours')}}: {{fmt(day.expected)}} h</q-tooltip></td>
+                        <td class="boss-mt-total text-weight-bold">{{fmt(week.total)}}</td>
+                        <td class="boss-mt-menu"></td>
+                    </tr></tfoot>
+                </table>
+            </div>
+        </q-card>
+
+        <!-- ===== Day mode (a phone) ===== -->
+        <template v-else>
+            <div class="row no-wrap q-gutter-x-xs q-pb-xs boss-mt-days">
+                <q-btn v-for="(day, index) in week.dayList" :key="day.day" :unelevated="dayIndex === index" :outline="dayIndex !== index" no-caps dense
+                        :color="dayIndex === index ? 'primary' : (day.below ? 'warning' : 'grey-7')" class="boss-mt-daybtn" @click="dayIndex = index">
+                    <div class="column items-center"><div class="text-caption">{{day.label}}</div><div class="text-weight-medium">{{day.total ? fmt(day.total) : '–'}}</div></div>
+                </q-btn>
+            </div>
+            <q-card flat bordered>
+                <q-card-section class="row items-center q-py-sm">
+                    <div class="col">
+                        <div class="text-subtitle1 text-weight-medium">{{currentDay.label}} {{currentDay.dateLabel}}</div>
+                        <div class="text-caption m-muted">{{fmt(currentDay.total)}} / {{fmt(currentDay.expected)}} h<span v-if="currentDay.holiday"> · {{currentDay.holiday}}</span></div>
+                    </div>
+                    <q-btn v-if="week.access.canEdit" unelevated no-caps color="primary" icon="sym_o_add" :label="t('Add time')" @click="newEntry(currentDay.day, null)"></q-btn>
+                </q-card-section>
+                <q-separator></q-separator>
+                <q-list separator>
+                    <q-item v-for="entry in dayEntries" :key="entry.timeEntryId" :clickable="week.access.canEdit && !entry.running && !entry.invoiced" @click="openEntry(entry)">
+                        <q-item-section side class="text-caption text-mono" style="min-width:86px">{{entry.fromTime}}–{{entry.running ? t('now') : entry.thruTime}}</q-item-section>
+                        <q-item-section style="min-width:0">
+                            <q-item-label class="ellipsis"><span class="text-mono text-caption q-mr-xs">{{entry.workEffortId || ''}}</span>{{rowName(entry.workEffortId)}}</q-item-label>
+                            <q-item-label v-if="entry.comments" caption class="ellipsis">{{entry.comments}}</q-item-label>
+                        </q-item-section>
+                        <q-item-section side><div class="text-weight-medium" :class="entry.running ? 'text-primary' : ''">{{fmt(entry.hours)}} h</div>
+                            <q-icon v-if="!entry.billable" name="sym_o_money_off" size="xs" class="m-muted"><q-tooltip>{{t('Not billable')}}</q-tooltip></q-icon></q-item-section>
+                    </q-item>
+                    <q-item v-if="!dayEntries.length"><q-item-section class="text-body2 m-muted text-center q-pa-md">{{t('No time on this day.')}}</q-item-section></q-item>
+                </q-list>
+            </q-card>
+        </template>
+
+        <!-- ===== Add row and Copy last week's rows ===== -->
+        <div v-if="week.isMine && week.access.canEdit" class="row items-center q-col-gutter-sm q-mt-sm">
+            <div class="col-12 col-sm" style="max-width:520px">
+                <q-select dense outlined use-input input-debounce="250" v-model="addItem" :options="itemOptions" option-value="value" option-label="label"
+                        :label="t('Add a row: a work item')" @filter="filterItems" clearable>
+                    <template v-slot:no-option><q-item><q-item-section class="m-muted">{{t('Type a key or a title')}}</q-item-section></q-item></template></q-select>
+            </div>
+            <div class="col-auto"><q-btn unelevated no-caps class="m-btn-tonal" icon="sym_o_add" :label="t('Add row')" :disable="!addItem" @click="addRow"></q-btn></div>
+            <div class="col-auto"><q-btn flat no-caps color="primary" icon="sym_o_content_copy" :label="t('Copy last week\'s rows')" :disable="!week.lastWeekItemCount"
+                    @click="copyRows"><q-tooltip>{{week.lastWeekItemCount}} {{t('items with time last week')}}</q-tooltip></q-btn></div>
+        </div>
+
+        <!-- ===== EntryForm ===== -->
+        <m-dialog v-model="entry.open" :title="entry.isNew ? t('Log time') : t('Time entry')" width="520">
+            <div class="column q-gutter-sm">
+                <q-select dense outlined use-input input-debounce="250" v-model="entry.item" :options="itemOptions" option-value="value" option-label="label"
+                        :label="t('Work item')" @filter="filterItems" clearable></q-select>
+                <div class="row q-col-gutter-sm">
+                    <div class="col-12 col-sm-6"><q-input dense outlined type="date" v-model="entry.day" :label="t('Day')" stack-label></q-input></div>
+                    <div class="col-6 col-sm-3"><q-input dense outlined type="time" v-model="entry.fromTime" :label="t('From')" stack-label></q-input></div>
+                    <div class="col-6 col-sm-3"><q-input dense outlined type="time" v-model="entry.thruTime" :label="t('To')" stack-label></q-input></div>
+                </div>
+                <div class="row q-col-gutter-sm">
+                    <div class="col-6"><q-input dense outlined v-model="entry.hours" inputmode="decimal" :label="t('Hours (without from and to)')"
+                            :disable="!!(entry.fromTime && entry.thruTime)"></q-input></div>
+                    <div class="col-6"><q-input dense outlined v-model="entry.breakHours" inputmode="decimal" :label="t('Break (h)')"></q-input></div>
+                </div>
+                <div class="row q-col-gutter-sm items-center">
+                    <div class="col-6"><q-select dense outlined emit-value map-options clearable v-model="entry.workTypeEnumId" :options="week.workTypeOptions" :label="t('Work type')"></q-select></div>
+                    <div class="col-6"><q-toggle v-model="entry.billable" true-value="Y" false-value="N" :label="t('Billable')"></q-toggle></div>
+                </div>
+                <q-input dense outlined autogrow v-model="entry.comments" type="textarea" :label="t('What was done')"></q-input>
+            </div>
+            <div class="row items-center q-gutter-sm q-mt-md">
+                <q-btn v-if="!entry.isNew" flat no-caps color="negative" icon="sym_o_delete" :label="t('Delete')" @click="deleteEntry"></q-btn>
+                <q-space></q-space>
+                <q-btn flat no-caps :label="t('Cancel')" v-close-popup></q-btn>
+                <q-btn unelevated no-caps color="primary" :label="t('Save')" :loading="busy.entry" @click="saveEntry"></q-btn>
+            </div>
+        </m-dialog>
+
+        <!-- ===== DayEntries: a cell with several entries ===== -->
+        <m-dialog v-model="dayDialog.open" :title="dayDialog.title" width="560">
+            <q-list separator bordered class="rounded-borders">
+                <q-item v-for="one in dayDialogEntries" :key="one.timeEntryId" :clickable="week.access.canEdit && !one.running && !one.invoiced" @click="openEntry(one)">
+                    <q-item-section side class="text-caption text-mono">{{one.fromTime}}–{{one.running ? t('now') : one.thruTime}}</q-item-section>
+                    <q-item-section><q-item-label class="ellipsis">{{one.comments || t('No comment')}}</q-item-label>
+                        <q-item-label caption>{{one.workTypeLabel}}<span v-if="!one.billable"> · {{t('Not billable')}}</span><span v-if="one.invoiced"> · {{t('Invoiced')}}</span></q-item-label></q-item-section>
+                    <q-item-section side class="text-weight-medium">{{fmt(one.hours)}} h</q-item-section>
+                </q-item>
+            </q-list>
+            <div class="row justify-end q-gutter-sm q-mt-md">
+                <q-btn v-if="week.access.canEdit" flat no-caps color="primary" icon="sym_o_add" :label="t('Add an entry')" @click="newEntry(dayDialog.day, dayDialog.workEffortId)"></q-btn>
+                <q-btn flat no-caps :label="t('Close')" v-close-popup></q-btn>
+            </div>
+        </m-dialog>
+
+        <!-- ===== SubmitWeek ===== -->
+        <m-dialog v-model="submit.open" :title="t('Submit the week')" width="480">
+            <div class="text-body1 q-mb-sm">{{week.label}}: <span class="text-weight-medium">{{fmt(week.total)}} h</span> {{t('of')}} {{fmt(week.expectedTotal)}} h</div>
+            <template v-if="belowDays.length">
+                <div class="text-body2 text-warning q-mb-xs">{{t('These days are below their hours:')}}</div>
+                <div v-for="day in belowDays" :key="day.day" class="text-body2">{{day.label}} {{day.dateLabel}}: {{fmt(day.total)}} {{t('of')}} {{fmt(day.expected)}} h</div>
+                <div class="text-caption m-muted q-mt-sm">{{t('Submit anyway, or add the missing time first.')}}</div>
+            </template>
+            <div v-else class="text-body2 m-muted">{{t('Once submitted the week is locked until its approver returns it.')}}</div>
+            <div class="row justify-end q-gutter-sm q-mt-md">
+                <q-btn flat no-caps :label="t('Cancel')" v-close-popup></q-btn>
+                <q-btn unelevated no-caps color="primary" icon="sym_o_send" :label="belowDays.length ? t('Submit anyway') : t('Submit week')" :loading="busy.decide" @click="decide('submit')"></q-btn>
+            </div>
+        </m-dialog>
+
+        <!-- ===== Decide: return or reopen with a reason ===== -->
+        <m-dialog v-model="decision.open" :title="decision.action === 'reopen' ? t('Reopen the week') : t('Return the week')" width="480">
+            <q-input dense outlined autogrow type="textarea" v-model="decision.reason" autofocus
+                    :label="decision.action === 'reopen' ? t('Why (optional)') : t('What to change')"></q-input>
+            <div class="row justify-end q-gutter-sm q-mt-md">
+                <q-btn flat no-caps :label="t('Cancel')" v-close-popup></q-btn>
+                <q-btn unelevated no-caps color="primary" :label="decision.action === 'reopen' ? t('Reopen') : t('Return')" :loading="busy.decide"
+                        :disable="decision.action === 'return' && !decision.reason.trim()" @click="decide(decision.action, decision.reason)"></q-btn>
+            </div>
+        </m-dialog>
+    </template>
+</div></template>
+
+<script>
+const t = (text) => (moqui.l10n && moqui.l10n.localize ? moqui.l10n.localize(text) : text);
+
+module.exports = {
+    name: 'BossMyTime',
+    data() {
+        return {
+            loading: false, seq: 0, week: null, notAvailable: false, offset: 0, now: Date.now(), ticker: null,
+            edits: {}, itemOptions: [], addItem: null, timerItem: null, timerComment: '', dayIndex: 0,
+            busy: { timer: false, entry: false, decide: false },
+            entry: { open: false, isNew: true, timeEntryId: null, item: null, day: '', fromTime: '', thruTime: '', hours: '', breakHours: '', billable: 'Y', workTypeEnumId: null, comments: '' },
+            dayDialog: { open: false, title: '', day: '', workEffortId: null },
+            submit: { open: false }, decision: { open: false, action: 'return', reason: '' }
+        };
+    },
+    computed: {
+        dark() { return this.$q.dark.isActive; },
+        phone() { return this.$q.screen.lt.sm; },
+        pathList() { return this.$root.currentPathList || []; },
+        mIndex() { return this.pathList.lastIndexOf('MyTime'); },
+        screenPath() { return this.$root.basePath + '/' + (this.mIndex >= 0 ? this.pathList.slice(0, this.mIndex + 1) : ['Projects', 'Time', 'MyTime']).join('/'); },
+        params() { return this.$root.currentParameters || {}; },
+        timer() { return this.week ? this.week.timer : null; },
+        statusLabel() {
+            if (!this.week) return '';
+            const sheet = this.week.timesheet;
+            if (sheet.returned) return this.t('Returned');
+            return sheet.statusId === 'TmshInProcess' ? this.t('Open') : sheet.statusLabel;
+        },
+        statusColor() {
+            const sheet = this.week ? this.week.timesheet : null;
+            if (!sheet) return 'grey-8';
+            if (sheet.returned) return 'warning';
+            return { TmshCompleted: 'info', TmshApproved: 'positive' }[sheet.statusId] || 'grey-8';
+        },
+        elapsedText() {
+            if (!this.timer) return '';
+            const seconds = Math.max(0, Math.floor((this.now + this.offset - this.timer.fromDate) / 1000));
+            const pad = (n) => String(n).padStart(2, '0');
+            return Math.floor(seconds / 3600) + ':' + pad(Math.floor(seconds / 60) % 60) + ':' + pad(seconds % 60);
+        },
+        belowDays() { return this.week ? this.week.dayList.filter((day) => day.below) : []; },
+        currentDay() { return this.week ? (this.week.dayList[this.dayIndex] || this.week.dayList[0]) : {}; },
+        dayEntries() { return this.week ? this.week.entryList.filter((one) => one.day === this.currentDay.day) : []; },
+        dayDialogEntries() {
+            if (!this.week || !this.dayDialog.day) return [];
+            return this.week.entryList.filter((one) => one.day === this.dayDialog.day && (one.workEffortId || null) === (this.dayDialog.workEffortId || null));
+        }
+    },
+    watch: {
+        'params.partyId'() { this.load(); },
+        'params.weekDate'() { this.load(); }
+    },
+    methods: {
+        t,
+        url(name) { return this.screenPath + '/' + name; },
+        fmt(value) { const n = Number(value || 0); return (Math.round(n * 100) / 100).toLocaleString(undefined, { maximumFractionDigits: 2 }); },
+        request(name, params, method) {
+            return moqui.request(this.url(name), { method: method || 'GET', params: params || {} }).then((result) => {
+                const json = result.json || {};
+                if (json.messageInfos && json.messageInfos.length) moqui.notifyMessages(json.messageInfos);
+                return json;
+            }, (err) => { moqui.handleAjaxError(err); throw err; });
+        },
+        post(name, params) { return this.request(name, params, 'POST'); },
+        load() {
+            const seq = ++this.seq;
+            this.loading = true;
+            const params = {};
+            if (this.params.partyId) params.partyId = this.params.partyId;
+            if (this.params.weekDate) params.weekDate = this.params.weekDate;
+            return moqui.request(this.url('week'), { params }).then((result) => {
+                if (seq !== this.seq) return;
+                this.loading = false;
+                const json = result.json || {};
+                this.notAvailable = !!json.notAvailable;
+                const before = this.week ? this.week.weekStart : null;
+                this.week = json.week || null;
+                if (!this.week) return;
+                this.offset = (this.week.serverNow || Date.now()) - Date.now();
+                this.now = Date.now();
+                this.edits = {};
+                this.timerComment = this.week.timer ? (this.week.timer.comments || '') : '';
+                if (before !== this.week.weekStart) {
+                    const today = this.week.dayList.findIndex((day) => day.isToday);
+                    this.dayIndex = today >= 0 ? today : 0;
+                }
+            }, (err) => { if (seq !== this.seq) return; this.loading = false; moqui.handleAjaxError(err); });
+        },
+        // the URL holds the person and the week
+        setParams(partyId, weekDate) {
+            const params = {};
+            if (partyId) params.partyId = partyId;
+            if (weekDate) params.weekDate = weekDate;
+            const search = moqui.objToSearch(params);
+            this.$root.setUrl(this.$root.linkBasePath + '/' + (this.mIndex >= 0 ? this.pathList.slice(0, this.mIndex + 1) : ['Projects', 'Time', 'MyTime']).join('/') + (search ? '?' + search : ''));
+        },
+        goWeek(weekStart) { this.setParams(this.week && !this.week.isMine ? this.week.partyId : null, weekStart); },
+        openPerson(partyId) {
+            const mine = this.week && this.week.personOptions.length && this.week.personOptions[0].value === partyId;
+            this.setParams(mine ? null : partyId, this.params.weekDate || null);
+        },
+        dayClass(day) { return { 'boss-mt-off': !day.isWorkday, 'boss-mt-today': day.isToday }; },
+        cellOf(row, day) { return row.cells[day.day] || { hours: 0, entryIds: [] }; },
+        entryOf(id) { return this.week.entryList.find((one) => one.timeEntryId === id); },
+        cellKey0(row, day) { return (row.workEffortId || '') + '|' + day.day; },
+        cellId(rowIndex, dayIndex) { return 'boss-mt-cell-' + rowIndex + '-' + dayIndex; },
+        isRunningCell(row, day) { return this.cellOf(row, day).entryIds.some((id) => { const one = this.entryOf(id); return one && one.running; }); },
+        isInvoicedCell(row, day) { return this.cellOf(row, day).entryIds.some((id) => { const one = this.entryOf(id); return one && one.invoiced; }); },
+        cellText(row, day) {
+            const key = this.cellKey0(row, day);
+            if (key in this.edits) return this.edits[key];
+            const hours = this.cellOf(row, day).hours;
+            return hours ? this.fmt(hours) : '';
+        },
+        cellInput(row, day, event) { this.edits = Object.assign({}, this.edits, { [this.cellKey0(row, day)]: event.target.value }); },
+        commitCell(row, day) {
+            const key = this.cellKey0(row, day);
+            if (!(key in this.edits)) return Promise.resolve();
+            const text = String(this.edits[key]).trim().replace(',', '.');
+            const before = this.cellOf(row, day).hours || 0;
+            const value = text === '' ? 0 : Number(text);
+            if (Number.isNaN(value)) { moqui.notifyMessages([{ type: 'warning', message: this.t('Hours are a number, such as 1.5') }]); const copy = Object.assign({}, this.edits); delete copy[key]; this.edits = copy; return Promise.resolve(); }
+            if (Math.abs(value - before) < 0.001) { const copy = Object.assign({}, this.edits); delete copy[key]; this.edits = copy; return Promise.resolve(); }
+            const params = { workEffortId: row.workEffortId || '', day: day.day, hours: String(value) };
+            if (!this.week.isMine) params.partyId = this.week.partyId;
+            return this.post('saveCell', params).then(() => this.load(), () => this.load());
+        },
+        cellKey(rowIndex, dayIndex, row, day, event) {
+            const move = (r, d) => { const el = document.getElementById(this.cellId(r, d)); if (el) { el.focus(); return true; } return false; };
+            if (event.key === 'Enter') { event.preventDefault(); event.target.blur(); this.$nextTick(() => move(rowIndex + 1, dayIndex)); }
+            else if (event.key === 'ArrowDown') { event.preventDefault(); move(rowIndex + 1, dayIndex); }
+            else if (event.key === 'ArrowUp') { event.preventDefault(); move(rowIndex - 1, dayIndex); }
+            else if (event.key === 'Escape') { const copy = Object.assign({}, this.edits); delete copy[this.cellKey0(row, day)]; this.edits = copy; event.target.blur(); }
+        },
+        rowName(workEffortId) { const row = this.week.rowList.find((one) => (one.workEffortId || null) === (workEffortId || null)); return row ? row.workEffortName : ''; },
+        filterItems(value, update) {
+            moqui.request(this.url('itemOptions'), { params: { term: value || '' } }).then((result) => {
+                update(() => { this.itemOptions = Array.isArray(result.json) ? result.json : []; });
+            }, () => update(() => { this.itemOptions = []; }));
+        },
+        // ===== rows =====
+        addRow() {
+            if (!this.addItem) return;
+            this.post('rows', { change: 'add', weekDate: this.week.weekStart, workEffortId: this.addItem.value }).then(() => { this.addItem = null; this.load(); }, () => {});
+        },
+        removeRow(row) { this.post('rows', { change: 'remove', weekDate: this.week.weekStart, workEffortId: row.workEffortId }).then(() => this.load(), () => {}); },
+        copyRows() { this.post('rows', { change: 'copyLast', weekDate: this.week.weekStart }).then(() => this.load(), () => {}); },
+        // ===== the timer =====
+        startTimer(workEffortId) {
+            if (!workEffortId) return;
+            this.busy.timer = true;
+            this.post('startTimer', { workEffortId }).then(() => { this.busy.timer = false; this.timerItem = null; this.load(); }, () => { this.busy.timer = false; });
+        },
+        stopTimer() {
+            this.busy.timer = true;
+            this.post('stopTimer', { timeEntryId: this.timer ? this.timer.timeEntryId : '' }).then(() => { this.busy.timer = false; this.load(); }, () => { this.busy.timer = false; this.load(); });
+        },
+        saveTimerComment() {
+            if (!this.timer || (this.timer.comments || '') === this.timerComment) return;
+            this.timer.comments = this.timerComment;
+            this.post('updateTimer', { timeEntryId: this.timer.timeEntryId, comments: this.timerComment }).catch(() => {});
+        },
+        // ===== EntryForm =====
+        openEntry(one) {
+            if (!one || one.running || one.invoiced || !this.week.access.canEdit) return;
+            const row = this.week.rowList.find((r) => (r.workEffortId || null) === (one.workEffortId || null));
+            const item = one.workEffortId ? { value: one.workEffortId, label: one.workEffortId + ' ' + (row ? row.workEffortName : '') } : null;
+            if (item && !this.itemOptions.some((option) => option.value === item.value)) this.itemOptions = [item].concat(this.itemOptions);
+            this.dayDialog.open = false;
+            this.entry = { open: true, isNew: false, timeEntryId: one.timeEntryId, item, day: one.day, fromTime: one.fromTime || '', thruTime: one.thruTime || '',
+                hours: one.hours != null ? String(one.hours) : '', breakHours: one.breakHours ? String(one.breakHours) : '', billable: one.billable ? 'Y' : 'N',
+                workTypeEnumId: one.workTypeEnumId || null, comments: one.comments || '' };
+        },
+        newEntry(day, workEffortId) {
+            const row = workEffortId ? this.week.rowList.find((r) => r.workEffortId === workEffortId) : null;
+            const item = row ? { value: row.workEffortId, label: row.workEffortId + ' ' + row.workEffortName } : null;
+            if (item && !this.itemOptions.some((option) => option.value === item.value)) this.itemOptions = [item].concat(this.itemOptions);
+            this.dayDialog.open = false;
+            this.entry = { open: true, isNew: true, timeEntryId: null, item, day: day || (this.week.dayList.find((d) => d.isToday) || this.week.dayList[0]).day,
+                fromTime: '', thruTime: '', hours: '', breakHours: '', billable: 'Y', workTypeEnumId: null, comments: '' };
+        },
+        saveEntry() {
+            const e = this.entry;
+            const params = { timeEntryId: e.timeEntryId || '', workEffortId: e.item ? e.item.value : '', day: e.day, fromTime: e.fromTime || '', thruTime: e.thruTime || '',
+                hours: e.fromTime && e.thruTime ? '' : (e.hours || ''), breakHours: e.breakHours || '', billable: e.billable, workTypeEnumId: e.workTypeEnumId || '', comments: e.comments || '' };
+            if (!this.week.isMine) params.partyId = this.week.partyId;
+            this.busy.entry = true;
+            this.post('saveEntry', params).then((json) => { this.busy.entry = false; if (json.timeEntryId) { this.entry.open = false; this.load(); } }, () => { this.busy.entry = false; });
+        },
+        deleteEntry() {
+            this.$q.dialog({ title: this.t('Delete this entry?'), ok: { label: this.t('Delete'), color: 'negative', unelevated: true, noCaps: true },
+                cancel: { label: this.t('Cancel'), flat: true, noCaps: true } }).onOk(() => {
+                this.post('deleteEntry', { timeEntryId: this.entry.timeEntryId }).then((json) => { if (json.deleted) { this.entry.open = false; this.load(); } }, () => {});
+            });
+        },
+        openDay(row, day) {
+            this.dayDialog = { open: true, title: (row.workEffortId ? row.workEffortId + ' · ' : '') + day.label + ' ' + day.dateLabel, day: day.day, workEffortId: row.workEffortId || null };
+        },
+        // ===== the flow =====
+        openSubmit() { this.submit.open = true; },
+        openDecide(action) { this.decision = { open: true, action, reason: '' }; },
+        decide(action, reason) {
+            this.busy.decide = true;
+            const params = { action, weekDate: this.week.weekStart, timesheetId: this.week.timesheet.timesheetId || '' };
+            if (reason) params.reason = reason;
+            this.post('decide', params).then((json) => {
+                this.busy.decide = false;
+                if (json.messageInfos) { this.submit.open = false; this.decision.open = false; }
+                this.load();
+            }, () => { this.busy.decide = false; });
+        }
+    },
+    mounted() {
+        this.load();
+        this.ticker = setInterval(() => { this.now = Date.now(); }, 1000);
+    },
+    beforeUnmount() { if (this.ticker) clearInterval(this.ticker); }
+};
+</script>
+
+<style>
+.boss-mt-scroll { overflow-x: auto; }
+.boss-mt-grid { border-collapse: collapse; width: 100%; min-width: 760px; }
+.boss-mt-grid th, .boss-mt-grid td { border-bottom: 1px solid rgba(0, 0, 0, .08); padding: 4px 6px; vertical-align: middle; }
+.boss-mt-dark .boss-mt-grid th, .boss-mt-dark .boss-mt-grid td { border-bottom-color: rgba(255, 255, 255, .1); }
+.boss-mt-grid thead th { font-weight: 400; text-align: center; line-height: 1.25; padding-top: 8px; padding-bottom: 8px; }
+.boss-mt-grid thead th.boss-mt-item { text-align: left; font-weight: 500; }
+.boss-mt-comment { max-width: 420px; }
+.boss-mt-grid tfoot td { border-bottom: none; padding-top: 8px; padding-bottom: 8px; }
+.boss-mt-item { min-width: 220px; max-width: 360px; text-align: left; }
+.boss-mt-item > div { max-width: 360px; }
+.boss-mt-day, .boss-mt-cell { width: 72px; min-width: 64px; }
+.boss-mt-total { width: 64px; text-align: right; }
+.boss-mt-menu { width: 36px; }
+.boss-mt-off { background: rgba(0, 0, 0, .035); }
+.boss-mt-dark .boss-mt-off { background: rgba(255, 255, 255, .04); }
+.boss-mt-today { color: var(--q-primary); }
+th.boss-mt-today { box-shadow: inset 0 -2px 0 var(--q-primary); }
+.boss-mt-edit { position: relative; }
+.boss-mt-input { width: 100%; min-width: 0; text-align: center; font: inherit; color: inherit; background: transparent; border: 1px solid transparent;
+    border-radius: 4px; padding: 6px 2px; outline: none; }
+.boss-mt-input:hover { border-color: rgba(0, 0, 0, .18); }
+.boss-mt-dark .boss-mt-input:hover { border-color: rgba(255, 255, 255, .22); }
+.boss-mt-input:focus { border-color: var(--q-primary); background: rgba(25, 118, 210, .06); }
+.boss-mt-more { position: absolute; right: -4px; top: 50%; transform: translateY(-50%); opacity: 0; }
+.boss-mt-edit:hover .boss-mt-more, .boss-mt-edit:focus-within .boss-mt-more { opacity: .8; }
+@media (hover: none) { .boss-mt-more { opacity: .6; } }
+.boss-mt-multi { text-decoration: underline dotted; }
+.boss-mt-running { border-color: var(--q-primary); }
+.boss-mt-dot { display: inline-block; flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--q-negative); animation: boss-mt-pulse 1.6s ease-in-out infinite; }
+@keyframes boss-mt-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .boss-mt-dot { animation: none; } }
+.boss-mt-elapsed { font-variant-numeric: tabular-nums; }
+.boss-mt-days { overflow-x: auto; }
+.boss-mt-daybtn { min-width: 0; flex: 1 1 0; padding-left: 0; padding-right: 0; }
+.boss-mt-week { min-width: 150px; text-align: center; }
+</style>

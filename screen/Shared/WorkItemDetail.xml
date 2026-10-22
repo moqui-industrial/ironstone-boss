@@ -33,12 +33,15 @@ along with this software (see the LICENSE.md file). If not, see
     Convert to request and Delete (the owner or the project's manager, with no time or sub-items). The tabs: Overview
     (description, details, labels, requests, linked records, people; Chatter beside it from 1440 px), Sub-items (the subtree
     as a view-tree, one level per open, with roll-ups, drag and Tab to move within it, and a quick-add row), Links (relations
-    by kind, a dependency with its lag), Time (the user's own entries, as Commons; everyone's time, rates and Log time are
-    impl-projects.md P6), Development (when the item's project has the Code module on or a repository linked: its branches with
+    by kind, a dependency with its lag), Time (the user's own entries, as Commons; everyone's time and rates are impl-projects.md
+    P6b), Development (when the item's project has the Code module on or a repository linked: its branches with
     ahead and behind, merge request and checks, Create branch and New merge request; its merge requests, commits and tags;
     ironstone.CodeServices get#WorkItemDevelopment, read only when the tab is open), Files and Chatter.
     The team of the item's project, its owner and assignees may change it (ironstone.TaskServices.get#TaskAccess app
-    projects). With peek=true (WorkItems' Peek pane, whose bar has Open full) it renders compact: the title row, the facts, then the
+    projects). The timer (impl-projects.md P6a): Start timer beside Assign to me, or Stop timer with the elapsed time while the
+    user's timer runs on the item; one timer runs per person, so a start stops a timer on another item
+    (mantle.work.TimesheetServices.start#Timer); the Time tab's Clock in and Clock out are the same timer (Start and Stop timer in
+    Projects). With peek=true (WorkItems' Peek pane, whose bar has Open full) it renders compact: the title row, the facts, then the
     description, the sub-items and Chatter one under the other (the tabs would load the whole page, not the pane).
 
     An item the user may not see is "not available" (IronStone R5, R28; in Projects the project's visibility, impl-projects.md
@@ -158,6 +161,23 @@ along with this software (see the LICENSE.md file). If not, see
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(timeOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/><parameter name="tab" value="time"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <!-- the header's timer, back on the same tab -->
+    <transition name="startTimer">
+        <actions>
+            <service-call name="ironstone.TaskServices.clockIn#Task" out-map="timeOut" in-map="{workEffortId:workEffortId, app:(appRoot == 'Projects' ? 'projects' : 'commons')}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(timeOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="tab"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="stopTimer">
+        <actions>
+            <service-call name="ironstone.TaskServices.clockOut#Task" out-map="timeOut" in-map="{workEffortId:workEffortId, app:(appRoot == 'Projects' ? 'projects' : 'commons')}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(timeOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="tab"/></default-response>
         <error-response url="."/>
     </transition>
     <transition name="addTime">
@@ -614,6 +634,15 @@ along with this software (see the LICENSE.md file). If not, see
                                 parameter-map="{workEffortId:workEffortId, tab:tab}" title="${task.workEffortName}"/>
                     </container>
                     <container style="col-12 col-md-auto row items-center q-gutter-y-xs m-task-actions">
+                        <section name="WorkItemTimer" condition="canUpdate &amp;&amp; !task.isDone"><widgets>
+                            <section name="WorkItemTimerRunning" condition="openTimeEntry"><widgets>
+                                <render-mode><text type="qvt"><![CDATA[<q-chip dense square icon="sym_o_timer" class="q-my-none q-ml-none q-mr-xs m-tonal text-primary"><m-elapsed from="${openTimeEntry.fromDate}"></m-elapsed></q-chip>]]></text>
+                                    <text type="tui"><![CDATA[${JSON.stringify({t: "text", id: "WorkItemTimerSince", text: ec.l10n.localize("Timer running since") + " " + openTimeEntry.fromText})}]]></text></render-mode>
+                                <link url="stopTimer" link-type="hidden-form" btn-type="primary" text="Stop timer" icon="sym_o_timer_off" parameter-map="{workEffortId:workEffortId, tab:tab}"/>
+                            </widgets><fail-widgets>
+                                <link url="startTimer" link-type="hidden-form" text="Start timer" icon="sym_o_timer" parameter-map="{workEffortId:workEffortId, tab:tab}"/>
+                            </fail-widgets></section>
+                        </widgets></section>
                         <link url="assignToMe" link-type="hidden-form" text="Assign to me" icon="sym_o_person_raised_hand" condition="canUpdate"
                                 parameter-map="{workEffortId:workEffortId, tab:tab}"/>
                         <container-dialog id="WorkItemEditDialog" button-text="Edit" icon="sym_o_edit" width="720" title="Edit ${workEffortId}" condition="canUpdate">
@@ -1164,10 +1193,10 @@ along with this software (see the LICENSE.md file). If not, see
                     <box-toolbar>
                         <section name="ClockActions" condition="canUpdate"><widgets>
                             <section name="ClockOutAction" condition="openTimeEntry"><widgets>
-                                <link url="clockOut" link-type="hidden-form" btn-type="primary" text="Clock out" icon="sym_o_timer_off"
+                                <link url="clockOut" link-type="hidden-form" btn-type="primary" text="${projects ? 'Stop timer' : 'Clock out'}" icon="sym_o_timer_off"
                                         parameter-map="{workEffortId:workEffortId}"/>
                             </widgets><fail-widgets>
-                                <link url="clockIn" link-type="hidden-form" text="Clock in" icon="sym_o_timer" parameter-map="{workEffortId:workEffortId}"/>
+                                <link url="clockIn" link-type="hidden-form" text="${projects ? 'Start timer' : 'Clock in'}" icon="sym_o_timer" parameter-map="{workEffortId:workEffortId}"/>
                             </fail-widgets></section>
                             <container-dialog id="TaskAddTimeDialog" button-text="Add time" icon="sym_o_more_time" width="480" title="Add time on ${task.workEffortName}">
                                 <form-single name="TaskAddTime" transition="addTime" focus-field="hours">
@@ -1185,11 +1214,11 @@ along with this software (see the LICENSE.md file). If not, see
                     </box-toolbar>
                     <box-body-nopad>
                         <section name="ClockedIn" condition="openTimeEntry"><widgets>
-                            <label type="p" text="Clocked in since ${openTimeEntry.dateText} ${openTimeEntry.fromText}" style="text-primary q-pa-sm q-mb-none"/>
+                            <label type="p" text="${projects ? 'Timer running since' : 'Clocked in since'} ${openTimeEntry.dateText} ${openTimeEntry.fromText}" style="text-primary q-pa-sm q-mb-none"/>
                         </widgets></section>
                         <section name="ClockedInElsewhere" condition="otherOpenTimeEntry"><widgets>
                             <container style="q-pa-sm text-body2">
-                                <label type="span" text="You are clocked in on " style="m-muted"/>
+                                <label type="span" text="${projects ? 'Your timer runs on ' : 'You are clocked in on '}" style="m-muted"/>
                                 <link url="${otherOpenTimeEntry.url}" url-type="plain" link-type="anchor" text="${otherOpenTimeEntry.workEffortName}"/>
                                 <label type="span" text=" since ${otherOpenTimeEntry.sinceText}" style="m-muted"/>
                             </container>

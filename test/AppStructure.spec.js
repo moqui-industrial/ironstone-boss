@@ -213,7 +213,13 @@ const demoRecords = {
     "Projects/WorkItems/Import/Preview": {},
     "Projects/WorkItems/Import/Result": {},
     "Projects/WorkItems/ImportProgress": {},
-    "Projects/Time": { text: "Placeholder: My time" },
+    // Projects P6a: Time opens on My time (a .qvue: its component; in qvt it says so), its terminal twin on john.doe's week with his
+    // running timer, the timesheets (To approve: Joe's submitted week) and one timesheet (Joe's, looked up in setupSpec)
+    "Projects/Time": { text: "My time opens in the browser app" },
+    "Projects/Time/MyTime": {},
+    "Projects/Time/MyTimeTui": { text: "Triage of the new tickets" },
+    "Projects/Time/Timesheets": { parameters: { list: "toApprove" }, text: "Joe Developer" },
+    "Projects/Time/TimesheetDetail": { timesheet: true, text: "Upgraded the client servers" },
     "Projects/Resources": { text: "Placeholder: Team planner" },
     "Projects/Billing": { text: "Placeholder: Unbilled" },
     "Projects/Time/TimeEntries": { text: "Walked the new floor and listed the rooms" },
@@ -232,6 +238,9 @@ spec({
         // the demo's merge request !1 of iron (a sequenced id)
         const mergeRequest = ec.entity.find("moqui.resource.GitMergeRequest").condition({ repositoryId: "iron", mergeRequestNum: 1 }).disableAuthz().one()
         for (const demo of Object.values(demoRecords)) if (demo.mergeRequest) demo.parameters = { mergeRequestId: mergeRequest ? mergeRequest.mergeRequestId : "_NA_" }
+        // the time demo's submitted week of Joe Developer (a sequenced id)
+        const sheet = Array.from(ec.entity.find("mantle.work.time.Timesheet").condition({ partyId: "ORG_ZIZI_JD", statusId: "TmshCompleted" }).disableAuthz().list())[0]
+        for (const demo of Object.values(demoRecords)) if (demo.timesheet) demo.parameters = { timesheetId: sheet ? sheet.timesheetId : "_NA_" }
     },
     setup() { ec.artifactExecution.disableAuthz() },
     cleanup() { ec.artifactExecution.enableAuthz() },

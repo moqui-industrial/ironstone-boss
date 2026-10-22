@@ -18,8 +18,10 @@ along with this software (see the LICENSE.md file). If not, see
     context, of the list it was opened from, else the first), its type (of the types that project offers,
     ironstone.ProjectServices.get#WorkItemTypes), title, assignee (unassigned by default, "me" one
     click), priority and due (service/ironstone/WorkItemServices.xml quickAdd#WorkItem); a record that is not a work effort is
-    linked to it; the sprint, of the project's open sprints (empty: the backlog; impl-projects.md P4a). QuickTime waits for P6: the kind stays and says so, with a link to
-    the time entries. The project kind is the managers-only screen Projects/QuickProject (impl-projects.md F8); here it only
+    linked to it; the sprint, of the project's open sprints (empty: the backlog; impl-projects.md P4a). QuickTime (impl-projects.md
+    P6a): time on a work item (the screen context's work item or project, else one of mine or recent, searched by key or title), the
+    day (today), the hours, billable, the work type and a comment (service/ironstone/TimeServices.xml save#TimeEntry, which checks the
+    item and that the week is not submitted); From and to are in MyTime's entry form, which More options opens. The project kind is the managers-only screen Projects/QuickProject (impl-projects.md F8); here it only
     points there. The transition answers JSON messages, so the shell's dialog closes and the page under it stays. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Quick create" default-menu-include="false">
@@ -47,6 +49,16 @@ along with this software (see the LICENSE.md file). If not, see
         <actions><script><![CDATA[
             const options = ec.service.sync().name('ironstone.PlanningServices.get#SprintOptions').parameters({rootWorkEffortId: rootWorkEffortId || null}).call()?.optionList || []
             ec.web.sendJsonResponse(Array.from(options).map((option) => ({value: option.key, label: option.text})))
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- time: one entry on a work item -->
+    <transition name="createTime">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.TimeServices.save#TimeEntry').parameters({workEffortId: timeWorkEffortId || null, day: day || null,
+                hours: hours || null, billable: billable === 'Y' ? 'Y' : 'N', workTypeEnumId: workTypeEnumId || null, comments: comments || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {timeEntryId: out.timeEntryId, messageInfos: [{type: 'success', message: out.message,
+                link: '/qapps/Projects/Time/MyTime?weekDate=' + encodeURIComponent(day || '')}]})
         ]]></script></actions>
         <default-response type="none"/>
     </transition>
@@ -79,6 +91,22 @@ along with this software (see the LICENSE.md file). If not, see
             typeOptions = Array.from(ec.service.sync().name('ironstone.ProjectServices.get#WorkItemTypes').parameters({rootWorkEffortId: defaultProjectId || null}).call()?.offeredList || [])
             defaultTypeId = typeOptions.some((type) => type.enumId === 'WepTask') ? 'WepTask' : (typeOptions[0]?.enumId || 'WepTask')
             isProjectsManager = ec.user.isInGroup('BOSS_PROJECT_MANAGER') || ec.user.isInGroup('ADMIN')
+            // time: the work item of the screen context (a task or a project), else the first of mine and recent
+            timeItemOptions = Array.from(ec.service.sync().name('ironstone.TimeServices.search#TimeItems').call()?.optionList || [])
+            defaultTimeItem = ''
+            if (hasRecord && recordEntity === 'mantle.work.effort.WorkEffort') {
+                const record = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', recordId).one()
+                if (record && ['WetTask', 'WetProject'].includes(record.workEffortTypeEnumId)) {
+                    defaultTimeItem = record.workEffortId
+                    if (!timeItemOptions.some((option) => option.value === defaultTimeItem))
+                        timeItemOptions.unshift({value: defaultTimeItem, label: defaultTimeItem + ' ' + (record.workEffortName || '')})
+                }
+            }
+            if (!defaultTimeItem && timeItemOptions.length) defaultTimeItem = timeItemOptions[0].value
+            todayText = ec.l10n.format(ec.user.nowTimestamp, 'yyyy-MM-dd')
+            const offeredTypes = ['WktpDevelopment', 'WktpDesign', 'WktpTesting', 'WktpMeeting', 'WktpSupport', 'WktpProjectMgmt', 'WktpConsulting', 'WktpTravel']
+            workTypeOptions = Array.from(ec.entity.find('moqui.basic.Enumeration').condition('enumId', 'in', offeredTypes).useCache(true).list())
+                    .map((row) => ({key: row.enumId, text: row.description || row.enumId})).sort((a, b) => offeredTypes.indexOf(a.key) - offeredTypes.indexOf(b.key))
         ]]></script>
     </actions>
 
@@ -127,10 +155,27 @@ along with this software (see the LICENSE.md file). If not, see
             </fail-widgets></section>
         </widgets></section>
 
-        <!-- time: impl-projects.md P6 -->
+        <!-- time (impl-projects.md P6a) -->
         <section name="TimeKind" condition="kind == 'time'"><widgets>
-            <label type="p" text="Logging time here is coming with My time (the weekly grid and the timer). Until then, record time in Time entries, or clock in on a work item's Time tab." style="m-muted"/>
-            <link url="../Time/TimeEntries" link-type="anchor" text="Open Time entries"/>
+            <form-single name="QuickTime" transition="createTime" focus-field="hours">
+                <field name="timeWorkEffortId" from="defaultTimeItem"><default-field title="Work item">
+                    <drop-down><list-options list="timeItemOptions" key="${value}" text="${label}"/></drop-down></default-field></field>
+                <field name="day" from="todayText"><default-field title="Day"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                <field name="hours"><default-field title="Hours"><text-line size="6" input-type="number"/></default-field></field>
+                <field name="billable" from="'Y'"><default-field title=" "><check><option key="Y" text="Billable"/></check></default-field></field>
+                <field name="workTypeEnumId"><default-field title="Work type">
+                    <drop-down allow-empty="true"><list-options list="workTypeOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                <field name="comments"><default-field title="What was done"><text-area rows="2" cols="44"/></default-field></field>
+                <field name="createButton"><default-field title="Log time"><submit/></default-field></field>
+                <field-layout>
+                    <field-ref name="timeWorkEffortId"/>
+                    <field-row><field-ref name="day"/><field-ref name="hours"/></field-row>
+                    <field-row><field-ref name="workTypeEnumId"/><field-ref name="billable"/></field-row>
+                    <field-ref name="comments"/>
+                    <field-ref name="createButton"/>
+                </field-layout>
+            </form-single>
+            <link url="../Time/MyTime" link-type="anchor" text="More options"/>
         </widgets></section>
 
         <!-- project: the managers' screen -->

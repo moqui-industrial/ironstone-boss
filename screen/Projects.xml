@@ -63,6 +63,10 @@ along with this software (see the LICENSE.md file). If not, see
         <notification-topic topic="ReleasePublished"/>
         <notification-topic topic="RequestTriage"/>
         <notification-topic topic="RequestUpdate"/>
+        <notification-topic topic="TimesheetApproval"/>
+        <notification-topic topic="TimesheetReturned"/>
+        <notification-topic topic="TimesheetApproved"/>
+        <notification-topic topic="TimesheetMissing"/>
 
         <palette-type doc-type="MantleProject"/>
         <palette-type doc-type="MantleTask"/>

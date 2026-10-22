@@ -1205,13 +1205,14 @@ along with this software (see the LICENSE.md file). If not, see
             manage, else those they are on; decorated, twelve). firstRun when the user sees no project. Each part stands
             alone: one that fails is logged and left empty. reviewList: the merge requests waiting for the user's review (five, last
             updated first; org.moqui.impl.GitReviewServices.find#MergeRequests waitingForUserId, decorated by
-            ironstone.CodeServices.decorate#MergeRequestRows), with hosting false when the build has no git hosting. The timer
-            strip (impl-projects.md P6), the approvals (P6, P7) and the charts (P9) come with their phases.</description>
+            ironstone.CodeServices.decorate#MergeRequestRows), with hosting false when the build has no git hosting. timer: the
+            user's running timer, and approvalList: the submitted weeks the user approves (ironstone.TimeServices.get#HomeTime;
+            impl-projects.md P6a). Allocation approvals (P7) and the charts (P9) come with their phases.</description>
         <out-parameters><parameter name="home" type="Map"/></out-parameters>
         <actions><script><![CDATA[
             const managers = ec.user.isInGroup('BOSS_PROJECT_MANAGER') || ec.user.isInGroup('ADMIN')
             home = {isManager: managers, counts: {}, atRiskProjectIds: [], workItemList: [], activityList: [], projectList: [], reviewList: [], hosting: false,
-                firstRun: false, failedParts: []}
+                firstRun: false, failedParts: [], timer: null, approvalList: []}
             const part = (name, run) => {
                 ec.message.pushErrors()
                 try { run() } catch (err) {
@@ -1228,6 +1229,11 @@ along with this software (see the LICENSE.md file). If not, see
                 const out = ec.service.sync().name('mantle.work.ProjectServices.get#ProjectHomeCounts').parameters({managers: managers}).call() || {}
                 home.counts = out.counts || {}
                 home.atRiskProjectIds = Array.from(out.atRiskProjectIds || [])
+            })
+            part('time', () => {
+                const out = ec.service.sync().name('ironstone.TimeServices.get#HomeTime').parameters({managers: managers}).call() || {}
+                home.timer = out.timer || null
+                home.approvalList = Array.from(out.approvalList || [])
             })
             part('reviews', () => {
                 home.hosting = !!ec.service.sync().name('ironstone.CodeServices.get#CodeHosting').call()?.available

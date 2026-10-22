@@ -38,7 +38,7 @@ along with this software (see the LICENSE.md file). If not, see
                 MantleWikiPage, MantleCommunicationEvent, or MantleWorkEffort with workEffortTypeEnumId</description></parameter>
             <parameter name="recordEntityName"><description>Instead of docType: mantle.party.Party, mantle.request.Request,
                 mantle.work.effort.WorkEffort, moqui.resource.wiki.WikiPage, mantle.party.communication.CommunicationEvent,
-                moqui.resource.GitMergeRequest or moqui.resource.GitRepository (Projects' Code)</description></parameter>
+                moqui.resource.GitMergeRequest or moqui.resource.GitRepository (Projects' Code), mantle.work.time.Timesheet (Projects' Time)</description></parameter>
             <parameter name="id" required="true"/>
             <parameter name="workEffortTypeEnumId"/>
             <parameter name="partyTypeEnumId"/>
@@ -81,6 +81,12 @@ along with this software (see the LICENSE.md file). If not, see
                     ec.logger.error(`Record link of ${type || recordEntityName} ${id}: the Projects authorization of user ${ec.user.userId} was not read: ${err}`)
                     return false
                 }
+            }
+            // a timesheet (the timesheet topics, Chatter on it) opens its TimesheetDetail in Projects (impl-projects.md P6a)
+            if (!type && recordEntityName === 'mantle.work.time.Timesheet') {
+                url = mayOpenProjects() ? '/qapps/Projects/Time/TimesheetDetail?timesheetId=' + q : null
+                icon = 'sym_o_schedule'
+                return
             }
             // a merge request or a repository (the code topics, Chatter on them) opens in Projects' Code
             if (!type && (recordEntityName === 'moqui.resource.GitMergeRequest' || recordEntityName === 'moqui.resource.GitRepository')) {

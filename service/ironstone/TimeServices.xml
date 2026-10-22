@@ -1,0 +1,646 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- Time in IronStone Projects (design-projects.md §8; impl-projects.md P6a): the services of MyTime (Time/MyTime.qvue and its
+    terminal twin), Timesheets, TimesheetDetail, QuickTime, Home's timer strip and WorkItemDetail's timer, over Mantle's
+    mantle.work.TimesheetServices (the week, the flow, the timer, who may do what) and TimeServices (the entries). Who may change a
+    week is the timesheet's access (get#TimesheetAccess canEdit: the person or an approver while it is In-Process); an entry of
+    one's own goes on a work item of a project one is on (a task the user may update in Projects, ironstone.TaskServices.get#TaskAccess
+    app projects; a project the user is a member of, or sees as a Projects manager). The rows added to a week without time
+    (Add row, Copy last week's rows) are the user's preference ironstone.mytime.rows.<weekStart>, a comma list. -->
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
+
+    <!-- ========== MyTime ========== -->
+
+    <service verb="get" noun="MyWeek">
+        <description>MyTime's week (mantle.work.TimesheetServices.get#PartyWeek) of the user, or of a person the user approves, with
+            the rows added to it, each row's link; the running timer (own week); the work types offered (the services work types,
+            design §15 Work types); the people the user may open (their own and, for an approver, the time keepers of the projects
+            they manage; ADMIN every time keeper); and lastWeekItemCount (the items with time in the week before, for Copy last
+            week's rows). serverNow: the server's clock, for the ticking timer.</description>
+        <in-parameters>
+            <parameter name="partyId"/>
+            <parameter name="weekDate"/>
+        </in-parameters>
+        <out-parameters><parameter name="myWeek" type="Map"/></out-parameters>
+        <actions><script><![CDATA[
+            myWeek = null
+            const L = (text) => ec.l10n.localize(text)
+            const me = ec.user.userAccount?.partyId || null
+            const person = partyId || me
+            const policy = ec.service.sync().name('mantle.work.TimesheetServices.get#TimesheetPolicy').parameters({partyId: person}).call()?.policy || {}
+            const range = ec.service.sync().name('mantle.work.TimesheetServices.get#WeekRange').parameters({date: weekDate || null, weekStart: policy.weekStart || 1}).call()
+            // a week the user may not see is answered with no week and no error (an error would leave the request's transaction
+            // rollback-only, so a JSON answer could not commit)
+            const sheet = ec.service.sync().name('mantle.work.TimesheetServices.get#PartyTimesheet').parameters({partyId: person, date: range.weekStartDay, make: false}).call() || {}
+            const viewable = ec.service.sync().name('mantle.work.TimesheetServices.get#TimesheetAccess').parameters(sheet.timesheetId
+                    ? {timesheetId: sheet.timesheetId} : {partyId: person, date: range.weekStartDay}).call()?.canView
+            if (!person || !viewable) return
+            const prefKey = 'ironstone.mytime.rows.' + range.weekStartDay
+            const extra = person === me ? String(ec.user.getPreference(prefKey) || '').split(',').map((id) => id.trim()).filter((id) => id) : []
+            const week = ec.service.sync().name('mantle.work.TimesheetServices.get#PartyWeek').parameters({partyId: person, date: range.weekStartDay,
+                extraWorkEffortIds: extra}).call()?.week
+            if (ec.message.hasError() || !week) return
+            const itemUrl = (id) => '/qapps/Projects/WorkItems/WorkItemDetail?workEffortId=' + encodeURIComponent(id)
+            const projectUrl = (id) => '/qapps/Projects/Projects/ProjectDetail?workEffortId=' + encodeURIComponent(id)
+            for (const row of week.rowList) {
+                row.url = row.workEffortId ? (row.workEffortId === row.rootWorkEffortId ? projectUrl(row.workEffortId) : itemUrl(row.workEffortId)) : null
+                row.canRemove = !!row.added && !row.total
+            }
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            let workTypeOptions = [], personOptions = [], lastWeekItemCount = 0
+            try {
+                const offered = ['WktpDevelopment', 'WktpDesign', 'WktpTesting', 'WktpMeeting', 'WktpSupport', 'WktpProjectMgmt', 'WktpConsulting', 'WktpTravel']
+                const types = {}
+                for (const row of ec.entity.find('moqui.basic.Enumeration').condition('enumId', 'in', offered).useCache(true).list()) types[row.enumId] = row.description || row.enumId
+                workTypeOptions = offered.filter((id) => types[id]).map((id) => ({value: id, label: types[id]}))
+                // the people: mine, and for an approver the time keepers of the projects they manage
+                const vis = ec.service.sync().name('mantle.work.ProjectServices.get#VisibleProjectInfo').call() || {}
+                const isAdmin = ec.user.isInGroup('ADMIN')
+                const managed = Array.from(vis.managedProjectIds || [])
+                let keepers = []
+                if (isAdmin || managed.length) keepers = Array.from(ec.service.sync().name('mantle.work.TimesheetServices.get#TimeKeepers')
+                        .parameters(isAdmin ? {} : {projectIds: managed}).call()?.partyIdList || [])
+                const ids = Array.from(new Set([me].concat(keepers).concat([person]).filter((id) => id)))
+                const names = {}
+                if (ids.length) for (const party of ec.entity.find('mantle.party.PartyDetail').condition('partyId', 'in', ids).list())
+                    names[party.partyId] = party.organizationName || [party.firstName, party.lastName].filter((part) => part).join(' ') || party.partyId
+                personOptions = ids.map((id) => ({value: id, label: (names[id] || id) + (id === me ? ' (' + L('me') + ')' : '')}))
+                        .sort((a, b) => (a.value === me ? -1 : b.value === me ? 1 : String(a.label).localeCompare(String(b.label))))
+                const lastFrom = new Date(week.fromDate - 7 * 86400000)
+                lastWeekItemCount = new Set(Array.from(ec.entity.find('mantle.work.time.TimeEntry').condition('partyId', person)
+                        .condition('fromDate', 'greater-equals', lastFrom).condition('fromDate', 'less-than', new Date(week.fromDate))
+                        .condition('workEffortId', 'is-not-null', null).selectField('workEffortId').list()).map((row) => row.workEffortId)).size
+            } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+            const timer = person === me ? ec.service.sync().name('mantle.work.TimesheetServices.get#Timer').call()?.timer || null : null
+            if (timer && timer.workEffortId) timer.url = timer.workEffortId === timer.rootWorkEffortId ? projectUrl(timer.workEffortId) : itemUrl(timer.workEffortId)
+            if (timer) timer.startedText = ec.l10n.format(String(timer.fromDate), 'HH:mm')
+            myWeek = Object.assign(week, {timer: timer, workTypeOptions: workTypeOptions, personOptions: personOptions.length > 1 ? personOptions : [],
+                lastWeekItemCount: lastWeekItemCount, serverNow: Number(String(ec.user.nowTimestamp)),
+                timesheetUrl: week.timesheet.timesheetId ? '/qapps/Projects/Time/TimesheetDetail?timesheetId=' + encodeURIComponent(week.timesheet.timesheetId) : null,
+                approvedText: week.timesheet.approvedDate ? ec.l10n.format(String(week.timesheet.approvedDate), 'MMM d, h:mm a') : null,
+                submittedText: week.timesheet.submittedDate ? ec.l10n.format(String(week.timesheet.submittedDate), 'MMM d, h:mm a') : null})
+        ]]></script></actions>
+    </service>
+
+    <service verb="check" noun="TimeItem" allow-remote="false">
+        <description>Whether the user may log their own time on a work item: a task they may update in Projects
+            (ironstone.TaskServices.get#TaskAccess app projects), or a project they are on (or see, as a Projects manager or ADMIN).
+            An error otherwise.</description>
+        <in-parameters><parameter name="workEffortId" required="true"/></in-parameters>
+        <out-parameters><parameter name="workEffort" type="Map"/></out-parameters>
+        <actions><script><![CDATA[
+            const item = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', workEffortId).disableAuthz().one()
+            const notAvailable = ec.resource.expand('Work item ${workEffortId} is not available', '', {workEffortId})
+            if (!item) { ec.message.addError(notAvailable); return }
+            workEffort = item.getMap()
+            if (item.workEffortTypeEnumId === 'WetProject') {
+                const vis = ec.service.sync().name('mantle.work.ProjectServices.get#VisibleProjectInfo').call() || {}
+                const manager = ec.user.isInGroup('BOSS_PROJECT_MANAGER')
+                const ok = vis.allProjects || Array.from(vis.memberProjectIds || []).includes(workEffortId)
+                        || (manager && Array.from(vis.visibleProjectIds || []).includes(workEffortId))
+                if (!ok) ec.message.addError(ec.resource.expand('You are not on project ${workEffortId}', '', {workEffortId}))
+                return
+            }
+            if (item.workEffortTypeEnumId !== 'WetTask') { ec.message.addError(notAvailable); return }
+            ec.service.sync().name('ironstone.TaskServices.get#TaskAccess').parameters({workEffortId: workEffortId, need: 'update', app: 'projects'}).call()
+        ]]></script></actions>
+    </service>
+
+    <service verb="check" noun="WeekEdit" allow-remote="false">
+        <description>Whether the user may change a person's entries on a day (the week's timesheet access canEdit; a future day
+            only when the policy allows it). An error otherwise.</description>
+        <in-parameters>
+            <parameter name="partyId" required="true"/>
+            <parameter name="day" required="true"/>
+        </in-parameters>
+        <out-parameters><parameter name="policy" type="Map"/><parameter name="isOwner" type="Boolean"/></out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(String(day))) { ec.message.addError(L('A day is yyyy-MM-dd')); return }
+            const sheet = ec.service.sync().name('mantle.work.TimesheetServices.get#PartyTimesheet').parameters({partyId: partyId, date: day, make: false}).call() || {}
+            const access = ec.service.sync().name('mantle.work.TimesheetServices.get#TimesheetAccess').parameters(sheet.timesheetId
+                    ? {timesheetId: sheet.timesheetId} : {partyId: partyId, date: day}).call() || {}
+            policy = access.policy || {}
+            isOwner = !!access.isOwner
+            if (!access.canView) { ec.message.addError(L('This week is not available')); return }
+            if (!access.canEdit) {
+                ec.message.addError(access.locked ? L('This week is submitted: return or reopen it to change its time') : L('You may not change this week'))
+                return
+            }
+            const today = ec.l10n.format(ec.user.nowTimestamp, 'yyyy-MM-dd')
+            if (policy.future === false && String(day) > today) ec.message.addError(L('Time is not logged on future days'))
+        ]]></script></actions>
+    </service>
+
+    <service verb="save" noun="WeekCell">
+        <description>A grid cell: the hours of a person on a work item (or none) on a day. With no entry there one is made (from the
+            end of the day's last entry, else 9:00), with one its hours change (zero or empty removes it), with several the day's
+            entries are edited one by one (an error). Hours are rounded to the policy's smallest entry, at most 24.</description>
+        <in-parameters>
+            <parameter name="partyId"/>
+            <parameter name="workEffortId"/>
+            <parameter name="day" required="true"/>
+            <parameter name="hours"/>
+            <parameter name="billable"><description>Y or N; with no entry yet, default Y</description></parameter>
+            <parameter name="workTypeEnumId"/>
+            <parameter name="comments"/>
+        </in-parameters>
+        <out-parameters><parameter name="timeEntryId"/><parameter name="hours" type="BigDecimal"/><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const me = ec.user.userAccount?.partyId || null
+            const person = partyId || me
+            const check = ec.service.sync().name('ironstone.TimeServices.check#WeekEdit').parameters({partyId: person, day: day}).call() || {}
+            if (ec.message.hasError()) return
+            if (workEffortId && check.isOwner) { ec.service.sync().name('ironstone.TimeServices.check#TimeItem').parameters({workEffortId: workEffortId}).call(); if (ec.message.hasError()) return }
+            const step = Number(check.policy?.minHours || 0.25)
+            const raw = hours == null || String(hours).trim() === '' ? 0 : Number(String(hours).replace(',', '.'))
+            if (Number.isNaN(raw) || raw < 0 || raw > 24) { ec.message.addError(L('Hours are from 0 to 24')); return }
+            let value = Math.round(raw / step) * step
+            if (raw > 0 && value === 0) value = step
+            value = Math.round(value * 100) / 100
+            const dayStart = Number(String(ec.l10n.parseTimestamp(day + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS')))
+            const dayEnd = dayStart + 86400000
+            const cf = ec.entity.conditionFactory
+            const entries = Array.from(ec.entity.find('mantle.work.time.TimeEntry').condition('partyId', person)
+                    .condition(workEffortId ? cf.makeCondition('workEffortId', 'equals', workEffortId) : cf.makeCondition('workEffortId', 'is-null', null))
+                    .condition('fromDate', 'greater-equals', new Date(dayStart)).condition('fromDate', 'less-than', new Date(dayEnd)).orderBy('fromDate').disableAuthz().list())
+            if (entries.length > 1) { ec.message.addError(L('This day has several entries: change them one by one')); return }
+            const entry = entries[0]
+            if (entry && entry.thruDate == null) { ec.message.addError(L('The timer runs here: stop it first')); return }
+            if (entry && (entry.invoiceId || entry.vendorInvoiceId)) { ec.message.addError(L('This entry is invoiced')); return }
+            if (!value) {
+                if (!entry) return
+                ec.service.sync().name('mantle.work.TimeServices.delete#TimeEntry').parameters({timeEntryId: entry.timeEntryId}).call()
+                if (ec.message.hasError()) return
+                hours = 0
+                message = L('Time removed')
+                return
+            }
+            const rateType = billable == null || billable === '' ? (entry?.rateTypeEnumId || 'RatpStandard') : (billable === 'N' ? 'RatpNoCharge' : 'RatpStandard')
+            if (entry) {
+                const from = Number(String(entry.fromDate))
+                const breakHours = Number(String(entry.breakHours ?? 0))
+                ec.service.sync().name('mantle.work.TimeServices.store#TimeEntry').parameters({timeEntryId: entry.timeEntryId, fromDate: new Date(from),
+                    thruDate: new Date(from + (value + breakHours) * 3600000), hours: value, rateTypeEnumId: rateType,
+                    workTypeEnumId: workTypeEnumId != null ? (workTypeEnumId || null) : (entry.workTypeEnumId || null),
+                    comments: comments != null ? (comments || null) : (entry.comments || null)}).call()
+                if (ec.message.hasError()) return
+                timeEntryId = entry.timeEntryId
+            } else {
+                // after the day's last entry when it fits the day, else from 9:00
+                let start = dayStart + 9 * 3600000
+                const lastThru = Array.from(ec.entity.find('mantle.work.time.TimeEntry').condition('partyId', person).condition('fromDate', 'greater-equals', new Date(dayStart))
+                        .condition('fromDate', 'less-than', new Date(dayEnd)).condition('thruDate', 'is-not-null', null).orderBy('-thruDate').limit(1).disableAuthz().list())[0]
+                if (lastThru) { const end = Number(String(lastThru.thruDate)); if (end + value * 3600000 < dayEnd) start = Math.max(end, dayStart) }
+                if (start + value * 3600000 > dayEnd) start = dayEnd - value * 3600000
+                const out = ec.service.sync().name('mantle.work.TimeServices.store#TimeEntry').parameters({partyId: person, workEffortId: workEffortId || null,
+                    fromDate: new Date(start), thruDate: new Date(start + value * 3600000), hours: value, rateTypeEnumId: rateType,
+                    workTypeEnumId: workTypeEnumId || null, comments: comments || null}).call()
+                if (ec.message.hasError()) return
+                timeEntryId = out?.timeEntryId
+            }
+            hours = value
+            message = ec.resource.expand('${hours} h logged', '', {hours: ec.l10n.format(value, '#,##0.##')})
+        ]]></script></actions>
+    </service>
+
+    <service verb="save" noun="TimeEntry">
+        <description>One entry in full (MyTime's EntryForm, QuickTime): a person's (default the user's) time on a work item on a
+            day, from and thru (HH:mm) or hours from 9:00, a break, billable (Y or N), the work type and a comment; timeEntryId
+            changes that entry. The week's access and the item are checked as for save#WeekCell.</description>
+        <in-parameters>
+            <parameter name="timeEntryId"/>
+            <parameter name="partyId"/>
+            <parameter name="workEffortId"/>
+            <parameter name="day"><description>yyyy-MM-dd, default today</description></parameter>
+            <parameter name="fromTime"/>
+            <parameter name="thruTime"/>
+            <parameter name="hours"/>
+            <parameter name="breakHours"/>
+            <parameter name="billable" default-value="Y"/>
+            <parameter name="workTypeEnumId"/>
+            <parameter name="comments"/>
+        </in-parameters>
+        <out-parameters><parameter name="timeEntryId"/><parameter name="hours" type="BigDecimal"/><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const me = ec.user.userAccount?.partyId || null
+            let entry = null
+            if (timeEntryId) {
+                entry = ec.entity.find('mantle.work.time.TimeEntry').condition('timeEntryId', timeEntryId).disableAuthz().one()
+                if (!entry) { ec.message.addError(ec.resource.expand('Time entry ${timeEntryId} not found', '', {timeEntryId})); return }
+                if (entry.invoiceId || entry.vendorInvoiceId) { ec.message.addError(L('This entry is invoiced')); return }
+                if (entry.thruDate == null) { ec.message.addError(L('The timer runs on this entry: stop it first')); return }
+            }
+            const person = entry ? entry.partyId : (partyId || me)
+            const theDay = /^\d{4}-\d{2}-\d{2}$/.test(String(day || '')) ? String(day) : ec.l10n.format(ec.user.nowTimestamp, 'yyyy-MM-dd')
+            // the week the entry leaves and the one it goes to
+            if (entry) {
+                ec.service.sync().name('ironstone.TimeServices.check#WeekEdit').parameters({partyId: person, day: ec.l10n.format(String(Number(String(entry.fromDate))), 'yyyy-MM-dd')}).call()
+                if (ec.message.hasError()) return
+            }
+            const check = ec.service.sync().name('ironstone.TimeServices.check#WeekEdit').parameters({partyId: person, day: theDay}).call() || {}
+            if (ec.message.hasError()) return
+            if (check.policy?.needItem && !workEffortId) { ec.message.addError(L('Choose the work item')); return }
+            if (workEffortId && check.isOwner && workEffortId !== entry?.workEffortId) {
+                ec.service.sync().name('ironstone.TimeServices.check#TimeItem').parameters({workEffortId: workEffortId}).call()
+                if (ec.message.hasError()) return
+            }
+            const at = (time) => {
+                const text = String(time || '').trim()
+                if (!/^\d{1,2}:\d{2}$/.test(text)) return null
+                const [h, m] = text.split(':').map(Number)
+                if (h > 24 || m > 59) return null
+                return Number(String(ec.l10n.parseTimestamp(theDay + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS'))) + (h * 60 + m) * 60000
+            }
+            const num = (value) => value == null || String(value).trim() === '' ? null : Number(String(value).replace(',', '.'))
+            const breakValue = num(breakHours) || 0
+            if (breakValue < 0 || breakValue > 12) { ec.message.addError(L('A break is from 0 to 12 hours')); return }
+            let from = at(fromTime), thru = at(thruTime), value = num(hours)
+            if (from != null && thru != null) {
+                if (thru <= from) thru += 86400000
+                value = Math.round(((thru - from) / 3600000 - breakValue) * 100) / 100
+            } else {
+                if (value == null || Number.isNaN(value) || value <= 0 || value > 24) { ec.message.addError(L('Give the hours, or from and to')); return }
+                if (from == null) from = at(entry ? ec.l10n.format(String(Number(String(entry.fromDate))), 'HH:mm') : '09:00')
+                thru = from + (value + breakValue) * 3600000
+            }
+            if (!(value > 0) || value > 24) { ec.message.addError(L('Hours are more than 0 and at most 24')); return }
+            const out = ec.service.sync().name('mantle.work.TimeServices.store#TimeEntry').parameters({timeEntryId: entry?.timeEntryId || null, partyId: person,
+                workEffortId: workEffortId || null, fromDate: new Date(from), thruDate: new Date(thru), hours: value, breakHours: breakValue || null,
+                rateTypeEnumId: billable === 'N' ? 'RatpNoCharge' : 'RatpStandard', workTypeEnumId: workTypeEnumId || null, comments: comments || null}).call()
+            if (ec.message.hasError()) return
+            timeEntryId = entry?.timeEntryId || out?.timeEntryId
+            hours = value
+            message = ec.resource.expand('${hours} h logged', '', {hours: ec.l10n.format(value, '#,##0.##')})
+        ]]></script></actions>
+    </service>
+
+    <service verb="delete" noun="WeekEntry">
+        <description>Removes an entry of a week the user may change (not invoiced, not the running timer).</description>
+        <in-parameters><parameter name="timeEntryId" required="true"/></in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const entry = ec.entity.find('mantle.work.time.TimeEntry').condition('timeEntryId', timeEntryId).disableAuthz().one()
+            if (!entry) { ec.message.addError(ec.resource.expand('Time entry ${timeEntryId} not found', '', {timeEntryId})); return }
+            if (entry.thruDate == null && entry.fromDate != null) { ec.message.addError(L('The timer runs on this entry: stop it first')); return }
+            ec.service.sync().name('ironstone.TimeServices.check#WeekEdit').parameters({partyId: entry.partyId,
+                day: ec.l10n.format(String(Number(String(entry.fromDate))), 'yyyy-MM-dd')}).call()
+            if (ec.message.hasError()) return
+            ec.service.sync().name('mantle.work.TimeServices.delete#TimeEntry').parameters({timeEntryId: timeEntryId}).call()
+            if (ec.message.hasError()) return
+            message = L('Time entry removed')
+        ]]></script></actions>
+    </service>
+
+    <service verb="change" noun="WeekRows">
+        <description>The rows added to the user's own week without time (the preference ironstone.mytime.rows.weekStart): add
+            (workEffortId, an item the user may log on), remove (workEffortId), or copyLast (the items with time in the week
+            before, and the rows added to it).</description>
+        <in-parameters>
+            <parameter name="change" required="true"><description>add, remove or copyLast</description></parameter>
+            <parameter name="weekDate"/>
+            <parameter name="workEffortId"/>
+        </in-parameters>
+        <out-parameters><parameter name="addedCount" type="Integer"/><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const me = ec.user.userAccount?.partyId || null
+            if (!me) { ec.message.addError(L('Sign in to keep your time')); return }
+            const policy = ec.service.sync().name('mantle.work.TimesheetServices.get#TimesheetPolicy').call()?.policy || {}
+            const range = ec.service.sync().name('mantle.work.TimesheetServices.get#WeekRange').parameters({date: weekDate || null, weekStart: policy.weekStart || 1}).call()
+            const key = 'ironstone.mytime.rows.' + range.weekStartDay
+            const rows = String(ec.user.getPreference(key) || '').split(',').map((id) => id.trim()).filter((id) => id)
+            addedCount = 0
+            if (change === 'add') {
+                if (!workEffortId) { ec.message.addError(L('Choose a work item')); return }
+                ec.service.sync().name('ironstone.TimeServices.check#TimeItem').parameters({workEffortId: workEffortId}).call()
+                if (ec.message.hasError()) return
+                if (!rows.includes(workEffortId)) { rows.push(workEffortId); addedCount = 1 }
+                message = ec.resource.expand('${workEffortId} added to the week', '', {workEffortId})
+            } else if (change === 'remove') {
+                const at = rows.indexOf(workEffortId || '')
+                if (at >= 0) rows.splice(at, 1)
+                message = L('Row removed')
+            } else if (change === 'copyLast') {
+                const lastStart = Number(String(range.fromDate)) - 7 * 86400000
+                const lastDay = ec.l10n.format(String(lastStart + 3600000), 'yyyy-MM-dd')
+                const ids = Array.from(new Set(Array.from(ec.entity.find('mantle.work.time.TimeEntry').condition('partyId', me)
+                        .condition('fromDate', 'greater-equals', new Date(lastStart)).condition('fromDate', 'less-than', range.fromDate)
+                        .condition('workEffortId', 'is-not-null', null).selectField('workEffortId').disableAuthz().list()).map((row) => row.workEffortId)
+                        .concat(String(ec.user.getPreference('ironstone.mytime.rows.' + lastDay) || '').split(',').map((id) => id.trim()).filter((id) => id))))
+                for (const id of ids) {
+                    if (rows.includes(id)) continue
+                    // closed items stay behind
+                    const item = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', id).disableAuthz().one()
+                    if (!item || ['WeComplete', 'WeClosed', 'WeCancelled'].includes(item.statusId)) continue
+                    rows.push(id); addedCount++
+                }
+                message = ec.resource.expand('${count} rows copied from last week', '', {count: addedCount})
+            } else { ec.message.addError(L('Unknown change')); return }
+            ec.user.setPreference(key, rows.slice(0, 60).join(','))
+        ]]></script></actions>
+    </service>
+
+    <service verb="search" noun="TimeItems">
+        <description>The work items the user logs time on, as drop-down options (value, label): with no term the open items assigned
+            to the user, then those with the user's time in the last four weeks; with a term the open items and projects of the
+            user's projects (or every visible one for a Projects manager) by key or name. Thirty at most.</description>
+        <in-parameters><parameter name="term"/></in-parameters>
+        <out-parameters><parameter name="optionList" type="List"/></out-parameters>
+        <actions><script><![CDATA[
+            optionList = []
+            const me = ec.user.userAccount?.partyId || null
+            if (!me) return
+            const cf = ec.entity.conditionFactory
+            const vis = ec.service.sync().name('mantle.work.ProjectServices.get#VisibleProjectInfo').call() || {}
+            const projects = vis.allProjects ? null : Array.from(ec.user.isInGroup('BOSS_PROJECT_MANAGER') ? (vis.visibleProjectIds || []) : (vis.memberProjectIds || []))
+            if (projects != null && !projects.length) return
+            const closed = ['WeComplete', 'WeClosed', 'WeCancelled']
+            const label = (row, projectName) => row.workEffortId + ' ' + (row.workEffortName || '') + (projectName ? ' · ' + projectName : '')
+            const projectNames = {}
+            const projectName = (id) => {
+                if (!id) return ''
+                if (!(id in projectNames)) projectNames[id] = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', id).disableAuthz().one()?.workEffortName || id
+                return projectNames[id]
+            }
+            const add = (row) => {
+                if (!row || optionList.some((option) => option.value === row.workEffortId)) return
+                if (row.workEffortTypeEnumId === 'WetTask' && ['WevRestricted', 'WevConfidential'].includes(row.visibilityEnumId)
+                        && !Array.from(vis.restrictedItemIds || []).includes(row.workEffortId) && !Array.from(vis.managedProjectIds || []).includes(row.rootWorkEffortId)) return
+                optionList.push({value: row.workEffortId, label: label(row, row.workEffortTypeEnumId === 'WetProject' ? '' : projectName(row.rootWorkEffortId))})
+            }
+            const words = term ? String(term).trim() : ''
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try {
+                if (!words) {
+                    const assigned = Array.from(new Set(Array.from(ec.entity.find('mantle.work.effort.WorkEffortParty').condition('partyId', me).condition('roleTypeId', 'Assignee')
+                            .conditionDate('fromDate', 'thruDate', null).selectField('workEffortId').list()).map((row) => row.workEffortId)))
+                    const recent = Array.from(new Set(Array.from(ec.entity.find('mantle.work.time.TimeEntry').condition('partyId', me)
+                            .condition('fromDate', 'greater-equals', new Date(Number(String(ec.user.nowTimestamp)) - 28 * 86400000))
+                            .condition('workEffortId', 'is-not-null', null).orderBy('-fromDate').selectField('workEffortId').limit(200).list()).map((row) => row.workEffortId)))
+                    for (const ids of [assigned, recent]) {
+                        if (!ids.length) continue
+                        let find = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', 'in', ids).condition('statusId', 'not-in', closed)
+                                .condition('workEffortTypeEnumId', 'in', ['WetTask', 'WetProject'])
+                        if (projects != null) find = find.condition(cf.makeCondition([cf.makeCondition('rootWorkEffortId', 'in', projects), cf.makeCondition('workEffortId', 'in', projects)], 'or'))
+                        const rows = Array.from(find.list())
+                        rows.sort((a, b) => ids.indexOf(a.workEffortId) - ids.indexOf(b.workEffortId))
+                        for (const row of rows) if (optionList.length < 30) add(row)
+                    }
+                    return
+                }
+                let find = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortTypeEnumId', 'in', ['WetTask', 'WetProject'])
+                        .condition('statusId', 'not-in', closed).condition(cf.makeCondition('isTemplate', 'not-equals', 'Y', true))
+                        .condition(cf.makeCondition([cf.makeCondition('workEffortName', 'like', `%${words}%`, false, true),
+                            cf.makeCondition('workEffortId', 'like', `%${words}%`, false, true)], 'or'))
+                if (projects != null) find = find.condition(cf.makeCondition([cf.makeCondition('rootWorkEffortId', 'in', projects), cf.makeCondition('workEffortId', 'in', projects)], 'or'))
+                for (const row of find.orderBy('workEffortId').limit(60).list()) if (optionList.length < 30) add(row)
+            } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== The timer ========== -->
+
+    <service verb="start" noun="Timer">
+        <description>Starts the user's timer on a work item they may log on (mantle.work.TimesheetServices.start#Timer: a timer on
+            another item stops first).</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="comments"/>
+        </in-parameters>
+        <out-parameters><parameter name="timeEntryId"/><parameter name="alreadyRunning" type="Boolean"/><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.TimeServices.check#TimeItem').parameters({workEffortId: workEffortId}).call()
+            if (ec.message.hasError()) return
+            const out = ec.service.sync().name('mantle.work.TimesheetServices.start#Timer').parameters({workEffortId: workEffortId, comments: comments || null}).call() || {}
+            if (ec.message.hasError()) return
+            timeEntryId = out.timeEntryId; alreadyRunning = !!out.alreadyRunning
+            message = out.stoppedTimeEntryIds?.length ? ec.resource.expand('Switched: the timer runs on ${workEffortId}', '', {workEffortId}) : out.message
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== Submit and decide ========== -->
+
+    <service verb="decide" noun="Week">
+        <description>A week's flow from MyTime and TimesheetDetail: submit (the user's own week of weekDate, or timesheetId),
+            approve, return (reason required) or reopen (reason) of timesheetId, through mantle.work.TimesheetServices, which checks
+            who may.</description>
+        <in-parameters>
+            <parameter name="action" required="true"/>
+            <parameter name="timesheetId"/>
+            <parameter name="weekDate"/>
+            <parameter name="reason"/>
+        </in-parameters>
+        <out-parameters><parameter name="timesheetId"/><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            const TS = 'mantle.work.TimesheetServices'
+            let out = {}
+            if (action === 'submit') out = ec.service.sync().name(TS + '.submit#Timesheet').parameters(timesheetId ? {timesheetId: timesheetId}
+                    : {partyId: ec.user.userAccount?.partyId, date: weekDate || null}).call() || {}
+            else if (action === 'approve') out = ec.service.sync().name(TS + '.approve#Timesheet').parameters({timesheetId: timesheetId || ''}).call() || {}
+            else if (action === 'return') out = ec.service.sync().name(TS + '.return#Timesheet').parameters({timesheetId: timesheetId || '', reason: reason || ''}).call() || {}
+            else if (action === 'reopen') out = ec.service.sync().name(TS + '.reopen#Timesheet').parameters({timesheetId: timesheetId || '', reason: reason || null}).call() || {}
+            else { ec.message.addError(ec.l10n.localize('Unknown action')); return }
+            if (ec.message.hasError()) return
+            timesheetId = out.timesheetId || timesheetId
+            message = out.message
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== Timesheets ========== -->
+
+    <service verb="find" noun="TimesheetRows">
+        <description>Timesheets' rows (mantle.work.TimesheetServices.find#Timesheets) with their texts and links, the counts of the
+            chips, and the people of the find (those of the rows).</description>
+        <in-parameters>
+            <parameter name="list"/>
+            <parameter name="partyId"/>
+            <parameter name="weekDate"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="rowList" type="List"/>
+            <parameter name="counts" type="Map"/>
+            <parameter name="list"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const me = ec.user.userAccount?.partyId || null
+            const lists = ['toApprove', 'mine', 'returned', 'missing', 'approved', 'all']
+            if (!lists.includes(list)) list = null
+            if (!list) {
+                // approvers open on what waits for them, others on their own
+                const waiting = ec.service.sync().name('mantle.work.TimesheetServices.find#Timesheets').parameters({list: 'toApprove', withCounts: false}).call()?.rowList || []
+                list = Array.from(waiting).length || ec.user.isInGroup('BOSS_PROJECT_MANAGER') ? 'toApprove' : 'mine'
+            }
+            const out = ec.service.sync().name('mantle.work.TimesheetServices.find#Timesheets').parameters({list: list, partyId: partyId || null,
+                weekDate: weekDate || null}).call() || {}
+            if (ec.message.hasError()) return
+            counts = out.counts || {}
+            const L = (text) => ec.l10n.localize(text)
+            const n = (value) => value == null ? '' : ec.l10n.format(value, '#,##0.##')
+            const colors = {TmshInProcess: 'grey-8', TmshCompleted: 'info', TmshApproved: 'positive'}
+            rowList = Array.from(out.rowList || []).map((row) => Object.assign({}, row, {
+                statusColor: row.missing ? 'warning' : row.returned ? 'warning' : (colors[row.statusId] || 'grey-8'),
+                hoursText: n(row.hours), billableText: row.billable == null ? '' : n(row.billable), expectedText: n(row.expected),
+                differenceText: row.difference == null ? '' : (row.difference > 0 ? '+' : '') + n(row.difference),
+                submittedText: row.submittedDate ? ec.l10n.format(String(row.submittedDate), 'MMM d, h:mm a') : '',
+                detailUrl: row.timesheetId ? '/qapps/Projects/Time/TimesheetDetail?timesheetId=' + encodeURIComponent(row.timesheetId) : null,
+                weekUrl: '/qapps/Projects/Time/MyTime?partyId=' + encodeURIComponent(row.partyId) + '&weekDate=' + encodeURIComponent(row.weekStart),
+                rowKey: row.timesheetId || ('P:' + row.partyId), isMe: row.partyId === me}))
+        ]]></script></actions>
+    </service>
+
+    <service verb="bulk" noun="Timesheets">
+        <description>Timesheets' bulk decisions on the selected rows, each on its own (a refused one is counted, the rest go on):
+            approve, return (reason required), or remind (the people of the rows, TimesheetServices.send#MissingTimeReminders, the
+            week of weekDate or of each row). selectedIds: a comma list of timesheet ids, or P:partyId for a missing week.</description>
+        <in-parameters>
+            <parameter name="action" required="true"/>
+            <parameter name="selectedIds"/>
+            <parameter name="reason"/>
+            <parameter name="weekDate"/>
+        </in-parameters>
+        <out-parameters><parameter name="doneCount" type="Integer"/><parameter name="failedCount" type="Integer"/><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            doneCount = 0; failedCount = 0
+            const ids = String(selectedIds || '').split(',').map((id) => id.trim()).filter((id) => id)
+            if (!ids.length) { ec.message.addError(L('Select the timesheets first')); return }
+            if (action === 'return' && !String(reason || '').trim()) { ec.message.addError(L('Say why the weeks are returned')); return }
+            if (action === 'remind') {
+                const byWeek = {}
+                for (const id of ids) {
+                    let person = null, week = weekDate || null
+                    if (id.startsWith('P:')) person = id.substring(2)
+                    else {
+                        const sheet = ec.entity.find('mantle.work.time.Timesheet').condition('timesheetId', id).disableAuthz().one()
+                        if (sheet) { person = sheet.partyId; week = week || ec.l10n.format(String(Number(String(sheet.fromDate)) + 3.5 * 86400000), 'yyyy-MM-dd') }
+                    }
+                    if (!person) { failedCount++; continue }
+                    const key = week || ''
+                    ;(byWeek[key] || (byWeek[key] = [])).push(person)
+                }
+                for (const week of Object.keys(byWeek)) {
+                    const out = ec.service.sync().name('mantle.work.TimesheetServices.send#MissingTimeReminders').parameters({partyIds: byWeek[week], weekDate: week || null}).call() || {}
+                    doneCount += Number(out.sentCount || 0); failedCount += Number(out.skippedCount || 0)
+                }
+                message = ec.resource.expand('${count} reminders sent', '', {count: doneCount}) + (failedCount ? ', ' + ec.resource.expand('${count} not sent', '', {count: failedCount}) : '')
+                return
+            }
+            const service = {approve: 'approve#Timesheet', return: 'return#Timesheet'}[action]
+            if (!service) { ec.message.addError(L('Unknown action')); return }
+            for (const id of ids) {
+                if (id.startsWith('P:')) { failedCount++; continue }
+                ec.message.pushErrors()
+                try {
+                    ec.service.sync().name('mantle.work.TimesheetServices.' + service).parameters(action === 'return' ? {timesheetId: id, reason: reason} : {timesheetId: id})
+                            .requireNewTransaction(true).call()
+                    if (ec.message.hasError()) throw new Error(ec.message.getErrorsString())
+                    doneCount++
+                } catch (err) {
+                    failedCount++
+                    ec.logger.warn(`Timesheets: ${action} of ${id} was not done: ${err && err.message ? err.message : err}`)
+                } finally { ec.message.clearErrors(); ec.message.popErrors() }
+            }
+            message = ec.resource.expand(action === 'approve' ? '${count} weeks approved' : '${count} weeks returned', '', {count: doneCount})
+                    + (failedCount ? ', ' + ec.resource.expand('${count} not (not submitted, or not yours to decide)', '', {count: failedCount}) : '')
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="TimesheetDetail">
+        <description>TimesheetDetail's timesheet, for one who may view it (else "not available"): mantle.work.TimesheetServices
+            get#TimesheetSummary with its week, the entries by day (a day's header row then its entries, each with its texts), the
+            totals by project and item, the flags, the status history (the status audit with who and when) and the actions the
+            user may take.</description>
+        <in-parameters><parameter name="timesheetId" required="true"/></in-parameters>
+        <out-parameters><parameter name="detail" type="Map"/></out-parameters>
+        <actions><script><![CDATA[
+            detail = null
+            const L = (text) => ec.l10n.localize(text)
+            const summary = ec.service.sync().name('mantle.work.TimesheetServices.get#TimesheetSummary').parameters({timesheetId: timesheetId}).call()?.summary
+            if (ec.message.hasError() || !summary) return
+            const week = summary.week
+            const n = (value) => value == null ? '' : ec.l10n.format(value, '#,##0.##')
+            const fmt = (millis, pattern) => millis == null ? '' : ec.l10n.format(String(millis), pattern)
+            const rowOf = {}
+            for (const row of week.rowList) rowOf[row.workEffortId || ''] = row
+            const entryRows = []
+            for (const day of week.dayList) {
+                const entries = week.entryList.filter((entry) => entry.day === day.day)
+                if (!entries.length) continue
+                entryRows.push({isDay: true, dayText: fmt(Number(String(ec.l10n.parseTimestamp(day.day + ' 12:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS'))), 'EEEE, MMM d'),
+                    hoursText: n(day.total), holiday: day.holiday || '', below: !!day.below})
+                for (const entry of entries) {
+                    const row = rowOf[entry.workEffortId || ''] || {}
+                    entryRows.push({isDay: false, timeEntryId: entry.timeEntryId, fromText: fmt(entry.fromDate, 'h:mm a'), thruText: entry.running ? L('running') : fmt(entry.thruDate, 'h:mm a'),
+                        workEffortId: entry.workEffortId, workEffortName: row.workEffortName || L('No work item'), projectName: row.projectName || '',
+                        hoursText: n(entry.hours), workTypeLabel: entry.workTypeLabel || '', billableText: entry.billable ? L('Billable') : L('Not billable'),
+                        billable: entry.billable, comments: entry.comments || '', invoiced: entry.invoiced,
+                        url: entry.workEffortId ? (entry.workEffortId === row.rootWorkEffortId ? '/qapps/Projects/Projects/ProjectDetail?workEffortId='
+                            : '/qapps/Projects/WorkItems/WorkItemDetail?workEffortId=') + encodeURIComponent(entry.workEffortId) : null})
+                }
+            }
+            const history = []
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try {
+                const labels = {TmshInProcess: L('In progress'), TmshCompleted: L('Submitted'), TmshApproved: L('Approved')}
+                for (const log of ec.entity.find('moqui.entity.EntityAuditLog').condition('changedEntityName', 'mantle.work.time.Timesheet')
+                        .condition('changedFieldName', 'statusId').condition('pkPrimaryValue', timesheetId).orderBy('-changedDate').list()) {
+                    const account = log.changedByUserId ? ec.entity.find('moqui.security.UserAccount').condition('userId', log.changedByUserId).one() : null
+                    let change = labels[log.newValueText] || log.newValueText
+                    if (log.newValueText === 'TmshInProcess' && log.oldValueText === 'TmshCompleted') change = L('Returned')
+                    if (log.newValueText === 'TmshInProcess' && log.oldValueText === 'TmshApproved') change = L('Reopened')
+                    history.push({change: change, byText: account ? (account.userFullName || account.username) : '', whenText: fmt(Number(String(log.changedDate)), 'MMM d, h:mm a')})
+                }
+            } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+            detail = {timesheetId: timesheetId, partyId: week.partyId, personName: week.personName, weekText: week.label, weekStart: week.weekStart,
+                statusId: week.timesheet.statusId, statusLabel: week.timesheet.statusLabel, returned: week.timesheet.returned, reason: week.timesheet.reason,
+                approvedByName: week.timesheet.approvedByName, approvedText: fmt(week.timesheet.approvedDate, 'MMM d, h:mm a'),
+                submittedText: fmt(week.timesheet.submittedDate, 'MMM d, h:mm a'), access: week.access,
+                hoursText: n(summary.hours), billableText: n(summary.billable), expectedText: n(summary.expected),
+                differenceText: (summary.difference > 0 ? '+' : '') + n(summary.difference), difference: summary.difference,
+                entryRows: entryRows, byProject: summary.byProject.map((line) => Object.assign({}, line, {hoursText: n(line.hours), billableText: n(line.billable)})),
+                flagList: summary.flagList.map((flag) => Object.assign({}, flag, {dayText: flag.day ? fmt(Number(String(ec.l10n.parseTimestamp(flag.day + ' 12:00:00.000',
+                    'yyyy-MM-dd HH:mm:ss.SSS'))), 'EEE, MMM d') : '', icon: {noComment: 'sym_o_comments_disabled', noItem: 'sym_o_link_off', offDay: 'sym_o_weekend',
+                    closedItem: 'sym_o_task_alt', longDay: 'sym_o_hourglass_full'}[flag.kind] || 'sym_o_flag'})),
+                history: history, weekUrl: '/qapps/Projects/Time/MyTime?partyId=' + encodeURIComponent(week.partyId) + '&weekDate=' + encodeURIComponent(week.weekStart)}
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== Home ========== -->
+
+    <service verb="get" noun="HomeTime">
+        <description>Projects Home's time: the running timer (mantle.work.TimesheetServices.get#Timer, with its item's link) and,
+            for an approver, the submitted weeks waiting (five, oldest first; find#Timesheets toApprove).</description>
+        <in-parameters><parameter name="managers" type="Boolean" default="false"/></in-parameters>
+        <out-parameters><parameter name="timer" type="Map"/><parameter name="approvalList" type="List"/></out-parameters>
+        <actions><script><![CDATA[
+            timer = ec.service.sync().name('mantle.work.TimesheetServices.get#Timer').call()?.timer || null
+            if (timer?.workEffortId) timer.url = (timer.workEffortId === timer.rootWorkEffortId ? '/qapps/Projects/Projects/ProjectDetail?workEffortId='
+                    : '/qapps/Projects/WorkItems/WorkItemDetail?workEffortId=') + encodeURIComponent(timer.workEffortId)
+            if (timer) timer.startedText = ec.l10n.format(String(timer.fromDate), 'h:mm a')
+            approvalList = []
+            if (!managers) return
+            const rows = Array.from(ec.service.sync().name('mantle.work.TimesheetServices.find#Timesheets').parameters({list: 'toApprove', withCounts: false})
+                    .call()?.rowList || [])
+            rows.sort((a, b) => String(a.weekStart).localeCompare(String(b.weekStart)) || String(a.personName).localeCompare(String(b.personName)))
+            approvalList = rows.slice(0, 5).map((row) => ({timesheetId: row.timesheetId, personName: row.personName, weekText: row.weekText,
+                hoursText: ec.l10n.format(row.hours, '#,##0.##') + ' h', sinceText: row.submittedDate ? ec.l10n.format(String(row.submittedDate), 'MMM d') : '',
+                url: '/qapps/Projects/Time/TimesheetDetail?timesheetId=' + encodeURIComponent(row.timesheetId)}))
+        ]]></script></actions>
+    </service>
+</services>

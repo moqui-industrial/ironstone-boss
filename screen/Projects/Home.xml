@@ -22,8 +22,13 @@ along with this software (see the LICENSE.md file). If not, see
     Reviews waiting on me (impl-projects.md P3b2): a counter into Code's Merge requests waiting for my review, and a block of the
     five latest (number, title, repository, author, checks, updated), both left out when the build has no git hosting.
 
-    Seams for the later phases, each an addition here: the timer strip above the counters and Start timer on a work item (P6,
-    with My time), Timesheets to approve, Allocation requests and the Approvals block (P6, P7), Unbilled and the two charts
+    Time (impl-projects.md P6a): the timer strip across the top while the user's timer runs (the work item, its project, when it
+    started, the elapsed time with m-elapsed, Stop and My time); Start timer on each of my work items (a timer on another item
+    stops first); My hours, this week's against my working hours with the timesheet's status once submitted, into My time; for
+    managers Approve time (the timesheets to approve) and the Approvals block (the submitted weeks waiting, five, oldest first, each opening
+    TimesheetDetail; left out when none waits).
+
+    Seams for the later phases, each an addition here: Allocation requests and their approvals (P7), Unbilled and the two charts
     (P8, P9), and the clients' Home (P10). Each counter comes from mantle.work.ProjectServices.get#ProjectHomeCounts, which
     already answers null for those. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
@@ -31,6 +36,23 @@ along with this software (see the LICENSE.md file). If not, see
 
     <transition name="workItemDetail"><default-response url="../WorkItems/WorkItemDetail"/></transition>
     <transition name="projectDetail"><default-response url="../Projects/ProjectDetail"/></transition>
+    <!-- the timer: Stop on the strip, Start timer on a work item -->
+    <transition name="stopTimer">
+        <actions>
+            <service-call name="mantle.work.TimesheetServices.stop#Timer" out-map="timerOut"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(timerOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."/>
+        <error-response url="."/>
+    </transition>
+    <transition name="startTimer">
+        <actions>
+            <service-call name="ironstone.TimeServices.start#Timer" out-map="timerOut" in-map="{workEffortId:workEffortId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(timerOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."/>
+        <error-response url="."/>
+    </transition>
 
     <actions>
         <service-call name="ironstone.ProjectServices.get#ProjectsHome" out-map="homeOut"/>
@@ -48,6 +70,23 @@ along with this software (see the LICENSE.md file). If not, see
             const n = (value) => value == null ? '—' : ec.l10n.format(value, '#,##0')
             myOpenText = n(counts.myOpen); dueWeekText = n(counts.dueWeek); overdueText = n(counts.overdue)
             hoursWeekText = counts.hoursWeek == null ? '—' : ec.l10n.format(counts.hoursWeek, '#,##0.##') + ' h'
+            if (counts.hoursWeek != null && counts.expectedWeek) hoursWeekText = ec.l10n.format(counts.hoursWeek, '#,##0.##') + ' / ' + ec.l10n.format(counts.expectedWeek, '#,##0.##') + ' h'
+            // the week's timesheet status, when it is no longer open
+            const sheetLabels = {TmshCompleted: L('submitted'), TmshApproved: L('approved')}
+            hoursTitle = L('My hours') + (sheetLabels[counts.timesheetStatusId] ? ' · ' + sheetLabels[counts.timesheetStatusId] : '')
+            toApproveText = n(counts.timesheetsToApprove)
+            // the timer strip
+            timer = home.timer || null
+            timerShown = !!timer
+            if (timer) {
+                const enc = (value) => String(value == null ? '' : value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\u0022/g, '&quot;')
+                timerTitle = (timer.workEffortId ? timer.workEffortId + ' ' : '') + (timer.workEffortName || L('No work item'))
+                timerCaption = [timer.projectName, L('since') + ' ' + timer.startedText, timer.comments].filter((part) => part).join(' · ')
+                timerElapsedHtml = '<m-elapsed from="' + enc(timer.fromDate) + '" class="text-h6 text-mono"></m-elapsed>'
+                timerTui = {t: 'text', id: 'HomeTimer', style: 'strong', text: L('Timer') + ': ' + timerTitle + ' · ' + timerCaption}
+            }
+            approvalList = Array.from(home.approvalList || [])
+            approvalsShown = isManager && approvalList.length > 0
             atRiskText = n(counts.projectsAtRisk); milestonesText = n(counts.milestonesSoon)
             reviewsShown = !!home.hosting && counts.reviewsWaiting != null
             reviewsText = n(counts.reviewsWaiting)
@@ -68,6 +107,26 @@ along with this software (see the LICENSE.md file). If not, see
             <label type="div" text="${todayText}" style="text-caption m-muted"/>
         </container>
 
+        <!-- the timer strip, first while the timer runs -->
+        <section name="TimerStrip" condition="timerShown"><widgets>
+            <render-mode><text type="qvt"><![CDATA[<q-card flat bordered class="q-px-md q-py-sm q-mb-md m-home-timer-card">]]></text><text type="tui" template="false">[]</text></render-mode>
+                <container style="row items-center q-col-gutter-sm no-wrap m-home-timer">
+                    <render-mode><text type="qvt"><![CDATA[<div class="col-auto"><q-icon name="sym_o_timer" size="md" color="primary"></q-icon></div>]]></text><text type="tui" template="false">[]</text></render-mode>
+                    <container style="col" >
+                        <link url="${timer.url}" url-type="plain" text="${timerTitle}" link-type="anchor" style="text-body1 text-weight-medium" condition="timer.url"/>
+                        <label text="${timerTitle}" type="div" style="text-body1 text-weight-medium" condition="!timer.url"/>
+                        <label text="${timerCaption}" type="div" style="text-caption m-muted"/>
+                    </container>
+                    <render-mode><text type="qvt"><![CDATA[<div class="col-auto">${timerElapsedHtml}</div>]]></text>
+                        <text type="tui"><![CDATA[${JSON.stringify(timerTui)}]]></text></render-mode>
+                    <container style="col-auto row items-center q-gutter-xs">
+                        <link url="stopTimer" link-type="hidden-form" btn-type="danger" text="Stop" icon="sym_o_stop_circle"/>
+                        <link url="../Time/MyTime" text="My time" icon="sym_o_schedule" link-type="anchor-button" style="gt-xs"/>
+                    </container>
+                </container>
+            <render-mode><text type="qvt"><![CDATA[</q-card>]]></text><text type="tui" template="false">[]</text></render-mode>
+        </widgets></section>
+
         <!-- first run: no project yet -->
         <section name="FirstRun" condition="firstRun"><widgets>
             <container-box type="info"><box-header title="Get started with Projects"/><box-body>
@@ -87,7 +146,8 @@ along with this software (see the LICENSE.md file). If not, see
             <number-card title="Due this week" value="${dueWeekText}" icon="sym_o_date_range" link="${dueWeekLink}"/>
             <number-card title="Overdue" value="${overdueText}" icon="sym_o_assignment_late" link="${overdueLink}"/>
             <number-card title="Reviews waiting" value="${reviewsText}" icon="sym_o_rate_review" link="../Code/MergeRequests?list=waiting" condition="reviewsShown"/>
-            <number-card title="My hours" value="${hoursWeekText}" icon="sym_o_schedule" link="../Time/TimeEntries"/>
+            <number-card title="${hoursTitle}" value="${hoursWeekText}" icon="sym_o_schedule" link="../Time/MyTime"/>
+            <number-card title="Approve time" value="${toApproveText}" icon="sym_o_approval" link="../Time/Timesheets?list=toApprove" condition="isManager"/>
             <number-card title="At risk" value="${atRiskText}" icon="sym_o_warning" link="../Projects?list=atRisk" condition="isManager"/>
             <number-card title="Milestones" value="${milestonesText}" icon="sym_o_flag_circle" link="../Projects/Roadmap" condition="isManager"/>
         </dashboard>
@@ -108,9 +168,13 @@ along with this software (see the LICENSE.md file). If not, see
                                 <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify(statusLabel ?? "")}}]]></text></render-mode></default-field></field>
                         <field name="dueText" align="right"><default-field>
                             <label text="${dueText || ''}" type="span" style="text-no-wrap ${overdue ? 'text-warning' : 'm-muted'}"/></default-field></field>
+                        <field name="startTimer" align="right"><default-field title="">
+                            <link url="startTimer" link-type="hidden-form-link" icon="sym_o_play_circle" text="" tooltip="Start timer" style="m-btn-flat"
+                                    parameter-map="{workEffortId:workEffortId}" condition="!timer || timer.workEffortId != workEffortId"/></default-field></field>
                         <columns type="mobile">
                             <column><field-ref name="workEffortId"/><field-ref name="workEffortName"/></column>
                             <column><field-ref name="statusLabel"/><field-ref name="dueText"/></column>
+                            <column><field-ref name="startTimer"/></column>
                         </columns>
                     </form-list>
                     <section name="NoWorkItems" condition="!workItemList.length"><widgets>
@@ -138,6 +202,25 @@ along with this software (see the LICENSE.md file). If not, see
                         <section name="NoReviews" condition="!reviewList.length"><widgets>
                             <label type="p" text="No review is waiting for you" style="m-muted q-pa-sm q-mb-none"/>
                         </widgets></section>
+                    </box-body-nopad></container-box>
+                </widgets></section>
+
+                <!-- the managers' approvals: the submitted weeks waiting -->
+                <section name="Approvals" condition="approvalsShown"><widgets>
+                    <container-box><box-header title="Approvals"/><box-toolbar>
+                        <link url="../Time/Timesheets" link-type="anchor" text="All timesheets to approve" parameter-map="{list:'toApprove'}"/>
+                    </box-toolbar><box-body-nopad>
+                        <form-list name="HomeApprovals" list="approvalList" skip-form="true" skip-header="true" paginate="false">
+                            <field name="personName"><default-field>
+                                <link url="${url}" url-type="plain" text="${personName}" link-type="anchor"/>
+                                <label text="${ec.l10n.localize('Timesheet')} · ${weekText}" type="div" style="text-caption m-muted"/></default-field></field>
+                            <field name="hoursText" align="right"><default-field><display/></default-field></field>
+                            <field name="sinceText" align="right"><default-field><label text="${sinceText}" type="span" style="text-no-wrap m-muted"/></default-field></field>
+                            <columns type="mobile">
+                                <column><field-ref name="personName"/></column>
+                                <column><field-ref name="hoursText"/><field-ref name="sinceText"/></column>
+                            </columns>
+                        </form-list>
                     </box-body-nopad></container-box>
                 </widgets></section>
 

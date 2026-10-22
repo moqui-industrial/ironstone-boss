@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The time demo of IronStone Projects (impl-projects.md P6a): data/BossProjectsDemoDataTime.xml calls load#TimeDemo after the
+    support desk project SUPP. -->
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
+
+    <service verb="load" noun="TimeDemo" authenticate="anonymous-all" allow-remote="false">
+        <description>
+            The weeks of time on SUPP, dated from the week the data is loaded (Monday weeks, the default policy), by the real paths
+            (mantle.work.TimeServices.store#TimeEntry, mantle.work.TimesheetServices submit#, approve#, return#Timesheet and
+            start#Timer), each as its user at a time in the past, so the audit and the notices are theirs:
+            - Joe Developer, two weeks back: 40 hours on SUPP-1 and SUPP-2, submitted the next Monday and approved by John Doe;
+            - Joe Developer, last week: 38 hours (Friday short), submitted this Monday and waiting for John Doe (its approval notice
+              is marked decided in the tray so the M2 demo's one approval stays the tray's; Timesheets' To approve lists it);
+            - Bob Developer, last week: 32 hours, Friday empty, submitted and returned by John Doe with the reason;
+            - this week before today: Joe's time on SUPP-1 and SUPP-2 and John Doe's on SUPP-3; John Doe's timer running on SUPP-1
+              since 47 minutes before the load.
+            Each part on its own: one that fails is logged and the rest go on. Loading again adds nothing when Joe's week two weeks
+            back already has time.
+        </description>
+        <actions><script><![CDATA[
+            const TS = 'mantle.work.TimesheetServices'
+            const users = {john: 'john.doe', joe: 'joe.developer', bob: 'bob.developer'}
+            const ids = {john: 'EX_JOHN_DOE', joe: 'ORG_ZIZI_JD', bob: 'ORG_ZIZI_BD'}
+            const step = (name, run) => {
+                ec.message.pushErrors()
+                try { run(); if (ec.message.hasError()) throw new Error(ec.message.getErrorsString()) }
+                catch (err) { ec.logger.error(`Time demo: ${name} not loaded: ${err && err.message ? err.message : err}`) }
+                finally { ec.message.clearErrors(); ec.message.popErrors() }
+            }
+            const call = (name, parameters) => {
+                const out = ec.service.sync().name(name).parameters(parameters || {}).call()
+                if (ec.message.hasError()) throw new Error(`${name}: ${ec.message.getErrorsString()}`)
+                return out || {}
+            }
+            const account = (userId) => ec.entity.find('moqui.security.UserAccount').condition('userId', userId).disableAuthz().one()
+            if (!account(ids.john) || !account(ids.joe) || !account(ids.bob)) { ec.logger.warn('The time demo needs john.doe, joe.developer and bob.developer; nothing loaded'); return }
+            if (!ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', 'SUPP-1').disableAuthz().one()) {
+                ec.logger.warn('The time demo needs the project SUPP (BossProjectsDemoDataTime.xml); nothing loaded'); return }
+            const nowMs = Date.now()
+            const addDays = (text, days) => { const d = new Date(text + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + days); return d.toISOString().substring(0, 10) }
+            // as a demo user at a moment (never later than now)
+            const as = (who, atMs, run) => {
+                ec.user.internalLoginUser(users[who])
+                ec.user.setEffectiveTime(Math.min(atMs, nowMs - 60000))
+                try { return run() } finally { ec.user.setEffectiveTime(null); ec.user.logoutUser() }
+            }
+            // a moment of a day in the signed-in user's time zone
+            const at = (day, hour, minute) => Number(String(ec.l10n.parseTimestamp(day + ' ' + String(hour).padStart(2, '0') + ':' + String(minute || 0).padStart(2, '0') + ':00.000',
+                    'yyyy-MM-dd HH:mm:ss.SSS')))
+            const log = (who, day, workEffortId, fromHour, hours, comments, billable) => as(who, at(day, fromHour) + hours * 3600000, () => {
+                const item = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', workEffortId).disableAuthz().one()
+                call('mantle.work.TimeServices.store#TimeEntry', {partyId: ids[who], workEffortId: workEffortId, fromDate: new Date(at(day, fromHour)),
+                    thruDate: new Date(at(day, fromHour) + hours * 3600000), hours: hours, comments: comments || null,
+                    rateTypeEnumId: billable === false ? 'RatpNoCharge' : 'RatpStandard', workTypeEnumId: workEffortId === 'SUPP-3' ? 'WktpProjectMgmt' : 'WktpSupport',
+                    remainingWorkTime: item?.remainingWorkTime != null ? Math.max(0, Number(String(item.remainingWorkTime)) - hours) : null})
+            })
+            const sheetOf = (who, day) => as(who, nowMs, () => call(`${TS}.get#PartyTimesheet`, {partyId: ids[who], date: day, make: false}).timesheetId)
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try {
+                // the weeks, Monday first, by the load's day
+                const today = new Date(nowMs).toISOString().substring(0, 10)
+                const js = new Date(today + 'T12:00:00Z').getUTCDay()
+                const week0 = addDays(today, -((js + 6) % 7))
+                const week1 = addDays(week0, -7)
+                const week2 = addDays(week0, -14)
+                if (sheetOf('joe', week2)) { ec.logger.info('The time demo is already loaded'); return }
+                const weekdays = (start) => [0, 1, 2, 3, 4].map((i) => addDays(start, i))
+
+                step('Joe two weeks back, approved', () => {
+                    const notes = ['Customer questions on the Inbox rules', 'Password resets and a printer question', 'The calendar sync questions',
+                        'Answers on the timesheet export', 'The week\'s open tickets']
+                    weekdays(week2).forEach((day, i) => {
+                        log('joe', day, 'SUPP-1', 9, 4, notes[i])
+                        log('joe', day, 'SUPP-2', 13, 4, i < 3 ? 'Upgraded the staging servers' : 'Upgraded two client servers')
+                    })
+                    const sheet = sheetOf('joe', week2)
+                    as('joe', at(week1, 9), () => call(`${TS}.submit#Timesheet`, {timesheetId: sheet}))
+                    as('john', at(week1, 14), () => call(`${TS}.approve#Timesheet`, {timesheetId: sheet}))
+                })
+                step('Joe last week, submitted', () => {
+                    weekdays(week1).forEach((day, i) => {
+                        log('joe', day, 'SUPP-1', 9, i === 4 ? 2 : 4, i === 2 ? 'Training a new customer on Projects' : 'The support queue')
+                        log('joe', day, 'SUPP-2', 13, 4, 'Upgraded the client servers', i !== 2)
+                    })
+                    const sheet = sheetOf('joe', week1)
+                    as('joe', at(week0, 9), () => call(`${TS}.submit#Timesheet`, {timesheetId: sheet}))
+                    // the approval stays out of the tray's count (the specs read the M2 demo's one approval there)
+                    for (const message of ec.entity.find('moqui.security.user.NotificationMessage').condition('topic', 'TimesheetApproval')
+                            .condition('recordId', sheet).list()) for (const row of ec.entity.find('moqui.security.user.NotificationMessageUser')
+                            .condition('notificationMessageId', message.notificationMessageId).list()) { row.viewedDate = new Date(nowMs); row.update() }
+                })
+                step('Bob last week, returned', () => {
+                    weekdays(week1).slice(0, 4).forEach((day, i) => {
+                        log('bob', day, 'SUPP-1', 9, 4, 'Tested the answers in the knowledge base')
+                        log('bob', day, 'SUPP-3', 13, 4, i === 3 ? 'Wrote the maintenance report' : 'Checked the backups and updates')
+                    })
+                    const sheet = sheetOf('bob', week1)
+                    as('bob', at(week0, 8), () => call(`${TS}.submit#Timesheet`, {timesheetId: sheet}))
+                    as('john', at(week0, 10), () => call(`${TS}.return#Timesheet`, {timesheetId: sheet,
+                        reason: 'Friday has no time: add the testing you did, or log it as leave.'}))
+                })
+                step('This week', () => {
+                    for (const day of weekdays(week0).filter((one) => one < today)) {
+                        log('joe', day, 'SUPP-1', 9, 3.5, 'The support queue')
+                        log('joe', day, 'SUPP-2', 13, 4, 'Upgraded the client servers')
+                        log('john', day, 'SUPP-3', 16, 1.5, 'Reviewed the week\'s tickets')
+                    }
+                })
+                step('John Doe\'s timer', () => as('john', nowMs - 47 * 60000, () => call(`${TS}.start#Timer`, {workEffortId: 'SUPP-1', comments: 'Triage of the new tickets'})))
+            } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+        ]]></script></actions>
+    </service>
+</services>

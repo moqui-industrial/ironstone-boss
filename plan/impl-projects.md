@@ -58,7 +58,7 @@ Sections: [1 scope](#1-scope-and-order) · [2 rules](#2-ground-rules) · [3 phas
 | P3b Code: Mantle and BOSS | Mantle, BOSS | every §7 screen, ProjectCode, CodeSettings | done Oct 22 |
 | P4 Planning | Mantle, BOSS (mr-moqui) | Backlog, SprintDetail, Timeline, WorkItemImport, Roadmap, MilestoneDetail, ReleaseDetail, ProjectBacklog, ProjectTimeline, ProjectCalendar, ProjectRoadmap, ProjectDocs | done Oct 22 |
 | P5 Requests | Mantle, BOSS | Requests, RequestDetail, RequestIntake, ProjectRequests, IntakeSettings | done Oct 22 |
-| P6 Time | Mantle, BOSS | MyTime, Timesheets, TimesheetDetail, TimeEntries, ProjectTime, TimeSettings | planned |
+| P6 Time | Mantle, BOSS | MyTime, Timesheets, TimesheetDetail, TimeEntries, ProjectTime, TimeSettings | in progress (P6a built Oct 22; P6b TimeEntries, ProjectTime, import, TimeSettings, Today, Chatter) |
 | P7 Resources | Mantle, BOSS | TeamPlanner, Allocations, PersonDetail | planned |
 | P8 Billing and money | Mantle, BOSS | Unbilled, Invoices, InvoiceDetail, OrderDetail, Rates, ProjectMoney, BillingSettings | planned |
 | P9 Reports and outputs | Mantle, BOSS | Reports and its seven reports | planned |
@@ -320,6 +320,23 @@ tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
   TimeEntries, ProjectTime, time import and TimeSettings; the Today source; time in Chatter; the timesheet topics and
   the missing-time job.
 - Usable when: a consultant times work and fills a week in MyTime, submits it, and a manager returns, then approves it.
+- Built in two parts (Oct 22): P6a timesheets, MyTime with the timer, approval, Home's time and the missing-time job;
+  P6b TimeEntries, ProjectTime, time import, TimeSettings, the Today source and time in Chatter.
+
+**Built, P6a** (Oct 22, 2026):
+- Mantle udm: Timesheet transitions Return (Completed to In-Process) and Reopen (Approved to In-Process). Mantle usl: new
+  `TimesheetServices` (policy with short keys, weeks less holidays, the person's timesheet, approvers, access, submit,
+  approve, return, reopen with tray decisions and notices, summary, `find#Timesheets`, time keepers,
+  `send#MissingTimeReminders`, the timer: one per person, server side); `TimeServices` put each entry on its week's
+  timesheet and keep the lock; Home's hours, expected hours and timesheets to approve; `get#RecordLinkInfo` for
+  timesheets; topics TimesheetApproval, TimesheetReturned, TimesheetApproved, TimesheetMissing; permission
+  TIMESHEET_APPROVE; the hourly reminder job; `test/WorkTimesheets.spec.js`.
+- BOSS: `ironstone.TimeServices`, `TimeDemoServices`; `Time/MyTime.qvue` (the week by item and day, the timer, submit,
+  approve and return for approvers) with `MyTimeTui` (read only), Timesheets (chips, bulk Approve, Return, Remind),
+  TimesheetDetail; QuickTime; Home's timer strip, My hours and Approve time counters and Approvals block; Start and
+  Stop timer on WorkItemDetail; demo project SUPP with submitted, approved and returned weeks and a running timer;
+  `test/TimeWalk.spec.js` (the walk with authorization on).
+- Runs (Debug): ironstone-boss 527/527, mantle-usl 638/640 (ContactListSend), lint clean.
 
 ### P7 — Resources
 
@@ -404,6 +421,9 @@ Made during the build; each one that changes the design is also written into des
 | Oct 22, 2026 | The public form is `screen/RequestIntake.xml` behind the token route, not under Projects (a visitor has no Projects authz) | P5 |
 | Oct 22, 2026 | A request follows its work by an entity rule on the work's status, only when the project's `WstRequestFromWork` is Y or unset with the Requests module on; Cancelled is neither done nor open | P5 |
 | Oct 22, 2026 | Email files into a project only when the project's intake account received it or the rule's owner holds a role on the project; else the request has no project | P5 |
+| Oct 22, 2026 | F9: `ProjTimesheetPolicy` uses short keys (ws, ap, lk, ri, rc, mh, fu, dh, wd, rd, rh) under 255 characters; dh and wd give working hours until P7's capacity | P6a |
+| Oct 22, 2026 | Only the person submits their week; nobody approves their own; approvers are the week's project managers (default), line managers, or TIMESHEET_APPROVE holders by policy; the lock leaves rates changeable for P8 | P6a |
+| Oct 22, 2026 | One timer per person (starting another stops the first; under a minute is discarded); a running timer blocks submitting its week | P6a |
 | Oct 22, 2026 | A recurring item counted from completion takes the completion day at the due date's time of day (UTC days) and the rule without its COUNT, which counts the items made | P2 |
 
 ## 5. Open questions
@@ -484,6 +504,13 @@ Design assumptions found wrong in the code, with the resolution (written into th
 | F62 | P5: `create#ContactRequest` adds a public thank-you message to the submit's JSON | Allowed and checked to carry nothing else |
 | F63 | P5: gallery-shots' `--dark` toggles only `#apps-root`, so it fails on public-shell pages | A scratch copy took the dark shots; the script could emulate the color scheme |
 | F64 | P5: the ProjectRequests tab still shows an empty Project column (as F42) | Check with F42 |
+| F65 | P6a: script l10n has no time-zone argument, so week boundaries are the viewer's; a timesheet made in another's session can overlap by hours | Found by the week's middle; a time-zone-aware format and parse in the framework, later |
+| F66 | P6a: a service error in a GET JSON transition marks rollback-only and breaks the answer | Check access first and answer not available without an error |
+| F67 | P6a: Mantle's timesheet status words (In-Process, Completed) are not the screens' (Open, Submitted) | A status-bar label override or renamed descriptions, later |
+| F68 | P6a: a UserGroupMember dated at a spec's future effective time is not active for authz (the real clock) | Specs date such rows in the past |
+| F69 | P6a: `find#Timesheets` checks each candidate's access one by one; Home calls it twice | A join by managed projects at scale (with F17) |
+| F70 | P6a: any project with time but no estimate, or past its estimate, reads At risk | Demo time on SUPP; revisit the rule with P9's reports |
+| F71 | P6a: Chatter labels a timesheet by id (as F35) | With F35 |
 | F7 | P0: a wiki space under an existing repository is documented for a repository root (`rootPageDirectory: "git://docs"`, or `rootPageLocation` `git://<repositoryId>/<SPACE>.md`), not for a subdirectory such as `git://<repositoryId>/docs` | Checked in P4 as the design's §15 row says, before ProjectDocs is built |
 
 ## 7. Later
@@ -531,6 +558,10 @@ Designed, not in this build:
 - Requests (P5): Home's requests counter and the Today source; a Projects quick-create Request kind; the confirmation
   email's template; request items and purchase orders; sending the resolution by email; request categories; client
   states (P10); terminal triage dialogs; a spec of form uploads.
+
+- Time (P6a): Start timer on the last item from Home; MyTime's global pins; leave and capacity in working hours (P7); a
+  TimesheetDetail print view; clock-in for another and InvoiceMyTime; time in the terminal (P11); reminders in each
+  person's time zone.
 
 ## 8. Verification
 

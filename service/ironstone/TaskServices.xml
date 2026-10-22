@@ -969,7 +969,7 @@ along with this software (see the LICENSE.md file). If not, see
                         if (hours != null) myHours += hours
                         const row = {timeEntryId: entry.timeEntryId, dateText: from != null ? fmt(from, 'EEE, MMM d') : '',
                             fromText: from != null ? fmt(from, 'h:mm a') : '', thruText: thru != null ? fmt(thru, 'h:mm a') : L('open'),
-                            hoursText: hours != null ? ec.l10n.format(entry.hours, '#,##0.00') : '', comments: entry.comments || '', isOpen: thru == null,
+                            hoursText: hours != null ? ec.l10n.format(entry.hours, '#,##0.00') : '', comments: entry.comments || '', isOpen: thru == null, fromDate: from,
                             canDelete: !entry.invoiceId && !entry.vendorInvoiceId}
                         timeEntryList.push(row)
                         if (thru == null && !openTimeEntry) openTimeEntry = row
@@ -1120,8 +1120,9 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- ========== Time ========== -->
 
     <service verb="clockIn" noun="Task">
-        <description>Clock in on the task (mantle.work.TimeServices.create#TimeEntryClockIn, from now), for an owner or assignee
-            with no entry open on it.</description>
+        <description>Clock in on the task: the user's timer starts on it from now (mantle.work.TimesheetServices.start#Timer: one
+            runs per person, so a timer on another item stops first; the week must not be submitted), for one who may update it, with
+            no timer already on it.</description>
         <in-parameters>
             <parameter name="app" default-value="commons"><description>commons or projects (get#TaskAccess)</description></parameter>
             <parameter name="workEffortId" required="true"/>
@@ -1135,17 +1136,17 @@ along with this software (see the LICENSE.md file). If not, see
                 <econdition field-name="workEffortId"/><econdition field-name="partyId" from="ec.user.userAccount.partyId"/>
                 <econdition field-name="thruDate" operator="is-null"/></entity-find>
             <if condition="openList?.length"><return error="true" message="You are already clocked in on this task"/></if>
-            <service-call name="mantle.work.TimeServices.create#TimeEntryClockIn" out-map="clockOut"
-                    in-map="{workEffortId:workEffortId, partyId:ec.user.userAccount.partyId, comments:comments, fromDate:ec.user.nowTimestamp}"/>
+            <service-call name="mantle.work.TimesheetServices.start#Timer" out-map="clockOut" in-map="{workEffortId:workEffortId, comments:comments}"/>
             <if condition="ec.message.hasError()"><return/></if>
             <set field="timeEntryId" from="clockOut.timeEntryId"/>
-            <set field="message" from="ec.resource.expand('Clocked in at ${time}', '', {time:ec.l10n.format(ec.user.nowTimestamp, 'h:mm a')})"/>
+            <set field="message" from="clockOut.stoppedTimeEntryIds?.length ? ec.resource.expand('Clocked in at ${time}; the timer on the other item stopped', '', {time:ec.l10n.format(ec.user.nowTimestamp, 'h:mm a')})
+                    : ec.resource.expand('Clocked in at ${time}', '', {time:ec.l10n.format(ec.user.nowTimestamp, 'h:mm a')})"/>
         </actions>
     </service>
 
     <service verb="clockOut" noun="Task">
-        <description>Clock out: the user's open entry on the task ends now (mantle.work.TimeServices.store#TimeEntry, which counts
-            the hours and the rates and lowers the remaining time).</description>
+        <description>Clock out: the user's timer on the task stops now (mantle.work.TimesheetServices.stop#Timer: store#TimeEntry counts
+            the hours and the rates and lowers the remaining time; under a minute it is discarded).</description>
         <in-parameters>
             <parameter name="workEffortId" required="true"/>
             <parameter name="app" default-value="commons"><description>commons or projects (get#TaskAccess)</description></parameter>
@@ -1158,12 +1159,10 @@ along with this software (see the LICENSE.md file). If not, see
                 <econdition field-name="workEffortId"/><econdition field-name="partyId" from="ec.user.userAccount.partyId"/>
                 <econdition field-name="thruDate" operator="is-null"/><order-by field-name="-fromDate"/></entity-find>
             <if condition="!openList?.length"><return error="true" message="You are not clocked in on this task"/></if>
-            <service-call name="mantle.work.TimeServices.store#TimeEntry" in-map="{timeEntryId:openList[0].timeEntryId, workEffortId:workEffortId,
-                    thruDate:ec.user.nowTimestamp}"/>
+            <service-call name="mantle.work.TimesheetServices.stop#Timer" out-map="stopOut" in-map="{timeEntryId:openList[0].timeEntryId}"/>
             <if condition="ec.message.hasError()"><return/></if>
-            <entity-find-one entity-name="mantle.work.time.TimeEntry" value-field="entry"><field-map field-name="timeEntryId" from="openList[0].timeEntryId"/></entity-find-one>
-            <set field="hours" from="entry?.hours"/>
-            <set field="message" from="ec.resource.expand('Clocked out: ${hours} hours', '', {hours:ec.l10n.format(entry?.hours ?? 0, '#,##0.00')})"/>
+            <set field="hours" from="stopOut.hours"/>
+            <set field="message" from="stopOut.discarded ? stopOut.message : ec.resource.expand('Clocked out: ${hours} hours', '', {hours:ec.l10n.format(stopOut.hours ?? 0, '#,##0.00')})"/>
         </actions>
     </service>
 

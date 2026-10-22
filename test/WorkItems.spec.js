@@ -82,7 +82,8 @@ feature("the smart lists and the find narrow the work items, each row with its t
         ids.done.includes("IRON-5")
         ids.done.includes("ACME-2")
         ids.high.sort() == ["IRON-1", "IRON-2", "IRON-3", "IRON-6", "IRON-7", "IRON-9"]
-        ids.assignee.sort() == ["IRON-7", "IRON-9"]
+        // Bob Developer's open items: IRON's and the support desk's of the time demo (impl-projects.md P6a)
+        ids.assignee.sort() == ["IRON-7", "IRON-9", "SUPP-1", "SUPP-3"]
         ids.restricted.sort() == ["ACME-1", "ACME-4", "ACME-5"]
         // a row as the views read it
         const three = found.review.rowList[0]
@@ -312,7 +313,7 @@ feature("the sprints of WorkItems: the current sprint find, the quick add into a
     },
 })
 
-feature("QuickCreate's work item in the project of the screen context; QuickTime waits for P6; the project kind is the managers' QuickProject", {
+feature("QuickCreate's work item in the project of the screen context; QuickTime logs time (P6a); the project kind is the managers' QuickProject", {
     allowMessageErrors: true,
     when() {
         const forms = { workItem: render("apps/Projects/QuickCreate", { kind: "workItem", recordEntity: "mantle.work.effort.WorkEffort", recordId: "ACME" }),
@@ -338,7 +339,8 @@ feature("QuickCreate's work item in the project of the screen context; QuickTime
         forms.workItem.errors == ""
         forms.workItem.output.includes("QuickWorkItem")
         forms.workItem.output.includes("Acme customer portal")
-        forms.time.output.includes("Logging time here is coming with My time")
+        forms.time.output.includes("QuickTime")
+        forms.time.output.includes("Log time")
         forms.project.status == 200
         forms.project.output.includes("QuickProject")
         forms.teamProject.errors.includes("not authorized")

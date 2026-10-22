@@ -143,6 +143,12 @@ along with this software (see the LICENSE.md file). If not, see
         (impl-projects.md P5) -->
     <moqui.security.user.NotificationTopic topic="RequestTriage" linkTemplate="/qapps/Projects/Requests/RequestDetail?requestId=${requestId}"/>
     <moqui.security.user.NotificationTopic topic="RequestUpdate" linkTemplate="/qapps/Projects/Requests/RequestDetail?requestId=${requestId}"/>
+    <!-- and of the timesheet topics (mantle.work.TimesheetServices, impl-projects.md P6a): the approval opens the week's TimesheetDetail, the
+        person's notices their week in My time -->
+    <moqui.security.user.NotificationTopic topic="TimesheetApproval" linkTemplate="/qapps/Projects/Time/TimesheetDetail?timesheetId=${timesheetId}"/>
+    <moqui.security.user.NotificationTopic topic="TimesheetReturned" linkTemplate="/qapps/Projects/Time/MyTime?weekDate=${weekStart}"/>
+    <moqui.security.user.NotificationTopic topic="TimesheetApproved" linkTemplate="/qapps/Projects/Time/MyTime?weekDate=${weekStart}"/>
+    <moqui.security.user.NotificationTopic topic="TimesheetMissing" linkTemplate="/qapps/Projects/Time/MyTime?weekDate=${weekStart}"/>
     <!-- the saved finds of WorkItems every Projects user has beside their own (design-projects.md §5 WorkItems; Blocked waits for the
         dependency find of impl-projects.md P4) -->
     <moqui.screen.form.FormListFind formListFindId="BOSS_PROJ_OPEN_BUGS" description="Open bugs"
@@ -169,6 +175,9 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- git over SSH needs SSH_GIT, which ALL_USERS cannot hold (mr-moqui plans/Remaining-Work.md) -->
     <moqui.security.UserGroupPermission userGroupId="BOSS_PROJECT_TEAM" userPermissionId="SSH_GIT" fromDate="0"/>
     <moqui.security.UserGroupPermission userGroupId="BOSS_PROJECT_MANAGER" userPermissionId="SSH_GIT" fromDate="0"/>
+    <!-- the Projects managers approve anyone's week when the organization's timesheet policy says any (mantle.work.TimesheetServices;
+        under the default policy a week's approvers are the managers of the projects its time is on) -->
+    <moqui.security.UserGroupPermission userGroupId="BOSS_PROJECT_MANAGER" userPermissionId="TIMESHEET_APPROVE" fromDate="0"/>
     <artifactGroups artifactGroupId="BOSS_INSIGHTS" description="IronStone Insights App (via root screen)">
         <artifacts artifactName="component://ironstone-boss/screen/Insights.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
         <authz artifactAuthzId="BOSS_INSIGHTS_ADMIN" userGroupId="ADMIN" authzTypeEnumId="AUTHZT_ALWAYS" authzActionEnumId="AUTHZA_ALL">

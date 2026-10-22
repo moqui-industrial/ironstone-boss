@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The terminal twin of MyTime (style-guide §4.8): MyTime.xml's tui text is a dynamic container of this screen. A read-only agenda
+    of the week from the same service as MyTime.qvue (ironstone.TimeServices.get#MyWeek): the week with the previous and next, the
+    timesheet's status and reason, the total against the working hours, the running timer, then each day with its entries (from,
+    to, work item, hours, comment) and its total. Logging time, the timer and submit from the terminal wait for impl-projects.md
+    P11; a work item opens WorkItemDetail. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="My time" default-menu-include="false">
+
+    <parameter name="partyId"/>
+    <parameter name="weekDate"/>
+
+    <transition name="workItemDetail"><default-response url="../../WorkItems/WorkItemDetail"/></transition>
+
+    <actions><script><![CDATA[
+        weekFound = false; dayList = []
+        const L = (text) => ec.l10n.localize(text)
+        const out = ec.service.sync().name('ironstone.TimeServices.get#MyWeek').parameters({partyId: partyId || null, weekDate: weekDate || null}).call() || {}
+        ec.message.clearErrors()
+        const week = out.myWeek
+        if (!week) return
+        weekFound = true
+        const n = (value) => ec.l10n.format(value ?? 0, '#,##0.##')
+        const time = (millis) => millis == null ? '' : ec.l10n.format(String(millis), 'HH:mm')
+        title = (week.isMine ? L('My time') : week.personName) + ' · ' + week.label
+        const status = week.timesheet.returned ? L('Returned') : (week.timesheet.statusId === 'TmshInProcess' ? L('Open') : week.timesheet.statusLabel)
+        summaryText = status + ' · ' + n(week.total) + ' / ' + n(week.expectedTotal) + ' h · ' + n(week.billableTotal) + ' h ' + L('billable')
+        reasonText = week.timesheet.returned ? L('Returned') + ': ' + (week.timesheet.reason || '') : (week.timesheet.statusId === 'TmshApproved'
+                ? L('Approved') + (week.timesheet.approvedByName ? ' ' + L('by') + ' ' + week.timesheet.approvedByName : '') + (week.approvedText ? ' · ' + week.approvedText : '') : '')
+        timerText = week.timer ? L('Timer running since') + ' ' + time(week.timer.fromDate) + ': ' + (week.timer.workEffortId ? week.timer.workEffortId + ' ' : '')
+                + (week.timer.workEffortName || '') + (week.timer.comments ? ' · ' + week.timer.comments : '') : ''
+        prevWeek = week.prevWeek; nextWeek = week.nextWeek; personParam = week.isMine ? null : week.partyId
+        const names = {}
+        for (const row of week.rowList) names[row.workEffortId || ''] = row.workEffortName
+        dayList = week.dayList.map((day) => ({title: day.label + ' ' + day.dateLabel + ' · ' + n(day.total) + (day.isWorkday ? ' / ' + n(day.expected) : '') + ' h'
+                + (day.holiday ? ' · ' + day.holiday : '') + (day.below ? ' · ' + L('below its hours') : ''),
+            entries: week.entryList.filter((entry) => entry.day === day.day).map((entry) => ({span: time(entry.fromDate) + '–' + (entry.running ? L('now') : time(entry.thruDate)),
+                workEffortId: entry.workEffortId || '', workEffortName: names[entry.workEffortId || ''] || '', hoursText: n(entry.hours), comments: entry.comments || ''}))}))
+    ]]></script></actions>
+    <widgets>
+        <section name="MyTimeTuiFound" condition="weekFound"><widgets>
+            <label text="${title}" type="h5"/>
+            <container style="row q-gutter-sm">
+                <link url="." text="Previous week" parameter-map="{partyId:personParam, weekDate:prevWeek}" link-type="anchor"/>
+                <link url="." text="Next week" parameter-map="{partyId:personParam, weekDate:nextWeek}" link-type="anchor"/>
+            </container>
+            <label text="${summaryText}" type="p"/>
+            <label text="${reasonText}" type="p" style="text-warning" condition="reasonText"/>
+            <label text="${timerText}" type="p" style="text-primary" condition="timerText"/>
+            <section-iterate name="MyTimeTuiDay" list="dayList" entry="day"><widgets>
+                <container-box><box-header title="${day.title}"/><box-body-nopad>
+                    <form-list name="MyTimeTuiEntries" list="day.entries" skip-form="true" paginate="false">
+                        <field name="span"><default-field title="From – to"><display/></default-field></field>
+                        <field name="workEffortId"><default-field title="Work item">
+                            <link url="workItemDetail" text="${workEffortId} ${workEffortName}" parameter-map="{workEffortId:workEffortId}" link-type="anchor" condition="workEffortId"/>
+                        </default-field></field>
+                        <field name="hoursText"><default-field title="Hours"><display/></default-field></field>
+                        <field name="comments"><default-field title="Comment"><display/></default-field></field>
+                    </form-list>
+                    <label type="p" text="No time" style="m-muted q-pa-sm q-mb-none" condition="!day.entries.length"/>
+                </box-body-nopad></container-box>
+            </widgets></section-iterate>
+            <label type="p" text="Logging time, the timer and submit are in the browser's My time." style="m-muted"/>
+        </widgets><fail-widgets>
+            <label type="p" text="This week is not available." style="m-muted"/>
+        </fail-widgets></section>
+    </widgets>
+</screen>
