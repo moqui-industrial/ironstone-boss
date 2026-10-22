@@ -236,7 +236,17 @@ const demoRecords = {
     "Projects/Resources/PersonDetail/WorkItems": { parameters: { partyId: "ORG_ZIZI_JD" }, text: "Joe Developer" },
     "Projects/Resources/PersonDetail/Time": { parameters: { partyId: "ORG_ZIZI_JD" }, text: "Joe Developer" },
     "Projects/Resources/PersonDetail/Capacity": { parameters: { partyId: "ORG_ZIZI_JD" }, text: "Joe Developer" },
-    "Projects/Billing": { text: "Placeholder: Unbilled" },
+    // Projects P8a: Billing opens on Unbilled (the demo's support desk time, its client Brightwater), the invoice dialog on SUPP (its approved
+    // week is on the demo's invoice, so it says why there is nothing to invoice), the invoices, the demo's draft invoice (looked up in
+    // setupSpec) in the shared detail and in print, the rates and the billing settings
+    "Projects/Billing": { text: "IronStone support desk" },
+    "Projects/Billing/Unbilled": { text: "IronStone support desk" },
+    "Projects/Billing/Unbilled/CreateInvoice": { parameters: { workEffortId: "SUPP" }, text: "Brightwater Dental Group" },
+    "Projects/Billing/Invoices": { parameters: { list: "all" }, text: "Brightwater Dental Group" },
+    "Projects/Billing/InvoicePrint": { invoice: true, text: "Open the printable invoice" },
+    "Projects/Billing/Rates": { text: "IronStone support desk" },
+    "Shared/InvoiceDetail/": { invoice: true, text: "Brightwater Dental Group" },
+    "Projects/Settings/Billing": { text: "Billing defaults" },
     // Projects P6b: Time entries (All: the demo's support desk time John Doe manages), the entry dialog (a new entry), the time import
     // wizard's steps (no import yet; test/TimeEntries.spec.js walks them) and its progress, and the time settings
     "Projects/Time/TimeEntries": { parameters: { list: "all" }, text: "Upgraded the client servers" },
@@ -269,6 +279,9 @@ spec({
         const placeholder = Array.from(ec.entity.find("mantle.work.effort.WorkEffortAllocation").condition({ rootWorkEffortId: "ACME" })
                 .condition("partyId", "is-null", null).disableAuthz().list())[0]
         for (const demo of Object.values(demoRecords)) if (demo.placeholder) demo.parameters = { workEffortAllocationId: placeholder ? placeholder.workEffortAllocationId : "_NA_" }
+        // the billing demo's draft invoice of SUPP (a sequenced id)
+        const invoiceLink = Array.from(ec.entity.find("mantle.work.effort.WorkEffortInvoice").condition({ workEffortId: "SUPP" }).disableAuthz().list())[0]
+        for (const demo of Object.values(demoRecords)) if (demo.invoice) demo.parameters = { invoiceId: invoiceLink ? invoiceLink.invoiceId : "_NA_" }
     },
     setup() { ec.artifactExecution.disableAuthz() },
     cleanup() { ec.artifactExecution.enableAuthz() },
@@ -308,8 +321,8 @@ feature("every placeholder screen renders in qvt without errors, with its menu",
     then({ failures }) {
         // fewer as the milestones replace them (129 after M4, 114 after M10 and the Comms mail settings, 110 after M9's
         // Knowledge and Notes, 104 after M8's Files and Shares and the public page moved out of Commons; Projects P1 adds the
-        // placeholders of its menu, 25 more, which its phases replace: 102 after P7's Team planner and Allocations)
-        placeholders.length >= 102
+        // placeholders of its menu, 25 more, which its phases replace: 102 after P7's Team planner and Allocations, 98 after P8a's billing)
+        placeholders.length >= 98
         failures.join("\n") == ""
     },
 })

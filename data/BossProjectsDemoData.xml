@@ -311,7 +311,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <!-- the organization's Projects settings: billing defaults and the commit conventions -->
     <mantle.party.PartySetting partyId="ORG_ZIZI_SERVICES" partySettingTypeId="ProjBillingDefaults"
-            settingValue="{&quot;billingBasis&quot;:&quot;TimeAndMaterials&quot;,&quot;invoiceGrouping&quot;:&quot;PerWorker&quot;,&quot;shareHours&quot;:false}"/>
+            settingValue="{&quot;billingBasis&quot;:&quot;TimeAndMaterials&quot;,&quot;invoiceGrouping&quot;:&quot;PerWorker&quot;,&quot;timeDetail&quot;:true,&quot;shareHours&quot;:false,&quot;settlementTermId&quot;:&quot;Net30&quot;,&quot;workerInvoicing&quot;:&quot;Monthly&quot;}"/>
     <mantle.party.PartySetting partyId="ORG_ZIZI_SERVICES" partySettingTypeId="ProjConventions"
             settingValue="{&quot;keywordComplete&quot;:true,&quot;branchPattern&quot;:&quot;&lt;KEY&gt;-&lt;n&gt;-&lt;words&gt;&quot;,&quot;mergeRequestMoves&quot;:true}"/>
 </entity-facade-xml>

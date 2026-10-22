@@ -250,6 +250,8 @@ along with this software (see the LICENSE.md file). If not, see
                 <number-card title="Next milestone" value="${header.nextMilestoneText || '—'}" icon="sym_o_flag_circle" size="sm" link="${nextMilestoneLink}"/>
                 <number-card title="Hours" value="${header.hoursText}" icon="sym_o_schedule" size="sm"/>
                 <number-card title="Budget used" value="${header.budgetUsedText}" icon="sym_o_account_balance_wallet" size="sm" condition="canManage &amp;&amp; header.budgetUsedText"/>
+                <number-card title="Unbilled" value="${header.unbilledText}" icon="sym_o_request_quote" size="sm" link="/qapps/Projects/Billing/Unbilled?rootWorkEffortId=${workEffortId}"
+                        condition="canManage &amp;&amp; header.unbilledText"/>
             </dashboard>
 
             <subscreens-panel id="ProjectTabs" type="tab"/>

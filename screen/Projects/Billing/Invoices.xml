@@ -12,10 +12,129 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for the project invoices (design-projects.md §10 Invoices; impl-projects.md P8). -->
+<!-- Invoices (design-projects.md §10 Invoices; style-guide §3.2 List; impl-projects.md P8a): the invoices of the projects the user
+    sees, for those who manage money (service/ironstone/BillingServices.xml find#InvoiceRows): client invoices made from project time,
+    worker invoices and expense invoices on a project. The chips with their counts: Drafts, To send (approved, not sent), Sent,
+    Overdue, Paid, Worker invoices, All (the default; cancelled ones too). The find (the list's dialog): project, client, kind, the
+    invoice date period. Each row: the invoice (opening InvoiceDetail), kind, project, from, to, date, due, total, unpaid and the status
+    chip; CSV. Clients see their organization's invoices only, with client access (impl-projects.md P10). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Invoices" default-menu-index="2">
+
+    <parameter name="list"/>
+    <parameter name="rootWorkEffortId"/>
+    <parameter name="clientPartyId"/>
+    <parameter name="kind"/>
+    <parameter name="invoiceDate_period"/>
+    <parameter name="invoiceDate_poffset"/>
+    <parameter name="invoiceDate_pdate"/>
+    <parameter name="invoiceDate_from"/>
+    <parameter name="invoiceDate_thru"/>
+
+    <actions>
+        <script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            managesMoney = !!ec.service.sync().name('ironstone.BillingServices.check#Money').parameters({need: 'none'}).call()?.managesMoney
+            invoiceRows = []
+            if (!managesMoney) return
+            const ctx = (name) => { const value = ec.context.get(name); return value == null || value === '' ? null : String(value) }
+            let dateFrom = null, dateThru = null
+            if (ctx('invoiceDate_period')) {
+                const range = ec.user.getPeriodRange(ctx('invoiceDate_period'), ctx('invoiceDate_poffset') || '0', ctx('invoiceDate_pdate'))
+                if (range) { dateFrom = range[0]; dateThru = range[1] }
+            } else {
+                if (ctx('invoiceDate_from')) dateFrom = ec.l10n.parseTimestamp(ctx('invoiceDate_from').substring(0, 10) + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS')
+                if (ctx('invoiceDate_thru')) dateThru = new Date(Number(String(ec.l10n.parseTimestamp(ctx('invoiceDate_thru').substring(0, 10) + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS'))) + 86400000)
+            }
+            const out = ec.service.sync().name('ironstone.BillingServices.find#InvoiceRows').parameters({list: list || 'all', rootWorkEffortId: rootWorkEffortId || null,
+                clientPartyId: clientPartyId || null, kind: kind || null, fromDate: dateFrom, thruDate: dateThru}).call() || {}
+            ec.message.clearErrors()
+            list = out.list || 'all'
+            invoiceRows = Array.from(out.rowList || [])
+            invoiceRowsCount = invoiceRows.length
+            const counts = out.counts || {}
+            projectOptions = Array.from(out.projectOptions || [])
+            clientOptions = Array.from(out.clientOptions || [])
+            const lists = [['drafts', 'Drafts', 'sym_o_edit_note'], ['toSend', 'To send', 'sym_o_outgoing_mail'], ['sent', 'Sent', 'sym_o_mark_email_read'],
+                ['overdue', 'Overdue', 'sym_o_alarm'], ['paid', 'Paid', 'sym_o_paid'], ['worker', 'Worker invoices', 'sym_o_badge'], ['all', 'All', 'sym_o_select_all']]
+            const find = {rootWorkEffortId: rootWorkEffortId || null, clientPartyId: clientPartyId || null, kind: kind || null,
+                invoiceDate_period: ctx('invoiceDate_period'), invoiceDate_poffset: ctx('invoiceDate_poffset'), invoiceDate_pdate: ctx('invoiceDate_pdate'),
+                invoiceDate_from: ctx('invoiceDate_from'), invoiceDate_thru: ctx('invoiceDate_thru')}
+            Object.keys(find).forEach((key) => { if (find[key] == null) delete find[key] })
+            filtered = Object.keys(find).length > 0
+            listChips = lists.map(([key, label, icon]) => ({key: key, label: L(label) + (counts[key] == null ? '' : ' · ' + counts[key]), icon: icon, on: key === list,
+                params: Object.assign({}, find, {list: key})}))
+            listLabel = L(lists.find((entry) => entry[0] === list)[1])
+            const empty = {drafts: 'No draft invoices', toSend: 'No invoice waits to be sent', sent: 'No invoice sent and unpaid', overdue: 'No invoice is overdue',
+                paid: 'No paid invoices', worker: 'No worker invoices', all: 'No invoices of projects yet'}
+            emptyText = filtered ? L('No invoices match') : L(empty[list] || 'No invoices')
+        ]]></script>
+    </actions>
+
     <widgets>
-        <label text="Placeholder: Invoices: client, contractor and expense invoices of projects." type="p"/>
+        <section name="NoMoney" condition="!managesMoney"><widgets>
+            <container-box type="warning"><box-header title="Not available"/><box-body>
+                <label type="p" text="Billing is for those who manage money." style="q-mb-none"/>
+            </box-body></container-box>
+        </widgets></section>
+        <section name="Invoices" condition="managesMoney"><widgets>
+            <container style="row items-center q-mb-sm q-gutter-y-xs">
+                <label text="Invoices" type="h5" style="q-my-none q-mr-sm"/>
+                <container style="col"/>
+                <link url="../Unbilled" text="Unbilled" icon="sym_o_request_quote" link-type="anchor-button"/>
+            </container>
+
+            <container style="row q-gutter-xs q-mb-sm">
+                <section-iterate name="ListChip" list="listChips" entry="chip"><widgets>
+                    <section name="ListChipOn" condition="chip.on"><widgets>
+                        <link url="." link-type="anchor-button" btn-type="primary" text="${chip.label}" icon="${chip.icon}" parameter-map="chip.params"/>
+                    </widgets><fail-widgets>
+                        <link url="." link-type="anchor-button" text="${chip.label}" icon="${chip.icon}" parameter-map="chip.params"/>
+                    </fail-widgets></section>
+                </widgets></section-iterate>
+            </container>
+            <section name="ClearFilters" condition="filtered"><widgets>
+                <container style="q-mb-xs"><link url="." link-type="anchor" text="Clear filters" parameter-map="{list:list}"/></container>
+            </widgets></section>
+
+            <container-box><box-header title="${listLabel} · ${invoiceRowsCount}"/><box-body-nopad>
+                <form-list name="ProjectInvoiceList" list="invoiceRows" skip-form="true" paginate="false" header-dialog="true" select-columns="true" show-csv-button="true">
+                    <!-- the find (the list's dialog) -->
+                    <field name="list"><header-field><hidden/></header-field></field>
+                    <field name="rootWorkEffortId"><header-field title="Project">
+                        <drop-down allow-empty="true"><list-options list="projectOptions" key="${key}" text="${text}"/></drop-down></header-field></field>
+                    <field name="clientPartyId"><header-field title="Client">
+                        <drop-down allow-empty="true"><list-options list="clientOptions" key="${key}" text="${text}"/></drop-down></header-field></field>
+                    <field name="kind"><header-field title="Kind"><drop-down allow-empty="true">
+                        <option key="client" text="Client"/><option key="worker" text="Worker"/><option key="expense" text="Expense"/></drop-down></header-field></field>
+                    <field name="invoiceDate"><header-field title="Invoice date"><date-period allow-empty="true"/></header-field></field>
+
+                    <!-- the columns -->
+                    <field name="invoiceId"><default-field title="Invoice">
+                        <link url="${url}" url-type="plain" text="${invoiceId}" link-type="anchor"/></default-field></field>
+                    <field name="kindText"><default-field title="Kind"><display/></default-field></field>
+                    <field name="projectText"><default-field title="Project"><display/></default-field></field>
+                    <field name="fromName"><default-field title="From"><display/></default-field></field>
+                    <field name="toName"><default-field title="To"><display/></default-field></field>
+                    <field name="dateText"><default-field title="Date"><label text="${dateText}" type="span" style="text-no-wrap"/></default-field></field>
+                    <field name="dueText"><default-field title="Due"><label text="${dueText}" type="span" style="text-no-wrap ${overdue ? 'text-negative' : ''}"/></default-field></field>
+                    <field name="totalText" align="right"><default-field title="Total"><label text="${totalText}" type="span" style="text-no-wrap"/></default-field></field>
+                    <field name="unpaidText" align="right"><default-field title="Unpaid"><label text="${unpaidText}" type="span" style="text-no-wrap"/></default-field></field>
+                    <field name="statusLabel"><default-field title="Status">
+                        <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${statusColor}" data-status="${statusId ?? ''}">${WebUtilities.encodeHtml(statusLabel ?? '')}</q-chip>]]></text>
+                            <text type="tui"><![CDATA[{"t": "text", "style": "strong", "text": ${JSON.stringify(statusLabel ?? "")}}]]></text></render-mode>
+                    </default-field></field>
+                    <field name="findButton"><header-field title="Find"><submit/></header-field></field>
+
+                    <columns type="mobile">
+                        <column><field-ref name="invoiceId"/><field-ref name="toName"/><field-ref name="dateText"/></column>
+                        <column><field-ref name="totalText"/><field-ref name="statusLabel"/></column>
+                    </columns>
+                </form-list>
+                <section name="NoInvoices" condition="!invoiceRows.length"><widgets>
+                    <label type="p" text="${emptyText}" style="m-muted q-pa-sm q-mb-none"/>
+                </widgets></section>
+            </box-body-nopad></container-box>
+        </widgets></section>
     </widgets>
 </screen>

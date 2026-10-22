@@ -358,7 +358,8 @@ Profitability report), and a separate project expenses screen (ProjectMoney's Ex
     working hours, with the timesheet's status in the card's title; it opens My time). Managers add: Projects at risk (health At risk or Off
     track, or a budget or schedule warning from `mantle.work.ProjectServices.get#ProjectStats`), Milestones in 14
     days, Timesheets to approve,
-    Allocation requests, Unbilled (amount). Clients get instead: Open requests, Waiting for your reply, Milestones in
+    Allocation requests, Unbilled (amount; built in impl-projects.md P8a for managers who manage money, the billable time not
+    invoiced in the projects they see, opening Billing's Unbilled; hidden when the projects bill in more than one currency). Clients get instead: Open requests, Waiting for your reply, Milestones in
     30 days, Invoices due.
   - My work (internal): My work items (ten, by due date then priority, each with its project, status chip and the
     Start timer action), Reviews waiting on me (merge requests), Recently changed in my projects.
@@ -1749,6 +1750,17 @@ drawn down by billable time) are not designed here; they are left to People, wit
 
 - **Actions:** per row Create invoice and Review time (TimeEntries with the project and Unbilled); after an invoice
   is made a notification links to it.
+- **As built (impl-projects.md P8a):** `Billing/Unbilled.xml` over `ironstone.BillingServices.find#UnbilledRows` and
+  `mantle.work.ProjectServices.get#UnbilledSummary`, for those who manage money (TIME_ENTRY_RATE or ADMIN). Unbilled time is a
+  billable entry (rate type not No Charge) on no client invoice that has ended; only the approved part (its timesheet Approved)
+  is ready to invoice, so the number cards are Unbilled, Ready to invoice, Hours and Projects, and the chips All unbilled and
+  Ready to invoice (Milestones due and Contractor time come with P8b). A row adds what waits for approval (submitted, open),
+  entries without a rate, and why a project may not be invoiced (no client, no vendor, nothing approved, an approved entry
+  without a rate). `CreateProjectInvoice` is `Unbilled/CreateInvoice.xml`: each approved entry ticked (one without a rate is
+  not and is refused), an open draft of the project to the same client or a new invoice, the lines (per entry, per worker, one
+  line; the project's WstInvoiceGrouping), the payment terms (the organization's default) and the date; none ticked is an
+  error, never "all"; the invoice made, InvoiceDetail opens. The invoice is `create#ProjectInvoiceItems` with `approvedOnly`,
+  `billableOnly` and the selection, in one transaction. No notification is sent: the screen opens the invoice.
 - **Source:** research §10 (Odoo `sale_timesheet` policies, ERPNext timesheet billing, Dolibarr billable time);
   baseline project invoice dialogs of `FindInvoice` and `ProjectTimeEntries`.
 - **Needs:** Billing services; Milestone billing share.
@@ -1765,6 +1777,12 @@ drawn down by billable time) are not designed here; they are left to People, wit
 | `ProjectInvoiceFind` | find | Narrow | project, client, type, status, date and due periods | | | `FindInvoice` `MainOptions` |
 | `ProjectInvoiceList` | list | Invoices | invoice (link), type, project, from, to, date, due, total, unpaid, status chip | CSV | `Invoice` with `WorkEffortInvoice` and the billed time entries (`entity`) | `FindInvoice` `InvoiceList`; `FindExpenseInvoice` `InvoiceList` |
 
+As built (impl-projects.md P8a): `Billing/Invoices.xml` over `ironstone.BillingServices.find#InvoiceRows`: the invoices of the
+projects the user sees, by `WorkEffortInvoice` (which `create#ProjectInvoiceItems` now writes for a client invoice) and the billed
+time (`TimeEntry.invoiceId`, a client invoice; `vendorInvoiceId`, a worker's); an invoice linked to the project to someone other
+than its client is an expense invoice. The chips add **To send** (Finalized: approved and not sent) between Drafts and Sent, so an
+approved invoice is in one chip; All is the default and includes cancelled invoices.
+
 ### InvoiceDetail (Context passed)
 
 The Invoice detail, a research-crosscut §3 reused screen added at this file's review (Accounting, Projects, Sales,
@@ -1775,6 +1793,18 @@ Purchasing, Customer Service), designed in design-crosscut with Accounting's ver
 | --- | --- | --- | --- | --- |
 | Projects | Overview (header and lines), Time (the entries behind each line, `TimeEntry.invoiceId`, and the milestones), Payments, Chatter | invoices of projects the user manages | approve, send (email with the PDF and the time detail), print, cancel a draft (`mantle.account.InvoiceServices.cancel#Invoice`, which frees its time entries) | the work behind each line |
 | Projects, client users | Overview, Payments, the time detail when the project shares hours | invoices to their organization | download the PDF | what they owe and for what |
+
+As built (impl-projects.md P8a): `screen/Shared/InvoiceDetail.xml` mounted at `Projects/Billing/InvoiceDetail`, the Projects context
+only until design-crosscut (an Accounting root will choose its own by `appRoot`). One page, not tabs: the title row (kind, client,
+the read-only status-bar of the receivable flow, overdue), Approve (In-Process to Finalized, posted when the organization keeps a
+ledger), Send (a dialog: the client's EmailBilling address, else its billing contact's or its own primary; approves a draft first,
+then Sent; the email carries the printed invoice and the lines, the PDF attached when the server makes one), Print, and More with
+the PDF, Edit (a draft: date, payment terms with the due date following, the client's reference, description, message), Resume
+changes (Finalized) and Cancel (In-Process or Finalized: its time is unbilled again); the boxes Details, Projects, Payments (read
+only), Lines (each with the count and hours of its time; Remove on a draft frees that time) and Time (every entry billed: line, day,
+who, work item, hours, rate, amount, comment; CSV); Chatter. The print is `Billing/InvoicePrint.xml` (html-print, PDF under `/fop`),
+with the time detail when the project's WstTimeDetail is not N. Worker and expense invoices are read only here; Accounting's
+version adds payments, adjustments and the ledger.
 
 ### OrderDetail (Context passed)
 
@@ -1799,6 +1829,12 @@ The Order detail (research-crosscut §3.6), designed in design-crosscut; Project
 
 - **States:** `update#RateAmount` changes only dates and amount, so a change of scope ends the rate (thru) and adds
   a new one; the list says so on such an edit.
+- **As built (impl-projects.md P8a):** `Billing/Rates.xml` over `ironstone.BillingServices` `find#RateRows`, `store#Rate`, `end#Rate`,
+  `get#WhichRate`: the rates on the projects the user sees or on none; current and coming by default, ended ones on asking or on an
+  effective day. The edit is a row dialog (from, thru, amount), not in-place cells. Which rate is a dialog whose answer shows above
+  the list (the client and worker rate found by `mantle.work.TimeServices.find#RateAmount` and what each is scoped to). The seeded
+  no-charge client rate (no project, no person) is listed but not changed or ended. A rate changes only time logged in its dates;
+  the rates already found for time not invoiced are found again by ProjectTime's Update rates.
 - **Source:** research §10 (versioned rate cards), research open question on rate cards; baseline
   `HumanRes/EditRateAmounts`.
 
@@ -1970,6 +2006,12 @@ TimeEntries' dialog and bulk change read it. The smallest entry is a choice of 0
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
 | --- | --- | --- | --- | --- | --- | --- |
 | `BillingDefaults` | single | Defaults for new projects | billing basis, invoice grouping, time detail on invoices, worker invoicing (monthly, by project), hours shared with clients | | `PartySetting` (`entity`) | Dolibarr project admin; ERPNext projects settings |
+
+As built (impl-projects.md P8a): `Settings/Billing.xml`, the organization's `ProjBillingDefaults` JSON (`billingBasis`,
+`invoiceGrouping` PerEntry, PerWorker or OneLine, `timeDetail`, `shareHours`, `settlementTermId`, `workerInvoicing` Monthly or
+ByProject) through `ironstone.BillingServices` `get#` and `store#BillingSettings`, for the Projects managers who manage money. Added
+the payment terms of a new invoice (a SettlementTerm; empty uses the organization's accounting terms). The time detail is the new
+project setting type `WstTimeDetail` (its organization default `timeDetail`), as the billing basis, grouping and shared hours are.
 
 ### CodeSettings
 
@@ -2202,7 +2244,7 @@ record is read through a service that checks the repository's rights (R21).
 | Capacity | service type | `mantle.work.ResourceServices.get#PartyCapacity(partyId, fromDate, thruDate)`: weekly working hours from `WetAvailable` (else the organization's default week) less `WetTimeOff` and `WepHoliday`, by week. As built (P7): `partyIdList`, days with their base, holiday, leave and capacity and the weeks' sums; the default week is the timesheet policy's `dh` and `wd`; `TimesheetServices.get#WeekDays(partyId)` reads it; `get#AllocationWeeks` spreads an allocation over a capacity's days | TeamPlanner, PersonDetail, MyTime, UtilizationReport | People's schedule record replaces the source later |
 | Allocations | data model + service type + seed data | `mantle.work.effort.WorkEffortAllocation` {workEffortAllocationId, workEffortId, partyId (empty for a placeholder), emplPositionClassId, skillTypeEnumId, fromDate, thruDate, hoursPerWeek, statusId (`WealRequested`, `WealAllocated`, `WealRejected`, `WealCancelled`, with a flow), requestedByUserId, reviewedByUserId, comments}; `create#Allocation`, `update#Allocation`, `staff#Allocation`, `approve#Allocation`, `reject#Allocation`, `find#StaffingCandidates`, `get#TeamPlan`; topics `AllocationRequest` (approval) and `AllocationDecision`. As built (P7): also `rootWorkEffortId` (the project), `roleTypeId` (the project role a placeholder fills), `allocationPercent`, `requestedDate`, `reviewedDate` and `reviewComments` (a rejection's reason); `fromDate` and `thruDate` are days; `cancel#Allocation`, `find#Allocations` (the lists and counts), `get#AllocationAccess`; permission `ALLOCATION_APPROVE`; `get#TeamPlan` gives each week's capacity, allocated, requested, assigned and logged hours, the load and the utilization, which `get#Utilization` (P9) can build on | TeamPlanner, Allocations, ProjectTeam, NewProject | answers the research's question (§16) |
 | Milestone billing share | data model + service type | `OrderItemWorkEffort.invoicePercent` (number-decimal); `mantle.account.InvoiceServices.create#MilestoneInvoiceItems(workEffortId, invoiceId)`: an item per linked order line for its share once the milestone is complete, recorded in `WorkEffortBilling` with the percentage | MilestoneDetail, ProjectMoney, Unbilled | |
-| Billing services | service type | `mantle.work.ProjectServices.get#UnbilledSummary` (by project, and with `RaprVendor` by worker: unbilled hours and amounts, expenses, reached milestones, open drafts); the time detail appended to a client invoice's print | Unbilled, ProjectMoney, Home | |
+| Billing services | service type | `mantle.work.ProjectServices.get#UnbilledSummary` (by project, and with `RaprVendor` by worker: unbilled hours and amounts, expenses, reached milestones, open drafts); the time detail appended to a client invoice's print. As built (P8a): `get#UnbilledSummary` by project for those who manage money (billable time not invoiced, the approved part ready, what waits, entries without a rate, expenses not billed through, the last invoice and the drafts; BigDecimal amounts rounded per entry as an invoice of a line per entry totals them; by client for the chart); `mantle.account.InvoiceServices` `create#ProjectInvoiceItems` and `create#TimeEntryInvoiceItems` take `timeEntryIdList`, `approvedOnly` and `billableOnly` (and the first `includeExpenses`, `settlementTermId`), lock the entries for update and link the project by `WorkEffortInvoice`; `get#InvoiceTimeDetail` (the time behind an invoice's lines); `delete#InvoiceItem` frees the line's time as `cancel#Invoice` frees an invoice's; `get#ProjectHomeCounts` fills `unbilledAmount`. The worker (`RaprVendor`) summary and the milestones are P8b | Unbilled, ProjectMoney, Home | |
 | Reports services | service type | `mantle.work.ProjectReportServices`: `get#TimeReport`, `get#WorkItemSummary`, `get#SprintBurndown` (from the `WeatSprint` dates and the audit log of `remainingWorkTime`, `estimatedWorkTime`, `estimatedPoints` and `statusId`; built in P4a with the committed, added, removed, completed, carried-over and remaining sizes, days left, the scope changes and each item's outcome; an hours project sizes items by their estimate and burns down their remaining hours), `get#SprintVelocity` (P4a), `get#PortfolioStatus`, `get#ProjectProfitability`, `get#Utilization`, with the measures of §11 | Reports, SprintDetail, Home | |
 
 ### Requests and intake (Mantle and BOSS)

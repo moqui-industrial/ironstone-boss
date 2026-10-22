@@ -188,6 +188,10 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the Projects managers decide allocations (design-projects.md §1.1, §9): approve, reject, change and staff them, and allocate at
         once (mantle.work.ResourceServices; impl-projects.md P7); a project's own managers request allocations on it -->
     <moqui.security.UserGroupPermission userGroupId="BOSS_PROJECT_MANAGER" userPermissionId="ALLOCATION_APPROVE" fromDate="0"/>
+    <!-- a client invoice by email (ironstone.BillingServices.send#Invoice, impl-projects.md P8a): from the vendor's billing address, the
+        subject, the body and the PDF passed by the service (subject, fromAddress, fromName in bodyParameters) -->
+    <moqui.basic.email.EmailTemplate emailTemplateId="BOSS_PROJECT_INVOICE" description="Project Client Invoice" emailServerId="SYSTEM"
+            fromAddress="${fromAddress}" fromName="${fromName}" ccAddresses="" bccAddresses="" subject="${subject}" sendPartial="Y"/>
     <artifactGroups artifactGroupId="BOSS_INSIGHTS" description="IronStone Insights App (via root screen)">
         <artifacts artifactName="component://ironstone-boss/screen/Insights.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
         <authz artifactAuthzId="BOSS_INSIGHTS_ADMIN" userGroupId="ADMIN" authzTypeEnumId="AUTHZT_ALWAYS" authzActionEnumId="AUTHZA_ALL">

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<entity-facade-xml type="demo">
+    <!-- P8a: billing (design-projects.md §10; impl-projects.md P8a). A file of its own after BossProjectsDemoDataTime.xml (the files load in
+        name order), since it bills SUPP's time. Brightwater Dental Group, whose installation the support desk runs, is its client (billing
+        address and email); the rates: SUPP's
+        client rate (140 an hour) and its project management rate (165), ACME's client rate (135 until October, 150 since), and the worker
+        pay of Joe Developer (70) and Bob Developer (60) on any project; then service/ironstone/BillingDemoServices.xml load#BillingDemo
+        finds the rates of SUPP's time again (as ProjectTime's Update rates does) and makes a draft client invoice of Joe's approved week,
+        Net 30, a line per worker as the organization's billing defaults say. The rest of SUPP's time stays unbilled: Joe's last week
+        waits for approval, Bob's was returned, this week's is open. -->
+    <mantle.party.Party partyId="BOSS_DEMO_BRIGHTWATER" partyTypeEnumId="PtyOrganization" pseudoId="BRIGHTWATER"/>
+    <mantle.party.Organization partyId="BOSS_DEMO_BRIGHTWATER" organizationName="Brightwater Dental Group"/>
+    <mantle.party.PartyRole partyId="BOSS_DEMO_BRIGHTWATER" roleTypeId="Customer"/>
+    <mantle.party.PartyRole partyId="BOSS_DEMO_BRIGHTWATER" roleTypeId="CustomerBillTo"/>
+    <mantle.party.contact.ContactMech contactMechId="BOSS_DEMO_BW_PA" contactMechTypeEnumId="CmtPostalAddress"/>
+    <mantle.party.contact.PostalAddress contactMechId="BOSS_DEMO_BW_PA" toName="Brightwater Dental Group" attnName="Accounts Payable"
+            address1="410 Harbor Way" city="Portland" stateProvinceGeoId="USA_OR" countryGeoId="USA" postalCode="97204"/>
+    <mantle.party.contact.PartyContactMech partyId="BOSS_DEMO_BRIGHTWATER" contactMechId="BOSS_DEMO_BW_PA" contactMechPurposeId="PostalBilling" fromDate="2026-01-01 00:00:00"/>
+    <mantle.party.contact.ContactMech contactMechId="BOSS_DEMO_BW_BE" contactMechTypeEnumId="CmtEmailAddress" infoString="accounts@brightwater.example"/>
+    <mantle.party.contact.PartyContactMech partyId="BOSS_DEMO_BRIGHTWATER" contactMechId="BOSS_DEMO_BW_BE" contactMechPurposeId="EmailBilling" fromDate="2026-01-01 00:00:00"/>
+    <mantle.work.effort.WorkEffortParty workEffortId="SUPP" partyId="BOSS_DEMO_BRIGHTWATER" roleTypeId="Customer" fromDate="2026-09-01 09:00:00"/>
+
+    <mantle.humanres.rate.RateAmount rateAmountId="BOSS_DEMO_RATE_SUPP" rateTypeEnumId="RatpStandard" ratePurposeEnumId="RaprClient" timePeriodUomId="TF_hr"
+            workEffortId="SUPP" fromDate="2026-09-01 00:00:00" rateAmount="140.00" rateCurrencyUomId="USD"/>
+    <mantle.humanres.rate.RateAmount rateAmountId="BOSS_DEMO_RATE_SUPP_PM" rateTypeEnumId="RatpStandard" ratePurposeEnumId="RaprClient" timePeriodUomId="TF_hr"
+            workEffortId="SUPP" workTypeEnumId="WktpProjectMgmt" fromDate="2026-09-01 00:00:00" rateAmount="165.00" rateCurrencyUomId="USD"/>
+    <mantle.humanres.rate.RateAmount rateAmountId="BOSS_DEMO_RATE_ACME_OLD" rateTypeEnumId="RatpStandard" ratePurposeEnumId="RaprClient" timePeriodUomId="TF_hr"
+            workEffortId="ACME" fromDate="2026-09-14 00:00:00" thruDate="2026-10-01 00:00:00" rateAmount="135.00" rateCurrencyUomId="USD"/>
+    <mantle.humanres.rate.RateAmount rateAmountId="BOSS_DEMO_RATE_ACME" rateTypeEnumId="RatpStandard" ratePurposeEnumId="RaprClient" timePeriodUomId="TF_hr"
+            workEffortId="ACME" fromDate="2026-10-01 00:00:00" rateAmount="150.00" rateCurrencyUomId="USD"/>
+    <mantle.humanres.rate.RateAmount rateAmountId="BOSS_DEMO_RATE_JOE_PAY" rateTypeEnumId="RatpStandard" ratePurposeEnumId="RaprVendor" timePeriodUomId="TF_hr"
+            partyId="ORG_ZIZI_JD" fromDate="2026-01-01 00:00:00" rateAmount="70.00" rateCurrencyUomId="USD"/>
+    <mantle.humanres.rate.RateAmount rateAmountId="BOSS_DEMO_RATE_BOB_PAY" rateTypeEnumId="RatpStandard" ratePurposeEnumId="RaprVendor" timePeriodUomId="TF_hr"
+            partyId="ORG_ZIZI_BD" fromDate="2026-01-01 00:00:00" rateAmount="60.00" rateCurrencyUomId="USD"/>
+
+    <ironstone.BillingDemoServices.load-BillingDemo/>
+</entity-facade-xml>

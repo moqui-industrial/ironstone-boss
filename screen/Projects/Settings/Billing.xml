@@ -12,10 +12,73 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for billing settings (design-projects.md §12 BillingSettings; impl-projects.md P8). -->
+<!-- BillingSettings (design-projects.md §12 BillingSettings; style-guide §3.9 Settings; impl-projects.md P8a), for the Projects managers
+    who manage money: the organization's billing defaults for its projects (PartySetting ProjBillingDefaults through
+    service/ironstone/BillingServices.xml get# and store#BillingSettings): the billing basis of a new project, the grouping of invoice
+    lines (per entry, per worker, one line), the time detail on invoices, hours shared with clients, the payment terms of a new invoice
+    and how contractors bill their time. A project's own settings (WorkEffortSetting) win over these. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Billing" default-menu-index="6">
+
+    <transition name="saveDefaults">
+        <service-call name="ironstone.BillingServices.store#BillingSettings" out-map="saveOut" in-map="{billingBasis:billingBasis, invoiceGrouping:invoiceGrouping,
+                timeDetail:(timeDetail || 'N'), shareHours:(shareHours || 'N'), settlementTermId:(settlementTermId || null), workerInvoicing:(workerInvoicing || 'Monthly')}"/>
+        <actions><if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if></actions>
+        <default-response url="."/>
+        <error-response url="."/>
+    </transition>
+
+    <actions>
+        <script><![CDATA[
+            const info = ec.service.sync().name('ironstone.BillingServices.get#BillingSettings').call() || {}
+            hasOrganization = !!info.organizationPartyId
+            organizationName = info.organizationName || ''
+            defaultsValue = Object.assign({}, info.defaults || {})
+            termOptions = Array.from(info.termOptions || [])
+            managesMoney = !!ec.service.sync().name('ironstone.BillingServices.check#Money').parameters({need: 'none'}).call()?.managesMoney
+        ]]></script>
+    </actions>
+
     <widgets>
-        <label text="Placeholder: Billing settings: billing defaults, invoice grouping and time detail, contractor billing." type="p"/>
+        <container style="row items-center q-mb-sm">
+            <label type="h5" text="Billing" style="q-my-none"/>
+        </container>
+        <label type="p" text="How projects${organizationName ? ' at ' + organizationName : ''} are billed unless a project sets its own." style="m-muted"/>
+        <section name="NoOrganization" condition="!hasOrganization"><widgets>
+            <label type="p" text="You belong to no organization, so there is nowhere to keep these settings." style="text-warning"/>
+        </widgets></section>
+        <container-row>
+            <row-col md="7">
+                <container-box><box-header title="Billing defaults"/><box-body>
+                    <form-single name="BillingDefaults" transition="saveDefaults" map="defaultsValue">
+                        <field name="billingBasis"><default-field title="Billing basis of a new project"><radio>
+                            <option key="TimeAndMaterials" text="Time and materials: billable hours at the client rates, and expenses"/>
+                            <option key="FixedPrice" text="Fixed price: the order's own invoicing"/>
+                            <option key="Milestones" text="Milestones: a reached milestone bills its share"/>
+                            <option key="NotBilled" text="Not billed"/></radio></default-field></field>
+                        <field name="invoiceGrouping"><default-field title="Invoice lines"><radio>
+                            <option key="PerEntry" text="A line per time entry"/>
+                            <option key="PerWorker" text="A line per worker"/>
+                            <option key="OneLine" text="One line for the time"/></radio></default-field></field>
+                        <field name="timeDetail"><default-field title=" "><check><option key="Y" text="Print the time detail with invoices (the entries behind each line)"/></check></default-field></field>
+                        <field name="shareHours"><default-field title=" "><check><option key="Y" text="Share hours with clients (with client access)"/></check></default-field></field>
+                        <field name="settlementTermId"><default-field title="Payment terms of a new invoice">
+                            <drop-down allow-empty="true"><list-options list="termOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                        <field name="workerInvoicing"><default-field title="Contractors bill their time"><radio>
+                            <option key="Monthly" text="Monthly, over all their projects"/>
+                            <option key="ByProject" text="By project"/></radio></default-field></field>
+                        <field name="submitButton"><conditional-field condition="managesMoney" title="Save"><submit/></conditional-field>
+                            <default-field title=""><label text="Only those who manage money change these." type="span" style="text-caption m-muted"/></default-field></field>
+                    </form-single>
+                </box-body></container-box>
+            </row-col>
+            <row-col md="5">
+                <container-box><box-header title="How billing works"/><box-body>
+                    <label type="p" text="Unbilled lists the billable time not yet invoiced. Only approved time goes on an invoice, at each entry's client rate (Billing, Rates)."/>
+                    <label type="p" text="An invoice is a draft until approved; Send emails it to the client's billing address as a PDF with the time detail."/>
+                    <label type="p" text="Empty payment terms use the organization's accounting terms, if any." style="text-caption m-muted q-mb-none"/>
+                </box-body></container-box>
+            </row-col>
+        </container-row>
     </widgets>
 </screen>

@@ -60,7 +60,7 @@ Sections: [1 scope](#1-scope-and-order) · [2 rules](#2-ground-rules) · [3 phas
 | P5 Requests | Mantle, BOSS | Requests, RequestDetail, RequestIntake, ProjectRequests, IntakeSettings | done Oct 22 |
 | P6 Time | Mantle, BOSS | MyTime, Timesheets, TimesheetDetail, TimeEntries, ProjectTime, TimeSettings | done Oct 22 |
 | P7 Resources | Mantle, BOSS | TeamPlanner, Allocations, PersonDetail | done Oct 22 |
-| P8 Billing and money | Mantle, BOSS | Unbilled, Invoices, InvoiceDetail, OrderDetail, Rates, ProjectMoney, BillingSettings | planned |
+| P8 Billing and money | Mantle, BOSS | Unbilled, Invoices, InvoiceDetail, OrderDetail, Rates, ProjectMoney, BillingSettings | in progress (P8a built Oct 22; P8b ProjectMoney, OrderDetail, milestones, estimate) |
 | P9 Reports and outputs | Mantle, BOSS | Reports and its seven reports | planned |
 | P10 Client access | mr-moqui, Mantle, BOSS | the client states of §1.1's screens | planned |
 | P11 Finish | BOSS | — | planned |
@@ -378,6 +378,22 @@ tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
 - Design §10: Rates, Unbilled, Invoices, InvoiceDetail, OrderDetail, BillingSettings; §4 ProjectMoney; the milestone
   billing share, milestone approval and the estimate sent for approval; Home's unbilled.
 - Usable when: approved time and a completed milestone become a client invoice with its time detail.
+- Built in two parts (Oct 22): P8a rates, Unbilled, Invoices, InvoiceDetail, BillingSettings and Home's Unbilled; P8b
+  ProjectMoney, OrderDetail, the milestone billing share, gate and approval, and the estimate sent for approval.
+
+**Built, P8a** (Oct 22, 2026):
+- Mantle udm: setting type `WstTimeDetail`. Mantle usl `InvoiceServices`: `create#TimeEntryInvoiceItems` takes
+  `timeEntryIdList`, `approvedOnly` and `billableOnly` (defaults keep Mantle's behaviour) and locks its entries for
+  update; `create#ProjectInvoiceItems` passes them, takes expenses and settlement terms and writes `WorkEffortInvoice`;
+  `delete#InvoiceItem` frees its time; `get#InvoiceTimeDetail`; `ProjectServices.get#UnbilledSummary` (money holders
+  only; exact amounts per entry, totals by client) and Home's unbilled amount; `test/WorkProjectBilling.spec.js`.
+- BOSS: `ironstone.BillingServices` (`check#Money`: TIME_ENTRY_RATE or ADMIN) and `BillingDemoServices`; Billing/Unbilled
+  with the invoice dialog (approved entries only, each ticked), Invoices (with To send), `Shared/InvoiceDetail`
+  (approve and post, send by email with the PDF, cancel, edit, remove a line; payments read only), InvoicePrint
+  (html-print and PDF), Rates (with Which rate), Settings/Billing; Home's Unbilled counter and ProjectDetail's Unbilled
+  card; email template `BOSS_PROJECT_INVOICE`; demo client Brightwater Dental Group for SUPP, rates, a draft invoice of
+  Joe's approved week; specs `Billing` and `BillingWalk` (the walk with authorization on).
+- Runs (Debug): ironstone-boss 552/552, mantle-usl 655/657 (ContactListSend), lint clean.
 
 ### P9 — Reports and outputs
 
@@ -456,6 +472,8 @@ Made during the build; each one that changes the design is also written into des
 | Oct 22, 2026 | The offered work types are the organization's `ProjWorkTypes` setting, read by MyTime, QuickTime, the entry dialog and bulk | P6b |
 | Oct 22, 2026 | Placeholders name a project role and a skill (few EmplPositionClass records exist); a project's managers request allocations; ALLOCATION_APPROVE holders (Projects managers, ADMIN) approve, change and staff; the team sees the planner read only | P7 |
 | Oct 22, 2026 | An allocation's hours spread over the person's working days by each day's hours; leave and holidays do not lower it; a week is overbooked when the larger of allocated and assigned exceeds capacity | P7 |
+| Oct 22, 2026 | Only approved time is invoiced: Unbilled shows all billable uninvoiced time, marks the approved part ready, and the dialog invoices only ticked approved entries; an entry without a client rate cannot be invoiced | P8a |
+| Oct 22, 2026 | InvoiceDetail in Projects is one page: Approve finalizes and posts when the organization keeps a ledger; Send approves a draft and emails the client's billing address; Cancel and Remove a line free their time; worker and expense invoices read only; payments are Accounting's | P8a |
 | Oct 22, 2026 | A recurring item counted from completion takes the completion day at the due date's time of day (UTC days) and the rule without its COUNT, which counts the items made | P2 |
 
 ## 5. Open questions
@@ -557,6 +575,17 @@ Design assumptions found wrong in the code, with the resolution (written into th
 | F83 | P7: Mantle seeds no SkillType enumerations | The BOSS demo seeds `BossSk*`; a skills settings page, later |
 | F84 | P7: `get#TeamPlan` makes two calendar reads per person and caps at 300 people | Batch at scale (F17, F69) |
 | F85 | P7: allocation request notices go to every ALLOCATION_APPROVE holder without checking they see the project | Filter by project visibility, with P10 |
+| F86 | P8a: new time entries get only `rateAmountId`, never `clientHourRate`, so `find#TimeEntries` amounts read empty | Billing reads the RateAmount, as `get#TimeEntryAmount` does; `find#TimeEntries` should too |
+| F87 | P8a: `create#TimeEntryInvoiceItems` billed every uninvoiced entry, unapproved, no-charge and running ones | Flags added; Mantle's default kept |
+| F88 | P8a: `create#ProjectInvoiceItems` never wrote `WorkEffortInvoice` | Fixed |
+| F89 | P8a: `delete#InvoiceItem` left time entries pointing at the deleted line | Fixed |
+| F90 | P8a: the invoice description lost the project name | Fixed |
+| F91 | P8a: a rate's currency is never checked against the invoice's; mixed currencies give a null total and hide Home's counter | Later, with multi-currency billing |
+| F92 | P8a: changing a rate's amount reprices uninvoiced time using it | Documented on Rates |
+| F93 | P8a: `get#InvoiceProjects` reads up to 20000 rows per call | A view or subquery at scale (F17, F78) |
+| F94 | P8a: `lastStandalone=true` renders without ProjectDetail's header (F81) | Specs check `get#ProjectHeader` |
+| F95 | P8a: a `header-field` title becomes the column title | Header-only find fields |
+| F96 | P8a: Mantle's per-worker line text includes the party's pseudo-id | Left as Mantle's |
 | F7 | P0: a wiki space under an existing repository is documented for a repository root (`rootPageDirectory: "git://docs"`, or `rootPageLocation` `git://<repositoryId>/<SPACE>.md`), not for a subdirectory such as `git://<repositoryId>/docs` | Checked in P4 as the design's §15 row says, before ProjectDocs is built |
 
 ## 7. Later
@@ -616,6 +645,9 @@ Designed, not in this build:
 - Resources (P7): planner changes in the terminal (P11); request again after a rejection; allocations on one work item
   in the screens; a leave marker in MyTime; a skills settings page; the planner grouped by team; sprint capacity from
   availability; people's own leave records; a screen test of the tray's decisions.
+
+- Billing (P8a): Unbilled's Contractor time and Milestones due (P8b); the project's Billing box in settings; payments and
+  adjustments (Accounting); the invoice email in Chatter; client states (P10); TUI checks.
 
 ## 8. Verification
 
