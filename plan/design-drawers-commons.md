@@ -1236,6 +1236,7 @@ records who saved each version and the page's moves. Until the editor lands, the
 | `ChangePassword` | single | Change my password | old, new, repeat | | `org.moqui.impl.UserServices.update#Password` | `Account` `ChangePasswordForm` |
 | `TwoFactor` | list | My second factors | type, description, enabled, last used | add dialogs per type; TOTP shows the QR | `org.moqui.impl.UserServices.get#UserAuthcFactorInfo`, `create#UserAuthcFactorTotp` and `setup#UserAuthcFactorTotp`, `create#UserAuthcFactorEmail`, `create#UserAuthcFactorSms`, `create#SingleUseAuthcFactor`, `invalidate#UserAuthcFactorEntry`, `send#AuthcCodeUserAccountEmail` | `Account` `UserAuthcFactorList`, `CreateUserAuthcFactorTotp`, `CreateUserAuthcFactorSingleUse`, `CreateUserAuthcFactorEmail`, `CreateUserAuthcFactorSms`, `SecondFactorSendForm` |
 | `Sessions` | list | Where I am signed in | device, since, last seen; sign out | | `moqui.server.Visit` (`entity`) | Nextcloud and Google account security |
+| `GitAccess` | single, or list | Git and API access | a Git access link to `Projects/Code/GitAccess` for a user who has Projects; otherwise my access tokens (description, created, expires; Revoke) and New access token, shown once | the token forms included from Projects' GitAccess | `org.moqui.impl.UserServices.create#UserAccessToken`, `revoke#UserAccessToken`; `UserLoginKey` (`entity`) | design-projects GitAccess; `MyAccount/User/GitAccess` `AccessTokenList`, `CreateAccessTokenForm` |
 
 ### Preferences
 

@@ -687,7 +687,7 @@ Per-form inventory of the MrSimpleScreens component, for tracking form-level fea
 | MilestoneSummary | InactiveTaskList | Projects/Projects/MilestoneDetail |  |
 | MilestoneSummary | ActiveTaskList | Projects/Projects/MilestoneDetail |  |
 | MilestoneSummary | DoneTaskList | Projects/Projects/MilestoneDetail |  |
-| ProjectProgressReport | ChildStatsListDays | Projects/Reports/Progress |  |
+| ProjectProgressReport | ChildStatsListDays | Projects/Reports/Progress; Projects/Projects/ProjectDetail/Overview |  |
 | ProjectProgressReport | MilestoneStatsList | Projects/Projects/MilestoneDetail; Projects/Reports/Progress |  |
 | ProjectSummary | ViewProject | Projects/Projects/ProjectDetail; Projects/Projects/ProjectDetail/Overview |  |
 | ProjectSummary | MilestoneList | Projects/Projects/ProjectDetail/Overview; Projects/Projects/Roadmap |  |

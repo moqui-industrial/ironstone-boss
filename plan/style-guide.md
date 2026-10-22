@@ -350,7 +350,9 @@ A list shown as columns by status or stage with cards; pipeline, work items, cas
   a `.qvue` screen with the same data.
 - Rules: the board is a view of the list, never a separate screen, so filters and saved finds
   apply; a column's count and sum in its header; a card opens the detail; a board column maps
-  to a status flow stage, not an arbitrary field.
+  to a status flow stage, not an arbitrary field, except that a board may also group by a
+  planning field (assignee, sprint, milestone, release) where an app's design says so, a drag
+  then setting that field (design-projects WorkItems).
 
 ### 3.7 Calendar and timeline
 
@@ -463,6 +465,88 @@ The content of a tray panel tab or a quick-create dialog: narrow, scannable, act
   screen lays itself out for that width and uses no viewport breakpoint columns (`col-md-*` and the like), which follow
   the window and not the panel.
 
+### 3.15 Tree list
+
+A list whose rows nest under a parent row, with the columns of a list and the totals of each
+branch: a work breakdown, a chart of accounts with balances, a bill of materials, facility
+locations with stock, an org structure with headcount. It is a view of the List archetype
+(`views="list,tree"`), not a screen archetype of its own, so a design's screen table keeps
+`list`; it is used rarely, and when it is used it carries the screen, so it is held to this
+section closely.
+
+```
+┌ Work items  [list|board|calendar|tree]   ⌕   Expand ▾ (1 · 2 · 3 · all)   [+ New] ─────────────────┐
+│ Item                                     Status        Est.   Total est.   Total act.   Done      │
+│ ▾ PROJ-1  Customer portal                In Progress    4.0        86.0         52.5    11/19     │
+│ │ ▾ PROJ-4  Sign-in and accounts         In Progress    2.0        30.0         28.0     6/8      │
+│ │ │   PROJ-9   Password reset            Complete       6.0         6.0          7.5              │
+│ │ │ ▸ PROJ-11  Two-factor                Approved       0.0        14.0          0.0     0/3      │
+│ │ ▸ PROJ-5  Order history                In Planning    1.0        52.0         24.5     5/10     │
+│ ▸ PROJ-2  Data migration                 Approved       8.0        40.0          0.0     0/6      │
+├────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Total (2 top-level items)                                         126.0         52.5    11/25     │
+└────────────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+- Skeleton: a `form-list` with `views` including `tree` and a `view-tree` (§8):
+  `parent-field`, the transition that returns one level's rows (`children-transition`, called
+  with the list's find and the parent id), `rollup-fields` (the fields a parent row totals over
+  its branch, computed by the service, never summed in the browser), and the `transition` a drag
+  posts to. It renders through the same `div` table and cell renderers as the list (§4.4), so
+  the columns, widths, inline edits, chips and formats are the list's, and switching views keeps
+  the columns in place. The tree is drawn in the first column; there is no separate tree pane
+  beside a table. Quasar's `q-tree` is not used for it: it has no columns (the `tree` element of
+  §4.2 is for a single-column navigation tree such as wiki pages or folders).
+- Look:
+  - Indent 20 px a level in the first column only; every other column stays aligned to its
+    header at every depth. A chevron (`sym_o_chevron_right`, turned 90° when open, 150 ms) sits
+    in a 24 px gutter before the label; a leaf has the empty gutter so labels at one depth line
+    up. Thin guide lines (`$separator-color`, 1 px) run down from an open parent to its last
+    child, as in the wireframe, so a long branch can be followed by eye.
+  - Past six levels the indent stops growing and the row shows its level as a small muted
+    number before the label; on a phone the indent is 12 px and stops at four levels.
+  - A parent's label is medium weight (500); a leaf's is regular. Roll-up columns are headed
+    "Total …" and placed right of the row's own columns; a parent's total is in the normal text
+    color and a leaf's, which only repeats its own value, is muted (`.m-muted`). A collapsed
+    parent still shows its totals: that is what the view is for.
+  - A row shown only to place a matching descendant (an ancestor the find leaves out) is muted
+    in every cell, has no inline edits or row actions, and keeps its chevron.
+  - Selection, hover and the focused row are the list's styles; the focused row also shows its
+    branch's guide line in `primary` so where it sits is visible in a deep tree.
+- Behavior:
+  - Children load on open, with one skeleton row (`q-skeleton`, 28 px) while they come, and an
+    error row with Retry if they fail; the other branches stay usable. A level of more than 200
+    rows ends in a "Show 200 more" row; the top level pages as a list does.
+  - Expand to level 1, 2, 3 and Expand all are in the toolbar; Expand all asks first past 500
+    rows. Which rows are open is kept per user and screen (browser storage, so a lost store just
+    reopens to level 1); the level chosen is in the URL, so a link opens the same depth.
+  - A find keeps the tree: matching rows appear under their ancestors, with the branches that
+    hold a match opened. Sorting by a column sorts siblings within each parent and never
+    flattens the tree; the list view is the flat view.
+  - Drag (where the screen allows it): a line between rows to reorder, indented to the depth the
+    row will land at, moving left and right with the pointer to choose an outdent; a row tinted
+    `primary` (10%) to drop into it as the last child; a collapsed row hovered for 600 ms opens.
+    A drop the service will refuse (a row into its own branch) shows the not-allowed cursor and
+    no indicator. After a drop the row stays focused and briefly flashes, and the old and new
+    parents' totals refresh from the response.
+  - Keyboard, as the WAI-ARIA treegrid pattern: up and down move between visible rows, right
+    opens a row or moves to its first child, left closes it or moves to its parent, Home and End
+    go to the first and last visible row, Enter opens the record, F2 edits the focused cell; where
+    re-parenting is allowed, Tab indents the row under the sibling above and Shift+Tab outdents it,
+    and Alt+up and Alt+down move it among its siblings. The table has `role="treegrid"`, each row
+    `aria-level`, `aria-expanded` (parents), `aria-setsize` and `aria-posinset`.
+  - The totals row sums the top-level rows only, so nothing is counted twice; a total over a
+    branch whose rows were not all loaded comes from the service, never from the loaded rows.
+- Exports and other modes: CSV and XLSX carry a level column and the parent's id, and the XLSX
+  sets row outline levels so a spreadsheet can fold the same branches; `html-print` prints the
+  tree to the level open on screen, indented, with each parent's totals on its row. The html
+  render mode is a nested table with the same indents; the tui mode an indented outline with
+  `+` and `-` before each parent and the totals right-aligned.
+- Rules: offer a tree only where the hierarchy is the user's question (what does this branch
+  cost, where does this item sit); otherwise give the list a parent column and filter. The
+  first column is the record link with its id and name, as in a list. A roll-up the user can
+  edit is not offered: the row's own value is the editable field and its total follows.
+
 ## 4. Widget guide
 
 What each XML element renders as in `qvt` today, and when to use it. The macros are
@@ -493,7 +577,7 @@ wrappers are the `m-*` components of `webroot/screen/webroot/js/WebrootVue.qvt.j
 | `subscreens-panel type="stack"` / `"wizard"` | Not supported today (writes a placeholder); wizard planned in §8 | Multi-step flows |
 | `subscreens-item` | A menu entry: `menu-title`, `menu-index`, `menu-include`, `menu-image` with `menu-image-type="icon"`, `location` | Every subscreen; `location` is how a reused `Shared/` screen is mounted |
 | `button-menu` + `menu-item` | `q-btn-dropdown` (tonal) with a `q-list` of items | Secondary actions on a title row (Hold, Cancel, Clone) |
-| `tree` (+ `tree-node`, `tree-sub-node`) | `m-tree-top` / `m-tree-item`, nodes fetched on open | Wiki page tree, categories, facility locations |
+| `tree` (+ `tree-node`, `tree-sub-node`) | `m-tree-top` / `m-tree-item`, nodes fetched on open | A single-column navigation tree: wiki pages, folders, categories; rows with columns and totals are a list's `view-tree` (§3.15) |
 | `link` (screen link) | See §4.6 | Navigation and actions |
 
 ### 4.3 Form layout (`form-single`)
@@ -529,7 +613,7 @@ q-table--horizontal-separator`, 28 px rows, 12 px medium headers.
 | Column groups | `columns` > `form-list-column` > `field-ref` | Several fields stacked in one column |
 | Inline edit | `editable` on a field, `editable-load` | `m-editable`, a `q-popup-edit` on click |
 | Sort | column header links | Arrows on the title line; the active one `text-primary` |
-| Alternative views | `views` + `view-board`, `view-calendar` | §8 |
+| Alternative views | `views` + `view-board`, `view-calendar`, `view-tree` | §8; the tree view §3.15 |
 
 Rules: a list's first column is the text link to the record; a status is a chip; numbers are
 right-aligned with the user's format; at most two inline row actions; a list on a landing has
@@ -854,7 +938,7 @@ for now.
 | `m-tonal` status chip | Style | Built Oct 18, 2026: `class="m-tonal text-positive"` on a `q-chip` or `q-badge`. Still to do: a `display` field with `status="true"` that renders the chip from the status color map | §5.2 | Lists, details |
 | Muted text class | Style | Built Oct 18, 2026: `.m-muted` is `grey-7` in light and `grey-5` in dark | §5.3 | Captions everywhere |
 | `chatter` | XML Screen element + data | Built Oct 19, 2026 (the element names the theme's `STRT_CHATTER_SCREEN`; BOSS supplies `Shared/Chatter.qvue`): `<chatter record-entity record-id/>`: messages and notes, scheduled activities, attachments, followers, as a column or tab; needs a generic record link for `CommunicationEvent`, `WorkEffort` and content (crosscut §8, "Generic record links") or a join entity per record type | §3.3 | Every record screen |
-| List views | XML Form element | Built Oct 19, 2026 (`m-list-views`; `view-board` and `view-calendar` with drag through a transition; html shows the list): `form-list` `views="list,board,calendar"` with `<view-board group-field card-title-field card-fields badge-field transition>` and `<view-calendar start-field end-field title-field color-field transition>`; later `view-pivot`, `view-graph`, `view-timeline`; the view is a client switch over the same rows and filters | §3.2, §3.6, §3.7 | Pipeline, work items, cases, schedules |
+| List views | XML Form element | Built Oct 19, 2026 (`m-list-views`; `view-board` and `view-calendar` with drag through a transition; html shows the list): `form-list` `views="list,board,calendar"` with `<view-board group-field card-title-field card-fields badge-field transition>` and `<view-calendar start-field end-field title-field color-field transition>`; next `<view-tree parent-field children-transition rollup-fields transition>` (proposed by design-projects §15: one level fetched per open, the find's unmatched ancestors returned muted, drag to reorder or re-parent, the treegrid keys, outline levels in XLSX, a nested table in html and an outline in tui); later `view-pivot`, `view-graph`, `view-timeline`; the view is a client switch over the same rows and filters | §3.2, §3.6, §3.7, §3.15 | Pipeline, work items, cases, schedules |
 | `container-split` | XML Screen element | Built Oct 19, 2026: `<container-split side-width="320" min-main="480">` with `<split-side>` and `<split-main>`; `q-splitter` from `md`, stacked with a back button below; the selected id in the URL | §3.8 | Inbox, contacts, files, chat, knowledge |
 | Wizard and stack panels | XML Screen element | Built Oct 19, 2026: `subscreens-panel type="wizard"` as a `q-stepper` with one subscreen per step, validation before Next; `type="stack"` as a breadcrumb stack | §3.10 | Order entry, imports, setup |
 | Handheld density | Screen attribute | `density="handheld"` on an app root or screen: 48 px controls, 18 px text, no drawer, header reduced to title and account | §3.5, §7 | Warehouse, Manufacturing |
@@ -914,6 +998,7 @@ Built Oct 18, 2026 (the example component is on by default since then):
 | `example/screen/Gallery.xml` | The gallery root, mounted under the apps root by the example `MoquiConf.xml`; ADMIN authorization in `example/data/ExampleSecurityData.xml` |
 | `Gallery/Landing.xml`, `List.xml`, `Detail.xml`, `Record360.xml`, `Task.xml`, `Split.xml`, `Settings.xml`, `Wizard.xml`, `Dialog.xml`, `Report.xml`, `Panel.xml` | One archetype each over framework data (`moqui.basic.Enumeration`, `Geo`, `StatusItem`, `moqui.security.UserAccount`, `moqui.server.ArtifactHitBin`) or inline lists built in the screen actions; every widget of §4 appears at least once |
 | `Gallery/Board.xml` + `Board.qvue`, `Gallery/Calendar.xml` + `Calendar.qvue` | The `.qvue` path of §4.8 for the custom archetypes: a drag-and-drop board and a month grid over the screen's own transitions |
+| `Gallery/Tree.xml` (to add with `view-tree`) | §3.15 over an inline three- to seven-level breakdown built in the screen actions, with own and total hours, a muted ancestor from a find, a branch of more than 200 rows, drag and keyboard re-parenting through a transition that refuses a drop into a row's own branch, and the CSV, XLSX and print outputs; the depth past six levels and the phone indent checked by `gallery-shots.mjs` |
 | `Gallery/Widgets.xml` | Every field widget, button role, label type, list feature, container type, tree, editable and image side by side, as the fixture for style changes |
 | `example/test/Gallery.spec.js` | Renders every gallery screen in its render mode through the screen test API (`./moq test example`) |
 | `example/test/gallery-shots.mjs` | Screenshots and page text of any `/qapps` screen through Chrome DevTools against a running server, light or dark, at a chosen width, with `?_openDialog=<id>` to open a dialog |

@@ -1,6 +1,7 @@
 # IronStone BOSS — Projects design
 
-Oct 21, 2026 — draft; the inventories' **Designed in** columns filled from it (§13)
+Oct 21, 2026 — draft; the inventories' **Designed in** columns filled from it (§13); the review's answers to the
+open questions folded in (§16, §17)
 
 **IronStone Projects** is the app for project managers and services staff (initial-design's app table). This file
 adds three audiences to that row: the software teams who deliver the work (developers, testers, release
@@ -20,9 +21,11 @@ records under one database backup that the same team can extend with Moqui scree
 Four decisions shape every screen:
 
 - **One work item record, many views.** A work item is a Mantle `WorkEffort` of type `WetTask` under its
-  project. The list, board and calendar are views of one find (the form-list `views` the framework has), the
-  timeline and the backlog are `.qvue` screens over the same find, and milestones, releases, sprints and
-  components are work efforts under the project linked to their items by `WorkEffortAssoc`.
+  project, and work items nest to any depth (an epic is an item with sub-items, and may hold epics), so a project
+  is also its work breakdown. The list, board, calendar and tree are views of one find (the form-list `views` the
+  framework has, and a new `view-tree`), the timeline and the backlog are `.qvue` screens over the same find, and
+  milestones, releases, sprints and components are work efforts under the project linked to their items by
+  `WorkEffortAssoc`.
 - **Code is part of the work.** Repositories are mr-moqui's (`moqui.resource.GitRepository`, cloned and pushed
   over HTTPS and SSH, mr-moqui `docs/Git-Hosting.md`), and Mantle's conventions already tie commits, branches and
   tags to work items (`mantle.work.GitServices`, mr-mantle-usl `service/Work.gitecas.xml`). This file adds the
@@ -247,8 +250,8 @@ its record is the detail's.
 
 | Screen | Path | Archetype | Impl | Purpose | Main record | Reused | Roles | Scope | Context |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| WorkItems | `Projects/WorkItems` | list | xml | Work items across projects or in one: smart lists and saved finds, quick add, bulk changes; list, board and calendar views | `WorkEffort` (`WetTask`) | own | app | parity | `WorkEffort rows`; list find parameters |
-| WorkItemDetail | `Projects/WorkItems/WorkItemDetail` | detail | xml | One work item: fields, sub-items, links, development, time, files, Chatter | `WorkEffort` (`WetTask`) | Task / work item, crosscut §3.12, designed here (`Shared/WorkItemDetail`) | app | parity | `WorkEffort workEffortId` |
+| WorkItems | `Projects/WorkItems` | list | xml | Work items across projects or in one: smart lists and saved finds, quick add, bulk changes; list, board, calendar and tree views; a peek pane | `WorkEffort` (`WetTask`) | own | app | parity | `WorkEffort rows`; list find parameters |
+| WorkItemDetail | `Projects/WorkItems/WorkItemDetail` | detail | xml | One work item: its place in the tree, fields, sub-item tree, links, development, time, files, Chatter | `WorkEffort` (`WetTask`) | Task / work item, crosscut §3.12, designed here (`Shared/WorkItemDetail`) | app | parity | `WorkEffort workEffortId` |
 | Backlog | `Projects/WorkItems/Backlog` | board | qvue | Rank the backlog, plan sprints, start and complete them | `WorkEffort` (`WetTask`, `WetSprint`) | own | internal | new | `WorkEffort workEffortId` (the project); `WorkEffort rows` |
 | SprintDetail | `Projects/WorkItems/SprintDetail` | detail | xml | A sprint: goal and dates, its items, burndown, scope changes | `WorkEffort` (`WetSprint`) | own | internal | new | `WorkEffort workEffortId` |
 | Timeline | `Projects/WorkItems/Timeline` | calendar | qvue | Work items as bars with dependencies, milestones and sprints, over the work item find; projects in portfolio mode | `WorkEffort` | own | app | new | list find parameters |
@@ -266,7 +269,7 @@ its record is the detail's.
 
 | Screen | Path | Archetype | Impl | Purpose | Main record | Reused | Roles | Scope | Context |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Repositories | `Projects/Code/Repositories` | list | xml | The repositories I may view: create, link, mirror, import, clone URLs | `GitRepository` | own | internal | parity | `GitRepository rows` |
+| Repositories | `Projects/Code/Repositories` | list | xml | The repositories I may view: create, link, mirror, import, clone URLs; the archived ones apart | `GitRepository` | own | internal | parity | `GitRepository rows` |
 | RepositoryDetail | `Projects/Code/RepositoryDetail` | detail | xml | One repository: header with clone and New merge request; tabs | `GitRepository` | own | internal | new | `GitRepository repositoryId` |
 | RepositoryFiles | `Projects/Code/RepositoryDetail/Files` | detail | xml | Browse files at a branch, tag or commit; read a file; the README | `GitRepository` | own | internal | new | inherits; ref, path |
 | RepositoryCommits | `Projects/Code/RepositoryDetail/Commits` | list | xml | The log of a ref or a path with linked work items and CI state | `GitRepository` | own | internal | new | inherits; ref, path |
@@ -274,7 +277,7 @@ its record is the detail's.
 | RepositoryTags | `Projects/Code/RepositoryDetail/Tags` | list | xml | Tags with their release, milestone or project; new and delete | `GitRepository` | own | internal | parity | inherits |
 | RepositoryMergeRequests | `Projects/Code/RepositoryDetail/MergeRequests` | list | xml | The repository's merge requests | `GitMergeRequest` (new) | MergeRequests (§7) with the repository fixed | internal | new | inherits |
 | RepositoryActivity | `Projects/Code/RepositoryDetail/Activity` | list | xml | The push log: who changed which refs, and the rules that ran | `GitUpdate` | own | internal | new | inherits |
-| RepositorySettings | `Projects/Code/RepositoryDetail/Settings` | settings | xml | Description and default branch, projects, branch rules, webhooks, large files, storage, mirror, export and import | `GitRepository` | own | managers and the repository's maintainers | new | inherits |
+| RepositorySettings | `Projects/Code/RepositoryDetail/Settings` | settings | xml | Description, default branch and merge method, projects, branch rules, webhooks, large files, storage, mirror, export and import, archive | `GitRepository` | own | managers and the repository's maintainers | new | inherits |
 | Compare | `Projects/Code/Compare` | detail | xml | Compare two refs and open a merge request from them | `GitRepository` | own | internal | new | `GitRepository repositoryId`; refs |
 | CommitDetail | `Projects/Code/CommitDetail` | detail | xml | One commit: message, people, parents, linked work items, CI, the files and their diffs | `GitRepository` (a commit) | own | internal | parity | `GitRepository repositoryId`; commit |
 | MergeRequests | `Projects/Code/MergeRequests` | list | xml | Merge requests across repositories: waiting for my review, mine, open, merged | `GitMergeRequest` (new) | own | internal | new | `GitMergeRequest rows`; list find parameters |
@@ -305,7 +308,7 @@ its record is the detail's.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Unbilled | `Projects/Billing/Unbilled` | list | xml | The billing queue: unbilled time and expenses by project, milestones due for invoicing, contractor time to bill | `TimeEntry`, `WorkEffort` | own | managers | parity | list find parameters |
 | Invoices | `Projects/Billing/Invoices` | list | xml | Client, contractor and expense invoices of projects | `Invoice` | own | managers; clients (theirs) | new | `Invoice rows` |
-| InvoiceDetail | `Projects/Billing/InvoiceDetail` | detail | xml | One invoice with the time and milestones behind its lines | `Invoice` | Invoice detail, design-accounting | managers; clients (read) | new | `Invoice invoiceId` |
+| InvoiceDetail | `Projects/Billing/InvoiceDetail` | detail | xml | One invoice with the time and milestones behind its lines | `Invoice` | Invoice detail, crosscut §3 | managers; clients (read) | new | `Invoice invoiceId` |
 | OrderDetail | `Projects/Billing/OrderDetail` | detail | xml | The sales order a project fulfils, with its lines' work and milestone shares | `OrderHeader` | Order detail, crosscut §3.6 | managers | new | `OrderHeader orderId` |
 | Rates | `Projects/Billing/Rates` | list | xml | Client billing and worker pay rates by project, person, position and work type | `RateAmount` | own | managers | parity | `RateAmount rows` |
 
@@ -320,7 +323,7 @@ its record is the detail's.
 | PortfolioReport | `Projects/Reports/Portfolio` | report | xml | Every project's status, health, progress, schedule and budget | `mantle.work.ProjectReportServices.get#PortfolioStatus` (new) | own | internal | new | report parameters |
 | ProfitabilityReport | `Projects/Reports/Profitability` | report | xml | Budget, cost, billable, billed and margin by project | `mantle.work.ProjectReportServices.get#ProjectProfitability` (new) | own | managers | new | report parameters |
 | UtilizationReport | `Projects/Reports/Utilization` | report | xml | Capacity, logged and billable hours by person and week | `mantle.work.ProjectReportServices.get#Utilization` (new) | own | managers | new | report parameters |
-| ProgressReport | `Projects/Reports/Progress` | report | xml | Estimated, actual and remaining work by milestone and top-level item | `mantle.work.ProjectServices.get#ProjectMilestoneSummary`, `get#WorkEffortChildStats` | own | internal | parity | report parameters |
+| ProgressReport | `Projects/Reports/Progress` | report | xml | Estimated, actual and remaining work by milestone, and by top-level item down the work item tree | `mantle.work.ProjectServices.get#ProjectMilestoneSummary`, `get#WorkEffortChildStats` | own | internal | parity | report parameters |
 
 ### Settings
 
@@ -477,7 +480,7 @@ project with sub-projects (`parentWorkEffortId`); there is no separate portfolio
 ### ProjectOverview
 
 - **Layout:** detail tab with two columns of boxes; Chatter as the right column from 1440 px and the last tab below.
-  Left: Status, Next milestones and releases, Work items, Time and budget. Right: Description, Members,
+  Left: Status, Next milestones and releases, Work items, Breakdown, Time and budget. Right: Description, Members,
   Repositories, Recent activity.
 - **Forms:**
 
@@ -487,6 +490,7 @@ project with sub-projects (`parentWorkEffortId`); there is no separate portfolio
 | `PostUpdate` | dialog | A periodic status update | health (On track, At risk, Off track), progress %, summary (markdown), shown to the client | `text-area editor-type="md"` | `mantle.work.ProjectServices.post#ProjectUpdate` (new): the `StatusUpdate` message on the project's Chatter, the `WorkEffortUpdate` row and the project's `healthEnumId` | Odoo `project.update` form |
 | `NextMilestones` | list | The next three milestones and releases | name, type, due, status chip, progress | `q-linear-progress` | `WorkEffort` (`entity`) with `mantle.work.ProjectServices.get#ProjectMilestoneSummary` | `ProjectSummary` `MilestoneList`; Odoo next milestone |
 | `WorkCounts` | display | Work items by status | a chip per status with its count, each a link to the Work items tab filtered; a donut | `m-chart` | `get#ProjectStats` (`taskCountByStatusMap`) | `ProjectSummary` status counts; Redmine overview per tracker |
+| `TopLevelProgress` | list | The breakdown at a glance: the top-level items with their subtrees' roll-ups | item (link), status chip, estimate, actual plus remaining against it as a bar (warning past the estimate, danger past the hours budget), done of total items; a row opens the Work items tab in Tree view expanded at it | `q-linear-progress` | `get#WorkEffortChildStats` with the project | `ProjectProgressReport` `ChildStatsListDays`; `ProjectSummary` `TaskTree` |
 | `TimeBudget` | display | Hours and money against the caps (managers) | estimated, actual, remaining hours, hours budget, client budget used %, profit; the warning or danger flag | progress bars | `get#ProjectStats` | `ProjectSummary` `ActiveProjectSection`; OpenProject budget widgets |
 | `Description` | single | The project's description | description | `text-area editor-type="md"`, edited in place by managers | `update#Project` | `EditProject` `EditProject` |
 | `Members` | list | Who is on it | avatar, name, role | `m-avatar` | `WorkEffortParty` (`entity`) | `ProjectSummary` `ViewUserAssignForm` |
@@ -611,11 +615,15 @@ amounts or people's names beyond the team's.
 | `Commercial` | list | What the project fulfils, and purchases made for it | sales order lines, agreement items, the opportunity, purchase order lines; link and unlink | line `server-search` | `OrderItemWorkEffort`, `AgreementItemWorkEffort`, `SalesOpportunityWorkEffort` (`entity`) | research §11 sales handoff, §14 purchasing links; Odoo `sale_project`, `project_purchase` |
 | `MaterialEstimates` | list, editable rows | Materials and licenses the project needs | product, estimated quantity, estimated cost, status | Add product dialog | `mantle.work.WorkEffortServices.add#WorkEffortProduct`; `WorkEffortProduct` (`entity`) | OpenProject material budget items |
 
-- **Actions:** Create invoice (Unbilled's dialog for the project); Print estimate (`html-print`: the open items and
-  milestones with their hours at the client rates, for a client to approve before work starts).
+- **Actions:** Create invoice (Unbilled's dialog for the project); Print estimate (`html-print`: the work breakdown from
+  the top-level items down to a chosen depth, each line with its roll-up hours and amount at the client rates, the
+  milestones, and the total); Send estimate for approval: the estimate is saved as a file of
+  the project's first milestone, **Estimate** (made when missing, with a gate whose approver is the project's
+  `ClientManager`, else its `Customer` contact), and the gate's approval is requested, so the client approves the
+  estimate in MilestoneDetail as any gate and no other approval record is needed.
 - **Source:** research §10 (OpenProject budgets, Odoo analytic and invoicing policies, ERPNext costing), §11;
   baseline `EditProject` budget fields and `ProjectTimeEntries`.
-- **Needs:** Milestone billing share; Billing services.
+- **Needs:** Milestone billing share; Billing services; Milestone approval (the estimate).
 
 ### ProjectFiles (Context passed)
 
@@ -632,7 +640,7 @@ The `record-files` element over the project (design-drawers-commons §9 RecordFi
 | --- | --- | --- | --- | --- | --- | --- |
 | `ProjectGeneral` | single | The project's record | name, purpose, priority, visibility, status flow, client, vendor, program, start and target dates, description | client and vendor `server-search`; status through the flow | `update#Project` | `EditProject` `EditProject` |
 | `ProjectModules` | single | Tabs on or off | Backlog and sprints, Requests, Code, Docs, Time, Money, Client access | | `store#ProjectSetting` (new) | Redmine project modules |
-| `ProjectWorkItemSettings` | single | How work items behave | types offered, work item flow, estimate unit (hours, points), new items shared with the client (yes, no), Fixes keywords complete items (on), a request completes when its work does (on) | | `store#ProjectSetting` | OpenProject per-project work-package settings; Redmine trackers per project |
+| `ProjectWorkItemSettings` | single | How work items behave | types offered, work item flow, estimate unit (hours, points), several active sprints (off; for teams sharing a project), new items shared with the client (yes, no), Fixes keywords complete items (on), a request completes when its work does (on) | | `store#ProjectSetting` | OpenProject per-project work-package settings; Redmine trackers per project |
 | `ProjectComponents` | list, editable rows | Components | name, lead (their default assignee for new items of it), description | | `mantle.work.ProjectServices.create#Component` (new); `WorkEffort` (`entity`) | Redmine issue categories; Jira components |
 | `ProjectIntake` | single | How requests arrive | mail account and plus tag, public form on and its link (rotate), triage assignee, default request type, new requests become (requests, work items for internal senders) | | `store#ProjectSetting`; `mantle.request.RequestServices.create#IntakeToken` (new) | Odoo project email alias; Redmine mail handler |
 | `ProjectCodeSettings` | single | Code conventions | branch name pattern (`<KEY>-<n>-<words>`), merge request opened moves items to In Review, merged moves them to Complete, require a work item in commits to protected branches | | `store#ProjectSetting` | Git-Hosting "Projects and tasks" |
@@ -730,8 +738,20 @@ a project narrows them; each has one icon used in lists, cards, the backlog and 
 | `WepToDo`, `WepCommunication` | To Do, Communication | `sym_o_check_box`, `sym_o_forum` | no (activities use them, design-drawers-commons §15) |
 | `WepPlaceholder` | Placeholder | `sym_o_crop_free` | no (left out of progress, as `MilestoneSummary` does) |
 
-An **epic** is any work item with sub-items; the hierarchy is `parentWorkEffortId`, and a parent shows its
-children's progress. **Status** follows the work item's flow, else its project's, else `Default` (as
+**The work item tree.** Work items nest to any depth by `parentWorkEffortId`, as the baseline's task tree (SimpleScreens
+`ProjectSummary`, and HiveMind's before it) has them. An **epic** is any work item with sub-items, and an epic's
+sub-items may be epics of their own, so a project is a work breakdown: epic, feature, story, task for a software
+team, or deliverable, work package, task for a services estimate. The tree stays inside one project (a parent is in
+the same project, never the item itself or one of its descendants, and a move to another project takes the subtree
+along), and any type may be a parent. The items with no parent are the project's **top-level items**, the roots of the
+tree and the rows of the Progress report. A parent keeps its own estimate, remaining and actual hours and points for
+the work not broken down further (coordination, review), and everywhere an item's numbers are shown beside its
+subtree's **roll-up**: its own plus all its descendants', cancelled items left out, as
+`mantle.work.ProjectServices.get#WorkEffortChildStats` already sums them. An hours budget (`totalTimeAllowed`) is set
+on a top-level item, as the baseline does, and covers its whole subtree (the roll-up sums budgets, so one deeper
+down would count twice). Start and due of a parent are its own; the Timeline draws the span of its subtree
+around them. Ranks (`sequenceNum`) order the children of one parent, so a tree reads in the order it was planned.
+**Status** follows the work item's flow, else its project's, else `Default` (as
 SimpleScreens `EditTask` resolves it). Two flows are offered: `Default` (In Planning, Approved, In Progress, On
 Hold, Complete, Closed, Cancelled) and the new `WorkEffortDevelopment`, which adds In Review and In Testing between
 In Progress and Complete for software teams. Complete and Cancelled ask for a resolution (`WerCompleted`,
@@ -750,28 +770,47 @@ otherwise), Restricted keeps it to its parties and the project's managers.
   line (text over the `MantleTask` index then the database, as `FindTask` does; a key jumps to the item). A
   quick-add row at the top of the table: type, title, assignee, project (when not fixed), and the sprint when the
   Current sprint chip is on; Enter adds and stays. Sums of estimate, remaining and actual below the rows.
+  **Peek**, a toggle beside the view switch (kept per user): a row's click opens its WorkItemDetail in a wide pane
+  on the right of a `container-split`, the list narrowing to its first columns and keeping its selection, find and
+  scroll; the up and down keys move the pane through the rows, Open full goes to the detail, and
+  Escape closes the pane. The selected key is in the URL, so a peeked item is a link. Below 1280 px Peek is off and
+  a row opens the detail.
+  **Tree**, the fourth view (below), shows the same find as the work item tree with roll-ups.
 - **Forms:**
 
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
 | --- | --- | --- | --- | --- | --- | --- |
-| `WorkItemFind` | find | Beyond the chips | text, key, project, type, status, resolution, priority band, assignee, reporter, team, milestone, release, sprint, component, label, parent, due and updated periods, estimate range, visibility | `date-period`; `allow-multiple` on type, status and assignee | | `FindTask` `SearchOptions` and `ListTasks` header; Redmine issue query filters; OpenProject work-package filters |
-| `WorkItemList` | list | The work items | type icon, key (link), title, status chip, priority, assignees, due, estimate, project, sprint, milestone, release, component, labels, remaining, actual, updated | `saved-finds`, `select-columns`, CSV and XLSX; `row-selection`; due and priority edited in place; `show-total` on the hours | `WorkEffortAndParty` (`entity`); `mantle.work.TaskServices.update#Task` | `FindTask` `ListTasks`; Redmine issue list; OpenProject work-package table |
+| `WorkItemFind` | find | Beyond the chips | text, key, project, type, status, resolution, priority band, assignee, reporter, team, milestone, release, sprint, component, label, parent, under (an item, at any depth), top-level only, due and updated periods, estimate range, visibility, recurring | `date-period`; `allow-multiple` on type, status and assignee | | `FindTask` `SearchOptions` and `ListTasks` header; Redmine issue query filters; OpenProject work-package filters |
+| `WorkItemList` | list | The work items | type icon, key (link), title (with a repeat mark when it recurs), status chip, priority, assignees, due, estimate, project, parent, top-level item, sprint, milestone, release, component, labels, remaining, actual, updated | `saved-finds`, `select-columns`, CSV and XLSX; `row-selection`; due and priority edited in place; `show-total` on the hours | `WorkEffortAndParty` (`entity`); `mantle.work.TaskServices.update#Task` | `FindTask` `ListTasks`; Redmine issue list; OpenProject work-package table |
 | `QuickAddWorkItem` | list, first row | Add without leaving | type, title, assignee, project, sprint | a form row at the top of the card, as Commons Tasks | `create#Task`; `set#TaskSprint` (new) | `FindTask` `NewTaskForm`; Commons `NewTask`; OpenProject inline create |
-| `WorkItemBulk` | list, bulk | On the selected items | assign, unassign, status, move to project, milestone, release, sprint or component, priority, due, add or remove a label, visibility, link to a request, delete (managers, items with no time or links) | each a dialog; each item in its own transaction, the failures counted and named | `mantle.work.WorkEffortServices.add#WorkEffortParty`, `remove#WorkEffortParty`; `update#Task`; `set#TaskMilestone`, `set#TaskRelease`, `set#TaskSprint`, `mantle.work.TaskServices.set#TaskComponent` (new); `WorkEffortCategoryAppl`, `RequestWorkEffort` (`entity`); `delete#WorkEffort` | `FindTask` `AssignTaskSelected`, `UnAssignTaskSelected`, `UpdateTaskSelected`; Redmine bulk edit |
+| `WorkItemTree` | list, `view-tree` | The work item tree | as `WorkItemList`, plus for a parent its subtree's roll-up: estimate, remaining, actual, hours budget, % done (estimate less remaining over estimate), done of total items | `view-tree` (new) on `parentWorkEffortId`: indent, expand and collapse (children fetched on open), Expand to level 1, 2 or 3 and Expand all; estimate, remaining and hours budget edited in place; drag to reorder or re-parent; Add sub-item (+) on a row's hover | `mantle.work.ProjectServices.get#WorkItemTree` (new); `update#Task`; `mantle.work.TaskServices.move#Task` (new) | SimpleScreens and HiveMind `ProjectSummary` `TaskTree`; OpenProject hierarchy mode; Redmine subtasks; MS Project outline |
+| `WorkItemBulk` | list, bulk | On the selected items | assign, unassign, status, move to project, move under an item (or to the top level), milestone, release, sprint or component, priority, due, add or remove a label, visibility, link to a request, delete (managers, items with no time or links) | each a dialog; each item in its own transaction, the failures counted and named | `mantle.work.WorkEffortServices.add#WorkEffortParty`, `remove#WorkEffortParty`; `update#Task`; `set#TaskMilestone`, `set#TaskRelease`, `set#TaskSprint`, `mantle.work.TaskServices.set#TaskComponent` (new); `WorkEffortCategoryAppl`, `RequestWorkEffort` (`entity`); `delete#WorkEffort` | `FindTask` `AssignTaskSelected`, `UnAssignTaskSelected`, `UpdateTaskSelected`; Redmine bulk edit |
 
 - **Actions:** New work item (quick add, or QuickCreate for more fields); bulk as above; per row: open, start the
   timer, done.
 - **Views:** list; board, grouped by status by default (the flow's columns, a drag moving the item through its
   flow and refused moves going back with the flow's message), and by assignee, sprint, milestone, release or
   priority from the board's group choice, a drag setting that field; calendar by due date (range-find, a drag
-  moving the due date). The Timeline item in the view switch opens Timeline with the same find.
+  moving the due date); **tree**, the work breakdown: every matched item under its ancestors, an ancestor the find
+  leaves out shown in muted text so no item loses its place (OpenProject's hierarchy mode), the roots the top-level
+  items (and across projects, the projects, each with its roll-up). A drag between rows reorders siblings
+  (`sequenceNum`); a drop on a row makes it the parent; Tab and Shift+Tab on the focused row indent it under the
+  sibling above or outdent it to its grandparent; Enter in the quick-add row adds a sibling of the focused row and
+  Ctrl+Enter a child of it. With the estimate cells edited in place and the roll-ups recomputed as each changes, a
+  breakdown estimate is built here line by line before any work starts. The view chosen is kept per user and
+  screen, so a project's Work items tab can open as its tree. The Timeline item in the view switch opens Timeline
+  with the same find.
 - **States:** "No work items match" with Clear filters; a project with none says "No work items yet" with the
   quick-add row focused. Clients see the items shared with them, with no bulk actions, no quick add (they raise
-  requests instead) and no estimate or time columns.
-- **Devices:** phone (the table scrolls in its card; the quick-add row stays).
-- **Source:** research §4 (OpenProject query model, Redmine compact columns and filters, Odoo task views), §5
-  (boards as views with a column action); baseline `Task/FindTask`; Commons Tasks for the chips and quick add.
-- **Needs:** List views (exist); `view-board` group fields; `view-board` all rows; Sprints; Labels; Rank.
+  requests instead) and no estimate or time columns; in the tree an item not shared with them is left out and its
+  shared children are shown under its nearest shared ancestor.
+- **Devices:** phone (the table scrolls in its card; the quick-add row stays; no Peek; the tree shows the key, title,
+  status and roll-up estimate, indented at most four levels, with deeper levels opened one at a time).
+- **Source:** research §4 (OpenProject query model and split view, Redmine compact columns and filters, Odoo task
+  views), §5 (boards as views with a column action); Ever Gauzy quick look for Peek; baseline `Task/FindTask`, and
+  the task tree of `Project/ProjectSummary` (and HiveMind's) for Tree; Commons Tasks for the chips and quick add.
+- **Needs:** List views (exist); `view-board` group fields; `view-board` all rows; `view-tree`; Work item tree; Peek
+  pane; Sprints; Labels; Rank; Recurring work items.
 
 ### WorkItemDetail (`Shared/WorkItemDetail`)
 
@@ -780,17 +819,30 @@ mounted by Projects at `Projects/WorkItems/WorkItemDetail` and by Commons at `Co
 Customer Service, Sales and People; the including app's context (Per-app context below) chooses the tabs, fields and
 actions.
 
-- **Layout:** detail. Title row: the type icon, the key as a `text-mono` chip with copy, the title (`h5`, edited in
-  place), the `status-bar` of the item's flow with Hold and Cancel beside it, and the next status as the primary
-  action. A facts row under it: assignees, due (overdue in warning), priority, estimate, sprint, milestone, release.
+- **Layout:** detail. Above the title, the item's path as breadcrumbs: the project, then each ancestor from the
+  top-level item down (key and title, each a link), so where an item sits in the breakdown is always shown. Title row:
+  the type icon, the key as a `text-mono` chip with copy, the title (`h5`, edited in place), the `status-bar` of the item's flow with Hold and Cancel beside it, and the next status as the primary
+  action. A facts row under it: assignees, due (overdue in warning), priority, estimate (for a parent, its own and
+  "with sub-items", the roll-up), sprint, milestone, release.
   Secondary menu: Assign to me, Start or stop the timer, Log time, Create branch, Create merge request (when a linked
-  branch is ahead of the default), Watch or Unwatch, Move to project, Clone, Convert to request, Print, Delete (the
-  owner or a manager, for an item with no time, sub-items, comments or links).
+  branch is ahead of the default), Repeat, Watch or Unwatch, Move to project, Clone, Convert to request, Print,
+  Delete (the owner or a manager, for an item with no time, sub-items, comments or links).
+- **Recurring work items:** periodic work (a monthly report, a quarterly filing, a weekly backup check, a yearly
+  renewal) repeats by a rule on the item, Commons' RRULE (`WorkEffortRecurrence`, design-drawers-commons §7). One
+  item is open at a time: when it is completed, or cancelled (Cancel on a recurring item asks: skip this one, or stop
+  repeating), the next is made as a copy of it
+  (type, title, description, project, parent, assignees and team, watchers, priority, labels, component, estimate
+  and visibility; not its sprint, time, comments or files) with its start and due from the rule, counted from the
+  item's due date (on schedule) or from the day it was completed, as the rule says. The rule stays on the first item,
+  the series, and each next item is linked from it by `WorkEffortAssoc` `WeatRecurrenceInstance`; "Stop repeating"
+  ends the rule. A recurring item shows the rule in words under the facts row ("Every month on the 1st; next made
+  on completion").
 - **Sections and tabs:**
   - Overview: Description (markdown); Details (type, priority, assignees and team, reporter, project, parent,
     milestone, release, sprint, component, labels, start, due, estimate, remaining, actual, % complete, visibility,
-    resolution once closed); Requests (the requests it serves); Linked records (record cards); People.
-  - Sub-items: the children with progress and a quick-add row.
+    repeat, resolution once closed; for a parent the roll-up of estimate, remaining and actual beside its own); Requests (the requests it serves); Linked records (record cards); People.
+  - Sub-items: the item's subtree as a tree, to any depth, with each row's roll-up, the subtree's totals and progress
+    above, and a quick-add row; a sub-item may be added under any row of it.
   - Links: relations by kind.
   - Development (when the project has a repository): branches, commits, merge requests, tags, CI.
   - Time: the entries, the timer, Log time.
@@ -803,12 +855,13 @@ actions.
 | --- | --- | --- | --- | --- | --- | --- |
 | `WorkItemHeader` | single | Title and status | title, status, resolution | title `editable`; `status-bar`; a resolution dialog on Complete and Cancel | `update#Task` | `TaskSummary` inline status and resolution; `EditTask` `EditTask` |
 | `WorkItemDescription` | single | The description | description | `text-area editor-type="md"`, `markdown-view` when read | `update#Task` | `TaskSummary` TaskDescription |
-| `WorkItemFields` | single | The details | type, priority, project, parent, milestone, release, sprint, component, labels, start, due, estimate (hours or points), remaining, visibility, hours budget (top-level items) | each field `editable` in place; project, parent and plan items `drop-down` `server-search` scoped to the project (`mantle.work.ProjectServices.get#ProjectMilestones`, `get#ProjectTasks`) | `update#Task`; `set#TaskMilestone`; `set#TaskRelease`, `set#TaskSprint`, `set#TaskComponent` (new); `WorkEffortCategoryAppl` (`entity`) | `EditTask` `EditTask`; OpenProject work-package form; Redmine issue attributes |
+| `WorkItemFields` | single | The details | type, priority, project, parent, milestone, release, sprint, component, labels, start, due, estimate (hours or points), remaining, visibility, hours budget (top-level items, for the subtree) | each field `editable` in place; project, parent and plan items `drop-down` `server-search` scoped to the project (`mantle.work.ProjectServices.get#ProjectMilestones`, `get#ProjectTasks`), the parent's search leaving out the item and its descendants | `update#Task`; `move#Task` (new) for the parent; `set#TaskMilestone`; `set#TaskRelease`, `set#TaskSprint`, `set#TaskComponent` (new); `WorkEffortCategoryAppl` (`entity`) | `EditTask` `EditTask`; OpenProject work-package form; Redmine issue attributes |
+| `WorkItemRecurrence` | dialog | Repeat the item | frequency, interval, by weekday or month day, ends never, after n or on a date, count from (the due date, the completion date); Stop repeating | the RRULE editor of Commons' `Recurrence` form by `render-mode` | `mantle.work.TaskServices.set#TaskRecurrence` (new) | Commons EventDetail `Recurrence`; Odoo recurring tasks; Todoist and Microsoft To Do repeats |
 | `WorkItemPeople` | list, editable rows | Who is on it | person or team, role (`RgpTask`), from, thru, expectation, position class, status, notifications | Add person (the project's people first, `mantle.work.ProjectServices.get#ProjectParties`), Add team dialogs | `add#WorkEffortParty`, `mantle.work.WorkEffortServices.replace#WorkEffortParty`; `WorkEffortParty` (`entity`) | `Task/EditUsers` `AddUserAssignForm`, `AddTeamAssignForm`, `UpdateAssignForm`; `Party/PartyTasks` `AddUserAssignForm`, `UpdateUserAssignForm` |
 | `WorkItemRequests` | list | The requests it serves | request (link), name, type, status; Unlink | Link request (a search) | `RequestWorkEffort` (`entity`) | `Task/EditRequests` `AddRweForm`, `DeleteRweForm` |
 | `LinkedRecords` | list | Records it is on (orders, parties, pages) | record card, linked by, when; Unlink | `m-record-card` | `mantle.work.WorkEffortServices.link#WorkEffortRecord`, `unlink#WorkEffortRecord`; `WikiPageWorkEffort` (`entity`) | Commons EventDetail `LinkedRecords`; `Task/EditWikiPages` |
-| `SubItems` | list | The children | type, key, title, status chip, assignee, due, estimate; done of total | drag to reorder (`sequenceNum`) | `update#Task` | `TaskSummary` Child Tasks; Odoo sub-tasks |
-| `NewSubItem` | list, first row | Add a child | type, title, assignee | Enter adds and stays | `create#Task` with `parentWorkEffortId` | `TaskSummary` `NewChildTaskForm` |
+| `SubItems` | list, `view-tree` | The subtree | type, key, title, status chip, assignee, due, estimate, remaining, actual; for a parent row its roll-up and done of total | `WorkItemTree` with this item as the root: expand and collapse, drag to reorder or re-parent within the subtree, indent and outdent, estimates edited in place | `get#WorkItemTree` (new); `move#Task` (new); `update#Task` | `TaskSummary` Child Tasks; `ProjectSummary` `TaskTree`; Odoo sub-tasks |
+| `NewSubItem` | list, first row | Add a child | parent (this item, or the focused row of the subtree), type, title, assignee, estimate | Enter adds and stays | `create#Task` with `parentWorkEffortId` | `TaskSummary` `NewChildTaskForm` |
 | `WorkItemLinks` | list | Relations | kind (blocks, blocked by, relates to, duplicates, duplicated by, causes, caused by, clones, cloned by, based on), item (key, title, status), lag days for a dependency | Add link dialog: kind, project, item `server-search` | `WorkEffortAssoc` (`entity`) | `Task/EditRelated` `AddRelatedToForm`, `AddRelatedFromForm`, `DeleteRelatedToForm`, `DeleteRelatedFromForm`; OpenProject relations |
 | `Branches` | list | Linked branches | repository, branch, head, ahead and behind the default, merge request, CI; Unlink | Create branch dialog: repository, from (the default branch), name (`<KEY>-<n>-<words of the title>`), and the checkout command to copy | `mantle.work.GitServices.create#TaskBranch` (new); `add#WorkEffortRef`, `remove#WorkEffortRef`; `org.moqui.impl.GitServices.get#GitCompare` (new) for ahead and behind | `Task/EditSource` `TaskRefList`, `AddRefForm`; GitLab "Create branch" on an issue |
 | `Commits` | list | Linked commits | repository, commit (link), summary, author, date, on (branch), linked by; Unlink | Add commit dialog: repository, commit id or prefix | `mantle.work.GitServices.add#TaskCommit`, `remove#TaskCommit` | `Task/EditSource` `TaskCommitList`, `AddCommitForm`; `TaskSummary` Commits |
@@ -819,21 +872,25 @@ actions.
 | `Chatter`, `RecordFiles` | component | Timeline and files | | `chatter`, `record-files` | Shared/Chatter, Shared/RecordFiles | `TaskSummary` `AddCommentForm`, `NewContentForm`, `UpdateContentForm`; `TaskCommentReply` and `TaskCommentUpdate` `ReplyCommentForm` |
 
 - **Actions:** the next status (primary); Assign to me; timer; Log time; Create branch; Create merge request (opens
-  Compare with the branch); Watch; Move to project (`update#Task` with `rootWorkEffortId`, which takes its plan items
-  off); Clone (`mantle.work.WorkEffortServices.clone#WorkEffort`); Convert to request (Commons'); Delete
+  Compare with the branch); Repeat and Stop repeating (`set#TaskRecurrence`); Watch; Move to project (`update#Task`
+  with `rootWorkEffortId`, which takes its plan items off and takes its subtree with it); Move under (`move#Task`);
+  Clone (`mantle.work.WorkEffortServices.clone#WorkEffort`, with its sub-items by `deepClone` when asked); Convert to request (Commons'); Delete
   (`delete#WorkEffort`, confirms).
-- **Navigation:** from WorkItems, the board, Backlog, Timeline, a notification, the palette, a commit or merge
-  request, a request's Work tab, Today. A key in Chatter or a commit message renders as a record card.
+- **Navigation:** from WorkItems, the board, the tree, Backlog, Timeline, a notification, the palette, a commit or
+  merge request, a request's Work tab, Today; up the breadcrumbs to an ancestor. A key in Chatter or a commit message renders as a record card.
 - **States:** a user who may see but not change the item sees the same layout without the edits and actions;
-  "not available" for an item the user may not see (R5, R28).
+  "not available" for an item the user may not see (R5, R28). In WorkItems' Peek pane it renders compact: the
+  title row and facts row, then Overview, Sub-items, Development, Time and Chatter as tabs, with Open full in the
+  title row.
 - **Devices:** phone (tabs scroll; Chatter is a tab; the timer is in the secondary menu).
-- **Source:** research §4 (OpenProject full view and relations, Redmine issue detail, Odoo task form); baseline
+- **Source:** research §4 (OpenProject full view and relations, Redmine issue detail, Odoo task form and recurring
+  tasks); baseline
   `Task/TaskSummary` and its tabs `EditTask`, `EditUsers`, `EditRelated`, `EditRequests`, `EditTimeEntries`,
   `EditSource`; Commons TaskDetail as built (M6).
 - **Needs:** Shared work item and request detail; Sprints; Releases and components; Labels; Rank; Dependency lag;
   Git refs; Task branches; Code review store; Merge request links; `m-elapsed`; Time in Chatter; Project settings
-  (the flow, estimate unit, branch pattern); Development status flow; Story points; Client access; Chatter for
-  client users.
+  (the flow, estimate unit, branch pattern); Development status flow; Story points; Recurring work items; Peek pane;
+  `view-tree`; Work item tree; Client access; Chatter for client users.
 
 **Per-app context (Task / work item).**
 
@@ -841,7 +898,7 @@ actions.
 | --- | --- | --- | --- | --- |
 | Projects | Overview with every field, Sub-items, Links, Development, Time (everyone's, rates for managers), Files, Chatter | items of the projects the user sees | all of the above | planning and delivery |
 | Projects, client users | Overview (type, status, priority, due, assignee's name, description), Chatter as messages | items shared with the client in their projects | comment (Send message) | progress of what they asked for |
-| Commons | Overview without the planning fields, Sub-tasks, Time (mine, clock in), Files, Chatter | tasks I am on, own or watch | complete, reassign, set due, clone, convert to request, add to Today, delete own | my next step (design-drawers-commons §8) |
+| Commons | Overview without the planning fields, Sub-tasks (the same tree), Time (mine, clock in), Files, Chatter | tasks I am on, own or watch | complete, reassign, set due, repeat, clone, convert to request, add to Today, delete own | my next step (design-drawers-commons §8) |
 | Customer Service | Overview, Chatter, Files | follow-ups of cases, and work items linked to a case (design-customer-service) | complete, reassign, set due; open in Projects | the case it serves |
 | Sales | Overview, Chatter | follow-ups on opportunities, quotes and orders (design-sales) | complete, reassign, set due | the deal |
 | People | Overview, Sub-tasks as a checklist | onboarding and offboarding items (design-people) | complete, reassign | the employee |
@@ -849,7 +906,7 @@ actions.
 ### Backlog
 
 - **Layout:** board as `.qvue`, the planning view of one project: a toolbar (the project when not fixed, filters for
-  assignee, type, label, component and text, New sprint), the **Backlog** pane (the project's open items in no
+  assignee, type, label, component, epic (under an item, at any depth) and text, New sprint), the **Backlog** pane (the project's open items in no
   open sprint, in rank order, with quick add at the top) and the **Sprints** pane (the active sprint, then the
   planned ones, each collapsible with its dates, goal, item count and the sum of estimates against its capacity,
   and Start or Complete). Rows drag within a pane to re-rank and between panes to plan; a selection drags as one.
@@ -859,14 +916,15 @@ actions.
 
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
 | --- | --- | --- | --- | --- | --- | --- |
-| `BacklogList` | component | The ranked backlog | rank handle, type icon, key, title, estimate, assignee, labels, release | drag; quick add | `mantle.work.TaskServices.set#TaskRank` (new); `create#Task` | OpenProject backlogs; Jira backlog (familiar shape) |
+| `BacklogList` | component | The ranked backlog | rank handle, type icon, key, title, epic (its top-level item, as a chip that filters by it), estimate, assignee, labels, release | drag; quick add | `mantle.work.TaskServices.set#TaskRank` (new); `create#Task` | OpenProject backlogs; Jira backlog (familiar shape) |
 | `SprintLists` | component | Each sprint's items | as the backlog, plus status chip; totals against capacity | drag in and out | `set#TaskSprint` (new) | OpenProject sprints; Ever Gauzy sprint view |
 | `SprintForm` | dialog | Make or edit a sprint | name, goal, start, end (two weeks after the last sprint by default), capacity in hours or points | | `mantle.work.ProjectServices.create#Sprint` (new); `update#Milestone` | OpenProject sprint settings |
-| `StartSprint` | dialog | Begin the sprint | dates, goal; warns when another sprint is active | | `mantle.work.ProjectServices.start#Sprint` (new) | Jira start sprint |
+| `StartSprint` | dialog | Begin the sprint | dates, goal; refused while another sprint is active unless the project allows several, then it names them | | `mantle.work.ProjectServices.start#Sprint` (new) | Jira start sprint |
 | `CompleteSprint` | dialog | End the sprint | done and not done counts; not done items go to the next sprint, a new sprint or the backlog | | `mantle.work.ProjectServices.complete#Sprint` (new) | Jira complete sprint |
 
 - **States:** a project without sprints shows the backlog only, with "Plan in sprints" turning the module on for
-  managers; one sprint is active at a time per project unless the project allows several.
+  managers; one sprint is active at a time per project unless the project allows several (ProjectSettings, for teams
+  sharing a project), when the Sprints pane lists each active one first.
 - **Source:** research §5 (OpenProject backlogs and sprints, burndown; Ever Gauzy sprint view).
 - **Needs:** Sprints; Rank; `.qvue` TUI texts.
 
@@ -891,8 +949,10 @@ actions.
 ### Timeline
 
 - **Layout:** calendar archetype as `.qvue` (style-guide §3.7, `view-timeline` until it exists). A toolbar (zoom
-  weeks, months or quarters; Today; Auto-schedule; group by milestone, parent or assignee; the work item find),
-  a left grid (key, title, assignee, start, due) and the chart: bars from start to due, a due-only item as a short
+  weeks, months or quarters; Today; Auto-schedule; group by the tree (the default in a project with nested items),
+  milestone or assignee; the work item find), a left grid (key, title, assignee, start, due; in the tree grouping
+  indented with expand and collapse, as the Tree view) and the chart: bars from start to due, a parent as a summary
+  bar spanning its own dates and its subtree's (bracket ends, the roll-up's progress inside, collapsing to that bar), a due-only item as a short
   bar, milestones as diamonds (a milestone with a start date as a phase bar), releases as flags, sprints as bands
   across the top, today as a line, weekends and holidays shaded, and dependencies as arrows drawn over the bars.
   A drag moves or resizes a bar; with Auto-schedule on, the items that depend on it move by business days (holidays
@@ -905,7 +965,7 @@ actions.
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
 | --- | --- | --- | --- | --- | --- | --- |
 | `TimelineFind` | find | What is drawn | as `WorkItemFind`; zoom and grouping | | | OpenProject Gantt queries; Redmine Gantt filters |
-| `TimelineChart` | component | The bars and arrows | start, due, status color, progress, dependencies with lag | drag and resize; arrows | `update#Task`; `WorkEffortAssoc` (`entity`); `mantle.work.EventServices.get#FutureBusinessDay`; `mantle.work.ProjectServices.get#TimelineData` (new) | OpenProject table timeline; Redmine Gantt; Frappe Gantt (ERPNext) |
+| `TimelineChart` | component | The bars and arrows | start, due, status color, progress, dependencies with lag; a parent's summary bar over its subtree's span | drag and resize (a summary bar moves its subtree with it); arrows; expand and collapse in the tree grouping | `update#Task`; `WorkEffortAssoc` (`entity`); `mantle.work.EventServices.get#FutureBusinessDay`; `mantle.work.ProjectServices.get#TimelineData` (new) | OpenProject table timeline; Redmine Gantt; Frappe Gantt (ERPNext) |
 | `DependencyForm` | dialog | Edit a dependency | from, to, lag days | | `WorkEffortAssoc` (`entity`) | OpenProject precedes and follows with lag |
 
 - **States:** an item with no dates is listed in the grid with "No dates" and drawn when given a due date; clients
@@ -1066,13 +1126,22 @@ imports and commits made through Moqui. This design keeps them and adds the last
 | A merge request whose source branch or text names `PROJ-12` (new) | the merge request is linked to the item; `Closes PROJ-12` in its description completes the item when it merges |
 
 What is new here: the browser (files, commits, branches, tags, push log), compare, merge requests with review
-and line comments, merging in the browser, CI statuses posted by outside CI, webhooks that start it, and branch
-rules. The framework keeps all of it Mantle-free (§15 "Git hosting" and "Code review"); Mantle links it to the
-work, and the screens are here.
+and line comments, merging in the browser, CI statuses posted by outside CI, webhooks that start it, branch
+rules, and archiving a repository. The framework keeps all of it Mantle-free (§15 "Git hosting" and "Code
+review"); Mantle links it to the work, and the screens are here.
+
+**Merge methods.** A merge commit and fast-forward come first; squash, rebase and dismissing approvals when the
+source moves follow as the second step of the merge work. Each repository has a default method (merge commit or
+squash, RepositorySettings), and the person merging may choose another the branch rules allow.
+
+**Not in Projects.** Searching code and editing repository files in the browser belong to the coming developer
+tools, a separate app for development work; Projects' palette finds repositories and merge requests only, and
+files are read here and changed in a clone.
 
 ### Repositories
 
-- **Layout:** list of the repositories the user may view. Chips: Mine (of my projects, default), All, Mirrors.
+- **Layout:** list of the repositories the user may view. Chips: Mine (of my projects, default), All, Mirrors,
+  Archived; an archived repository is left out of the others and of the palette, and shows an Archived chip.
 - **Forms:**
 
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
@@ -1162,16 +1231,20 @@ MergeRequests (below) with the repository fixed.
 
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
 | --- | --- | --- | --- | --- | --- | --- |
-| `RepositoryGeneral` | single | The repository | description, default branch | | `org.moqui.impl.GitServices.update#GitRepository` (new, with the delete right) | the tools Git Repositories screen |
+| `RepositoryGeneral` | single | The repository | description, default branch, default merge method (merge commit, squash) | | `org.moqui.impl.GitServices.update#GitRepository` (new, with the delete right) | the tools Git Repositories screen; GitLab merge method setting |
 | `RepositoryProjects` | list | Projects it is linked to | project, since; Add, Remove | | `add#ProjectRepository`, `remove#ProjectRepository`; `mantle.work.GitServices.get#RepositoryProjects` | `EditRepositories` |
-| `BranchRules` | list, editable rows | Protected branches | ref pattern, force push, delete, merge request required, approvals required, checks required, who may push directly | | `org.moqui.impl.GitServices.store#GitBranchRule`, `delete#GitBranchRule` (new) | GitLab protected branches (familiar shape) |
+| `BranchRules` | list, editable rows | Protected branches | ref pattern, force push, delete, merge request required, approvals required, dismiss approvals when the source moves, checks required, merge methods allowed, who may push directly | | `org.moqui.impl.GitServices.store#GitBranchRule`, `delete#GitBranchRule` (new) | GitLab protected branches (familiar shape) |
 | `Webhooks` | list, editable rows | Calls to outside CI and tools | URL, events (push, tag, merge request), secret, active, last delivery and its status; Test | recent deliveries in a dialog | `org.moqui.impl.GitServices.store#GitWebhook`, `test#GitWebhook`, `find#GitWebhookDeliveries` (new) | Gitea and GitLab webhooks (familiar shapes) |
 | `LargeFiles` | single | Git LFS patterns | patterns (images, video, audio, PDFs and archives by default) | | `org.moqui.impl.GitServices.setup#GitLfs` | Git-Hosting "Large files" |
 | `Storage` | display | A database repository's storage (admins) | objects, stored bytes, last collection and its result; Collect (a dry run first), Check | | `org.moqui.impl.GitServices.gc#GitRepositories`, `fsck#GitRepository` | the tools screen's collection and check |
 | `Mirror` | single | A mirror's source (admins) | remote URL, user name, access token, fetch interval, last fetch and its error; Fetch now | | `GitRepository` (`entity`); `org.moqui.impl.GitServices.fetch#GitRepository` | Git-Hosting `remote` kind |
 | `ExportImport` | single | Move a database repository (admins) | export as a bare repository on the host (path); import a branch from a URL, which replaces the branch | import confirms naming the branch | `org.moqui.impl.GitServices.export#GitRepository`, `import#GitRepository` | Revision-Management "Services" |
+| `ArchiveRepository` | single | Retire it | Archive (read-only: pushes, merges and writes refused, its open merge requests closed; hidden from the lists but Archived); Unarchive | Archive confirms naming the repository | `org.moqui.impl.GitServices.archive#GitRepository`, `unarchive#GitRepository` (new) | GitHub and GitLab archive (familiar shapes) |
 
-- **Needs:** Branch rules; Webhooks; Repository settings service.
+- **States:** an archived repository shows a `q-banner` ("Archived: read only") on every tab, and its Settings
+  only the Archive box and, for admins, Export. Deleting a repository is not here: an administrator deletes one
+  in the tools Git Repositories screen, after an export.
+- **Needs:** Branch rules; Webhooks; Repository settings service; Repository archive.
 
 ### Compare
 
@@ -1228,8 +1301,9 @@ MergeRequests (below) with the repository fixed.
   Open, Merged; Closed), source and target chips, author, opened. Tabs: Overview, Commits, Changes. Overview holds
   the description, the linked work items, the reviewers, and the **merge box**: the checks (the head commit's CI
   statuses by context), the approvals (given of required, each reviewer's state), mergeability (able to merge, or
-  the conflicting files, or "the target moved; checking"), the merge method (a merge commit, or fast-forward when
-  possible) and Delete source branch; Merge is the primary action when the branch rules are met and otherwise the
+  the conflicting files, or "the target moved; checking"), the merge method (the repository's default; a merge
+  commit, fast-forward when possible, squash or rebase, as the branch rules allow; squash shows the commit message to
+  edit) and Delete source branch; Merge is the primary action when the branch rules are met and otherwise the
   box says what is missing. A draft's primary action is Mark ready; a requested reviewer's is Review, which opens
   Changes with the review dialog. Chatter is the right column of Overview from 1440 px and a tab below; line
   comments appear in it with their file and line and a link into Changes. Secondary menu: Edit, Add reviewers,
@@ -1241,7 +1315,7 @@ MergeRequests (below) with the repository fixed.
 | `MergeRequestHeader` | single | The merge request | title, description, target branch, draft | description `text-area editor-type="md"` | `org.moqui.impl.GitReviewServices.update#MergeRequest` (new) | GitLab merge request edit |
 | `MergeRequestItems` | list | Linked work items | key, title, status, assignee; Link, Unlink | | `WorkEffortGitMergeRequest` (new, `entity`) | GitLab "closes issues" |
 | `Reviewers` | list | Who reviews | reviewer, state (requested, approved, changes requested, commented), at commit, when; Add, Remove | | `org.moqui.impl.GitReviewServices.set#MergeRequestReviewers` (new) | GitLab reviewers and approvals |
-| `MergeBox` | single | Merge | checks, approvals, mergeability, method, delete source branch | Merge confirms naming the target | `org.moqui.impl.GitReviewServices.merge#MergeRequest` (new) | GitLab merge widget; GitHub merge box |
+| `MergeBox` | single | Merge | checks, approvals (with those dismissed by a later push), mergeability, method, squash commit message, delete source branch | method as a `q-btn-dropdown` on Merge; Merge confirms naming the target | `org.moqui.impl.GitReviewServices.merge#MergeRequest` (new) | GitLab merge widget; GitHub merge box |
 | `SubmitReview` | dialog | A review | approve, request changes or comment; summary | | `org.moqui.impl.GitReviewServices.submit#MergeRequestReview` (new) | GitHub review submit |
 | `MergeRequestCommits` | list | Its commits | summary, author, date, CI | | `get#GitCompare` (new) | GitLab merge request commits |
 
@@ -1276,7 +1350,10 @@ MergeRequests (below) with the repository fixed.
 
 ### GitAccess
 
-- **Layout:** settings page with three boxes: SSH keys, Access tokens, How to clone.
+- **Layout:** settings page with three boxes: SSH keys, Access tokens, How to clone. Commons/Settings/Account
+  links here ("Git access") for a user who has Projects; for one who does not, Account hosts the Access tokens box
+  itself, since tokens also serve the REST API. How to clone says that git over HTTPS also takes an app password
+  of Commons/Settings/Sync (mr-moqui `docs/Git-Hosting.md`).
 - **Forms:**
 
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
@@ -1393,12 +1470,17 @@ is the same decision.
 | `EditTimeEntry` | dialog | One entry | as `EntryForm`, plus person (managers), position class, piece count, and the rates (client and vendor hour rates and their rate amounts, modified flag) for users with `TIME_ENTRY_RATE` | rates in a `field-accordion` | `store#TimeEntry`; `mantle.work.TimeServices.get#TimeEntryRate`; `create#TimeEntryClockIn` (clock in for someone) | `PartyTimeEntries/EditTimeEntry` `AddTimeForm`; `PartyTimeEntries` `ClockInForm` (clock in for someone) |
 | `TimeEntryBulk` | list, bulk | Fix several | move to a work item, set work type, billable or not, update rates, delete (uninvoiced, open timesheets) | | `store#TimeEntry`; `mantle.work.TimeServices.resetAndGet#TimeEntryRates`; `delete#TimeEntry` | `PartyTimeEntries` Auto Update Rates; Redmine bulk edit of time entries |
 | `TeamTime` | dialog | A crew's time on one piece of work | work item, date, from, to, team, and hours or a break per member | members from the team | `mantle.work.TimeServices.store#TimeEntryWorkEffort`, `store#WorkEffortPartyTime`; `get#TeamTimesheetInfo` | `template/work/TeamTimesheet.xsl-fo.ftl` data; the team services |
-| `ImportTime` | dialog | Time from a file | client, default date, the detail CSV | `file` | `mantle.work.TimeServices.upload#TimeDetailFile`, `import#TimeDetailFile` | Mantle time detail import |
+| `ImportTime` | dialog | Time from a file | format (Time entries CSV, the default; Mantle time detail), file, client and default date (time detail); a preview of the first rows with problems by row | `file`; the Time entries CSV's columns linked as a template to download | `mantle.work.TimeServices.import#TimeEntryCsv` (new); `mantle.work.TimeServices.upload#TimeDetailFile`, `import#TimeDetailFile` | Mantle time detail import; Toggl, Harvest and Clockify detailed CSV exports |
 
+- **Import format.** The first release reads one common CSV, **Time entries**, with a header row: date, person (email
+  or user name), work item key or project key, hours or start and end times, work type, billable (yes or no) and
+  comment; the shape the detailed exports of Toggl, Harvest and Clockify reduce to with a column rename. Rows go in
+  each on its own, the failures named by row; an entry that would land on a submitted timesheet is refused. Presets
+  for those three tools' own columns come after the first release, as the work item import has.
 - **States:** an invoiced entry shows its invoice and no edit; an entry on a submitted timesheet says so.
 - **Source:** research §8 (Redmine time entries list and bulk edit, Odoo timesheet list); baseline
   `Project/ProjectTimeEntries`, `Party/PartyTimeEntries`, `MyAccount/User/TimeEntries`.
-- **Needs:** Timesheet services (the lock).
+- **Needs:** Timesheet services (the lock); Time import.
 
 ## 9. Resources
 
@@ -1448,8 +1530,9 @@ when allocations or assigned work pass capacity. People's working-schedule recor
 
 ### PersonDetail (Context passed)
 
-The Employee 360 (research-crosscut §3.4), designed in design-crosscut with People's version; Projects mounts it
-at `Projects/Resources/PersonDetail` with this row:
+The Employee 360 (research-crosscut §3.4), designed in design-crosscut with People's version first; Projects mounts
+it at `Projects/Resources/PersonDetail` with this row, and until the shared screen exists PersonDetail is a Projects
+screen with these tabs:
 
 | App | Tabs or panes shown | Filters fixed | Action set | Emphasis |
 | --- | --- | --- | --- | --- |
@@ -1465,8 +1548,9 @@ the client rates, and expenses, by `create#ProjectInvoiceItems`), **milestones**
 share of the order line behind it, new) and **fixed price by schedule** (the order's own invoicing, Sales' and
 Accounting's). A project not billed has Money off. Contractors who bill the business for their time are paid from
 the same entries at the vendor rates (`create#WorkerInvoiceItems`). The invoice itself, its approval, sending,
-tax and payments, is Accounting's invoice detail, which Projects mounts so a services business running only
-Projects can review and send what it bills.
+tax and payments, is the shared Invoice detail (Accounting's version first), which Projects mounts so a services
+business running only Projects can review and send what it bills. Retainers and prepaid hours (n hours a month
+drawn down by billable time) are not designed here; they are left to People, with its pay work (§16).
 
 ### Unbilled
 
@@ -1501,8 +1585,9 @@ Projects can review and send what it bills.
 
 ### InvoiceDetail (Context passed)
 
-The invoice detail is Accounting's (design-accounting); it is not yet a research-crosscut §3 reused screen (Open).
-Projects mounts it at `Projects/Billing/InvoiceDetail` with this row:
+The Invoice detail, a research-crosscut §3 reused screen added at this file's review (Accounting, Projects, Sales,
+Purchasing, Customer Service), designed in design-crosscut with Accounting's version first; Projects mounts it at
+`Projects/Billing/InvoiceDetail` with this row:
 
 | App | Tabs or panes shown | Filters fixed | Action set | Emphasis |
 | --- | --- | --- | --- | --- |
@@ -1559,7 +1644,7 @@ client budget.
 
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
 | --- | --- | --- | --- | --- | --- | --- |
-| `TimeReportParams` | single | The parameters | date range, period (week, month), criteria (project, work item, person, work type, client, billable) in order, filters for each | `field-row-big`; criteria as three `drop-down`s | | Redmine spent-time report criteria |
+| `TimeReportParams` | single | The parameters | date range, period (week, month), criteria (project, top-level item, parent, work item, person, work type, client, billable) in order, filters for each (an item filter takes its subtree) | `field-row-big`; criteria as three `drop-down`s | | Redmine spent-time report criteria |
 | `TimeReportTable` | list | The result | the criteria, a column per period, hours, billable hours, amounts (managers) | CSV and XLSX; `m-chart` stacked bars by the first criterion | `mantle.work.ProjectReportServices.get#TimeReport` (new) | Redmine `timelog/report`; Odoo timesheet pivot |
 
 ### WorkItemReport
@@ -1615,13 +1700,17 @@ client budget.
 
 ### ProgressReport
 
-- **Layout:** report, the baseline's Progress tab with a project parameter.
+- **Layout:** report, the baseline's Progress tab with a project parameter and a **from** parameter (an item of the
+  project; the report then breaks that item's subtree down instead of the whole project, so an epic has its own
+  report). The breakdown table is a tree: its rows are the top-level items (or the from item's children), each
+  expandable to its children's rows to any depth, every row its subtree's totals; Expand to level n sets the depth
+  printed and exported. A chart of estimated against actual plus remaining by top-level item sits above it.
 - **Forms:**
 
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
 | --- | --- | --- | --- | --- | --- | --- |
 | `MilestoneStats` | list | By milestone | start, milestone, estimated, actual and remaining hours and days, act/est and act+rem/est % | | `get#ProjectMilestoneSummary` | `ProjectProgressReport` `MilestoneStatsList` |
-| `TopLevelStats` | list | By top-level item | priority, item, actual, remaining and estimated hours and days, hours budget, act/est, act+rem/est, act/bgt and act+rem/bgt % | | `mantle.work.ProjectServices.get#WorkEffortChildStats` | `ProjectProgressReport` `ChildStatsListDays` |
+| `TopLevelStats` | list, `view-tree` | By top-level item, and down the tree | priority, item, actual, remaining and estimated hours and days, hours budget, act/est, act+rem/est, act/bgt and act+rem/bgt %; days at the hours per day given (8) | `view-tree`, a row's children fetched on open by `get#WorkEffortChildStats` with that row's item; CSV, XLSX and `html-print` at the expanded depth, indented | `mantle.work.ProjectServices.get#WorkEffortChildStats` (`timePerDay`) | `ProjectProgressReport` `ChildStatsListDays`; HiveMind and SimpleScreens estimate breakdowns |
 
 **Needs (all reports):** Reports services; `m-chart` (exists); Print documents.
 
@@ -1700,7 +1789,7 @@ ProjectSettings. Global configuration defines and a project chooses among it, as
 
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
 | --- | --- | --- | --- | --- | --- | --- |
-| `RepositoryDefaults` | single | New repositories | storage for project repositories, default branch name, branch rules (default branch protected from force pushes and deletes; merge requests required off; approvals 1), webhooks | | `PartySetting` (`entity`) | Git-Hosting; GitLab defaults |
+| `RepositoryDefaults` | single | New repositories | storage for project repositories, default branch name, default merge method (merge commit), branch rules (default branch protected from force pushes and deletes; merge requests required off; approvals 1; approvals kept when the source moves), webhooks | | `PartySetting` (`entity`) | Git-Hosting; GitLab defaults |
 | `Conventions` | single | Commit and branch conventions | Fixes keywords on, require a work item key in commits to protected branches, branch name pattern, merge request moves (opened to In Review, merged to Complete) | | `PartySetting` (`entity`) | Git-Hosting "Projects and tasks" |
 | `SshAccess` | list | Who may use SSH | user group, holds `SSH_GIT`; Grant, Revoke | | `UserGroupPermission` (`entity`) | Git-Hosting "Logging in" |
 
@@ -1728,18 +1817,18 @@ inventories' **Designed in** columns were filled from this section and the form 
 | Baseline screen | Forms | BOSS screen (form) |
 | --- | --- | --- |
 | `Project/FindProject` | `NewProject`, `ListProjects` | `Projects/Projects/NewProject` (`ProjectStart`), `Projects/QuickCreate` (`QuickProject`); `Projects/Projects` (`ProjectFind`, `ProjectList`) |
-| `Project/ProjectSummary` | `ViewProject`, `MilestoneList`, `ViewWpweForm`, `ViewUserAssignForm`; `ViewGitRepositoryList`, `ViewGitTagList` (Oct 20) | `Projects/Projects/ProjectDetail` and its Overview (`StatusBox`, `NextMilestones`, `WorkCounts`, `Members`, `RepositoriesBox`); `ProjectDetail/Docs` (linked pages); `ProjectDetail/Code` (`ProjectTags`) |
+| `Project/ProjectSummary` | `ViewProject`, `MilestoneList`, `ViewWpweForm`, `ViewUserAssignForm`; `ViewGitRepositoryList`, `ViewGitTagList` (Oct 20) | `Projects/Projects/ProjectDetail` and its Overview (`StatusBox`, `NextMilestones`, `WorkCounts`, `TopLevelProgress`, `Members`, `RepositoriesBox`); the `TaskTree` tree to `ProjectDetail/WorkItems` in Tree view (`WorkItemTree`); `ProjectDetail/Docs` (linked pages); `ProjectDetail/Code` (`ProjectTags`) |
 | `Project/EditProject` | `EditProject`, `CloneProject` | `ProjectDetail/Settings` (`ProjectGeneral`, `TemplateBox`), `ProjectDetail/Money` (`BudgetActuals`), Overview (`Description`); `ProjectDetail` (Clone); `NewProject` (`ProjectStart` from a template) |
 | `Project/EditMilestones` | `CreateMilestoneForm`, `MilestoneList` | `Projects/Projects/Roadmap` (`NewMilestone`, `RoadmapList`); `Projects/Projects/MilestoneDetail` (`MilestoneHeader`) |
 | `Project/MilestoneSummary` | `InactiveTaskList`, `ActiveTaskList`, `DoneTaskList` | `MilestoneDetail` (`MilestoneItems`) |
-| `Project/ProjectProgressReport` | `ChildStatsListDays`, `MilestoneStatsList` | `Projects/Reports/Progress` (`TopLevelStats`, `MilestoneStats`); `MilestoneDetail` (`MilestoneProgress`) |
+| `Project/ProjectProgressReport` | `ChildStatsListDays`, `MilestoneStatsList` | `Projects/Reports/Progress` (`TopLevelStats`, now a tree to any depth, `MilestoneStats`); ProjectOverview (`TopLevelProgress`); `MilestoneDetail` (`MilestoneProgress`) |
 | `Project/EditUsers` | `AddUserAssignForm`, `UpdateUserAssignForm` | `ProjectDetail/Team` (`TeamMembers`); `NewProject` (`ProjectTeamStep`) |
 | `Project/EditWikiPages` | `AddWpweForm`, `DeleteWpweForm` | `ProjectDetail/Docs` (linked pages) |
 | `Project/ProjectTimeEntries` | `TimeEntryListForm`; the project invoice section | `ProjectDetail/Time` and `Projects/Time/TimeEntries` (`TimeEntryList`); `Projects/Billing/Unbilled` (`CreateProjectInvoice`, `CreateWorkerInvoice`) |
 | `Project/EditRepositories` (Oct 20) | `AddRepositoryForm`, `CreateRepositoryForm`, `RepositoryList`, `ProjectRefList` | `ProjectDetail/Code` (`LinkRepository`, `NewRepository`, `ProjectRepositories`, `ProjectTags`); `Projects/Code/Repositories` |
 | `Project/GitCommit` (Oct 20) | no forms | `Projects/Code/CommitDetail` |
 | `Task/FindTask` | `SearchOptions`, `NewTaskForm`, `ListTasks`, `AssignTaskSelected`, `UnAssignTaskSelected`, `UpdateTaskSelected` | `Projects/WorkItems` (`WorkItemFind`, `QuickAddWorkItem`, `WorkItemList`, `WorkItemBulk`), `Projects/QuickCreate` (`QuickWorkItem`); Commons Tasks already |
-| `Task/TaskSummary` | `ClockInForm`, `AddCommentForm`, `NewChildTaskForm`, `NewContentForm`, `UpdateContentForm` | `Projects/WorkItems/WorkItemDetail` (`Timer`, `NewSubItem`), with Shared/Chatter and Shared/RecordFiles |
+| `Task/TaskSummary` | `ClockInForm`, `AddCommentForm`, `NewChildTaskForm`, `NewContentForm`, `UpdateContentForm` | `Projects/WorkItems/WorkItemDetail` (`Timer`, `NewSubItem`; the child task list as the `SubItems` tree), with Shared/Chatter and Shared/RecordFiles |
 | `Task/TaskSummary/TaskCommentReply`, `TaskCommentUpdate` | `ReplyCommentForm` (both) | Shared/Chatter on WorkItemDetail |
 | `Task/EditTask` | `EditTask` | `WorkItemDetail` (`WorkItemHeader`, `WorkItemFields`, `WorkItemDescription`) |
 | `Task/EditTimeEntries` | `ClockInForm`, `AddTaskTime`, `TimeEntryList` | `WorkItemDetail` (`Timer`, `LogTime`, `WorkItemTime`) |
@@ -1768,7 +1857,8 @@ inventories' **Designed in** columns were filled from this section and the form 
 | `template/work/TeamTimesheet.xsl-fo.ftl` | a print with no screen | `TimeEntries` (`TeamTime`) and the team timesheet print (§14) |
 | MarbleERP `marble.xml`, `marble/dashboard.xml` | the Project, Task and Request mounts; request counts by status | the Projects app; `Projects/Home` and the Requests chips |
 
-Not carried: `ProjectSummary`'s task tree (the WorkItems list with sub-items and the Timeline replace it), its
+`ProjectSummary`'s task tree is carried as the Tree view of WorkItems (and of the project's Work items tab), with
+roll-ups the baseline tree did not show; HiveMind's `ProjectSummary` has the same tree. Not carried: its
 status-history box (Chatter's changes), and the baseline's broken links (`ProjectSummary`'s `findTask`, `EditProject`'s
 `editClient`, `PartyTimeEntries`' `editFacility`). `WorkEffortNote` and `RequestNote` rows are read in Chatter and no
 longer written, as design-drawers-commons decided.
@@ -1795,16 +1885,17 @@ longer written, as design-drawers-commons decided.
 | Output | Kind | From screen | Derived from |
 | --- | --- | --- | --- |
 | Project status report (health, latest update, milestones, work counts, hours and budget) | `html-print` | ProjectDetail | Odoo project update; OpenProject overview |
-| Project estimate (open items and milestones with hours at the client rates) | `html-print`, email | ProjectMoney | Dolibarr proposal from a project; services practice |
+| Project estimate (the work breakdown to a chosen depth, each line's roll-up hours at the client rates, and the milestones) | `html-print`, email; a file of the Estimate milestone sent for the client's approval | ProjectMoney, MilestoneDetail | Dolibarr proposal from a project; services practice |
 | Release notes | wiki page, `CHANGELOG.md` commit, email | ReleaseDetail | Redmine and OpenProject version pages; changelog practice |
 | Sprint report (burndown, completed and carried over) | `html-print` | SprintDetail | OpenProject sprint reports |
 | Timesheet (a person's week) | `html-print` | TimesheetDetail | ERPNext timesheet print |
 | Team timesheet (a crew's time on one piece of work) | `html-print` | TimeEntries | `template/work/TeamTimesheet.xsl-fo.ftl` (`get#TeamTimesheetInfo`) |
 | Client invoice with its time detail | PDF, email | InvoiceDetail | Accounting's invoice print, with the time entries behind each line appended |
-| Work items export | CSV, XLSX | WorkItems | `FindTask` `TaskList.csv` |
+| Work items export | CSV, XLSX (the tree view exports a level column and the parent key) | WorkItems | `FindTask` `TaskList.csv` |
+| Progress breakdown | CSV, XLSX, `html-print` at the expanded depth | ProgressReport | `ProjectProgressReport` |
 | Time export and the reports | CSV, XLSX, `html-print` | TimeEntries, Reports | Redmine spent-time CSV |
 | Work item import (Jira, Redmine, GitHub, generic CSV) | import | WorkItemImport | Commons ContactImport |
-| Time import (the detail CSV) | import | TimeEntries | Mantle `import#TimeDetailFile` |
+| Time import (the Time entries CSV; the Mantle detail CSV); Toggl, Harvest and Clockify presets after the first release | import | TimeEntries | Mantle `import#TimeDetailFile`; those tools' detailed CSV exports |
 | Request confirmation, replies and resolution | email | RequestIntake, email intake, RequestDetail | Frappe Helpdesk; Redmine mail handler |
 | Notifications: assignment, review requested, CI failed, timesheet returned, missing time, approvals, status updates | notification, email by preference | §15 "Notification topics" | design-drawers-commons §18 |
 | Webhook deliveries (push, tag, merge request events) | HTTP POST of JSON with an HMAC-SHA256 signature | RepositorySettings | Gitea and GitLab webhooks |
@@ -1828,6 +1919,7 @@ record is read through a service that checks the repository's rights (R21).
 | Project home and Today services | service type | `mantle.work.ProjectServices.get#ProjectHomeCounts` (the counters of the user's group) and `get#ProjectTodayItems` (the running timer, reviews waiting, a timesheet to submit, requests to triage); each part failure-tolerant | Home, the Today tab | as `get#UserTodayItems` sources |
 | Palette and notification links | BOSS service | Commons' palette type mapping (`PaletteServices`, where `MantleProject` has no detail link today) and the notification record links (`CommonsServices`) open a project, work item or request under Projects for a user who has the app, else under Commons | palette, tray, notification center | |
 | `m-elapsed` | Vue component | `<m-elapsed :from="…" />`: the time since a timestamp as `h:mm`, ticking each minute | Home's timer strip, WorkItemDetail's timer, the Today panel's timer item | used through `render-mode` in XML screens |
+| Git access in Commons | BOSS screen | Commons/Settings/Account gains a Git access link to `Projects/Code/GitAccess` for a user who may open it, and else the `AccessTokens` and `NewAccessToken` forms of GitAccess, included from one form file | GitAccess, Commons Account | design-drawers-commons Account |
 | Client access | data model + seed data + shell item | The `BOSS_PROJECT_CLIENT` group and an entity filter set of that name on `WorkEffort` (projects where the user's party or organization holds a client role and client sign-in is on, and their work items with General or All users visibility), `Request` (their organization's in those projects, or filed by them), `Invoice` (to their organization), `TimeEntry` (only on projects that share hours) and `WorkEffortParty` (of those records); `get#RecordLinkInfo` gains the same client rule for Chatter, record files and chat; Commons' and Comms' `ALL_USERS` authz becomes `AUTHZT_ALLOW` with an `AUTHZT_DENY` for the client group (check that mr-moqui keeps Java's order, ALWAYS over DENY over ALLOW); the shell leaves out a tray tab, quick-create kind or palette group whose screen the user may not open | the client-visible screens (§1.1) | a spec proves a client user never reads another client's project, an internal note, a rate or a cost through a screen, Chatter, record files, search or the palette |
 | Chatter for client users | service type + Vue component | `Shared/Chatter` takes the audience from the app context: for a client user `mantle.party.CommunicationServices.get#RecordTimeline` returns messages and status changes only (no notes, activities, files of notes or other audit rows), and the compose bar offers only Send message, to the record's internal parties | ProjectOverview, WorkItemDetail, RequestDetail | design-drawers-commons §15 |
 | User groups and SSH access | seed data | `BOSS_PROJECT_TEAM`, `BOSS_PROJECT_MANAGER`, `BOSS_PROJECT_CLIENT` with their `BOSS_PROJECTS` authz; `UserGroupPermission` `SSH_GIT` for the team and manager groups | §1.1, GitAccess | `SSH_GIT` cannot be granted to `ALL_USERS` |
@@ -1842,7 +1934,11 @@ record is read through a service that checks the repository's rights (R21).
 | `code-view` | XML Screen element + Vue component | `<code-view text language line-numbers highlight-lines/>` rendering `m-code`: highlight.js (BSD-3-Clause) through `libs/refresh.mjs` with its manifest and License-Review rows, for Java, Groovy, XML, JavaScript, TypeScript, Rust, Kotlin, Python, SQL, YAML, JSON, Markdown, CSS, HTML and shell; `pre` in the html and tui modes | RepositoryFiles | style-guide §8.1 checklist |
 | `.qvue` TUI texts | render mode | Backlog, Timeline, MyTime, TeamPlanner, MergeRequestChanges and RequestIntake are browser-only first; each gets its `tui` text later (style-guide §4.8), MyTime first, since people log time from a terminal | those screens | the lint's TUI worklist |
 | Print documents | render mode | `html-print` templates for the project status report, the project estimate, the sprint report, a timesheet, the team timesheet and release notes | §14 | style-guide §8 "Print documents" |
+| `view-tree` | XML Form element | A form-list view beside `view-board` and `view-calendar`: `<view-tree parent-field="parentWorkEffortId" children-transition="…" rollup-fields="…" ancestor-transition="…"/>`: rows indented under their parents with expand and collapse, children fetched on open through the transition (with the list's find), the ancestors a find leaves out fetched and shown muted, expand to level n and all, the `rollup-fields` shown for a parent row beside its own, drag to reorder (posting the new previous sibling) or re-parent (posting the new parent), Tab and Shift+Tab to indent and outdent, editable fields as the list's; in the html mode a nested table and in the tui mode an indented outline with `+` and `-` markers | WorkItems (`WorkItemTree`), WorkItemDetail (`SubItems`), ProgressReport (`TopLevelStats`), Timeline's grid | style-guide §3.15 (look and behavior) and §8 "List views"; the `tree` element (`m-tree-top`) is a single-column tree, not a list |
 | List grouping | XML Form element | later: `form-list` `group-by` with group header rows, counts and sums | WorkItems, TimeEntries | Redmine and OpenProject grouping |
+| Peek pane | XML Form element + XML Screen element | `form-list` `peek-url` (a transition to the row's detail screen with its id): a Peek toggle by the view switch that wraps the list in a `container-split` with the side on the right (`side="right"`, a resizable width, 55% by default), loading the row's screen with `peek=true` so it renders compact; the selected id in the URL; up and down move the selection; off below 1280 px | WorkItems (ProjectWorkItems), WorkItemDetail | style-guide §3.8; OpenProject split view |
+| Board WIP limits | XML Form element + data model | later: a per-project limit per status column, shown in the column header and in warning when passed | WorkItems board, SprintDetail | |
+| Timeline baselines | service type + data model | later: a snapshot of a project's start and due dates, drawn as thin bars under the current ones | Timeline | OpenProject baseline comparison |
 
 ### Git hosting (framework)
 
@@ -1852,11 +1948,12 @@ record is read through a service that checks the repository's rights (R21).
 | Git tree | service type | `get#GitTree(repositoryId, revision, path)`: the entries (name, type, size, object id, LFS pointer) with each one's last commit from the branch's path index | RepositoryFiles | the browse functions have no tree listing |
 | Git refs | service type | `create#GitRef(repositoryId, refName, revision, message)` (a branch, or a tag, annotated when a message is given) and `delete#GitRef`, with the create and delete rights, the branch rules, and the gitECA events of source `write` so Mantle's links follow | RepositoryBranches, RepositoryTags, ReleaseDetail, `create#TaskBranch` | |
 | Compare | service type | `get#GitCompare(repositoryId, base, head, withDiffs)`: the merge base, the commits in head and not in base, ahead and behind, the files with stats, and each file's diff as the `moqui-diff` html and as hunks of numbered lines for review | Compare, MergeRequestDetail, MergeRequestChanges, RepositoryBranches, WorkItemDetail | the `hunks` of `getVersionDiff` |
-| Merge | service type | gix's `merge` feature on; `merge#GitRefs(repositoryId, source, target, method)`: a fast-forward or a merge commit by the user, refused on a conflict; a trial merge gives the mergeability and the conflicting paths; the branch rules and the gitECA events run as for a push | MergeRequestDetail | squash and rebase later |
+| Merge | service type | gix's `merge` feature on; `merge#GitRefs(repositoryId, source, target, method, message)`: first a fast-forward or a merge commit by the user, then squash (one commit of the source's changes with the message given, its author the merge request's) and rebase (the source's commits replayed on the target, committed by the user), each refused on a conflict; a trial merge gives the mergeability and the conflicting paths; the branch rules and the gitECA events run as for a push, and a squashed or rebased merge links the new commits to the source's work items | MergeRequestDetail | merge commit and fast-forward first |
+| Repository archive | data model + service type | `GitRepository.archivedDate` and `defaultMergeMethodEnumId` (`GmmMerge`, `GmmSquash`; with `GmmFastForward` and `GmmRebase` the values of `GitMergeRequest.mergeMethodEnumId`); `archive#GitRepository` and `unarchive#GitRepository` with the delete right: an archived repository refuses pushes, ref writes and merges in the git server, its open merge requests close, and `find#GitRepositories` leaves it out unless asked | Repositories, RepositorySettings, palette | GitHub archive |
 | Commit statuses | data model + service type | `moqui.resource.GitCommitStatus` {repositoryId, commitId, context, state (pending, success, failure, error), targetUrl, description, createdByUserId, createdDate}; `org.moqui.impl.GitServices.create#GitCommitStatus`, `get#GitCommitStatuses`; REST `POST /rest/s1/moqui/git/{repositoryId}/commits/{commitId}/statuses` with an access token and the push right, GitHub's status shape | CommitDetail, MergeRequestDetail, RepositoryCommits, WorkItemDetail | outside CI posts to it unchanged |
 | Webhooks | data model + service type | `moqui.resource.GitWebhook` {webhookId, repositoryId, url, secret (encrypted), events, active}; a delivery is a SystemMessage per event (push, tag, merge request) with an HMAC-SHA256 signature header, retries and a delivery log; `store#GitWebhook`, `test#GitWebhook`, `find#GitWebhookDeliveries`; sent by a framework post-receive rule | RepositorySettings | starts Woodpecker, Jenkins, Drone or a runner relay |
-| Branch rules | data model + service type | `moqui.resource.GitBranchRule` {repositoryId, refPattern, allowForcePush, allowDelete, requireMergeRequest, requiredApprovals, requiredStatusContexts, pushUserGroupId}, enforced by the git server before a pushed ref moves (built in, so no component can skip it); writes through Moqui by users with the update right (wiki saves, release notes) pass and are logged; `store#GitBranchRule`, `delete#GitBranchRule` | RepositorySettings, MergeRequestDetail | |
-| Repository settings service | service type | `update#GitRepository` (description, default branch) with the delete right | RepositorySettings | the tools screen edits rows directly |
+| Branch rules | data model + service type | `moqui.resource.GitBranchRule` {repositoryId, refPattern, allowForcePush, allowDelete, requireMergeRequest, requiredApprovals, dismissStaleApprovals (a new head of the source sets its approvals back to requested), requiredStatusContexts, allowedMergeMethods, pushUserGroupId}, enforced by the git server before a pushed ref moves (built in, so no component can skip it); writes through Moqui by users with the update right (wiki saves, release notes) pass and are logged; `store#GitBranchRule`, `delete#GitBranchRule` | RepositorySettings, MergeRequestDetail | |
+| Repository settings service | service type | `update#GitRepository` (description, default branch, default merge method) with the delete right | RepositorySettings | the tools screen edits rows directly |
 
 ### Code review (framework and Mantle)
 
@@ -1877,23 +1974,25 @@ record is read through a service that checks the repository's rights (R21).
 | Shared work item and request detail | BOSS screens | `Shared/WorkItemDetail.xml` and `Shared/RequestDetail.xml`, made from the Commons M6 screens and their `ironstone.TaskServices` and `RequestServices`, with the app context (tabs, fields, actions) set by the including app; Commons mounts them at its present paths | WorkItemDetail, RequestDetail, Commons | design-doc-guide §10 |
 | Sprints | data model + service type + seed data | `WorkEffortType` `WetSprint` and `WorkEffortAssocType` `WeatSprint` (sprint to item; a carry-over ends one membership and starts the next); `mantle.work.ProjectServices.create#Sprint`, `start#Sprint`, `complete#Sprint`; `mantle.work.TaskServices.set#TaskSprint` as `set#TaskMilestone` | Backlog, SprintDetail, WorkItems, QuickCreate | |
 | Releases and components | service type | `create#Release`, `create#Component` as `create#Milestone` (ids `<KEY>-REL-<n>`, `<KEY>-CMP-<n>`, milestones `<KEY>-MS-<n>`); `set#TaskRelease`, `set#TaskComponent` as `set#TaskMilestone` | Roadmap, ReleaseDetail, ProjectSettings, WorkItemDetail | the types and assoc types exist |
-| Rank | data model + service type | `WorkEffort.sequenceNum` (number-integer, gaps of 1000); `set#TaskRank(workEffortId, afterWorkEffortId)`, renumbering a run when a gap closes | Backlog, sub-items, board card order | |
+| Rank | data model + service type | `WorkEffort.sequenceNum` (number-integer, gaps of 1000); `set#TaskRank(workEffortId, afterWorkEffortId)`, renumbering a run when a gap closes; in the tree a rank orders the children of one parent | Backlog, the tree, sub-items, board card order | |
+| Work item tree | service type | `mantle.work.ProjectServices.get#WorkItemTree(find parameters, parentWorkEffortId or top, withAncestors)`: one level of the tree in rank order with each row's roll-up (its subtree's estimate, remaining, actual, budget, item and done counts, cancelled left out, as `get#WorkEffortChildStats` sums), a has-children flag, and for a find the ancestors of the matches so each sits in its place; `mantle.work.TaskServices.move#Task(workEffortId, parentWorkEffortId, afterWorkEffortId)`: the parent in the same project, refused when it is the item or one of its descendants, the rank set among the new siblings, the change in the audit log; `update#Task` with a new `rootWorkEffortId` moves the subtree and refuses a parent left in another project | WorkItems, WorkItemDetail, Backlog's epic filter, Timeline, ProjectOverview | `get#WorkEffortChildStats` reads one level of children per call today |
 | Story points | data model | `WorkEffort.estimatedPoints` (number-decimal); a sprint's capacity in the project's unit | WorkItemDetail, Backlog, SprintReport | |
 | Dependency lag | data model | `WorkEffortAssoc.lagDays` (number-decimal, working days) on `WeatDependsOn`, whose direction is fixed: `workEffortId` depends on `toWorkEffortId` | Timeline, WorkItemDetail | no service sets the direction today |
 | Development status flow | seed data | `StatusItem`s `WeInReview` (sequence 6) and `WeInTesting` (7) of type `WorkEffort`; `StatusFlow` `WorkEffortDevelopment` with Approved, In Progress, In Review, In Testing, Complete and Closed and the moves back; `complete#TaskFromCommit` and `ironstone.TaskServices.set#TaskStatus` accept it | WorkItems, WorkItemDetail, Backlog | |
 | Labels | data model + seed data | `WorkEffortCategory.categoryTypeEnumId` (new `WorkEffortCategoryType`: `WcatLabel`, `WcatHoliday`) and `colorName` (a brand color name); the holiday categories take `WcatHoliday` | WorkItems, Labels, WorkItemDetail | |
 | Project health | data model + service type + seed data | `WorkEffort.healthEnumId` (new `WorkEffortHealth`: `WehOnTrack`, `WehAtRisk`, `WehOffTrack`); `mantle.work.effort.WorkEffortUpdate` {workEffortId, communicationEventId, updateDate, healthEnumId, percentComplete, clientVisible}; `CommunicationEventType` `StatusUpdate`; `post#ProjectUpdate`; topic `ProjectStatusUpdate` | ProjectOverview, Projects, Home, PortfolioReport | |
-| Project settings | data model + service type | `mantle.work.effort.WorkEffortSetting` {workEffortId, settingTypeEnumId, settingValue} with `WorkEffortSettingType` (`WstModules`, `WstEstimateUnit`, `WstWorkItemTypes`, `WstShareNewItems`, `WstKeywordComplete`, `WstRequestFromWork`, `WstIntakeAccount`, `WstIntakePlusTag`, `WstIntakeToken`, `WstTriageParty`, `WstBranchPattern`, `WstMergeRequestMoves`, `WstBillingBasis`, `WstInvoiceGrouping`, `WstShareHours`, `WstClientSignIn`, `WstShareRepositories`, `WstDocsWikiSpace`, `WstApprovalRequired`, `WstApproverParty`); `store#ProjectSetting`, `mantle.work.ProjectServices.get#ProjectSettings` (the project's, else the organization's `PartySetting`) | ProjectSettings, NewProject, every screen that reads a module | as `PartySetting` and `ProductStoreSetting` |
+| Project settings | data model + service type | `mantle.work.effort.WorkEffortSetting` {workEffortId, settingTypeEnumId, settingValue} with `WorkEffortSettingType` (`WstModules`, `WstEstimateUnit`, `WstWorkItemTypes`, `WstSeveralSprints`, `WstShareNewItems`, `WstKeywordComplete`, `WstRequestFromWork`, `WstIntakeAccount`, `WstIntakePlusTag`, `WstIntakeToken`, `WstTriageParty`, `WstBranchPattern`, `WstMergeRequestMoves`, `WstBillingBasis`, `WstInvoiceGrouping`, `WstShareHours`, `WstClientSignIn`, `WstShareRepositories`, `WstDocsWikiSpace`, `WstApprovalRequired`, `WstApproverParty`); `store#ProjectSetting`, `mantle.work.ProjectServices.get#ProjectSettings` (the project's, else the organization's `PartySetting`) | ProjectSettings, NewProject, every screen that reads a module | as `PartySetting` and `ProductStoreSetting` |
 | App settings | seed data | `PartySettingType`s `ProjWorkItemTypes`, `ProjTimesheetPolicy`, `ProjBillingDefaults`, `ProjRepositoryDefaults`, `ProjConventions`, `ProjIntake`, `ProjPublicForm` | the Settings pages | |
 | Template flag | data model | `WorkEffort.isTemplate` (text-indicator): left out of every list, count, report and search but Templates and NewProject's choice; `clone#Project` clears it on the copy unless asked to make a template | Templates, NewProject, Projects | |
 | Work item keys from 1 | service type | `create#Project` and `clone#Project` start the project's sequence (`Project_<KEY>`) at 1 with a bank of 1, so new projects number `PROJ-1`, `PROJ-2` without gaps; existing projects keep theirs | every screen | today the numbers start at 100000 in banks of 10 |
 | Client project purpose | seed data | `Enumeration` `WepPrClient` ("Client Project") under `WetProject` | NewProject, ProjectSettings | |
-| Milestone approval | service type + seed data | `request#MilestoneApproval`, `approve#MilestoneApproval`, `refuse#MilestoneApproval` (the requirement and the approver in the milestone's `WorkEffortSetting`); topic `MilestoneApproval` naming the two decision services | MilestoneDetail, the tray's Approvals | |
+| Milestone approval | service type + seed data | `request#MilestoneApproval`, `approve#MilestoneApproval`, `refuse#MilestoneApproval` (the requirement and the approver in the milestone's `WorkEffortSetting`); topic `MilestoneApproval` naming the two decision services; `mantle.work.ProjectServices.send#EstimateForApproval` (the estimate's `html-print` saved as a `WorkEffortContent` file of the project's Estimate milestone, made first when missing with its gate and the client approver, then `request#MilestoneApproval`) | MilestoneDetail, ProjectMoney, the tray's Approvals | |
+| Recurring work items | data model + service type | `WorkEffortRecurrence` (built for Calendar) gains `recurFromCompletion` (text-indicator: count the next dates from the completion day rather than the due date); `mantle.work.TaskServices.set#TaskRecurrence(workEffortId, rrule, recurFromCompletion)` (an empty rule stops it) and `make#NextRecurringTask`, a SECA on the task's move to Complete, or to Cancelled when skipped: the copy of §5, start and due from the rule through the ICalendar tool's expansion, linked from the series by `WeatRecurrenceInstance` with its date; nothing is made past the rule's end | WorkItemDetail, WorkItems, Commons TaskDetail | Odoo recurring tasks |
 | Release notes | service type | `generate#ReleaseNotes` (markdown of the release's items by type with their keys, and its merged merge requests) and `publish#ReleaseNotes` (a page of the project's docs space, a `CHANGELOG.md` commit through `commit#GitFiles`, an email to its followers) | ReleaseDetail | |
 | Project activity | service type | `mantle.work.ProjectServices.get#ProjectActivity`: the status changes (audit log), comments, commits and merges of the project's items, newest first, paged | ProjectOverview, Home | |
 | Time in Chatter | service type | `get#RecordTimeline` gains a time-entry source for a work item (who logged how long, with the comment) | WorkItemDetail | design-drawers-commons §15, Projects' row |
 | Calendar project filter | service type | `mantle.work.EventServices.get#FullCalendarData` takes `rootWorkEffortId`: the project's events (by `WorkEffortRecord`), milestones, releases and sprints | ProjectCalendar | |
-| Timeline data | service type | `mantle.work.ProjectServices.get#TimelineData`: the find's items with start, due, progress, plan items and dependencies; business days through `get#FutureBusinessDay` | Timeline | |
+| Timeline data | service type | `mantle.work.ProjectServices.get#TimelineData`: the find's items with start, due, progress, plan items and dependencies, and for each parent its subtree's span and roll-up progress; business days through `get#FutureBusinessDay` | Timeline | |
 | Work item import services | service type | `mantle.work.WorkItemImportServices` `parse#WorkItemFile`, `preview#WorkItems`, `import#WorkItems` (a job with progress on a topic; the original key in `sourceReferenceId`; Jira, Redmine and GitHub CSV presets) | WorkItemImport | as `ContactImportServices` |
 | Wiki space in a repository | service type | `create#WikiSpace` with `rootPageDirectory` `git://<repositoryId>/docs` in a code repository: check that a space rooted in a subdirectory works and that its saves (commits by the user on the default branch) pass the branch rules as writes | ProjectDocs, NewProject | Revision-Management "Wiki spaces on git" |
 
@@ -1902,6 +2001,7 @@ record is read through a service that checks the repository's rights (R21).
 | Need | Kind | Proposed as | Used by | Stub spec |
 | --- | --- | --- | --- | --- |
 | Timesheet services | service type + seed data | `mantle.work.TimesheetServices`: `get#PartyWeek` (the week's entries, timesheet and working hours), `get#PartyTimesheet` (find or make a person's timesheet for a week; `store#TimeEntry` sets `timesheetId`), `submit#Timesheet`, `approve#Timesheet`, `return#Timesheet`, `reopen#Timesheet`, `get#TimesheetSummary`, `send#MissingTimeReminders` (a weekly job); transitions `TmshCompleted` to `TmshInProcess` (Return) and `TmshApproved` to `TmshInProcess` (Reopen); `store#TimeEntry` and `delete#TimeEntry` refuse an entry on a submitted or approved timesheet; topics `TimesheetApproval` (with the approve and return services), `TimesheetReturned`, `TimesheetMissing` | MyTime, Timesheets, TimesheetDetail, TimeEntries | no timesheet service exists today; People uses the same |
+| Time import | service type | `mantle.work.TimeServices.import#TimeEntryCsv(file, preview)`: the Time entries CSV of §8 (date, person, work item or project key, hours or start and end, work type, billable, comment), people by email or user name, each row through `store#TimeEntry` on its own with the failures by row; a preview returns the first rows and their problems | TimeEntries | Toggl, Harvest and Clockify presets after the first release |
 | Work types | seed data | `Enumeration`s of `WorkType` for services work: `WktpDevelopment`, `WktpDesign`, `WktpTesting`, `WktpMeeting`, `WktpSupport`, `WktpProjectMgmt`, `WktpConsulting`, `WktpTravel` | the time forms, rates | the seeded types are labor and office |
 | Capacity | service type | `mantle.work.ResourceServices.get#PartyCapacity(partyId, fromDate, thruDate)`: weekly working hours from `WetAvailable` (else the organization's default week) less `WetTimeOff` and `WepHoliday`, by week | TeamPlanner, PersonDetail, MyTime, UtilizationReport | People's schedule record replaces the source later |
 | Allocations | data model + service type + seed data | `mantle.work.effort.WorkEffortAllocation` {workEffortAllocationId, workEffortId, partyId (empty for a placeholder), emplPositionClassId, skillTypeEnumId, fromDate, thruDate, hoursPerWeek, statusId (`WealRequested`, `WealAllocated`, `WealRejected`, `WealCancelled`, with a flow), requestedByUserId, reviewedByUserId, comments}; `create#Allocation`, `update#Allocation`, `staff#Allocation`, `approve#Allocation`, `reject#Allocation`, `find#StaffingCandidates`, `get#TeamPlan`; topics `AllocationRequest` (approval) and `AllocationDecision` | TeamPlanner, Allocations, ProjectTeam, NewProject | answers the research's question (§16) |
@@ -1930,10 +2030,10 @@ record is read through a service that checks the repository's rights (R21).
 | Decision | Notes |
 | --- | --- |
 | Projects is project-management first with ERP handoffs, and serves software teams, consultants and clients beside managers and services staff | Research's bottom line; the brief for this file: win Moqui users and service providers from Jira and Redmine |
-| This file designs the Task / work item (crosscut §3.12) and Request / case (crosscut §3.11) base screens as `Shared/WorkItemDetail` and `Shared/RequestDetail`; Commons' TaskDetail and RequestDetail become them in the Commons context | Projects is the first app with their full form sets; design-crosscut references them as it does the three design-drawers-commons designs; Customer Service adds its case parts through its Per-app context row |
-| One work item record, one find, many views: list, board and calendar through the form-list views; the timeline and the backlog as `.qvue` screens over the same find | Research §4–§6 (OpenProject's query model, boards and Gantt as views); style-guide §3.6 "the board is a view of the list" |
-| Boards group by status by default and may group by a planning field (assignee, sprint, milestone, release, priority) | OpenProject's action boards; widens style-guide §3.6's rule that columns are status stages, for Projects' planning boards (Open) |
-| Work item types are task purposes; an epic is any item with sub-items | SimpleScreens and Mantle model types as purposes; a new type record would duplicate them |
+| This file designs the Task / work item (crosscut §3.12) and Request / case (crosscut §3.11) base screens as `Shared/WorkItemDetail` and `Shared/RequestDetail`; Commons' TaskDetail and RequestDetail become them in the Commons context | Projects is the first app with their full form sets; design-crosscut references them as it does the three design-drawers-commons designs, and design-doc-guide §1 says so; Customer Service adds its case parts through its Per-app context row |
+| One work item record, one find, many views: list, board, calendar and tree through the form-list views (the tree a new `view-tree`); the timeline and the backlog as `.qvue` screens over the same find | Research §4–§6 (OpenProject's query model, boards and Gantt as views); style-guide §3.6 "the board is a view of the list" |
+| Boards group by status by default and may group by a planning field (assignee, sprint, milestone, release, priority) | OpenProject's action boards; style-guide §3.6 widened at this file's review: a board may group by a planning field where an app's design says so |
+| Work item types are task purposes; an epic is any item with sub-items, and work items nest to any depth (epics of epics) within one project, with a Tree view, a sub-item tree, roll-ups of estimate, remaining and actual, and the Progress report by top-level item down the tree | SimpleScreens and Mantle model types as purposes; the task tree of SimpleScreens, MarbleERP and HiveMind served estimate breakdowns and the report by top-level item, and services work needs the same |
 | Status, health and board column stay three things; two work item flows, `Default` and the new `WorkEffortDevelopment` with In Review and In Testing | Research §4 and §13 (status per flow, health apart, no second stage field) |
 | Plan items are work efforts under the project: milestones, releases, components and the new sprints, joined to items by `WorkEffortAssoc` | Mantle's own model for the first three; memberships end with `thruDate`, which keeps a sprint's history |
 | Phases are milestones with a start date; a gate is a milestone's approval; no phase record | Answers research's question on phases: dates, status and Chatter come with the milestone |
@@ -1946,14 +2046,14 @@ record is read through a service that checks the repository's rights (R21).
 | Billable is the rate type (`RatpStandard` or `RatpNoCharge`); no billable flag is added | Research's data finding |
 | Capacity comes from Commons' `WetAvailable` working hours, leave and holidays until People's schedule record exists | Keeps the planner working now; one service to change later |
 | Code hosting, review, statuses, webhooks and branch rules are framework records and services, Mantle-free; Mantle links them to work; BOSS draws them | As `WikiPageReview` and the drives are framework; initial-design's "framework does protocols, BOSS does UI and data mapping" |
-| Merge requests in the first release with merge commits and fast-forward; branches of one repository only; squash, rebase and forks later | A team cannot leave GitHub or GitLab without review; forks are not the audience's workflow |
+| Merge requests in the first release with merge commits and fast-forward; squash and rebase as per-merge methods, a default method per repository (merge commit or squash) and a branch rule to dismiss approvals when the source moves come next; branches of one repository only, no forks | A team cannot leave GitHub or GitLab without review; squash is a common team rule; forks are not the audience's workflow |
 | Branch rules are enforced by the git server; writes through Moqui with the update right pass | Protection must not depend on a component's rule; wiki saves and release notes commit as their users |
 | CI stays outside: webhooks start it and statuses come back over REST in GitHub's shape | No pipeline engine in Moqui; existing CI integrations work with little change |
 | Repository rights follow project roles: leads may force-push and delete; client contacts read only when the project shares its repositories | Extends `check#GitRepositoryAuthz` |
-| Git access (SSH keys, access tokens) is a Projects/Code screen | Where developers clone; Commons' Account links to it (Open) |
+| Git access (SSH keys, access tokens) is a Projects/Code screen; Commons/Settings/Account links to it for users who have Projects and hosts the access tokens box for those who do not | Where developers clone; tokens also serve the REST API |
 | A release links its tag by version name as well as by id, and publishes notes to the docs, `CHANGELOG.md` and email | Teams tag `v1.4.0`, not `PROJ-REL-3` |
 | Project documentation may live in the project's repository (`git://<repositoryId>/docs`) | The framework's wiki works on git; docs travel with the code and can be edited in the browser or in a clone |
-| Clients sign in to Projects only, under the `BOSS_PROJECT_CLIENT` filter set, and see shared items, their requests, published updates and invoices; Chatter shows them messages only; the public form and email serve clients without accounts | The feature service providers are asked for first; Redmine's client roles are the bar; a cross-app portal stays crosscut's question (Open) |
+| Clients sign in to Projects only, under the `BOSS_PROJECT_CLIENT` filter set, and see shared items, their requests, published updates and invoices; Chatter shows them messages only; the public form and email serve clients without accounts | The feature service providers are asked for first; Redmine's client roles are the bar; client, customer, supplier and other portals across apps come later and can reuse this filter set and these screens |
 | Work item visibility: General shares with the client, Work group is internal (the default), Restricted is for the item's parties and the project's managers | Reuses `WorkEffortVisibility` rather than a new flag |
 | A project's key is one to eight upper-case letters or digits; new projects number items from 1 without gaps | Keys are typed in commit messages and branch names |
 | App-wide settings are the organization's `PartySetting`s; a project's choices are `WorkEffortSetting` rows; modules switch tabs per project | OpenProject and Redmine split global definition from per-project choice |
@@ -1963,57 +2063,30 @@ record is read through a service that checks the repository's rights (R21).
 | A request becomes work by conversion with links, and can follow its work's status | Research §11 BOSS implications |
 | No project mailbox; a project's Chatter and its record chat room are its discussion places | Answers design-drawers-commons §20's question for projects; a forum can be a later setting |
 | Approvals of timesheets, allocations and milestone gates are decided in Projects' lists and in the tray through the same services | design-drawers-commons §4; design-crosscut decides whether apps include the Approvals form |
-| The invoice detail is Accounting's and the order detail crosscut's, each mounted in Projects with its context | Stand-alone rule: a services business running only Projects can send what it bills |
+| The Invoice detail becomes a research-crosscut §3 reused screen (Accounting, Projects, Sales, Purchasing, Customer Service), designed in design-crosscut with Accounting's version first; it and the Order detail are mounted in Projects with its context | Stand-alone rule: a services business running only Projects can send what it bills; invoices are reused across apps |
 | One timer per person, shown in Home, the work item and the Today tab | OpenProject's menu timer; the baseline's clock-in |
 | Utilization, billable utilization, cost, billable value, margin and budget used are defined once, in §11, and every report and card uses those definitions | Research §12: the references define them several ways |
 | Story points are optional per project; hours are the default estimate | Service providers bill hours; agile teams plan in points |
 | Work item import with Jira, Redmine and GitHub presets is in the first release | The audience is moving from those tools |
+| No custom fields on work items in the first release; labels, components and types cover most uses | Proper customization comes with the visual developer tools under way, and perhaps a general form extension mechanism that attaches custom fields to any entity by its primary key, rather than a field mechanism for work items alone |
+| WorkItems has a Peek pane: WorkItemDetail, compact, in a wide right pane of `container-split` beside the list | OpenProject's split view and Ever Gauzy's quick look; a triager reads items without leaving the list |
+| Recurring work items are in the first release: a rule (`WorkEffortRecurrence`) on the item, the next made when one completes, counted from the due date or the completion day | Periodic work (reports, filings, checks, renewals) for many business roles, in Projects and in Commons' tasks |
+| One active sprint per project by default; a project setting allows several | Teams sharing a project |
+| A client approves the project estimate through the gate of the project's first milestone, Estimate | No new approval record; the gate already notifies, records the decision and serves client contacts |
+| A repository is archived (read-only, hidden) from RepositorySettings; deleting one is an administrator's tools action after an export | Commits, links and merge requests stay readable; a mistaken delete cannot be undone |
+| Time import starts with one common CSV, Time entries, beside Mantle's detail CSV; Toggl, Harvest and Clockify presets follow the first release | One documented format covers moving in; presets are conveniences |
+| Code search and editing repository files in the browser are not Projects'; they belong to the coming developer tools, a separate app for development work | Projects reads code and ties it to work; changing code is a clone's or the developer app's |
+| Retainers and prepaid hours are not designed here; they are left to People, with its pay work | Decided at review; Projects' Unbilled still bills such time at the client rates |
+| Later: WIP limits on board columns (a per-project limit per status) and Timeline baselines (a snapshot of start and due dates drawn under the bars) | Decided at review; neither blocks the first release |
+| Until the shared Employee 360 exists, PersonDetail is a Projects screen with the tabs of §9; design-crosscut designs the base with People's version first | PersonDetail should not wait on People |
 | The detail time import and team time stay; the summary staffing import and risk classes are People's | Payroll concerns |
 | Expense capture is People's; Projects shows and bills project expenses; contractors bill their own time from My time | design-drawers-commons §20 moved My Account's expenses to People |
 | Dropped from the candidate inventory: a portfolio screen (a Projects view and the Timeline's portfolio mode), a board screen (a WorkItems view), phase records (milestones), a budgets screen (ProjectMoney and Profitability), a project expenses screen (ProjectMoney) | Research §16 candidate inventory |
-| Not carried from the baseline: the task tree, the status-history box and the broken links (§13) | Replaced by WorkItems, the Timeline and Chatter |
+| Not carried from the baseline: the status-history box and the broken links (§13); the task tree is carried as the Tree view | Chatter shows the status changes |
 | ss-inventory and usl-inventory carry this file's **Designed in** values and the rows of the Oct 20 git forms and `mantle.work.GitServices` | Filled Oct 21, 2026 from §13 and the form summaries |
 
 ## 17. Open
 
-Each with the answer the author would give.
-
-- **Custom fields on work items.** Redmine and OpenProject have them; Mantle has no typed field mechanism.
-  Recommended: none in the first release; labels, components and types cover most uses; later a field definition
-  record per project with values in a child of `WorkEffort`, shown in WorkItemFields and the find.
-- **Client users or a portal.** research-crosscut §8 asks whether one portal serves every app. Recommended: client
-  users in Projects now, as designed; a cross-app portal later can reuse the same filter set and screens.
-- **A peek pane on WorkItems.** OpenProject's split view and Ever Gauzy's quick look let a triager read an item
-  beside the list. Recommended: later, as a list option that opens WorkItemDetail in a wide side pane of
-  `container-split`.
-- **Squash and rebase merges; approvals after new commits.** Recommended: merge commit and fast-forward first;
-  squash next (a common team rule); a branch rule option to dismiss approvals when the source moves.
-- **Code search.** Recommended: later, an index of the default branches' text files (a `MoquiGitFile` document fed
-  by the gitECA rules), as Files indexes drive files.
-- **Editing files in the browser.** Recommended: later, and only onto a new branch with a merge request, never
-  onto a protected branch.
-- **Retainers and prepaid hours.** Support contracts of n hours a month are common with service providers.
-  Recommended: soon after the first release, as an `AgreementItem` of hours per period linked by
-  `AgreementItemWorkEffort`, drawn down by billable time in Unbilled, with overage billed at the rate.
-- **Recurring work items.** Recommended: later, with `WorkEffortRecurrence` (Commons' RRULE) making the next item
-  when one completes.
-- **WIP limits on board columns.** Recommended: later, a per-project setting per status.
-- **Gantt baselines.** Recommended: later, a snapshot of start and due dates per project, drawn under the bars.
-- **The invoice detail as a reused screen.** Recommended: research-crosscut §3 gains "Invoice detail" (Accounting,
-  Projects, Sales, Purchasing, Customer Service), designed in design-crosscut or design-accounting.
-- **The guide's file list.** Recommended: design-doc-guide §1 says design-crosscut only references the Task / work
-  item and Request / case screens designed here, as it says of the three design-drawers-commons designs.
-- **Board columns by planning fields.** Recommended: style-guide §3.6 allows a board grouped by a planning field
-  (assignee, sprint, milestone, release) where an app's design says so.
-- **Git access in Commons too.** Recommended: Commons/Settings/Account links to Projects/Code/GitAccess for users
-  who have Projects, and hosts the access tokens box for those who do not (tokens also serve the REST API).
-- **Several active sprints per project.** Recommended: one by default, a project setting for several (teams sharing
-  a project).
-- **Time import presets.** Recommended: Toggl, Harvest and Clockify CSV presets on TimeEntries' import, as the work
-  item import has, after the first release.
-- **Client approval of an estimate.** Recommended: the project estimate as a document the client approves through
-  the milestone gate of a first "Estimate" milestone, so no new approval record is needed.
-- **Deleting a repository.** Recommended: archive (read-only, hidden) from RepositorySettings; deleting stays an
-  administrator's tools action after an export.
-- **The Employee 360 base.** PersonDetail depends on it. Recommended: design-crosscut designs it with People's
-  version first; until it exists PersonDetail is a Projects screen with the tabs above.
+None. The review of Oct 21, 2026 answered every question this file left open; each answer is in §16 and in the
+sections it changes (WorkItems' Peek pane, recurring work items in §5, merge methods and archiving in §7, the time
+import format in §8, the Invoice detail in §10, Git access in Commons, the estimate's approval in ProjectMoney).
