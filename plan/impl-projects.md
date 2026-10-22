@@ -61,8 +61,8 @@ Sections: [1 scope](#1-scope-and-order) · [2 rules](#2-ground-rules) · [3 phas
 | P6 Time | Mantle, BOSS | MyTime, Timesheets, TimesheetDetail, TimeEntries, ProjectTime, TimeSettings | done Oct 22 |
 | P7 Resources | Mantle, BOSS | TeamPlanner, Allocations, PersonDetail | done Oct 22 |
 | P8 Billing and money | Mantle, BOSS | Unbilled, Invoices, InvoiceDetail, OrderDetail, Rates, ProjectMoney, BillingSettings | done Oct 22 |
-| P9 Reports and outputs | Mantle, BOSS | Reports and its seven reports | planned |
-| P10 Client access | mr-moqui, Mantle, BOSS | the client states of §1.1's screens | planned |
+| P9 Reports and outputs | Mantle, BOSS | Reports and its seven reports | done Oct 22 |
+| P10 Client access | mr-moqui, Mantle, BOSS | the client states of §1.1's screens | done Oct 22 |
 | P11 Finish | BOSS | — | planned |
 
 ### P0 — Checks
@@ -418,12 +418,68 @@ tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
   earlier phase.
 - Usable when: each report renders on the demo data and its measures match §11's definitions.
 
+**Built** (Oct 22, 2026):
+- Mantle usl `ProjectReportServices`: `get#ReportScope` (projects, time and money the user may read), `get#TimeReport`,
+  `get#WorkItemSummary`, `get#PortfolioStatus`, `get#ProjectProfitability` (money holders only), `get#Utilization` (over
+  `get#TeamPlan`, billable hours), `get#ProgressBreakdown` (Restricted items out, money stripped), each part on its own;
+  F70 fixed (over the estimate only with an estimate); F86 fixed (`find#TimeEntries` amounts from the RateAmount);
+  `test/WorkProjectReports.spec.js`.
+- BOSS: Reports index and Time, WorkItems, Sprints (velocity), Portfolio, Progress, Profitability and Utilization
+  (parameters, number cards, `m-chart` with a terminal twin, tables with CSV and XLSX, print); `ironstone.ReportServices`
+  (chart config, options); Home's Hours by project and Unbilled by client charts; TimesheetPrint and TeamTimesheet
+  prints; Profitability and Utilization for managers only; demo ACME time; `test/Reports.spec.js` (every report on the
+  demo in qvt, html-print and tui, measures recomputed, joe sees no money).
+- Runs (Debug): ironstone-boss 567/567, mantle-usl 673/675 (ContactListSend), lint clean.
+
 ### P10 — Client access
 
 - Design §1.1 and §15 Client access: the `BOSS_PROJECT_CLIENT` filter set and group, Commons and Comms denied to it,
   Chatter's client audience, the client states of the client-visible screens, Home for clients.
 - Usable when: the isolation spec passes (a client user never reads another client's project, an internal note, a rate
   or a cost through a screen, Chatter, record files, search or the palette) and a client sees only Projects.
+- Built in two parts (Oct 22): P10a the access foundation and the isolation spec; P10b the client states and layouts,
+  the client's own writes, billing for clients, shared repositories, and closing F121.
+
+**Built, P10a** (Oct 22, 2026):
+- Framework: the entity filter's fail-closed log names the entity and reason.
+- Mantle usl: permission PROJECT_CLIENT (a client, whatever its other groups); `get#`/`setup#ClientProjectInfo` (a
+  client's projects: `WstClientSignIn` Y and the user's party, or an organization they are a contact, employee or
+  representative of, holds a customer role); client cases in `get#VisibleProjectInfo`, `get#WorkItemTree`,
+  `get#ProjectActivity`, `get#ProjectStats`, `get#RecordLinkInfo` (first), `get#RecordTimeline`; `get#ClientRecordVisibility`,
+  `filter#ClientAudience` for notices; repository rights for clients (F119); F85 and F111 fixed;
+  `test/WorkProjectClients.spec.js`.
+- BOSS: Commons and Comms ALL_USERS grants now ALLOW with DENY rows for clients (F3); `BOSS_PROJECTS_CLIENT` (ALLOW on
+  Projects with the `BOSS_PROJECT_CLIENT` and `MANTLE_PRIVATE_CONTACT` filter sets), `BOSS_PROJECTS_INTERNAL` (DENY by
+  location and service patterns for every internal section, tab, write service and search), `BOSS_PROJECTS_CLIENT_WRITES`
+  (DENY writes on `mantle.*`); the filter set `BOSS_PROJECT_CLIENT` (each list defaults to `_NA_`, no missing aliases:
+  fails closed; cost and time entities denied); client cases in the BOSS access, work item, Chatter, files, palette and
+  code services; a minimal client Home; demo clients sheldon.acme (ACME) and gob.bluth (new project BLUTH); specs
+  `ClientIsolation` (every allowed screen and a sample of denied ones, Chatter, files, search, palette) and
+  `ClientAccessInternal` (internal users' Commons and Comms identical before and after the ALLOW flip).
+- Runs (Debug): ironstone-boss 582/582, mantle-usl 682/684 (ContactListSend), moqui-core lib 1772 (an LLM members test
+  failed once under load and passes alone), tui_screens ok, gate3 the known two, lint clean.
+
+**Built, P10b** (Oct 22, 2026):
+- Framework: permission `EXTERNAL_USER` (an app grants it to its outside users): no record-bound rooms, no public room
+  but as a member, no records drive folder (screens, DAV, SFTP), no other user's presence, never the agent permissions
+  (Assist, chat agents, AI tasks, A2A, MCP, the LLM gateway; `ec.llm` refused); a read failure counts as external. Lists:
+  `row-selection` `condition` and `view-board`/`view-tree` `move-condition` (XSD, qvt, static, tui, goldens).
+- Mantle usl: the client rule of `get#RecordLinkInfo` applies with authorization off too (F128); the review services
+  refuse clients (F126); `get#ProjectClientContacts`, `send#ProjectUpdateEmail`, `send#EstimateEmail` (templates
+  MANTLE_PROJECT_UPDATE, MANTLE_PROJECT_ESTIMATE); spec features added.
+- BOSS: `ironstone.client.ClientServices` (the client's only writes, not remote, each re-checking access: Chatter send
+  and reply to internal people only, raise a request with files, files on an open request, cancel their own request, the
+  gate decision as its approver, which is how an estimate is approved); client states of Home (counters, gates, projects,
+  requests, replies, milestones, invoices due), ProjectDetail, Overview, WorkItems, WorkItemDetail, Requests,
+  RequestDetail, MilestoneDetail, ReleaseDetail (refused controls hidden; hours only when shared); the ClientHours tab;
+  Billing/Invoices and InvoiceDetail read only for sent invoices to the client; shared repositories read only (no
+  Compare, GitAccess, Activity or Settings; no review threads or CI statuses); `BOSS_PROJECTS_INTERNAL`'s write verbs
+  completed (F124) with a spec that checks every service file; specs `ClientWalk`, `ClientWrites`, `ClientBilling`,
+  `ClientCode`, `ClientChatDrive`, `ClientIsolation` extended.
+- Runs (Debug): ironstone-boss 620/620, mantle-usl 685/687 (ContactListSend), example 86/86, moqui-core lib 1777/1778 (a
+  chat preview test while a server ran; passes alone; the LLM members tests pass alone), tui_screens ok, gate3 the known
+  two, node 262/262, lint clean. Host `collab::dav_routes_and_coediting_over_the_socket` fails at HEAD before P10b too
+  (F136).
 
 ### P11 — Finish
 
@@ -494,6 +550,11 @@ Made during the build; each one that changes the design is also written into des
 | Oct 22, 2026 | A gate's requests and decisions are `WorkEffortApproval` rows (the settings still name the requirement and approver); approving reaches the milestone; until P10 a project manager (MILESTONE_APPROVE or ADMIN) records the client's decision, marked `recordedFor` | P8b |
 | Oct 22, 2026 | Sending the estimate makes the order a quote (Proposed); approval moves the project In Planning to Approved and its orders through Placed to Approved; estimate hours priced at the project's standard client rate | P8b |
 | Oct 22, 2026 | No billing share on the Roadmap (it is the team's; money is not) | P8b |
+| Oct 22, 2026 | Reports' time follows `find#TimeEntries`' visibility within visible projects; utilization counts a person's time on any project (their whole load); expenses add to cost and billable value alike; a work item's created date is its first status audit row | P9 |
+| Oct 22, 2026 | A client is any user with PROJECT_CLIENT (held by BOSS_PROJECT_CLIENT); client sign-in is per project (`WstClientSignIn`, no organization default); P10a clients are read only; a user should be in either the client group or an internal one (a manager's ALWAYS still wins on screens) | P10a |
+| Oct 22, 2026 | A message is for the client when it is not a Comment and the client's party or organization (or a contact of it) is its from, to or CC, on a record the client sees | P10a |
+| Oct 22, 2026 | F100: a manager's recorded decision stays, marked `recordedFor`; the client approver's own decision is the normal path once they sign in | P10a |
+| Oct 22, 2026 | A client's writes are only `ironstone.client.ClientServices` (a package the deny pattern does not reach, each service re-checking access), not ALLOW rows (a DENY beats an ALLOW); clients do not accept deliverables; a client sees an invoice only once sent and release notes only once published | P10b |
 | Oct 22, 2026 | A recurring item counted from completion takes the completion day at the due date's time of day (UTC days) and the rule without its COUNT, which counts the items made | P2 |
 
 ## 5. Open questions
@@ -613,6 +674,40 @@ Design assumptions found wrong in the code, with the resolution (written into th
 | F101 | P8b: the estimate is not emailed; the gate's notice reaches only users, and a client contact has none before P10 | With P10 |
 | F102 | P8b: the Money tab shows the parent header in AppStructure (F81) | The walk renders the tab |
 | F103 | P8b: a running server keeps old service definitions (F56) | Restart |
+| F104 | P9: in a spec's `then`, `a \|\| b` evaluates as a boolean | Compute such values outside the assertion |
+| F105 | P9: Home's at-risk counter has no schedule warning (Portfolio has late) | Later |
+| F106 | P9: F86 fixed in `find#TimeEntries` rows and totals | Done |
+| F107 | P9: a `hide` column's title still appears in the select-columns dialog, leaking money headings | Titles empty when hidden; the framework should leave hidden columns out of the dialog |
+| F108 | P9: `show-csv-button` and `show-xlsx-button` show no Export menu without `select-columns` or a header dialog | Framework, later |
+| F109 | P9: form-list fields are fixed, so period and status columns are capped (14, 12) | Totals cover the whole range; the screen says so |
+| F110 | P9: the lint calls `hasRows` a collection (F60, F76) | Renamed |
+| F111 | P9: `get#SprintVelocity` puts the active sprint first, and it and `get#ProjectSprints` check no project visibility | The Sprints screen accepts visible projects only; check callers in P10 |
+| F112 | P9: secondary report tables have no phone column sets | Later |
+| F113 | P9: the Time report's 14 parameters wrap over three rows at 1280 px | Later |
+| F114 | P10a (security): `get#RecordLinkInfo` treated a user without an organization filter set as seeing every work effort, request, order and message; a client would have seen everything through Chatter, files and chat | The client rule runs first |
+| F115 | P10a (security): Chatter's attachment transition checked only that the event was on the record, so a note's attachment was reachable by id | Fixed |
+| F116 | P10a (security): RecordFiles would serve a visible work item's drive folder to a client | Client files limited to requests |
+| F117 | P10a (security): follower and mention notices would send a note's text to a client | `filter#ClientAudience` |
+| F118 | P10a (security): party searches listed every organization and person, other clients included | Party scope filter, searches denied |
+| F119 | P10a (security): `check#GitRepositoryAuthz` gave view, create and update to any non-client role, so a client contact added as Watcher could push | A client only views, its own shared repositories |
+| F120 | P10a: the `ProjectTaskCounts` view has no `visibilityEnumId` alias and fails closed under client filters | `get#ProjectStats` counts a client's items one by one |
+| F121 | P10a (security, open): record-bound chat rooms and the records drive (DAV/SFTP through DriveDeviceServices, ALL_USERS ALWAYS) decide by `get#RecordLinkInfo`, which shows a client its shared items; mitigated (no app password, no Comms Chat); webroot chat store shows presence; Assist reachability unchecked | P10b closes it |
+| F122 | P10a: a qvue screen tested in qvt answers "render mode not supported" before authorization | Specs render qvue screens in qvue to see the refusal |
+| F123 | P10a: client screens still show refused controls and internal members and hours | P10b's client states |
+| F124 | P10b (security): the client deny pattern missed write verbs | Completed; a spec checks every service file |
+| F125 | P10b (security): `get#ItemTime` gave a client everyone's entries on a shared item | Fixed |
+| F126 | P10b (security): `create#ReviewComment`/`store#ReviewAnchor` write with authz off, so a viewer client could comment; `get#ReviewThreads` gave review notes to any viewer | Review services refuse clients |
+| F127 | P10b (security): Code services named Restricted and unshared items on branches, commits and release merge requests | `get#VisibleWorkEfforts` |
+| F128 | P10b (security): `get#RecordLinkInfo` skipped the client rule with authorization off (webroot chat transitions) | Fixed; F121 closed |
+| F129 | P10b (security): public rooms joinable and mentionable for clients, `userStatuses` gave any presence, agents acted in rooms with clients and any poster decided their cards, `ec.llm` and AI tasks had no per-user check | Fixed for EXTERNAL_USER |
+| F130 | P10b (security): the release-notes draft showed to anyone who could see the release | Published notes only for clients |
+| F131 | P10b (security): InvoiceDetail's writes relied on the access default view | They ask for change |
+| F132 | P10b (security, open, framework): `submit#MergeRequestReview` lets any viewer review and a viewer's approval counts toward branch-rule approvals | Count approvals only from users with the push right |
+| F133 | P10b (security, open, framework): a SubscreensItem's `userGroupId` is not checked for the first screen of a lastStandalone render | Framework, later (ClientHours shows an internal user nothing) |
+| F134 | P10b: client email needs EXTERNAL_USER and PROJECT_CLIENT granted together | §1.1 to say both |
+| F135 | P10b: reloading seed into an old DB keeps the P10a rows, so clients stay refused Billing there (fails closed) | Fresh load |
+| F136 | P10b: host `collab::dav_routes_and_coediting_over_the_socket` fails at HEAD (WikiServices update#WikiPage not authorized), before P10b | Not Projects; to look at |
+| F137 | P10b: a spec `then` line starting with `(` joins the previous line (ASI) | Compute in `when` |
 | F7 | P0: a wiki space under an existing repository is documented for a repository root (`rootPageDirectory: "git://docs"`, or `rootPageLocation` `git://<repositoryId>/<SPACE>.md`), not for a subdirectory such as `git://<repositoryId>/docs` | Checked in P4 as the design's §15 row says, before ProjectDocs is built |
 
 ## 7. Later
@@ -679,6 +774,13 @@ Designed, not in this build:
 - Billing (P8b): Unbilled's Contractor time and the worker summary; emailing the estimate; agreements, opportunities,
   purchase lines and MaterialEstimates on Money; a project from an order line (Sales); milestone gates in Home's
   Approvals block; TUI checks.
+
+- Reports (P9): saved reports on the index; Home's schedule warning; phone columns for secondary tables; indented tree
+  exports (with the tree items above); TUI checks beyond rendering.
+
+- Client access (P10b): `view-calendar` move-condition; clients accepting deliverables; hiding the Code and Hours tabs
+  when nothing is shared; cloning for a client with a second factor; an HTTP-level DAV/SFTP test as a client; a link in
+  the estimate email; clients' presence to internal users.
 
 ## 8. Verification
 

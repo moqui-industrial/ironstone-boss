@@ -87,7 +87,7 @@ along with this software (see the LICENSE.md file). If not, see
         </out-parameters>
         <actions>
             <service-call name="ironstone.ChatterServices.get#RecordInfo" out-map="recordOut"
-                    in-map="{recordEntityName:recordEntityName, recordId:recordId, requireVisible:true}"/>
+                    in-map="{forFiles:true, recordEntityName:recordEntityName, recordId:recordId, requireVisible:true}"/>
             <if condition="ec.message.hasError()"><return/></if>
             <service-call name="ironstone.RecordFilesServices.get#ContentType" in-map="{info:recordOut.info}" out-map="typeOut"/>
             <script><![CDATA[
@@ -261,7 +261,7 @@ along with this software (see the LICENSE.md file). If not, see
         </out-parameters>
         <actions>
             <service-call name="ironstone.ChatterServices.get#RecordInfo" out-map="recordOut"
-                    in-map="{recordEntityName:recordEntityName, recordId:recordId, requireVisible:true}"/>
+                    in-map="{forFiles:true, recordEntityName:recordEntityName, recordId:recordId, requireVisible:true}"/>
             <if condition="ec.message.hasError()"><return/></if>
             <service-call name="ironstone.RecordFilesServices.get#ContentType" in-map="{info:recordOut.info}" out-map="typeOut"/>
             <script><![CDATA[
@@ -307,7 +307,7 @@ along with this software (see the LICENSE.md file). If not, see
         </out-parameters>
         <actions>
             <service-call name="ironstone.ChatterServices.get#RecordInfo" out-map="recordOut"
-                    in-map="{recordEntityName:recordEntityName, recordId:recordId, requireVisible:true}"/>
+                    in-map="{forFiles:true, recordEntityName:recordEntityName, recordId:recordId, requireVisible:true}"/>
             <if condition="ec.message.hasError()"><return/></if>
             <service-call name="ironstone.RecordFilesServices.get#ContentType" in-map="{info:recordOut.info}" out-map="typeOut"/>
             <script><![CDATA[
@@ -439,7 +439,7 @@ along with this software (see the LICENSE.md file). If not, see
         </out-parameters>
         <actions>
             <service-call name="ironstone.ChatterServices.get#RecordInfo" out-map="recordOut"
-                    in-map="{recordEntityName:recordEntityName, recordId:recordId, requireVisible:true}"/>
+                    in-map="{forFiles:true, recordEntityName:recordEntityName, recordId:recordId, requireVisible:true}"/>
             <if condition="ec.message.hasError()"><return/></if>
             <service-call name="ironstone.RecordFilesServices.get#ContentType" in-map="{info:recordOut.info}" out-map="typeOut"/>
             <script><![CDATA[
@@ -614,7 +614,7 @@ along with this software (see the LICENSE.md file). If not, see
         </out-parameters>
         <actions>
             <service-call name="ironstone.ChatterServices.get#RecordInfo" out-map="recordOut"
-                    in-map="{recordEntityName:recordEntityName, recordId:recordId, requireVisible:true}"/>
+                    in-map="{forFiles:true, recordEntityName:recordEntityName, recordId:recordId, requireVisible:true}"/>
             <if condition="ec.message.hasError()"><return/></if>
             <service-call name="ironstone.RecordFilesServices.get#ContentType" in-map="{info:recordOut.info}" out-map="typeOut"/>
             <script><![CDATA[

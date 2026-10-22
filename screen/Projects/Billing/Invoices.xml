@@ -17,7 +17,9 @@ along with this software (see the LICENSE.md file). If not, see
     worker invoices and expense invoices on a project. The chips with their counts: Drafts, To send (approved, not sent), Sent,
     Overdue, Paid, Worker invoices, All (the default; cancelled ones too). The find (the list's dialog): project, client, kind, the
     invoice date period. Each row: the invoice (opening InvoiceDetail), kind, project, from, to, date, due, total, unpaid and the status
-    chip; CSV. Clients see their organization's invoices only, with client access (impl-projects.md P10). -->
+    chip; CSV. A client (impl-projects.md P10b) sees its own sent invoices only (find#InvoiceRows clientView: to its organization or
+    itself, of its client projects; never a draft, a worker's or an expense invoice), with the chips Sent, Overdue, Paid and All, no
+    kind and no link to Unbilled; its lines open InvoiceDetail read only. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Invoices" default-menu-index="2">
 
@@ -34,9 +36,10 @@ along with this software (see the LICENSE.md file). If not, see
     <actions>
         <script><![CDATA[
             const L = (text) => ec.l10n.localize(text)
-            managesMoney = !!ec.service.sync().name('ironstone.BillingServices.check#Money').parameters({need: 'none'}).call()?.managesMoney
+            clientView = !!ec.user.userId && ec.user.hasPermission('PROJECT_CLIENT')
+            managesMoney = !clientView && !!ec.service.sync().name('ironstone.BillingServices.check#Money').parameters({need: 'none'}).call()?.managesMoney
             invoiceRows = []
-            if (!managesMoney) return
+            if (!managesMoney && !clientView) return
             const ctx = (name) => { const value = ec.context.get(name); return value == null || value === '' ? null : String(value) }
             let dateFrom = null, dateThru = null
             if (ctx('invoiceDate_period')) {
@@ -47,7 +50,7 @@ along with this software (see the LICENSE.md file). If not, see
                 if (ctx('invoiceDate_thru')) dateThru = new Date(Number(String(ec.l10n.parseTimestamp(ctx('invoiceDate_thru').substring(0, 10) + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS'))) + 86400000)
             }
             const out = ec.service.sync().name('ironstone.BillingServices.find#InvoiceRows').parameters({list: list || 'all', rootWorkEffortId: rootWorkEffortId || null,
-                clientPartyId: clientPartyId || null, kind: kind || null, fromDate: dateFrom, thruDate: dateThru}).call() || {}
+                clientPartyId: clientPartyId || null, kind: clientView ? null : (kind || null), fromDate: dateFrom, thruDate: dateThru}).call() || {}
             ec.message.clearErrors()
             list = out.list || 'all'
             invoiceRows = Array.from(out.rowList || [])
@@ -57,7 +60,8 @@ along with this software (see the LICENSE.md file). If not, see
             clientOptions = Array.from(out.clientOptions || [])
             const lists = [['drafts', 'Drafts', 'sym_o_edit_note'], ['toSend', 'To send', 'sym_o_outgoing_mail'], ['sent', 'Sent', 'sym_o_mark_email_read'],
                 ['overdue', 'Overdue', 'sym_o_alarm'], ['paid', 'Paid', 'sym_o_paid'], ['worker', 'Worker invoices', 'sym_o_badge'], ['all', 'All', 'sym_o_select_all']]
-            const find = {rootWorkEffortId: rootWorkEffortId || null, clientPartyId: clientPartyId || null, kind: kind || null,
+                .filter(([key]) => !clientView || ['sent', 'overdue', 'paid', 'all'].includes(key))
+            const find = {rootWorkEffortId: rootWorkEffortId || null, clientPartyId: clientPartyId || null, kind: clientView ? null : (kind || null),
                 invoiceDate_period: ctx('invoiceDate_period'), invoiceDate_poffset: ctx('invoiceDate_poffset'), invoiceDate_pdate: ctx('invoiceDate_pdate'),
                 invoiceDate_from: ctx('invoiceDate_from'), invoiceDate_thru: ctx('invoiceDate_thru')}
             Object.keys(find).forEach((key) => { if (find[key] == null) delete find[key] })
@@ -67,21 +71,21 @@ along with this software (see the LICENSE.md file). If not, see
             listLabel = L(lists.find((entry) => entry[0] === list)[1])
             const empty = {drafts: 'No draft invoices', toSend: 'No invoice waits to be sent', sent: 'No invoice sent and unpaid', overdue: 'No invoice is overdue',
                 paid: 'No paid invoices', worker: 'No worker invoices', all: 'No invoices of projects yet'}
-            emptyText = filtered ? L('No invoices match') : L(empty[list] || 'No invoices')
+            emptyText = filtered ? L('No invoices match') : clientView && list === 'all' ? L('No invoices sent to you yet') : L(empty[list] || 'No invoices')
         ]]></script>
     </actions>
 
     <widgets>
-        <section name="NoMoney" condition="!managesMoney"><widgets>
+        <section name="NoMoney" condition="!managesMoney &amp;&amp; !clientView"><widgets>
             <container-box type="warning"><box-header title="Not available"/><box-body>
                 <label type="p" text="Billing is for those who manage money." style="q-mb-none"/>
             </box-body></container-box>
         </widgets></section>
-        <section name="Invoices" condition="managesMoney"><widgets>
+        <section name="Invoices" condition="managesMoney || clientView"><widgets>
             <container style="row items-center q-mb-sm q-gutter-y-xs">
                 <label text="Invoices" type="h5" style="q-my-none q-mr-sm"/>
                 <container style="col"/>
-                <link url="../Unbilled" text="Unbilled" icon="sym_o_request_quote" link-type="anchor-button"/>
+                <link url="../Unbilled" text="Unbilled" icon="sym_o_request_quote" link-type="anchor-button" condition="!clientView"/>
             </container>
 
             <container style="row q-gutter-xs q-mb-sm">

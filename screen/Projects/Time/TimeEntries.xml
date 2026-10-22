@@ -133,6 +133,13 @@ along with this software (see the LICENSE.md file). If not, see
             filtered = Object.keys(find).some((key) => key !== 'orderByField')
             const keepMap = Object.assign({list: list}, find, entryRowsPageIndex ? {pageIndex: String(entryRowsPageIndex)} : {}, projectFixed ? {workEffortId: fixedProjectId} : {})
             keepJson = JSON.stringify(keepMap)
+            // the team timesheet (TeamTimesheet, design-projects.md §14): the same find, printed
+            const printDates = {}
+            if (dateFrom != null) printDates.entryDate_from = ec.l10n.format(dateFrom, 'yyyy-MM-dd')
+            if (dateThru != null) printDates.entryDate_thru = ec.l10n.format(new Date(Number(String(dateThru)) - 1), 'yyyy-MM-dd')
+            teamPrintUrl = '/apps/Projects/Time/TeamTimesheet?renderMode=html-print&' + Object.entries(Object.assign({list: list}, find, printDates, projectFixed ? {workEffortId: fixedProjectId} : {}))
+                    .filter(([key, value]) => value != null && value !== '' && key !== 'orderByField' && !key.startsWith('entryDate_p'))
+                    .map(([key, value]) => key + '=' + encodeURIComponent(value)).join('&')
             listChips = lists.map(([key, label, icon]) => ({key: key, label: L(label), icon: icon, on: key === list,
                 params: Object.assign({}, find, {list: key}, projectFixed ? {workEffortId: fixedProjectId} : {})}))
             listLabel = L(lists.find((entry) => entry[0] === list)[1])
@@ -180,6 +187,8 @@ along with this software (see the LICENSE.md file). If not, see
         <container style="row items-center q-mb-sm q-gutter-y-xs">
             <label text="Time entries" type="h5" style="q-my-none q-mr-sm" condition="!projectFixed"/>
             <container style="col"/>
+            <link url="${teamPrintUrl}" url-type="plain" text="Print" icon="sym_o_print" target-window="_blank" link-type="anchor-button" style="q-mr-sm"
+                    tooltip="The entries found as a team timesheet: by day, with the hours by person"/>
             <link url="import" text="Import" icon="sym_o_upload_file" link-type="anchor-button" style="q-mr-sm"/>
             <link url="../MyTime" text="My time" icon="sym_o_schedule" link-type="anchor-button" style="q-mr-sm" condition="!projectFixed"/>
             <dynamic-dialog id="LogTimeDialog" button-text="Log time" icon="sym_o_more_time" transition="EditEntry" width="640" title="Log time"

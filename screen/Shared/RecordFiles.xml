@@ -31,10 +31,23 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="filesData" method="get" read-only="true">
         <actions><script><![CDATA[
             const recordOut = ec.service.sync().name('ironstone.ChatterServices.get#RecordInfo').parameters({recordEntityName: recordEntity || '',
-                recordId: recordId || ''}).call()
+                recordId: recordId || '', forFiles: true}).call()
             if (!recordOut.visible) { ec.web.sendJsonResponse({visible: false}); return }
             const out = ec.service.sync().name('ironstone.RecordFilesServices.get#RecordFiles').parameters({recordEntityName: recordEntity,
                 recordId: recordId}).call()
+            // a client contact (impl-projects.md P10b): the request's files to download, and its upload while the request is open
+            // (ironstone.client.ClientServices); no removing, no versions, nothing of the records drive
+            if (recordOut.isClient && !ec.message.hasError()) {
+                out.canUpload = !!ec.service.sync().name('ironstone.client.ClientServices.get#ClientRecordWrites').parameters({recordEntityName: recordEntity,
+                    recordId: recordId}).call()?.canUpload
+                out.fileList = Array.from(out.fileList || []).map((file) => Object.assign({}, file, {canRemove: false, drivePath: null}))
+                out.typeOptions = []
+                out.defaultTypeId = null
+                out.recordsDriveId = null
+                out.recordFolderPath = null
+                out.filesUrl = null
+                out.extraList = []
+            }
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {visible: true, record: {title: recordOut.title, typeLabel: recordOut.typeLabel},
                 hasContent: out.hasContent, canUpload: out.canUpload, fileList: out.fileList, fileCount: out.fileCount, typeOptions: out.typeOptions,
                 defaultTypeId: out.defaultTypeId, recordsDriveId: out.recordsDriveId, recordFolderPath: out.recordFolderPath, filesUrl: out.filesUrl,
@@ -45,7 +58,12 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- add files (contentFile, one or several), with a type and a description -->
     <transition name="upload">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.RecordFilesServices.upload#RecordFile').parameters({recordEntityName: recordEntity,
+            // a client contact adds files to a request it sees (ironstone.client.ClientServices, impl-projects.md P10b); nothing else
+            const forClient = !!ec.user.userId && ec.user.hasPermission('PROJECT_CLIENT')
+            if (forClient && recordEntity !== 'mantle.request.Request') { ec.message.addError(ec.l10n.localize('You may not add files here')); ec.web.sendJsonResponse({}); return }
+            const out = forClient ? ec.service.sync().name('ironstone.client.ClientServices.upload#ClientRequestFile').parameters({requestId: recordId,
+                    contentFile: contentFile || null, description: description || null}).call()
+                : ec.service.sync().name('ironstone.RecordFilesServices.upload#RecordFile').parameters({recordEntityName: recordEntity,
                 recordId: recordId, contentFile: contentFile || null, contentTypeEnumId: contentTypeEnumId || null, description: description || null}).call()
             if (ec.message.hasError()) { ec.web.sendJsonResponse({}); return }
             const infos = [{type: 'success', message: out.message}]

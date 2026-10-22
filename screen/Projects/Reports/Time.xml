@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- TimeReport (design-projects.md §11 TimeReport; style-guide §3.12 Report): hours by up to three criteria in order (project, top-level
+    item, parent, work item, person, work type, client, billable) and a period (week, month or the whole range), with filters for each
+    (an item takes its subtree). The parameters are in the URL (TimeReportParams, a GET form on the screen itself). Cards: hours,
+    billable hours, the billable share and, for those who manage money, the billable value at the client rates; a stacked bar chart
+    by the first criterion with the table behind it (TimeReportTable: the criteria, a column per period up to fourteen, the total,
+    billable and amount; a totals row last; CSV and XLSX); Print opens the same report in html-print. Over
+    mantle.work.ProjectReportServices.get#TimeReport, which reads only the time the user may see (the user's own and their reports',
+    that of the projects they manage, everyone's for ADMIN) within the projects they see. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Time" default-menu-index="1">
+
+    <parameter name="fromDate"/>
+    <parameter name="thruDate"/>
+    <parameter name="period"/>
+    <parameter name="criterion1"/>
+    <parameter name="criterion2"/>
+    <parameter name="criterion3"/>
+    <parameter name="rootWorkEffortId"/>
+    <parameter name="workEffortId"/>
+    <parameter name="partyId"/>
+    <parameter name="workTypeEnumId"/>
+    <parameter name="clientPartyId"/>
+    <parameter name="billable"/>
+
+    <actions><script><![CDATA[
+        const L = (text) => ec.l10n.localize(text)
+        const fmt = (value) => value == null ? '' : ec.l10n.format(Math.round(Number(String(value)) * 100) / 100, '#,##0.##')
+        const options = ec.service.sync().name('ironstone.ReportServices.get#ReportOptions').call() || {}
+        ec.message.clearErrors()
+        projectOptions = Array.from(options.projectOptions || [])
+        personOptions = Array.from(options.personOptions || [])
+        clientOptions = Array.from(options.clientOptions || [])
+        workTypeOptions = Array.from(options.workTypeOptions || [])
+        criterionOptions = [['project', 'Project'], ['topItem', 'Top-level item'], ['parent', 'Parent item'], ['workItem', 'Work item'], ['person', 'Person'],
+            ['workType', 'Work type'], ['client', 'Client'], ['billable', 'Billable']].map(([value, label]) => ({value: value, label: L(label)}))
+        const criterionLabel = {}
+        for (const one of criterionOptions) criterionLabel[one.value] = one.label
+        if (!criterion1 && !criterion2 && !criterion3) criterion1 = 'project'
+        const criteria = [criterion1, criterion2, criterion3].filter((one) => one && criterionLabel[one])
+        if (!period) period = 'week'
+        // an item filter by its key, as typed
+        const itemId = workEffortId ? String(workEffortId).trim().toUpperCase() : null
+        const out = ec.service.sync().name('mantle.work.ProjectReportServices.get#TimeReport').parameters({fromDate: fromDate || null, thruDate: thruDate || null,
+            period: period, criteria: criteria, rootWorkEffortId: rootWorkEffortId || null, workEffortId: itemId, partyId: partyId || null,
+            workTypeEnumId: workTypeEnumId || null, clientPartyId: clientPartyId || null, billable: billable || null}).call() || {}
+        ec.message.clearErrors()
+        fromDate = out.fromDay; thruDate = out.thruDay
+        const crits = Array.from(out.criteriaList || criteria)
+        critTitles = [0, 1, 2].map((i) => crits[i] ? criterionLabel[crits[i]] : '')
+        critCount = crits.length
+        amountsShown = !!out.amountsShown
+        const totals = out.totals || {}
+        const currency = totals.currencyUomId || 'USD'
+        const money = (value) => value == null ? '' : ec.l10n.formatCurrency(value, currency)
+        const periods = Array.from(out.periodList || [])
+        // a column per period, up to fourteen (form-list fields are fixed; the chart and CSV say the same)
+        maxPeriods = 14
+        periodCount = Math.min(periods.length, maxPeriods)
+        periodsCut = periods.length > maxPeriods
+        periodTitles = []
+        for (let i = 0; i < maxPeriods; i++) periodTitles.push(i < periods.length ? periods[i].label : '')
+        const rowOf = (values, periodHours, row, isTotal) => {
+            const one = {isTotal: isTotal, hoursText: fmt(row.hours), billableText: fmt(row.billableHours), nonBillableText: fmt(row.nonBillableHours),
+                amountText: amountsShown && row.amount != null ? money(row.amount) : ''}
+            for (let i = 0; i < 3; i++) one['crit' + i] = values[i] ? values[i].label : ''
+            for (let i = 0; i < maxPeriods; i++) one['p' + i] = i < periodHours.length ? (periodHours[i] ? fmt(periodHours[i]) : '') : ''
+            return one
+        }
+        timeRows = Array.from(out.rowList || []).map((row) => rowOf(Array.from(row.values || []), Array.from(row.periodHours || []), row, false))
+        rowsFound = timeRows.length > 0
+        if (rowsFound) timeRows.push(rowOf([{label: L('Total')}], Array.from(totals.periodHours || []), totals, true))
+        timeRowsCount = timeRows.length
+        hoursValue = fmt(totals.hours || 0)
+        billableValue = fmt(totals.billableHours || 0)
+        billableShare = totals.hours ? Math.round(Number(totals.billableHours || 0) * 100 / Number(totals.hours)) + '%' : '—'
+        amountValue = amountsShown ? (totals.mixedCurrency ? L('Several currencies') : money(totals.amount || 0)) : ''
+        missingRateNote = amountsShown && totals.missingRateCount ? ec.resource.expand('${count} billable entries have no client rate and no amount', '', {count: totals.missingRateCount}) : ''
+        truncatedNote = out.truncated ? L('More than 50,000 entries matched: the first 50,000 are counted. Narrow the dates or filters.') : ''
+        rangeText = ec.l10n.format(ec.l10n.parseTimestamp(out.fromDay + ' 12:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS'), 'MMM d, yyyy') + ' – '
+            + ec.l10n.format(ec.l10n.parseTimestamp(out.thruDay + ' 12:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS'), 'MMM d, yyyy')
+        chartTitle = ec.resource.expand('Hours by ${criterion}', '', {criterion: (critTitles[0] || '').toLowerCase()})
+        const series = Array.from(out.chart?.series || [])
+        hasChart = rowsFound && series.length > 0
+        const chart = hasChart ? ec.service.sync().name('ironstone.ReportServices.get#ChartConfig').parameters({id: 'TimeReportChart', type: 'bar',
+            labels: Array.from(out.chart.labels || []), series: series.map((one) => ({name: one.name, data: Array.from(one.data || [])})), stacked: true,
+            yTitle: L('Hours')}).call() || {} : {}
+        ec.message.clearErrors()
+        chartHtml = chart.html || ''
+        chartTui = chart.tui || {t: 'text', text: ''}
+        const query = {fromDate: out.fromDay, thruDate: out.thruDay, period: period, criterion1: criterion1 || '', criterion2: criterion2 || '', criterion3: criterion3 || '',
+            rootWorkEffortId: rootWorkEffortId || '', workEffortId: workEffortId || '', partyId: partyId || '', workTypeEnumId: workTypeEnumId || '',
+            clientPartyId: clientPartyId || '', billable: billable || ''}
+        printUrl = '/apps/Projects/Reports/Time?renderMode=html-print&' + Object.entries(query).filter(([key, value]) => value).map(([key, value]) => key + '=' + encodeURIComponent(value)).join('&')
+    ]]></script></actions>
+
+    <widgets>
+        <container style="row items-center q-mb-sm">
+            <label type="h5" text="Time report" style="q-my-none col"/>
+            <link url="${printUrl}" url-type="plain" text="Print" icon="sym_o_print" target-window="_blank" link-type="anchor-button"/>
+        </container>
+        <form-single name="TimeReportParams" transition=".">
+            <field name="fromDate"><default-field title="From"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+            <field name="thruDate"><default-field title="Through"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+            <field name="period"><default-field title="Columns">
+                <drop-down><option key="week" text="Weeks"/><option key="month" text="Months"/><option key="none" text="The whole range"/></drop-down></default-field></field>
+            <field name="criterion1"><default-field title="Rows by">
+                <drop-down allow-empty="true"><list-options list="criterionOptions" key="${value}" text="${label}"/></drop-down></default-field></field>
+            <field name="criterion2"><default-field title="Then by">
+                <drop-down allow-empty="true"><list-options list="criterionOptions" key="${value}" text="${label}"/></drop-down></default-field></field>
+            <field name="criterion3"><default-field title="Then by">
+                <drop-down allow-empty="true"><list-options list="criterionOptions" key="${value}" text="${label}"/></drop-down></default-field></field>
+            <field name="rootWorkEffortId"><default-field title="Project">
+                <drop-down allow-empty="true"><list-options list="projectOptions" key="${value}" text="${label}"/></drop-down></default-field></field>
+            <field name="workEffortId"><default-field title="Work item and its sub-items (key)"><text-line size="12"/></default-field></field>
+            <field name="partyId"><default-field title="Person">
+                <drop-down allow-empty="true"><list-options list="personOptions" key="${value}" text="${label}"/></drop-down></default-field></field>
+            <field name="workTypeEnumId"><default-field title="Work type">
+                <drop-down allow-empty="true"><list-options list="workTypeOptions" key="${value}" text="${label}"/></drop-down></default-field></field>
+            <field name="clientPartyId"><default-field title="Client">
+                <drop-down allow-empty="true"><list-options list="clientOptions" key="${value}" text="${label}"/></drop-down></default-field></field>
+            <field name="billable"><default-field title="Billable">
+                <drop-down allow-empty="true"><option key="Y" text="Billable"/><option key="N" text="Not billable"/></drop-down></default-field></field>
+            <field name="runButton"><default-field title="Run"><submit icon="sym_o_play_arrow"/></default-field></field>
+            <field-layout>
+                <field-row-big><field-ref name="fromDate"/><field-ref name="thruDate"/><field-ref name="period"/><field-ref name="criterion1"/>
+                    <field-ref name="criterion2"/><field-ref name="criterion3"/></field-row-big>
+                <field-row-big><field-ref name="rootWorkEffortId"/><field-ref name="workEffortId"/><field-ref name="partyId"/><field-ref name="workTypeEnumId"/>
+                    <field-ref name="clientPartyId"/><field-ref name="billable"/><field-ref name="runButton"/></field-row-big>
+            </field-layout>
+        </form-single>
+
+        <dashboard min-width="150" style="q-mb-sm">
+            <number-card title="Hours" value="${hoursValue}" icon="sym_o_schedule" size="sm"/>
+            <number-card title="Billable hours" value="${billableValue}" icon="sym_o_paid" size="sm"/>
+            <number-card title="Billable share" value="${billableShare}" icon="sym_o_pie_chart" size="sm"/>
+            <number-card title="Billable value" value="${amountValue}" icon="sym_o_payments" size="sm" condition="amountsShown"/>
+        </dashboard>
+        <label type="p" text="${truncatedNote}" style="text-warning" condition="truncatedNote"/>
+
+        <section name="TimeReportChartBox" condition="hasChart"><widgets>
+            <container-box><box-header title="${chartTitle} · ${rangeText}"/><box-body>
+                <render-mode><text type="qvt"><![CDATA[${chartHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(chartTui)}]]></text></render-mode>
+            </box-body></container-box>
+        </widgets></section>
+
+        <container-box><box-header title="Hours · ${rangeText}"/><box-body-nopad>
+            <form-list name="TimeReportTable" list="timeRows" skip-form="true" paginate="false" show-csv-button="true" show-xlsx-button="true" select-columns="true">
+                <field name="crit0" hide="critCount &lt; 1"><default-field title="${critTitles[0]}"><display style="${isTotal ? 'text-weight-bold' : ''}"/></default-field></field>
+                <field name="crit1" hide="critCount &lt; 2"><default-field title="${critTitles[1]}"><display/></default-field></field>
+                <field name="crit2" hide="critCount &lt; 3"><default-field title="${critTitles[2]}"><display/></default-field></field>
+                <field name="p0" align="right" hide="periodCount &lt; 1"><default-field title="${periodTitles[0]}"><display/></default-field></field>
+                <field name="p1" align="right" hide="periodCount &lt; 2"><default-field title="${periodTitles[1]}"><display/></default-field></field>
+                <field name="p2" align="right" hide="periodCount &lt; 3"><default-field title="${periodTitles[2]}"><display/></default-field></field>
+                <field name="p3" align="right" hide="periodCount &lt; 4"><default-field title="${periodTitles[3]}"><display/></default-field></field>
+                <field name="p4" align="right" hide="periodCount &lt; 5"><default-field title="${periodTitles[4]}"><display/></default-field></field>
+                <field name="p5" align="right" hide="periodCount &lt; 6"><default-field title="${periodTitles[5]}"><display/></default-field></field>
+                <field name="p6" align="right" hide="periodCount &lt; 7"><default-field title="${periodTitles[6]}"><display/></default-field></field>
+                <field name="p7" align="right" hide="periodCount &lt; 8"><default-field title="${periodTitles[7]}"><display/></default-field></field>
+                <field name="p8" align="right" hide="periodCount &lt; 9"><default-field title="${periodTitles[8]}"><display/></default-field></field>
+                <field name="p9" align="right" hide="periodCount &lt; 10"><default-field title="${periodTitles[9]}"><display/></default-field></field>
+                <field name="p10" align="right" hide="periodCount &lt; 11"><default-field title="${periodTitles[10]}"><display/></default-field></field>
+                <field name="p11" align="right" hide="periodCount &lt; 12"><default-field title="${periodTitles[11]}"><display/></default-field></field>
+                <field name="p12" align="right" hide="periodCount &lt; 13"><default-field title="${periodTitles[12]}"><display/></default-field></field>
+                <field name="p13" align="right" hide="periodCount &lt; 14"><default-field title="${periodTitles[13]}"><display/></default-field></field>
+                <field name="hoursText" align="right"><default-field title="Hours"><display style="text-weight-medium"/></default-field></field>
+                <field name="billableText" align="right"><default-field title="Billable"><display/></default-field></field>
+                <field name="nonBillableText" align="right"><default-field title="Not billable"><display/></default-field></field>
+                <field name="amountText" align="right" hide="!amountsShown"><default-field title="${amountsShown ? 'Billable value' : ''}"><display/></default-field></field>
+                <columns type="mobile">
+                    <column><field-ref name="crit0"/><field-ref name="crit1"/></column>
+                    <column><field-ref name="hoursText"/><field-ref name="billableText"/></column>
+                </columns>
+            </form-list>
+            <label type="p" text="No time in this range that you may see. Change the dates or the filters." style="m-muted q-pa-sm q-mb-none" condition="!rowsFound"/>
+        </box-body-nopad></container-box>
+        <label type="p" text="The table shows the first 14 periods; the totals count the whole range. Use months, or a shorter range, to see every column." style="text-caption text-warning" condition="periodsCut"/>
+        <label type="p" text="${missingRateNote}" style="text-caption text-warning" condition="missingRateNote"/>
+        <label type="p" text="Billable time is any rate type but no charge; its value is the hours at the client rate of each entry (the entry's own, else its rate)." style="text-caption m-muted"/>
+    </widgets>
+</screen>

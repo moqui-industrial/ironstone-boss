@@ -35,7 +35,21 @@ function as(username, run, withAuthz) {
 const link = (parameters) => ec.service.sync().name("ironstone.PaletteServices.get#RecordLink").parameters(parameters).call() || {}
 
 spec({
-    setupSpec() { login("john.doe") },
+    setupSpec() {
+        login("john.doe")
+        // a user in no group, for the links of one without Projects
+        const wasDisabled = ec.artifactExecution.disableAuthz()
+        try {
+            if (!ec.entity.find("moqui.security.UserAccount").condition("userId", "BOSS_TEST_NOPROJ").one())
+                ec.service.sync().name("create#moqui.security.UserAccount").parameters({ userId: "BOSS_TEST_NOPROJ", username: "boss.test.noprojects",
+                    userFullName: "Bob Acme", partyId: "ORG_ACME_BA", currentPassword: "16ac58bbfa332c1c55bd98b53e60720bfa90d394", passwordHashType: "SHA" }).call()
+        } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+    },
+    cleanupSpec() {
+        const wasDisabled = ec.artifactExecution.disableAuthz()
+        try { ec.entity.find("moqui.security.UserAccount").condition("userId", "BOSS_TEST_NOPROJ").deleteAll() }
+        finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+    },
 })
 
 feature("shellData lists Projects with its quick-create kinds, palette actions and types, and its go-to keys", {
@@ -96,20 +110,29 @@ feature("a project's records open in Projects for its users, in Commons for othe
         try {
             const forJohn = { project: link({ docType: "MantleProject", id: "IRON" }), task: link({ recordEntityName: "mantle.work.effort.WorkEffort", id: "IRON-3" }),
                 personal: link({ docType: "MantleTask", id: "BOSS_DEMO_TASK" }), request: link({ docType: "MantleRequest", id: "BOSS_DEMO_REQUEST" }) }
-            // Sheldon Acme has no Projects
-            const forSheldon = as("sheldon.acme", () => ({ project: link({ docType: "MantleProject", id: "IRON" }),
+            // a user without Projects (a temporary account of Bob Acme, in no group): Commons, and no link to a project
+            const forOther = as("boss.test.noprojects", () => ({ project: link({ docType: "MantleProject", id: "IRON" }),
                 task: link({ docType: "MantleTask", id: "IRON-3" }) }))
-            return { forJohn, forSheldon }
+            // Sheldon Acme, a client contact (impl-projects.md P10): Projects alone, whose screens check what he may see
+            const forSheldon = as("sheldon.acme", () => ({ project: link({ docType: "MantleProject", id: "ACME" }),
+                task: link({ docType: "MantleTask", id: "ACME-1" }), personal: link({ docType: "MantleTask", id: "BOSS_DEMO_TASK" }),
+                party: link({ docType: "MantleParty", id: "ORG_ACME" }), sprint: link({ recordEntityName: "mantle.work.effort.WorkEffort", id: "IRON-SP-2" }) }))
+            return { forJohn, forOther, forSheldon }
         } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
     },
-    then({ forJohn, forSheldon }) {
+    then({ forJohn, forOther, forSheldon }) {
         forJohn.project.url == "/qapps/Projects/Projects/ProjectDetail?workEffortId=IRON"
         forJohn.project.icon == "sym_o_assignment"
         forJohn.task.url == "/qapps/Projects/WorkItems/WorkItemDetail?workEffortId=IRON-3"
         forJohn.personal.url == "/qapps/Commons/Tasks/TaskDetail?workEffortId=BOSS_DEMO_TASK"
         forJohn.request.url == "/qapps/Commons/Requests/RequestDetail?requestId=BOSS_DEMO_REQUEST"
-        forSheldon.project.url == null
-        forSheldon.task.url == "/qapps/Commons/Tasks/TaskDetail?workEffortId=IRON-3"
+        forOther.project.url == null
+        forOther.task.url == "/qapps/Commons/Tasks/TaskDetail?workEffortId=IRON-3"
+        forSheldon.project.url == "/qapps/Projects/Projects/ProjectDetail?workEffortId=ACME"
+        forSheldon.task.url == "/qapps/Projects/WorkItems/WorkItemDetail?workEffortId=ACME-1"
+        forSheldon.personal.url == null
+        forSheldon.party.url == null
+        forSheldon.sprint.url == null
     },
 })
 

@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- WorkItemReport (design-projects.md §11 WorkItemReport; style-guide §3.12 Report): work item counts over the items the user sees, by a
+    project, a period and a type, grouped by status, type, assignee, priority, component or project. The parameters are in the URL
+    (WorkItemReportParams, a GET form on the screen itself). Cards: Open, Created, Resolved and Overdue, and the average cycle time (In
+    Progress to Complete, from the audit log of statusId); charts: created against resolved by week, and the open items by status; the
+    table (WorkItemSummary: the group, a column per status up to twelve, total, open, overdue, resolved in the period, the average cycle
+    days; a totals row last; CSV and XLSX); Print opens the same report in html-print. Over
+    mantle.work.ProjectReportServices.get#WorkItemSummary, which counts only the items the user may see. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Work items" default-menu-index="2">
+
+    <parameter name="rootWorkEffortId"/>
+    <parameter name="fromDate"/>
+    <parameter name="thruDate"/>
+    <parameter name="purposeEnumId"/>
+    <parameter name="groupBy"/>
+
+    <actions><script><![CDATA[
+        const L = (text) => ec.l10n.localize(text)
+        const fmt = (value) => value == null ? '' : ec.l10n.format(Math.round(Number(String(value)) * 10) / 10, '#,##0.#')
+        const options = ec.service.sync().name('ironstone.ReportServices.get#ReportOptions').call() || {}
+        ec.message.clearErrors()
+        projectOptions = Array.from(options.projectOptions || [])
+        typeOptions = Array.from(options.typeOptions || [])
+        groupOptions = [['status', 'Status'], ['type', 'Type'], ['assignee', 'Assignee'], ['priority', 'Priority'], ['component', 'Component'], ['project', 'Project']]
+                .map(([value, label]) => ({value: value, label: L(label)}))
+        if (!groupBy) groupBy = 'status'
+        groupTitle = (groupOptions.find((one) => one.value === groupBy) || groupOptions[0]).label
+        const out = ec.service.sync().name('mantle.work.ProjectReportServices.get#WorkItemSummary').parameters({rootWorkEffortId: rootWorkEffortId || null,
+            fromDate: fromDate || null, thruDate: thruDate || null, purposeEnumId: purposeEnumId || null, groupBy: groupBy}).call() || {}
+        ec.message.clearErrors()
+        fromDate = out.fromDay; thruDate = out.thruDay
+        const counts = out.counts || {open: 0, created: 0, resolved: 0, overdue: 0}
+        const totals = out.totals || {}
+        openValue = String(counts.open || 0); createdValue = String(counts.created || 0); resolvedValue = String(counts.resolved || 0); overdueValue = String(counts.overdue || 0)
+        cycleValue = totals.averageCycleDays == null ? '—' : fmt(totals.averageCycleDays) + ' ' + L('days')
+        const statuses = Array.from(out.statusList || [])
+        maxStatuses = 12
+        statusCount = Math.min(statuses.length, maxStatuses)
+        statusesCut = statuses.length > maxStatuses
+        statusTitles = []
+        for (let i = 0; i < maxStatuses; i++) statusTitles.push(i < statuses.length ? statuses[i].label : '')
+        const rowOf = (row, isTotal) => {
+            const one = {isTotal: isTotal, groupLabel: row.groupLabel || '', total: row.total || 0, open: row.open || 0, overdue: row.overdue || 0, resolved: row.resolved || 0,
+                cycleText: row.averageCycleDays == null ? '' : fmt(row.averageCycleDays)}
+            const map = row.statusCounts || {}
+            for (let i = 0; i < maxStatuses; i++) {
+                const key = i < statuses.length ? (statuses[i].statusId || '') : null
+                const count = key == null ? 0 : (map[key] || 0)
+                one['s' + i] = count ? String(count) : ''
+            }
+            return one
+        }
+        summaryRows = Array.from(out.rowList || []).map((row) => rowOf(row, false))
+        anyFound = summaryRows.length > 0
+        if (anyFound) summaryRows.push(rowOf(Object.assign({}, totals, {groupLabel: L('Total')}), true))
+        summaryRowsCount = summaryRows.length
+        itemCountText = String(out.itemCount || 0)
+        rangeText = ec.l10n.format(ec.l10n.parseTimestamp(out.fromDay + ' 12:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS'), 'MMM d, yyyy') + ' – '
+            + ec.l10n.format(ec.l10n.parseTimestamp(out.thruDay + ' 12:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS'), 'MMM d, yyyy')
+        // the charts: created against resolved by week, and the open items by status
+        const weeks = Array.from(out.weekList || [])
+        hasFlow = weeks.length > 0 && (counts.created > 0 || counts.resolved > 0)
+        const flow = hasFlow ? ec.service.sync().name('ironstone.ReportServices.get#ChartConfig').parameters({id: 'WorkItemFlowChart', type: 'bar',
+            labels: weeks.map((week) => week.label), series: [{name: L('Created'), data: weeks.map((week) => week.created)},
+                {name: L('Resolved'), data: weeks.map((week) => week.resolved)}], yTitle: L('Items')}).call() || {} : {}
+        ec.message.clearErrors()
+        flowHtml = flow.html || ''
+        flowTui = flow.tui || {t: 'text', text: ''}
+        const open = Array.from(out.openByStatus || [])
+        hasOpen = open.length > 0
+        const openChart = hasOpen ? ec.service.sync().name('ironstone.ReportServices.get#ChartConfig').parameters({id: 'WorkItemOpenChart', type: 'bar',
+            labels: open.map((one) => one.label), series: [{name: L('Open items'), data: open.map((one) => one.count)}], horizontal: true,
+            height: Math.max(160, 40 + open.length * 32) + 'px'}).call() || {} : {}
+        ec.message.clearErrors()
+        openHtml = openChart.html || ''
+        openTui = openChart.tui || {t: 'text', text: ''}
+        const query = {rootWorkEffortId: rootWorkEffortId || '', fromDate: out.fromDay, thruDate: out.thruDay, purposeEnumId: purposeEnumId || '', groupBy: groupBy}
+        printUrl = '/apps/Projects/Reports/WorkItems?renderMode=html-print&' + Object.entries(query).filter(([key, value]) => value).map(([key, value]) => key + '=' + encodeURIComponent(value)).join('&')
+    ]]></script></actions>
+
+    <widgets>
+        <container style="row items-center q-mb-sm">
+            <label type="h5" text="Work item report" style="q-my-none col"/>
+            <link url="${printUrl}" url-type="plain" text="Print" icon="sym_o_print" target-window="_blank" link-type="anchor-button"/>
+        </container>
+        <form-single name="WorkItemReportParams" transition=".">
+            <field name="rootWorkEffortId"><default-field title="Project">
+                <drop-down allow-empty="true"><list-options list="projectOptions" key="${value}" text="${label}"/></drop-down></default-field></field>
+            <field name="fromDate"><default-field title="From"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+            <field name="thruDate"><default-field title="Through"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+            <field name="purposeEnumId"><default-field title="Type">
+                <drop-down allow-empty="true"><list-options list="typeOptions" key="${value}" text="${label}"/></drop-down></default-field></field>
+            <field name="groupBy"><default-field title="Group by">
+                <drop-down><list-options list="groupOptions" key="${value}" text="${label}"/></drop-down></default-field></field>
+            <field name="runButton"><default-field title="Run"><submit icon="sym_o_play_arrow"/></default-field></field>
+            <field-layout>
+                <field-row-big><field-ref name="rootWorkEffortId"/><field-ref name="fromDate"/><field-ref name="thruDate"/><field-ref name="purposeEnumId"/>
+                    <field-ref name="groupBy"/><field-ref name="runButton"/></field-row-big>
+            </field-layout>
+        </form-single>
+
+        <dashboard min-width="140" style="q-mb-sm">
+            <number-card title="Open" value="${openValue}" icon="sym_o_radio_button_unchecked" size="sm"/>
+            <number-card title="Created" value="${createdValue}" icon="sym_o_add_task" size="sm"/>
+            <number-card title="Resolved" value="${resolvedValue}" icon="sym_o_task_alt" size="sm"/>
+            <number-card title="Overdue" value="${overdueValue}" icon="sym_o_warning" size="sm"/>
+            <number-card title="Average cycle" value="${cycleValue}" icon="sym_o_timer" size="sm"/>
+        </dashboard>
+
+        <container style="row q-col-gutter-sm">
+            <container style="col-12 col-md-7">
+                <container-box><box-header title="Created and resolved by week · ${rangeText}"/><box-body>
+                    <section name="FlowChart" condition="hasFlow"><widgets>
+                        <render-mode><text type="qvt"><![CDATA[${flowHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(flowTui)}]]></text></render-mode>
+                    </widgets><fail-widgets>
+                        <label type="p" text="No work items created or resolved in this range." style="m-muted q-mb-none"/>
+                    </fail-widgets></section>
+                </box-body></container-box>
+            </container>
+            <container style="col-12 col-md-5">
+                <container-box><box-header title="Open by status"/><box-body>
+                    <section name="OpenChart" condition="hasOpen"><widgets>
+                        <render-mode><text type="qvt"><![CDATA[${openHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(openTui)}]]></text></render-mode>
+                    </widgets><fail-widgets>
+                        <label type="p" text="No open work items." style="m-muted q-mb-none"/>
+                    </fail-widgets></section>
+                </box-body></container-box>
+            </container>
+        </container>
+
+        <container-box><box-header title="By ${groupTitle} · ${itemCountText} work items"/><box-body-nopad>
+            <form-list name="WorkItemSummary" list="summaryRows" skip-form="true" paginate="false" show-csv-button="true" show-xlsx-button="true" select-columns="true">
+                <field name="groupLabel"><default-field title="${groupTitle}"><display style="${isTotal ? 'text-weight-bold' : ''}"/></default-field></field>
+                <field name="s0" align="right" hide="statusCount &lt; 1"><default-field title="${statusTitles[0]}"><display/></default-field></field>
+                <field name="s1" align="right" hide="statusCount &lt; 2"><default-field title="${statusTitles[1]}"><display/></default-field></field>
+                <field name="s2" align="right" hide="statusCount &lt; 3"><default-field title="${statusTitles[2]}"><display/></default-field></field>
+                <field name="s3" align="right" hide="statusCount &lt; 4"><default-field title="${statusTitles[3]}"><display/></default-field></field>
+                <field name="s4" align="right" hide="statusCount &lt; 5"><default-field title="${statusTitles[4]}"><display/></default-field></field>
+                <field name="s5" align="right" hide="statusCount &lt; 6"><default-field title="${statusTitles[5]}"><display/></default-field></field>
+                <field name="s6" align="right" hide="statusCount &lt; 7"><default-field title="${statusTitles[6]}"><display/></default-field></field>
+                <field name="s7" align="right" hide="statusCount &lt; 8"><default-field title="${statusTitles[7]}"><display/></default-field></field>
+                <field name="s8" align="right" hide="statusCount &lt; 9"><default-field title="${statusTitles[8]}"><display/></default-field></field>
+                <field name="s9" align="right" hide="statusCount &lt; 10"><default-field title="${statusTitles[9]}"><display/></default-field></field>
+                <field name="s10" align="right" hide="statusCount &lt; 11"><default-field title="${statusTitles[10]}"><display/></default-field></field>
+                <field name="s11" align="right" hide="statusCount &lt; 12"><default-field title="${statusTitles[11]}"><display/></default-field></field>
+                <field name="total" align="right"><default-field title="Total"><display style="text-weight-medium"/></default-field></field>
+                <field name="open" align="right"><default-field title="Open"><display/></default-field></field>
+                <field name="overdue" align="right"><default-field title="Overdue"><display/></default-field></field>
+                <field name="resolved" align="right"><default-field title="Resolved in range"><display/></default-field></field>
+                <field name="cycleText" align="right"><default-field title="Avg cycle (days)"><display/></default-field></field>
+                <columns type="mobile">
+                    <column><field-ref name="groupLabel"/><field-ref name="total"/></column>
+                    <column><field-ref name="open"/><field-ref name="overdue"/></column>
+                </columns>
+            </form-list>
+            <label type="p" text="No work items you may see match. Change the project or the type." style="m-muted q-pa-sm q-mb-none" condition="!anyFound"/>
+        </box-body-nopad></container-box>
+        <label type="p" text="The table shows the first 12 statuses; the totals count them all." style="text-caption text-warning" condition="statusesCut"/>
+        <label type="p" text="The counts are of each item's status now; created and resolved are in the range; the cycle time runs from first In Progress to first Complete or Closed, over the items resolved in the range." style="text-caption m-muted"/>
+    </widgets>
+</screen>

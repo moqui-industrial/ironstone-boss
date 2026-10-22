@@ -70,6 +70,8 @@ along with this software (see the LICENSE.md file). If not, see
                 projectVisible = !!projectInfo.allProjects || (ids('visibleProjectIds').includes(row.rootWorkEffortId)
                         && (!['WevRestricted', 'WevConfidential'].includes(row.visibilityEnumId) || ids('managedProjectIds').includes(row.rootWorkEffortId)
                             || ids('restrictedItemIds').includes(workEffortId)))
+                // a client contact: an item shared with it only (impl-projects.md P10)
+                if (projectInfo.itemVisibilityIds && !ids('itemVisibilityIds').includes(row.visibilityEnumId)) projectVisible = false
             }
             const info = projectVisible ? {recordVisible: true} : ec.service.sync().name('mantle.party.CommunicationServices.get#RecordLinkInfo').parameters({
                 recordEntityName: 'mantle.work.effort.WorkEffort', recordId: workEffortId, checkOnly: true}).call()
@@ -106,6 +108,12 @@ along with this software (see the LICENSE.md file). If not, see
                 canManage = !!projectInfo.allProjects || Array.from(projectInfo.managedProjectIds || []).includes(row.rootWorkEffortId)
                         || (projectVisible && ec.user.isInGroup('BOSS_PROJECT_MANAGER'))
                 canUpdate = canUpdate || isMember || canManage || roleList.includes('Manager')
+                // a client contact changes nothing (impl-projects.md P10; P10b opens its messages)
+                if (projectInfo.isClient) {
+                    isMember = false; canManage = false; canUpdate = false
+                    // and no cost of it (design-projects.md §1.1)
+                    for (const field of ['actualCost', 'actualClientCost', 'totalClientCostAllowed', 'costUomId']) delete workEffort[field]
+                }
             }
             if (need === 'update' && !canUpdate)
                 ec.message.addError(ec.resource.expand('You may not change task ${workEffortId}', '', {workEffortId: workEffortId}))

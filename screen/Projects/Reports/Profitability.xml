@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- ProfitabilityReport (design-projects.md §11 ProfitabilityReport; style-guide §3.12 Report): the money of each project the user sees,
+    for those who manage money (ADMIN and TIME_ENTRY_RATE holders; the screen is in BOSS_PROJECTS_MANAGERS, and anyone else without the
+    right sees a warning and nothing is read). The parameters are in the URL (ProfitabilityParams: a period, empty for all time; a client;
+    a project; the basis of the margin, billable value or billed). Cards: billable value, cost, margin, margin %, billed, unbilled; a bar
+    chart by project of billable value against cost with the margin as a line, with the table behind it (ProfitabilityTable: client,
+    project, budget, cost, billable value, billed, unbilled, margin, margin %, budget used, a note for entries without a rate; a totals
+    row; CSV and XLSX) and the totals by client (ProfitabilityClients). Print opens the same report in html-print. Over
+    mantle.work.ProjectReportServices.get#ProjectProfitability, with §11's measures. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Profitability" default-menu-index="6">
+
+    <parameter name="fromDate"/>
+    <parameter name="thruDate"/>
+    <parameter name="clientPartyId"/>
+    <parameter name="rootWorkEffortId"/>
+    <parameter name="basis"/>
+
+    <transition name="projectDetail"><default-response url="../../Projects/ProjectDetail"/></transition>
+
+    <actions><script><![CDATA[
+        const L = (text) => ec.l10n.localize(text)
+        const pct = (value) => value == null ? '' : ec.l10n.format(Math.round(Number(String(value)) * 10) / 10, '#,##0.#') + '%'
+        managesMoney = !!ec.service.sync().name('ironstone.BillingServices.check#Money').parameters({need: 'none'}).call()?.managesMoney
+        ec.message.clearErrors()
+        if (!basis) basis = 'billable'
+        projectRows = []; clientRows = []; projectRowsCount = 0; clientRowsCount = 0; rowsFound = false; hasChart = false; chartHtml = ''; chartTui = {t: 'text', text: ''}
+        projectOptions = []; clientOptions = []
+        billableValue = ''; costValue = ''; marginValue = ''; marginPctValue = ''; billedValue = ''; unbilledValue = ''; missingNote = ''
+        rangeText = L('All time')
+        const query = {fromDate: fromDate || '', thruDate: thruDate || '', clientPartyId: clientPartyId || '', rootWorkEffortId: rootWorkEffortId || '', basis: basis}
+        printUrl = '/apps/Projects/Reports/Profitability?renderMode=html-print&' + Object.entries(query).filter(([key, value]) => value).map(([key, value]) => key + '=' + encodeURIComponent(value)).join('&')
+        if (!managesMoney) return
+        const options = ec.service.sync().name('ironstone.ReportServices.get#ReportOptions').call() || {}
+        ec.message.clearErrors()
+        projectOptions = Array.from(options.projectOptions || [])
+        clientOptions = Array.from(options.clientOptions || [])
+        const out = ec.service.sync().name('mantle.work.ProjectReportServices.get#ProjectProfitability').parameters({fromDate: fromDate || null, thruDate: thruDate || null,
+            clientPartyId: clientPartyId || null, rootWorkEffortId: rootWorkEffortId || null, basis: basis}).call() || {}
+        ec.message.clearErrors()
+        const dayText = (day) => ec.l10n.format(ec.l10n.parseTimestamp(day + ' 12:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS'), 'MMM d, yyyy')
+        if (out.fromDay || out.thruDay) rangeText = (out.fromDay ? dayText(out.fromDay) : L('The start')) + ' – ' + (out.thruDay ? dayText(out.thruDay) : L('today'))
+        const totals = out.totals || {}
+        const totalCurrency = totals.currencyUomId
+        const moneyIn = (value, currency) => value == null ? '' : (currency ? ec.l10n.formatCurrency(value, currency) : ec.l10n.format(Math.round(Number(String(value)) * 100) / 100, '#,##0.00'))
+        const rowOf = (row, currency, isTotal) => ({isTotal: isTotal, workEffortId: row.workEffortId || null, workEffortName: row.workEffortName || '',
+            clientName: row.clientName || '', projectCount: row.projectCount ?? null,
+            budgetText: row.budget ? moneyIn(row.budget, currency) : '', costText: moneyIn(row.cost, currency), valueText: moneyIn(row.billableValue, currency),
+            billedText: moneyIn(row.billed, currency), unbilledText: moneyIn(row.unbilled, currency), marginText: moneyIn(row.margin, currency),
+            marginPctText: pct(row.marginPercent), budgetUsedText: pct(row.budgetUsedPercent), negative: Number(row.margin || 0) < 0,
+            noteText: [row.costMissingCount ? ec.resource.expand('${count} without a worker rate', '', {count: row.costMissingCount}) : '',
+                row.valueMissingCount ? ec.resource.expand('${count} without a client rate', '', {count: row.valueMissingCount}) : '',
+                row.mixedCurrency ? L('Several currencies') : ''].filter((part) => part).join('; ')})
+        const projects = Array.from(out.projectList || [])
+        projectRows = projects.map((row) => rowOf(row, row.currencyUomId, false))
+        rowsFound = projectRows.length > 0
+        if (rowsFound) projectRows.push(rowOf(Object.assign({}, totals, {workEffortName: L('Total'), clientName: ''}), totalCurrency, true))
+        projectRowsCount = projectRows.length
+        clientRows = Array.from(out.clientList || []).map((row) => rowOf(row, totalCurrency, false))
+        clientRowsCount = clientRows.length
+        const several = L('Several currencies')
+        const card = (value) => totals.mixedCurrency ? several : moneyIn(value || 0, totalCurrency || 'USD')
+        billableValue = card(totals.billableValue); costValue = card(totals.cost); marginValue = card(totals.margin)
+        billedValue = card(totals.billed); unbilledValue = card(totals.unbilled)
+        marginPctValue = totals.marginPercent == null ? '—' : pct(totals.marginPercent)
+        missingNote = totals.costMissingCount || totals.valueMissingCount ? ec.resource.expand('Entries without a rate count no money: ${cost} without a worker rate, ${value} billable without a client rate.', '',
+            {cost: totals.costMissingCount || 0, value: totals.valueMissingCount || 0}) : ''
+        // the chart: billable value against cost by project, the margin as a line (the twelve largest by value)
+        const charted = projects.slice().sort((a, b) => Number(b.billableValue || 0) - Number(a.billableValue || 0)).slice(0, 12)
+        hasChart = charted.length > 0
+        const chart = hasChart ? ec.service.sync().name('ironstone.ReportServices.get#ChartConfig').parameters({id: 'ProfitabilityChart', type: 'bar',
+            labels: charted.map((row) => row.workEffortName), series: [
+                {name: L('Billable value'), data: charted.map((row) => row.billableValue)},
+                {name: L('Cost'), data: charted.map((row) => row.cost)},
+                {name: L('Margin'), data: charted.map((row) => row.margin), kind: 'line'}],
+            yTitle: totals.mixedCurrency ? L('Amount') : (totalCurrency || 'USD')}).call() || {} : {}
+        ec.message.clearErrors()
+        chartHtml = chart.html || ''
+        chartTui = chart.tui || {t: 'text', text: ''}
+    ]]></script></actions>
+
+    <widgets>
+        <container style="row items-center q-mb-sm">
+            <label type="h5" text="Profitability report" style="q-my-none col"/>
+            <link url="${printUrl}" url-type="plain" text="Print" icon="sym_o_print" target-window="_blank" link-type="anchor-button" condition="managesMoney"/>
+        </container>
+
+        <section name="NoMoney" condition="!managesMoney"><widgets>
+            <container-box type="warning"><box-header title="Not available"/><box-body>
+                <label type="p" text="Only those who manage money see profitability."/>
+            </box-body></container-box>
+        </widgets></section>
+
+        <section name="ProfitabilityReport" condition="managesMoney"><widgets>
+            <form-single name="ProfitabilityParams" transition=".">
+                <field name="fromDate"><default-field title="From (empty: all time)"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                <field name="thruDate"><default-field title="Through"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                <field name="clientPartyId"><default-field title="Client">
+                    <drop-down allow-empty="true"><list-options list="clientOptions" key="${value}" text="${label}"/></drop-down></default-field></field>
+                <field name="rootWorkEffortId"><default-field title="Project">
+                    <drop-down allow-empty="true"><list-options list="projectOptions" key="${value}" text="${label}"/></drop-down></default-field></field>
+                <field name="basis"><default-field title="Margin on">
+                    <drop-down><option key="billable" text="Billable value"/><option key="billed" text="Billed"/></drop-down></default-field></field>
+                <field name="runButton"><default-field title="Run"><submit icon="sym_o_play_arrow"/></default-field></field>
+                <field-layout>
+                    <field-row-big><field-ref name="fromDate"/><field-ref name="thruDate"/><field-ref name="clientPartyId"/><field-ref name="rootWorkEffortId"/>
+                        <field-ref name="basis"/><field-ref name="runButton"/></field-row-big>
+                </field-layout>
+            </form-single>
+
+            <dashboard min-width="150" style="q-mb-sm">
+                <number-card title="Billable value" value="${billableValue}" icon="sym_o_payments" size="sm"/>
+                <number-card title="Cost" value="${costValue}" icon="sym_o_account_balance_wallet" size="sm"/>
+                <number-card title="Margin" value="${marginValue}" icon="sym_o_trending_up" size="sm"/>
+                <number-card title="Margin %" value="${marginPctValue}" icon="sym_o_percent" size="sm"/>
+                <number-card title="Billed" value="${billedValue}" icon="sym_o_receipt_long" size="sm"/>
+                <number-card title="Unbilled" value="${unbilledValue}" icon="sym_o_pending_actions" size="sm"/>
+            </dashboard>
+
+            <section name="ProfitabilityChartBox" condition="hasChart"><widgets>
+                <container-box><box-header title="Billable value and cost by project · ${rangeText}"/><box-body>
+                    <render-mode><text type="qvt"><![CDATA[${chartHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(chartTui)}]]></text></render-mode>
+                </box-body></container-box>
+            </widgets></section>
+
+            <container-box><box-header title="By project · ${rangeText}"/><box-body-nopad>
+                <form-list name="ProfitabilityTable" list="projectRows" skip-form="true" paginate="false" show-csv-button="true" show-xlsx-button="true" select-columns="true">
+                    <field name="clientName"><default-field title="Client"><display/></default-field></field>
+                    <field name="workEffortName"><conditional-field condition="isTotal" title="Project"><display style="text-weight-bold"/></conditional-field>
+                        <default-field title="Project"><link url="projectDetail" text="${workEffortName}" parameter-map="{workEffortId:workEffortId}" link-type="anchor"/></default-field></field>
+                    <field name="budgetText" align="right"><default-field title="Budget"><display/></default-field></field>
+                    <field name="costText" align="right"><default-field title="Cost"><display/></default-field></field>
+                    <field name="valueText" align="right"><default-field title="Billable value"><display/></default-field></field>
+                    <field name="billedText" align="right"><default-field title="Billed"><display/></default-field></field>
+                    <field name="unbilledText" align="right"><default-field title="Unbilled"><display/></default-field></field>
+                    <field name="marginText" align="right"><default-field title="Margin"><display style="${negative ? 'text-negative' : ''}"/></default-field></field>
+                    <field name="marginPctText" align="right"><default-field title="Margin %"><display style="${negative ? 'text-negative' : ''}"/></default-field></field>
+                    <field name="budgetUsedText" align="right"><default-field title="Budget used"><display/></default-field></field>
+                    <field name="noteText"><default-field title="Note"><display style="text-caption text-warning"/></default-field></field>
+                    <columns type="mobile">
+                        <column><field-ref name="workEffortName"/><field-ref name="clientName"/></column>
+                        <column><field-ref name="valueText"/><field-ref name="marginText"/></column>
+                    </columns>
+                </form-list>
+                <label type="p" text="No project with time, invoices or a budget in this period." style="m-muted q-pa-sm q-mb-none" condition="!rowsFound"/>
+            </box-body-nopad></container-box>
+
+            <section name="ProfitabilityByClient" condition="clientRowsCount"><widgets>
+                <container-box><box-header title="By client"/><box-body-nopad>
+                    <form-list name="ProfitabilityClients" list="clientRows" skip-form="true" paginate="false" show-csv-button="true" show-xlsx-button="true">
+                        <field name="clientName"><default-field title="Client"><display/></default-field></field>
+                        <field name="projectCount" align="right"><default-field title="Projects"><display/></default-field></field>
+                        <field name="costText" align="right"><default-field title="Cost"><display/></default-field></field>
+                        <field name="valueText" align="right"><default-field title="Billable value"><display/></default-field></field>
+                        <field name="billedText" align="right"><default-field title="Billed"><display/></default-field></field>
+                        <field name="unbilledText" align="right"><default-field title="Unbilled"><display/></default-field></field>
+                        <field name="marginText" align="right"><default-field title="Margin"><display style="${negative ? 'text-negative' : ''}"/></default-field></field>
+                        <field name="marginPctText" align="right"><default-field title="Margin %"><display/></default-field></field>
+                    </form-list>
+                </box-body-nopad></container-box>
+            </widgets></section>
+            <label type="p" text="${missingNote}" style="text-caption text-warning" condition="missingNote"/>
+            <label type="p" text="Cost is the hours at the workers' rates plus expenses; billable value is the billable hours at the client rates plus billable expenses; margin is billable value (or what was billed) less cost; budget used is the actual client cost over the client budget. Billed counts the client invoices dated in the period." style="text-caption m-muted"/>
+        </widgets></section>
+    </widgets>
+</screen>

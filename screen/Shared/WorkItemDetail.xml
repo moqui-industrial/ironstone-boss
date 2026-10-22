@@ -399,6 +399,9 @@ along with this software (see the LICENSE.md file). If not, see
     <actions>
         <script><![CDATA[
             projects = appRoot === 'Projects'
+            // a client contact (the PROJECT_CLIENT permission; impl-projects.md P10b): the item's overview, its shared sub-items and its
+            // messages, no internal tab (links, code, time, files) and no control it would be refused
+            clientView = !!ec.user.userId && ec.user.hasPermission('PROJECT_CLIENT')
             appKey = projects ? 'projects' : 'commons'
             compact = peek === 'true'
             detailPath = projects ? '/qapps/Projects/WorkItems/WorkItemDetail' : '/qapps/Commons/Tasks/TaskDetail'
@@ -412,7 +415,9 @@ along with this software (see the LICENSE.md file). If not, see
                             .condition('workEffortId', devItem.rootWorkEffortId).conditionDate('fromDate', 'thruDate', null).count() > 0
                 }
             }
-            const tabKeys = projects ? ['overview', 'subitems', 'links'].concat(devShown ? ['development'] : []).concat(['time', 'files', 'chatter'])
+            if (clientView) devShown = false
+            const tabKeys = clientView ? ['overview', 'subitems', 'chatter']
+                    : projects ? ['overview', 'subitems', 'links'].concat(devShown ? ['development'] : []).concat(['time', 'files', 'chatter'])
                     : ['overview', 'subtasks', 'time', 'files', 'chatter']
             tab = tabKeys.includes(tab) ? tab : 'overview'
             let extra = {}
@@ -481,7 +486,7 @@ along with this software (see the LICENSE.md file). If not, see
             }
             factsHtml += '</div>'
             // the tabs: Chatter is a tab only below 1440 px, beside the overview from there
-            const tabs = projects ? [['overview', 'Overview'], ['subitems', 'Sub-items' + ((extra.rollup?.childCount) ? ' (' + extra.rollup.childCount + ')' : '')],
+            const tabs = clientView ? [['overview', 'Overview'], ['subitems', 'Sub-items'], ['chatter', 'Messages']] : projects ? [['overview', 'Overview'], ['subitems', 'Sub-items' + ((extra.rollup?.childCount) ? ' (' + extra.rollup.childCount + ')' : '')],
                     ['links', 'Links' + ((extra.relationList || []).length ? ' (' + extra.relationList.length + ')' : '')]].concat(devShown ? [['development', 'Development']] : [])
                     .concat([['time', 'Time'], ['files', 'Files'], ['chatter', 'Chatter']])
                 : [['overview', 'Overview'], ['subtasks', 'Sub-tasks' + (subTaskList.length ? ' (' + subTaskList.length + ')' : '')], ['time', 'Time'], ['files', 'Files'], ['chatter', 'Chatter']]
@@ -720,7 +725,7 @@ along with this software (see the LICENSE.md file). If not, see
                                     <field name="submitButton"><default-field title="Reassign"><submit/></default-field></field>
                                 </form-single>
                             </container-dialog>
-                            <button-menu text="More" icon="more_horiz" style="q-ml-xs">
+                            <button-menu text="More" icon="more_horiz" style="q-ml-xs" condition="!clientView">
                                 <container-dialog id="WorkItemRepeatDialog" button-text="${recurrence ? 'Repeat rule' : 'Repeat'}" icon="sym_o_repeat" width="560"
                                         title="Repeat ${workEffortId}" condition="canUpdate">
                                     <form-single name="WorkItemRepeat" transition="setRepeat">

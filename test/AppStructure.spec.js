@@ -134,6 +134,16 @@ const demoRecords = {
     // wizard's level: test/NewProject.spec.js renders the steps), ProjectDetail and its tabs on IRON (the fragment is the detail's
     // level, its header: test/ProjectDetail.spec.js renders the tabs), the status report, and the settings pages
     "Projects/Home": { text: "My open items" },
+    // Projects P9: the report index and each report on the demo (the support desk's time, IRON's sprints and breakdown)
+    "Projects/Reports": { text: "Profitability report" },
+    "Projects/Reports/Index": { text: "Utilization report" },
+    "Projects/Reports/Time": { text: "IronStone support desk (SUPP)" },
+    "Projects/Reports/WorkItems": { text: "Work item report" },
+    "Projects/Reports/Sprints": { parameters: { rootWorkEffortId: "IRON" }, text: "Sprint 1" },
+    "Projects/Reports/Portfolio": { text: "IronStone support desk" },
+    "Projects/Reports/Progress": { parameters: { rootWorkEffortId: "IRON" }, text: "General availability" },
+    "Projects/Reports/Profitability": { text: "Brightwater Dental Group" },
+    "Projects/Reports/Utilization": { text: "Joe Developer" },
     "Projects/Projects": { text: "Acme customer portal" },
     "Projects/Projects/List": { parameters: { list: "all" }, text: "Hiring plan 2027" },
     "Projects/Projects/NewProject": { text: "New project" },
@@ -220,6 +230,9 @@ const demoRecords = {
     "Projects/Time/MyTimeTui": { text: "Triage of the new tickets" },
     "Projects/Time/Timesheets": { parameters: { list: "toApprove" }, text: "Joe Developer" },
     "Projects/Time/TimesheetDetail": { timesheet: true, text: "Upgraded the client servers" },
+    // Projects P9: the timesheet's print and the team timesheet (the demo's support desk time)
+    "Projects/Time/TimesheetPrint": { timesheet: true, text: "Open the printable timesheet" },
+    "Projects/Time/TeamTimesheet": { parameters: { itemId: "SUPP-1" }, text: "Open the printable team timesheet" },
     // Projects P7: Resources opens on the team planner (a .qvue: its component; in qvt it says so), its terminal twin on the demo's
     // allocations, Allocations (All: the demo's on IRON, ACME and SUPP), its dialogs (a new allocation; staffing the demo's placeholder,
     // looked up in setupSpec) by the list they open over, and PersonDetail on Joe Developer with its tabs by its header (the shell loads
@@ -250,6 +263,8 @@ const demoRecords = {
     // Projects P8b: the Money tab on ACME (by the header of ProjectDetail, as the shell loads the tab after it: test/MilestoneBillingWalk.spec.js
     // renders the tab itself), the estimate print, the shared order detail on Acme's order (data/BossProjectsDemoDataTimeBilling.xml)
     "Projects/Projects/ProjectDetail/Money": { parameters: { workEffortId: "ACME" }, text: "ProjectStatusBar" },
+    // the client's Hours tab (impl-projects.md P10b): nothing for an internal user, the header still renders
+    "Projects/Projects/ProjectDetail/ClientHours": { parameters: { workEffortId: "ACME" }, text: "ProjectStatusBar" },
     "Projects/Projects/EstimatePrint": { parameters: { workEffortId: "ACME" }, text: "Open the printable estimate" },
     "Shared/OrderDetail/": { parameters: { orderId: "BOSS_DEMO_ACME_SO" }, text: "Customer portal, fixed fee" },
     // Projects P6b: Time entries (All: the demo's support desk time John Doe manages), the entry dialog (a new entry), the time import
@@ -326,8 +341,8 @@ feature("every placeholder screen renders in qvt without errors, with its menu",
     then({ failures }) {
         // fewer as the milestones replace them (129 after M4, 114 after M10 and the Comms mail settings, 110 after M9's
         // Knowledge and Notes, 104 after M8's Files and Shares and the public page moved out of Commons; Projects P1 adds the
-        // placeholders of its menu, 25 more, which its phases replace: 102 after P7's Team planner and Allocations, 98 after P8a's billing)
-        placeholders.length >= 98
+        // placeholders of its menu, 25 more, which its phases replace: 102 after P7's Team planner and Allocations, 98 after P8a's billing, 97 after P9's reports)
+        placeholders.length >= 97
         failures.join("\n") == ""
     },
 })

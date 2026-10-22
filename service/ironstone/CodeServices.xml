@@ -55,10 +55,14 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="projectList" type="List"/>
             <parameter name="httpsUrl"/>
             <parameter name="sshUrl"/>
+            <parameter name="isClient" type="Boolean"/>
         </out-parameters>
         <actions><script><![CDATA[
             canView = false; canCreate = false; canUpdate = false; canDelete = false; archived = false; repository = null; projectList = []
-            isAdmin = ec.user.isInGroup('ADMIN')
+            // a client contact (PROJECT_CLIENT; impl-projects.md P10b): views a repository its project shares (check#GitRepositoryAuthz)
+            // and nothing more, whatever its groups: no rights to change, no storage, mirror or administration fields, no SSH
+            isClient = ec.user.hasPermission('PROJECT_CLIENT')
+            isAdmin = !isClient && ec.user.isInGroup('ADMIN')
             if (!repositoryId) return
             ec.message.pushErrors()
             try {
@@ -86,6 +90,12 @@ along with this software (see the LICENSE.md file). If not, see
                 const urls = ec.service.sync().name('org.moqui.impl.GitServices.get#GitCloneUrls').parameters({repositoryId}).call() || {}
                 httpsUrl = urls.httpsUrl || null
                 sshUrl = urls.sshUrl || null
+                if (isClient) {
+                    canCreate = false; canUpdate = false; canDelete = false; sshUrl = null
+                    repository = {repositoryId: repository.repositoryId, description: repository.description, repositoryKind: repository.repositoryKind,
+                        branch: repository.branch, headCommitId: repository.headCommitId, lastUpdateDate: repository.lastUpdateDate,
+                        archivedDate: repository.archivedDate, kindLabel: repository.kindLabel}
+                }
             } catch (err) {
                 ec.logger.warn(`Repository ${repositoryId}: its access was not read: ${err && err.message ? err.message : err}`)
                 canView = false
@@ -114,6 +124,8 @@ along with this software (see the LICENSE.md file). If not, see
         </out-parameters>
         <actions><script><![CDATA[
             rowList = []; rowCount = 0; counts = {mine: 0, all: 0, mirrors: 0, archived: 0}
+            // a client contact (impl-projects.md P10b): the repositories its projects share (find#GitRepositories, the view right), no SSH
+            const isClient = ec.user.hasPermission('PROJECT_CLIENT')
             if (!['mine', 'all', 'mirrors', 'archived'].includes(list)) list = 'mine'
             const L = (text) => ec.l10n.localize(text)
             const found = Array.from(ec.service.sync().name('org.moqui.impl.GitServices.find#GitRepositories').parameters({text: text || null,
@@ -149,8 +161,50 @@ along with this software (see the LICENSE.md file). If not, see
                 rowList.push(Object.assign(row, {kindLabel: row.repositoryKind === 'db' ? L('Database') : row.repositoryKind === 'remote' ? L('Mirror') : L('Disk'),
                     branch: row.branch || 'main', projectsText: row.projectList.map((project) => project.workEffortName).join(', '),
                     lastText: row.lastUpdateDate ? ec.l10n.format(row.lastUpdateDate, 'MMM d, yyyy') : '',
-                    openMergeRequestCount: row.openMergeRequestCount || 0, httpsUrl: urls.httpsUrl || '', sshUrl: urls.sshUrl || ''}))
+                    openMergeRequestCount: row.openMergeRequestCount || 0, httpsUrl: urls.httpsUrl || '', sshUrl: isClient ? '' : (urls.sshUrl || '')}))
             }
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="VisibleWorkEfforts" allow-remote="false">
+        <description>Of the work efforts a code record is linked to (a commit, branch, tag or merge request), those the user sees,
+            decided here with authorization off (mantle.work.ProjectServices.get#VisibleProjectInfo), so a link never names a work
+            item the user may not open: a project the user sees, a milestone, release or sprint of one, or a work item of one that
+            is not Restricted or Confidential (unless the user manages its project or holds a role on it); for a client contact
+            (isClient) only its client projects and the items shared with it (itemVisibilityIds). effortMap: workEffortId to
+            {workEffortId, workEffortName, statusId, workEffortTypeEnumId, rootWorkEffortId}. A check that fails sees nothing.</description>
+        <in-parameters><parameter name="workEffortIdList" type="List"/></in-parameters>
+        <out-parameters><parameter name="effortMap" type="Map"/></out-parameters>
+        <actions><script><![CDATA[
+            effortMap = {}
+            const ids = Array.from(new Set(Array.from(workEffortIdList || []).filter((id) => id)))
+            if (!ids.length) return
+            ec.message.pushErrors()
+            try {
+                const vis = ec.service.sync().name('mantle.work.ProjectServices.get#VisibleProjectInfo').call() || {}
+                if (ec.message.hasError()) throw new Error(ec.message.getErrorsString())
+                const visible = new Set(Array.from(vis.visibleProjectIds || []))
+                const managed = new Set(Array.from(vis.managedProjectIds || []))
+                const restricted = new Set(Array.from(vis.restrictedItemIds || []))
+                const shared = vis.itemVisibilityIds == null ? null : Array.from(vis.itemVisibilityIds)
+                const all = !!vis.allProjects && !vis.isClient
+                const rows = Array.from(ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', 'in', ids)
+                        .selectField('workEffortId,workEffortName,statusId,workEffortTypeEnumId,rootWorkEffortId,visibilityEnumId').disableAuthz().list())
+                for (const row of rows) {
+                    const isProject = row.workEffortTypeEnumId === 'WetProject'
+                    const projectId = isProject ? row.workEffortId : row.rootWorkEffortId
+                    if (!all && (!projectId || !visible.has(projectId))) continue
+                    if (row.workEffortTypeEnumId === 'WetTask') {
+                        if (shared != null) { if (!shared.includes(row.visibilityEnumId)) continue }
+                        else if (!all && ['WevRestricted', 'WevConfidential'].includes(row.visibilityEnumId) && !managed.has(projectId) && !restricted.has(row.workEffortId)) continue
+                    } else if (!isProject && shared != null && !['WetMilestone', 'WetRelease'].includes(row.workEffortTypeEnumId)) continue
+                    effortMap[row.workEffortId] = {workEffortId: row.workEffortId, workEffortName: row.workEffortName || '', statusId: row.statusId,
+                        workEffortTypeEnumId: row.workEffortTypeEnumId, rootWorkEffortId: row.rootWorkEffortId}
+                }
+            } catch (err) {
+                ec.logger.error(`Work efforts of code links not checked, none shown: ${err && err.message ? err.message : err}`)
+                effortMap = {}
+            } finally { ec.message.clearErrors(); ec.message.popErrors() }
         ]]></script></actions>
     </service>
 
@@ -396,18 +450,20 @@ along with this software (see the LICENSE.md file). If not, see
             itemsByCommit = {}
             const ids = Array.from(commitIdList || [])
             if (!ids.length) return
-            const links = Array.from(ec.entity.find('mantle.work.effort.WorkEffortGitCommit').condition('repositoryId', repositoryId).condition('commitId', 'in', ids).list())
+            // only of a repository the user may view (the screens checked it; a service checks again)
+            ec.message.pushErrors()
+            let canView = false
+            try { canView = !!ec.service.sync().name('org.moqui.impl.GitServices.get#GitRepositoryAccess').parameters({repositoryId}).call()?.canView && !ec.message.hasError() }
+            catch (err) { canView = false }
+            finally { ec.message.clearErrors(); ec.message.popErrors() }
+            if (!canView) return
+            const links = Array.from(ec.entity.find('mantle.work.effort.WorkEffortGitCommit').condition('repositoryId', repositoryId).condition('commitId', 'in', ids).disableAuthz().list())
             if (!links.length) return
-            const vis = ec.service.sync().name('mantle.work.ProjectServices.get#VisibleProjectInfo').call() || {}
-            const visible = new Set(Array.from(vis.visibleProjectIds || []))
-            const efforts = {}
-            for (const row of Array.from(ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', 'in', Array.from(new Set(links.map((link) => link.workEffortId))))
-                    .selectField('workEffortId,workEffortName,statusId,rootWorkEffortId,workEffortTypeEnumId').list())) efforts[row.workEffortId] = row
+            const efforts = ec.service.sync().name('ironstone.CodeServices.get#VisibleWorkEfforts').parameters({workEffortIdList: links.map((link) => link.workEffortId)})
+                    .call()?.effortMap || {}
             for (const link of links) {
                 const effort = efforts[link.workEffortId]
                 if (!effort) continue
-                const projectId = effort.workEffortTypeEnumId === 'WetProject' ? effort.workEffortId : effort.rootWorkEffortId
-                if (!vis.allProjects && !visible.has(projectId)) continue
                 ;(itemsByCommit[link.commitId] = itemsByCommit[link.commitId] || []).push({workEffortId: link.workEffortId, workEffortName: effort.workEffortName || '',
                     statusId: effort.statusId, linkSourceEnumId: link.linkSourceEnumId})
             }
@@ -427,11 +483,10 @@ along with this software (see the LICENSE.md file). If not, see
             defaultBranch = refs.defaultBranch || 'main'
             const branches = Array.from(refs.refList || []).sort((a, b) => (b.isDefault ? 1 : 0) - (a.isDefault ? 1 : 0) || Number(b.commitDate || 0) - Number(a.commitDate || 0))
             const links = Array.from(ec.entity.find('mantle.work.effort.WorkEffortGitRef').condition('repositoryId', repositoryId).condition('refType', 'branch')
-                    .condition('thruDate', 'is-null', null).list())
-            const names = {}
-            const effortIds = Array.from(new Set(links.map((link) => link.workEffortId)))
-            if (effortIds.length) for (const row of Array.from(ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', 'in', effortIds)
-                    .selectField('workEffortId,workEffortName').list())) names[row.workEffortId] = row.workEffortName || ''
+                    .condition('thruDate', 'is-null', null).disableAuthz().list())
+            // a branch's work item only when the user sees it (a client: one shared with it)
+            const seen = links.length ? ec.service.sync().name('ironstone.CodeServices.get#VisibleWorkEfforts').parameters({workEffortIdList: links.map((link) => link.workEffortId)})
+                    .call()?.effortMap || {} : {}
             let open = []
             ec.message.pushErrors()
             try { open = Array.from(ec.service.sync().name('org.moqui.impl.GitReviewServices.find#MergeRequests').parameters({repositoryId,
@@ -449,8 +504,8 @@ along with this software (see the LICENSE.md file). If not, see
                 const row = {name: ref.shortName, refName: ref.refName, commitId: ref.commitId, shortId: ref.commitId ? String(ref.commitId).substring(0, 10) : '',
                     summary: ref.summary || '', authorName: ref.authorName || '', dateText: ref.commitDate ? ec.l10n.format(ref.commitDate, 'MMM d, yyyy') : '',
                     isDefault: !!ref.isDefault, aheadBy: null, behindBy: null, checkState: states[ref.commitId] || null, mergeRequest: null, item: null}
-                const link = links.find((one) => one.refName === ref.refName)
-                if (link) row.item = {workEffortId: link.workEffortId, workEffortName: names[link.workEffortId] || ''}
+                const link = links.find((one) => one.refName === ref.refName && seen[one.workEffortId])
+                if (link) row.item = {workEffortId: link.workEffortId, workEffortName: seen[link.workEffortId].workEffortName || ''}
                 const mr = open.find((one) => one.sourceRef === ref.shortName)
                 if (mr) row.mergeRequest = {mergeRequestId: mr.mergeRequestId, mergeRequestNum: mr.mergeRequestNum, title: mr.title}
                 if (!row.isDefault && compared < 20) {
@@ -481,17 +536,13 @@ along with this software (see the LICENSE.md file). If not, see
             if (ec.message.hasError()) return
             const tags = Array.from(refs.refList || []).sort((a, b) => Number(b.tag?.taggerDate || b.commitDate || 0) - Number(a.tag?.taggerDate || a.commitDate || 0))
             const links = Array.from(ec.entity.find('mantle.work.effort.WorkEffortGitRef').condition('repositoryId', repositoryId).condition('refType', 'tag')
-                    .condition('thruDate', 'is-null', null).list())
-            const vis = ec.service.sync().name('mantle.work.ProjectServices.get#VisibleProjectInfo').call() || {}
-            const visible = new Set(Array.from(vis.visibleProjectIds || []))
-            const efforts = {}
-            const effortIds = Array.from(new Set(links.map((link) => link.workEffortId)))
-            if (effortIds.length) for (const row of Array.from(ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', 'in', effortIds)
-                    .selectField('workEffortId,workEffortName,workEffortTypeEnumId,rootWorkEffortId').list())) efforts[row.workEffortId] = row
+                    .condition('thruDate', 'is-null', null).disableAuthz().list())
+            // the linked work efforts the user sees (a client: its projects, their milestones and releases, the items shared with it)
+            const efforts = links.length ? ec.service.sync().name('ironstone.CodeServices.get#VisibleWorkEfforts').parameters({workEffortIdList: links.map((link) => link.workEffortId)})
+                    .call()?.effortMap || {} : {}
             const typeLabel = {WetProject: 'Project', WetMilestone: 'Milestone', WetRelease: 'Release', WetTask: 'Work item', WetSprint: 'Sprint'}
             for (const ref of tags) {
-                const linked = links.filter((link) => link.refName === ref.refName).map((link) => efforts[link.workEffortId]).filter((effort) => effort
-                        && (vis.allProjects || visible.has(effort.workEffortTypeEnumId === 'WetProject' ? effort.workEffortId : effort.rootWorkEffortId)))
+                const linked = links.filter((link) => link.refName === ref.refName).map((link) => efforts[link.workEffortId]).filter((effort) => effort)
                     .map((effort) => ({workEffortId: effort.workEffortId, workEffortName: effort.workEffortName || '', typeLabel: ec.l10n.localize(typeLabel[effort.workEffortTypeEnumId] || 'Work effort'),
                         isTask: effort.workEffortTypeEnumId === 'WetTask', isProject: effort.workEffortTypeEnumId === 'WetProject',
                         url: effort.workEffortTypeEnumId === 'WetTask' ? '/qapps/Projects/WorkItems/WorkItemDetail?workEffortId=' + encodeURIComponent(effort.workEffortId)
@@ -556,6 +607,8 @@ along with this software (see the LICENSE.md file). If not, see
         <out-parameters><parameter name="updateList" type="List"/><parameter name="updateListCount" type="Integer"/></out-parameters>
         <actions><script><![CDATA[
             updateList = []; updateListCount = 0
+            // the push log names the team's accounts and the rules' errors: never a client contact's (impl-projects.md P10b)
+            if (ec.user.hasPermission('PROJECT_CLIENT')) { ec.message.addError(ec.resource.expand('Repository ${repositoryId} is not available', '', {repositoryId})); return }
             const out = ec.service.sync().name('org.moqui.impl.GitServices.find#GitUpdates').parameters({repositoryId, source: source || null,
                 pageIndex: Number(pageIndex || 0), pageSize: 20}).call() || {}
             if (ec.message.hasError()) return
@@ -588,6 +641,7 @@ along with this software (see the LICENSE.md file). If not, see
         </out-parameters>
         <actions><script><![CDATA[
             canChange = false; ruleList = []; webhookList = []; branchOptions = []
+            if (ec.user.hasPermission('PROJECT_CLIENT')) return
             const access = ec.service.sync().name('org.moqui.impl.GitServices.get#GitRepositoryAccess').parameters({repositoryId}).call() || {}
             if (!access.canDelete) return
             canChange = true
@@ -648,6 +702,8 @@ along with this software (see the LICENSE.md file). If not, see
         </out-parameters>
         <actions><script><![CDATA[
             comparison = null; fileList = []; diffList = []; allDiffs = true; commitList = []; defaults = {}; openMergeRequest = null
+            // Compare opens a merge request: internal (impl-projects.md P10b), as its screen is
+            if (ec.user.hasPermission('PROJECT_CLIENT')) { ec.message.addError(ec.resource.expand('Repository ${repositoryId} is not available', '', {repositoryId})); return }
             const refs = ec.service.sync().name('org.moqui.impl.GitServices.get#GitRefs').parameters({repositoryId, refType: 'branch'}).call() || {}
             if (ec.message.hasError()) return
             if (!base) base = refs.defaultBranch || 'main'
@@ -795,6 +851,8 @@ along with this software (see the LICENSE.md file). If not, see
             const labels = {WglsExplicit: 'Added', WglsMessage: 'Commit message', WglsTrailer: 'Task trailer'}
             itemList = itemList.map((item) => Object.assign({}, item, {linkLabel: ec.l10n.localize(labels[item.linkSourceEnumId] || 'Linked'),
                 statusLabel: ec.entity.find('moqui.basic.StatusItem').condition('statusId', item.statusId).useCache(true).one()?.description || item.statusId || ''}))
+            // a client contact sees no checks: their descriptions and links are of the team's CI (impl-projects.md P10b)
+            if (ec.user.hasPermission('PROJECT_CLIENT')) return
             ec.message.pushErrors()
             try {
                 const checks = ec.service.sync().name('org.moqui.impl.GitServices.get#GitCommitStatuses').parameters({repositoryId, commitId: raw.commitId}).call() || {}
@@ -855,6 +913,9 @@ along with this software (see the LICENSE.md file). If not, see
         <out-parameters><parameter name="code" type="Map"/></out-parameters>
         <actions><script><![CDATA[
             code = {repositoryList: [], mergeRequestList: [], commitList: [], tagList: [], failedParts: []}
+            // a client contact (impl-projects.md P10b): the repositories the project shares with it (find#GitRepositories, the view
+            // right), without SSH (it has no SSH_GIT) or the reviewers
+            const isClient = ec.user.hasPermission('PROJECT_CLIENT')
             const part = (name, run) => {
                 ec.message.pushErrors()
                 try { run(); if (ec.message.hasError()) throw new Error(ec.message.getErrorsString()) }
@@ -876,7 +937,7 @@ along with this software (see the LICENSE.md file). If not, see
                         kindLabel: repo.repositoryKind === 'db' ? L('Database') : repo.repositoryKind === 'remote' ? L('Mirror') : L('Disk'),
                         headShortId: repo.headCommitId ? String(repo.headCommitId).substring(0, 10) : '', headCommitId: repo.headCommitId || null,
                         lastText: repo.lastUpdateDate ? ec.l10n.format(repo.lastUpdateDate, 'MMM d, yyyy') : '', archived: !!repo.archivedDate,
-                        openMergeRequestCount: repo.openMergeRequestCount || 0, httpsUrl: urls.httpsUrl || '', sshUrl: urls.sshUrl || ''})
+                        openMergeRequestCount: repo.openMergeRequestCount || 0, httpsUrl: urls.httpsUrl || '', sshUrl: isClient ? '' : (urls.sshUrl || '')})
                 }
             })
             const viewable = repos.map((repo) => repo.repositoryId)
@@ -885,7 +946,8 @@ along with this software (see the LICENSE.md file). If not, see
                 const out = ec.service.sync().name('org.moqui.impl.GitReviewServices.find#MergeRequests').parameters({repositoryIdList: viewable,
                     statusIdList: ['GmrDraft', 'GmrOpen'], pageSize: 20}).call() || {}
                 code.mergeRequestList = Array.from(out.mergeRequestList || []).map((mr) => Object.assign({}, mr, {numText: '!' + mr.mergeRequestNum,
-                    reviewersText: Array.from(mr.reviewerList || []).map((reviewer) => reviewer.name).join(', '), isDraft: mr.statusId === 'GmrDraft',
+                    reviewerList: isClient ? [] : mr.reviewerList,
+                    reviewersText: isClient ? '' : Array.from(mr.reviewerList || []).map((reviewer) => reviewer.name).join(', '), isDraft: mr.statusId === 'GmrDraft',
                     updatedText: mr.lastUpdatedDate ? ec.l10n.format(mr.lastUpdatedDate, 'MMM d') : ''}))
             })
             part('the recent commits', () => {
@@ -1080,7 +1142,8 @@ along with this software (see the LICENSE.md file). If not, see
 
     <service verb="search" noun="CodePalette">
         <description>The palette's Code group (Projects.xml palette-source): mantle.work.GitServices.search#Code as rows with
-            title, subtitle, icon and the /qapps link of RepositoryDetail or MergeRequestDetail.</description>
+            title, subtitle, icon and the /qapps link of RepositoryDetail or MergeRequestDetail. None for a client contact, who has
+            no Code screens (impl-projects.md P10).</description>
         <in-parameters>
             <parameter name="text"/>
             <parameter name="limit" type="Integer" default="5"/>
@@ -1090,6 +1153,7 @@ along with this software (see the LICENSE.md file). If not, see
         <out-parameters><parameter name="rows" type="List"/></out-parameters>
         <actions><script><![CDATA[
             rows = []
+            if (ec.user.hasPermission('PROJECT_CLIENT')) return
             const hosting = ec.service.sync().name('ironstone.CodeServices.get#CodeHosting').call()?.available
             if (!hosting) return
             const found = Array.from(ec.service.sync().name('mantle.work.GitServices.search#Code').parameters({text, limit}).call()?.resultList || [])
@@ -1203,7 +1267,8 @@ along with this software (see the LICENSE.md file). If not, see
             repositoryOptions = repos.map((repo) => ({key: repo.repositoryId, text: repo.repositoryId}))
             projectOptions = ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').call()?.projectList || []
             const ids = repos.map((repo) => repo.repositoryId)
-            if (!ids.length) return
+            // a client contact finds by no author or reviewer: the team's people are not listed to it (impl-projects.md P10b)
+            if (!ids.length || ec.user.hasPermission('PROJECT_CLIENT')) return
             const mrs = Array.from(ec.entity.find('moqui.resource.GitMergeRequest').condition('repositoryId', 'in', ids).selectField('mergeRequestId,authorUserId')
                     .orderBy('-lastUpdatedDate').limit(500).disableAuthz().list())
             const userIds = new Set(mrs.map((row) => row.authorUserId).filter((id) => id))
@@ -1228,15 +1293,14 @@ along with this software (see the LICENSE.md file). If not, see
             if (!rows.length) return
             const labels = ec.service.sync().name('ironstone.CodeServices.get#MergeRequestLabels').call()?.labels || {}
             const ids = rows.map((row) => row.mergeRequestId)
-            const vis = ec.service.sync().name('mantle.work.ProjectServices.get#VisibleProjectInfo').call() || {}
-            const visible = new Set(Array.from(vis.visibleProjectIds || []))
+            // a client contact (impl-projects.md P10b) sees no reviewers and no comments (the team's review notes), and only the
+            // work items shared with it
+            const isClient = ec.user.hasPermission('PROJECT_CLIENT')
             const links = Array.from(ec.entity.find('mantle.work.effort.WorkEffortGitMergeRequest').condition('mergeRequestId', 'in', ids).disableAuthz().list())
-            const efforts = {}
-            const effortIds = Array.from(new Set(links.map((link) => link.workEffortId)))
-            if (effortIds.length) for (const row of Array.from(ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', 'in', effortIds)
-                    .selectField('workEffortId,workEffortName,rootWorkEffortId,statusId').list())) efforts[row.workEffortId] = row
+            const efforts = links.length ? ec.service.sync().name('ironstone.CodeServices.get#VisibleWorkEfforts').parameters({workEffortIdList: links.map((link) => link.workEffortId)})
+                    .call()?.effortMap || {} : {}
             // the comments: those filed on each merge request, and their replies
-            const roots = Array.from(ec.entity.find('mantle.party.communication.CommunicationEventRecord').condition('recordEntityName', 'moqui.resource.GitMergeRequest')
+            const roots = isClient ? [] : Array.from(ec.entity.find('mantle.party.communication.CommunicationEventRecord').condition('recordEntityName', 'moqui.resource.GitMergeRequest')
                     .condition('recordId', 'in', ids).disableAuthz().list())
             const replies = {}
             const rootIds = roots.map((row) => row.communicationEventId)
@@ -1247,14 +1311,14 @@ along with this software (see the LICENSE.md file). If not, see
             for (const mr of rows) {
                 const status = labels.status[mr.statusId] || [mr.statusId, 'grey-8', 'sym_o_merge']
                 const check = mr.checkState ? labels.check[mr.checkState] || [mr.checkState, 'grey-7', 'sym_o_pending'] : null
-                const reviewers = Array.from(mr.reviewerList || []).map((reviewer) => {
+                const reviewers = Array.from(isClient ? [] : mr.reviewerList || []).map((reviewer) => {
                     const state = labels.reviewer[reviewer.statusId] || [reviewer.statusId, 'grey-8', 'sym_o_person']
                     return {userId: reviewer.userId, name: reviewer.name, statusId: reviewer.statusId, stateLabel: state[0], stateColor: state[1], stateIcon: state[2]}
                 })
                 const filed = roots.filter((row) => row.recordId === mr.mergeRequestId)
                 const commentCount = filed.length + filed.reduce((sum, row) => sum + (replies[row.communicationEventId] || 0), 0)
                 const items = links.filter((link) => link.mergeRequestId === mr.mergeRequestId).map((link) => efforts[link.workEffortId])
-                        .filter((effort) => effort && (vis.allProjects || visible.has(effort.rootWorkEffortId)))
+                        .filter((effort) => effort && effort.workEffortTypeEnumId === 'WetTask')
                         .map((effort) => ({workEffortId: effort.workEffortId, workEffortName: effort.workEffortName || ''}))
                 rowList.push(Object.assign({}, mr, {numText: '!' + mr.mergeRequestNum, statusLabel: status[0], statusColor: status[1], statusIcon: status[2],
                     branchText: mr.sourceRef + ' → ' + mr.targetRef, reviewerList: reviewers,
@@ -1277,9 +1341,12 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="canPush" type="Boolean"/>
             <parameter name="archived" type="Boolean"/>
             <parameter name="mergeRequest" type="Map"/>
+            <parameter name="isClient" type="Boolean"/>
         </out-parameters>
         <actions><script><![CDATA[
             canView = false; canPush = false; archived = false; mergeRequest = null
+            // a client contact (impl-projects.md P10b) views a merge request of a repository its project shares, and changes nothing
+            isClient = ec.user.hasPermission('PROJECT_CLIENT')
             if (!mergeRequestId) return
             const mr = ec.entity.find('moqui.resource.GitMergeRequest').condition('mergeRequestId', mergeRequestId).disableAuthz().one()
             if (mr == null) return
@@ -1287,7 +1354,7 @@ along with this software (see the LICENSE.md file). If not, see
             try {
                 const access = ec.service.sync().name('org.moqui.impl.GitServices.get#GitRepositoryAccess').parameters({repositoryId: mr.repositoryId}).call() || {}
                 if (ec.message.hasError() || !access.canView) return
-                canView = true; canPush = !!(access.canCreate || access.canUpdate); archived = !!access.archived
+                canView = true; canPush = !isClient && !!(access.canCreate || access.canUpdate); archived = !!access.archived
                 mergeRequest = {mergeRequestId: mr.mergeRequestId, repositoryId: mr.repositoryId, mergeRequestNum: mr.mergeRequestNum, title: mr.title,
                     statusId: mr.statusId, sourceRef: mr.sourceRef, targetRef: mr.targetRef, authorUserId: mr.authorUserId}
             } catch (err) {
@@ -1386,12 +1453,23 @@ along with this software (see the LICENSE.md file). If not, see
             detail.isRequestedReviewer = !!(myReview && myReview.statusId === 'GmrrRequested')
             detail.primaryAction = !isOpen ? null : detail.mergeRequest.isDraft ? (canEdit ? 'ready' : null) : detail.canMerge ? 'merge'
                     : (detail.isRequestedReviewer || (myReview && !myReview.ofCurrentHead)) ? 'review' : null
+            // a client contact (impl-projects.md P10b) reads the merge request and changes nothing: no reviewers, approvals, checks,
+            // review threads or who merged it (the team's review), no action
+            const isClient = ec.user.hasPermission('PROJECT_CLIENT')
+            detail.isClient = isClient
+            if (isClient) {
+                Object.assign(detail, {reviewerList: [], myReview: null, approvalCount: 0, requiredApprovals: 0, approvalsText: '', checkList: [], missingList: [],
+                    canEdit: false, canMerge: false, canPush: false, canReview: false, isRequestedReviewer: false, primaryAction: null, methodOptions: []})
+                detail.mergeRequest.mergedByName = ''
+                detail.mergeRequest.mergedByUserId = null
+            }
             if (wants('items')) part('the work items', () => {
-                const vis = ec.service.sync().name('mantle.work.ProjectServices.get#VisibleProjectInfo').call() || {}
-                const visible = new Set(Array.from(vis.visibleProjectIds || []))
                 const items = Array.from(ec.service.sync().name('mantle.work.GitServices.get#MergeRequestItems').parameters({mergeRequestId}).call()?.itemList || [])
+                // the items the user sees (a client: those shared with it)
+                const seen = items.length ? ec.service.sync().name('ironstone.CodeServices.get#VisibleWorkEfforts').parameters({workEffortIdList: items.map((item) => item.workEffortId)})
+                        .call()?.effortMap || {} : {}
                 for (const item of items) {
-                    if (!vis.allProjects && !visible.has(item.rootWorkEffortId)) continue
+                    if (!seen[item.workEffortId]) continue
                     const assignee = ec.entity.find('mantle.work.effort.WorkEffortParty').condition({workEffortId: item.workEffortId, roleTypeId: 'Assignee'})
                             .conditionDate('fromDate', 'thruDate', null).list()[0]
                     const party = assignee ? ec.entity.find('mantle.party.PartyDetail').condition('partyId', assignee.partyId).one() : null
@@ -1421,13 +1499,13 @@ along with this software (see the LICENSE.md file). If not, see
                         checkLabel: state ? state[0] : '', checkColor: state ? state[1] : ''}
                 })
             })
-            if (wants('threads')) part('the review threads', () => {
+            if (wants('threads') && !isClient) part('the review threads', () => {
                 const threads = Array.from(ec.service.sync().name('mantle.work.GitServices.get#ReviewThreads').parameters({mergeRequestId}).call()?.threadList || [])
                 detail.threadCounts = {total: threads.length, open: threads.filter((thread) => !thread.resolved).length,
                     resolved: threads.filter((thread) => thread.resolved).length, outdated: threads.filter((thread) => thread.outdated).length}
             })
             // who may be asked to review: the internal members of the repository's projects with an account, not the author or a reviewer
-            if (wants('reviewerOptions')) part('the reviewer options', () => {
+            if (wants('reviewerOptions') && !isClient) part('the reviewer options', () => {
                 const projectIds = Array.from(ec.service.sync().name('mantle.work.GitServices.get#RepositoryProjects').parameters({repositoryId: mr.repositoryId}).call()?.projectIdList || [])
                 const clientRoles = ['Customer', 'CustomerBillTo', 'ClientManager', 'ClientBilling']
                 const memberIds = projectIds.length ? Array.from(new Set(Array.from(ec.entity.find('mantle.work.effort.WorkEffortParty').condition('workEffortId', 'in', projectIds)
@@ -1438,7 +1516,7 @@ along with this software (see the LICENSE.md file). If not, see
                         .map((account) => ({key: account.userId, text: account.userFullName || account.username})).sort((a, b) => String(a.text).localeCompare(String(b.text))) : []
             })
             if (!detail.reviewerOptions) detail.reviewerOptions = []
-            for (const reviewer of detail.reviewerList) reviewer.canRemove = canEdit
+            for (const reviewer of detail.reviewerList) reviewer.canRemove = canEdit && !isClient
             detail.checkoutText = 'git fetch origin\ngit checkout ' + mr.sourceRef
         ]]></script></actions>
     </service>
@@ -1471,9 +1549,12 @@ along with this software (see the LICENSE.md file). If not, see
                 binary: !!file.binary, tooLarge: !!file.tooLarge,
                 hunkList: Array.from(file.hunks || []).map((hunk) => ({oldStart: hunk.oldStart, oldLines: hunk.oldLines, newStart: hunk.newStart, newLines: hunk.newLines,
                     lineList: Array.from(hunk.lines || []).map((line) => ({tag: line.tag, oldNo: line.oldNo ?? null, newNo: line.newNo ?? null, text: line.text == null ? '' : String(line.text)}))}))}))
+            // a client contact (impl-projects.md P10b) reads the diff only: the review threads are the team's notes, and it comments
+            // and reviews nothing
+            const isClient = ec.user.hasPermission('PROJECT_CLIENT')
             let threads = []
             ec.message.pushErrors()
-            try { threads = Array.from(ec.service.sync().name('mantle.work.GitServices.get#ReviewThreads').parameters({mergeRequestId}).call()?.threadList || []) }
+            try { if (!isClient) threads = Array.from(ec.service.sync().name('mantle.work.GitServices.get#ReviewThreads').parameters({mergeRequestId}).call()?.threadList || []) }
             catch (err) { ec.logger.warn(`Merge request ${mergeRequestId}: its review threads were not read: ${err}`) }
             finally { ec.message.clearErrors(); ec.message.popErrors() }
             const nowMillis = Number(String(ec.user.nowTimestamp))
@@ -1497,10 +1578,10 @@ along with this software (see the LICENSE.md file). If not, see
                 commentList: Array.from(thread.commentList || []).map((comment) => ({communicationEventId: comment.communicationEventId, authorName: comment.authorName || L('Someone'),
                     userId: userIdOf(comment.fromPartyId), isMine: !!myPartyId && comment.fromPartyId === myPartyId, whenText: when(comment.entryDate), body: comment.body || ''}))}))
             const me = ec.user.userId
-            const myReview = me ? ec.entity.find('moqui.resource.GitMergeRequestReviewer').condition({mergeRequestId, userId: me}).disableAuthz().one() : null
+            const myReview = me && !isClient ? ec.entity.find('moqui.resource.GitMergeRequestReviewer').condition({mergeRequestId, userId: me}).disableAuthz().one() : null
             changes = {mergeRequestId, repositoryId: mr.repositoryId, mergeRequestNum: mr.mergeRequestNum, title: mr.title, statusId: mr.statusId, isOpen,
                 sourceRef: mr.sourceRef, targetRef: mr.targetRef, headCommitId: diff.headCommitId || mr.headCommitId || null, baseCommitId: diff.baseCommitId || null,
-                insertions: diff.insertions || 0, deletions: diff.deletions || 0, fileList, threadList, canComment: isOpen && !!me, canReview: isOpen && !!me,
+                insertions: diff.insertions || 0, deletions: diff.deletions || 0, fileList, threadList, canComment: isOpen && !!me && !isClient, canReview: isOpen && !!me && !isClient,
                 isAuthor: me === mr.authorUserId, myReviewStatusId: myReview?.statusId || null, myReviewOfHead: !!(myReview && myReview.reviewedCommitId === mr.headCommitId)}
         ]]></script></actions>
     </service>
@@ -1660,6 +1741,8 @@ along with this software (see the LICENSE.md file). If not, see
         </in-parameters>
         <out-parameters><parameter name="communicationEventId"/></out-parameters>
         <actions><script><![CDATA[
+            // a client contact comments on no merge request: line comments are the team's review notes (impl-projects.md P10b)
+            if (ec.user.hasPermission('PROJECT_CLIENT')) { ec.message.addError(ec.resource.expand('Merge request ${mergeRequestId} is not available', '', {mergeRequestId})); return }
             const mr = ec.entity.find('moqui.resource.GitMergeRequest').condition('mergeRequestId', mergeRequestId).disableAuthz().one()
             if (mr && !['GmrDraft', 'GmrOpen'].includes(mr.statusId)) { ec.message.addError(ec.l10n.localize('A merged or closed merge request takes no comments')); return }
             communicationEventId = ec.service.sync().name('mantle.work.GitServices.create#ReviewComment').parameters({mergeRequestId, body,
@@ -1738,6 +1821,12 @@ along with this software (see the LICENSE.md file). If not, see
                         archived: !!repoAccess.archived})
                 }
             })
+            // a client contact (impl-projects.md P10b) has the tab only when the project shares a repository with it (one it may view),
+            // and pushes nothing
+            if (ec.user.hasPermission('PROJECT_CLIENT')) {
+                for (const repo of development.repositoryList) repo.canPush = false
+                if (!development.repositoryList.length) { development.shown = false; return }
+            }
             part('the merge requests', () => {
                 const links = Array.from(ec.entity.find('mantle.work.effort.WorkEffortGitMergeRequest').condition('workEffortId', workEffortId).disableAuthz().list())
                 for (const link of links) {

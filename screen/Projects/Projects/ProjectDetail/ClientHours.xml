@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- ProjectDetail's Hours for a client (design-projects.md §4 ProjectTime, client users; impl-projects.md P10b): the team's hours on
+    the project's work items shared with the client, by week and work item, with the totals by item, when the project shares its
+    hours with the client (WstShareHours); never who, a rate, an amount, a comment or a timesheet (ironstone.TimeServices
+    get#ClientHours decides and reads; a project that does not share them says so and reads nothing). The internal Time tab
+    (Time/TimeEntries) is refused a client. Mounted as the tab ClientHours ("Hours") by a moqui.screen.SubscreensItem row of
+    data/BossSetupData.xml limited to BOSS_PROJECT_CLIENT, which replaces this file's own item, so no internal user opens or lists
+    it; the project is the parent's workEffortId (ProjectDetail checks the client sees it). -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Hours" default-menu-index="10" default-menu-include="false">
+
+    <actions>
+        <service-call name="ironstone.TimeServices.get#ClientHours" in-map="{workEffortId:(projectTabId || '')}" out-map="hoursOut"/>
+        <script><![CDATA[
+            ec.message.clearErrors()
+            clientHours = hoursOut.clientHours || {shared: false, weekRows: [], itemRows: []}
+            weekRows = Array.from(clientHours.weekRows || [])
+            itemRows = Array.from(clientHours.itemRows || [])
+        ]]></script>
+    </actions>
+
+    <widgets>
+        <section name="HoursNotShared" condition="!clientHours.shared"><widgets>
+            <container-box type="info"><box-header title="Hours"/><box-body>
+                <label type="p" text="This project does not share its hours." style="q-mb-none"/>
+            </box-body></container-box>
+        </widgets></section>
+        <section name="HoursShared" condition="clientHours.shared"><widgets>
+            <dashboard min-width="150" style="q-mb-sm">
+                <number-card title="Hours" value="${clientHours.totalText}" icon="sym_o_schedule" size="sm"/>
+                <number-card title="Weeks" value="${clientHours.weekCount || 0}" icon="sym_o_date_range" size="sm"/>
+            </dashboard>
+            <container style="row q-col-gutter-sm">
+                <container style="col-12 col-md-7">
+                    <container-box><box-header title="By week"/><box-body-nopad>
+                        <form-list name="ClientHoursByWeek" list="weekRows" skip-form="true" paginate="false" show-csv-button="true">
+                            <field name="weekText"><default-field title="Week"><label text="${weekText}" type="span" style="text-no-wrap"/></default-field></field>
+                            <field name="itemText"><default-field title="Work item"><link url="${url}" url-type="plain" text="${itemText}" link-type="anchor"/></default-field></field>
+                            <field name="hoursText" align="right"><default-field title="Hours"><display/></default-field></field>
+                            <columns type="mobile">
+                                <column><field-ref name="weekText"/><field-ref name="itemText"/></column>
+                                <column><field-ref name="hoursText"/></column>
+                            </columns>
+                        </form-list>
+                        <label type="p" text="No hours yet." style="m-muted q-pa-sm q-mb-none" condition="!weekRows.length"/>
+                    </box-body-nopad></container-box>
+                </container>
+                <container style="col-12 col-md-5">
+                    <container-box><box-header title="By work item"/><box-body-nopad>
+                        <form-list name="ClientHoursByItem" list="itemRows" skip-form="true" paginate="false">
+                            <field name="itemText"><default-field title="Work item"><link url="${url}" url-type="plain" text="${itemText}" link-type="anchor"/></default-field></field>
+                            <field name="hoursText" align="right"><default-field title="Hours"><display/></default-field></field>
+                        </form-list>
+                        <label type="p" text="No hours yet." style="m-muted q-pa-sm q-mb-none" condition="!itemRows.length"/>
+                    </box-body-nopad></container-box>
+                </container>
+            </container>
+        </widgets></section>
+    </widgets>
+</screen>

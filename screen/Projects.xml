@@ -15,7 +15,8 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- IronStone Projects: root of the app for project managers, software teams, consultants and their clients
     (design-projects.md §1). Authorized by BOSS_PROJECTS in data/BossSetupData.xml for ADMIN, BOSS_PROJECT_MANAGER and
     BOSS_PROJECT_TEAM, with the managers' screens (WorkItems/Import, Billing, Settings) denied to the team, so their menu
-    entries are absent for it (§1.2); BOSS_PROJECT_CLIENT gets its access in impl-projects.md P10. -->
+    entries are absent for it (§1.2); and for BOSS_PROJECT_CLIENT, the client contacts (impl-projects.md P10), under the
+    BOSS_PROJECT_CLIENT filter set with the internal screens and every write denied (BOSS_PROJECTS_INTERNAL). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="IronStone Projects" menu-image="sym_o_assignment" menu-image-type="icon">
 
@@ -23,6 +24,10 @@ along with this software (see the LICENSE.md file). If not, see
         <set field="appRoot" value="Projects"/>
 
         <service-call name="mantle.party.PartyServices.setup#UserOrganizationInfo" out-map="context"/>
+        <!-- a client contact's projects and organizations in the user context, for the BOSS_PROJECT_CLIENT entity filters
+            (impl-projects.md F2, P10); clientUser tells the screens to show a client's part only -->
+        <service-call name="mantle.work.ProjectServices.setup#ClientProjectInfo" out-map="clientSetup"/>
+        <set field="clientUser" from="!!clientSetup?.clientUser"/>
     </always-actions>
 
     <subscreens default-item="Home" always-use-full-path="true">

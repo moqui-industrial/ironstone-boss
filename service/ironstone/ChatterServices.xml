@@ -40,9 +40,12 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="recordEntityName"/>
             <parameter name="recordId"/>
             <parameter name="requireVisible" type="Boolean" default="false"/>
+            <parameter name="forFiles" type="Boolean" default="false"><description>For the record's files (RecordFiles): a client
+                contact (the PROJECT_CLIENT permission) sees the files of a request only (impl-projects.md P10)</description></parameter>
         </in-parameters>
         <out-parameters>
             <parameter name="visible" type="Boolean"/>
+            <parameter name="isClient" type="Boolean"/>
             <parameter name="info" type="Map"/>
             <parameter name="title"/>
             <parameter name="typeLabel"/>
@@ -53,6 +56,7 @@ along with this software (see the LICENSE.md file). If not, see
         <actions><script><![CDATA[
             visible = false
             info = null
+            isClient = !!ec.user.userId && ec.user.hasPermission('PROJECT_CLIENT')
             if (!recordEntityName || !recordId) {
                 if (requireVisible) ec.message.addError(ec.l10n.localize('No record given'))
                 return
@@ -67,6 +71,7 @@ along with this software (see the LICENSE.md file). If not, see
                         .parameters({recordEntityName: recordEntityName, recordId: recordId, checkOnly: true}).call()
                 if (ec.message.hasError()) why = ec.message.getErrorsString()
                 else if (out?.recordVisible !== true) why = out?.notVisibleReason || `${recordEntityName} ${recordId} not found`
+                else if (forFiles && isClient && out.recordEntityName !== 'mantle.request.Request') why = `${recordEntityName} ${recordId} has no files for a client`
             } catch (err) {
                 why = err && err.message ? err.message : String(err)
             } finally {
@@ -216,6 +221,8 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="visible" type="Boolean"/>
             <parameter name="record" type="Map"/>
             <parameter name="me" type="Map"/>
+            <parameter name="forClient" type="Boolean"><description>A client contact (impl-projects.md P10b): the panel offers Send message
+                to the team and Reply only, no followers, notes, activities or Email</description></parameter>
             <parameter name="canMessage" type="Boolean"/>
             <parameter name="canSchedule" type="Boolean"/>
             <parameter name="mayUpdate" type="Boolean"/>
@@ -297,8 +304,16 @@ along with this software (see the LICENSE.md file). If not, see
                     return names[partyId]
                 }
 
+                // a client contact (impl-projects.md P10): no followers, files or parties of the record; it sends a message to the team
+                // and replies (ironstone.client.ClientServices, P10b), nothing else
+                forClient = !!recordOut.isClient
+                if (forClient) {
+                    canSchedule = false; mayUpdate = false
+                    canMessage = !!ec.service.sync().name('ironstone.client.ClientServices.get#ClientRecordWrites')
+                            .parameters({recordEntityName: entityName, recordId: recordId}).call()?.canMessage
+                }
                 // the followers, and the kinds each gets
-                part('followers', () => {
+                if (!forClient) part('followers', () => {
                     const out = ec.service.sync().name('mantle.party.CommunicationServices.get#RecordFollowers')
                             .parameters({recordEntityName: entityName, recordId: recordId}).call()
                     if (ec.message.hasError()) return
@@ -362,7 +377,7 @@ along with this software (see the LICENSE.md file). If not, see
                 })
 
                 // the attachments strip: the first files
-                if (hasContent) part('files', () => {
+                if (hasContent && !(forClient && entityName !== 'mantle.request.Request')) part('files', () => {
                     const out = ec.service.sync().name('ironstone.RecordFilesServices.get#RecordFiles')
                             .parameters({recordEntityName: entityName, recordId: recordId, limit: 6}).call()
                     if (ec.message.hasError()) return
@@ -372,7 +387,7 @@ along with this software (see the LICENSE.md file). If not, see
                 })
 
                 // the record's parties with an email address, for Email… (Comms Compose)
-                part('parties', () => {
+                if (!forClient) part('parties', () => {
                     let partyIds = []
                     const current = cf.makeConditionDate('fromDate', 'thruDate', ec.user.nowTimestamp)
                     if (info.isParty) partyIds = [recordId]
@@ -575,9 +590,13 @@ along with this software (see the LICENSE.md file). If not, see
                     return statusText[statusId]
                 }
                 const myPartyId = ec.user.userAccount?.partyId || null
-                const mayUpdate = ec.artifactExecution.isPermitted(entityName, 'AT_ENTITY', 'update')
-                const canMessage = ec.artifactExecution.isPermitted('mantle.party.communication.CommunicationEvent', 'AT_ENTITY', 'create')
-                const isAdmin = !!ec.user.userId && ec.user.isInGroup('ADMIN')
+                // a client contact (impl-projects.md P10b) replies to a message for it, and nothing else: no unlink, no Inbox thread, no chat room
+                const forClient = !!recordOut.isClient
+                const mayUpdate = !forClient && ec.artifactExecution.isPermitted(entityName, 'AT_ENTITY', 'update')
+                const canMessage = forClient ? !!ec.service.sync().name('ironstone.client.ClientServices.get#ClientRecordWrites')
+                        .parameters({recordEntityName: entityName, recordId: recordId}).call()?.canMessage
+                    : ec.artifactExecution.isPermitted('mantle.party.communication.CommunicationEvent', 'AT_ENTITY', 'create')
+                const isAdmin = !forClient && !!ec.user.userId && ec.user.isInGroup('ADMIN')
                 // the notes of this page that have replies, which are not deleted until their replies are
                 const noteIds = entries.filter((entry) => entry.communicationEventId && entry.communicationEventTypeId === 'Comment')
                         .map((entry) => entry.communicationEventId)
@@ -633,9 +652,10 @@ along with this software (see the LICENSE.md file). If not, see
                             communicationEventId: entry.communicationEventId, communicationEventTypeId: type, bodyHtml: parts.bodyHtml, quotedHtml: parts.quotedHtml,
                             toName: entry.kind === 'message' && entry.toPartyId && entry.toPartyId !== entry.authorPartyId ? (names[entry.toPartyId] || null) : null,
                             parentCommEventId: entry.parentCommEventId || null,
-                            canReply: canMessage && (type === 'Message' || type === 'Comment'), emailReply: type === 'Email',
-                            canUnlink: !!myPartyId && entry.fromPartyId === myPartyId || mayUpdate,
-                            threadUrl: entry.kind === 'message' ? '/qapps/Comms/Inbox/MessageDetail?communicationEventId=' +
+                            canReply: canMessage && (forClient ? (type === 'Message' || type === 'StatusUpdate') : (type === 'Message' || type === 'Comment')),
+                            emailReply: !forClient && type === 'Email',
+                            canUnlink: !forClient && (!!myPartyId && entry.fromPartyId === myPartyId || mayUpdate),
+                            threadUrl: !forClient && entry.kind === 'message' ? '/qapps/Comms/Inbox/MessageDetail?communicationEventId=' +
                                 encodeURIComponent(entry.rootCommEventId || entry.communicationEventId) : null})
                         if (type === 'Email' && entry.statusId) decorated.status = {label: statusOf(entry.statusId), color: statusColors[entry.statusId] || 'grey-7'}
                         // a note's author changes it, and its author or the ADMIN group deletes it while it has no replies
@@ -644,8 +664,8 @@ along with this software (see the LICENSE.md file). If not, see
                         const editedMillis = toMillis(entry.editedDate)
                         decorated.edited = editedMillis != null
                         decorated.editedText = editedMillis != null ? ec.resource.expand('Edited ${when}', '', {when: fmt(editedMillis, 'yyyy-MM-dd HH:mm')}) : null
-                        decorated.canEdit = isNote && mine && canMessage
-                        decorated.canDelete = isNote && (mine || isAdmin) && !repliedIds.has(entry.communicationEventId)
+                        decorated.canEdit = !forClient && isNote && mine && canMessage
+                        decorated.canDelete = !forClient && isNote && (mine || isAdmin) && !repliedIds.has(entry.communicationEventId)
                         const bodyIsHtml = /html/i.test(entry.contentType || '') || (!entry.contentType && /<\/?(p|br|div|span|strong|em|ul|ol|li|a|blockquote)\b/i.test(String(entry.body || '')))
                         decorated.editBody = decorated.canEdit && entry.body != null ? (bodyIsHtml ? clean(String(entry.body)) : '<p>' + textHtml(String(entry.body)) + '</p>') : null
                         decorated.attachments = Array.from(entry.attachments || []).filter((item) => item.contentLocation)
@@ -685,7 +705,7 @@ along with this software (see the LICENSE.md file). If not, see
                         const parts = bodyParts(entry.body || entry.bodyText, entry.body ? 'text/html' : 'text/plain')
                         Object.assign(decorated, {key: 'chat-' + entry.chatRoomId + '-' + entry.eventSeq, icon: 'sym_o_chat', color: 'primary', kindLabel: L('Chat'),
                             authorName: authorName || entry.authorName || null, title: null, bodyHtml: parts.bodyHtml,
-                            url: entry.url || ('/qapps/Comms/Chat?chatRoomId=' + encodeURIComponent(entry.chatRoomId) + '&eventSeq=' + entry.eventSeq),
+                            url: forClient ? null : (entry.url || ('/qapps/Comms/Chat?chatRoomId=' + encodeURIComponent(entry.chatRoomId) + '&eventSeq=' + entry.eventSeq)),
                             toName: entry.roomName || null})
                         searchText += ' ' + parts.text + ' ' + (entry.authorName || '')
                     } else if (entry.kind === 'time') {
@@ -960,6 +980,13 @@ along with this software (see the LICENSE.md file). If not, see
             <service-call name="ironstone.ChatterServices.check#CommEventOnRecord"
                     in-map="{info:recordOut.info, recordId:recordId, communicationEventId:eventContent.communicationEventId}"/>
             <if condition="ec.message.hasError()"><return/></if>
+            <!-- a client contact: only an attachment of a message for it (impl-projects.md P10) -->
+            <if condition="recordOut.isClient">
+                <service-call name="mantle.party.CommunicationServices.get#ClientRecordVisibility" out-map="clientOut"
+                        in-map="{communicationEventIds:[eventContent.communicationEventId]}"/>
+                <if condition="ec.message.hasError() || !Array.from(clientOut?.visibleCommunicationEventIds || []).includes(eventContent.communicationEventId)">
+                    <return error="true" message="Attachment ${communicationEventContentId} not found"/></if>
+            </if>
             <script><![CDATA[
                 contentLocation = String(eventContent.contentLocation)
                 const last = contentLocation.substring(contentLocation.lastIndexOf('/') + 1)

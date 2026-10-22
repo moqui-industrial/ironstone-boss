@@ -66,6 +66,22 @@ along with this software (see the LICENSE.md file). If not, see
         <default-response url="."/>
         <error-response url="."/>
     </transition>
+    <!-- a client contact's new request in one of its projects, with a file (ironstone.client.ClientServices.raise#ClientRequest,
+        impl-projects.md P10b) -->
+    <transition name="raiseClientRequest">
+        <actions>
+            <script><![CDATA[
+                const fixed = ec.context.get('projectTabId') || null
+                const out = ec.service.sync().name('ironstone.client.ClientServices.raise#ClientRequest').parameters({
+                    rootWorkEffortId: fixed || newProjectId || '', requestName: requestName || '', requestTypeEnumId: requestTypeEnumId || null,
+                    description: description || null, priority: priority || null, contentFile: contentFile || null}).call() || {}
+                if (!ec.message.hasError()) { ec.message.addMessage(out.message, out.failedList?.length ? 'warning' : 'success'); newRequestId = out.requestId }
+            ]]></script>
+        </actions>
+        <conditional-response url="//Projects/Requests/RequestDetail" condition="newRequestId"><parameter name="requestId" from="newRequestId"/></conditional-response>
+        <default-response url="."/>
+        <error-response url="."/>
+    </transition>
     <!-- the bulk changes: selectedIds (a comma list), the change and its value -->
     <transition name="bulkAction">
         <actions>
@@ -150,10 +166,14 @@ along with this software (see the LICENSE.md file). If not, see
             if (projectFixed) rootWorkEffortId = null
             const L = (text) => ec.l10n.localize(text)
             const isManager = ec.user.isInGroup('BOSS_PROJECT_MANAGER') || ec.user.isInGroup('ADMIN')
-            const lists = [['new', 'New', 'sym_o_fiber_new'], ['assigned', 'Assigned to me', 'sym_o_person'], ['review', 'To review', 'sym_o_rate_review'],
+            // a client contact (impl-projects.md P10b): its requests to follow and raise, no triage
+            clientView = !!clientUser
+            const lists = clientView ? [['all', 'All', 'sym_o_select_all'], ['mine', 'Mine', 'sym_o_edit_note'], ['progress', 'In progress', 'sym_o_pending'],
+                    ['closed', 'Closed', 'sym_o_inventory']]
+                : [['new', 'New', 'sym_o_fiber_new'], ['assigned', 'Assigned to me', 'sym_o_person'], ['review', 'To review', 'sym_o_rate_review'],
                 ['accepted', 'Accepted', 'sym_o_thumb_up'], ['progress', 'In progress', 'sym_o_pending'], ['mine', 'Mine', 'sym_o_edit_note'],
                 ['closed', 'Closed', 'sym_o_inventory'], ['all', 'All', 'sym_o_select_all']]
-            if (!lists.some((entry) => entry[0] === list)) list = projectFixed ? 'all' : (isManager ? 'new' : 'assigned')
+            if (!lists.some((entry) => entry[0] === list)) list = projectFixed || clientView ? 'all' : (isManager ? 'new' : 'assigned')
             const ctx = (name) => { const value = ec.context.get(name); return value == null || value === '' ? null : String(value) }
             let dateFrom = null
             let dateThru = null
@@ -191,8 +211,21 @@ along with this software (see the LICENSE.md file). If not, see
             listLabel = L(lists.find((entry) => entry[0] === list)[1])
             projectOptions = ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').call()?.projectList || []
             addProjectOptions = ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').parameters({memberOnly: true}).call()?.projectList || []
+            // a client raises a request in its own projects: those it sees (get#ProjectOptions answers a client its client projects)
+            if (clientView) addProjectOptions = projectOptions
             const projectShown = fixedProjectId || rootWorkEffortId
-            newProjectDefault = projectShown && addProjectOptions.some((option) => option.key === projectShown) ? projectShown : ''
+            newProjectDefault = projectShown && addProjectOptions.some((option) => option.key === projectShown) ? projectShown : (clientView ? (addProjectOptions[0]?.key || '') : '')
+            clientTypeOptions = []
+            if (clientView) {
+                ec.message.pushErrors()
+                try {
+                    const settings = ec.service.sync().name('mantle.request.RequestServices.get#IntakeSettings').parameters({workEffortId: newProjectDefault || null})
+                            .disableAuthz().call()?.settings || {}
+                    const offered = Array.from(settings.offeredTypes || [])
+                    clientTypeOptions = (offered.length ? offered : ['RqtSupport']).map((id) => ({key: id,
+                        text: ec.entity.find('moqui.basic.Enumeration').condition('enumId', id).useCache(true).one()?.description || id}))
+                } finally { ec.message.clearErrors(); ec.message.popErrors() }
+            }
             const empty = {new: 'No new requests to triage', assigned: 'No open requests assigned to you', review: 'Nothing to review', accepted: 'No accepted requests',
                 progress: 'No requests in progress', mine: 'No open requests of yours', closed: 'No closed requests', all: 'No requests'}
             emptyText = filtered ? L('No requests match') : L(empty[list])
@@ -226,7 +259,24 @@ along with this software (see the LICENSE.md file). If not, see
         <container style="row items-center q-mb-sm q-gutter-y-xs">
             <label text="Requests" type="h5" style="q-my-none q-mr-sm" condition="!projectFixed"/>
             <container style="col"/>
-            <container-dialog id="NewProjectRequestContainer" button-text="New request" icon="sym_o_support" width="640" title="New request" type="primary">
+            <!-- a client contact's request: its project, what it needs, a file (impl-projects.md P10b) -->
+            <container-dialog id="NewClientRequestContainer" button-text="New request" icon="sym_o_support" width="640" title="New request" type="primary"
+                    condition="clientView &amp;&amp; addProjectOptions.length">
+                <form-single name="NewClientRequest" transition="raiseClientRequest" focus-field="requestName">
+                    <field name="newProjectId" from="newProjectDefault"><conditional-field condition="projectFixed"><hidden/></conditional-field>
+                        <default-field title="Project"><drop-down><list-options list="addProjectOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                    <field name="requestName"><default-field title="What do you need?"><text-line size="40"/></default-field></field>
+                    <field name="requestTypeEnumId" from="clientTypeOptions[0]?.key"><default-field title="Type">
+                        <drop-down><list-options list="clientTypeOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                    <field name="priority"><default-field title="Priority"><radio no-current-selected-key="5">
+                        <option key="2" text="High"/><option key="5" text="Normal"/><option key="8" text="Low"/></radio></default-field></field>
+                    <field name="description"><default-field title="Details"><text-area rows="5" cols="50"/></default-field></field>
+                    <field name="contentFile"><default-field title="A file (optional; more on the request's Files tab)"><file/></default-field></field>
+                    <field name="createButton"><default-field title="Send"><submit/></default-field></field>
+                </form-single>
+            </container-dialog>
+            <container-dialog id="NewProjectRequestContainer" button-text="New request" icon="sym_o_support" width="640" title="New request" type="primary"
+                    condition="!clientView">
                 <form-single name="NewProjectRequest" transition="createRequest" focus-field="requestName">
                     <field name="newProjectId" from="newProjectDefault"><conditional-field condition="projectFixed"><hidden/></conditional-field>
                         <default-field title="Project (empty: none yet, for triage)">
@@ -313,7 +363,7 @@ along with this software (see the LICENSE.md file). If not, see
         <container-box><box-header title="${listLabel} · ${requestRowsCount}"/><box-body-nopad>
             <form-list name="ProjectRequestList" list="requestRows" skip-form="true" paginate="true" show-page-size="false" views="list,board"
                     header-dialog="true" saved-finds="true" select-columns="true" show-csv-button="true">
-                <row-selection id-field="requestId" parameter="selectedIds" list-mode="true">
+                <row-selection id-field="requestId" parameter="selectedIds" list-mode="true" condition="!clientUser">
                     <action><dialog button-text="Assign" button-icon="sym_o_person_add" title="Assign the selected requests to"/>
                         <form-single name="BulkAssign" transition="bulkAction">
                             <field name="bulk" from="'assign'"><default-field><hidden/></default-field></field>
@@ -435,7 +485,7 @@ along with this software (see the LICENSE.md file). If not, see
 
                 <!-- the board by status along the request flow: a card is the request's name with its id, project and assignee -->
                 <view-board group-field="statusId" card-title-field="requestName" card-fields="requestId,rootWorkEffortId,assigneePartyId" badge-field="priority"
-                        key-fields="requestId" transition="moveCard" status-type-id="Request" status-flow-id="Default"
+                        key-fields="requestId" transition="moveCard" move-condition="!clientUser" status-type-id="Request" status-flow-id="Default"
                         column-order="ReqSubmitted,ReqReviewed,ReqInProgress,ReqCompleted" all-rows="true"/>
             </form-list>
             <section name="NoRequests" condition="!requestRows.length"><widgets>

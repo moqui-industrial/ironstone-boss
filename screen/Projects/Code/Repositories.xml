@@ -18,7 +18,8 @@ along with this software (see the LICENSE.md file). If not, see
     repository, description, projects, storage, default branch, last change, open merge requests and the clone URLs (as text: a
     copy button wants a framework helper, impl-projects.md §7). New repository (a project's, for those who manage it; any for
     administrators; with an import from a URL for one in the database), Link repository (for a maintainer of the repository who
-    manages the project) and, for administrators, Mirror. Without git hosting in the build it says so. -->
+    manages the project) and, for administrators, Mirror. Without git hosting in the build it says so. A client contact
+    (clientUser; impl-projects.md P10b) sees the repositories its projects share with it, under one chip, and no action. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Repositories" default-menu-index="1">
 
@@ -57,8 +58,9 @@ along with this software (see the LICENSE.md file). If not, see
     <actions>
         <script><![CDATA[
             const L = (text) => ec.l10n.localize(text)
-            const lists = [['mine', 'Mine', 'sym_o_person'], ['all', 'All', 'sym_o_select_all'], ['mirrors', 'Mirrors', 'sym_o_sync'], ['archived', 'Archived', 'sym_o_archive']]
-            if (!lists.some((entry) => entry[0] === list)) list = 'mine'
+            const lists = clientUser ? [['all', 'Shared with you', 'sym_o_folder_shared']]
+                    : [['mine', 'Mine', 'sym_o_person'], ['all', 'All', 'sym_o_select_all'], ['mirrors', 'Mirrors', 'sym_o_sync'], ['archived', 'Archived', 'sym_o_archive']]
+            if (!lists.some((entry) => entry[0] === list)) list = lists[0][0]
             isAdmin = ec.user.isInGroup('ADMIN')
             isProjectsManager = isAdmin || ec.user.isInGroup('BOSS_PROJECT_MANAGER')
             repositoryRows = []; repositoryRowsCount = 0; repositoryRowsPageIndex = 0; repositoryRowsPageSize = 25; repositoryRowsPageMaxIndex = 0
@@ -76,6 +78,7 @@ along with this software (see the LICENSE.md file). If not, see
             listChips = lists.map(([key, label, icon]) => ({label: L(label) + ' · ' + (counts[key] || 0), icon: icon, on: key === list,
                 params: Object.assign({list: key}, text ? {text: text} : {})}))
             listLabel = L(lists.find((entry) => entry[0] === list)[1])
+            if (clientUser) { emptyText = text ? L('No repositories match') : L('No repository is shared with you'); return }
             projectOptions = ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').call()?.projectList || []
             linkOptions = Array.from(ec.service.sync().name('org.moqui.impl.GitServices.find#GitRepositories').parameters({pageNoLimit: true}).call()?.repositoryList || [])
                     .map((repo) => ({key: repo.repositoryId, text: repo.repositoryId + (repo.description ? ' · ' + repo.description : '')}))
@@ -88,7 +91,7 @@ along with this software (see the LICENSE.md file). If not, see
         <container style="row items-center q-mb-sm q-gutter-y-xs">
             <label text="Repositories" type="h5" style="q-my-none q-mr-sm"/>
             <container style="col"/>
-            <section name="RepositoryActions" condition="codeHosting"><widgets>
+            <section name="RepositoryActions" condition="codeHosting &amp;&amp; !clientUser"><widgets>
                 <container-dialog id="MirrorRepositoryDialog" button-text="Mirror" icon="sym_o_sync" width="560" title="A mirror of a repository hosted elsewhere"
                         condition="isAdmin">
                     <form-single name="MirrorRepository" transition="createMirror" focus-field="repositoryId">

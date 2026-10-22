@@ -32,7 +32,9 @@ along with this software (see the LICENSE.md file). If not, see
             (rootWorkEffortId), open in IronStone Projects for a user who may open it (design-projects.md §1.4: an authorization
             of the user's groups on the Projects root, with no deny; a sprint, milestone or release opens its detail there), else a
             task or request in Commons and a project nowhere;
-            a task or request with no project stays in Commons. The Today panel, the notification lists and the palette use it.</description>
+            a task or request with no project stays in Commons. A client contact (PROJECT_CLIENT) gets a link to a project, work item,
+            milestone, release or request in Projects only (impl-projects.md P10). The Today panel, the notification lists and the
+            palette use it.</description>
         <in-parameters>
             <parameter name="docType"><description>MantleParty, MantleTask, MantleEvent, MantleRequest, MantleProject,
                 MantleWikiPage, MantleCommunicationEvent, or MantleWorkEffort with workEffortTypeEnumId</description></parameter>
@@ -58,6 +60,21 @@ along with this software (see the LICENSE.md file). If not, see
             if (type === 'MantleWorkEffort') type = workEffortTypeEnumId === 'WetEvent' ? 'MantleEvent' : workEffortTypeEnumId === 'WetTask' ? 'MantleTask'
                 : workEffortTypeEnumId === 'WetProject' ? 'MantleProject' : workEffortTypeEnumId === 'WetSprint' ? 'MantleSprint'
                 : workEffortTypeEnumId === 'WetMilestone' ? 'MantleMilestone' : workEffortTypeEnumId === 'WetRelease' ? 'MantleRelease' : null
+            // a client contact (the PROJECT_CLIENT permission, impl-projects.md P10) has Projects alone: a project, work item, milestone,
+            // release or request opens its detail there (which checks the client may see it), anything else has no link
+            if (ec.user.userId && ec.user.hasPermission('PROJECT_CLIENT')) {
+                const client = {MantleProject: ['/qapps/Projects/Projects/ProjectDetail?workEffortId=', 'sym_o_assignment'],
+                    MantleTask: ['/qapps/Projects/WorkItems/WorkItemDetail?workEffortId=', 'sym_o_task_alt'],
+                    MantleMilestone: ['/qapps/Projects/Projects/MilestoneDetail?workEffortId=', 'sym_o_flag'],
+                    MantleRelease: ['/qapps/Projects/Projects/ReleaseDetail?workEffortId=', 'sym_o_new_releases'],
+                    MantleRequest: ['/qapps/Projects/Requests/RequestDetail?requestId=', 'sym_o_support']}[type]
+                // a task of no project is no work item
+                const loose = type === 'MantleTask' && !ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', id)
+                        .selectField('rootWorkEffortId').disableAuthz().one()?.rootWorkEffortId
+                url = client && !loose ? client[0] + q : null
+                icon = client ? client[1] : 'sym_o_description'
+                return
+            }
             // a wiki page review (topics WikiPageReview, WikiPageReviewDecision) opens its page on the review's compare
             if (!type && recordEntityName === 'moqui.resource.wiki.WikiPageReview') {
                 const review = ec.entity.find('moqui.resource.wiki.WikiPageReview').condition('wikiPageReviewId', id).one()

@@ -101,8 +101,8 @@ along with this software (see the LICENSE.md file). If not, see
             <section name="NothingHere" condition="!filesFound"><widgets>
                 <container-box><box-body>
                     <section name="EmptyRepository" condition="emptyRepository"><widgets>
-                        <label type="p" text="This repository is empty. Clone it and push a first branch, or commit files to it through Moqui." style="q-mb-xs"/>
-                        <label text="git push ${httpsUrl} main" type="div" style="text-mono" condition="httpsUrl"/>
+                        <label type="p" text="${clientUser ? 'This repository is empty.' : 'This repository is empty. Clone it and push a first branch, or commit files to it through Moqui.'}" style="q-mb-xs"/>
+                        <label text="git push ${httpsUrl} main" type="div" style="text-mono" condition="httpsUrl &amp;&amp; !clientUser"/>
                     </widgets><fail-widgets>
                         <label type="p" text="Nothing is at ${path} in ${shownRef}." style="m-muted q-mb-xs"/>
                         <link url="." text="Back to the top" link-type="anchor" parameter-map="{repositoryId:repositoryId, ref:ref}"/>

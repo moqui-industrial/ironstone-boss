@@ -12,10 +12,15 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for the report index (design-projects.md §11; impl-projects.md P9). -->
+<!-- Projects Reports (design-projects.md §11; impl-projects.md P9): the report index as the default subscreen Reports/Index, then a
+    screen per report (style-guide §3.12 Report: parameters in the URL, number cards, an m-chart with its table, CSV and XLSX, and
+    html-print through the same URL with renderMode=html-print). Internal users; Profitability and Utilization are the managers'
+    (BOSS_PROJECTS_MANAGERS in data/BossSetupData.xml). Every report reads only the projects, time and money the user may see
+    (mantle.work.ProjectReportServices). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Reports" default-menu-index="9">
+    <subscreens default-item="Index"/>
     <widgets>
-        <label text="Placeholder: Reports: time, work items, sprints, portfolio, profitability, utilization and progress." type="p"/>
+        <subscreens-active/>
     </widgets>
 </screen>

@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- ProgressReport (design-projects.md §11 ProgressReport; style-guide §3.12 Report and §3.15 tree): a project's estimated, actual and
+    remaining work by milestone and down the work item tree. The parameters are in the URL (ProgressParams: the project, rootWorkEffortId;
+    from, an item's key whose subtree is broken down instead; Expand to level, the depth the page holds, prints and exports; hours a day).
+    Cards: estimated, actual, remaining, act+rem/est; MilestoneStats; a chart of estimated against actual and remaining by top-level item;
+    TopLevelStats as a view-tree whose rows are the breakdown to the chosen depth (each row its subtree's totals; deeper rows fetched on
+    open through the form request with parentWorkEffortId), with CSV, XLSX and html-print at that depth (a level column and an indented item in those). Hours
+    only: no money is shown. Over mantle.work.ProjectReportServices.get#ProgressBreakdown (the project must be one the user sees;
+    Restricted items the user may not see are left out). -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Progress" default-menu-index="5">
+
+    <parameter name="rootWorkEffortId"/>
+    <parameter name="fromWorkEffortId"/>
+    <parameter name="depth"/>
+    <parameter name="timePerDay"/>
+    <!-- the tree's request for one level (its form request, /actions/TopLevelStats, with the row's key) -->
+    <parameter name="parentWorkEffortId"/>
+
+    <transition name="workItemDetail"><default-response url="../../WorkItems/WorkItemDetail"/></transition>
+
+    <actions><script><![CDATA[
+        const L = (text) => ec.l10n.localize(text)
+        const fmt = (value) => value == null ? '' : ec.l10n.format(Math.round(Number(String(value)) * 100) / 100, '#,##0.##')
+        const pct = (value) => value == null ? '' : ec.l10n.format(Math.round(Number(String(value))), '#,##0') + '%'
+        const options = ec.service.sync().name('ironstone.ReportServices.get#ReportOptions').call() || {}
+        ec.message.clearErrors()
+        projectOptions = Array.from(options.projectOptions || [])
+        if (!depth) depth = '1'
+        if (!timePerDay) timePerDay = '8'
+        const mode = String(sri.getRenderMode() || '')
+        flatMode = !['qvt', 'vuet', 'qvue', 'qjs', 'tui', 'html', 'vue', ''].includes(mode)
+        progressRows = []; milestoneRows = []; projectFound = false; hasChart = false; chartHtml = ''; chartTui = {t: 'text', text: ''}
+        progressRowsCount = 0; milestoneRowsCount = 0
+        estimatedValue = ''; actualValue = ''; remainingValue = ''; actRemValue = ''; titleText = L('Progress report'); notFoundText = ''
+        const query = {rootWorkEffortId: rootWorkEffortId || '', fromWorkEffortId: fromWorkEffortId || '', depth: depth, timePerDay: timePerDay}
+        printUrl = '/apps/Projects/Reports/Progress?renderMode=html-print&' + Object.entries(query).filter(([key, value]) => value).map(([key, value]) => key + '=' + encodeURIComponent(value)).join('&')
+        if (!rootWorkEffortId) return
+        const fromId = fromWorkEffortId ? String(fromWorkEffortId).trim().toUpperCase() : null
+        const out = ec.service.sync().name('mantle.work.ProjectReportServices.get#ProgressBreakdown').parameters({workEffortId: rootWorkEffortId, fromWorkEffortId: fromId,
+            parentWorkEffortId: parentWorkEffortId || null, depth: parentWorkEffortId ? 1 : Math.max(1, Math.min(6, Number(depth) || 1)),
+            timePerDay: Number(timePerDay) || 8}).call() || {}
+        const errors = ec.message.hasError() ? ec.message.getErrorsString() : ''
+        ec.message.clearErrors()
+        if (!out.project) { notFoundText = errors || ec.resource.expand('Project ${rootWorkEffortId} is not available', '', {rootWorkEffortId}); return }
+        projectFound = true
+        titleText = out.fromItem ? ec.resource.expand('Progress of ${key} ${name}', '', {key: out.fromItem.workEffortId, name: out.fromItem.workEffortName})
+            : ec.resource.expand('Progress of ${name}', '', {name: out.project.workEffortName})
+        // each row: its subtree's hours, days and percents; in print and the exports the item indented by its level
+        progressRows = Array.from(out.rowList || []).map((row) => {
+            const level = Number(String(row.level || 1))
+            const item = row.workEffortId + ' ' + (row.workEffortName || '')
+            return {workEffortId: row.workEffortId, parentWorkEffortId: row.parentWorkEffortId || null, childCount: Number(String(row.childCount || 0)), level: level,
+                priority: row.priority ?? '', itemText: flatMode ? '\u00a0\u00a0\u00a0\u00a0'.repeat(level - 1) + item : item,
+                actualText: fmt(row.actualWorkTime), remainingText: fmt(row.remainingWorkTime), estimatedText: fmt(row.estimatedWorkTime),
+                actualDaysText: fmt(row.actualWorkDays), remainingDaysText: fmt(row.remainingWorkDays), estimatedDaysText: fmt(row.estimatedWorkDays),
+                budgetText: Number(String(row.totalTimeAllowed || 0)) ? fmt(row.totalTimeAllowed) : '',
+                actEstText: Number(String(row.estimatedWorkTime || 0)) ? pct(row.workActualPercent) : '',
+                actRemEstText: Number(String(row.estimatedWorkTime || 0)) ? pct(row.workActRemPercent) : '',
+                actBgtText: Number(String(row.totalTimeAllowed || 0)) ? pct(row.budgetActualPercent) : '',
+                actRemBgtText: Number(String(row.totalTimeAllowed || 0)) ? pct(row.budgetActRemPercent) : '',
+                over: Number(String(row.estimatedWorkTime || 0)) > 0 && Number(String(row.workActRemPercent ?? 0)) > 100}
+        })
+        progressRowsCount = progressRows.length
+        const dayOf = (value) => value == null || value === '' ? '' : ec.l10n.format(value, 'MMM d, yyyy')
+        milestoneRows = Array.from(out.milestoneList || []).map((row) => {
+            const total = row.workEffortId === 'Total'
+            return {isTotal: total, workEffortId: total ? null : row.workEffortId, workEffortName: total ? L('Total') : (row.workEffortName || row.workEffortId),
+                startText: total ? '' : dayOf(row.estimatedStartDate), estimatedText: fmt(row.estimatedWorkTime), actualText: fmt(row.actualWorkTime),
+                remainingText: fmt(row.remainingWorkTime), estimatedDaysText: fmt(row.estimatedWorkDays), actualDaysText: fmt(row.actualWorkDays),
+                remainingDaysText: fmt(row.remainingWorkDays), actEstText: pct(row.workActualPercent), actRemEstText: pct(row.workActRemPercent),
+                over: Number(String(row.workActRemPercent ?? 0)) > 100}
+        })
+        // only the totals row: no milestones
+        if (milestoneRows.length === 1) milestoneRows = []
+        milestoneRowsCount = milestoneRows.length
+        const totals = out.totals || {}
+        estimatedValue = fmt(totals.estimatedWorkTime || 0) + ' h'
+        actualValue = fmt(totals.actualWorkTime || 0) + ' h'
+        remainingValue = fmt(totals.remainingWorkTime || 0) + ' h'
+        actRemValue = Number(String(totals.estimatedWorkTime || 0)) ? pct(totals.workActRemPercent) : '—'
+        // the chart: the first level's estimate against actual and remaining
+        const first = Array.from(out.rowList || []).filter((row) => row.level === 1 || String(row.level) === '1').slice(0, 20)
+        hasChart = first.length > 0
+        const chart = hasChart ? ec.service.sync().name('ironstone.ReportServices.get#ChartConfig').parameters({id: 'ProgressChart', type: 'bar',
+            labels: first.map((row) => row.workEffortId), series: [
+                {name: L('Estimated'), data: first.map((row) => row.estimatedWorkTime)},
+                {name: L('Actual'), data: first.map((row) => row.actualWorkTime)},
+                {name: L('Remaining'), data: first.map((row) => row.remainingWorkTime)}],
+            yTitle: L('Hours')}).call() || {} : {}
+        ec.message.clearErrors()
+        chartHtml = chart.html || ''
+        chartTui = chart.tui || {t: 'text', text: ''}
+    ]]></script></actions>
+
+    <widgets>
+        <container style="row items-center q-mb-sm">
+            <label type="h5" text="${titleText}" style="q-my-none col"/>
+            <link url="${printUrl}" url-type="plain" text="Print" icon="sym_o_print" target-window="_blank" link-type="anchor-button" condition="projectFound"/>
+        </container>
+        <form-single name="ProgressParams" transition=".">
+            <field name="rootWorkEffortId"><default-field title="Project">
+                <drop-down allow-empty="true"><list-options list="projectOptions" key="${value}" text="${label}"/></drop-down></default-field></field>
+            <field name="fromWorkEffortId"><default-field title="From the item (key; empty: the whole project)"><text-line size="12"/></default-field></field>
+            <field name="depth"><default-field title="Expand to level">
+                <drop-down><option key="1" text="1"/><option key="2" text="2"/><option key="3" text="3"/><option key="4" text="4"/><option key="5" text="5"/><option key="6" text="6"/></drop-down></default-field></field>
+            <field name="timePerDay"><default-field title="Hours a day"><text-line size="4" input-type="number"/></default-field></field>
+            <field name="runButton"><default-field title="Run"><submit icon="sym_o_play_arrow"/></default-field></field>
+            <field-layout>
+                <field-row-big><field-ref name="rootWorkEffortId"/><field-ref name="fromWorkEffortId"/><field-ref name="depth"/><field-ref name="timePerDay"/>
+                    <field-ref name="runButton"/></field-row-big>
+            </field-layout>
+        </form-single>
+
+        <section name="ProgressNoProject" condition="!projectFound"><widgets>
+            <label type="p" text="${notFoundText || 'Choose a project to see its progress.'}" style="m-muted"/>
+        </widgets></section>
+
+        <section name="ProgressReport" condition="projectFound"><widgets>
+            <dashboard min-width="150" style="q-mb-sm">
+                <number-card title="Estimated" value="${estimatedValue}" icon="sym_o_assignment" size="sm"/>
+                <number-card title="Actual" value="${actualValue}" icon="sym_o_schedule" size="sm"/>
+                <number-card title="Remaining" value="${remainingValue}" icon="sym_o_pending_actions" size="sm"/>
+                <number-card title="Actual + remaining of estimate" value="${actRemValue}" icon="sym_o_percent" size="sm"/>
+            </dashboard>
+
+            <section name="ProgressMilestones" condition="milestoneRowsCount"><widgets>
+                <container-box><box-header title="By milestone"/><box-body-nopad>
+                    <form-list name="MilestoneStats" list="milestoneRows" skip-form="true" paginate="false" show-csv-button="true" show-xlsx-button="true">
+                        <field name="startText"><default-field title="Start"><display/></default-field></field>
+                        <field name="workEffortName"><default-field title="Milestone"><display style="${isTotal ? 'text-weight-bold' : ''}"/></default-field></field>
+                        <field name="estimatedText" align="right"><default-field title="Est. h"><display/></default-field></field>
+                        <field name="actualText" align="right"><default-field title="Actual h"><display/></default-field></field>
+                        <field name="remainingText" align="right"><default-field title="Rem. h"><display/></default-field></field>
+                        <field name="estimatedDaysText" align="right"><default-field title="Est. d"><display/></default-field></field>
+                        <field name="actualDaysText" align="right"><default-field title="Actual d"><display/></default-field></field>
+                        <field name="remainingDaysText" align="right"><default-field title="Rem. d"><display/></default-field></field>
+                        <field name="actEstText" align="right"><default-field title="Act/est"><display/></default-field></field>
+                        <field name="actRemEstText" align="right"><default-field title="Act+rem/est"><display style="${over ? 'text-warning text-weight-bold' : ''}"/></default-field></field>
+                        <columns type="mobile">
+                            <column><field-ref name="workEffortName"/><field-ref name="startText"/></column>
+                            <column><field-ref name="actualText"/><field-ref name="actRemEstText"/></column>
+                        </columns>
+                    </form-list>
+                </box-body-nopad></container-box>
+            </widgets></section>
+
+            <section name="ProgressChartBox" condition="hasChart"><widgets>
+                <container-box><box-header title="Estimated, actual and remaining hours by top-level item"/><box-body>
+                    <render-mode><text type="qvt"><![CDATA[${chartHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(chartTui)}]]></text></render-mode>
+                </box-body></container-box>
+            </widgets></section>
+
+            <container-box><box-header title="Breakdown"/><box-body-nopad>
+                <form-list name="TopLevelStats" list="progressRows" skip-form="true" paginate="false" show-csv-button="true" show-xlsx-button="true">
+                    <field name="level" align="right" hide="!flatMode"><default-field title="Level"><display/></default-field></field>
+                    <field name="priority" align="right"><default-field title="Priority"><display/></default-field></field>
+                    <field name="workEffortId"><default-field title="Item">
+                        <link url="workItemDetail" text="${itemText}" parameter-map="{workEffortId:workEffortId}" link-type="anchor"/></default-field></field>
+                    <field name="actualText" align="right"><default-field title="Actual h"><display/></default-field></field>
+                    <field name="remainingText" align="right"><default-field title="Rem. h"><display/></default-field></field>
+                    <field name="estimatedText" align="right"><default-field title="Est. h"><display/></default-field></field>
+                    <field name="actualDaysText" align="right"><default-field title="Actual d"><display/></default-field></field>
+                    <field name="remainingDaysText" align="right"><default-field title="Rem. d"><display/></default-field></field>
+                    <field name="estimatedDaysText" align="right"><default-field title="Est. d"><display/></default-field></field>
+                    <field name="budgetText" align="right"><default-field title="Budget h"><display/></default-field></field>
+                    <field name="actEstText" align="right"><default-field title="Act/est"><display/></default-field></field>
+                    <field name="actRemEstText" align="right"><default-field title="Act+rem/est"><display style="${over ? 'text-warning text-weight-bold' : ''}"/></default-field></field>
+                    <field name="actBgtText" align="right"><default-field title="Act/bgt"><display/></default-field></field>
+                    <field name="actRemBgtText" align="right"><default-field title="Act+rem/bgt"><display/></default-field></field>
+                    <columns type="mobile">
+                        <column><field-ref name="workEffortId"/><field-ref name="priority"/></column>
+                        <column><field-ref name="actualText"/><field-ref name="actRemEstText"/></column>
+                    </columns>
+                    <view-tree parent-field="parentWorkEffortId" child-count-field="childCount" key-fields="workEffortId"/>
+                </form-list>
+                <label type="p" text="No work items in this project yet." style="m-muted q-pa-sm q-mb-none" condition="!progressRowsCount"/>
+            </box-body-nopad></container-box>
+            <label type="p" text="Each row is its subtree's totals, cancelled items left out; days are the hours over the hours a day given. Act/est is actual over estimated, act+rem/est actual and remaining over estimated, and the bgt columns the same over the hours budget. Expand to level sets the depth printed and exported." style="text-caption m-muted"/>
+        </widgets></section>
+    </widgets>
+</screen>

@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The reports demo of IronStone Projects (impl-projects.md P9): data/BossProjectsDemoDataTimeReports.xml calls load#ReportDemo after the
+    billing demo's rates. -->
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
+
+    <service verb="load" noun="ReportDemo" authenticate="anonymous-all" allow-remote="false">
+        <description>
+            The time behind ACME's actual hours, by the real path (mantle.work.TimeServices.store#TimeEntry, each as its person at a time in the
+            past, so the rates are found and the items' actual hours roll up from it), dated from the week the data is loaded (Monday weeks):
+            Joe Developer on ACME-1 (16 h, four days of 4 h) and ACME-3 (7 h) three weeks back, Bob Developer on ACME-2 (9 h) four weeks back;
+            each item's actual hours then equal what the demo set. Each part on its own: one that fails is logged and the rest go on. Loading
+            again adds nothing when ACME-1 already has time.
+        </description>
+        <actions><script><![CDATA[
+            const users = {joe: 'joe.developer', bob: 'bob.developer'}
+            const ids = {joe: 'ORG_ZIZI_JD', bob: 'ORG_ZIZI_BD'}
+            const step = (name, run) => {
+                ec.message.pushErrors()
+                try { run(); if (ec.message.hasError()) throw new Error(ec.message.getErrorsString()) }
+                catch (err) { ec.logger.error(`Report demo: ${name} not loaded: ${err && err.message ? err.message : err}`) }
+                finally { ec.message.clearErrors(); ec.message.popErrors() }
+            }
+            const account = (userId) => ec.entity.find('moqui.security.UserAccount').condition('userId', userId).disableAuthz().one()
+            if (!account(ids.joe) || !account(ids.bob)) { ec.logger.warn('The report demo needs joe.developer and bob.developer; nothing loaded'); return }
+            if (!ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', 'ACME-1').disableAuthz().one()) {
+                ec.logger.warn('The report demo needs the project ACME (BossProjectsDemoData.xml); nothing loaded'); return }
+            if (ec.entity.find('mantle.work.time.TimeEntry').condition('workEffortId', 'ACME-1').disableAuthz().count() > 0) { ec.logger.info('The report demo is already loaded'); return }
+            const nowMs = Date.now()
+            const addDays = (text, days) => { const d = new Date(text + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + days); return d.toISOString().substring(0, 10) }
+            const as = (who, atMs, run) => {
+                ec.user.internalLoginUser(users[who])
+                ec.user.setEffectiveTime(Math.min(atMs, nowMs - 60000))
+                try { return run() } finally { ec.user.setEffectiveTime(null); ec.user.logoutUser() }
+            }
+            const at = (day, hour) => Number(String(ec.l10n.parseTimestamp(day + ' ' + String(hour).padStart(2, '0') + ':00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS')))
+            const log = (who, day, workEffortId, fromHour, hours, comments, workTypeEnumId) => as(who, at(day, fromHour) + hours * 3600000, () => {
+                ec.service.sync().name('mantle.work.TimeServices.store#TimeEntry').parameters({partyId: ids[who], workEffortId: workEffortId,
+                    fromDate: new Date(at(day, fromHour)), thruDate: new Date(at(day, fromHour) + hours * 3600000), hours: hours, comments: comments,
+                    rateTypeEnumId: 'RatpStandard', workTypeEnumId: workTypeEnumId}).call()
+                if (ec.message.hasError()) throw new Error(ec.message.getErrorsString())
+            })
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try {
+                const today = new Date(nowMs).toISOString().substring(0, 10)
+                const js = new Date(today + 'T12:00:00Z').getUTCDay()
+                const week0 = addDays(today, -((js + 6) % 7))
+                const week3 = addDays(week0, -21)
+                const week4 = addDays(week0, -28)
+                step('Joe on ACME-1', () => [0, 1, 2, 3].forEach((i) => log('joe', addDays(week3, i), 'ACME-1', 9, 4, i < 2 ? 'Single sign-on with the Acme directory' : 'Sign-in screens and tests', 'WktpDevelopment')))
+                step('Joe on ACME-3', () => { log('joe', addDays(week3, 1), 'ACME-3', 14, 3, 'The customer data import', 'WktpDevelopment'); log('joe', addDays(week3, 2), 'ACME-3', 14, 4, 'Import mapping fixes', 'WktpDevelopment') })
+                step('Bob on ACME-2', () => { log('bob', addDays(week4, 2), 'ACME-2', 9, 5, 'The portal design review', 'WktpDesign'); log('bob', addDays(week4, 3), 'ACME-2', 9, 4, 'Design changes after the review', 'WktpDesign') })
+            } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+        ]]></script></actions>
+    </service>
+</services>

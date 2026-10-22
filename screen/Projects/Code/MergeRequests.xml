@@ -22,7 +22,8 @@ along with this software (see the LICENSE.md file). If not, see
 
     RepositoryDetail mounts this screen as its Merge requests tab (design §7 RepositoryMergeRequests): its always-actions put the
     repository's access in repoAccess, so the repository is fixed there and its column and find field are left out. Without git
-    hosting in the build it says so. -->
+    hosting in the build it says so. A client contact (clientUser; impl-projects.md P10b) sees the merge requests of the
+    repositories its projects share, without reviewers, comments or New merge request. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Merge requests" default-menu-index="2">
 
@@ -47,11 +48,13 @@ along with this software (see the LICENSE.md file). If not, see
             mergeRequestRows = []; mergeRequestRowsCount = 0; mergeRequestRowsPageIndex = 0; mergeRequestRowsPageSize = 25; mergeRequestRowsPageMaxIndex = 0
             mergeRequestRowsPageRangeLow = 0; mergeRequestRowsPageRangeHigh = 0; listChips = []; repositoryOptions = []; projectOptions = []; userOptions = []
             listLabel = ''; emptyText = ''; newParams = {}
-            canOpen = !repositoryFixed || (ec.context.get('canPush') && !ec.context.get('isArchived'))
+            canOpen = !clientUser && (!repositoryFixed || (ec.context.get('canPush') && !ec.context.get('isArchived')))
             if (!codeHosting || (repositoryFixed && !ec.context.get('recordFound'))) return
             const lists = [['waiting', 'Waiting for my review', 'sym_o_rate_review'], ['mine', 'Mine', 'sym_o_person'], ['open', 'Open', 'sym_o_merge'],
                 ['draft', 'Draft', 'sym_o_draft'], ['merged', 'Merged', 'sym_o_call_merge'], ['closed', 'Closed', 'sym_o_cancel'], ['all', 'All', 'sym_o_select_all']]
+                    .filter((entry) => !clientUser || !['waiting', 'mine'].includes(entry[0]))
             const index = Number(pageIndex || 0) || 0
+            if (clientUser && (!list || ['waiting', 'mine'].includes(list))) list = 'open'
             const out = ec.service.sync().name('ironstone.CodeServices.find#MergeRequests').parameters({list: list || null, text: text || null,
                 repositoryId: repositoryId || null, projectId: projectId || null, authorUserId: authorUserId || null, reviewerUserId: reviewerUserId || null,
                 targetRef: targetRef || null, pageIndex: index, pageSize: 25}).call() || {}
@@ -88,11 +91,11 @@ along with this software (see the LICENSE.md file). If not, see
             <container style="row items-center q-mb-sm q-gutter-y-xs">
                 <label text="Merge requests" type="h5" style="q-my-none q-mr-sm"/>
                 <container style="col"/>
-                <section name="NewMergeRequestRepo" condition="codeHosting &amp;&amp; newParams.repositoryId"><widgets>
+                <section name="NewMergeRequestRepo" condition="codeHosting &amp;&amp; newParams.repositoryId &amp;&amp; canOpen"><widgets>
                     <link url="compare" text="New merge request" icon="sym_o_merge" btn-type="primary" parameter-map="newParams"/>
                 </widgets><fail-widgets>
                     <container-dialog id="NewMergeRequestDialog" button-text="New merge request" icon="sym_o_merge" width="480" title="New merge request in"
-                            condition="codeHosting &amp;&amp; repositoryOptions.length">
+                            condition="codeHosting &amp;&amp; repositoryOptions.length &amp;&amp; canOpen">
                         <form-single name="NewMergeRequestPick" transition="compare">
                             <field name="repositoryId"><default-field title="Repository">
                                 <drop-down><list-options list="repositoryOptions" key="${key}" text="${text}"/></drop-down></default-field></field>

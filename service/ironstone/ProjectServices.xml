@@ -25,7 +25,8 @@ along with this software (see the LICENSE.md file). If not, see
     <service verb="get" noun="ProjectAccess" allow-remote="false">
         <description>Whether the user may see (view), work in (update: a member, or one who manages) or manage (manage) a
             project; a need not met is an error ("not available" when the user does not see it), except with need none, which
-            only answers. isMember: the user holds a current role on it.</description>
+            only answers. isMember: the user holds a current role on it. A client contact (get#VisibleProjectInfo isClient) sees
+            its client projects only and neither works in nor manages one (impl-projects.md P10).</description>
         <in-parameters>
             <parameter name="workEffortId" required="true"/>
             <parameter name="need" default-value="view"/>
@@ -36,9 +37,12 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="canUpdate" type="Boolean"/>
             <parameter name="canManage" type="Boolean"/>
             <parameter name="isMember" type="Boolean"/>
+            <parameter name="isClient" type="Boolean"><description>A client contact (get#VisibleProjectInfo isClient)</description></parameter>
+            <parameter name="sharesHours" type="Boolean"><description>For a client contact, whether the project shares its hours with the
+                client (get#ClientProjectInfo shareHoursProjectIds); true for everyone else</description></parameter>
         </out-parameters>
         <actions><script><![CDATA[
-            canView = false; canUpdate = false; canManage = false; isMember = false; project = null
+            canView = false; canUpdate = false; canManage = false; isMember = false; project = null; isClient = false; sharesHours = true
             const row = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', workEffortId).one()
             const vis = ec.service.sync().name('mantle.work.ProjectServices.get#VisibleProjectInfo').call() || {}
             if (row != null && row.workEffortTypeEnumId === 'WetProject') {
@@ -46,10 +50,23 @@ along with this software (see the LICENSE.md file). If not, see
                 isMember = Array.from(vis.memberProjectIds || []).includes(workEffortId)
                 canView = all || Array.from(vis.visibleProjectIds || []).includes(workEffortId)
                 // a template is seen by those who make projects, as Settings/Templates lists it
-                if (!canView && row.isTemplate === 'Y' && ec.user.isInGroup('BOSS_PROJECT_MANAGER')) canView = true
+                if (!canView && !vis.isClient && row.isTemplate === 'Y' && ec.user.isInGroup('BOSS_PROJECT_MANAGER')) canView = true
                 canManage = canView && (all || Array.from(vis.managedProjectIds || []).includes(workEffortId) || ec.user.isInGroup('BOSS_PROJECT_MANAGER'))
                 canUpdate = canView && (canManage || isMember)
+                // a client contact sees its client projects (get#VisibleProjectInfo) and changes nothing (impl-projects.md P10)
+                if (vis.isClient) { canManage = false; canUpdate = false; isMember = false }
+                isClient = !!vis.isClient
+                if (isClient && canView) {
+                    // strict: a failure shares nothing
+                    ec.message.pushErrors()
+                    try {
+                        const client = ec.service.sync().name('mantle.work.ProjectServices.get#ClientProjectInfo').call() || {}
+                        sharesHours = !ec.message.hasError() && Array.from(client.shareHoursProjectIds || []).includes(workEffortId)
+                    } catch (err) { sharesHours = false } finally { ec.message.clearErrors(); ec.message.popErrors() }
+                } else if (isClient) sharesHours = false
                 if (canView) project = row.getMap()
+                // and no cost of it (design-projects.md §1.1: clients never see costs)
+                if (project && vis.isClient) for (const field of ['actualCost', 'actualClientCost', 'totalClientCostAllowed', 'costUomId']) delete project[field]
             }
             if (need === 'none') return
             if (!canView) { ec.message.addError(ec.resource.expand('Project ${workEffortId} is not available', '', {workEffortId})); return }
@@ -571,7 +588,14 @@ along with this software (see the LICENSE.md file). If not, see
                     flag: over || st.projectDanger ? 'danger' : st.projectWarning ? 'warning' : '',
                     flagText: over ? L('The hours pass the budget') : st.projectDanger ? L('Over the estimate or the client budget') : st.projectWarning ? L('Spending ahead of the work done') : ''}
             })
-            box('members', () => {
+            // a client contact (impl-projects.md P10b): no internal members, and the hours of the breakdown only when the project shares them
+            if (access.isClient) {
+                overview.clientView = true
+                overview.sharesHours = !!access.sharesHours
+            }
+            if (access.isClient) {
+                if (!access.sharesHours) for (const row of overview.topItemList) Object.assign(row, {estimateText: '', usedText: '', usedPercent: 0, barColor: 'primary'})
+            } else box('members', () => {
                 const people = new Map()
                 for (const row of ec.entity.find('mantle.work.effort.WorkEffortParty').condition('workEffortId', workEffortId)
                         .condition(cf.makeConditionDate('fromDate', 'thruDate', null)).orderBy('fromDate').list()) {

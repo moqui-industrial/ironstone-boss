@@ -331,7 +331,7 @@ along with this software (see the LICENSE.md file). If not, see
 
             <form-list name="WorkItemList" list="workItemRows" skip-form="true" paginate="true" show-page-size="false" views="list,board,calendar,tree"
                     header-dialog="true" saved-finds="true" select-columns="true" show-csv-button="true" show-xlsx-button="true" peek-url="//Projects/WorkItems/WorkItemDetail">
-                <row-selection id-field="workEffortId" parameter="selectedIds" list-mode="true">
+                <row-selection id-field="workEffortId" parameter="selectedIds" list-mode="true" condition="!clientUser">
                     <action><dialog button-text="Assign" button-icon="sym_o_person_add" title="Assign the selected work items to"/>
                         <form-single name="BulkAssign" transition="bulkAction">
                             <field name="bulk" from="'assign'"><default-field><hidden/></default-field></field>
@@ -525,8 +525,8 @@ along with this software (see the LICENSE.md file). If not, see
                     <default-field title="Est."><display format="#,##0.##"/></default-field></field>
                 <field name="remainingWorkTime" align="right"><header-field title="Rem." show-order-by="true"/>
                     <default-field title="Rem."><display format="#,##0.##"/></default-field></field>
-                <field name="actualWorkTime" align="right"><header-field title="Act." show-order-by="true"/>
-                    <default-field title="Act."><display format="#,##0.##"/></default-field></field>
+                <field name="actualWorkTime" align="right" hide="clientUser"><header-field title="${clientUser ? '' : 'Act.'}" show-order-by="true"/>
+                    <default-field title="${clientUser ? '' : 'Act.'}"><display format="#,##0.##"/></default-field></field>
                 <!-- the roll-ups of the tree (its branch totals), and the time changed -->
                 <field name="totalEstimatedText" align="right"><default-field title="Total est."><display/></default-field></field>
                 <field name="totalRemainingText" align="right"><default-field title="Total rem."><display/></default-field></field>
@@ -557,11 +557,11 @@ along with this software (see the LICENSE.md file). If not, see
                 <!-- the views: a card is the item's key and title with its type, assignees, due and priority -->
                 <view-board group-field="statusId" group-fields="assigneePartyId,priority,sprintId,milestoneId,releaseId" card-title-field="workEffortName"
                         card-fields="workEffortId,assigneePartyId,estimatedCompletionDate" badge-field="priority" sum-field="estimatedWorkTime"
-                        key-fields="workEffortId" transition="moveCard" all-rows="true"/>
+                        key-fields="workEffortId" transition="moveCard" move-condition="!clientUser" all-rows="true"/>
                 <view-calendar start-field="estimatedCompletionDate" all-day-field="dueAllDay" title-field="workEffortName" color-field="statusId" key-fields="workEffortId"
                         transition="moveDue" range-find="true" card-fields="workEffortId,assigneePartyId"/>
                 <view-tree parent-field="parentWorkEffortId" ancestor-transition="workItemAncestors" child-count-field="childCount" key-fields="workEffortId"
-                        rollup-fields="totalEstimatedText,totalRemainingText,totalActualText,doneOfTotal" transition="moveWorkItem"/>
+                        rollup-fields="totalEstimatedText,totalRemainingText,totalActualText,doneOfTotal" transition="moveWorkItem" move-condition="!clientUser"/>
             </form-list>
             <section name="NoWorkItems" condition="!workItemRows.length"><widgets>
                 <container style="q-pa-sm">

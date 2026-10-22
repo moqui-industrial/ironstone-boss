@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The timesheet (design-projects.md §14; style-guide §8 Print documents), TimesheetDetail's Print: with renderMode=html-print a
+    printed page of one person's week: its status and who approved it, the hours, billable and working hours, the entries by day
+    (from, to, work item, project, hours, work type, billable, comment), the totals by project and the flags
+    (ironstone.TimeServices.get#TimesheetDetail, for its person, its approvers and ADMIN), every value escaped. A sibling of
+    TimesheetDetail, so the page has none of its header; in another render mode it links to the printed page. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Timesheet print" default-menu-include="false">
+
+    <parameter name="timesheetId" required="true"/>
+
+    <actions><script><![CDATA[
+        const out = ec.service.sync().name('ironstone.TimeServices.get#TimesheetDetail').parameters({timesheetId: timesheetId || ''}).call() || {}
+        ec.message.clearErrors()
+        const L = (text) => ec.l10n.localize(text)
+        const enc = (text) => String(text == null ? '' : text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+        printUrl = '/apps/Projects/Time/TimesheetPrint?renderMode=html-print&timesheetId=' + encodeURIComponent(timesheetId || '')
+        const sheet = out.detail
+        if (!sheet) { printHtml = '<p>' + enc(L('This timesheet is not available')) + '</p>'; return }
+        const row = (label, value) => value ? '<tr><td class="field-title">' + enc(L(label)) + '</td><td class="field-value">' + enc(value) + '</td></tr>' : ''
+        const table = (heads, rows) => rows.length ? '<table class="list"><tr>' + heads.map((head) => '<th>' + enc(L(head)) + '</th>').join('') + '</tr>'
+                + rows.map((cells) => '<tr>' + cells.map((cell) => '<td>' + enc(cell) + '</td>').join('') + '</tr>').join('') + '</table>' : '<p style="color:#555">' + enc(L('None')) + '</p>'
+        const title = (text) => '<div class="group-title" style="margin-top:8pt">' + enc(L(text)) + '</div>'
+        const state = sheet.returned ? L('Returned') + (sheet.reason ? ': ' + sheet.reason : '') : sheet.statusId === 'TmshApproved'
+                ? L('Approved') + (sheet.approvedByName ? ' ' + L('by') + ' ' + sheet.approvedByName : '') + (sheet.approvedText ? ' · ' + sheet.approvedText : '')
+                : sheet.statusId === 'TmshCompleted' ? L('Submitted') + (sheet.submittedText ? ' ' + sheet.submittedText : '') : L('Open')
+        // the entries by day: a day's row with its total, then its entries
+        const entryRows = Array.from(sheet.entryRows || []).map((one) => one.isDay ? [one.dayText + (one.holiday ? ' · ' + one.holiday : ''), '', '', '', one.hoursText, '', '', '']
+                : ['', one.fromText + '–' + one.thruText, (one.workEffortId ? one.workEffortId + ' ' : '') + one.workEffortName, one.projectName, one.hoursText, one.workTypeLabel,
+                    one.billableText, one.comments])
+        printHtml = '<div class="box-header">' + enc(sheet.personName) + ' · ' + enc(sheet.weekText) + '</div>'
+            + '<p style="color:#555">' + enc([L('Timesheet'), ec.l10n.format(ec.user.nowTimestamp, 'MMMM d, yyyy')].join(' · ')) + '</p>'
+            + '<table class="field">' + row('Status', state) + row('Hours', sheet.hoursText) + row('Billable', sheet.billableText)
+            + row('Working hours', sheet.expectedText) + row('Difference', sheet.differenceText) + '</table>'
+            + title('Entries by day') + table(['Day', 'From–to', 'Work item', 'Project', 'Hours', 'Work type', 'Billable', 'Comment'], entryRows)
+            + title('By project') + table(['Project', 'Work item', 'Hours', 'Billable'], Array.from(sheet.byProject || []).map((line) => [line.projectName || L('No project'),
+                line.workEffortId ? line.workEffortId + ' ' + (line.workEffortName || '') : L('No work item'), line.hoursText, line.billableText]))
+            + title('Flags') + table(['Flag', 'Day'], Array.from(sheet.flagList || []).map((flag) => [flag.text || flag.label || flag.kind, flag.dayText]))
+            + '<table class="field" style="margin-top:24pt"><tr><td class="field-title">' + enc(L('Signed')) + '</td><td class="field-value">______________________________</td>'
+            + '<td class="field-title">' + enc(L('Approved')) + '</td><td class="field-value">______________________________</td></tr></table>'
+    ]]></script></actions>
+
+    <widgets>
+        <render-mode>
+            <text type="html-print"><![CDATA[${printHtml}]]></text>
+            <text type="qvt"><![CDATA[<p><a href="${WebUtilities.encodeHtml(printUrl)}" target="_blank">${ec.l10n.localize('Open the printable timesheet')}</a></p>]]></text>
+            <text type="tui"><![CDATA[${JSON.stringify({t: "link", id: "TimesheetPrint", text: ec.l10n.localize("Open the printable timesheet"), url: printUrl})}]]></text>
+        </render-mode>
+    </widgets>
+</screen>

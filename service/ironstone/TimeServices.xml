@@ -987,11 +987,13 @@ along with this software (see the LICENSE.md file). If not, see
         <description>WorkItemDetail's All time box in Projects (design-projects.md §5 WorkItemDetail: everyone's time, rates for those
             who manage money): every entry on a work item the user sees (ironstone.TaskServices.get#TaskAccess app projects), the
             latest first (100 at most), with who, the day, hours, work type, billable and the comment, the week's status, and the
-            client and worker amounts for the Projects managers and ADMIN; the totals by person.</description>
+            client and worker amounts for the Projects managers and ADMIN; the totals by person. Nothing for a client (PROJECT_CLIENT:
+            impl-projects.md P10b): its hours are ProjectDetail's Hours (get#ClientHours), without names, comments or rates.</description>
         <in-parameters><parameter name="workEffortId" required="true"/></in-parameters>
         <out-parameters><parameter name="itemTime" type="Map"/></out-parameters>
         <actions><script><![CDATA[
             itemTime = null
+            if (!ec.user.userId || ec.user.hasPermission('PROJECT_CLIENT')) return
             const L = (text) => ec.l10n.localize(text)
             const access = ec.service.sync().name('ironstone.TaskServices.get#TaskAccess').parameters({workEffortId: workEffortId, need: 'check', app: 'projects'}).call() || {}
             if (!access.visible) return
@@ -1033,6 +1035,90 @@ along with this software (see the LICENSE.md file). If not, see
             itemTime = {rowList: rows, ratesShown: money, totalText: n(Math.round(total * 100) / 100), count: count, more: count > rows.length,
                 peopleText: Object.values(people).sort((a, b) => b.hours - a.hours).map((person) => person.name + ' ' + n(Math.round(person.hours * 100) / 100) + ' h').join(' · '),
                 listUrl: '/qapps/Projects/Time/TimeEntries?list=all&itemId=' + encodeURIComponent(workEffortId)}
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== A client's hours (impl-projects.md P10b) ========== -->
+
+    <service verb="get" noun="ClientHours">
+        <description>ProjectDetail's Hours for a client (design-projects.md §4 ProjectTime: "only when the project shares hours with the
+            client, as hours by week and work item with no rates"; screen ProjectDetail/ClientHours.xml): for a client (PROJECT_CLIENT)
+            of a client project that shares its hours (mantle.work.ProjectServices.get#ClientProjectInfo clientProjectIds and
+            shareHoursProjectIds: WstShareHours, the project's or its organization's default), the hours of the entries the team
+            stands behind: ended (no running timer), billable (not No Charge), on a work item shared with the client (a task of the
+            project, All users or General), on an approved week or a client invoice. By week (the week's first day, Monday) and work
+            item, the latest week first, with the totals by item and in all. Never who, a rate, an amount, a comment, the work type or
+            the timesheet. shared is false, and nothing is read, for anyone else or any other project; a failure is logged and shows
+            nothing.</description>
+        <in-parameters><parameter name="workEffortId" required="true"/></in-parameters>
+        <out-parameters><parameter name="clientHours" type="Map"/></out-parameters>
+        <actions><script><![CDATA[
+            clientHours = {shared: false, weekRows: [], itemRows: [], totalText: '0', entryCount: 0}
+            if (!ec.user.userId || !ec.user.hasPermission('PROJECT_CLIENT')) return
+            const n = (value) => ec.l10n.format(Math.round(value * 100) / 100, '#,##0.##')
+            ec.message.pushErrors()
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try {
+                const info = ec.service.sync().name('mantle.work.ProjectServices.get#ClientProjectInfo').call() || {}
+                if (ec.message.hasError()) throw new Error(ec.message.getErrorsString())
+                if (!Array.from(info.clientProjectIds || []).map(String).includes(String(workEffortId))
+                        || !Array.from(info.shareHoursProjectIds || []).map(String).includes(String(workEffortId))) return
+                const items = {}
+                for (const row of ec.entity.find('mantle.work.effort.WorkEffort').condition('rootWorkEffortId', workEffortId).condition('workEffortTypeEnumId', 'WetTask')
+                        .condition('visibilityEnumId', 'in', ['WevAllUsers', 'WevGeneral']).selectField('workEffortId').selectField('workEffortName').list())
+                    items[row.workEffortId] = row.workEffortName || ''
+                const itemIds = Object.keys(items)
+                const weeks = {}, byItem = {}
+                let total = 0, count = 0
+                const sheets = {}
+                const sheetApproved = (id) => {
+                    if (!id) return false
+                    if (!(id in sheets)) sheets[id] = ec.entity.find('mantle.work.time.Timesheet').condition('timesheetId', id).selectField('statusId').one()?.statusId === 'TmshApproved'
+                    return sheets[id]
+                }
+                const mondayOf = (millis) => {
+                    const day = ec.l10n.format(new Date(millis), 'yyyy-MM-dd')
+                    const date = new Date(day + 'T12:00:00Z')
+                    const iso = date.getUTCDay() === 0 ? 7 : date.getUTCDay()
+                    date.setUTCDate(date.getUTCDate() - (iso - 1))
+                    return date.toISOString().substring(0, 10)
+                }
+                for (let i = 0; i < itemIds.length; i += 1000) {
+                    for (const entry of ec.entity.find('mantle.work.time.TimeEntry').condition('workEffortId', 'in', itemIds.slice(i, i + 1000))
+                            .condition('thruDate', 'is-not-null', null).selectField('timeEntryId').selectField('workEffortId').selectField('fromDate')
+                            .selectField('hours').selectField('rateTypeEnumId').selectField('timesheetId').selectField('invoiceId').limit(50000).list()) {
+                        if (entry.rateTypeEnumId === 'RatpNoCharge' || entry.fromDate == null) continue
+                        if (!entry.invoiceId && !sheetApproved(entry.timesheetId)) continue
+                        const hours = Number(String(entry.hours ?? 0))
+                        if (!(hours > 0)) continue
+                        const week = mondayOf(Number(String(entry.fromDate)))
+                        const weekEntry = weeks[week] || (weeks[week] = {hours: 0, items: {}})
+                        weekEntry.hours += hours
+                        weekEntry.items[entry.workEffortId] = (weekEntry.items[entry.workEffortId] || 0) + hours
+                        byItem[entry.workEffortId] = (byItem[entry.workEffortId] || 0) + hours
+                        total += hours; count++
+                    }
+                }
+                const itemText = (id) => id + ' ' + items[id]
+                const itemUrl = (id) => '/qapps/Projects/WorkItems/WorkItemDetail?workEffortId=' + encodeURIComponent(id)
+                const weekRows = []
+                for (const week of Object.keys(weeks).sort().reverse()) {
+                    const weekText = ec.resource.expand('Week of ${day}', '', {day: ec.l10n.format(new Date(week + 'T12:00:00Z'), 'MMM d, yyyy')})
+                    for (const id of Object.keys(weeks[week].items).sort((a, b) => weeks[week].items[b] - weeks[week].items[a] || a.localeCompare(b)))
+                        weekRows.push({weekStart: week, weekText: weekText, workEffortId: id, itemText: itemText(id), url: itemUrl(id), hoursText: n(weeks[week].items[id]),
+                            weekTotalText: n(weeks[week].hours)})
+                }
+                const itemRows = Object.keys(byItem).sort((a, b) => byItem[b] - byItem[a] || a.localeCompare(b))
+                        .map((id) => ({workEffortId: id, itemText: itemText(id), url: itemUrl(id), hoursText: n(byItem[id])}))
+                clientHours = {shared: true, weekRows: weekRows, itemRows: itemRows, totalText: n(total), entryCount: count, weekCount: Object.keys(weeks).length}
+            } catch (err) {
+                ec.logger.error(`Hours of ${workEffortId} for client user ${ec.user.userId} not read, none shown: ${err && err.message ? err.message : err}`)
+                clientHours = {shared: false, weekRows: [], itemRows: [], totalText: '0', entryCount: 0}
+            } finally {
+                if (!wasDisabled) ec.artifactExecution.enableAuthz()
+                ec.message.clearErrors()
+                ec.message.popErrors()
+            }
         ]]></script></actions>
     </service>
 
