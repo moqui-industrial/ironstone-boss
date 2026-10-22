@@ -57,7 +57,7 @@ Sections: [1 scope](#1-scope-and-order) · [2 rules](#2-ground-rules) · [3 phas
 | P3a Code: framework | mr-moqui | — | done Oct 21 |
 | P3b Code: Mantle and BOSS | Mantle, BOSS | every §7 screen, ProjectCode, CodeSettings | done Oct 22 |
 | P4 Planning | Mantle, BOSS (mr-moqui) | Backlog, SprintDetail, Timeline, WorkItemImport, Roadmap, MilestoneDetail, ReleaseDetail, ProjectBacklog, ProjectTimeline, ProjectCalendar, ProjectRoadmap, ProjectDocs | done Oct 22 |
-| P5 Requests | Mantle, BOSS | Requests, RequestDetail, RequestIntake, ProjectRequests, IntakeSettings | planned |
+| P5 Requests | Mantle, BOSS | Requests, RequestDetail, RequestIntake, ProjectRequests, IntakeSettings | done Oct 22 |
 | P6 Time | Mantle, BOSS | MyTime, Timesheets, TimesheetDetail, TimeEntries, ProjectTime, TimeSettings | planned |
 | P7 Resources | Mantle, BOSS | TeamPlanner, Allocations, PersonDetail | planned |
 | P8 Billing and money | Mantle, BOSS | Unbilled, Invoices, InvoiceDetail, OrderDetail, Rates, ProjectMoney, BillingSettings | planned |
@@ -297,6 +297,23 @@ tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
 - Usable when: a request arriving by email and one from the public form are triaged, converted to work, and completed
   when the work is.
 
+**Built** (Oct 22, 2026):
+- Framework (F6): `run#EmailRules` runs the service an `EmailRuleAction` enumeration names (its own transaction, authz
+  off, may stop processing; a failure is logged and named, the rule's other actions go on; an unknown action is still
+  skipped); seed `EmailRuleAction` type; a moqui-core test.
+- Mantle udm: setting types `WstRequestType`, `WstRequestTypes`. Mantle usl `RequestServices`: intake settings and tokens,
+  `create#IntakeRequest` (the public form), `create#RequestFromEmail` and `create#WorkItemFromEmail` (the rule actions
+  `ErActCreateRequest`, `ErActCreateWorkItem`; replies join their request), triage notices after commit, work items from
+  a request, `complete#RequestFromWork` (an entity rule on the work's status), `convert#RequestToProject`; topics
+  `RequestTriage` and `RequestUpdate`; `get#RecordLinkInfo` for requests by project; `test/WorkProjectRequests.spec.js`.
+- BOSS: `Shared/RequestDetail` (Commons and Projects mount it); Projects/Requests (triage); ProjectDetail's Requests tab
+  and Intake box; Settings/Intake; the public form `screen/RequestIntake` at `/r/<token>` (honeypot, per-project and
+  per-address limits, the `request-form` web-protection rate limit, reCAPTCHA by preference, uploads limited by type,
+  nothing internal answered); `ProjectRequestServices`, `RequestDemoServices`; demo requests on IRON by email and form;
+  specs `ProjectRequests`, `RequestWalk` (the usable-when walk).
+- Runs (Debug): ironstone-boss 521/521, mantle-usl 630/632 (ContactListSend), example 86/86, moqui-core lib 1692, gate3
+  8/10 (the known two; the token route passes), lint clean.
+
 ### P6 — Time
 
 - Design §8: the timesheet services and transitions, MyTime (`.qvue`, with the timer), Timesheets, TimesheetDetail,
@@ -384,6 +401,9 @@ Made during the build; each one that changes the design is also written into des
 | Oct 22, 2026 | The Timeline is a `.qvue` with its own styles, no Gantt library; auto-schedule only moves dependents later and never moves done items | P4c |
 | Oct 22, 2026 | The import maps each field to a column (exports have a hundred columns); the created date goes on the Reporter's `fromDate` | P4c |
 | Oct 22, 2026 | The project calendar shows milestones and releases on their due day (a phase's start as a chip) and sprints over their days; its work items come from `find#WorkItems` so Restricted ones stay hidden | P4c |
+| Oct 22, 2026 | The public form is `screen/RequestIntake.xml` behind the token route, not under Projects (a visitor has no Projects authz) | P5 |
+| Oct 22, 2026 | A request follows its work by an entity rule on the work's status, only when the project's `WstRequestFromWork` is Y or unset with the Requests module on; Cancelled is neither done nor open | P5 |
+| Oct 22, 2026 | Email files into a project only when the project's intake account received it or the rule's owner holds a role on the project; else the request has no project | P5 |
 | Oct 22, 2026 | A recurring item counted from completion takes the completion day at the due date's time of day (UTC days) and the rule without its COUNT, which counts the items made | P2 |
 
 ## 5. Open questions
@@ -456,6 +476,14 @@ Design assumptions found wrong in the code, with the resolution (written into th
 | F54 | P4c: dating demo IRON items pushed an undated task off Commons Tasks' first page | Tasks.spec searches for it; IRON-13 and 14 left undated |
 | F55 | P4c: a find's children come back in no fixed order | `set#TaskDates` orders by id; specs sort |
 | F56 | P4c: a running server does not reload a changed service file (screens and `.qvue` it does) | Restart after a service change |
+| F57 | P5: a failing app service marks the shared transaction rollback-only, which would undo the whole rules run | App actions run in their own transaction |
+| F58 | P5: the loader's one transaction per file (F27) hides the demo's settings and rule from the rule action | The demo writes each in its own transaction |
+| F59 | P5: the lint's quote tracking again (F37) | Worked around |
+| F60 | P5: the lint calls a Boolean named `...Set` an empty-collection hazard | Renamed |
+| F61 | P5: a request's Chatter needs `get#RecordLinkInfo` to know project visibility | Added in Mantle; BOSS specs check it as joe |
+| F62 | P5: `create#ContactRequest` adds a public thank-you message to the submit's JSON | Allowed and checked to carry nothing else |
+| F63 | P5: gallery-shots' `--dark` toggles only `#apps-root`, so it fails on public-shell pages | A scratch copy took the dark shots; the script could emulate the color scheme |
+| F64 | P5: the ProjectRequests tab still shows an empty Project column (as F42) | Check with F42 |
 | F7 | P0: a wiki space under an existing repository is documented for a repository root (`rootPageDirectory: "git://docs"`, or `rootPageLocation` `git://<repositoryId>/<SPACE>.md`), not for a subdirectory such as `git://<repositoryId>/docs` | Checked in P4 as the design's §15 row says, before ProjectDocs is built |
 
 ## 7. Later
@@ -499,6 +527,10 @@ Designed, not in this build:
 
 - Planning (P4c): Timeline moves in the terminal (P11); rescheduling a moved subtree's dependents; the Redmine and GitHub
   presets checked against real exports; month labels kept in view; portfolio moves; client states (P10).
+
+- Requests (P5): Home's requests counter and the Today source; a Projects quick-create Request kind; the confirmation
+  email's template; request items and purchase orders; sending the resolution by email; request categories; client
+  states (P10); terminal triage dialogs; a spec of form uploads.
 
 ## 8. Verification
 

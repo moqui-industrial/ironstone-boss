@@ -107,7 +107,7 @@ feature("a project's records open in Projects for its users, in Commons for othe
     },
 })
 
-feature("the details the links open render: the project's detail and the work item's (P2), the request in Commons", {
+feature("the details the links open render: the project's detail and the work item's (P2), the request's (P5)", {
     when() {
         const render = (path, parameters) => {
             const str = ec.screen.makeTest().rootScreen("component://ironstone-boss/screen/Projects.xml").renderMode("qvt").withStaticData()
@@ -127,6 +127,7 @@ feature("the details the links open render: the project's detail and the work it
         task.output.includes("Expand and collapse rows")
         task.output.includes("WorkItemStatusBar")
         request.status == 200
-        request.output.includes("Commons/Requests/RequestDetail")
+        request.errors == ""
+        request.output.includes("Set up the shared team calendar")
     },
 })

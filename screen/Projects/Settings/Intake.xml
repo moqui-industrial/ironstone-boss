@@ -12,10 +12,190 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for intake settings (design-projects.md §12 IntakeSettings; impl-projects.md P5). -->
+<!-- IntakeSettings (design-projects.md §12 IntakeSettings; style-guide §3.9 Settings), for the Projects managers: how requests
+    arrive at the organization's projects. Request types (PartySetting ProjIntake: the types offered on new requests and the
+    public form, those Projects triages with no project, the default type and the default triage assignee), request categories
+    (RequestCategory: name, parent, responsible party), the intake addresses (each project's mail account and plus tag, and the
+    email rule that makes its requests, or work items for internal senders: ProjectRequestServices save#IntakeAddress, written
+    as the user, who must manage the account) and the public form (ProjPublicForm: the CAPTCHA, files and their limits, the
+    confirmation email). A project's own intake (its address, form link, triage assignee) is in its Settings. Services:
+    ironstone.ProjectRequestServices get#IntakeSettingsInfo, store#IntakeTypes, store#RequestCategory, save#IntakeAddress,
+    store#PublicForm. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Intake" default-menu-index="8">
+
+    <transition name="saveTypes">
+        <service-call name="ironstone.ProjectRequestServices.store#IntakeTypes" out-map="saveOut" in-map="{offered:(offered ?? []), triaged:(triaged ?? []),
+                defaultType:(defaultType || null), triagePartyId:(triagePartyId || null)}"/>
+        <actions><if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if></actions>
+        <default-response url="."/>
+        <error-response url="."/>
+    </transition>
+    <transition name="saveCategory">
+        <service-call name="ironstone.ProjectRequestServices.store#RequestCategory" out-map="saveOut" in-map="{requestCategoryId:(requestCategoryId || null),
+                description:description, parentCategoryId:(parentCategoryId || null), responsiblePartyId:(responsiblePartyId || null)}"/>
+        <actions><if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if></actions>
+        <default-response url="."/>
+        <error-response url="."/>
+    </transition>
+    <transition name="deleteCategory">
+        <service-call name="ironstone.ProjectRequestServices.store#RequestCategory" out-map="saveOut" in-map="{requestCategoryId:requestCategoryId, remove:true}"/>
+        <actions><if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if></actions>
+        <default-response url="."/>
+        <error-response url="."/>
+    </transition>
+    <transition name="saveAddress">
+        <service-call name="ironstone.ProjectRequestServices.save#IntakeAddress" out-map="saveOut" in-map="{workEffortId:(addressProjectId || ''),
+                emailAccountId:(emailAccountId || null), plusTag:(plusTag || null), makes:(makes || 'requests')}"/>
+        <actions><if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if></actions>
+        <default-response url="."/>
+        <error-response url="."/>
+    </transition>
+    <transition name="removeAddress">
+        <service-call name="ironstone.ProjectRequestServices.save#IntakeAddress" out-map="saveOut" in-map="{workEffortId:addressProjectId, emailAccountId:null}"/>
+        <actions><if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if></actions>
+        <default-response url="."/>
+        <error-response url="."/>
+    </transition>
+    <transition name="saveForm">
+        <service-call name="ironstone.ProjectRequestServices.store#PublicForm" out-map="saveOut" in-map="{captcha:(captcha || 'N'), files:(files || 'N'),
+                maxFiles:maxFiles, maxMb:maxMb, confirm:(confirm || 'N')}"/>
+        <actions><if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if></actions>
+        <default-response url="."/>
+        <error-response url="."/>
+    </transition>
+    <transition name="partySearch" read-only="true">
+        <actions>
+            <service-call name="ironstone.TaskServices.search#Assignees" in-map="{term:term}" out-map="found"/>
+            <script>ec.web.sendJsonResponse(found.optionList || [])</script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+
+    <actions>
+        <script><![CDATA[
+            const info = ec.service.sync().name('ironstone.ProjectRequestServices.get#IntakeSettingsInfo').call()?.info || {}
+            hasOrganization = !!info.organizationPartyId
+            organizationName = info.organizationName || ''
+            typeList = Array.from(info.typeList || [])
+            typesValue = Object.assign({}, info.types || {})
+            triageName = typesValue.triageName || ''
+            offeredTypeOptions = typeList.filter((type) => (typesValue.offered || []).includes(type.enumId))
+            categoryList = Array.from(info.categoryList || [])
+            categoryOptions = categoryList.map((row) => ({key: row.requestCategoryId, text: row.description}))
+            addressList = Array.from(info.addressList || [])
+            accountOptions = Array.from(info.accountList || [])
+            projectOptions = ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').call()?.projectList || []
+            formValue = Object.assign({}, info.publicForm || {})
+            captchaKeysGiven = !!info.captchaKeysGiven
+        ]]></script>
+    </actions>
+
     <widgets>
-        <label text="Placeholder: Intake settings: request types and categories, triage, email intake, the public form." type="p"/>
+        <container style="row items-center q-mb-sm">
+            <label type="h5" text="Intake" style="q-my-none"/>
+        </container>
+        <label type="p" text="How requests come in${organizationName ? ' at ' + organizationName : ''}: the types offered and triaged, their categories, the email addresses that make them and the public form." style="m-muted"/>
+        <section name="NoOrganization" condition="!hasOrganization"><widgets>
+            <label type="p" text="You belong to no organization, so there is nowhere to keep these settings." style="text-warning"/>
+        </widgets></section>
+        <container-row>
+            <row-col md="6">
+                <container-box><box-header title="Request types"/><box-body>
+                    <form-single name="IntakeTypes" transition="saveTypes" map="typesValue">
+                        <field name="offered"><default-field title="Offered on new requests and the public form">
+                            <check><list-options list="typeList" key="${enumId}" text="${label}"/></check></default-field></field>
+                        <field name="triaged"><default-field title="Triaged in Projects when they have no project">
+                            <check><list-options list="typeList" key="${enumId}" text="${label}"/></check></default-field></field>
+                        <field name="defaultType"><default-field title="Default type">
+                            <drop-down allow-empty="true"><list-options list="offeredTypeOptions" key="${enumId}" text="${label}"/></drop-down></default-field></field>
+                        <field name="triagePartyId"><default-field title="Default triage assignee (a project's own comes first)">
+                            <drop-down allow-empty="true" current-description="${triageName}"><dynamic-options transition="partySearch" server-search="true" min-length="0"/></drop-down>
+                        </default-field></field>
+                        <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                    </form-single>
+                </box-body></container-box>
+                <container-box><box-header title="Public form"/><box-body>
+                    <form-single name="PublicForm" transition="saveForm" map="formValue">
+                        <field name="files"><default-field title=" "><check><option key="Y" text="Requesters may add files"/></check></default-field></field>
+                        <field name="maxFiles"><default-field title="Files at most"><text-line size="4" input-type="number"/></default-field></field>
+                        <field name="maxMb"><default-field title="Size of a file (MB)"><text-line size="4" input-type="number"/></default-field></field>
+                        <field name="confirm"><default-field title=" "><check><option key="Y" text="Send a confirmation email from the project's intake account"/></check></default-field></field>
+                        <field name="captcha"><default-field title=" "><check><option key="Y" text="Ask for a CAPTCHA (reCAPTCHA)"/></check></default-field></field>
+                        <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                        <field-layout>
+                            <field-ref name="files"/>
+                            <field-row><field-ref name="maxFiles"/><field-ref name="maxMb"/></field-row>
+                            <field-ref name="confirm"/><field-ref name="captcha"/><field-ref name="submitButton"/>
+                        </field-layout>
+                    </form-single>
+                    <label type="p" text="The CAPTCHA needs the reCAPTCHA keys (the reCAPTCHA.site.key and reCAPTCHA.secret.key preferences); none are set, so it is not asked." style="text-caption text-warning q-mb-xs" condition="formValue.captcha == 'Y' &amp;&amp; !captchaKeysGiven"/>
+                    <label type="p" text="Each project turns its form on and rotates its link in its Settings. Pictures, PDF, text, office documents and archives are taken; never web pages or scripts." style="text-caption m-muted q-mb-none"/>
+                </box-body></container-box>
+            </row-col>
+            <row-col md="6">
+                <container-box><box-header title="Email intake"/><box-body-nopad>
+                    <container style="q-pa-sm">
+                        <container-dialog id="AddIntakeAddress" button-text="Add an address" icon="sym_o_add" width="560" title="Mail that makes a project's requests">
+                            <form-single name="IntakeAddress" transition="saveAddress">
+                                <field name="addressProjectId"><default-field title="Project">
+                                    <drop-down><list-options list="projectOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                <field name="emailAccountId"><default-field title="Mail account (one you manage)">
+                                    <drop-down><list-options list="accountOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                <field name="plusTag"><default-field title="Plus tag (name+tag@...; empty: all its mail)"><text-line size="16"/></default-field></field>
+                                <field name="makes" from="'requests'"><default-field title="Mail makes"><radio>
+                                    <option key="requests" text="Requests"/><option key="workItems" text="Work items from the team, requests from others"/></radio></default-field></field>
+                                <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                            </form-single>
+                        </container-dialog>
+                    </container>
+                    <form-list name="IntakeAddresses" list="addressList" skip-form="true" paginate="false">
+                        <field name="projectName"><default-field title="Project">
+                            <link url="/qapps/Projects/Projects/ProjectDetail/Requests" url-type="plain" text="${projectName}" parameter-map="{workEffortId:workEffortId}" link-type="anchor"/>
+                        </default-field></field>
+                        <field name="address"><default-field title="Address">
+                            <label text="${address}" type="div" style="text-mono text-caption"/>
+                            <label text="${accountName}" type="div" style="text-caption m-muted"/></default-field></field>
+                        <field name="makes"><default-field title="Makes"><label text="${makes == 'workItems' ? ec.l10n.localize('Work items') : ec.l10n.localize('Requests')}${ruleCount ? '' : ' · ' + ec.l10n.localize('no rule')}" type="span"/></default-field></field>
+                        <field name="matchedCount" align="right"><default-field title="Mail"><display/></default-field></field>
+                        <field name="remove"><default-field title="">
+                            <link url="removeAddress" link-type="hidden-form-link" icon="sym_o_delete" text="" tooltip="Take the address off" style="m-btn-flat" condition="canManage"
+                                    confirmation="Mail to ${address} stops making requests in ${projectName}?" parameter-map="{addressProjectId:workEffortId}"/>
+                        </default-field></field>
+                    </form-list>
+                    <section name="NoAddresses" condition="!addressList.length"><widgets>
+                        <label type="p" text="No project takes mail yet." style="m-muted q-pa-sm q-mb-none"/>
+                    </widgets></section>
+                </box-body-nopad></container-box>
+                <container-box><box-header title="Request categories"/><box-body-nopad>
+                    <container style="q-px-sm q-pt-sm">
+                        <form-single name="NewCategory" transition="saveCategory">
+                            <field name="description"><default-field title="New category"><text-line size="24"/></default-field></field>
+                            <field name="parentCategoryId"><default-field title="Under">
+                                <drop-down allow-empty="true"><list-options list="categoryOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                            <field name="addButton"><default-field title="Add"><submit icon="sym_o_add"/></default-field></field>
+                            <field-layout><field-row-big><field-ref name="description"/><field-ref name="parentCategoryId"/><field-ref name="addButton"/></field-row-big></field-layout>
+                        </form-single>
+                    </container>
+                    <form-list name="RequestCategories" list="categoryList" transition="saveCategory" paginate="false">
+                        <field name="requestCategoryId"><default-field><hidden/></default-field></field>
+                        <field name="description"><default-field title="Category"><text-line size="20"/></default-field></field>
+                        <field name="parentCategoryId"><default-field title="Under">
+                            <drop-down allow-empty="true"><list-options list="categoryOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                        <field name="responsiblePartyId"><default-field title="Responsible">
+                            <drop-down allow-empty="true" current-description="${responsibleName}"><dynamic-options transition="partySearch" server-search="true" min-length="0"/></drop-down>
+                        </default-field></field>
+                        <field name="saveButton"><default-field title=""><submit text="Save"/></default-field></field>
+                        <field name="deleteLink"><default-field title="">
+                            <link url="deleteCategory" link-type="hidden-form-link" icon="sym_o_delete" text="" tooltip="Delete" style="m-btn-flat"
+                                    confirmation="Delete the category ${description}?" parameter-map="{requestCategoryId:requestCategoryId}"/>
+                        </default-field></field>
+                    </form-list>
+                    <section name="NoCategories" condition="!categoryList.length"><widgets>
+                        <label type="p" text="No categories yet" style="m-muted q-pa-sm q-mb-none"/>
+                    </widgets></section>
+                </box-body-nopad></container-box>
+            </row-col>
+        </container-row>
     </widgets>
 </screen>

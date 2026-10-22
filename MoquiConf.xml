@@ -16,6 +16,13 @@
                     token-service="mantle.party.ConsentServices.check#UnsubscribeToken" title="Email preferences" post-transition="oneClick"/>
             <token-route name="cal" screen-location="component://ironstone-boss/screen/PublishedCalendar.xml"
                     token-service="ironstone.CalendarServices.check#PublishedCalendarToken" title="Calendar"/>
+            <!-- a project's public request form (design-projects.md §6 RequestIntake; impl-projects.md P5) -->
+            <token-route name="r" screen-location="component://ironstone-boss/screen/RequestIntake.xml"
+                    token-service="mantle.request.RequestServices.check#IntakeToken" title="Send a request"/>
+            <!-- the public request form takes a few posts a minute from a client (on when the per-client web protection is) -->
+            <web-protection>
+                <rate-limit name="request-form" path="/r/*/submit" methods="POST" requests="5" seconds="60" burst="5"/>
+            </web-protection>
         </webapp>
     </webapp-list>
     <screen-facade>

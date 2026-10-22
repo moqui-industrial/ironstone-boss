@@ -61,6 +61,8 @@ along with this software (see the LICENSE.md file). If not, see
         <notification-topic topic="MergeRequestUpdate"/>
         <notification-topic topic="CommitStatusFailed"/>
         <notification-topic topic="ReleasePublished"/>
+        <notification-topic topic="RequestTriage"/>
+        <notification-topic topic="RequestUpdate"/>
 
         <palette-type doc-type="MantleProject"/>
         <palette-type doc-type="MantleTask"/>

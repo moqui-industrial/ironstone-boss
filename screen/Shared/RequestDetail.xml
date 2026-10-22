@@ -1,0 +1,795 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- RequestDetail (design-projects.md §6 RequestDetail, the Request / case screen of research-crosscut §3.11; style-guide §3.3
+    Detail): one request, mounted by Commons at Commons/Requests/RequestDetail and by Projects at Projects/Requests/RequestDetail;
+    the app root's appRoot chooses the context (design §6 "Per-app context").
+
+    Commons (design-drawers-commons.md §8 RequestDetail, service/ironstone/RequestServices.xml get#RequestDetail): the name, the
+    status as a row of stage chips (the framework's status-bar) with the requester's next action (Submit a draft; Cancel one's
+    own), Comment, Reassign for the assignee, Edit of one's own draft and Attach. The tabs: Overview (name, type, priority,
+    customer, description, dates, people), Conversation (Chatter: notes, messages and the comments of add#RequestComment, which
+    are Comment communication events joined by RequestCommEvent; the right column of the overview from 1440 px, a tab below),
+    Tasks (the work efforts of RequestWorkEffort, add a task), the other records it is on (link#RequestRecord) and Files (record
+    files). No queue, SLA or category widgets: those are Customer Service's.
+
+    Projects (service/ironstone/ProjectRequestServices.xml get#ProjectRequestDetail): the id, the name, the type chip and the
+    status-bar of the request flow with the triage moves (Accept, Start, Complete, Cancel; Submit of one's own draft), the facts
+    (customer, project, priority, due, assignee, filed by, date, channel), and the actions Comment, Edit (the request's fields),
+    Make work item, Link work item and in More Assign, Set project, Resolve (a resolution and a note), Convert to project
+    (managers). The tabs: Overview (description, details, people, notes, linked records; Chatter beside it from 1440 px),
+    Conversation (Chatter, on Send message for an outside customer so the reply goes by email), Work (the linked work items with
+    their status and the done count; make, link, unlink), Items (purchase, quote and inventory requests, or when it has some) and
+    Files. Triage is for those who may work in the request's project (and for one with no project the Projects team); the others
+    see it read only. The request follows its work (mantle.request.RequestServices.complete#RequestFromWork).
+
+    The request is found under the record visibility rule (R5, R28; in Projects also its project's, impl-projects.md F1): one the
+    user may not see is "not available". -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Request" default-menu-include="false">
+
+    <parameter name="requestId" required="true"/>
+    <parameter name="tab"/>
+
+    <transition name="requests"><default-response url="../List"/></transition>
+
+    <!-- a move of the status-bar: in Projects a triage move by one who may triage it (ironstone.ProjectRequestServices triage#Request),
+        else the requester's Submit and Cancel (Commons' set#RequestStatus) -->
+    <transition name="changeStatus">
+        <actions><script><![CDATA[
+            let triager = false
+            if (appRoot === 'Projects') {
+                const access = ec.service.sync().name('ironstone.ProjectRequestServices.get#ProjectRequestAccess').parameters({requestId: requestId, need: 'check'}).call() || {}
+                triager = !!access.canTriage && access.request?.statusId !== 'ReqDraft'
+            }
+            const out = triager
+                ? ec.service.sync().name('ironstone.ProjectRequestServices.triage#Request').parameters({requestId: requestId, action: 'status', value: toStatusId}).call()
+                : ec.service.sync().name('ironstone.RequestServices.set#RequestStatus').parameters({requestId: requestId, toStatusId: toStatusId}).call()
+            if (!ec.message.hasError()) ec.message.addMessage(out.message, 'success')
+        ]]></script></actions>
+        <default-response url="."><parameter name="requestId"/><parameter name="tab"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="updateRequest">
+        <actions>
+            <service-call name="ironstone.RequestServices.update#MyRequest" out-map="updateOut" in-map="{requestId:requestId, requestName:requestName,
+                    requestTypeEnumId:requestTypeEnumId, priority:(priority || null), customerPartyId:(customerPartyId || null), description:description,
+                    responseRequiredDate:(responseRequiredDate || null)}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(updateOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="requestId"/><parameter name="tab"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="reassign">
+        <actions>
+            <service-call name="ironstone.RequestServices.reassign#Request" out-map="reassignOut" in-map="{requestId:requestId, assignToPartyId:assignToPartyId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(reassignOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="requestId"/><parameter name="tab"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="addComment">
+        <actions>
+            <service-call name="ironstone.RequestServices.comment#Request" out-map="commentOut" in-map="{requestId:requestId, body:(body || '')}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(commentOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="requestId"/><parameter name="tab"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="addTask">
+        <actions>
+            <service-call name="ironstone.RequestServices.add#RequestTask" out-map="taskOut" in-map="{requestId:requestId, workEffortName:(workEffortName || ''),
+                    dueDate:(dueDate || null)}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(taskOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="requestId"/><parameter name="tab" value="tasks"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="linkRecord">
+        <actions>
+            <service-call name="ironstone.RequestServices.link#RequestRecord" out-map="linkOut" in-map="{requestId:requestId, record:record,
+                    recordEntityName:recordEntityName, recordId:recordId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(linkOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="requestId"/><parameter name="tab"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="unlinkRecord">
+        <actions>
+            <service-call name="ironstone.RequestServices.unlink#RequestRecord" out-map="unlinkOut" in-map="{requestId:requestId,
+                    recordEntityName:recordEntityName, recordId:recordId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(unlinkOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="requestId"/><parameter name="tab"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="searchRecords" read-only="true">
+        <actions>
+            <service-call name="ironstone.InboxServices.search#LinkRecords" in-map="{term:term}" out-map="found"/>
+            <script>ec.web.sendJsonResponse(Array.from(found.optionList || []).map((option) =&gt; ({value: option.value, label: option.label})))</script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="assigneeSearch" read-only="true">
+        <actions>
+            <service-call name="ironstone.TaskServices.search#Assignees" in-map="{term:term}" out-map="found"/>
+            <script>ec.web.sendJsonResponse(found.optionList || [])</script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="customerSearch" read-only="true">
+        <actions>
+            <entity-find entity-name="mantle.party.PartyDetail" list="partyList" limit="20">
+                <econditions combine="or">
+                    <econdition field-name="organizationName" operator="like" value="%${term}%" ignore-case="true"/>
+                    <econdition field-name="firstName" operator="like" value="%${term}%" ignore-case="true"/>
+                    <econdition field-name="lastName" operator="like" value="%${term}%" ignore-case="true"/>
+                    <econdition field-name="pseudoId" operator="like" value="%${term}%" ignore-case="true"/>
+                </econditions>
+                <econdition field-name="disabled" operator="not-equals" value="Y" or-null="true"/>
+                <econdition field-name="privateOwnerUserId" from="ec.user.userId" or-null="true"/>
+                <order-by field-name="^organizationName,^firstName,^lastName"/>
+            </entity-find>
+            <script><![CDATA[
+                ec.web.sendJsonResponse(Array.from(partyList).map((party) => ({value: party.partyId,
+                    label: (party.organizationName || [party.firstName, party.lastName].filter((part) => part).join(' ') || party.partyId) +
+                        ' (' + (party.pseudoId || party.partyId) + ')'})))
+            ]]></script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+
+    <!-- ========== Projects: triage and work ========== -->
+    <transition name="resolve">
+        <actions>
+            <service-call name="ironstone.ProjectRequestServices.triage#Request" out-map="triageOut" in-map="{requestId:requestId, action:'status',
+                    value:(toStatusId || 'ReqCompleted'), resolutionEnumId:(resolutionEnumId || null), comment:(comment || null)}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(triageOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="requestId"/><parameter name="tab"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="triage">
+        <actions>
+            <service-call name="ironstone.ProjectRequestServices.triage#Request" out-map="triageOut" in-map="{requestId:requestId, action:triageAction, value:(value ?? '')}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(triageOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="requestId"/><parameter name="tab"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="saveRequest">
+        <actions>
+            <service-call name="ironstone.ProjectRequestServices.update#ProjectRequest" out-map="saveOut" in-map="{requestId:requestId, requestName:requestName,
+                    requestTypeEnumId:requestTypeEnumId, priority:priority, customerPartyId:(customerPartyId || null), rootWorkEffortId:(rootWorkEffortId || null),
+                    assigneePartyId:(assigneePartyId || null), responseRequiredDate:(responseRequiredDate ?? ''), description:(description ?? '')}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="requestId"/><parameter name="tab"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="makeWorkItem">
+        <actions>
+            <service-call name="ironstone.ProjectRequestServices.make#WorkItemFromRequest" out-map="makeOut" in-map="{requestId:requestId,
+                    rootWorkEffortId:(rootWorkEffortId || null), parentWorkEffortId:(parentWorkEffortId || null), workEffortName:workEffortName,
+                    purposeEnumId:(purposeEnumId || null), priority:(priority || null), estimatedCompletionDate:(estimatedCompletionDate || null),
+                    estimatedWorkTime:(estimatedWorkTime || null), assignToPartyId:(assignToPartyId || null), description:(description || null)}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(makeOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="requestId"/><parameter name="tab" value="work"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="linkWorkItem">
+        <actions>
+            <service-call name="ironstone.ProjectRequestServices.link#RequestWorkItem" out-map="linkOut" in-map="{requestId:requestId, workEffortId:(workEffortId || '')}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(linkOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="requestId"/><parameter name="tab" value="work"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="unlinkWorkItem">
+        <actions>
+            <service-call name="ironstone.ProjectRequestServices.unlink#RequestWorkItem" out-map="unlinkOut" in-map="{requestId:requestId, workEffortId:workEffortId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(unlinkOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="requestId"/><parameter name="tab" value="work"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="convertToProject">
+        <actions>
+            <service-call name="ironstone.ProjectRequestServices.convert#RequestToNewProject" out-map="convertOut" in-map="{requestId:requestId,
+                    workEffortId:(newProjectId || ''), workEffortName:(newProjectName || null), templateWorkEffortId:(templateWorkEffortId || null)}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(convertOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="requestId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="workItemSearch" read-only="true">
+        <actions>
+            <service-call name="ironstone.ProjectRequestServices.search#WorkItemOptions" in-map="{term:term, rootWorkEffortId:(rootWorkEffortId || null)}" out-map="found"/>
+            <script>ec.web.sendJsonResponse(found.optionList || [])</script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+
+    <actions>
+        <script><![CDATA[
+            projects = appRoot === 'Projects'
+            detailPath = projects ? '/qapps/Projects/Requests/RequestDetail' : '/qapps/Commons/Requests/RequestDetail'
+            let pd = {}
+            if (projects) {
+                const out = ec.service.sync().name('ironstone.ProjectRequestServices.get#ProjectRequestDetail').parameters({requestId: requestId}).call() || {}
+                recordFound = !!out.visible
+                pd = out.detail || {}
+                detail = pd.base || {}
+            } else {
+                detail = ec.service.sync().name('ironstone.RequestServices.get#RequestDetail').parameters({requestId: requestId}).call() || {}
+                recordFound = !!detail.visible
+            }
+            const tabKeys = projects ? ['overview', 'conversation', 'work'].concat(pd.itemsShown ? ['items'] : []).concat(['files'])
+                    : ['overview', 'conversation', 'tasks', 'files']
+            tab = tabKeys.includes(tab) ? tab : 'overview'
+            if (!recordFound) return
+            const L = (text) => ec.l10n.localize(text)
+            const enc = (text) => String(text == null ? '' : text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+            request = detail.request
+            canSubmit = !!detail.canSubmit
+            canCancel = !!detail.canCancel
+            canEdit = !!detail.canEdit
+            canReassign = !!detail.canReassign
+            canAddTask = !!detail.canAddTask
+            canLink = !!detail.canLink
+            linkedRecordList = (detail.linkedRecordList || []).map((record) => Object.assign({}, record, {cardHtml: '<m-record-card record-entity="' + enc(record.recordEntityName)
+                    + '" record-id="' + enc(record.recordId) + '" card-url="/apps/' + (projects ? 'Projects' : 'Commons') + '/Chatter/recordCard" dense></m-record-card>'}))
+            // the status-bar: the stages and the moves the user may make
+            stageStatusIds = projects ? (pd.stageStatusIds || []) : (detail.stageStatusIds || [])
+            allowedStatusIds = projects ? (pd.allowedStatusIds || []) : (detail.allowedStatusIds || [])
+            partyList = detail.partyList || []
+            taskList = detail.taskList || []
+            captionText = [L('Request') + ' ' + requestId, request.typeLabel, request.filedByName ? L('raised by') + ' ' + request.filedByName : null,
+                request.requestDateText].filter((part) => part).join(' · ')
+            const fact = (label, value, cls) => '<div class="col-auto"><div class="text-caption m-muted">' + enc(L(label)) + '</div><div class="text-body2' + (cls ? ' ' + cls : '') + '">' + value + '</div></div>'
+            const person = (name, userId) => name ? '<span class="row inline items-center no-wrap"><m-avatar name="' + enc(name) + '"'
+                    + (userId ? ' user-id="' + enc(userId) + '"' : '') + ' size="22px" class="q-mr-xs"></m-avatar>' + enc(name) + '</span>' : '—'
+            const link = (text, url) => '<a href="' + enc(url) + '" @click.prevent="$root.setUrl(\'' + enc(url) + '\')">' + enc(text) + '</a>'
+            if (projects) {
+                canTriage = !!pd.canTriage
+                canConvert = !!pd.canConvert
+                isOpen = !!pd.open
+                workList = pd.workList || []
+                itemList = pd.itemList || []
+                noteList = pd.noteList || []
+                projectName = pd.projectName || ''
+                workText = workList.length ? pd.workDoneCount + '/' + workList.length + ' ' + L('done') : ''
+                const projectUrl = request.rootWorkEffortId ? '/qapps/Projects/Projects/ProjectDetail/Requests?workEffortId=' + encodeURIComponent(request.rootWorkEffortId) : null
+                factsHtml = '<div class="row q-col-gutter-lg q-mb-sm m-request-facts">'
+                    + fact('Customer', person(request.customerName, request.customerUserId), '')
+                    + fact('Project', projectUrl ? link(projectName, projectUrl) : enc(L('None yet')), projectUrl ? '' : 'm-muted')
+                    + fact('Priority', enc(request.priorityText || '—'), '')
+                    + fact('Due', enc(request.responseRequiredText ? String(request.responseRequiredText).replace(/ \d{1,2}:\d{2} [AP]M$/, '') : '—'), '')
+                    + fact('Assignee', request.assigneeName ? person(request.assigneeName, request.assigneeUserId) : enc(L('Unassigned')), request.assigneeName ? '' : 'text-warning')
+                    + fact('Filed by', enc(request.filedByName || '—'), '')
+                    + fact('Date', enc(request.requestDateText || '—'), '')
+                    + fact('Channel', enc(pd.channelLabel || ''), '')
+                    + (workList.length ? fact('Work', enc(workText), '') : '')
+                    + '</div>'
+                typeChipHtml = request.typeLabel ? '<q-chip dense square class="q-my-none q-ml-none q-mr-sm m-tonal text-grey-8" icon="sym_o_category">' + enc(request.typeLabel) + '</q-chip>' : ''
+                chatterTab = pd.customerOutside && isOpen ? 'message' : 'log'
+                // the values of the dialogs
+                requestEdit = {requestId: requestId, tab: tab, requestName: request.requestName || '', requestTypeEnumId: request.requestTypeEnumId || '',
+                    priority: request.priority != null ? String(request.priority) : '5', customerPartyId: request.customerPartyId || '',
+                    rootWorkEffortId: request.rootWorkEffortId || '', assigneePartyId: request.assigneePartyId || '',
+                    responseRequiredDate: request.responseRequiredEdit ? request.responseRequiredEdit.substring(0, 10) : '', description: request.description || ''}
+                customerName = request.customerName || ''
+                assigneeName = request.assigneeName || ''
+                projectOptions = ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').parameters({memberOnly: true}).call()?.projectList || []
+                if (request.rootWorkEffortId && !projectOptions.some((option) => option.key === request.rootWorkEffortId))
+                    projectOptions = [{key: request.rootWorkEffortId, text: projectName + ' (' + request.rootWorkEffortId + ')'}].concat(projectOptions)
+                makeProjectId = request.rootWorkEffortId || (projectOptions[0]?.key || '')
+                makeTypes = Array.from(ec.service.sync().name('ironstone.ProjectServices.get#WorkItemTypes').parameters({rootWorkEffortId: makeProjectId || null}).call()?.offeredList || [])
+                makeTypeId = ({RqtBugFix: 'WepFix', RqtNewFeature: 'WepNewFeature'}[request.requestTypeEnumId]) || 'WepTask'
+                if (!makeTypes.some((type) => type.enumId === makeTypeId)) makeTypes = [{enumId: makeTypeId, label: L(makeTypeId === 'WepFix' ? 'Bug Fix' : makeTypeId === 'WepNewFeature' ? 'New Feature' : 'Task')}].concat(makeTypes)
+                makeValues = {requestId: requestId, rootWorkEffortId: makeProjectId, workEffortName: request.requestName || '', purposeEnumId: makeTypeId,
+                    priority: request.priority != null ? String(request.priority) : '5', estimatedCompletionDate: requestEdit.responseRequiredDate, description: request.description || ''}
+                const suggested = String(request.requestName || '').toUpperCase().replace(/[^A-Z0-9 ]/g, '').split(/\s+/).filter((word) => word).map((word) => word[0]).join('').substring(0, 6)
+                convertValues = {requestId: requestId, newProjectName: request.requestName || '', newProjectId: suggested.length >= 2 ? suggested : ''}
+            }
+            factsCommonsHtml = '<div class="row q-col-gutter-lg q-mb-sm m-request-facts">'
+                + fact('Priority', enc(request.priorityText || '—'), '')
+                + fact('Customer', person(request.customerName, request.customerUserId), '')
+                + fact('Assigned', person(request.assigneeName, request.assigneeUserId), '')
+                + (request.responseRequiredText ? fact('Response wanted by', enc(request.responseRequiredText), '') : '')
+                + fact('Updated', enc(request.updatedText || '—'), '')
+                + '</div>'
+            if (!projects) factsHtml = factsCommonsHtml
+            const tabs = projects ? [['overview', 'Overview'], ['conversation', 'Conversation'], ['work', 'Work' + (workList.length ? ' (' + workList.length + ')' : '')]]
+                    .concat(pd.itemsShown ? [['items', 'Items' + (itemList.length ? ' (' + itemList.length + ')' : '')]] : []).concat([['files', 'Files']])
+                : [['overview', 'Overview'], ['conversation', 'Conversation'], ['tasks', 'Tasks' + (taskList.length ? ' (' + taskList.length + ')' : '')], ['files', 'Files']]
+            const base = detailPath + '?requestId=' + encodeURIComponent(requestId)
+            tabsHtml = '<q-tabs dense no-caps inline-label narrow-indicator outside-arrows mobile-arrows align="left" active-color="primary" indicator-color="primary"'
+                    + ' class="text-grey-8 m-request-tabs" model-value="' + enc(tab) + '">' + tabs.map(([key, label]) => {
+                        // the conversation is beside the overview from 1440 px, a tab below
+                        const cls = key === 'conversation' && tab !== 'conversation' ? ' class="lt-lg"' : ''
+                        return '<q-tab name="' + key + '" label="' + enc(L(label)) + '"' + cls + ' data-tab="' + key + '" @click="$root.setUrl(\'' + enc(base + '&tab=' + key) + '\')"></q-tab>'
+                    }).join('') + '</q-tabs><q-separator class="q-mb-sm"></q-separator>'
+            // the tabs in the terminal: links to this screen with the tab
+            tabsTui = {t: 'row', id: 'RequestTabs', c: tabs.map(([key, label]) => ({t: 'link', id: 'RequestTab_' + key, text: key === tab ? '[' + L(label) + ']' : L(label),
+                url: sri.buildUrl('.').path + base.substring(base.indexOf('?')) + '&tab=' + key}))}
+            filesUrl = base + '&tab=files'
+            if (!projects) {
+                requestEdit = {requestId: requestId, requestName: request.requestName, requestTypeEnumId: request.requestTypeEnumId,
+                    priority: request.priority != null ? String(request.priority) : '5', customerPartyId: request.customerPartyId,
+                    description: request.description, responseRequiredDate: request.responseRequiredEdit ? request.responseRequiredEdit.substring(0, 10) : ''}
+                customerName = request.customerName || ''
+            }
+        ]]></script>
+    </actions>
+
+    <widgets>
+        <section name="RequestNotFound" condition="!recordFound"><widgets>
+            <container-box type="warning"><box-header title="Not available"/><box-body>
+                <label type="p" text="Request ${requestId} is not available: it does not exist, or you are not one of its people or organizations."/>
+                <link url="requests" text="Back to Requests" link-type="anchor"/>
+            </box-body></container-box>
+        </widgets></section>
+
+        <section name="RequestFound" condition="recordFound"><widgets>
+            <!-- the record for the shell: quick create's link chip and the activity kind, Today's "Add activity on this record" -->
+            <context record-entity="mantle.request.Request" record-id="${requestId}" title="${request.requestName || requestId}"/>
+            <container style="q-mb-xs"><link url="requests" link-type="anchor" text="Requests" icon="arrow_back"/></container>
+
+            <section name="CommonsHeader" condition="!projects"><widgets>
+                <!-- ===== header ===== -->
+                <container style="row items-start q-col-gutter-sm q-mb-sm m-request-header">
+                    <container style="col-12 col-md">
+                        <label text="${request.requestName || requestId}" type="h5" style="q-my-none"/>
+                        <label text="${captionText}" type="div" style="text-caption m-muted q-mb-xs"/>
+                        <status-bar id="RequestStatusBar" status-id="${request.statusId}" stages="${stageStatusIds}" allowed-status-ids="${allowedStatusIds}"
+                                transition="changeStatus" parameter-name="toStatusId" parameter-map="{requestId:requestId, tab:tab}"
+                                title="${request.requestName || requestId}"/>
+                    </container>
+                    <container style="col-12 col-md-auto row items-center q-gutter-y-xs m-request-actions">
+                        <container-dialog id="RequestCommentDialog" button-text="Comment" icon="sym_o_add_comment" width="560" title="Comment on ${request.requestName || requestId}">
+                            <form-single name="RequestComment" transition="addComment" focus-field="body">
+                                <field name="requestId"><default-field><hidden/></default-field></field>
+                                <field name="tab"><default-field><hidden/></default-field></field>
+                                <field name="body" from="''"><default-field title="Comment"><text-area rows="4" cols="60"/></default-field></field>
+                                <field name="submitButton"><default-field title="Comment"><submit/></default-field></field>
+                            </form-single>
+                        </container-dialog>
+                        <container-dialog id="RequestReassignDialog" button-text="Reassign" icon="sym_o_person_add" width="480" title="Assign ${request.requestName || requestId} to"
+                                condition="canReassign">
+                            <form-single name="RequestReassign" transition="reassign">
+                                <field name="requestId"><default-field><hidden/></default-field></field>
+                                <field name="tab"><default-field><hidden/></default-field></field>
+                                <field name="assignToPartyId"><default-field title="Assignee">
+                                    <drop-down><dynamic-options transition="assigneeSearch" server-search="true" min-length="0"/></drop-down></default-field></field>
+                                <field name="submitButton"><default-field title="Reassign"><submit/></default-field></field>
+                            </form-single>
+                        </container-dialog>
+                        <container-dialog id="RequestEditDialog" button-text="Edit" icon="sym_o_edit" width="640" title="Edit the draft" condition="canEdit">
+                            <form-single name="RequestEdit" transition="updateRequest" map="requestEdit" focus-field="requestName">
+                                <field name="requestId"><default-field><hidden/></default-field></field>
+                                <field name="tab" from="tab"><default-field><hidden/></default-field></field>
+                                <field name="requestName"><default-field title="Request"><text-line size="40"/></default-field></field>
+                                <field name="requestTypeEnumId"><default-field title="Type">
+                                    <drop-down><entity-options key="${enumId}" text="${description}">
+                                        <entity-find entity-name="moqui.basic.Enumeration" cache="true">
+                                            <econdition field-name="enumTypeId" value="RequestType"/><order-by field-name="description"/></entity-find>
+                                    </entity-options></drop-down></default-field></field>
+                                <field name="priority"><default-field title="Priority">
+                                    <drop-down><option key="1" text="1 (highest)"/><option key="2" text="2 (high)"/><option key="3"/><option key="4"/>
+                                        <option key="5" text="5 (normal)"/><option key="6"/><option key="7"/><option key="8" text="8 (low)"/><option key="9" text="9 (lowest)"/></drop-down>
+                                </default-field></field>
+                                <field name="customerPartyId"><default-field title="Customer">
+                                    <drop-down allow-empty="true" current-description="${customerName}">
+                                        <dynamic-options transition="customerSearch" server-search="true" min-length="1"/></drop-down></default-field></field>
+                                <field name="responseRequiredDate"><default-field title="Response wanted by"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                                <field name="description"><default-field title="Description"><text-area rows="4" cols="60"/></default-field></field>
+                                <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                                <field-layout>
+                                    <field-ref name="requestName"/>
+                                    <field-row><field-ref name="requestTypeEnumId"/><field-ref name="priority"/></field-row>
+                                    <field-row><field-ref name="customerPartyId"/><field-ref name="responseRequiredDate"/></field-row>
+                                    <field-ref name="description"/><field-ref name="submitButton"/>
+                                </field-layout>
+                            </form-single>
+                        </container-dialog>
+                        <link url="${filesUrl}" url-type="plain" link-type="anchor-button" text="Attach" icon="sym_o_attach_file" style="q-ml-xs"/>
+                    </container>
+                </container>
+            </widgets></section>
+
+            <!-- ===== Projects: the id, the name, the type, the flow's status-bar and the triage actions ===== -->
+            <section name="ProjectsHeader" condition="projects"><widgets>
+                <container style="row items-start q-col-gutter-sm q-mb-sm m-request-header">
+                    <container style="col-12 col-md">
+                        <container style="row items-baseline">
+                            <label text="${requestId}" type="span" style="text-mono text-caption m-muted q-mr-sm"/>
+                            <label text="${request.requestName || requestId}" type="h5" style="q-my-none"/>
+                        </container>
+                        <container style="row items-center q-mt-xs">
+                            <render-mode><text type="qvt"><![CDATA[${typeChipHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify({t: "text", id: "RequestType", text: request.typeLabel || ""})}]]></text></render-mode>
+                            <status-bar id="RequestStatusBar" status-id="${request.statusId}" stages="${stageStatusIds}" allowed-status-ids="${allowedStatusIds}"
+                                    transition="changeStatus" parameter-name="toStatusId" parameter-map="{requestId:requestId, tab:tab}"
+                                    title="${request.requestName || requestId}"/>
+                        </container>
+                    </container>
+                    <container style="col-12 col-md-auto row items-center q-gutter-y-xs m-request-actions">
+                        <container-dialog id="RequestCommentDialog" button-text="Comment" icon="sym_o_add_comment" width="560" title="Comment on ${request.requestName || requestId}">
+                            <form-single name="RequestComment" transition="addComment" focus-field="body">
+                                <field name="requestId"><default-field><hidden/></default-field></field>
+                                <field name="tab"><default-field><hidden/></default-field></field>
+                                <field name="body" from="''"><default-field title="Comment (a note: the team sees it)"><text-area rows="4" cols="60"/></default-field></field>
+                                <field name="submitButton"><default-field title="Comment"><submit/></default-field></field>
+                            </form-single>
+                        </container-dialog>
+                        <container-dialog id="RequestHeaderDialog" button-text="Edit" icon="sym_o_edit" width="720" title="Edit request ${requestId}" condition="canTriage">
+                            <form-single name="RequestHeader" transition="saveRequest" map="requestEdit" focus-field="requestName">
+                                <field name="requestId"><default-field><hidden/></default-field></field>
+                                <field name="tab"><default-field><hidden/></default-field></field>
+                                <field name="requestName"><default-field title="Request"><text-line size="50"/></default-field></field>
+                                <field name="requestTypeEnumId"><default-field title="Type">
+                                    <drop-down><entity-options key="${enumId}" text="${description}">
+                                        <entity-find entity-name="moqui.basic.Enumeration" cache="true">
+                                            <econdition field-name="enumTypeId" value="RequestType"/><order-by field-name="description"/></entity-find>
+                                    </entity-options></drop-down></default-field></field>
+                                <field name="priority"><default-field title="Priority">
+                                    <drop-down><option key="1" text="1 (highest)"/><option key="2" text="2 (high)"/><option key="3"/><option key="4"/>
+                                        <option key="5" text="5 (normal)"/><option key="6"/><option key="7"/><option key="8" text="8 (low)"/><option key="9" text="9 (lowest)"/></drop-down>
+                                </default-field></field>
+                                <field name="customerPartyId"><default-field title="Customer">
+                                    <drop-down allow-empty="true" current-description="${customerName}">
+                                        <dynamic-options transition="customerSearch" server-search="true" min-length="1"/></drop-down></default-field></field>
+                                <field name="rootWorkEffortId"><default-field title="Project">
+                                    <drop-down allow-empty="true"><list-options list="projectOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                <field name="assigneePartyId"><default-field title="Assignee">
+                                    <drop-down allow-empty="true" current-description="${assigneeName}">
+                                        <dynamic-options transition="assigneeSearch" server-search="true" min-length="0"/></drop-down></default-field></field>
+                                <field name="responseRequiredDate"><default-field title="Due"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                                <field name="description"><default-field title="Description"><text-area rows="6" cols="60" editor-type="md"/></default-field></field>
+                                <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                                <field-layout>
+                                    <field-ref name="requestName"/>
+                                    <field-row><field-ref name="requestTypeEnumId"/><field-ref name="priority"/></field-row>
+                                    <field-row><field-ref name="customerPartyId"/><field-ref name="rootWorkEffortId"/></field-row>
+                                    <field-row><field-ref name="assigneePartyId"/><field-ref name="responseRequiredDate"/></field-row>
+                                    <field-ref name="description"/><field-ref name="submitButton"/>
+                                </field-layout>
+                            </form-single>
+                        </container-dialog>
+                        <container-dialog id="MakeWorkItemDialog" button-text="Make work item" icon="sym_o_add_task" width="720" title="A work item from request ${requestId}"
+                                condition="canTriage &amp;&amp; isOpen &amp;&amp; projectOptions.length">
+                            <form-single name="MakeWorkItem" transition="makeWorkItem" map="makeValues" focus-field="workEffortName">
+                                <field name="requestId"><default-field><hidden/></default-field></field>
+                                <field name="rootWorkEffortId"><default-field title="Project">
+                                    <drop-down><list-options list="projectOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                <field name="workEffortName"><default-field title="Title"><text-line size="50"/></default-field></field>
+                                <field name="purposeEnumId"><default-field title="Type">
+                                    <drop-down><list-options list="makeTypes" key="${enumId}" text="${label}"/></drop-down></default-field></field>
+                                <field name="priority"><default-field title="Priority">
+                                    <drop-down><option key="1" text="1 (highest)"/><option key="2" text="2 (high)"/><option key="3"/><option key="4"/>
+                                        <option key="5" text="5 (normal)"/><option key="6"/><option key="7"/><option key="8" text="8 (low)"/><option key="9" text="9 (lowest)"/></drop-down>
+                                </default-field></field>
+                                <field name="assignToPartyId"><default-field title="Assignee">
+                                    <drop-down allow-empty="true"><dynamic-options transition="assigneeSearch" server-search="true" min-length="0"/></drop-down></default-field></field>
+                                <field name="parentWorkEffortId"><default-field title="Under (an item's key)"><text-line size="14"/></default-field></field>
+                                <field name="estimatedCompletionDate"><default-field title="Due"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                                <field name="estimatedWorkTime"><default-field title="Estimate (hours)"><text-line size="6" input-type="number"/></default-field></field>
+                                <field name="description"><default-field title="Description"><text-area rows="4" cols="60"/></default-field></field>
+                                <field name="submitButton"><default-field title="Make work item"><submit/></default-field></field>
+                                <field-layout>
+                                    <field-row><field-ref name="rootWorkEffortId"/><field-ref name="purposeEnumId"/></field-row>
+                                    <field-ref name="workEffortName"/>
+                                    <field-row><field-ref name="assignToPartyId"/><field-ref name="priority"/></field-row>
+                                    <field-row><field-ref name="parentWorkEffortId"/><field-ref name="estimatedCompletionDate"/><field-ref name="estimatedWorkTime"/></field-row>
+                                    <field-ref name="description"/><field-ref name="submitButton"/>
+                                </field-layout>
+                            </form-single>
+                        </container-dialog>
+                        <button-menu text="More" icon="more_horiz" style="q-ml-xs" condition="canTriage">
+                            <container-dialog id="LinkWorkItemDialog" button-text="Link work item" icon="sym_o_add_link" width="560" title="Link a work item to request ${requestId}"
+                                    condition="isOpen">
+                                <form-single name="LinkWorkItem" transition="linkWorkItem">
+                                    <field name="requestId"><default-field><hidden/></default-field></field>
+                                    <field name="workEffortId"><default-field title="Work item (a key or title)">
+                                        <drop-down><dynamic-options transition="workItemSearch" server-search="true" min-length="1" parameter-map="{rootWorkEffortId:request.rootWorkEffortId}"/></drop-down>
+                                    </default-field></field>
+                                    <field name="submitButton"><default-field title="Link"><submit/></default-field></field>
+                                </form-single>
+                            </container-dialog>
+                            <container-dialog id="AssignRequestDialog" button-text="Assign" icon="sym_o_person_add" width="480" title="Assign request ${requestId} to">
+                                <form-single name="AssignRequest" transition="triage">
+                                    <field name="requestId"><default-field><hidden/></default-field></field>
+                                    <field name="tab" from="tab"><default-field><hidden/></default-field></field>
+                                    <field name="triageAction" from="'assign'"><default-field><hidden/></default-field></field>
+                                    <field name="value" from="request.assigneePartyId || ''"><default-field title="Assignee (empty: unassigned)">
+                                        <drop-down allow-empty="true" current-description="${assigneeName}"><dynamic-options transition="assigneeSearch" server-search="true" min-length="0"/></drop-down>
+                                    </default-field></field>
+                                    <field name="submitButton"><default-field title="Assign"><submit/></default-field></field>
+                                </form-single>
+                            </container-dialog>
+                            <container-dialog id="SetProjectDialog" button-text="Set project" icon="sym_o_folder_open" width="480" title="The project of request ${requestId}">
+                                <form-single name="SetProject" transition="triage">
+                                    <field name="requestId"><default-field><hidden/></default-field></field>
+                                    <field name="tab" from="tab"><default-field><hidden/></default-field></field>
+                                    <field name="triageAction" from="'project'"><default-field><hidden/></default-field></field>
+                                    <field name="value" from="request.rootWorkEffortId || ''"><default-field title="Project (empty: none)">
+                                        <drop-down allow-empty="true"><list-options list="projectOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                    <field name="submitButton"><default-field title="Set project"><submit/></default-field></field>
+                                </form-single>
+                            </container-dialog>
+                            <container-dialog id="ResolveRequestDialog" button-text="Resolve" icon="sym_o_task_alt" width="560" title="Complete or cancel request ${requestId}"
+                                    condition="isOpen">
+                                <form-single name="ResolveRequest" transition="resolve">
+                                    <field name="requestId"><default-field><hidden/></default-field></field>
+                                    <field name="tab" from="tab"><default-field><hidden/></default-field></field>
+                                    <field name="toStatusId" from="'ReqCompleted'"><default-field title="">
+                                        <radio><option key="ReqCompleted" text="Complete"/><option key="ReqCancelled" text="Cancel"/></radio></default-field></field>
+                                    <field name="resolutionEnumId" from="request.requestTypeEnumId == 'RqtBugFix' ? 'RrFixed' : 'RrCompleted'"><default-field title="Resolution">
+                                        <drop-down><option key="RrFixed" text="Fixed"/><option key="RrCompleted" text="Completed"/><option key="RrWontFix" text="Won't fix"/>
+                                            <option key="RrDuplicate" text="Duplicate"/><option key="RrCantReproduce" text="Can't reproduce"/>
+                                            <option key="RrInsufficient" text="Insufficient information"/><option key="RrRejected" text="Rejected"/></drop-down></default-field></field>
+                                    <field name="comment" from="''"><default-field title="Note on the conversation (the requester hears through Send message)"><text-area rows="3" cols="60"/></default-field></field>
+                                    <field name="submitButton"><default-field title="Resolve"><submit/></default-field></field>
+                                </form-single>
+                            </container-dialog>
+                            <container-dialog id="ConvertToProjectDialog" button-text="Convert to project" icon="sym_o_create_new_folder" width="560"
+                                    title="A project from request ${requestId}" condition="canConvert">
+                                <form-single name="ConvertToProject" transition="convertToProject" map="convertValues">
+                                    <field name="requestId"><default-field><hidden/></default-field></field>
+                                    <field name="newProjectName"><default-field title="Project name"><text-line size="40"/></default-field></field>
+                                    <field name="newProjectId"><default-field title="Key (letters and digits, upper case)"><text-line size="10"/></default-field></field>
+                                    <field name="submitButton"><default-field title="Make the project"><submit/></default-field></field>
+                                </form-single>
+                                <label type="p" text="The request's customer is the client and its description the project's; the request moves to In Progress in it." style="text-caption m-muted q-mb-none"/>
+                            </container-dialog>
+                        </button-menu>
+                    </container>
+                </container>
+            </widgets></section>
+            <render-mode><text type="qvt"><![CDATA[${factsHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(Object.assign({t: "html", id: "RequestFacts"}, JSON.parse(sri.htmlText(factsHtml))))}]]></text></render-mode>
+            <render-mode><text type="qvt"><![CDATA[${tabsHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(tabsTui)}]]></text></render-mode>
+
+            <section name="CommonsOverview" condition="!projects"><widgets>
+                <!-- ===== Overview ===== -->
+                <section name="OverviewTab" condition="tab == 'overview'"><widgets>
+                    <container style="row q-col-gutter-sm">
+                        <container style="col-12 col-lg-8">
+                            <container style="row q-col-gutter-sm">
+                                <container style="col-12 col-md-7">
+                                    <container-box><box-header title="Request"/><box-body>
+                                        <label text="${request.description}" type="p" style="text-body2" condition="request.description"/>
+                                        <label text="No description" type="p" style="m-muted" condition="!request.description"/>
+                                        <form-single name="RequestFacts" map="request">
+                                            <field name="typeLabel"><default-field title="Type"><display/></default-field></field>
+                                            <field name="statusLabel"><default-field title="Status"><display/></default-field></field>
+                                            <field name="priorityText"><default-field title="Priority"><display/></default-field></field>
+                                            <field name="customerName"><default-field title="Customer"><display/></default-field></field>
+                                            <field name="requestDateText"><default-field title="Raised"><display/></default-field></field>
+                                            <field name="responseRequiredText"><conditional-field condition="request.responseRequiredText" title="Response wanted by"><display/></conditional-field>
+                                                <default-field><ignored/></default-field></field>
+                                            <field name="resolutionLabel"><conditional-field condition="request.resolutionLabel &amp;&amp; request.requestResolutionEnumId != 'RrUnresolved'" title="Resolution">
+                                                <display/></conditional-field><default-field><ignored/></default-field></field>
+                                            <field-layout>
+                                                <field-row><field-ref name="typeLabel"/><field-ref name="statusLabel"/></field-row>
+                                                <field-row><field-ref name="priorityText"/><field-ref name="customerName"/></field-row>
+                                                <field-row><field-ref name="requestDateText"/><field-ref name="responseRequiredText"/></field-row>
+                                                <field-ref name="resolutionLabel"/>
+                                            </field-layout>
+                                        </form-single>
+                                    </box-body></container-box>
+                                </container>
+                                <container style="col-12 col-md-5">
+                                    <container-box><box-header title="People"/><box-body-nopad>
+                                        <form-list name="RequestPeople" list="partyList" skip-form="true" skip-header="true" paginate="false">
+                                            <field name="name"><default-field>
+                                                <link url="${url || '.'}" url-type="plain" text="${name}${isMe ? ' (' + ec.l10n.localize('you') + ')' : ''}" condition="url"/>
+                                                <label text="${name}" type="span" condition="!url"/>
+                                            </default-field></field>
+                                            <field name="roleText"><default-field><label text="${roleText}" type="span" style="m-muted"/></default-field></field>
+                                        </form-list>
+                                        <section name="NoPeople" condition="!partyList.length"><widgets>
+                                            <label type="p" text="Nobody yet" style="m-muted q-pa-sm q-mb-none"/>
+                                        </widgets></section>
+                                    </box-body-nopad></container-box>
+                                </container>
+                            </container>
+                            <container-box><box-header title="Linked records"/><box-body>
+                                <section name="RequestLinked" condition="linkedRecordList.length || canLink"><widgets>
+                                    <section-iterate name="RequestLinkedItems" list="linkedRecordList" entry="linked"><widgets>
+                                        <container style="row items-center no-wrap q-mb-xs">
+                                            <container style="col"><render-mode><text type="qvt"><![CDATA[${linked.cardHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify({t: "text", text: String(linked.recordEntityName).split(".").pop() + " " + linked.recordId})}]]></text></render-mode></container>
+                                            <link url="unlinkRecord" link-type="hidden-form-link" icon="sym_o_link_off" text="" tooltip="Take the request off this record"
+                                                    style="m-btn-flat q-ml-xs" condition="linked.canRemove" confirmation="Take the request off this record?"
+                                                    parameter-map="{requestId:requestId, tab:tab, recordEntityName:linked.recordEntityName, recordId:linked.recordId}"/>
+                                        </container>
+                                    </widgets></section-iterate>
+                                    <label type="p" text="Not on any record yet" style="m-muted text-caption q-mb-xs" condition="!linkedRecordList.length"/>
+                                    <section name="RequestLinkAdd" condition="canLink"><widgets>
+                                        <form-single name="RequestLinkRecord" transition="linkRecord">
+                                            <field name="requestId"><default-field><hidden/></default-field></field>
+                                            <field name="tab" from="tab"><default-field><hidden/></default-field></field>
+                                            <field name="record"><default-field title="Link to a record (an id or a name)">
+                                                <drop-down allow-empty="true"><dynamic-options transition="searchRecords" server-search="true" min-length="2"/></drop-down>
+                                            </default-field></field>
+                                            <field name="submitButton"><default-field title="Link"><submit/></default-field></field>
+                                            <field-layout><field-row-big><field-ref name="record"/><field-ref name="submitButton"/></field-row-big></field-layout>
+                                        </form-single>
+                                    </widgets></section>
+                                </widgets><fail-widgets>
+                                    <label type="p" text="Not on any record yet" style="m-muted q-mb-none"/>
+                                </fail-widgets></section>
+                            </box-body></container-box>
+                        </container>
+                        <!-- the conversation beside the overview from 1440 px -->
+                        <container style="col-12 col-lg-4 gt-md">
+                            <chatter id="RequestChatter" record-entity="mantle.request.Request" record-id="${requestId}" default-tab="log"/>
+                        </container>
+                    </container>
+                </widgets></section>
+            </widgets></section>
+
+            <!-- ===== Projects: Overview ===== -->
+            <section name="ProjectsOverviewTab" condition="projects &amp;&amp; tab == 'overview'"><widgets>
+                <container style="row q-col-gutter-sm">
+                    <container style="col-12 col-lg-8">
+                        <container style="row q-col-gutter-sm">
+                            <container style="col-12 col-md-7">
+                                <container-box><box-header title="Request"/><box-body>
+                                    <label text="${request.description}" type="p" style="text-body2" condition="request.description"/>
+                                    <label text="No description" type="p" style="m-muted" condition="!request.description"/>
+                                    <form-single name="RequestDetails" map="request">
+                                        <field name="typeLabel"><default-field title="Type"><display/></default-field></field>
+                                        <field name="statusLabel"><default-field title="Status"><display/></default-field></field>
+                                        <field name="priorityText"><default-field title="Priority"><display/></default-field></field>
+                                        <field name="customerName"><default-field title="Customer"><display/></default-field></field>
+                                        <field name="requestDateText"><default-field title="Raised"><display/></default-field></field>
+                                        <field name="resolutionLabel"><default-field title="Resolution"><display text="${request.requestResolutionEnumId != 'RrUnresolved' ? (request.resolutionLabel || '—') : '—'}"/></default-field></field>
+                                        <field-layout>
+                                            <field-row><field-ref name="typeLabel"/><field-ref name="statusLabel"/></field-row>
+                                            <field-row><field-ref name="priorityText"/><field-ref name="customerName"/></field-row>
+                                            <field-row><field-ref name="requestDateText"/><field-ref name="resolutionLabel"/></field-row>
+                                        </field-layout>
+                                    </form-single>
+                                    <section-iterate name="RequestNotes" list="noteList" entry="note"><widgets>
+                                        <label text="${note.noteText}" type="p" style="text-caption m-muted q-mb-xs"/>
+                                    </widgets></section-iterate>
+                                </box-body></container-box>
+                            </container>
+                            <container style="col-12 col-md-5">
+                                <container-box><box-header title="People"/><box-body-nopad>
+                                    <form-list name="ProjectRequestPeople" list="partyList" skip-form="true" skip-header="true" paginate="false">
+                                        <field name="name"><default-field>
+                                            <link url="${url || '.'}" url-type="plain" text="${name}${isMe ? ' (' + ec.l10n.localize('you') + ')' : ''}" condition="url"/>
+                                            <label text="${name}" type="span" condition="!url"/>
+                                        </default-field></field>
+                                        <field name="roleText"><default-field><label text="${roleText}" type="span" style="m-muted"/></default-field></field>
+                                    </form-list>
+                                    <section name="ProjectNoPeople" condition="!partyList.length"><widgets>
+                                        <label type="p" text="Nobody yet" style="m-muted q-pa-sm q-mb-none"/>
+                                    </widgets></section>
+                                </box-body-nopad></container-box>
+                            </container>
+                        </container>
+                        <container-box><box-header title="Linked records"/><box-body>
+                            <section-iterate name="ProjectRequestLinked" list="linkedRecordList" entry="linked"><widgets>
+                                <container style="row items-center no-wrap q-mb-xs">
+                                    <container style="col"><render-mode><text type="qvt"><![CDATA[${linked.cardHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify({t: "text", text: String(linked.recordEntityName).split(".").pop() + " " + linked.recordId})}]]></text></render-mode></container>
+                                </container>
+                            </widgets></section-iterate>
+                            <label type="p" text="Not on any record yet" style="m-muted q-mb-none" condition="!linkedRecordList.length"/>
+                        </box-body></container-box>
+                    </container>
+                    <!-- the conversation beside the overview from 1440 px -->
+                    <container style="col-12 col-lg-4 gt-md">
+                        <chatter id="ProjectRequestChatter" record-entity="mantle.request.Request" record-id="${requestId}" default-tab="${chatterTab}"/>
+                    </container>
+                </container>
+            </widgets></section>
+
+            <section name="CommonsConversation" condition="!projects"><widgets>
+                <!-- ===== Conversation, a tab below 1440 px ===== -->
+                <section name="ConversationTab" condition="tab == 'conversation'"><widgets>
+                    <chatter id="RequestChatterTab" record-entity="mantle.request.Request" record-id="${requestId}" default-tab="log"/>
+                </widgets></section>
+            </widgets></section>
+            <section name="ProjectsConversationTab" condition="projects &amp;&amp; tab == 'conversation'"><widgets>
+                <chatter id="ProjectRequestChatterTab" record-entity="mantle.request.Request" record-id="${requestId}" default-tab="${chatterTab}"/>
+            </widgets></section>
+
+            <!-- ===== Tasks ===== -->
+            <section name="TasksTab" condition="tab == 'tasks'"><widgets>
+                <container-box><box-header title="Tasks"/><box-body-nopad>
+                    <section name="AddRequestTask" condition="canAddTask"><widgets>
+                        <container style="q-px-sm q-pt-sm">
+                            <form-single name="NewRequestTask" transition="addTask" focus-field="workEffortName">
+                                <field name="requestId"><default-field><hidden/></default-field></field>
+                                <field name="workEffortName" from="''"><default-field title="Add a task"><text-line size="36"/></default-field></field>
+                                <field name="dueDate" from="''"><default-field title="Due"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                                <field name="addButton"><default-field title="Add"><submit icon="sym_o_add"/></default-field></field>
+                                <field-layout><field-row-big><field-ref name="workEffortName"/><field-ref name="dueDate"/><field-ref name="addButton"/></field-row-big></field-layout>
+                            </form-single>
+                        </container>
+                    </widgets></section>
+                    <form-list name="RequestTasks" list="taskList" skip-form="true" paginate="false">
+                        <field name="workEffortName"><default-field title="Task">
+                            <link url="${url}" url-type="plain" text="${workEffortName}" style="${isDone ? 'm-muted' : ''}"/></default-field></field>
+                        <field name="purposeLabel"><default-field title="Purpose"><display/></default-field></field>
+                        <field name="statusId"><default-field title="Status">
+                            <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${statusColor}">${WebUtilities.encodeHtml(statusLabel ?? '')}</q-chip>]]></text><text type="tui"><![CDATA[{"t": "text", "style": "strong", "text": ${JSON.stringify(statusLabel ?? "")}}]]></text></render-mode>
+                        </default-field></field>
+                        <field name="dueText"><default-field title="Due"><label text="${dueText}" type="span" style="text-no-wrap ${overdue ? 'text-warning' : ''}"/></default-field></field>
+                        <field name="assigneeText"><default-field title="Assignees"><display/></default-field></field>
+                    </form-list>
+                    <section name="NoTasks" condition="!taskList.length"><widgets>
+                        <label type="p" text="No tasks on this request" style="m-muted q-pa-sm q-mb-none"/>
+                    </widgets></section>
+                </box-body-nopad></container-box>
+            </widgets></section>
+
+            <!-- ===== Projects: Work ===== -->
+            <section name="WorkTab" condition="projects &amp;&amp; tab == 'work'"><widgets>
+                <container-box><box-header title="Work${workText ? ' · ' + workText : ''}"/><box-body-nopad>
+                    <form-list name="RequestWork" list="workList" skip-form="true" paginate="false">
+                        <field name="workEffortId"><default-field title="Key">
+                            <link url="${url}" url-type="plain" text="${workEffortId}" link-type="anchor" style="text-mono text-no-wrap"/></default-field></field>
+                        <field name="workEffortName"><default-field title="Title">
+                            <link url="${url}" url-type="plain" text="${workEffortName}" style="${isDone ? 'm-muted' : ''}"/></default-field></field>
+                        <field name="projectName"><default-field title="Project"><display/></default-field></field>
+                        <field name="purposeLabel"><default-field title="Type"><display/></default-field></field>
+                        <field name="statusId"><default-field title="Status">
+                            <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${statusColor}" data-status="${statusId}">${WebUtilities.encodeHtml(statusLabel ?? '')}</q-chip>]]></text><text type="tui"><![CDATA[{"t": "text", "style": "strong", "text": ${JSON.stringify(statusLabel ?? "")}}]]></text></render-mode>
+                        </default-field></field>
+                        <field name="dueText"><default-field title="Due"><label text="${dueText}" type="span" style="text-no-wrap ${overdue ? 'text-warning' : ''}"/></default-field></field>
+                        <field name="estimatedText" align="right"><default-field title="Est."><display/></default-field></field>
+                        <field name="actualText" align="right"><default-field title="Act."><display/></default-field></field>
+                        <field name="unlink"><default-field title="">
+                            <link url="unlinkWorkItem" link-type="hidden-form-link" icon="sym_o_link_off" text="" tooltip="Take it off the request" style="m-btn-flat"
+                                    condition="canTriage" confirmation="Take ${workEffortId} off the request? The work item stays."
+                                    parameter-map="{requestId:requestId, workEffortId:workEffortId}"/>
+                        </default-field></field>
+                    </form-list>
+                    <section name="NoWork" condition="!workList.length"><widgets>
+                        <container style="q-pa-sm">
+                            <label type="p" text="No work yet. Make a work item from the request, or link one, to plan it." style="m-muted q-mb-xs"/>
+                            <label type="p" text="The request moves to In Progress when its work starts and completes when all of it is done." style="text-caption m-muted q-mb-none"/>
+                        </container>
+                    </widgets></section>
+                </box-body-nopad></container-box>
+            </widgets></section>
+
+            <!-- ===== Projects: Items ===== -->
+            <section name="ItemsTab" condition="projects &amp;&amp; tab == 'items'"><widgets>
+                <container-box><box-header title="Items"/><box-body-nopad>
+                    <form-list name="RequestItems" list="itemList" skip-form="true" paginate="false">
+                        <field name="requestItemSeqId"><default-field title="#"><display/></default-field></field>
+                        <field name="productId"><default-field title="Product"><display/></default-field></field>
+                        <field name="quantity" align="right"><default-field title="Quantity"><display/></default-field></field>
+                        <field name="maximumAmount" align="right"><default-field title="Maximum"><display/></default-field></field>
+                        <field name="requiredByDate"><default-field title="Required by"><display format="yyyy-MM-dd"/></default-field></field>
+                        <field name="description"><default-field title="Description"><display/></default-field></field>
+                    </form-list>
+                    <section name="NoItems" condition="!itemList.length"><widgets>
+                        <label type="p" text="No items asked for" style="m-muted q-pa-sm q-mb-none"/>
+                    </widgets></section>
+                </box-body-nopad></container-box>
+            </widgets></section>
+
+            <!-- ===== Files ===== -->
+            <section name="FilesTab" condition="tab == 'files'"><widgets>
+                <record-files id="RequestFiles" record-entity="mantle.request.Request" record-id="${requestId}"/>
+            </widgets></section>
+        </widgets></section>
+    </widgets>
+</screen>

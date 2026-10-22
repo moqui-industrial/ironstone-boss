@@ -12,10 +12,440 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for the request list (design-projects.md §6 Requests; impl-projects.md P5). -->
+<!-- Requests (design-projects.md §6 Requests; style-guide §3.2 List, §3.6 Board): triage and track the requests of the projects
+    the user sees and those with no project of the types the organization triages (service/ironstone/ProjectRequestServices.xml
+    find#ProjectRequests). A chip row of lists with their counts (New: submitted and unassigned, the managers' default; Assigned to
+    me, the team's; To review; Accepted; In progress; Mine; Closed; All); the find in the list's dialog (text or an id, project,
+    no project, type, status, priority band, assignee, channel, raised period); New request, a dialog (project, type, customer,
+    name, description, priority, due, assignee: empty for triage). Each row: id, name, type, project, customer, priority, status
+    chip, assignee, due, work (done of total), channel and updated. The bulk changes on the selected rows (assign, set project,
+    priority, accept, start, cancel with a reason, make a work item from each, link to a work item), each request on its own; the
+    board by status along the request flow, a drag moving a request (a triage move).
+
+    ProjectDetail mounts this screen as its Requests tab (design-projects.md §4 ProjectRequests; tab 6): its always-actions put the
+    project in projectTabId, so the project is fixed (its column and find field are left out, New request is in it), and the
+    managers see the Intake box above the list: the project's email address, the public form's link with Copy, Rotate and Turn
+    off, the triage assignee and the default type, each edited in the project's Settings (ProjectRequestServices get#ProjectIntake).
+    A transition's project falls back to workEffortId when projectTabId is not set (impl-projects.md F43), so one who cannot see
+    the project gets "not available". The list's state is in the URL; each change answers this screen again with it (keep). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Requests" default-menu-include="false">
+
+    <parameter name="list"/>
+    <parameter name="text"/>
+    <parameter name="rootWorkEffortId"/>
+    <parameter name="noProject"/>
+    <parameter name="requestTypeEnumId"/>
+    <parameter name="statusId"/>
+    <parameter name="priorityBand"/>
+    <parameter name="assigneePartyId"/>
+    <parameter name="channel"/>
+    <parameter name="orderByField"/>
+    <parameter name="pageIndex"/>
+    <parameter name="requestDate_period"/>
+    <parameter name="requestDate_poffset"/>
+    <parameter name="requestDate_pdate"/>
+    <parameter name="requestDate_from"/>
+    <parameter name="requestDate_thru"/>
+
+    <transition name="requestDetail"><default-response url="//Projects/Requests/RequestDetail"/></transition>
+
+    <transition name="createRequest">
+        <actions>
+            <script><![CDATA[
+                const fixed = ec.context.get('projectTabId') || null
+                const out = ec.service.sync().name('ironstone.ProjectRequestServices.create#ProjectRequest').parameters({
+                    rootWorkEffortId: fixed || newProjectId || (ec.context.get('inProjectDetail') ? workEffortId : null) || null,
+                    requestName: requestName || '', requestTypeEnumId: requestTypeEnumId || null, customerPartyId: customerPartyId || null,
+                    description: description || null, priority: priority || null, responseRequiredDate: responseRequiredDate || null,
+                    assigneePartyId: newAssigneePartyId || null}).call() || {}
+                if (!ec.message.hasError()) { ec.message.addMessage(out.message, 'success'); newRequestId = out.requestId }
+            ]]></script>
+        </actions>
+        <conditional-response url="//Projects/Requests/RequestDetail" condition="newRequestId"><parameter name="requestId" from="newRequestId"/></conditional-response>
+        <default-response url="."/>
+        <error-response url="."/>
+    </transition>
+    <!-- the bulk changes: selectedIds (a comma list), the change and its value -->
+    <transition name="bulkAction">
+        <actions>
+            <service-call name="ironstone.ProjectRequestServices.bulk#Requests" out-map="bulkOut" in-map="{action:bulk, requestIds:(selectedIds || ''), value:(value || null)}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(bulkOut.message, bulkOut.failedCount ? 'warning' : 'success')</script></if>
+            <script><![CDATA[
+                let kept = {}
+                try { kept = JSON.parse(keep || '{}') || {} } catch (err) { kept = {} }
+                ec.context.putAll(kept)
+            ]]></script>
+        </actions>
+        <default-response url=".">
+            <parameter name="list"/><parameter name="text"/><parameter name="rootWorkEffortId"/><parameter name="noProject"/><parameter name="requestTypeEnumId"/>
+            <parameter name="statusId"/><parameter name="priorityBand"/><parameter name="assigneePartyId"/><parameter name="channel"/><parameter name="orderByField"/>
+            <parameter name="pageIndex"/><parameter name="requestDate_period"/><parameter name="requestDate_poffset"/><parameter name="requestDate_pdate"/>
+            <parameter name="requestDate_from"/><parameter name="requestDate_thru"/>
+        </default-response>
+        <error-response url="."/>
+    </transition>
+    <!-- a card moved to another column of the board: a triage move to its status -->
+    <transition name="moveCard">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.ProjectRequestServices.triage#Request').parameters({requestId: requestId, action: 'status',
+                value: ec.web.parameters.statusId ?? ''}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: out.message}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- the Intake box: the public form's link rotated or turned off, for one who manages the project -->
+    <transition name="changeForm">
+        <actions>
+            <service-call name="ironstone.ProjectRequestServices.change#IntakeForm" out-map="formOut"
+                    in-map="{workEffortId:(ec.context.get('projectTabId') || workEffortId || ''), change:change}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(formOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="assigneeSearch" read-only="true">
+        <actions>
+            <service-call name="ironstone.TaskServices.search#Assignees" in-map="{term:term}" out-map="found"/>
+            <script>ec.web.sendJsonResponse(found.optionList || [])</script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="workItemSearch" read-only="true">
+        <actions>
+            <service-call name="ironstone.ProjectRequestServices.search#WorkItemOptions" in-map="{term:term, rootWorkEffortId:(ec.context.get('projectTabId') || null)}" out-map="found"/>
+            <script>ec.web.sendJsonResponse(found.optionList || [])</script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- the customer drop-down: parties the user may see, by name or id; another user's personal contact is never found -->
+    <transition name="customerSearch" read-only="true">
+        <actions>
+            <entity-find entity-name="mantle.party.PartyDetail" list="partyList" limit="20">
+                <econditions combine="or">
+                    <econdition field-name="organizationName" operator="like" value="%${term}%" ignore-case="true"/>
+                    <econdition field-name="firstName" operator="like" value="%${term}%" ignore-case="true"/>
+                    <econdition field-name="lastName" operator="like" value="%${term}%" ignore-case="true"/>
+                    <econdition field-name="pseudoId" operator="like" value="%${term}%" ignore-case="true"/>
+                </econditions>
+                <econdition field-name="disabled" operator="not-equals" value="Y" or-null="true"/>
+                <econdition field-name="privateOwnerUserId" from="ec.user.userId" or-null="true"/>
+                <order-by field-name="^organizationName,^firstName,^lastName"/>
+            </entity-find>
+            <script><![CDATA[
+                ec.web.sendJsonResponse(Array.from(partyList).map((party) => ({value: party.partyId,
+                    label: (party.organizationName || [party.firstName, party.lastName].filter((part) => part).join(' ') || party.partyId) +
+                        ' (' + (party.pseudoId || party.partyId) + ')'})))
+            ]]></script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+
+    <actions>
+        <script><![CDATA[
+            // in the Requests tab of ProjectDetail its always-actions put the project it shows in projectTabId: the project is fixed
+            projectFixed = !!ec.context.get('projectTabId')
+            // the fixed project is not a find value, so the find of the list does not show it as a filter
+            fixedProjectId = projectFixed ? ec.context.get('projectTabId') : null
+            if (projectFixed) rootWorkEffortId = null
+            const L = (text) => ec.l10n.localize(text)
+            const isManager = ec.user.isInGroup('BOSS_PROJECT_MANAGER') || ec.user.isInGroup('ADMIN')
+            const lists = [['new', 'New', 'sym_o_fiber_new'], ['assigned', 'Assigned to me', 'sym_o_person'], ['review', 'To review', 'sym_o_rate_review'],
+                ['accepted', 'Accepted', 'sym_o_thumb_up'], ['progress', 'In progress', 'sym_o_pending'], ['mine', 'Mine', 'sym_o_edit_note'],
+                ['closed', 'Closed', 'sym_o_inventory'], ['all', 'All', 'sym_o_select_all']]
+            if (!lists.some((entry) => entry[0] === list)) list = projectFixed ? 'all' : (isManager ? 'new' : 'assigned')
+            const ctx = (name) => { const value = ec.context.get(name); return value == null || value === '' ? null : String(value) }
+            let dateFrom = null
+            let dateThru = null
+            if (ctx('requestDate_period')) {
+                const range = ec.user.getPeriodRange(ctx('requestDate_period'), ctx('requestDate_poffset') || '0', ctx('requestDate_pdate'))
+                if (range) { dateFrom = range[0]; dateThru = range[1] }
+            } else {
+                if (ctx('requestDate_from')) dateFrom = ec.l10n.parseTimestamp(ctx('requestDate_from').substring(0, 10) + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS')
+                if (ctx('requestDate_thru')) dateThru = new Date(Number(String(ec.l10n.parseTimestamp(ctx('requestDate_thru').substring(0, 10) + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS'))) + 86400000)
+            }
+            const noLimit = ec.web.parameters.pageNoLimit === 'true'
+            const out = ec.service.sync().name('ironstone.ProjectRequestServices.find#ProjectRequests').parameters({list: list, text: text || null,
+                rootWorkEffortId: fixedProjectId || rootWorkEffortId || null, noProject: noProject === 'Y', requestTypeEnumId: requestTypeEnumId || null, statusId: statusId || null,
+                priorityBand: priorityBand || null, assigneePartyId: assigneePartyId || null, channel: channel || null, dateFrom: dateFrom, dateThru: dateThru,
+                orderByField: orderByField || null, pageIndex: Number(pageIndex || 0) || 0, pageSize: 25, pageNoLimit: noLimit}).call() || {}
+            requestRows = Array.from(out.rowList || [])
+            requestRowsCount = out.rowCount || 0
+            requestRowsPageIndex = out.pageIndex || 0
+            requestRowsPageSize = out.pageSize || 25
+            requestRowsPageMaxIndex = out.pageMaxIndex || 0
+            requestRowsPageRangeLow = out.pageRangeLow || 0
+            requestRowsPageRangeHigh = out.pageRangeHigh || 0
+            const counts = out.counts || {}
+            list = out.list || list
+            const find = {text: text || null, rootWorkEffortId: projectFixed ? null : (rootWorkEffortId || null), noProject: noProject || null,
+                requestTypeEnumId: requestTypeEnumId || null, statusId: statusId || null, priorityBand: priorityBand || null, assigneePartyId: assigneePartyId || null,
+                channel: channel || null, orderByField: orderByField || null, requestDate_period: ctx('requestDate_period'), requestDate_poffset: ctx('requestDate_poffset'),
+                requestDate_pdate: ctx('requestDate_pdate'), requestDate_from: ctx('requestDate_from'), requestDate_thru: ctx('requestDate_thru')}
+            Object.keys(find).forEach((key) => { if (find[key] == null) delete find[key] })
+            filtered = Object.keys(find).some((key) => key !== 'orderByField')
+            const keepMap = Object.assign({list: list}, find, requestRowsPageIndex ? {pageIndex: String(requestRowsPageIndex)} : {})
+            keepJson = JSON.stringify(keepMap)
+            listChips = lists.map(([key, label, icon]) => ({key: key, label: L(label) + ' · ' + (counts[key] || 0), icon: icon, on: key === list,
+                params: Object.assign({}, find, {list: key})}))
+            listLabel = L(lists.find((entry) => entry[0] === list)[1])
+            projectOptions = ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').call()?.projectList || []
+            addProjectOptions = ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').parameters({memberOnly: true}).call()?.projectList || []
+            const projectShown = fixedProjectId || rootWorkEffortId
+            newProjectDefault = projectShown && addProjectOptions.some((option) => option.key === projectShown) ? projectShown : ''
+            const empty = {new: 'No new requests to triage', assigned: 'No open requests assigned to you', review: 'Nothing to review', accepted: 'No accepted requests',
+                progress: 'No requests in progress', mine: 'No open requests of yours', closed: 'No closed requests', all: 'No requests'}
+            emptyText = filtered ? L('No requests match') : L(empty[list])
+            // the Intake box of the tab of the project, for its managers
+            intake = null
+            if (projectFixed) {
+                ec.message.pushErrors()
+                try {
+                    const got = ec.service.sync().name('ironstone.ProjectRequestServices.get#ProjectIntake').parameters({workEffortId: fixedProjectId}).call()?.intake || null
+                    if (got?.canManage) intake = got
+                } finally { ec.message.clearErrors(); ec.message.popErrors() }
+            }
+            intakeShown = !!intake
+            if (intake) {
+                let root = ''
+                try { root = ec.web.getWebappRootUrl(true, null) || '' } catch (err) { root = '' }
+                formUrl = intake.formOn ? root + intake.formPath : ''
+                const enc = (value) => sri.encodeHtml(String(value == null ? '' : value))
+                // the link to copy: a read-only field that selects itself (templates have no clipboard helper, impl-projects.md §7)
+                copyHtml = intake.formOn ? '<q-input dense outlined readonly class="col" model-value="' + enc(formUrl) + '" data-copy="form-link"'
+                        + ' @focus="$event.target.select()"><template v-slot:prepend><q-icon name="sym_o_link" size="xs"></q-icon></template></q-input>' : ''
+                settingsUrl = '/qapps/Projects/Projects/ProjectDetail/Settings?workEffortId=' + encodeURIComponent(fixedProjectId)
+            }
+        ]]></script>
+    </actions>
+
     <widgets>
-        <label text="Placeholder: Requests: triage and track requests, and convert them to work." type="p"/>
+        <context selection-form="ProjectRequestList"/>
+
+        <!-- title row: New request -->
+        <container style="row items-center q-mb-sm q-gutter-y-xs">
+            <label text="Requests" type="h5" style="q-my-none q-mr-sm" condition="!projectFixed"/>
+            <container style="col"/>
+            <container-dialog id="NewProjectRequestContainer" button-text="New request" icon="sym_o_support" width="640" title="New request" type="primary">
+                <form-single name="NewProjectRequest" transition="createRequest" focus-field="requestName">
+                    <field name="newProjectId" from="newProjectDefault"><conditional-field condition="projectFixed"><hidden/></conditional-field>
+                        <default-field title="Project (empty: none yet, for triage)">
+                            <drop-down allow-empty="true"><list-options list="addProjectOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                    <field name="requestName"><default-field title="Request"><text-line size="40"/></default-field></field>
+                    <field name="requestTypeEnumId"><default-field title="Type">
+                        <drop-down allow-empty="true"><entity-options key="${enumId}" text="${description}">
+                            <entity-find entity-name="moqui.basic.Enumeration" cache="true">
+                                <econdition field-name="enumTypeId" value="RequestType"/><order-by field-name="description"/></entity-find>
+                        </entity-options></drop-down></default-field></field>
+                    <field name="customerPartyId"><default-field title="Customer">
+                        <drop-down allow-empty="true"><dynamic-options transition="customerSearch" server-search="true" min-length="1"/></drop-down></default-field></field>
+                    <field name="priority"><default-field title="Priority"><radio no-current-selected-key="5">
+                        <option key="2" text="High"/><option key="5" text="Normal"/><option key="8" text="Low"/></radio></default-field></field>
+                    <field name="responseRequiredDate"><default-field title="Due"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                    <field name="newAssigneePartyId"><default-field title="Assignee (empty: for triage)">
+                        <drop-down allow-empty="true"><dynamic-options transition="assigneeSearch" server-search="true" min-length="0"/></drop-down></default-field></field>
+                    <field name="description"><default-field title="Description"><text-area rows="4" cols="50"/></default-field></field>
+                    <field name="createButton"><default-field title="Submit"><submit/></default-field></field>
+                    <field-layout>
+                        <field-ref name="newProjectId"/>
+                        <field-ref name="requestName"/>
+                        <field-row><field-ref name="requestTypeEnumId"/><field-ref name="customerPartyId"/></field-row>
+                        <field-row><field-ref name="priority"/><field-ref name="responseRequiredDate"/></field-row>
+                        <field-ref name="newAssigneePartyId"/>
+                        <field-ref name="description"/><field-ref name="createButton"/>
+                    </field-layout>
+                </form-single>
+            </container-dialog>
+        </container>
+
+        <!-- the project's intake, for its managers (ProjectDetail's Requests tab) -->
+        <section name="ProjectIntakeBox" condition="intakeShown"><widgets>
+            <container-box><box-header title="Intake"/>
+                <box-toolbar><link url="${settingsUrl}" url-type="plain" link-type="anchor" text="Edit in Settings" icon="sym_o_settings"/></box-toolbar>
+                <box-body>
+                <container style="row q-col-gutter-md m-request-intake">
+                    <container style="col-12 col-md-6">
+                        <label text="Email" type="div" style="text-caption m-muted"/>
+                        <label text="${intake.address}" type="div" style="text-body2 text-mono" condition="intake.address"/>
+                        <label text="Mail to it makes requests here (${intake.accountName})" type="div" style="text-caption m-muted" condition="intake.address"/>
+                        <label text="No address yet: choose a mail account and plus tag in Settings" type="div" style="text-body2 m-muted" condition="!intake.address"/>
+                    </container>
+                    <container style="col-12 col-md-6">
+                        <label text="Public form" type="div" style="text-caption m-muted"/>
+                        <section name="FormOn" condition="intake.formOn"><widgets>
+                            <render-mode><text type="qvt"><![CDATA[<div class="row items-center no-wrap q-mb-xs">${copyHtml}</div>]]></text>
+                                <text type="tui"><![CDATA[${JSON.stringify({t: "text", id: "IntakeFormLink", text: formUrl})}]]></text></render-mode>
+                            <container style="row items-center q-gutter-x-sm">
+                                <link url="${formUrl}" url-type="plain" text="Open" icon="sym_o_open_in_new" target-window="_blank" link-type="anchor"/>
+                                <link url="changeForm" link-type="hidden-form-link" text="Rotate" icon="sym_o_autorenew" parameter-map="{workEffortId:fixedProjectId, change:'rotate'}"
+                                        confirmation="Make a new link? The old one stops working."/>
+                                <link url="changeForm" link-type="hidden-form-link" text="Turn off" icon="sym_o_link_off" parameter-map="{workEffortId:fixedProjectId, change:'off'}"
+                                        confirmation="Turn the public form off? Its link stops working."/>
+                            </container>
+                        </widgets><fail-widgets>
+                            <container style="row items-center q-gutter-x-sm">
+                                <label text="Off" type="span" style="text-body2 m-muted"/>
+                                <link url="changeForm" link-type="hidden-form-link" text="Turn on" icon="sym_o_link" parameter-map="{workEffortId:fixedProjectId, change:'rotate'}"/>
+                            </container>
+                        </fail-widgets></section>
+                    </container>
+                    <container style="col-12">
+                        <label text="Triage: ${intake.triageName || ec.l10n.localize('the project managers')} · new requests are ${intake.defaultTypeLabel}" type="div" style="text-caption m-muted"/>
+                    </container>
+                </container>
+            </box-body></container-box>
+        </widgets></section>
+
+        <!-- the lists, each with its count -->
+        <container style="row q-gutter-xs q-mb-sm m-request-chips">
+            <section-iterate name="ListChip" list="listChips" entry="chip"><widgets>
+                <section name="ListChipOn" condition="chip.on"><widgets>
+                    <link url="." link-type="anchor-button" btn-type="primary" text="${chip.label}" icon="${chip.icon}" parameter-map="chip.params"/>
+                </widgets><fail-widgets>
+                    <link url="." link-type="anchor-button" text="${chip.label}" icon="${chip.icon}" parameter-map="chip.params"/>
+                </fail-widgets></section>
+            </widgets></section-iterate>
+        </container>
+        <section name="ClearFilters" condition="filtered"><widgets>
+            <container style="q-mb-xs"><link url="." link-type="anchor" text="Clear filters" parameter-map="{list:list}"/></container>
+        </widgets></section>
+
+        <container-box><box-header title="${listLabel} · ${requestRowsCount}"/><box-body-nopad>
+            <form-list name="ProjectRequestList" list="requestRows" skip-form="true" paginate="true" show-page-size="false" views="list,board"
+                    header-dialog="true" saved-finds="true" select-columns="true" show-csv-button="true">
+                <row-selection id-field="requestId" parameter="selectedIds" list-mode="true">
+                    <action><dialog button-text="Assign" button-icon="sym_o_person_add" title="Assign the selected requests to"/>
+                        <form-single name="BulkAssign" transition="bulkAction">
+                            <field name="bulk" from="'assign'"><default-field><hidden/></default-field></field>
+                            <field name="keep" from="keepJson"><default-field><hidden/></default-field></field>
+                            <field name="value"><default-field title="Assignee (empty: unassigned)">
+                                <drop-down allow-empty="true"><dynamic-options transition="assigneeSearch" server-search="true" min-length="0"/></drop-down></default-field></field>
+                            <field name="submitButton"><default-field title="Assign"><submit/></default-field></field>
+                        </form-single></action>
+                    <action><dialog button-text="Set project" button-icon="sym_o_folder_open" title="The project of the selected requests"/>
+                        <form-single name="BulkProject" transition="bulkAction">
+                            <field name="bulk" from="'project'"><default-field><hidden/></default-field></field>
+                            <field name="keep" from="keepJson"><default-field><hidden/></default-field></field>
+                            <field name="value"><default-field title="Project">
+                                <drop-down><list-options list="addProjectOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                            <field name="submitButton"><default-field title="Set project"><submit/></default-field></field>
+                        </form-single></action>
+                    <action><dialog button-text="Priority" button-icon="sym_o_priority_high" title="Priority of the selected requests"/>
+                        <form-single name="BulkPriority" transition="bulkAction">
+                            <field name="bulk" from="'priority'"><default-field><hidden/></default-field></field>
+                            <field name="keep" from="keepJson"><default-field><hidden/></default-field></field>
+                            <field name="value"><default-field title="Priority">
+                                <drop-down no-current-selected-key="5"><option key="1" text="1 (highest)"/><option key="2" text="2 (high)"/><option key="3"/>
+                                    <option key="4"/><option key="5" text="5 (normal)"/><option key="6"/><option key="7"/><option key="8" text="8 (low)"/>
+                                    <option key="9" text="9 (lowest)"/></drop-down></default-field></field>
+                            <field name="submitButton"><default-field title="Set priority"><submit/></default-field></field>
+                        </form-single></action>
+                    <action><form-single name="BulkAccept" transition="bulkAction">
+                        <field name="bulk" from="'accept'"><default-field><hidden/></default-field></field>
+                        <field name="keep" from="keepJson"><default-field><hidden/></default-field></field>
+                        <field name="submitButton"><default-field title="Accept"><submit icon="sym_o_thumb_up"/></default-field></field>
+                    </form-single></action>
+                    <action><form-single name="BulkStart" transition="bulkAction">
+                        <field name="bulk" from="'start'"><default-field><hidden/></default-field></field>
+                        <field name="keep" from="keepJson"><default-field><hidden/></default-field></field>
+                        <field name="submitButton"><default-field title="Start"><submit icon="sym_o_play_arrow"/></default-field></field>
+                    </form-single></action>
+                    <action><dialog button-text="Cancel" button-icon="sym_o_cancel" title="Cancel the selected requests"/>
+                        <form-single name="BulkCancel" transition="bulkAction">
+                            <field name="bulk" from="'cancel'"><default-field><hidden/></default-field></field>
+                            <field name="keep" from="keepJson"><default-field><hidden/></default-field></field>
+                            <field name="value" from="'RrRejected'"><default-field title="Reason">
+                                <radio><option key="RrRejected" text="Rejected"/><option key="RrDuplicate" text="Duplicate"/><option key="RrWontFix" text="Won't do"/></radio></default-field></field>
+                            <field name="submitButton"><default-field title="Cancel them"><submit confirmation="Cancel the selected requests?"/></default-field></field>
+                        </form-single></action>
+                    <action><form-single name="BulkMakeWork" transition="bulkAction">
+                        <field name="bulk" from="'makeWork'"><default-field><hidden/></default-field></field>
+                        <field name="keep" from="keepJson"><default-field><hidden/></default-field></field>
+                        <field name="submitButton"><default-field title="Make work items"><submit icon="sym_o_add_task" confirmation="Make a work item from each selected request, in its project?"/></default-field></field>
+                    </form-single></action>
+                    <action><dialog button-text="Link work item" button-icon="sym_o_add_link" title="Link the selected requests to a work item"/>
+                        <form-single name="BulkLinkWork" transition="bulkAction">
+                            <field name="bulk" from="'linkWork'"><default-field><hidden/></default-field></field>
+                            <field name="keep" from="keepJson"><default-field><hidden/></default-field></field>
+                            <field name="value"><default-field title="Work item (a key or title)">
+                                <drop-down><dynamic-options transition="workItemSearch" server-search="true" min-length="1"/></drop-down></default-field></field>
+                            <field name="submitButton"><default-field title="Link"><submit/></default-field></field>
+                        </form-single></action>
+                </row-selection>
+
+                <!-- the find (the list's dialog): fields with a header widget only are find fields -->
+                <field name="text"><header-field title="Text or id"><text-line size="20"/></header-field></field>
+                <field name="list"><header-field><hidden/></header-field></field>
+                <field name="noProject"><header-field title="With no project"><check><option key="Y" text=" "/></check></header-field></field>
+                <field name="priorityBand"><header-field title="Priority">
+                    <drop-down allow-empty="true"><option key="high" text="High (1-3)"/><option key="normal" text="Normal (4-6)"/><option key="low" text="Low (7-9)"/></drop-down></header-field></field>
+                <field name="channel"><header-field title="Channel">
+                    <drop-down allow-empty="true"><option key="app" text="App"/><option key="email" text="Email"/><option key="form" text="Form"/></drop-down></header-field></field>
+                <field name="requestDate"><header-field title="Raised"><date-period allow-empty="true"/></header-field></field>
+
+                <!-- the columns -->
+                <field name="requestId"><header-field title="Id" show-order-by="true"/><default-field>
+                    <link url="requestDetail" text="${requestId}" parameter-map="{requestId:requestId}" link-type="anchor" style="text-mono text-no-wrap"/></default-field></field>
+                <field name="requestName"><header-field title="Request" show-order-by="true"/><default-field>
+                    <link url="requestDetail" text="${requestName}" parameter-map="{requestId:requestId}" style="${isClosed ? 'm-muted' : ''}"/></default-field></field>
+                <field name="requestTypeEnumId"><header-field title="Type">
+                        <drop-down allow-empty="true" allow-multiple="true"><entity-options key="${enumId}" text="${description}">
+                            <entity-find entity-name="moqui.basic.Enumeration" cache="true"><econdition field-name="enumTypeId" value="RequestType"/>
+                                <order-by field-name="description"/></entity-find></entity-options></drop-down></header-field>
+                    <default-field title="Type"><display text="${typeLabel}"/></default-field></field>
+                <field name="rootWorkEffortId"><header-field title="Project" show-order-by="true">
+                        <drop-down allow-empty="true"><list-options list="projectOptions" key="${key}" text="${text}"/></drop-down></header-field>
+                    <conditional-field condition="projectFixed"><ignored/></conditional-field>
+                    <default-field title="Project"><display text="${projectName || '—'}"/></default-field></field>
+                <field name="customerName"><default-field title="Customer"><display/></default-field></field>
+                <field name="priority"><header-field title="Priority" show-order-by="true"/><default-field><label text="${priorityText}" type="span"/></default-field></field>
+                <field name="statusId"><header-field title="Status" show-order-by="true">
+                        <drop-down allow-empty="true" allow-multiple="true"><entity-options key="${statusId}" text="${description}">
+                            <entity-find entity-name="moqui.basic.StatusItem" cache="true"><econdition field-name="statusTypeId" value="Request"/>
+                                <order-by field-name="sequenceNum"/></entity-find></entity-options></drop-down></header-field>
+                    <default-field>
+                        <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${statusColor}" data-status="${statusId}">${WebUtilities.encodeHtml(statusLabel ?? '')}</q-chip>]]></text><text type="tui"><![CDATA[{"t": "text", "style": "strong", "text": ${JSON.stringify(statusLabel ?? "")}}]]></text></render-mode>
+                    </default-field></field>
+                <field name="assigneePartyId"><header-field title="Assignee">
+                        <drop-down allow-empty="true"><dynamic-options transition="assigneeSearch" server-search="true" min-length="0"/></drop-down></header-field>
+                    <default-field title="Assignee"><label text="${assigneeName || ec.l10n.localize('Unassigned')}${isMine ? ' (' + ec.l10n.localize('you') + ')' : ''}" type="span" style="${assigneeName ? '' : 'm-muted'}"/></default-field></field>
+                <field name="responseRequiredDate"><header-field title="Due" show-order-by="true"/><default-field>
+                    <label text="${dueText}" type="span" style="text-no-wrap ${overdue ? 'text-warning' : ''}"/></default-field></field>
+                <field name="workText"><default-field title="Work"><display/></default-field></field>
+                <field name="channelLabel"><default-field title="Channel">
+                    <render-mode><text type="qvt"><![CDATA[<span class="row inline items-center no-wrap text-caption"><q-icon name="${WebUtilities.encodeHtml(channelIcon ?? '')}" size="xs" class="q-mr-xs m-muted"></q-icon>${WebUtilities.encodeHtml(channelLabel ?? '')}</span>]]></text><text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify(channelLabel ?? "")}}]]></text></render-mode>
+                </default-field></field>
+                <field name="lastUpdatedStamp"><header-field title="Updated" show-order-by="true"/><default-field>
+                    <label text="${updatedText}" type="span" style="text-no-wrap"/></default-field></field>
+                <field name="findButton"><header-field title="Find"><submit/></header-field></field>
+
+                <form-list-column><field-ref name="requestId"/></form-list-column>
+                <form-list-column><field-ref name="requestName"/></form-list-column>
+                <form-list-column><field-ref name="requestTypeEnumId"/></form-list-column>
+                <form-list-column><field-ref name="rootWorkEffortId"/></form-list-column>
+                <form-list-column><field-ref name="customerName"/></form-list-column>
+                <form-list-column><field-ref name="priority"/></form-list-column>
+                <form-list-column><field-ref name="statusId"/></form-list-column>
+                <form-list-column><field-ref name="assigneePartyId"/></form-list-column>
+                <form-list-column><field-ref name="responseRequiredDate"/></form-list-column>
+                <form-list-column><field-ref name="workText"/></form-list-column>
+                <form-list-column><field-ref name="channelLabel"/></form-list-column>
+                <form-list-column><field-ref name="lastUpdatedStamp"/></form-list-column>
+                <form-list-column><field-ref name="findButton"/></form-list-column>
+
+                <!-- the board by status along the request flow: a card is the request's name with its id, project and assignee -->
+                <view-board group-field="statusId" card-title-field="requestName" card-fields="requestId,rootWorkEffortId,assigneePartyId" badge-field="priority"
+                        key-fields="requestId" transition="moveCard" status-type-id="Request" status-flow-id="Default"
+                        column-order="ReqSubmitted,ReqReviewed,ReqInProgress,ReqCompleted" all-rows="true"/>
+            </form-list>
+            <section name="NoRequests" condition="!requestRows.length"><widgets>
+                <container style="q-pa-sm">
+                    <label type="p" text="${emptyText}" style="m-muted q-mb-xs"/>
+                    <section name="NoRequestsClear" condition="filtered"><widgets>
+                        <link url="." link-type="anchor" text="Clear filters" parameter-map="{list:list}"/>
+                    </widgets></section>
+                </container>
+            </widgets></section>
+        </box-body-nopad></container-box>
     </widgets>
 </screen>

@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<entity-facade-xml type="demo">
+    <!-- P5: the requests of IRON and ACME (design-projects.md §6; impl-projects.md P5). A file of its own after the projects and the
+        mail demo (the files load in name order, each in its own transaction). The organization's intake settings (the types
+        Projects offers and triages, the public form), four requests made in the app (an accepted one on ACME with its work item,
+        one to triage on ACME, one on IRON in progress with its work, one with no project), and through
+        service/ironstone/RequestDemoServices.xml load#ProjectRequestsDemo IRON's intake: its address on the Support account
+        (support+iron@ziziwork.example, the rule that makes requests), its public form (/r/BossDemoIronIntakeForm1), a request
+        that arrived by email through the rule and one sent through the form. -->
+
+    <!-- Ziziwork Services' intake: the types offered and triaged with no project, John Doe the default triage assignee; the form
+        takes files and sends no confirmation (the demo's Support account has no real server) -->
+    <mantle.party.PartySetting partyId="ORG_ZIZI_SERVICES" partySettingTypeId="ProjIntake"
+            settingValue="{&quot;offered&quot;:&quot;RqtBugFix,RqtNewFeature,RqtSupport,RqtInformation,RqtProposal&quot;,&quot;triaged&quot;:&quot;RqtBugFix,RqtNewFeature,RqtProposal&quot;,&quot;defaultType&quot;:&quot;RqtSupport&quot;,&quot;triagePartyId&quot;:&quot;EX_JOHN_DOE&quot;}"/>
+    <mantle.party.PartySetting partyId="ORG_ZIZI_SERVICES" partySettingTypeId="ProjPublicForm"
+            settingValue="{&quot;captcha&quot;:&quot;N&quot;,&quot;files&quot;:&quot;Y&quot;,&quot;maxFiles&quot;:5,&quot;maxMb&quot;:10,&quot;confirm&quot;:&quot;N&quot;}"/>
+
+    <!-- ACME: a feature the client asked for, accepted, with its work item; a bug to triage -->
+    <mantle.request.Request requestId="BOSS_DEMO_PREQ_ACME1" requestTypeEnumId="RqtNewFeature" statusId="ReqReviewed" priority="4"
+            requestName="Export the portal's users to a spreadsheet" rootWorkEffortId="ACME" filedByPartyId="ORG_ACME_SA"
+            requestResolutionEnumId="RrUnresolved" requestDate="2026-10-08 10:15:00"
+            description="Each quarter we review who has access. A CSV of the users with their last sign-in would save us an afternoon."/>
+    <mantle.request.RequestParty requestId="BOSS_DEMO_PREQ_ACME1" partyId="ORG_ACME_SA" roleTypeId="Reporter" fromDate="2026-10-08 10:15:00"/>
+    <mantle.request.RequestParty requestId="BOSS_DEMO_PREQ_ACME1" partyId="ORG_ACME" roleTypeId="Customer" fromDate="2026-10-08 10:15:00"/>
+    <mantle.request.RequestParty requestId="BOSS_DEMO_PREQ_ACME1" partyId="EX_JOHN_DOE" roleTypeId="Assignee" fromDate="2026-10-09 09:00:00"/>
+    <mantle.request.RequestWorkEffort requestId="BOSS_DEMO_PREQ_ACME1" workEffortId="ACME-4"/>
+    <mantle.request.Request requestId="BOSS_DEMO_PREQ_ACME2" requestTypeEnumId="RqtBugFix" statusId="ReqSubmitted" priority="3"
+            requestName="The sign-in page is slow on phones" rootWorkEffortId="ACME" filedByPartyId="ORG_ACME_BA"
+            requestResolutionEnumId="RrUnresolved" requestDate="2026-10-20 16:40:00"
+            description="On a phone over 4G the sign-in page takes about eight seconds before the fields show."/>
+    <mantle.request.RequestParty requestId="BOSS_DEMO_PREQ_ACME2" partyId="ORG_ACME_BA" roleTypeId="Reporter" fromDate="2026-10-20 16:40:00"/>
+    <mantle.request.RequestParty requestId="BOSS_DEMO_PREQ_ACME2" partyId="ORG_ACME" roleTypeId="Customer" fromDate="2026-10-20 16:40:00"/>
+
+    <!-- IRON: a change the team asked for, in progress with its work item -->
+    <mantle.request.Request requestId="BOSS_DEMO_PREQ_IRON1" requestTypeEnumId="RqtNewFeature" statusId="ReqInProgress" priority="5"
+            requestName="Leave holidays out of the burndown" rootWorkEffortId="IRON" filedByPartyId="ORG_ZIZI_BD"
+            requestResolutionEnumId="RrUnresolved" requestDate="2026-10-14 11:00:00"
+            description="The burndown counts the holiday on the 12th as a day we did no work, so the line looks late."/>
+    <mantle.request.RequestParty requestId="BOSS_DEMO_PREQ_IRON1" partyId="ORG_ZIZI_BD" roleTypeId="Reporter" fromDate="2026-10-14 11:00:00"/>
+    <mantle.request.RequestParty requestId="BOSS_DEMO_PREQ_IRON1" partyId="ORG_ZIZI_BD" roleTypeId="Assignee" fromDate="2026-10-15 09:00:00"/>
+    <mantle.request.RequestWorkEffort requestId="BOSS_DEMO_PREQ_IRON1" workEffortId="IRON-7"/>
+
+    <!-- with no project yet, of a type Projects triages -->
+    <mantle.request.Request requestId="BOSS_DEMO_PREQ_TRIAGE" requestTypeEnumId="RqtProposal" statusId="ReqSubmitted" priority="5"
+            requestName="Bring over the tickets of the old tracker" filedByPartyId="ORG_ZIZI_JD"
+            requestResolutionEnumId="RrUnresolved" requestDate="2026-10-21 09:30:00"
+            description="Three hundred open tickets live in the old tracker. A project for moving them, or a plan to close them out?"/>
+    <mantle.request.RequestParty requestId="BOSS_DEMO_PREQ_TRIAGE" partyId="ORG_ZIZI_JD" roleTypeId="Reporter" fromDate="2026-10-21 09:30:00"/>
+
+    <!-- IRON's intake, a request by email and one from the form -->
+    <ironstone.RequestDemoServices.load-ProjectRequestsDemo/>
+</entity-facade-xml>

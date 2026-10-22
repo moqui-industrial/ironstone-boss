@@ -748,7 +748,8 @@ along with this software (see the LICENSE.md file). If not, see
                 modules: String(settings.WstModules || '').split(',').map((key) => key.trim()).filter((key) => key),
                 workItems: {workItemTypes: Array.from(types.offeredList || []).map((row) => row.enumId), statusFlowId: project.statusFlowId || 'Default',
                     estimateUnit: settings.WstEstimateUnit || 'hours', severalSprints: yn('WstSeveralSprints'), shareNewItems: yn('WstShareNewItems'),
-                    keywordComplete: settings.WstKeywordComplete === 'N' ? 'N' : 'Y', requestFromWork: settings.WstRequestFromWork === 'N' ? 'N' : 'Y'},
+                    keywordComplete: settings.WstKeywordComplete === 'N' ? 'N' : 'Y', requestFromWork: settings.WstRequestFromWork === 'Y' || (settings.WstRequestFromWork == null
+                        && String(settings.WstModules || '').split(',').map((key) => key.trim()).includes('requests')) ? 'Y' : 'N'},
                 clientAccess: {clientSignIn: yn('WstClientSignIn'), shareRepositories: yn('WstShareRepositories')},
                 code: {branchPattern: settings.WstBranchPattern || '', mergeRequestMoves: yn('WstMergeRequestMoves')},
                 typeOptions: Array.from(types.typeList || []).map((row) => ({key: row.enumId, text: row.label})),

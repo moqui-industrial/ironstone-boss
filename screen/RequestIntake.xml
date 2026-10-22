@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- RequestIntake (design-projects.md §6 RequestIntake; style-guide §3.5 Task): a project's public request form, for a visitor
+    who is not signed in, at /r/<token>: the token-route "r" of MoquiConf.xml renders it in the public shell (no header, drawers
+    or session user) after mantle.request.RequestServices.check#IntakeToken let the token through (an unknown, rotated or
+    turned-off one gets the route's "not found" page). The component is RequestIntake.qvue next to this file: the project's name,
+    the form (first and last name, email, organization, the types the project offers, subject, description, files when the
+    settings take them, the CAPTCHA when one is on), and after it is sent the request's number. The transition below calls
+    create#IntakeRequest with the token the route gives (the token parameter, whatever the request says), which checks the token
+    again and every field, limits how often the form takes requests and answers only the request's number; nothing else is read
+    here. The web protection's request-form rate limit (MoquiConf.xml) holds a client to a few posts a minute. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        require-authentication="false" default-menu-include="false" default-menu-title="Send a request" render-modes="vue,qvue,tui" server-static="vue,qvue">
+
+    <!-- Send: the form's fields and its files (contentFile, one or several) -->
+    <transition name="submit" method="post" require-session-token="false">
+        <actions><script><![CDATA[
+            const files = contentFile == null ? [] : (Array.isArray(contentFile) ? contentFile : [contentFile])
+            const out = ec.service.sync().name('mantle.request.RequestServices.create#IntakeRequest').parameters({token: token || '',
+                firstName: firstName || null, lastName: lastName || null, emailAddress: emailAddress || null, organizationName: organizationName || null,
+                requestTypeEnumId: requestTypeEnumId || null, requestName: requestName || null, description: description || null, website: website || null,
+                reCaptchaToken: reCaptchaToken || null, fileList: files}).call()
+            if (ec.message.hasError()) { ec.web.sendJsonResponse({}); return }
+            ec.web.sendJsonResponse({received: !!out.received, requestId: out.requestId ?? null})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+
+    <widgets>
+        <render-mode>
+            <text type="qvue" location="component://ironstone-boss/screen/RequestIntake.qvue" template="false"/><text type="tui" location="component://ironstone-boss/screen/RequestIntake.tui.json" template="false"/>
+            <text type="html,qvt"><![CDATA[<p>This request form opens in a browser with JavaScript.</p>]]></text>
+        </render-mode>
+    </widgets>
+</screen>

@@ -198,7 +198,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the project's own choices; the rest come from the organization -->
     <mantle.work.effort.WorkEffortSetting workEffortId="IRON" settingTypeEnumId="WstEstimateUnit" settingValue="points"/>
     <mantle.work.effort.WorkEffortSetting workEffortId="IRON" settingTypeEnumId="WstBranchPattern" settingValue="IRON-&lt;n&gt;-&lt;words&gt;"/>
-    <mantle.work.effort.WorkEffortSetting workEffortId="IRON" settingTypeEnumId="WstModules" settingValue="backlog,code,docs,time"/>
+    <mantle.work.effort.WorkEffortSetting workEffortId="IRON" settingTypeEnumId="WstModules" settingValue="backlog,requests,code,docs,time"/>
     <!-- the latest status update, on the project's Chatter -->
     <mantle.party.communication.CommunicationEvent communicationEventId="BOSS_DEMO_IRON_UPD1" communicationEventTypeId="StatusUpdate"
             statusId="CeSent" fromPartyId="EX_JOHN_DOE" entryDate="2026-10-19 10:00:00" subject="Sprint 2 started on time"

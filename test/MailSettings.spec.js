@@ -237,11 +237,14 @@ feature("rules: the demo's in words with the blocked sender apart; a new rule sa
         page.status != 200
         qvue.includes("module.exports")
         qvue.includes("Blocked senders")
-        data.ruleList.map((rule) => rule.ruleName) == ["Receipts", "Newsletters", "Flag mail from Acme"]
-        data.ruleList[0].conditionText == 'Subject contains "receipt" or From starts with "billing@"'
-        data.ruleList[0].actionText == "Move to Receipts, Mark read"
-        data.ruleList[1].actionText == "Label Newsletters"
-        data.ruleList[2].enabled == false
+        // john.doe's own account's rules (the Support account's intake rule of Projects, impl-projects.md P5, is beside them)
+        const own = data.ruleList.filter((rule) => !rule.ruleName.startsWith("Intake:"))
+        own.map((rule) => rule.ruleName) == ["Receipts", "Newsletters", "Flag mail from Acme"]
+        own[0].conditionText == 'Subject contains "receipt" or From starts with "billing@"'
+        own[0].actionText == "Move to Receipts, Mark read"
+        own[1].actionText == "Label Newsletters"
+        own[2].enabled == false
+        data.ruleList.some((rule) => rule.ruleName == "Intake: IronStone Projects" && rule.actionText == "Make a request")
         data.blockedList.map((sender) => sender.emailAddress) == ["offers@deals.example"]
         data.accountList.some((account) => account.emailAccountId == ownId && account.folderList.some((folder) => folder.value == ownArchive))
         badRule.errors.includes("needs a value")

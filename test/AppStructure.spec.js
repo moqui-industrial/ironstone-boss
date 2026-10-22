@@ -85,6 +85,8 @@ const demoRecords = {
     // the shared work item detail (Commons mounts it at Tasks/TaskDetail, Projects at WorkItems/WorkItemDetail), here in the
     // Commons context
     "Shared/WorkItemDetail/": { parameters: { workEffortId: "BOSS_DEMO_TASK" }, text: "Review the open support requests" },
+    // P5: the shared request detail, here in the Commons context (no app root)
+    "Shared/RequestDetail/": { parameters: { requestId: "BOSS_DEMO_REQUEST" }, text: "Set up the shared team calendar" },
     // M9: Knowledge and Notes (.qvue screens: their components) and Knowledge's Spaces, SpaceDetail and Review on the knowledge
     // demo (data/BossKnowledgeDemoData.xml; test/Knowledge.spec.js, KnowledgeReview.spec.js and Notes.spec.js call their transitions)
     "Commons/Knowledge": { text: "BossKnowledge" },
@@ -161,7 +163,11 @@ const demoRecords = {
     "Projects/WorkItems/List": { parameters: { rootWorkEffortId: "IRON", list: "all" }, text: "Write the getting started guide" },
     "Projects/QuickCreate": { parameters: { kind: "workItem" }, text: "QuickWorkItem" },
     "Projects/QuickProject": { text: "From template" },
-    "Projects/Requests": { text: "Placeholder: Requests" },
+    // P5: Requests (the triage list) and its detail, the project's intake settings
+    "Projects/Requests": { parameters: { list: "all" }, text: "users to a spreadsheet" },
+    "Projects/Requests/List": { parameters: { list: "all" }, text: "Bring over the tickets of the old tracker" },
+    "Projects/Requests/RequestDetail": { parameters: { requestId: "BOSS_DEMO_PREQ_ACME1" }, text: "RequestStatusBar" },
+    "Projects/Settings/Intake": { text: "support+iron@ziziwork.example" },
     // Projects P3b1: the code screens on the code demo (service/ironstone/CodeDemoServices.xml), a RepositoryDetail tab by its
     // header (the shell loads the tab after it); without git hosting in the build (codeText given) each says so instead
     "Projects/Code": { codeText: "acme-portal" },

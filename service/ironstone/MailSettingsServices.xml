@@ -1420,7 +1420,9 @@ along with this software (see the LICENSE.md file). If not, see
                     case 'delete': return L('Delete')
                     case 'markSpam': return L('Move to Spam')
                     case 'stopProcessing': return L('Stop: no more rules')
-                    default: return action.action
+                    // an app's action (an EmailRuleAction enumeration, impl-projects.md F6): its description
+                    default: return L(Array.from(ec.entity.find('moqui.basic.Enumeration').condition('enumTypeId', 'EmailRuleAction').useCache(true).list())
+                            .find((row) => (row.enumCode || row.enumId) === action.action)?.description || action.action)
                 }
             }
             for (const rule of Array.from(found?.ruleList || [])) {

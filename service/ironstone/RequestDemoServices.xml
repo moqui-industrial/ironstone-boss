@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The requests demo of IronStone Projects (impl-projects.md P5): data/BossProjectsDemoDataRequests.xml calls load#ProjectRequestsDemo
+    after the projects and the mail demo. -->
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
+
+    <service verb="load" noun="ProjectRequestsDemo" authenticate="anonymous-all" allow-remote="false">
+        <description>
+            IRON's intake and two requests made through it, by the real paths (loading again changes nothing that is there):
+            - the intake: the Support account (BOSS_DEMO_MAIL_SUPPORT, support@ziziwork.example) with the plus tag iron, the rule
+              BOSS_DEMO_MAIL_R_INTAKE_IRON of its owner john.doe (To contains support+iron@ziziwork.example: createRequest IRON),
+              the public form's link BossDemoIronIntakeForm1, John Doe the triage assignee, Bug Fix the default type;
+            - a message from Dana Reyes (dana.reyes@acme.example) in the Support Inbox, run through the account's rules
+              (org.moqui.impl.EmailClientServices.run#EmailRules), so the rule makes its request;
+            - a request sent through the form (mantle.request.RequestServices.create#IntakeRequest with the token) by Sam Patel.
+            Each part on its own: one that fails is logged and the rest go on. The settings, the rule and the message are each
+            written in a transaction of their own, as the rule's action reads them in its own (the loader runs a data file in one
+            transaction, impl-projects.md F27).
+        </description>
+        <actions><script><![CDATA[
+            const step = (name, run) => {
+                ec.message.pushErrors()
+                try { run(); if (ec.message.hasError()) throw new Error(ec.message.getErrorsString()) }
+                catch (err) { ec.logger.error(`Requests demo: ${name} not loaded: ${err && err.message ? err.message : err}`) }
+                finally { ec.message.clearErrors(); ec.message.popErrors() }
+            }
+            const SUPPORT = 'BOSS_DEMO_MAIL_SUPPORT'
+            const TOKEN = 'BossDemoIronIntakeForm1'
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try {
+                if (ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', 'IRON').one() == null) {
+                    ec.logger.warn('The requests demo needs the project IRON (BossProjectsDemoData.xml); nothing loaded')
+                    return
+                }
+                const setting = (type, value) => ec.service.sync().name('store#mantle.work.effort.WorkEffortSetting').parameters({workEffortId: 'IRON',
+                    settingTypeEnumId: type, settingValue: value}).requireNewTransaction(true).call()
+                step('IRON intake settings', () => {
+                    setting('WstIntakeToken', TOKEN)
+                    setting('WstTriageParty', 'EX_JOHN_DOE')
+                    setting('WstRequestType', 'RqtBugFix')
+                })
+                const hasSupport = ec.entity.find('moqui.basic.email.EmailAccount').condition('emailAccountId', SUPPORT).one() != null
+                if (!hasSupport) ec.logger.warn('The requests demo needs the Support mail account (load#MailSettingsDemo); IRON takes no mail')
+                if (hasSupport) step('IRON intake address', () => {
+                    setting('WstIntakeAccount', SUPPORT)
+                    setting('WstIntakePlusTag', 'iron')
+                    ec.service.sync().name('store#moqui.basic.email.EmailRule').parameters({emailRuleId: 'BOSS_DEMO_MAIL_R_INTAKE_IRON', ownerUserId: 'EX_JOHN_DOE',
+                        emailAccountId: SUPPORT, ruleName: 'Intake: IronStone Projects', sequenceNum: 10, enabled: 'Y', matchAllEnumId: 'ErmAll', stopProcessing: 'N',
+                        conditionsJson: JSON.stringify([{field: 'to', operator: 'contains', value: 'support+iron@ziziwork.example'}]),
+                        actionsJson: JSON.stringify([{action: 'createRequest', value: 'IRON'}]), matchedCount: 0}).requireNewTransaction(true).call()
+                })
+                // a message to IRON's address, through the account's rules
+                const MAIL = 'BOSS_DEMO_MAIL_S_INTAKE1'
+                if (hasSupport && ec.entity.find('mantle.request.RequestEmailMessage').condition('emailMessageId', MAIL).count() === 0) step('the request by email', () => {
+                    const now = ec.user.nowTimestamp
+                    const nowMillis = typeof now === 'number' ? now : Number(String(now))
+                    const when = new Date(nowMillis - 5 * 3600000)
+                    const body = 'Hello,\n\nWhen I export my timesheet for October, the CSV stops at the 30th: the hours of the 31st are not in it. ' +
+                        'September had the same problem with the 30th.\n\nThanks,\nDana Reyes\nAcme, accounts payable'
+                    ec.service.sync().name('store#moqui.basic.email.EmailMessage').parameters({emailMessageId: MAIL, emailAccountId: SUPPORT,
+                        emailFolderId: 'BOSS_DEMO_MAIL_S_INBOX', statusId: 'ES_RECEIVED', fromAddress: 'dana.reyes@acme.example', fromName: 'Dana Reyes',
+                        toAddresses: 'support+iron@ziziwork.example', subject: 'Timesheet export drops the last day of the month', contentType: 'text/plain',
+                        bodyText: body, body: body.split('\n\n').map((part) => '<p>' + part.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\n/g, '<br>') + '</p>').join(''),
+                        snippet: body.substring(0, 137).replace(/\s+/g, ' '), messageId: '<boss-demo-intake-1@acme.example>', messageDate: when, receivedDate: when,
+                        isRead: 'N', hasAttachment: 'N', rootEmailMessageId: MAIL}).requireNewTransaction(true).call()
+                    ec.service.sync().name('org.moqui.impl.EmailClientServices.run#EmailRules').parameters({emailAccountId: SUPPORT, emailMessageIdList: [MAIL]}).call()
+                })
+                // a request sent through the form, as a visitor with no session user does
+                if (ec.entity.find('mantle.request.Request').condition('requestName', 'Add a dark theme to the request form').count() === 0) step('the request from the form', () => {
+                    const out = ec.service.sync().name('mantle.request.RequestServices.create#IntakeRequest').parameters({token: TOKEN, firstName: 'Sam', lastName: 'Patel',
+                        emailAddress: 'sam.patel@example.org', organizationName: 'Patel Design', requestTypeEnumId: 'RqtNewFeature',
+                        requestName: 'Add a dark theme to the request form', description: 'Our office works late and the white form is bright. ' +
+                            'A dark theme that follows the system setting would help.'}).call()
+                    if (!out?.requestId) throw new Error('no request made')
+                })
+            } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+        ]]></script></actions>
+    </service>
+</services>

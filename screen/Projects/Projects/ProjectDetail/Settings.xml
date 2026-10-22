@@ -17,8 +17,10 @@ along with this software (see the LICENSE.md file). If not, see
     WstModules), Work items (the types offered, the work item flow, the estimate unit, several sprints, new items shared with the
     client, Fixes keywords, a request completing with its work), Code (the branch pattern, merge requests moving their items), Client access (client sign-in, repositories shared read only:
     the settings only, enforced with impl-projects.md P10), Template and Close or delete. A value the project has not set shows
-    the organization's (get#ProjectSettings). The Intake and Billing boxes come with P5 and P8; components with the
-    plan items of P4. Service: ironstone.ProjectServices get#ProjectSettingsInfo, save#ProjectGeneral, save#ProjectSettingValues,
+    the organization's (get#ProjectSettings). Intake (impl-projects.md P5: the mail account and plus tag whose mail makes the
+    project's requests, or work items for internal senders, through the project's email rule; the public form on or off, its link
+    rotated; the triage assignee and the default request type; ironstone.ProjectRequestServices get#ProjectIntake,
+    save#ProjectIntake, change#IntakeForm). The Billing box comes with P8; components with the plan items of P4. Service: ironstone.ProjectServices get#ProjectSettingsInfo, save#ProjectGeneral, save#ProjectSettingValues,
     set#ProjectTemplateFlag, set#ProjectStatus, delete#EmptyProject. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Settings" default-menu-index="13">
@@ -86,10 +88,55 @@ along with this software (see the LICENSE.md file). If not, see
         <default-response type="none"/>
     </transition>
 
+    <transition name="saveIntake">
+        <actions>
+            <service-call name="ironstone.ProjectRequestServices.save#ProjectIntake" out-map="saveOut" in-map="{workEffortId:workEffortId,
+                    emailAccountId:(emailAccountId ?? ''), plusTag:(plusTag ?? ''), makes:(makes || 'requests'), triagePartyId:(triagePartyId ?? ''),
+                    defaultType:(defaultType ?? ''), formOn:(formOn || 'N')}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="changeForm">
+        <actions>
+            <service-call name="ironstone.ProjectRequestServices.change#IntakeForm" out-map="formOut" in-map="{workEffortId:workEffortId, change:change}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(formOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="triageSearch" read-only="true">
+        <actions>
+            <service-call name="ironstone.TaskServices.search#Assignees" in-map="{term:term}" out-map="found"/>
+            <script>ec.web.sendJsonResponse(found.optionList || [])</script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+
     <actions>
         <script><![CDATA[
             if (!recordFound) return
             info = ec.service.sync().name('ironstone.ProjectServices.get#ProjectSettingsInfo').parameters({workEffortId: workEffortId}).call()?.info || {}
+            // the Intake box: the project's intake and the mail accounts the user manages
+            const intake = ec.service.sync().name('ironstone.ProjectRequestServices.get#ProjectIntake').parameters({workEffortId: workEffortId}).call()?.intake || {}
+            intakeValue = {workEffortId: workEffortId, emailAccountId: intake.accountId || '', plusTag: intake.plusTag || '',
+                makes: intake.ruleList?.[0]?.makes || 'requests', triagePartyId: intake.triagePartyId || '', defaultType: intake.defaultType || '', formOn: intake.formOn ? 'Y' : 'N'}
+            intakeTriageName = intake.triageName || ''
+            intakeTypeOptions = intake.typeOptions || []
+            intakeAddress = intake.address || ''
+            intakeFormPath = intake.formPath || ''
+            let webRoot = ''
+            try { webRoot = ec.web.getWebappRootUrl(true, null) || '' } catch (err) { webRoot = '' }
+            intakeFormUrl = intakeFormPath ? webRoot + intakeFormPath : ''
+            ec.message.pushErrors()
+            try {
+                const access = ec.service.sync().name('org.moqui.impl.EmailClientServices.get#EmailAccountAccess').call() || {}
+                intakeAccountOptions = Array.from(access.accountList || []).filter((account) => account.level >= 3 && !account.isInternal)
+                        .map((account) => ({key: account.emailAccountId, text: (account.accountName || account.emailAddress) + (account.emailAddress ? ' <' + account.emailAddress + '>' : '')}))
+            } catch (err) { intakeAccountOptions = [] } finally { ec.message.clearErrors(); ec.message.popErrors() }
+            if (intake.accountId && !intakeAccountOptions.some((option) => option.key === intake.accountId))
+                intakeAccountOptions = [{key: intake.accountId, text: intake.accountName || intake.accountId}].concat(intakeAccountOptions)
             general = info.general || {}
             modulesValue = {workEffortId: workEffortId, box: 'modules', modules: info.modules || []}
             workItemsValue = Object.assign({workEffortId: workEffortId, box: 'workItems'}, info.workItems || {})
@@ -198,6 +245,38 @@ along with this software (see the LICENSE.md file). If not, see
                         <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
                     </form-single>
                     <label type="p" text="${orgDefaultsText}" style="text-caption m-muted q-mb-none" condition="orgDefaultsText"/>
+                </box-body></container-box>
+
+                <container-box><box-header title="Intake"/><box-body>
+                    <form-single name="ProjectIntake" transition="saveIntake" map="intakeValue">
+                        <field name="workEffortId"><default-field><hidden/></default-field></field>
+                        <field name="emailAccountId"><default-field title="Mail account (one you manage; empty: no mail)">
+                            <drop-down allow-empty="true"><list-options list="intakeAccountOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                        <field name="plusTag"><default-field title="Plus tag (name+tag@...)"><text-line size="16"/></default-field></field>
+                        <field name="makes"><default-field title="Mail makes"><radio>
+                            <option key="requests" text="Requests"/><option key="workItems" text="Work items from the team, requests from others"/></radio></default-field></field>
+                        <field name="triagePartyId"><default-field title="Triage assignee (empty: the project managers)">
+                            <drop-down allow-empty="true" current-description="${intakeTriageName}"><dynamic-options transition="triageSearch" server-search="true" min-length="0"/></drop-down>
+                        </default-field></field>
+                        <field name="defaultType"><default-field title="New requests are">
+                            <drop-down allow-empty="true"><list-options list="intakeTypeOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                        <field name="formOn"><default-field title="Public form"><check><option key="Y" text="Anyone with the link may send a request"/></check></default-field></field>
+                        <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                        <field-layout>
+                            <field-row><field-ref name="emailAccountId"/><field-ref name="plusTag"/></field-row>
+                            <field-ref name="makes"/>
+                            <field-row><field-ref name="triagePartyId"/><field-ref name="defaultType"/></field-row>
+                            <field-ref name="formOn"/><field-ref name="submitButton"/>
+                        </field-layout>
+                    </form-single>
+                    <label type="p" text="Mail to ${intakeAddress} files into the project." style="text-caption m-muted q-mb-xs" condition="intakeAddress"/>
+                    <section name="IntakeFormLink" condition="intakeFormUrl"><widgets>
+                        <container style="row items-center q-gutter-x-sm">
+                            <link url="${intakeFormUrl}" url-type="plain" text="${intakeFormUrl}" target-window="_blank" link-type="anchor" style="text-caption ellipsis"/>
+                            <link url="changeForm" link-type="hidden-form-link" text="Rotate" icon="sym_o_autorenew" parameter-map="{workEffortId:workEffortId, change:'rotate'}"
+                                    confirmation="Make a new link? The old one stops working."/>
+                        </container>
+                    </widgets></section>
                 </box-body></container-box>
 
                 <container-box><box-header title="Code"/><box-body>

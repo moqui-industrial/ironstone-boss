@@ -263,7 +263,7 @@ its record is the detail's.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Requests | `Projects/Requests` | list | xml | Triage and track requests: new, assigned, accepted, in progress; convert to work | `Request` | own | app | parity | `Request rows`; list find parameters |
 | RequestDetail | `Projects/Requests/RequestDetail` | detail | xml | One request: header, conversation, its work, items, people, files | `Request` | Request / case, crosscut §3.11, designed here (`Shared/RequestDetail`) | app | parity | `Request requestId` |
-| RequestIntake | `Projects/Requests/Intake` (served at `/r/<token>`) | task | qvue | The public request form of a project | `Request` | own | anonymous by token | new | none |
+| RequestIntake | `screen/RequestIntake.xml` (served at `/r/<token>`; as built in P5 a screen of its own beside PublicShare and Unsubscribe, not under the Projects root, whose authorization a visitor has not) | task | qvue | The public request form of a project | `Request` | own | anonymous by token | new | none |
 
 ### Code
 
@@ -561,7 +561,9 @@ Docs 8, Team 9, Time 10, Money 11, Files 12, Settings 13.
 
 Requests (§6) with the project fixed. Managers see an Intake box above the list: the project's email address
 (the mail account and plus tag that file mail into it), the public form's link with Copy, Rotate and Turn off, and
-the triage assignee, each edited in ProjectSettings.
+the triage assignee, each edited in ProjectSettings. As built (P5): `Projects/Requests/List.xml` mounted as tab 6, the project
+fixed by ProjectDetail's `projectTabId`; Copy is the link in a read-only field that selects itself (templates have no clipboard
+helper), with Open beside Rotate and Turn off.
 
 ### ProjectCode
 
@@ -1125,6 +1127,10 @@ keeps the user's own slice.
 - **Source:** research §11 (intake mechanisms, request to work); baseline `Request/FindRequest`; MarbleERP's request
   counts by status.
 - **Needs:** Intake settings; `view-board` all rows; Client access.
+- **As built (P5):** `Projects/Requests/List.xml` on `ironstone.ProjectRequestServices.find#ProjectRequests`; the team's
+  default list is Assigned to me (the managers' New), the project's tab opens on All; a Channel column (app, email, form) and
+  find; NewRequest takes the project's triage assignee when none is given; the bulk changes run each request in a transaction of
+  its own (failures counted and named).
 
 ### RequestDetail (`Shared/RequestDetail`)
 
@@ -1165,7 +1171,11 @@ chooses the tabs and actions.
 - **Actions:** as the title row; per work item: open, unlink. When the project's setting is on, a request moves to
   In Progress when its first work item starts and to Completed (resolution `RrFixed` for a bug, else
   `RrCompleted`) when its last one completes, and its followers are told
-  (`mantle.request.RequestServices.complete#RequestFromWork`, new).
+  (`mantle.request.RequestServices.complete#RequestFromWork`, new). As built (P5): run by an entity rule on a work item's status
+  (any path that moves it, not only `update#Task`); a cancelled item counts as neither done nor open, and at least one must be
+  done; making or linking a work item accepts a Submitted request (Reviewed); the followers and the Reporter's and Assignee's
+  users are told on the new topic `RequestUpdate`. Resolve's message is a note on the conversation; the requester hears through
+  Chatter's Send message (Conversation opens on it for an outside customer).
 - **States:** a draft is edited only by its requester; clients see Overview read-only after submit, the
   Conversation as messages, and Work as the status of the shared items.
 - **Devices:** phone.
@@ -1196,6 +1206,13 @@ chooses the tabs and actions.
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
 | --- | --- | --- | --- | --- | --- | --- |
 | `IntakeForm` | single | Ask for something | name, email, organization, type (the project's offered request types), subject, description, files (at most five, size per the settings), the CAPTCHA when one is configured | `file`; plain text description | `mantle.request.RequestServices.create#IntakeRequest` (new; through `create#ContactRequestReCaptcha` or `create#ContactRequest`, with the project, the files as `RequestContent` and a confirmation email from the project's intake account) | `RequestServices.create#ContactRequest`; ERPNext issue web form; Dolibarr public ticket page |
+
+As built (P5): first and last name (Mantle's contact request needs both); the organization is kept as a `RequestNote`, not a
+party; the channel is `salesChannelEnumId` `ScWeb` (email `ScEmail`, the app none). Every field is checked on the server; files
+are pictures, PDF, text, office documents and archives (never html, svg or scripts), their names cleaned; a hidden honeypot
+field; at most 30 requests an hour from a project's form and 5 from one address, and the web protection's `request-form` rate
+limit on `/r/*/submit`. The route's answer and the submit's carry nothing internal (the project's name, the types, the file
+limits; the request's number). The CAPTCHA is reCAPTCHA with the `reCAPTCHA.site.key` and `reCAPTCHA.secret.key` preferences.
 
 - **States:** an unknown, rotated or turned-off token shows "This form is not available"; a submit refused by the
   CAPTCHA or the web protection keeps the values.
@@ -1920,6 +1937,13 @@ ProjectSettings. Global configuration defines and a project chooses among it, as
 | `EmailIntake` | list, editable rows | Addresses that make requests | mail account, plus tag, project, makes (requests, or work items for internal senders) | each row writes its Comms rule | `org.moqui.impl.EmailClientServices.create#EmailRule`, `update#EmailRule`, `delete#EmailRule` with the new `createRequest` action | Odoo project alias; Redmine mail handler; Dolibarr email collector |
 | `PublicForm` | single | The public request form | CAPTCHA on, files allowed and their size, the confirmation email's template | | `PartySetting` (`entity`) | Mantle contact request with reCAPTCHA |
 
+As built (P5): `ironstone.ProjectRequestServices`. The types are the organization's `ProjIntake` (`offered`, `triaged`,
+`defaultType`, `triagePartyId`; a project may set its own default type, `WstRequestType`, and triage assignee); the email intake
+is a list of the projects with an address and an Add an address dialog, each row's rule written as the manager (who must
+manage the account; a plus tag belongs to one project); the public form is `ProjPublicForm` (CAPTCHA, files, at most how many
+and how large, a confirmation on or off: the confirmation's template is later). A project's own intake (its address, its form on
+and its link rotated, its triage assignee and default type) is ProjectSettings' Intake box.
+
 ## 13. Baseline coverage
 
 Where each baseline form and Mantle service of the project, task, request, time and rate functions lands. The
@@ -2131,15 +2155,16 @@ record is read through a service that checks the repository's rights (R21).
 | Need | Kind | Proposed as | Used by | Stub spec |
 | --- | --- | --- | --- | --- |
 | Request conversion and status from work | service type | `mantle.request.RequestServices.convert#RequestToProject` (sets `rootWorkEffortId`, In Progress) and `complete#RequestFromWork` (a SECA on `update#Task`: the first linked item started moves the request to In Progress, the last completed to Completed with `RrFixed` or `RrCompleted`, when the project says so) | RequestDetail | |
-| Email intake | framework hook + BOSS service + seed data | the Comms rule actions `createRequest` and `createWorkItem` (Remaining-Work: "the createTask and createRequest rule actions are for an app"), through a framework hook `run#EmailRules` does not have yet: an action it does not know runs the service an app names for it (an `EmailRuleAction` enumeration whose `optionValue` is the service; impl-projects F6): a request in the project the rule or the plus tag names, the message linked by `RequestEmailMessage` and `RequestCommEvent`, the sender as the requester (a contact made in the organization's book when unknown); a reply to the request's mail threads into its conversation; the confirmation email | IntakeSettings, ProjectSettings | Odoo alias, Redmine mail handler |
+| Email intake | framework hook + Mantle service + seed data | the Comms rule actions `createRequest` and `createWorkItem` (Remaining-Work: "the createTask and createRequest rule actions are for an app"), through a framework hook `run#EmailRules` does not have yet: an action it does not know runs the service an app names for it (an `EmailRuleAction` enumeration whose `optionValue` is the service; impl-projects F6): a request in the project the rule or the plus tag names, the message linked by `RequestEmailMessage` and `RequestCommEvent`, the sender as the requester (a contact made in the organization's book when unknown); a reply to the request's mail threads into its conversation; the confirmation email. As built (P5): the framework runs the service an `EmailRuleAction` enumeration names (enumCode the action, optionValue the service) with emailMessageId, emailAccountId, emailRuleId, ruleOwnerUserId and the value, authorization off, in a transaction of its own; Mantle seeds `createRequest` (`RequestServices.create#RequestFromEmail`) and `createWorkItem` (`create#WorkItemFromEmail`). A project is taken only when its intake account is the message's or the rule's owner is on it; a reply (In-Reply-To, References, thread) joins its request; the message is the request's `RequestEmailMessage` and its Email `CommunicationEvent` by `RequestCommEvent`; files copied as `RequestContent`. The intake address of a project is its `WstIntakeAccount` and `WstIntakePlusTag` and the rule written by the manager, who must manage the account | IntakeSettings, ProjectSettings | Odoo alias, Redmine mail handler |
 | Public request form | BOSS screen + service type | the `r` token route in `MoquiConf.xml`; `mantle.request.RequestServices.check#IntakeToken` (the route's token service), `create#IntakeToken`, `create#IntakeRequest` (through `create#ContactRequestReCaptcha` with a CAPTCHA configured, else `create#ContactRequest`; files as `RequestContent`; the confirmation) | RequestIntake, ProjectSettings | the public shell (design-drawers-commons R16) |
 | Intake settings | seed data | the organization's intake `PartySetting`s and the request types Projects triages | Requests, IntakeSettings | |
+| Request visibility | Mantle service | As built (P5): `get#RecordLinkInfo` sees a request of a project the user sees (`get#VisibleProjectInfo`), and one with no project of a type the user's organization triages (its `ProjIntake`), so Chatter and the record files follow the Projects lists | Requests, RequestDetail | |
 
 ### Search and notifications
 
 | Need | Kind | Proposed as | Used by | Stub spec |
 | --- | --- | --- | --- | --- |
-| Notification topics | seed data | `WorkItemAssigned` (Notifications inbox), `MergeRequestReview` (review requested), `MergeRequestUpdate` (new commits, approvals, comments, merged; Updates), `CommitStatusFailed` (the head's author and the merge request's), `TimesheetApproval` (approval), `TimesheetReturned`, `TimesheetMissing` (reminder), `AllocationRequest` (approval), `AllocationDecision`, `MilestoneApproval` (approval), `ProjectStatusUpdate` (Updates), `RequestTriage` (a new request in a project I triage), `ReleasePublished` (Updates); each with title and link templates into Projects' screens | the screens above, the tray | design-drawers-commons §19 "Notification fields and approvals" |
+| Notification topics | seed data | `WorkItemAssigned` (Notifications inbox), `MergeRequestReview` (review requested), `MergeRequestUpdate` (new commits, approvals, comments, merged; Updates), `CommitStatusFailed` (the head's author and the merge request's), `TimesheetApproval` (approval), `TimesheetReturned`, `TimesheetMissing` (reminder), `AllocationRequest` (approval), `AllocationDecision`, `MilestoneApproval` (approval), `ProjectStatusUpdate` (Updates), `RequestTriage` (a new request in a project I triage), `RequestUpdate` (a request moved by its work, to its followers; Updates; added in P5), `ReleasePublished` (Updates); each with title and link templates into Projects' screens | the screens above, the tray | design-drawers-commons §19 "Notification fields and approvals" |
 | Search documents | seed data | `MantleTask` gains sprint, release, component and labels; `MantleProject` and `MantleRequest` link to Projects' screens; the `MantleTask` and `MantleRequest` topics' links (seeded by MrSimpleScreens with `/vapps/my/…`) map to Projects for its users | WorkItems search, palette | |
 
 ## 16. Decided
