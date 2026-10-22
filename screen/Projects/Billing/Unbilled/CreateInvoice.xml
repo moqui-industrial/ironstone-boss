@@ -14,7 +14,8 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- CreateProjectInvoice (design-projects.md §10 Unbilled): Unbilled's dialog for one project (service/ironstone/BillingServices.xml
     get#InvoiceDraft, create#ProjectInvoice): the approved billable time not invoiced, each entry ticked (those without a rate are not
-    and may not be invoiced), a new invoice or one of the client's open drafts of the project to add to, the grouping of the lines
+    and may not be invoiced), the milestone billing shares due, each ticked (impl-projects.md P8b), a new invoice or one of the client's
+    open drafts of the project to add to, the grouping of the lines
     (per entry, per worker, one line; the project's own setting by default), the payment terms and the invoice date. The invoice made,
     InvoiceDetail opens on it. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
@@ -25,7 +26,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="createInvoice">
         <actions>
             <service-call name="ironstone.BillingServices.create#ProjectInvoice" out-map="createOut" in-map="{workEffortId:workEffortId, invoiceId:(addToInvoiceId || null),
-                    timeEntryIds:(timeEntryIds ?? null), selection:true, entryGrouping:(entryGrouping || 'entry'), settlementTermId:(settlementTermId || null),
+                    timeEntryIds:(timeEntryIds ?? null), milestoneIds:(milestoneIds ?? null), selection:true, entryGrouping:(entryGrouping || 'entry'), settlementTermId:(settlementTermId || null),
                     invoiceDate:(invoiceDate ? ec.l10n.parseTimestamp(String(invoiceDate).substring(0, 10) + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS') : null)}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(createOut.message, 'success')</script></if>
         </actions>
@@ -45,7 +46,8 @@ along with this software (see the LICENSE.md file). If not, see
             entryOptions = draft.entryOptions
             draftOptions = draft.draftOptions
             termOptions = Array.from(ec.service.sync().name('ironstone.BillingServices.get#BillingSettings').call()?.termOptions || [])
-            invoiceValue = {workEffortId: workEffortId, timeEntryIds: draft.selectedIds, entryGrouping: draft.entryGrouping, settlementTermId: draft.settlementTermId,
+            milestoneOptions = draft.milestoneOptions || []
+            invoiceValue = {workEffortId: workEffortId, timeEntryIds: draft.selectedIds, milestoneIds: draft.selectedMilestoneIds || [], entryGrouping: draft.entryGrouping, settlementTermId: draft.settlementTermId,
                 addToInvoiceId: '', invoiceDate: ec.l10n.format(ec.user.nowTimestamp, 'yyyy-MM-dd')}
             hasDrafts = draftOptions.length > 0
             missingRates = entryOptions.filter((option) => option.missingRate).length
@@ -58,15 +60,18 @@ along with this software (see the LICENSE.md file). If not, see
         </widgets></section>
         <section name="DraftFound" condition="found"><widgets>
             <label type="p" text="${draft.clientName}: ${draft.readyHoursText} h approved, ${draft.readyAmountText}." style="text-body2 q-mb-xs"/>
+            <label type="p" text="Milestone shares due: ${draft.milestoneDueText}." style="text-body2 q-mb-xs" condition="draft.milestoneDueText"/>
             <label type="p" text="${draft.waitingHoursText} h more wait for approval and are not invoiced yet." style="text-caption m-muted q-mb-xs"
                     condition="draft.waitingHoursText &amp;&amp; draft.waitingHoursText != '0'"/>
             <label type="p" text="${missingRates} entries have no client rate and cannot be invoiced: add a rate (Billing, Rates), then Update rates on the project's Time tab."
                     style="text-caption text-warning q-mb-xs" condition="missingRates"/>
-            <label type="p" text="${draft.cannotReason}" style="text-warning" condition="!entryOptions.length"/>
+            <label type="p" text="${draft.cannotReason}" style="text-warning" condition="!entryOptions.length &amp;&amp; !milestoneOptions.length"/>
             <form-single name="CreateProjectInvoice" transition="createInvoice" map="invoiceValue">
                 <field name="workEffortId"><default-field><hidden/></default-field></field>
-                <field name="timeEntryIds"><default-field title="Approved time to invoice">
-                    <check><list-options list="entryOptions" key="${key}" text="${text}"/></check></default-field></field>
+                <field name="timeEntryIds"><conditional-field condition="entryOptions.length" title="Approved time to invoice">
+                    <check><list-options list="entryOptions" key="${key}" text="${text}"/></check></conditional-field><default-field><hidden/></default-field></field>
+                <field name="milestoneIds"><conditional-field condition="milestoneOptions.length" title="Milestones due">
+                    <check><list-options list="milestoneOptions" key="${key}" text="${text}"/></check></conditional-field><default-field><hidden/></default-field></field>
                 <field name="addToInvoiceId"><conditional-field condition="hasDrafts" title="Add to an open draft (empty: a new invoice)">
                         <drop-down allow-empty="true"><list-options list="draftOptions" key="${key}" text="${text}"/></drop-down></conditional-field>
                     <default-field><hidden/></default-field></field>
@@ -79,6 +84,7 @@ along with this software (see the LICENSE.md file). If not, see
                 <field-layout>
                     <field-ref name="workEffortId"/>
                     <field-ref name="timeEntryIds"/>
+                    <field-ref name="milestoneIds"/>
                     <field-ref name="addToInvoiceId"/>
                     <field-ref name="entryGrouping"/>
                     <field-row><field-ref name="settlementTermId"/><field-ref name="invoiceDate"/></field-row>

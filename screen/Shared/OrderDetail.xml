@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- OrderDetail (design-projects.md §10 OrderDetail, the Order detail of research-crosscut §3.6; style-guide §3.3 Detail; impl-projects.md
+    P8b): one sales order, mounted by Projects at Projects/Billing/OrderDetail. Built for the Projects context now (impl-projects.md §4:
+    expanded when design-crosscut and Sales need more); appRoot will choose the context then, as Shared/InvoiceDetail does.
+    Projects (service/ironstone/BillingServices.xml get#OrderDetail): the sales order a project fulfils, for one who manages money and
+    sees one of the projects its lines are linked to (OrderItemWorkEffort); anyone else gets "not available". The title row: the order,
+    its customer, the status-bar of the order (read only: Open, Quote proposed, Placed, Approved, Completed), the estimate's state; the
+    actions: Send estimate for approval (the order open or proposed, one project the user manages: ironstone.BillingServices.send#Estimate,
+    the order becomes a quote and its approval approves it) and Print estimate. The number cards: Total, Milestone shares, Billed. The
+    boxes: Details, Projects, Lines (each with its projects, its milestone shares and what they billed), Milestone shares (each with its
+    status: billed with the invoice, due, waiting for approval), Invoices (those billing the order, OrderItemBilling). Shares are set on
+    MilestoneDetail, lines linked on the project's Money tab. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Order" default-menu-include="false">
+
+    <parameter name="orderId" required="true"/>
+
+    <transition name="sendEstimate">
+        <actions>
+            <service-call name="ironstone.BillingServices.send#Estimate" out-map="sendOut" in-map="{workEffortId:projectId, depth:(depth ? Number(depth) : 2), comments:comments}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(sendOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="orderId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="invoices"><default-response url="//Projects/Billing/Invoices"/></transition>
+
+    <actions><script><![CDATA[
+        const out = ec.service.sync().name('ironstone.BillingServices.get#OrderDetail').parameters({orderId: orderId || ''}).call() || {}
+        ec.message.clearErrors()
+        recordFound = !!out.detail
+        if (!recordFound) return
+        const L = (text) => ec.l10n.localize(text)
+        ord = out.detail
+        lineRows = ord.lineRows
+        shareRows = ord.shareRows
+        invoiceRows = ord.invoiceRows
+        projectRows = ord.projectRows
+        detailRows = [['Customer', ord.customerName], ['Vendor', ord.vendorName], ['Name', ord.orderName], ['Entered', ord.entryDateText], ['Placed', ord.placedDateText],
+            ['Approved', ord.approvedDateText], ['Estimate', ord.estimateText]].filter((pair) => pair[1]).map((pair) => ({label: L(pair[0]), value: pair[1]}))
+        const shared = shareRows.length
+        sharesValue = shared ? String(shared) : '—'
+        billedCount = shareRows.filter((share) => share.invoiceUrl).length
+        sendValue = {orderId: orderId, projectId: ord.projectId, depth: '2', comments: ''}
+    ]]></script></actions>
+
+    <widgets>
+        <section name="OrderNotFound" condition="!recordFound"><widgets>
+            <container-box type="warning"><box-header title="Not available"/><box-body>
+                <label type="p" text="Order ${orderId} is not available: it does not exist, it is not linked to a project you see, or you do not manage money."/>
+                <link url="invoices" link-type="anchor" text="Back to the invoices"/>
+            </box-body></container-box>
+        </widgets></section>
+
+        <section name="OrderFound" condition="recordFound"><widgets>
+            <context record-entity="mantle.order.OrderHeader" record-id="${orderId}" title="Order ${orderId} · ${ord.customerName}"/>
+            <container style="row items-start q-col-gutter-sm q-mb-sm">
+                <container style="col-12 col-md">
+                    <container style="row items-center q-gutter-x-sm">
+                        <label text="Order ${orderId}" type="h5" style="q-my-none"/>
+                        <label text="${ord.customerName}" type="span" style="text-subtitle1 m-muted"/>
+                    </container>
+                    <status-bar id="OrderStatusBar" status-id="${ord.statusId}" status-flow-id="Default" stages="${ord.stageStatusIds}" read-only="true"/>
+                    <label text="${ord.estimateText}" type="div" style="text-body2 m-muted" condition="ord.estimateText"/>
+                </container>
+                <container style="col-12 col-md-auto row items-center q-gutter-x-xs q-gutter-y-xs">
+                    <container-dialog id="OrderSendEstimate" button-text="Send estimate for approval" icon="sym_o_send" width="560" type="primary"
+                            title="Send the estimate of ${ord.projectName} for approval" condition="ord.canSendEstimate">
+                        <form-single name="OrderSendEstimateForm" transition="sendEstimate" map="sendValue">
+                            <field name="orderId"><default-field><hidden/></default-field></field>
+                            <field name="projectId"><default-field><hidden/></default-field></field>
+                            <field name="depth"><default-field title="Work breakdown to">
+                                <radio><option key="1" text="Top-level items"/><option key="2" text="Two levels"/><option key="3" text="Three levels"/></radio></default-field></field>
+                            <field name="comments"><default-field title="Message to the client"><text-area rows="3" cols="50"/></default-field></field>
+                            <field name="submitButton"><default-field title="Send for approval"><submit/></default-field></field>
+                        </form-single>
+                        <label type="p" text="The order becomes a quote; the client approves the estimate on the project's Estimate milestone, which approves the order and the project."
+                                style="text-caption m-muted"/>
+                    </container-dialog>
+                    <link url="${ord.printUrl}" url-type="plain" text="Print estimate" icon="sym_o_print" link-type="anchor-button" target-window="_blank" condition="ord.printUrl"/>
+                    <link url="${ord.estimateMilestoneUrl}" url-type="plain" text="Estimate milestone" icon="sym_o_approval" link-type="anchor-button" condition="ord.estimateMilestoneUrl"/>
+                </container>
+            </container>
+
+            <dashboard min-width="150" style="q-mb-sm">
+                <number-card title="Total" value="${ord.totalText}" icon="sym_o_shopping_cart" size="sm"/>
+                <number-card title="Shares" value="${sharesValue}" icon="sym_o_flag" size="sm"/>
+                <number-card title="Billed" value="${billedCount}" icon="sym_o_receipt_long" size="sm"/>
+                <number-card title="Lines" value="${lineRows.length}" icon="sym_o_list" size="sm"/>
+            </dashboard>
+
+            <container-row>
+                <row-col md="6">
+                    <container-box><box-header title="Details"/><box-body-nopad>
+                        <form-list name="OrderDetails" list="detailRows" skip-form="true" skip-header="true" paginate="false">
+                            <field name="label"><default-field><label text="${label}" type="span" style="m-muted text-no-wrap"/></default-field></field>
+                            <field name="value"><default-field><display/></default-field></field>
+                        </form-list>
+                    </box-body-nopad></container-box>
+                </row-col>
+                <row-col md="6">
+                    <container-box><box-header title="Projects"/><box-body-nopad>
+                        <form-list name="OrderProjects" list="projectRows" skip-form="true" skip-header="true" paginate="false">
+                            <field name="name"><default-field><link url="${url}" url-type="plain" text="${name}" link-type="anchor"/></default-field></field>
+                        </form-list>
+                    </box-body-nopad></container-box>
+                    <container-box><box-header title="Invoices · ${invoiceRows.length}"/><box-body-nopad>
+                        <form-list name="OrderInvoices" list="invoiceRows" skip-form="true" paginate="false">
+                            <field name="invoiceId"><default-field title="Invoice"><link url="${url}" url-type="plain" text="${invoiceId}" link-type="anchor" style="text-mono"/></default-field></field>
+                            <field name="dateText"><default-field title="Date"><label text="${dateText}" type="span" style="text-no-wrap"/></default-field></field>
+                            <field name="statusText"><default-field title="Status"><display/></default-field></field>
+                            <field name="totalText" align="right"><default-field title="Total"><label text="${totalText}" type="span" style="text-no-wrap"/></default-field></field>
+                        </form-list>
+                        <label type="p" text="Nothing billed on this order yet." style="m-muted q-pa-sm q-mb-none" condition="!invoiceRows.length"/>
+                    </box-body-nopad></container-box>
+                </row-col>
+            </container-row>
+
+            <container-box><box-header title="Lines · ${lineRows.length}"/><box-body-nopad>
+                <form-list name="OrderLines" list="lineRows" skip-form="true" paginate="false">
+                    <field name="orderItemSeqId"><default-field title="#"><display/></default-field></field>
+                    <field name="description"><default-field title="Description">
+                        <label text="${description}" type="div"/>
+                        <label text="${projectText ? 'Project: ' + projectText : ''}" type="div" style="text-caption m-muted" condition="projectText"/>
+                        <label text="${sharedText}${billedText ? ' · ' + billedText : ''}" type="div" style="text-caption m-muted" condition="sharedText"/></default-field></field>
+                    <field name="quantityText" align="right"><default-field title="Quantity"><display/></default-field></field>
+                    <field name="unitText" align="right"><default-field title="Price"><label text="${unitText}" type="span" style="text-no-wrap"/></default-field></field>
+                    <field name="totalText" align="right"><default-field title="Amount"><label text="${totalText}" type="span" style="text-no-wrap text-weight-medium"/></default-field></field>
+                    <columns type="mobile">
+                        <column><field-ref name="description"/></column>
+                        <column><field-ref name="totalText"/></column>
+                    </columns>
+                </form-list>
+                <container style="row justify-end q-pa-sm">
+                    <label text="Total ${ord.totalText}" type="span" style="text-subtitle1 text-weight-medium"/>
+                </container>
+            </box-body-nopad></container-box>
+
+            <container-box><box-header title="Milestone shares · ${shareRows.length}"/><box-body-nopad>
+                <form-list name="OrderMilestoneShares" list="shareRows" skip-form="true" paginate="false">
+                    <field name="milestoneName"><default-field title="Milestone"><link url="${milestoneUrl}" url-type="plain" text="${milestoneName}" link-type="anchor"/></default-field></field>
+                    <field name="orderItemSeqId"><default-field title="Line"><display/></default-field></field>
+                    <field name="shareText" align="right"><default-field title="Share"><display/></default-field></field>
+                    <field name="amountText" align="right"><default-field title="Amount"><label text="${amountText}" type="span" style="text-no-wrap text-weight-medium"/></default-field></field>
+                    <field name="statusText"><default-field title="Status">
+                        <link url="${invoiceUrl}" url-type="plain" text="${statusText}" link-type="anchor" condition="invoiceUrl"/>
+                        <label text="${statusText}" type="span" style="text-${statusColor}" condition="!invoiceUrl"/></default-field></field>
+                    <columns type="mobile">
+                        <column><field-ref name="milestoneName"/><field-ref name="statusText"/></column>
+                        <column><field-ref name="amountText"/></column>
+                    </columns>
+                </form-list>
+                <label type="p" text="No milestone shares: set them on a milestone's Billing box to bill the order as milestones are reached." style="m-muted q-pa-sm q-mb-none" condition="!shareRows.length"/>
+            </box-body-nopad></container-box>
+        </widgets></section>
+    </widgets>
+</screen>

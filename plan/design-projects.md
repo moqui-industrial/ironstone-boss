@@ -455,6 +455,9 @@ project with sub-projects (`parentWorkEffortId`); there is no separate portfolio
 | `ProjectMoneyStep` | wizard step | How it is paid for (Money on) | billing basis (time and materials, fixed price, milestones, not billed), hours budget (`totalTimeAllowed`), client budget (`totalClientCostAllowed`), the order line it fulfils, project client rates (person, position class or work type, rate) | order line `server-search` over open sales order items of the client | `update#Project`; `mantle.humanres.RateServices.create#RateAmount`; `OrderItemWorkEffort` (`entity`) | `EditProject` `EditProject` budget fields; Odoo service product tracking; ERPNext project costing |
 | `ProjectReview` | wizard step, read | The summary | everything chosen | | | style-guide §3.10 review step |
 
+- **As built (P8b):** the order line is a box of the Money step for those who manage money: Link an order line (the lines of the
+  client's sales orders not cancelled, rejected or completed; `link#ProjectOrderItem`) and Unlink; milestones take their shares of it
+  on MilestoneDetail.
 - **Actions:** Next, Back, Create (the one primary of the last step); "Create now" from Start for a quick project
   that takes the template's or the defaults for the rest.
 - **Source:** research §2 (OpenProject wizard, templates and copy; Odoo quick create, templates and stages;
@@ -674,6 +677,19 @@ always there (F24).
   the project's first milestone, **Estimate** (made when missing, with a gate whose approver is the project's
   `ClientManager`, else its `Customer` contact), and the gate's approval is requested, so the client approves the
   estimate in MilestoneDetail as any gate and no other approval record is needed.
+- **As built (impl-projects.md P8b):** `ProjectDetail/Money.xml` (tab 11, always there as F24 says) over
+  `ironstone.BillingServices.get#ProjectMoney` and `mantle.work.ProjectServices.get#ProjectMoneySummary`; for those who manage money
+  (`check#Money`), others see that it is theirs. Number cards (value at client rates, budget used, invoiced, unbilled, milestone shares
+  due); Budget and actuals (the billing basis and caps against hours, value at client rates, cost at the workers' rates and profit, from
+  the project's rolled-up `actualCost`/`actualClientCost`; Edit is `save#ProjectMoney`); Unbilled (Create invoice is Unbilled's dialog,
+  mounted as a subscreen of the tab, now with the milestone shares due); Commercial is the order lines only (Link an order line over the
+  client's open sales orders, Unlink; `mantle.work.ProjectServices.link#ProjectOrderItem`); Milestone billing; Invoices; Expenses; Rates
+  read only with All rates. The agreement, opportunity and purchase lines of Commercial and `MaterialEstimates` are later. Print estimate
+  is `Projects/Projects/EstimatePrint` (html-print of `get#ProjectEstimate`: the breakdown to a depth of 1 to 4, each line's roll-up
+  hours at the project's standard client rate, the order lines, the milestones, the total). Send estimate for approval is
+  `mantle.work.ProjectServices.send#EstimateForApproval` as designed; the estimate is not emailed (the gate's notice goes to the
+  approver's users, and a client contact has none until P10), and its approval also moves the project from In Planning to Approved and
+  its open or proposed sales orders to Approved (sending makes an open order a quote, OrderProposed).
 - **Source:** research §10 (OpenProject budgets, Odoo analytic and invoicing policies, ERPNext costing), §11;
   baseline `EditProject` budget fields and `ProjectTimeEntries`.
 - **Needs:** Milestone billing share; Billing services; Milestone approval (the estimate).
@@ -727,8 +743,9 @@ The `record-files` element over the project (design-drawers-commons §9 RecordFi
   no range-find); the list is sorted by project and then due date with a project column (list grouping is §16 later); a second
   row of kind chips (All kinds, Milestones, Releases; Sprints in a project's tab); due and status edited in place by the
   project's team (`update#PlanItemField`; the status along the `Default` flow); progress is done of the items (cancelled left
-  out) with the hours, from `mantle.work.ProjectServices.get#PlanItemSummary`; Awaiting approval comes with the milestone gate
-  (P8); billing share with P8. The timeline view (P4c) is a Timeline button that opens the Timeline in plan mode on the same list and
+  out) with the hours, from `mantle.work.ProjectServices.get#PlanItemSummary`; Awaiting approval (P8b) is a chip between Overdue
+  and Completed (milestones whose gate's request waits), and the status cell shows a Gate or Awaiting approval chip; the billing share
+  column is left to the milestone and the Money tab, since the roadmap is the team's and money is not. The timeline view (P4c) is a Timeline button that opens the Timeline in plan mode on the same list and
   project (in a project's tab, its Plan tab's Timeline in plan mode). New milestone and New release are for the project's
   team (not only managers).
 - **Source:** research §7 (OpenProject versions and phases, Redmine roadmap, Odoo milestones); baseline
@@ -757,8 +774,17 @@ The `record-files` element over the project (design-drawers-commons §9 RecordFi
 - **As built (P4b):** the title row, Progress as number cards (items done, percent, hours or points done, due), Work items
   with the chips All, Not started, In progress, Done (no in-place edits: a row opens the work item), Add items (a search of
   the project's items, `search#PlanItemCandidates`) and Remove, Chatter; the moves for the project's team with Complete
-  labelled Reach; Move unfinished items to another open milestone or out of any. The gate, the billing share and the
-  deliverables come with P8, which builds Milestone approval and Milestone billing share.
+  labelled Reach; Move unfinished items to another open milestone or out of any.
+- **As built (P8b):** the gate is the milestone's `WstApprovalRequired` and `WstApproverParty` (a current party of the project: its
+  managers and client contacts are offered) with a `WorkEffortApproval` record per request (Requested, Approved, Refused, Cancelled;
+  requested and decided by, when, the note). A gated milestone not approved has no Reach: its primary is Ask for approval (the team),
+  and while a request waits, Approve (which reaches it) and Refuse (a reason required) for the approver's own user or, recording it
+  for them, one who manages the project (`MILESTONE_APPROVE`, the Projects managers); until client users sign in (P10) the manager
+  records the client's decision, marked so. `update#Milestone` refuses Complete or Closed before the approval. Withdraw the request is
+  in More. A Gate chip in the title row. The Billing box (money holders) lists the shares with Add share (percent of a line or a fixed
+  amount; the lines are the project's, from its Money tab) and Invoice milestone when due. The Deliverables box: added by the team,
+  accepted by those who decide the gate (`WorkEffortDeliverableProd` gained `sequenceNum`, `acceptedDate`, `acceptedByUserId`; seed
+  `DeliverableType`).
 - **Source:** research §7 (milestones, phases and gates); baseline `Project/MilestoneSummary`.
 - **Needs:** Milestone approval; Milestone billing share; `chatter`.
 
@@ -1761,6 +1787,10 @@ drawn down by billable time) are not designed here; they are left to People, wit
   line; the project's WstInvoiceGrouping), the payment terms (the organization's default) and the date; none ticked is an
   error, never "all"; the invoice made, InvoiceDetail opens. The invoice is `create#ProjectInvoiceItems` with `approvedOnly`,
   `billableOnly` and the selection, in one transaction. No notification is sent: the screen opens the invoice.
+  P8b: the Milestones due chip lists the shares due (reached, approved when gated, not billed) with Invoice (added to the project's
+  open draft when it has one); a project with only shares due is listed under Client billing too, its row says how many; the dialog
+  ticks the shares due beside the time, and the shares go on the invoice first (`create#MilestoneInvoiceItems`), then the time.
+  Contractor time stays later (§7 of impl-projects.md).
 - **Source:** research §10 (Odoo `sale_timesheet` policies, ERPNext timesheet billing, Dolibarr billable time);
   baseline project invoice dialogs of `FindInvoice` and `ProjectTimeEntries`.
 - **Needs:** Billing services; Milestone billing share.
@@ -1804,7 +1834,8 @@ changes (Finalized) and Cancel (In-Process or Finalized: its time is unbilled ag
 only), Lines (each with the count and hours of its time; Remove on a draft frees that time) and Time (every entry billed: line, day,
 who, work item, hours, rate, amount, comment; CSV); Chatter. The print is `Billing/InvoicePrint.xml` (html-print, PDF under `/fop`),
 with the time detail when the project's WstTimeDetail is not N. Worker and expense invoices are read only here; Accounting's
-version adds payments, adjustments and the ledger.
+version adds payments, adjustments and the ledger. P8b: a milestone line says which milestone it bills, when it was reached and its
+share of which order line, and a Milestones box lists them; removing it makes the share due again.
 
 ### OrderDetail (Context passed)
 
@@ -1814,6 +1845,13 @@ The Order detail (research-crosscut §3.6), designed in design-crosscut; Project
 | App | Tabs or panes shown | Filters fixed | Action set | Emphasis |
 | --- | --- | --- | --- | --- |
 | Projects | Overview, Items (each line's work efforts and milestone shares, `OrderItemWorkEffort`), Invoices | sales orders linked to the user's projects | link a line to the project or a milestone, set a milestone's share, create a project from a line | what the project delivers and bills |
+
+As built (impl-projects.md P8b): `screen/Shared/OrderDetail.xml` mounted at `Projects/Billing/OrderDetail`, one page: for one who manages
+money and sees a project its lines are linked to. The title row (order, customer, the read-only status-bar Open, Quote proposed, Placed,
+Approved, Completed, the estimate's state), Send estimate for approval (one project the user manages, the order open or proposed) and
+Print estimate; number cards; Details, Projects, Invoices (by `OrderItemBilling`), Lines (projects, shares, billed), Milestone shares.
+Links and shares are made where they live: the project's Money tab links a line, MilestoneDetail sets a share; Create project from a
+line waits for Sales.
 
 ### Rates
 
@@ -2224,7 +2262,7 @@ record is read through a service that checks the repository's rights (R21).
 | Template flag | data model | `WorkEffort.isTemplate` (text-indicator): left out of every list, count, report and search but Templates and NewProject's choice; `clone#Project` clears it on the copy unless asked to make a template, copies the base's `WorkEffortSetting` rows (not `WstIntakeToken` or `WstDocsWikiSpace`), and links a project made from a template to it by `WorkEffortAssoc` `WeatBasedOn`, which Templates counts as its uses; `create#ProjectTemplate`, `get#ProjectTemplates` | Templates, NewProject, Projects | |
 | Work item keys from 1 | service type | `create#Project` and `clone#Project` start the project's sequence (`Project_<KEY>`) at 1 with a bank of 1, so new projects number `PROJ-1`, `PROJ-2` without gaps; existing projects keep theirs | every screen | today the numbers start at 100000 in banks of 10 |
 | Client project purpose | seed data | `Enumeration` `WepPrClient` ("Client Project") under `WetProject` | NewProject, ProjectSettings | |
-| Milestone approval | service type + seed data | `request#MilestoneApproval`, `approve#MilestoneApproval`, `refuse#MilestoneApproval` (the requirement and the approver in the milestone's `WorkEffortSetting`); topic `MilestoneApproval` naming the two decision services; `mantle.work.ProjectServices.send#EstimateForApproval` (the estimate's `html-print` saved as a `WorkEffortContent` file of the project's Estimate milestone, made first when missing with its gate and the client approver, then `request#MilestoneApproval`) | MilestoneDetail, ProjectMoney, the tray's Approvals | |
+| Milestone approval | service type + seed data | `request#MilestoneApproval`, `approve#MilestoneApproval`, `refuse#MilestoneApproval` (the requirement and the approver in the milestone's `WorkEffortSetting`); topic `MilestoneApproval` naming the two decision services; `mantle.work.ProjectServices.send#EstimateForApproval` (the estimate's `html-print` saved as a `WorkEffortContent` file of the project's Estimate milestone, made first when missing with its gate and the client approver, then `request#MilestoneApproval`). As built (P8b): the requests are `mantle.work.effort.WorkEffortApproval` (Requested, Approved, Refused, Cancelled; `recordedFor` when a manager records the approver's decision); `get#MilestoneApprovalAccess`, `store#MilestoneGate`, `cancel#MilestoneApproval`; the approval reaches the milestone (`update#Milestone` refuses it before); permission `MILESTONE_APPROVE`; topics `MilestoneApproval` (decision services `approve#`, `refuse#MilestoneApprovalNotice`) and `MilestoneDecision`; the Estimate milestone is the project's `WstEstimateMilestone`, the file content type `WectEstimate`; its approval moves the project from In Planning to Approved and its open or proposed orders to Approved | MilestoneDetail, ProjectMoney, the tray's Approvals | |
 | Recurring work items | data model + service type | `WorkEffortRecurrence` (built for Calendar) gains `recurFromCompletion` (text-indicator: count the next dates from the completion day rather than the due date); `mantle.work.TaskServices.set#TaskRecurrence(workEffortId, rrule, recurFromCompletion)` (an empty rule stops it) and `make#NextRecurringTask`, a SECA on the task's move to Complete, or to Cancelled when skipped: the copy of §5, start and due from the rule through the ICalendar tool's expansion, linked from the series by `WeatRecurrenceInstance` with its date; nothing is made past the rule's end | WorkItemDetail, WorkItems, Commons TaskDetail | Odoo recurring tasks |
 | Release notes | service type | `generate#ReleaseNotes` (markdown of the release's items by type with their keys, and its merged merge requests) and `publish#ReleaseNotes` (a page of the project's docs space, a `CHANGELOG.md` commit through `commit#GitFiles`, an email to its followers). As built (P4b): the draft has the release's description, its done items as Features, Fixes and Other, and its merged merge requests of repositories the user may view (the open items are counted, not listed); `store#` and `get#ReleaseNotes` keep them as a `WorkEffortContent` `WectReleaseNotes`; `publish#ReleaseNotes` goes each way on its own (a failure is a warning naming it): the page `Releases/<version>` (Releases made when missing), the version's section at the top of `CHANGELOG.md` (replaced when there), and the topic `ReleasePublished` to the followers of the release and the project; `release#Release` completes it (unfinished items to the next open release or none, a tag, the notes) | ReleaseDetail | |
 | Project activity | service type | `mantle.work.ProjectServices.get#ProjectActivity`: the status changes (audit log), comments, commits and merges of the project's items, newest first, paged | ProjectOverview, Home | |
@@ -2243,8 +2281,8 @@ record is read through a service that checks the repository's rights (R21).
 | Work types | seed data | `Enumeration`s of `WorkType` for services work: `WktpDevelopment`, `WktpDesign`, `WktpTesting`, `WktpMeeting`, `WktpSupport`, `WktpProjectMgmt`, `WktpConsulting`, `WktpTravel`. As built (P6b): the organization's choice in PartySetting `ProjWorkTypes` (§12 TimeSettings) | the time forms, rates | the seeded types are labor and office |
 | Capacity | service type | `mantle.work.ResourceServices.get#PartyCapacity(partyId, fromDate, thruDate)`: weekly working hours from `WetAvailable` (else the organization's default week) less `WetTimeOff` and `WepHoliday`, by week. As built (P7): `partyIdList`, days with their base, holiday, leave and capacity and the weeks' sums; the default week is the timesheet policy's `dh` and `wd`; `TimesheetServices.get#WeekDays(partyId)` reads it; `get#AllocationWeeks` spreads an allocation over a capacity's days | TeamPlanner, PersonDetail, MyTime, UtilizationReport | People's schedule record replaces the source later |
 | Allocations | data model + service type + seed data | `mantle.work.effort.WorkEffortAllocation` {workEffortAllocationId, workEffortId, partyId (empty for a placeholder), emplPositionClassId, skillTypeEnumId, fromDate, thruDate, hoursPerWeek, statusId (`WealRequested`, `WealAllocated`, `WealRejected`, `WealCancelled`, with a flow), requestedByUserId, reviewedByUserId, comments}; `create#Allocation`, `update#Allocation`, `staff#Allocation`, `approve#Allocation`, `reject#Allocation`, `find#StaffingCandidates`, `get#TeamPlan`; topics `AllocationRequest` (approval) and `AllocationDecision`. As built (P7): also `rootWorkEffortId` (the project), `roleTypeId` (the project role a placeholder fills), `allocationPercent`, `requestedDate`, `reviewedDate` and `reviewComments` (a rejection's reason); `fromDate` and `thruDate` are days; `cancel#Allocation`, `find#Allocations` (the lists and counts), `get#AllocationAccess`; permission `ALLOCATION_APPROVE`; `get#TeamPlan` gives each week's capacity, allocated, requested, assigned and logged hours, the load and the utilization, which `get#Utilization` (P9) can build on | TeamPlanner, Allocations, ProjectTeam, NewProject | answers the research's question (§16) |
-| Milestone billing share | data model + service type | `OrderItemWorkEffort.invoicePercent` (number-decimal); `mantle.account.InvoiceServices.create#MilestoneInvoiceItems(workEffortId, invoiceId)`: an item per linked order line for its share once the milestone is complete, recorded in `WorkEffortBilling` with the percentage | MilestoneDetail, ProjectMoney, Unbilled | |
-| Billing services | service type | `mantle.work.ProjectServices.get#UnbilledSummary` (by project, and with `RaprVendor` by worker: unbilled hours and amounts, expenses, reached milestones, open drafts); the time detail appended to a client invoice's print. As built (P8a): `get#UnbilledSummary` by project for those who manage money (billable time not invoiced, the approved part ready, what waits, entries without a rate, expenses not billed through, the last invoice and the drafts; BigDecimal amounts rounded per entry as an invoice of a line per entry totals them; by client for the chart); `mantle.account.InvoiceServices` `create#ProjectInvoiceItems` and `create#TimeEntryInvoiceItems` take `timeEntryIdList`, `approvedOnly` and `billableOnly` (and the first `includeExpenses`, `settlementTermId`), lock the entries for update and link the project by `WorkEffortInvoice`; `get#InvoiceTimeDetail` (the time behind an invoice's lines); `delete#InvoiceItem` frees the line's time as `cancel#Invoice` frees an invoice's; `get#ProjectHomeCounts` fills `unbilledAmount`. The worker (`RaprVendor`) summary and the milestones are P8b | Unbilled, ProjectMoney, Home | |
+| Milestone billing share | data model + service type | `OrderItemWorkEffort.invoicePercent` (number-decimal); `mantle.account.InvoiceServices.create#MilestoneInvoiceItems(workEffortId, invoiceId)`: an item per linked order line for its share once the milestone is complete, recorded in `WorkEffortBilling` with the percentage. As built (P8b): also `invoiceAmount` (a fixed share); `store#MilestoneShare` (the shares of a line at most its total), `get#MilestoneBilling` (shares billed, due or waiting, and the lines), `link#ProjectOrderItem`; a share is due when its milestone is Complete or Closed and its gate approved; the item takes the line's sales item type (else `ItemServiceProduct`) and product, and `OrderItemBilling` records the part of the line's quantity; `delete#InvoiceItem` deletes the `WorkEffortBilling` and a cancelled invoice zeroes it, so the share is due again | MilestoneDetail, ProjectMoney, Unbilled | |
+| Billing services | service type | `mantle.work.ProjectServices.get#UnbilledSummary` (by project, and with `RaprVendor` by worker: unbilled hours and amounts, expenses, reached milestones, open drafts); the time detail appended to a client invoice's print. As built (P8a): `get#UnbilledSummary` by project for those who manage money (billable time not invoiced, the approved part ready, what waits, entries without a rate, expenses not billed through, the last invoice and the drafts; BigDecimal amounts rounded per entry as an invoice of a line per entry totals them; by client for the chart); `mantle.account.InvoiceServices` `create#ProjectInvoiceItems` and `create#TimeEntryInvoiceItems` take `timeEntryIdList`, `approvedOnly` and `billableOnly` (and the first `includeExpenses`, `settlementTermId`), lock the entries for update and link the project by `WorkEffortInvoice`; `get#InvoiceTimeDetail` (the time behind an invoice's lines); `delete#InvoiceItem` frees the line's time as `cancel#Invoice` frees an invoice's; `get#ProjectHomeCounts` fills `unbilledAmount`. As built (P8b): `get#UnbilledSummary` adds each project's milestone shares due (and lists a project with only those); `get#ProjectMoneySummary` (caps against actuals, invoices, expenses, order lines, shares); `get#ProjectEstimate`. The worker (`RaprVendor`) summary is later | Unbilled, ProjectMoney, Home | |
 | Reports services | service type | `mantle.work.ProjectReportServices`: `get#TimeReport`, `get#WorkItemSummary`, `get#SprintBurndown` (from the `WeatSprint` dates and the audit log of `remainingWorkTime`, `estimatedWorkTime`, `estimatedPoints` and `statusId`; built in P4a with the committed, added, removed, completed, carried-over and remaining sizes, days left, the scope changes and each item's outcome; an hours project sizes items by their estimate and burns down their remaining hours), `get#SprintVelocity` (P4a), `get#PortfolioStatus`, `get#ProjectProfitability`, `get#Utilization`, with the measures of §11 | Reports, SprintDetail, Home | |
 
 ### Requests and intake (Mantle and BOSS)

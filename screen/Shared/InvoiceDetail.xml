@@ -23,8 +23,9 @@ along with this software (see the LICENSE.md file). If not, see
     Send (approves a draft first; email to the client's billing address with the PDF and the time detail; primary once approved), Print
     and PDF (Billing/InvoicePrint.xml), Edit (a draft: date, payment terms, reference, description, message), Resume changes (approved),
     Cancel (a draft or approved: its time is unbilled again). The number cards: Total, Unpaid, Due, Hours. The boxes: Details, Lines
-    (each with the time behind it; Remove on a draft frees its time), Time (every entry billed: day, who, work item, hours, rate,
-    amount, comment), Payments; Chatter as the right column from 1440 px. Worker and expense invoices are read only here.
+    (each with the time or the milestone behind it; Remove on a draft frees its time or makes its milestone share due again), Milestones
+    (the milestone billing shares billed, each with its order line: impl-projects.md P8b), Time (every entry billed: day, who, work item,
+    hours, rate, amount, comment), Payments; Chatter as the right column from 1440 px. Worker and expense invoices are read only here.
 
     Clients (impl-projects.md P10) will see their own invoices read only: the details, the lines, the time detail when the project
     shares hours, the payments and the PDF; never Chatter, the workers' rates or the internal actions. -->
@@ -79,6 +80,7 @@ along with this software (see the LICENSE.md file). If not, see
         entryRows = inv.entryRows
         paymentRows = inv.payments
         projectRows = inv.projects
+        milestoneRows = inv.milestoneRows || []
         termOptions = Array.from(ec.service.sync().name('ironstone.BillingServices.get#BillingSettings').call()?.termOptions || [])
         headerValue = {invoiceId: invoiceId, invoiceDate: inv.invoiceDateValue, settlementTermId: inv.settlementTermId, referenceNumber: inv.referenceNumber,
             description: inv.description, invoiceMessage: inv.invoiceMessage}
@@ -197,9 +199,9 @@ along with this software (see the LICENSE.md file). If not, see
                             <field name="amountText" align="right"><default-field title="Price"><label text="${amountText}" type="span" style="text-no-wrap"/></default-field></field>
                             <field name="totalText" align="right"><default-field title="Amount"><label text="${totalText}" type="span" style="text-no-wrap text-weight-medium"/></default-field></field>
                             <field name="remove" align="right"><default-field title="">
-                                <link url="removeLine" link-type="hidden-form-link" text="" icon="sym_o_remove_circle" tooltip="Remove the line; its time is unbilled again" style="m-btn-flat"
+                                <link url="removeLine" link-type="hidden-form-link" text="" icon="sym_o_remove_circle" tooltip="Remove the line; its time or milestone share is unbilled again" style="m-btn-flat"
                                         parameter-map="{invoiceId:invoiceId, invoiceItemSeqId:invoiceItemSeqId}" condition="canRemove"
-                                        confirmation="Remove line ${invoiceItemSeqId}? Its time is unbilled again."/></default-field></field>
+                                        confirmation="Remove line ${invoiceItemSeqId}? ${isMilestone ? 'Its milestone share is due again.' : 'Its time is unbilled again.'}"/></default-field></field>
                             <columns type="mobile">
                                 <column><field-ref name="description"/></column>
                                 <column><field-ref name="totalText"/><field-ref name="remove"/></column>
@@ -211,6 +213,25 @@ along with this software (see the LICENSE.md file). If not, see
                         </container>
                     </box-body-nopad></container-box>
 
+                    <section name="InvoiceMilestones" condition="milestoneRows.length"><widgets>
+                        <container-box><box-header title="Milestones · ${milestoneRows.length}"/><box-body-nopad>
+                            <form-list name="InvoiceMilestoneLines" list="milestoneRows" skip-form="true" paginate="false">
+                                <field name="invoiceItemSeqId"><default-field title="Line"><display/></default-field></field>
+                                <field name="milestoneName"><default-field title="Milestone">
+                                    <link url="${milestoneUrl}" url-type="plain" text="${milestoneName}" link-type="anchor"/>
+                                    <label text="${reachedText ? 'Reached ' + reachedText : ''}" type="div" style="text-caption m-muted" condition="reachedText"/></default-field></field>
+                                <field name="lineText"><default-field title="Order line">
+                                    <link url="${orderUrl}" url-type="plain" text="${lineText}" link-type="anchor" condition="orderUrl"/></default-field></field>
+                                <field name="percentText" align="right"><default-field title="Share"><display/></default-field></field>
+                                <field name="amountText" align="right"><default-field title="Amount"><label text="${amountText}" type="span" style="text-no-wrap"/></default-field></field>
+                                <columns type="mobile">
+                                    <column><field-ref name="milestoneName"/><field-ref name="lineText"/></column>
+                                    <column><field-ref name="amountText"/></column>
+                                </columns>
+                            </form-list>
+                        </box-body-nopad></container-box>
+                    </widgets></section>
+                    <section name="InvoiceTimeBox" condition="entryRows.length || !milestoneRows.length"><widgets>
                     <container-box><box-header title="Time · ${entryRows.length} entries, ${inv.hoursText} h"/><box-body-nopad>
                         <form-list name="InvoiceTime" list="entryRows" skip-form="true" paginate="false" show-csv-button="true">
                             <field name="invoiceItemSeqId"><default-field title="Line"><display/></default-field></field>
@@ -230,6 +251,7 @@ along with this software (see the LICENSE.md file). If not, see
                         </form-list>
                         <label type="p" text="No time is billed on this invoice." style="m-muted q-pa-sm q-mb-none" condition="!entryRows.length"/>
                     </box-body-nopad></container-box>
+                    </widgets></section>
                 </container>
                 <!-- Chatter, the notes on the invoice, beside the boxes from 1440 px -->
                 <container style="col-12 col-lg-4">

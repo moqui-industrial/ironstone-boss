@@ -27,9 +27,9 @@ along with this software (see the LICENSE.md file). If not, see
     fixed and the project's Calendar, a toggle between them), Roadmap (5, Projects/Roadmap with the project fixed), Requests (6,
     Requests/List with the project fixed and its Intake box for the managers), Code (7),
     Docs (8, Commons/Knowledge with the project's documentation space fixed), Team (9), Time (10, Time/TimeEntries with the project fixed and
-    its totals, impl-projects.md P6b), Files (12) and Settings (13, managers, BOSS_PROJECTS_MANAGERS). Money (11; impl-projects.md
-    P8) is left out until it is built; the Modules box of Settings already keeps which are on (WstModules). A project the user may not see is "not
-    available". -->
+    its totals, impl-projects.md P6b), Money (11, ProjectDetail/Money: the budget, billing, milestone shares, invoices and order of the
+    project for those who manage money, impl-projects.md P8b), Files (12) and Settings (13, managers, BOSS_PROJECTS_MANAGERS); the
+    Modules box of Settings keeps which are on (WstModules). A project the user may not see is "not available". -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Project" default-menu-include="false">
 

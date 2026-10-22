@@ -589,6 +589,15 @@ along with this software (see the LICENSE.md file). If not, see
             const projectNames = {}
             for (const row of Array.from(ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', 'in', projectIds).selectField('workEffortId,workEffortName').list()))
                 projectNames[row.workEffortId] = row.workEffortName || row.workEffortId
+            // the milestones' gates (impl-projects.md P8b): which need approval, which wait for it
+            const milestoneIds = plans.filter((plan) => plan.workEffortTypeEnumId === 'WetMilestone').map((plan) => plan.workEffortId)
+            const gated = new Set(), awaiting = new Set()
+            if (milestoneIds.length) {
+                for (const row of ec.entity.find('mantle.work.effort.WorkEffortSetting').condition('workEffortId', 'in', milestoneIds).condition('settingTypeEnumId', 'WstApprovalRequired')
+                        .condition('settingValue', 'Y').disableAuthz().list()) gated.add(row.workEffortId)
+                for (const row of ec.entity.find('mantle.work.effort.WorkEffortApproval').condition('workEffortId', 'in', milestoneIds).condition('statusId', 'WeaRequested')
+                        .disableAuthz().list()) awaiting.add(row.workEffortId)
+            }
             const kinds = {WetMilestone: ['milestone', 'Milestone', 'sym_o_flag', '/qapps/Projects/Projects/MilestoneDetail'], WetRelease: ['release', 'Release', 'sym_o_new_releases',
                 '/qapps/Projects/Projects/ReleaseDetail'], WetSprint: ['sprint', 'Sprint', 'sym_o_sprint', '/qapps/Projects/WorkItems/SprintDetail']}
             for (const plan of plans) {
@@ -614,6 +623,7 @@ along with this software (see the LICENSE.md file). If not, see
                     hoursText: hours ? fmt(hours - Math.min(hours, Number(stats.remainingWorkTime || 0))) + ' / ' + fmt(hours) + ' h' : '',
                     pointsText: stats.estimatedPoints ? fmt(stats.donePoints) + ' / ' + fmt(stats.estimatedPoints) + ' ' + L('points') : '',
                     calendarTitle: (plan.workEffortName || plan.workEffortId) + ' · ' + L(kind[1]) + ' (' + plan.rootWorkEffortId + ')',
+                    gateRequired: gated.has(plan.workEffortId), awaitingApproval: awaiting.has(plan.workEffortId),
                     canUpdate: canUpdate && plan.workEffortTypeEnumId !== 'WetSprint'})
             }
         ]]></script></actions>
@@ -622,7 +632,8 @@ along with this software (see the LICENSE.md file). If not, see
     <service verb="find" noun="RoadmapItems" allow-remote="false">
         <description>The Roadmap's find: the milestones and releases of the projects the user sees (one project with
             rootWorkEffortId; the sprints too when kind is sprint or, in a project, all), by list (upcoming: open, the default;
-            overdue: open and due before today; completed: Complete or Closed; all), kind (all, milestone, release, sprint) and
+            overdue: open and due before today; awaiting: a milestone whose gate's approval waits; completed: Complete or Closed;
+            all), kind (all, milestone, release, sprint) and
             text in the name or id; due period (dueFrom, dueThru exclusive). Sorted by project, then due date (none last); up to
             500, decorated (decorate#PlanItemRows), with the count of each list.</description>
         <in-parameters>
@@ -641,7 +652,7 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="kindCounts" type="Map"/>
         </out-parameters>
         <actions><script><![CDATA[
-            const lists = ['upcoming', 'overdue', 'completed', 'all']
+            const lists = ['upcoming', 'overdue', 'awaiting', 'completed', 'all']
             if (!lists.includes(list)) list = 'upcoming'
             const kinds = {all: null, milestone: ['WetMilestone'], release: ['WetRelease'], sprint: ['WetSprint']}
             if (!(kind in kinds)) kind = 'all'
@@ -674,7 +685,13 @@ along with this software (see the LICENSE.md file). If not, see
             if (dueThru != null) rows = rows.filter((row) => toMillis(row.estimatedCompletionDate) != null && toMillis(row.estimatedCompletionDate) < toMillis(dueThru))
             const today = ec.l10n.format(ec.user.nowTimestamp, 'yyyy-MM-dd')
             const open = (row) => !['WeComplete', 'WeClosed', 'WeCancelled'].includes(row.statusId)
+            // a milestone whose gate's approval was asked for and not decided (impl-projects.md P8b)
+            const milestoneIds = rows.filter((row) => row.workEffortTypeEnumId === 'WetMilestone').map((row) => row.workEffortId)
+            const awaitingIds = new Set()
+            for (let i = 0; i < milestoneIds.length; i += 500) for (const row of ec.entity.find('mantle.work.effort.WorkEffortApproval').condition('workEffortId', 'in', milestoneIds.slice(i, i + 500))
+                    .condition('statusId', 'WeaRequested').disableAuthz().list()) awaitingIds.add(row.workEffortId)
             const inList = {upcoming: open, overdue: (row) => open(row) && row.estimatedCompletionDate != null && ec.l10n.format(String(toMillis(row.estimatedCompletionDate)), 'yyyy-MM-dd') < today,
+                awaiting: (row) => awaitingIds.has(row.workEffortId),
                 completed: (row) => ['WeComplete', 'WeClosed'].includes(row.statusId), all: () => true}
             const ofKind = (row) => !kinds[kind] || kinds[kind].includes(row.workEffortTypeEnumId)
             for (const key of lists) counts[key] = rows.filter((row) => ofKind(row) && inList[key](row)).length
@@ -1532,6 +1549,211 @@ along with this software (see the LICENSE.md file). If not, see
             if (record.workEffortTypeEnumId === 'WetTask' || !oldDue) params.dueDay = first
             else params.shiftDays = Math.round((Date.parse(first + 'T12:00:00Z') - Date.parse(oldDue + 'T12:00:00Z')) / 86400000)
             message = ec.service.sync().name('ironstone.PlanningServices.move#TimelineItem').parameters(params).call()?.message || null
+        ]]></script></actions>
+    </service>
+    <!-- ========== A milestone's gate, billing share and deliverables (impl-projects.md P8b) ========== -->
+
+    <service verb="get" noun="MilestoneExtras" allow-remote="false">
+        <description>MilestoneDetail's Gate, Billing and Deliverables (design-projects.md §4 MilestoneGate, MilestoneBillingShare,
+            Deliverables): the gate (mantle.work.ProjectServices.get#MilestoneApprovalAccess: required, the approver, the latest request
+            with its texts, the requests before it, what the user may do: ask, decide (for the approver: recorded for them), set the gate)
+            and the people who may approve (the project's managers and client contacts); for one who manages money the billing shares
+            (get#MilestoneBilling: order line, percent, amount, billed or due) and the project's order lines to add one to; the
+            deliverables (WorkEffortDeliverableProd and Deliverable: name, type, description, accepted when and by whom). For one who
+            sees the milestone; else extras is null.</description>
+        <in-parameters><parameter name="workEffortId" required="true"/></in-parameters>
+        <out-parameters><parameter name="extras" type="Map"/></out-parameters>
+        <actions><script><![CDATA[
+            extras = null
+            const access = ec.service.sync().name('ironstone.PlanningServices.get#PlanItemAccess').parameters({workEffortId: workEffortId, kind: 'milestone', need: 'none'}).call() || {}
+            if (!access.canView) return
+            const L = (text) => ec.l10n.localize(text)
+            const gateOut = ec.service.sync().name('mantle.work.ProjectServices.get#MilestoneApprovalAccess').parameters({workEffortId: workEffortId, need: 'none'}).call() || {}
+            const gate = gateOut.gate || {required: false}
+            const projectId = access.plan.rootWorkEffortId
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try {
+                const nameOf = (partyId) => {
+                    const party = partyId ? ec.entity.find('mantle.party.PartyDetail').condition('partyId', partyId).one() : null
+                    return party ? (party.organizationName || [party.firstName, party.lastName].filter((part) => part).join(' ') || partyId) : ''
+                }
+                const userName = (userId) => {
+                    const account = userId ? ec.entity.find('moqui.security.UserAccount').condition('userId', userId).one() : null
+                    return account ? (account.userFullName || account.username || userId) : ''
+                }
+                const when = (value) => value == null ? '' : ec.l10n.format(value, 'MMM d, yyyy h:mm a')
+                const statusText = (id) => id ? (ec.entity.find('moqui.basic.StatusItem').condition('statusId', id).useCache(true).one()?.description || id) : ''
+                const requestRow = (row) => ({workEffortApprovalId: row.workEffortApprovalId, statusId: row.statusId, statusText: statusText(row.statusId),
+                    statusColor: {WeaRequested: 'info', WeaApproved: 'positive', WeaRefused: 'negative', WeaCancelled: 'grey-7'}[row.statusId] || 'grey-7',
+                    requestedText: when(row.requestedDate), requestedBy: userName(row.requestedByUserId), requestComments: row.requestComments || '',
+                    decidedText: when(row.decidedDate), decidedBy: userName(row.decidedByUserId) + (row.recordedFor === 'Y' && row.decidedByUserId ? ' ' + L('(recorded for the approver)') : ''),
+                    decisionComments: row.decisionComments || '', approverName: nameOf(row.approverPartyId),
+                    fileUrl: row.workEffortContentId ? '/apps/Projects/Projects/MilestoneDetail/estimateFile?workEffortId=' + encodeURIComponent(workEffortId)
+                        + '&workEffortContentId=' + encodeURIComponent(row.workEffortContentId) : null})
+                const requests = Array.from(ec.entity.find('mantle.work.effort.WorkEffortApproval').condition('workEffortId', workEffortId)
+                        .orderBy('-requestedDate').orderBy('-workEffortApprovalId').limit(20).list()).map(requestRow)
+                // who may approve: the project's managers and client contacts (current parties)
+                const roles = {ProjectManager: 'Project manager', Manager: 'Manager', ClientManager: 'Client manager', Customer: 'Client', ClientBilling: 'Client billing',
+                    CustomerBillTo: 'Client bill-to'}
+                const approverOptions = []
+                for (const row of ec.entity.find('mantle.work.effort.WorkEffortParty').condition('workEffortId', projectId).condition('roleTypeId', 'in', Object.keys(roles))
+                        .conditionDate('fromDate', 'thruDate', null).orderBy('roleTypeId').list()) {
+                    if (approverOptions.some((option) => option.key === row.partyId)) continue
+                    approverOptions.push({key: row.partyId, text: nameOf(row.partyId) + ' · ' + L(roles[row.roleTypeId])})
+                }
+                // the estimate file approved by this gate, when it is the project's Estimate milestone
+                const estimateId = ec.entity.find('mantle.work.effort.WorkEffortSetting').condition('workEffortId', projectId).condition('settingTypeEnumId', 'WstEstimateMilestone').one()?.settingValue
+                const isEstimate = estimateId === workEffortId
+                // billing shares, for those who manage money
+                const managesMoney = !!ec.service.sync().name('ironstone.BillingServices.check#Money').parameters({need: 'none'}).call()?.managesMoney
+                let shareRows = [], lineOptions = [], dueCount = 0
+                if (managesMoney) {
+                    const billing = ec.service.sync().name('mantle.work.ProjectServices.get#MilestoneBilling').parameters({workEffortId: workEffortId}).call() || {}
+                    ec.message.clearErrors()
+                    shareRows = Array.from(billing.shareList || []).map((share) => ({orderId: share.orderId, orderItemSeqId: share.orderItemSeqId,
+                        orderLine: share.orderId + ':' + share.orderItemSeqId, orderUrl: '/qapps/Projects/Billing/OrderDetail?orderId=' + encodeURIComponent(share.orderId),
+                        lineText: share.orderId + ' ' + share.orderItemSeqId + ' · ' + (share.itemDescription || ''),
+                        lineTotalText: ec.l10n.formatCurrency(share.lineTotal, share.currencyUomId),
+                        shareText: share.invoicePercent != null ? ec.l10n.format(share.percent, '#,##0.##') + '%' : L('Fixed'),
+                        amountText: ec.l10n.formatCurrency(share.amount, share.currencyUomId),
+                        statusText: share.billed ? ec.resource.expand('Billed on ${invoiceId}', '', {invoiceId: share.invoiceId}) : share.due ? L('Due: ready to invoice')
+                            : share.awaiting ? L('Waiting for approval') : share.reached ? L('Reached, not approved') : L('When reached'),
+                        statusColor: share.billed ? 'positive' : share.due ? 'warning' : share.awaiting ? 'info' : 'grey-7', billed: share.billed, due: share.due,
+                        kind: share.invoicePercent != null ? 'percent' : 'amount', value: share.invoicePercent != null ? String(share.invoicePercent) : String(share.invoiceAmount),
+                        invoiceUrl: share.invoiceId ? '/qapps/Projects/Billing/InvoiceDetail?invoiceId=' + encodeURIComponent(share.invoiceId) : null}))
+                    dueCount = shareRows.filter((share) => share.due).length
+                    const lines = ec.service.sync().name('mantle.work.ProjectServices.get#MilestoneBilling').parameters({rootWorkEffortId: projectId}).call()?.lineList || []
+                    ec.message.clearErrors()
+                    lineOptions = Array.from(lines).map((line) => ({key: line.orderId + ':' + line.orderItemSeqId, text: line.orderId + ' ' + line.orderItemSeqId + ' · '
+                        + (line.description || '') + ' · ' + ec.l10n.formatCurrency(line.total, line.currencyUomId) + ' (' + ec.resource.expand('${shared} shared', '',
+                            {shared: ec.l10n.formatCurrency(line.sharedAmount, line.currencyUomId)}) + ')'}))
+                }
+                const deliverables = []
+                for (const link of ec.entity.find('mantle.work.effort.WorkEffortDeliverableProd').condition('workEffortId', workEffortId).orderBy('sequenceNum').orderBy('deliverableId').list()) {
+                    const deliverable = ec.entity.find('mantle.work.effort.Deliverable').condition('deliverableId', link.deliverableId).one()
+                    if (!deliverable) continue
+                    deliverables.push({deliverableId: deliverable.deliverableId, deliverableName: deliverable.deliverableName || deliverable.deliverableId,
+                        typeText: deliverable.deliverableTypeEnumId ? (ec.entity.find('moqui.basic.Enumeration').condition('enumId', deliverable.deliverableTypeEnumId).useCache(true).one()?.description || '') : '',
+                        deliverableTypeEnumId: deliverable.deliverableTypeEnumId || '', description: deliverable.description || '', accepted: link.acceptedDate != null,
+                        acceptedText: link.acceptedDate != null ? ec.resource.expand('Accepted ${date} by ${who}', '', {date: ec.l10n.format(link.acceptedDate, 'MMM d, yyyy'),
+                            who: userName(link.acceptedByUserId)}) : L('Not accepted yet')})
+                }
+                const latest = requests[0] || null
+                extras = {required: !!gate.required, approverPartyId: gate.approverPartyId || '', approverName: gate.approverName || '', awaiting: !!gate.awaiting,
+                    approved: !!gate.approved, latest: latest, requestRows: requests, isEstimate: isEstimate,
+                    gateText: !gate.required ? L('No approval needed to reach it') : gate.approved ? L('Approved') : gate.awaiting ? L('Waiting for approval')
+                        : latest?.statusId === 'WeaRefused' ? L('Refused: ask again when it is fixed') : L('Needs approval to be reached'),
+                    gateColor: !gate.required ? 'grey-7' : gate.approved ? 'positive' : gate.awaiting ? 'info' : latest?.statusId === 'WeaRefused' ? 'negative' : 'warning',
+                    canRequest: !!gateOut.canRequest && !!gate.required && !gate.awaiting && !!gate.approverPartyId && !['WeComplete', 'WeClosed', 'WeCancelled'].includes(access.plan.statusId),
+                    canDecide: !!gateOut.canDecide && !!gate.awaiting, isApprover: !!gateOut.isApprover, canSetGate: !!gateOut.canSetGate, canCancel: !!gateOut.canRequest && !!gate.awaiting,
+                    approverOptions: approverOptions, managesMoney: managesMoney, shareRows: shareRows, lineOptions: lineOptions, dueCount: dueCount,
+                    canEditShares: managesMoney && !!access.canManage, canInvoice: managesMoney && !!access.canManage && dueCount > 0,
+                    deliverables: deliverables, canEditDeliverables: !!access.canUpdate, canAccept: !!gateOut.canDecide}
+            } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+        ]]></script></actions>
+    </service>
+
+    <service verb="decide" noun="MilestoneGate">
+        <description>MilestoneDetail's gate actions (mantle.work.ProjectServices): gate (set whether approval is needed and the approver;
+            store#MilestoneGate), request (request#MilestoneApproval with comments), approve (approve#MilestoneApproval: by the approver, or
+            recorded for them by one who manages the project; the milestone is reached), refuse (refuse#MilestoneApproval with the reason),
+            cancel (cancel#MilestoneApproval). The checks are Mantle's.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="action" required="true"/>
+            <parameter name="approvalRequired"/>
+            <parameter name="approverPartyId"/>
+            <parameter name="comments"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const services = {gate: 'store#MilestoneGate', request: 'request#MilestoneApproval', approve: 'approve#MilestoneApproval', refuse: 'refuse#MilestoneApproval',
+                cancel: 'cancel#MilestoneApproval'}
+            if (!services[action]) { ec.message.addError(L('Unknown action')); return }
+            const parameters = {workEffortId: workEffortId}
+            if (action === 'gate') { parameters.approvalRequired = approvalRequired === 'Y' ? 'Y' : 'N'; parameters.approverPartyId = approverPartyId ?? null }
+            else if (action === 'refuse') parameters.reason = comments || null
+            else if (action !== 'cancel') parameters.comments = comments || null
+            // the checks of who may do what are Mantle's (get#MilestoneApprovalAccess), with the user's own rights
+            let out = {}
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try { out = ec.service.sync().name('mantle.work.ProjectServices.' + services[action]).parameters(parameters).call() || {} }
+            finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+            if (ec.message.hasError()) return
+            message = {gate: L('Gate saved'), request: L('Approval asked for'), approve: out.projectMoved ? L('Approved: the milestone is reached and the project approved')
+                : L('Approved: the milestone is reached'), refuse: L('Refused'), cancel: L('The request is withdrawn')}[action]
+        ]]></script></actions>
+    </service>
+
+    <service verb="save" noun="Deliverable">
+        <description>A deliverable of a milestone (design-projects.md §4 Deliverables): a new one (Deliverable and WorkEffortDeliverableProd,
+            last in order) or the name, type and description of one; by the project's team.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="deliverableId"/>
+            <parameter name="deliverableName"/>
+            <parameter name="deliverableTypeEnumId"/>
+            <parameter name="description"/>
+        </in-parameters>
+        <out-parameters><parameter name="deliverableId"/><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            ec.service.sync().name('ironstone.PlanningServices.get#PlanItemAccess').parameters({workEffortId: workEffortId, kind: 'milestone', need: 'update'}).call()
+            if (ec.message.hasError()) return
+            const name = String(deliverableName || '').trim()
+            if (!name) { ec.message.addError(L('A deliverable needs a name')); return }
+            if (deliverableTypeEnumId && ec.entity.find('moqui.basic.Enumeration').condition('enumId', deliverableTypeEnumId).condition('enumTypeId', 'DeliverableType').useCache(true).one() == null) {
+                ec.message.addError(L('Not a deliverable type')); return }
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try {
+                if (deliverableId) {
+                    if (!ec.entity.find('mantle.work.effort.WorkEffortDeliverableProd').condition({workEffortId: workEffortId, deliverableId: deliverableId}).count()) {
+                        ec.message.addError(L('Not a deliverable of this milestone')); return }
+                    ec.service.sync().name('update#mantle.work.effort.Deliverable').parameters({deliverableId: deliverableId, deliverableName: name,
+                        deliverableTypeEnumId: deliverableTypeEnumId || null, description: description || null}).call()
+                } else {
+                    deliverableId = ec.service.sync().name('create#mantle.work.effort.Deliverable').parameters({deliverableName: name, deliverableTypeEnumId: deliverableTypeEnumId || null,
+                        description: description || null}).call()?.deliverableId
+                    const last = Array.from(ec.entity.find('mantle.work.effort.WorkEffortDeliverableProd').condition('workEffortId', workEffortId).orderBy('-sequenceNum').limit(1).list())[0]
+                    ec.service.sync().name('create#mantle.work.effort.WorkEffortDeliverableProd').parameters({workEffortId: workEffortId, deliverableId: deliverableId,
+                        sequenceNum: Number(last?.sequenceNum || 0) + 10}).call()
+                }
+            } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+            if (!ec.message.hasError()) message = ec.resource.expand('Deliverable ${name} saved', '', {name})
+        ]]></script></actions>
+    </service>
+
+    <service verb="update" noun="DeliverableState">
+        <description>A milestone's deliverable accepted (or not, with accept N) by one who decides the milestone's gate (its approver, or
+            one who manages the project for them), or taken off the milestone (remove, by the project's team; not once accepted).</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="deliverableId" required="true"/>
+            <parameter name="action" required="true"><description>accept, unaccept or remove</description></parameter>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const access = ec.service.sync().name('ironstone.PlanningServices.get#PlanItemAccess').parameters({workEffortId: workEffortId, kind: 'milestone'}).call() || {}
+            if (ec.message.hasError()) return
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try {
+                const link = ec.entity.find('mantle.work.effort.WorkEffortDeliverableProd').condition({workEffortId: workEffortId, deliverableId: deliverableId}).one()
+                if (!link) { ec.message.addError(L('Not a deliverable of this milestone')); return }
+                if (action === 'remove') {
+                    if (!access.canUpdate) { ec.message.addError(L('Only the project team changes the deliverables')); return }
+                    if (link.acceptedDate != null) { ec.message.addError(L('An accepted deliverable stays')); return }
+                    link.delete()
+                    message = L('Deliverable taken off')
+                    return
+                }
+                const gate = ec.service.sync().name('mantle.work.ProjectServices.get#MilestoneApprovalAccess').parameters({workEffortId: workEffortId, need: 'none'}).call() || {}
+                if (!gate.canDecide) { ec.message.addError(L('Only the approver, or one who manages the project for them, accepts a deliverable')); return }
+                if (action === 'accept') { link.acceptedDate = ec.user.nowTimestamp; link.acceptedByUserId = ec.user.userId; link.update(); message = L('Deliverable accepted') }
+                else if (action === 'unaccept') { link.acceptedDate = null; link.acceptedByUserId = null; link.update(); message = L('Deliverable no longer accepted') }
+                else ec.message.addError(L('Unknown action'))
+            } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
         ]]></script></actions>
     </service>
 </services>

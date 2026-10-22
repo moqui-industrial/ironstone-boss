@@ -172,7 +172,7 @@ along with this software (see the LICENSE.md file). If not, see
                 if (row.clientPartyId) clients[row.clientPartyId] = row.clientName
                 projects[row.workEffortId] = row.workEffortName
                 if (clientPartyId && row.clientPartyId !== clientPartyId) continue
-                if (readyOnly && !row.readyCount) continue
+                if (readyOnly && !row.readyCount && !row.milestoneDueCount) continue
                 const settings = ec.service.sync().name('mantle.work.ProjectServices.get#ProjectSettings').parameters({workEffortId: row.workEffortId}).call()?.settings || {}
                 const uom = row.currencyUomId
                 const draft = Array.from(row.draftInvoiceList || [])[0]
@@ -191,6 +191,8 @@ along with this software (see the LICENSE.md file). If not, see
                     lastInvoiceUrl: row.lastInvoiceId ? '/qapps/Projects/Billing/InvoiceDetail?invoiceId=' + encodeURIComponent(row.lastInvoiceId) : null,
                     draftInvoiceId: draft?.invoiceId || null, draftText: draft ? draft.invoiceId + ' · ' + money(draft.invoiceTotal, uom) : '',
                     draftUrl: draft ? '/qapps/Projects/Billing/InvoiceDetail?invoiceId=' + encodeURIComponent(draft.invoiceId) : null,
+                    milestoneDueCount: row.milestoneDueCount || 0, milestoneDueText: row.milestoneDueCount ? ec.resource.expand('${count} milestones due, ${amount}', '',
+                        {count: row.milestoneDueCount, amount: money(row.milestoneDueAmount, uom)}) : '',
                     canInvoice: !!row.canInvoice, cannotReason: row.cannotReason || '',
                     reviewUrl: '/qapps/Projects/Projects/ProjectDetail/Time?workEffortId=' + encodeURIComponent(row.workEffortId) + '&list=unbilled'})
             }
@@ -198,6 +200,7 @@ along with this software (see the LICENSE.md file). If not, see
             const uoms = Array.from(new Set(rowList.map((row) => row.currencyUomId)))
             const uom = uoms.length === 1 ? uoms[0] : null
             totals = {projectCount: rowList.length, readyCount: rowList.filter((row) => row.canInvoice).length, hoursText: hoursText(sum('hours')),
+                milestoneDueCount: Number(out.totals?.milestoneDueCount || 0), milestoneDueText: out.totals?.milestoneDueAmount != null ? money(out.totals.milestoneDueAmount, out.totals.currencyUomId || 'USD') : '',
                 amountText: uom ? money(sum('amount'), uom) : (uoms.length ? L('More than one currency') : money(toDecimal(0), 'USD')),
                 readyAmountText: uom ? money(sum('readyAmount'), uom) : ''}
             clientOptions = Object.keys(clients).map((id) => ({key: id, text: clients[id]})).sort((a, b) => a.text.localeCompare(b.text))
@@ -237,6 +240,11 @@ along with this software (see the LICENSE.md file). If not, see
                 entryGrouping: groupings[settings.WstInvoiceGrouping] || 'entry', settlementTermId: defaults.settlementTermId || '',
                 readyHoursText: row ? hoursText(row.readyHours) : '0', readyAmountText: row ? money(row.readyAmount) : money(toDecimal(0)),
                 waitingHoursText: row ? hoursText(toDecimal(row.waitingHours).add(row.openHours)) : '0', currencyUomId: uom,
+                milestoneOptions: Array.from(row?.milestoneDueList || []).map((share) => ({key: share.workEffortId + ':' + share.orderId + ':' + share.orderItemSeqId,
+                    text: [share.milestoneName, share.invoicePercent != null ? ec.l10n.format(share.percent, '#,##0.##') + '% ' + L('of') + ' ' + (share.itemDescription || share.orderId)
+                        : (share.itemDescription || share.orderId), money(share.amount)].join(' · ')})),
+                selectedMilestoneIds: Array.from(row?.milestoneDueList || []).map((share) => share.workEffortId + ':' + share.orderId + ':' + share.orderItemSeqId),
+                milestoneDueText: row?.milestoneDueCount ? money(row.milestoneDueAmount) : '',
                 entryOptions: ready.map((entry) => ({key: entry.timeEntryId, missingRate: entry.missingRate,
                     text: [ec.l10n.format(new Date(entry.fromDate), 'MMM d'), entry.personName, (entry.workEffortId === workEffortId ? '' : entry.workEffortId + ' ') + entry.workEffortName,
                         hoursText(entry.hours) + ' h', entry.missingRate ? L('no rate') : money(entry.amount)].filter((part) => part).join(' · ')
@@ -250,14 +258,17 @@ along with this software (see the LICENSE.md file). If not, see
     <service verb="create" noun="ProjectInvoice">
         <description>Unbilled's Create invoice (design-projects.md §10 CreateProjectInvoice): a client invoice of a project's approved
             billable time (mantle.account.InvoiceServices.create#ProjectInvoiceItems with approvedOnly and billableOnly), the selected
-            entries only when timeEntryIds is given, added to an open draft of the project to the same client (invoiceId) or a new
-            one dated invoiceDate with the payment terms; the grouping per entry, per worker or one line (entryGrouping). The project's
-            expenses not billed through go with it. For one who manages money and manages the project; refused when the project has no
-            client or vendor, a selected entry is not approved, invoiced already or has no rate. All or nothing, in one transaction.</description>
+            entries only when timeEntryIds is given, and of its milestone billing shares due (milestoneIds, each 'milestoneId:orderId:orderItemSeqId'
+            or a milestone id: create#MilestoneInvoiceItems; impl-projects.md P8b), added to an open draft of the project to the same
+            client (invoiceId) or a new one dated invoiceDate with the payment terms; the time's lines per entry, per worker or one line
+            (entryGrouping). The project's expenses not billed through go with the time. For one who manages money and manages the
+            project; refused when the project has no client or vendor, a selected entry is not approved, invoiced already or has no rate,
+            or a selected share is not due. All or nothing, in one transaction.</description>
         <in-parameters>
             <parameter name="workEffortId" required="true"/>
             <parameter name="invoiceId"/>
             <parameter name="timeEntryIds" type="Object"><description>The selected entries: a list or a comma list.</description></parameter>
+            <parameter name="milestoneIds" type="Object"><description>The selected milestone shares: a list or a comma list.</description></parameter>
             <parameter name="selection" type="Boolean" default="false"><description>The dialog's selection: none selected is an error
                 rather than all.</description></parameter>
             <parameter name="entryGrouping" default-value="entry"/>
@@ -283,18 +294,29 @@ along with this software (see the LICENSE.md file). If not, see
             if (!row) { ec.message.addError(L('The project has no billable time to invoice')); return }
             if (!row.clientPartyId) { ec.message.addError(L('The project has no client')); return }
             if (!row.vendorPartyId) { ec.message.addError(L('The project has no vendor to bill from')); return }
+            const listOf = (value) => value == null ? [] : (typeof value === 'string' ? value.split(',') : Array.from(value).map(String)).map((id) => id.trim()).filter((id) => id)
             const ready = {}
             for (const entry of Array.from(row.entryList || [])) if (entry.ready) ready[entry.timeEntryId] = entry
-            let selected = null
-            const given = timeEntryIds == null ? [] : (typeof timeEntryIds === 'string' ? timeEntryIds.split(',') : Array.from(timeEntryIds).map(String))
-            if (selection && !given.some((id) => id.trim())) { ec.message.addError(L('Select the time to invoice')); return }
-            if (given.some((id) => id.trim())) {
-                selected = Array.from(new Set(given.map((id) => id.trim()).filter((id) => id)))
+            const givenTime = listOf(timeEntryIds)
+            const givenShares = Array.from(new Set(listOf(milestoneIds)))
+            if (selection && !givenTime.length && !givenShares.length) { ec.message.addError(L('Select the time or the milestones to invoice')); return }
+            // the shares due chosen, by milestone
+            const due = Array.from(row.milestoneDueList || [])
+            const shareKey = (share) => share.workEffortId + ':' + share.orderId + ':' + share.orderItemSeqId
+            const chosenShares = []
+            for (const key of givenShares) {
+                const matches = due.filter((share) => shareKey(share) === key || share.workEffortId === key)
+                if (!matches.length) { ec.message.addError(ec.resource.expand('Not a milestone share due: ${key}', '', {key})); return }
+                for (const share of matches) if (!chosenShares.includes(share)) chosenShares.push(share)
+            }
+            let chosen = []
+            if (givenTime.length) {
+                const selected = Array.from(new Set(givenTime))
                 const notReady = selected.filter((id) => !ready[id])
                 if (notReady.length) { ec.message.addError(ec.resource.expand('Not approved time to invoice: ${ids}', '', {ids: notReady.join(', ')})); return }
-            }
-            const chosen = selected ? selected.map((id) => ready[id]) : Object.values(ready)
-            if (!chosen.length) { ec.message.addError(L('No approved time to invoice')); return }
+                chosen = selected.map((id) => ready[id])
+            } else if (!selection) chosen = Object.values(ready)
+            if (!chosen.length && !chosenShares.length) { ec.message.addError(L('No approved time to invoice')); return }
             const noRate = chosen.filter((entry) => entry.missingRate)
             if (noRate.length) { ec.message.addError(ec.resource.expand('${count} entries have no client rate: set the rates first (${ids})', '', {count: noRate.length,
                 ids: noRate.slice(0, 5).map((entry) => entry.timeEntryId).join(', ')})); return }
@@ -305,12 +327,27 @@ along with this software (see the LICENSE.md file). If not, see
             }
             const wasDisabled = ec.artifactExecution.disableAuthz()
             try {
-                const made = ec.service.sync().name('mantle.account.InvoiceServices.create#ProjectInvoiceItems').parameters({workEffortId: workEffortId, invoiceId: invoiceId || null,
-                    approvedOnly: true, billableOnly: true, timeEntryIdList: chosen.map((entry) => entry.timeEntryId), entryGrouping: entryGrouping,
-                    settlementTermId: settlementTermId || null, invoiceDate: invoiceDate || ec.user.nowTimestamp}).call() || {}
-                if (ec.message.hasError()) return
-                invoiceId = made.invoiceId
-                itemCount = Number(made.invoiceItemCreatedCount || 0)
+                // the shares first (a new invoice of them when none is given), then the time on the same invoice
+                const byMilestone = {}
+                for (const share of chosenShares) (byMilestone[share.workEffortId] || (byMilestone[share.workEffortId] = [])).push(share)
+                for (const [milestoneId, shares] of Object.entries(byMilestone)) {
+                    for (const share of shares) {
+                        const made = ec.service.sync().name('mantle.account.InvoiceServices.create#MilestoneInvoiceItems').parameters({workEffortId: milestoneId,
+                            invoiceId: invoiceId || null, orderId: share.orderId, orderItemSeqId: share.orderItemSeqId, invoiceDate: invoiceDate || ec.user.nowTimestamp,
+                            settlementTermId: settlementTermId || null}).call() || {}
+                        if (ec.message.hasError()) return
+                        invoiceId = made.invoiceId
+                        itemCount += Number(made.invoiceItemCreatedCount || 0)
+                    }
+                }
+                if (chosen.length) {
+                    const made = ec.service.sync().name('mantle.account.InvoiceServices.create#ProjectInvoiceItems').parameters({workEffortId: workEffortId, invoiceId: invoiceId || null,
+                        approvedOnly: true, billableOnly: true, timeEntryIdList: chosen.map((entry) => entry.timeEntryId), entryGrouping: entryGrouping,
+                        settlementTermId: settlementTermId || null, invoiceDate: invoiceDate || ec.user.nowTimestamp}).call() || {}
+                    if (ec.message.hasError()) return
+                    invoiceId = made.invoiceId
+                    itemCount += Number(made.invoiceItemCreatedCount || 0)
+                }
             } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
             message = ec.resource.expand('Invoice ${invoiceId}: ${count} lines added', '', {invoiceId: invoiceId, count: itemCount})
         ]]></script></actions>
@@ -464,13 +501,32 @@ along with this software (see the LICENSE.md file). If not, see
                 const status = inv.statusId
                 const isClient = access.kind === 'client'
                 const isDraft = status === 'InvoiceInProcess'
+                // the milestone shares billed on the lines (WorkEffortBilling; impl-projects.md P8b)
+                const milestoneBills = Array.from(ec.entity.find('mantle.work.effort.WorkEffortBilling').condition('invoiceId', invoiceId).list())
+                const milestoneRows = milestoneBills.map((web) => {
+                    const milestone = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', web.workEffortId).one()
+                    const item = items.find((one) => one.invoiceItemSeqId === web.invoiceItemSeqId)
+                    const oib = Array.from(ec.entity.find('mantle.order.OrderItemBilling').condition({invoiceId: invoiceId, invoiceItemSeqId: web.invoiceItemSeqId}).list())[0]
+                    const orderItem = oib ? ec.entity.find('mantle.order.OrderItem').condition({orderId: oib.orderId, orderItemSeqId: oib.orderItemSeqId}).one() : null
+                    return {invoiceItemSeqId: web.invoiceItemSeqId, workEffortId: web.workEffortId, milestoneName: milestone?.workEffortName || web.workEffortId,
+                        milestoneUrl: '/qapps/Projects/Projects/MilestoneDetail?workEffortId=' + encodeURIComponent(web.workEffortId),
+                        reachedText: milestone?.actualCompletionDate != null ? day(milestone.actualCompletionDate) : '',
+                        percentText: web.percentage != null ? ec.l10n.format(web.percentage, '#,##0.##') + '%' : '',
+                        lineText: oib ? oib.orderId + ' ' + oib.orderItemSeqId + (orderItem?.itemDescription ? ' · ' + orderItem.itemDescription : '') : '',
+                        orderUrl: oib ? '/qapps/Projects/Billing/OrderDetail?orderId=' + encodeURIComponent(oib.orderId) : null,
+                        amountText: item ? money(totalOf(item)) : ''}
+                })
                 const itemRows = items.map((item) => {
                     const itemEntries = entries.filter((entry) => (entry.invoiceItemSeqId || '') === item.invoiceItemSeqId)
+                    const itemMilestone = milestoneRows.find((one) => one.invoiceItemSeqId === item.invoiceItemSeqId)
                     const hours = itemEntries.reduce((total, entry) => total.add(entry.hours), toDecimal(0))
                     return {invoiceItemSeqId: item.invoiceItemSeqId, typeText: enumOf(item.itemTypeEnumId), description: item.description || '',
                         itemDateText: item.itemDate != null ? day(item.itemDate) : '', quantityText: item.quantity == null ? '1' : ec.l10n.format(item.quantity, '#,##0.##'),
                         amountText: money(toDecimal(item.amount ?? 0)), totalText: money(totalOf(item)), entryCount: itemEntries.length,
-                        timeText: itemEntries.length ? ec.resource.expand('${count} entries, ${hours} h', '', {count: itemEntries.length, hours: hoursText(hours)}) : '',
+                        timeText: itemEntries.length ? ec.resource.expand('${count} entries, ${hours} h', '', {count: itemEntries.length, hours: hoursText(hours)})
+                            : itemMilestone ? ec.resource.expand('Milestone ${name}, reached ${date}', '', {name: itemMilestone.milestoneName,
+                                date: itemMilestone.reachedText}) : '',
+                        isMilestone: !!itemMilestone,
                         canRemove: isClient && isDraft}
                 })
                 const entryRows = entries.map((entry) => ({timeEntryId: entry.timeEntryId, invoiceItemSeqId: entry.invoiceItemSeqId || '', personName: entry.personName,
@@ -510,7 +566,7 @@ along with this software (see the LICENSE.md file). If not, see
                     dueDateText: day(inv.dueDate), termText: term ? (term.description || term.settlementTermId) : '', settlementTermId: inv.settlementTermId || '',
                     referenceNumber: inv.referenceNumber || '', description: inv.description || '', invoiceMessage: inv.invoiceMessage || '',
                     currencyUomId: uom, totalText: money(total), unpaidText: money(unpaid), paidText: money(total.subtract(unpaid)), hoursText: hoursText(time.hours ?? toDecimal(0)),
-                    timeAmountText: money(time.amount ?? toDecimal(0)), itemRows: itemRows, entryRows: entryRows, payments: payments, projects: projects,
+                    timeAmountText: money(time.amount ?? toDecimal(0)), itemRows: itemRows, entryRows: entryRows, milestoneRows: milestoneRows, payments: payments, projects: projects,
                     projectText: projects.map((project) => project.name).join(', '), sendTo: sendTo, timeDetail: timeDetail,
                     printUrl: '/apps/Projects/Billing/InvoicePrint?renderMode=html-print&invoiceId=' + encodeURIComponent(invoiceId),
                     pdfUrl: '/fop/apps/Projects/Billing/InvoicePrint?invoiceId=' + encodeURIComponent(invoiceId) + '&filename=Invoice-' + encodeURIComponent(invoiceId) + '.pdf',
@@ -604,7 +660,7 @@ along with this software (see the LICENSE.md file). If not, see
             const wasDisabled = ec.artifactExecution.disableAuthz()
             try { ec.service.sync().name('mantle.account.InvoiceServices.delete#InvoiceItem').parameters({invoiceId: invoiceId, invoiceItemSeqId: invoiceItemSeqId}).call() }
             finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
-            if (!ec.message.hasError()) message = L('Line removed; its time is unbilled again')
+            if (!ec.message.hasError()) message = L('Line removed; its time or milestone share is unbilled again')
         ]]></script></actions>
     </service>
 
@@ -1061,6 +1117,398 @@ along with this software (see the LICENSE.md file). If not, see
                 ec.service.sync().name('store#mantle.party.PartySetting').parameters({partyId: org, partySettingTypeId: 'ProjBillingDefaults', settingValue: value}).call()
             } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
             if (!ec.message.hasError()) message = L('Billing defaults saved')
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== The project's money, milestone billing, orders and the estimate (impl-projects.md P8b) ========== -->
+
+    <service verb="get" noun="ProjectMoney">
+        <description>ProjectDetail's Money tab (design-projects.md §4 ProjectMoney): for one who manages money and sees the project
+            (mantle.work.ProjectServices.get#ProjectMoneySummary), else money is null. The texts of Budget and actuals (the caps, the hours
+            and their cost and value, profit, budget used), Unbilled (the time ready and waiting, expenses, the milestone shares due; Create
+            invoice when it may be invoiced), Milestone billing (each share: milestone, order line, percent, amount, status: billed with
+            its invoice, due, waiting for approval, not reached), Invoices (client invoices) and Expenses (expense invoices), Commercial (the
+            order lines it fulfils, linked to OrderDetail); the billing basis; whether the user manages the project (canManage: the edits,
+            Send estimate, link a line).</description>
+        <in-parameters><parameter name="workEffortId" required="true"/></in-parameters>
+        <out-parameters><parameter name="money" type="Map"/></out-parameters>
+        <actions><script><![CDATA[
+            money = null
+            const managesMoney = ec.service.sync().name('ironstone.BillingServices.check#Money').parameters({need: 'none'}).call()?.managesMoney
+            if (!managesMoney) return
+            const access = ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: workEffortId, need: 'none'}).call() || {}
+            if (!access.canView) return
+            const L = (text) => ec.l10n.localize(text)
+            const out = ec.service.sync().name('mantle.work.ProjectServices.get#ProjectMoneySummary').parameters({workEffortId: workEffortId}).call() || {}
+            if (ec.message.hasError() || !out.summary) { ec.message.clearErrors(); return }
+            const sm = out.summary
+            const uom = sm.currencyUomId || 'USD'
+            const cash = (value, currency) => value == null ? '' : ec.l10n.formatCurrency(toDecimal(value), currency || uom)
+            const hoursText = (value) => value == null ? '' : ec.l10n.format(toDecimal(value), '#,##0.##')
+            const day = (millis) => millis == null ? '' : ec.l10n.format(new Date(Number(millis)), 'MMM d, yyyy')
+            const pct = (value) => value == null ? '' : ec.l10n.format(toDecimal(value), '#,##0.#') + '%'
+            const settings = ec.service.sync().name('mantle.work.ProjectServices.get#ProjectSettings').parameters({workEffortId: workEffortId}).call()?.settings || {}
+            const bases = {TimeAndMaterials: 'Time and materials', FixedPrice: 'Fixed price', Milestones: 'By milestones', NotBilled: 'Not billed'}
+            const budgetRows = [
+                ['Billing basis', L(bases[settings.WstBillingBasis] || 'Time and materials'), ''],
+                ['Hours budget', sm.hoursBudget != null ? hoursText(sm.hoursBudget) + ' h' : L('None'), ''],
+                ['Estimated hours', hoursText(sm.estimatedHours) + ' h', ''],
+                ['Actual hours', hoursText(sm.actualHours) + ' h' + (sm.hoursUsedPercent != null ? ' · ' + pct(sm.hoursUsedPercent) + ' ' + L('of the budget') : ''), sm.overHours ? 'text-negative' : ''],
+                ['Remaining hours', hoursText(sm.remainingHours) + ' h', ''],
+                ['Client budget', sm.clientBudget != null ? cash(sm.clientBudget) : L('None'), ''],
+                ['Value at client rates', cash(sm.actualClientCost) + (sm.budgetUsedPercent != null ? ' · ' + pct(sm.budgetUsedPercent) + ' ' + L('used') : ''), sm.overBudget ? 'text-negative' : ''],
+                ['Budget remaining', sm.budgetRemaining != null ? cash(sm.budgetRemaining) : '', sm.budgetRemaining != null && toDecimal(sm.budgetRemaining).compare(0) < 0 ? 'text-negative' : ''],
+                ['Cost at workers\' rates', cash(sm.actualCost), ''],
+                ['Profit so far', cash(sm.profit), toDecimal(sm.profit).compare(0) < 0 ? 'text-negative' : 'text-positive']]
+                    .filter((row) => row[1]).map(([label, value, style]) => ({label: L(label), value: value, style: style}))
+            const unbilled = sm.unbilled || null
+            const statusOf = (share) => share.billed ? ec.resource.expand('Billed on ${invoiceId} (${status})', '', {invoiceId: share.invoiceId, status: share.invoiceStatusText})
+                : share.due ? L('Due: ready to invoice') : share.awaiting ? L('Waiting for approval') : share.reached && share.gateRequired && !share.approved ? L('Reached, not approved')
+                : ec.resource.expand('Not reached (${status})', '', {status: share.milestoneStatusText})
+            const shareRows = Array.from(sm.shareList || []).map((share) => ({workEffortId: share.workEffortId, milestoneName: share.milestoneName,
+                milestoneUrl: '/qapps/Projects/Projects/MilestoneDetail?workEffortId=' + encodeURIComponent(share.workEffortId),
+                lineText: share.orderId + ' ' + share.orderItemSeqId + ' · ' + (share.itemDescription || ''), orderUrl: '/qapps/Projects/Billing/OrderDetail?orderId=' + encodeURIComponent(share.orderId),
+                shareText: share.invoicePercent != null ? ec.l10n.format(share.percent, '#,##0.##') + '%' : L('Fixed'), amountText: cash(share.amount, share.currencyUomId),
+                dueText: day(share.dueDate), statusText: statusOf(share), statusColor: share.billed ? 'positive' : share.due ? 'warning' : share.awaiting ? 'info' : 'grey-7',
+                due: share.due, invoiceUrl: share.invoiceId ? '/qapps/Projects/Billing/InvoiceDetail?invoiceId=' + encodeURIComponent(share.invoiceId) : null}))
+            const invoiceRow = (inv) => ({invoiceId: inv.invoiceId, url: '/qapps/Projects/Billing/InvoiceDetail?invoiceId=' + encodeURIComponent(inv.invoiceId),
+                partyName: inv.kind === 'client' ? inv.toName : inv.fromName, dateText: day(inv.invoiceDate), dueText: day(inv.dueDate), statusText: inv.statusText,
+                statusId: inv.statusId, totalText: cash(inv.total, inv.currencyUomId), unpaidText: cash(inv.unpaid, inv.currencyUomId)})
+            const lineRows = Array.from(sm.lineList || []).map((line) => ({orderId: line.orderId, orderItemSeqId: line.orderItemSeqId, description: line.description || line.orderId,
+                url: '/qapps/Projects/Billing/OrderDetail?orderId=' + encodeURIComponent(line.orderId), statusText: line.orderStatusText, totalText: cash(line.total, line.currencyUomId),
+                sharedText: line.shareCount ? ec.resource.expand('${percent} in ${count} milestones', '', {percent: pct(toDecimal(line.sharedAmount).isZero() || toDecimal(line.total).isZero() ? 0
+                    : toDecimal(line.sharedAmount).multiply(toDecimal(100)).divide(toDecimal(line.total)).setScale(1, 'HALF_UP')), count: line.shareCount}) : L('No milestone shares'),
+                billedText: cash(line.billedAmount, line.currencyUomId)}))
+            const ready = !!unbilled?.canInvoice
+            money = {workEffortId: workEffortId, currencyUomId: uom, canManage: !!access.canManage, clientName: sm.clientName || '', hasClient: !!sm.clientPartyId,
+                budgetRows: budgetRows, warning: !!(sm.projectWarning || sm.projectDanger),
+                actualValueText: cash(sm.actualClientCost), budgetUsedText: sm.budgetUsedPercent != null ? pct(sm.budgetUsedPercent) : '—',
+                profitText: cash(sm.profit), invoicedText: cash(sm.invoiced), paidText: cash(sm.paid), openText: cash(sm.openReceivable),
+                unbilledText: cash(sm.unbilledAmount), unbilledHoursText: hoursText(sm.unbilledHours), readyText: cash(sm.readyAmount), readyHoursText: hoursText(sm.readyHours),
+                waitingHoursText: unbilled ? hoursText(toDecimal(unbilled.waitingHours).add(toDecimal(unbilled.openHours))) : '0',
+                expensesUnbilledText: toDecimal(sm.unbilledExpenses).isZero() ? '' : cash(sm.unbilledExpenses),
+                sharesDueText: cash(sm.sharesDue), sharesBilledText: cash(sm.sharesBilled), contractedText: cash(sm.contracted), hasShares: shareRows.length > 0,
+                canInvoice: ready, cannotReason: unbilled ? (unbilled.cannotReason || '') : L('Nothing to invoice'),
+                shareRows: shareRows, invoiceRows: Array.from(sm.invoiceList || []).map(invoiceRow), expenseRows: Array.from(sm.expenseList || []).map(invoiceRow),
+                expenseTotalText: cash(sm.expenseTotal), expenseBilledText: cash(sm.expenseBilled), lineRows: lineRows,
+                unbilledUrl: '/qapps/Projects/Billing/Unbilled?rootWorkEffortId=' + encodeURIComponent(workEffortId),
+                timeUrl: '/qapps/Projects/Projects/ProjectDetail/Time?workEffortId=' + encodeURIComponent(workEffortId) + '&list=unbilled',
+                estimateUrl: '/apps/Projects/Projects/EstimatePrint?renderMode=html-print&workEffortId=' + encodeURIComponent(workEffortId)}
+        ]]></script></actions>
+    </service>
+
+    <service verb="search" noun="OrderLines" allow-remote="false">
+        <description>The order lines a project may fulfil (design-projects.md §4 ProjectMoneyStep's order line, Commercial): the lines of
+            sales orders to the project's client not cancelled, rejected or completed, not yet the project's, by the order id or the
+            line's or order's words, as drop-down options [{value: 'orderId:orderItemSeqId', label}], up to 20. For one who manages money
+            and manages the project; else none.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="term"/>
+        </in-parameters>
+        <out-parameters><parameter name="optionList" type="List"/></out-parameters>
+        <actions><script><![CDATA[
+            optionList = []
+            if (!ec.service.sync().name('ironstone.BillingServices.check#Money').parameters({need: 'none'}).call()?.managesMoney) return
+            const access = ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: workEffortId, need: 'none'}).call() || {}
+            if (!access.canManage) return
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try {
+                const clients = Array.from(ec.entity.find('mantle.work.effort.WorkEffortParty').condition('workEffortId', workEffortId).condition('roleTypeId', 'in', ['Customer', 'CustomerBillTo'])
+                        .conditionDate('fromDate', 'thruDate', null).list()).map((row) => row.partyId)
+                if (!clients.length) return
+                const parts = Array.from(ec.entity.find('mantle.order.OrderPart').condition('customerPartyId', 'in', clients)
+                        .condition('statusId', 'not-in', ['OrderCancelled', 'OrderRejected', 'OrderCompleted']).orderBy('-orderId').limit(200).list())
+                const linked = new Set(Array.from(ec.entity.find('mantle.order.OrderItemWorkEffort').condition('workEffortId', workEffortId).list()).map((row) => row.orderId + ':' + row.orderItemSeqId))
+                const words = String(term || '').trim().toLowerCase()
+                for (const part of parts) {
+                    const header = ec.entity.find('mantle.order.OrderHeader').condition('orderId', part.orderId).one()
+                    for (const item of ec.entity.find('mantle.order.OrderItem').condition({orderId: part.orderId, orderPartSeqId: part.orderPartSeqId}).orderBy('orderItemSeqId').list()) {
+                        const key = item.orderId + ':' + item.orderItemSeqId
+                        if (linked.has(key)) continue
+                        const label = item.orderId + ' ' + item.orderItemSeqId + ' · ' + (item.itemDescription || header?.orderName || '') + ' · '
+                            + ec.l10n.formatCurrency(toDecimal(item.quantity ?? 1).multiply(toDecimal(item.unitAmount ?? 0)).setScale(2, 'HALF_UP'), header?.currencyUomId || 'USD')
+                        if (words && !label.toLowerCase().includes(words) && !String(header?.orderName || '').toLowerCase().includes(words)) continue
+                        optionList.push({value: key, label: label})
+                        if (optionList.length >= 20) return
+                    }
+                }
+            } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+        ]]></script></actions>
+    </service>
+
+    <service verb="link" noun="OrderLine">
+        <description>Links (or with remove unlinks) an order line to a project (mantle.work.ProjectServices.link#ProjectOrderItem): orderLine
+            is 'orderId:orderItemSeqId' (the search's value), or orderId and orderItemSeqId. For one who manages money and manages the
+            project.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="orderLine"/>
+            <parameter name="orderId"/>
+            <parameter name="orderItemSeqId"/>
+            <parameter name="remove" type="Boolean" default="false"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            ec.service.sync().name('ironstone.BillingServices.check#Money').call()
+            if (ec.message.hasError()) return
+            ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: workEffortId, need: 'manage'}).call()
+            if (ec.message.hasError()) return
+            if (orderLine) { const parts = String(orderLine).split(':'); orderId = parts[0]; orderItemSeqId = parts[1] }
+            if (!orderId || !orderItemSeqId) { ec.message.addError(L('Choose the order line')); return }
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try { ec.service.sync().name('mantle.work.ProjectServices.link#ProjectOrderItem').parameters({workEffortId: workEffortId, orderId: orderId,
+                orderItemSeqId: orderItemSeqId, remove: remove}).call() }
+            finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+            if (!ec.message.hasError()) message = ec.resource.expand(remove ? 'Order line ${orderId} ${orderItemSeqId} is no longer the project\'s'
+                : 'Order line ${orderId} ${orderItemSeqId} linked to the project', '', {orderId, orderItemSeqId})
+        ]]></script></actions>
+    </service>
+
+    <service verb="save" noun="MilestoneShare">
+        <description>A milestone's billing share of an order line (mantle.work.ProjectServices.store#MilestoneShare): kind percent or amount
+            with value, or remove. For one who manages money and manages the project.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="orderLine"/>
+            <parameter name="orderId"/>
+            <parameter name="orderItemSeqId"/>
+            <parameter name="kind" default-value="percent"/>
+            <parameter name="value"/>
+            <parameter name="remove" type="Boolean" default="false"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            ec.service.sync().name('ironstone.BillingServices.check#Money').call()
+            if (ec.message.hasError()) return
+            const access = ec.service.sync().name('ironstone.PlanningServices.get#PlanItemAccess').parameters({workEffortId: workEffortId, kind: 'milestone'}).call() || {}
+            if (ec.message.hasError()) return
+            if (!access.canManage) { ec.message.addError(L('Only those who manage the project set billing shares')); return }
+            if (orderLine) { const parts = String(orderLine).split(':'); orderId = parts[0]; orderItemSeqId = parts[1] }
+            if (!orderId || !orderItemSeqId) { ec.message.addError(L('Choose the order line')); return }
+            let number = null
+            if (!remove) {
+                const text = String(value == null ? '' : value).trim().replace(/,/g, '').replace(/%$/, '')
+                if (!/^\d+(\.\d+)?$/.test(text)) { ec.message.addError(L('The share is a number')); return }
+                number = toDecimal(text)
+            }
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try { ec.service.sync().name('mantle.work.ProjectServices.store#MilestoneShare').parameters({workEffortId: workEffortId, orderId: orderId, orderItemSeqId: orderItemSeqId,
+                invoicePercent: !remove && kind !== 'amount' ? number : null, invoiceAmount: !remove && kind === 'amount' ? number : null, remove: remove}).call() }
+            finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+            if (!ec.message.hasError()) message = L(remove ? 'Billing share taken off' : 'Billing share saved')
+        ]]></script></actions>
+    </service>
+
+    <service verb="invoice" noun="Milestone">
+        <description>Invoice milestone (design-projects.md §4 MilestoneDetail, §10 MilestonesDue): the milestone's shares due on a client
+            invoice (mantle.account.InvoiceServices.create#MilestoneInvoiceItems), added to an open draft of the project to its client
+            (invoiceId) or a new one with the payment terms. For one who manages money and manages the project; in one transaction.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="invoiceId"/>
+            <parameter name="settlementTermId"/>
+        </in-parameters>
+        <out-parameters><parameter name="invoiceId"/><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            ec.service.sync().name('ironstone.BillingServices.check#Money').call()
+            if (ec.message.hasError()) return
+            const access = ec.service.sync().name('ironstone.PlanningServices.get#PlanItemAccess').parameters({workEffortId: workEffortId, kind: 'milestone'}).call() || {}
+            if (ec.message.hasError()) return
+            if (!access.canManage) { ec.message.addError(L('Only those who manage the project invoice it')); return }
+            const defaults = ec.service.sync().name('ironstone.BillingServices.get#BillingSettings').call()?.defaults || {}
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try {
+                const out = ec.service.sync().name('mantle.account.InvoiceServices.create#MilestoneInvoiceItems').parameters({workEffortId: workEffortId, invoiceId: invoiceId || null,
+                    settlementTermId: settlementTermId || defaults.settlementTermId || null}).call() || {}
+                if (ec.message.hasError()) return
+                invoiceId = out.invoiceId
+                message = ec.resource.expand('Invoice ${invoiceId}: ${name} billed, ${amount}', '', {invoiceId: invoiceId, name: access.plan.workEffortName || workEffortId,
+                    amount: ec.l10n.formatCurrency(out.amount, ec.entity.find('mantle.account.invoice.Invoice').condition('invoiceId', invoiceId).one()?.currencyUomId || 'USD')})
+            } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+        ]]></script></actions>
+    </service>
+
+    <service verb="find" noun="MilestonesDue">
+        <description>Unbilled's Milestones due (design-projects.md §10 MilestonesDue): the milestone billing shares due (reached, approved
+            when gated, not billed; mantle.work.ProjectServices.get#MilestoneBilling with dueOnly) of the projects the user sees, by project
+            or client: milestone, project, client, order line, share, amount, reached; with Invoice for those who manage the project. For one
+            who manages money; else an error.</description>
+        <in-parameters>
+            <parameter name="rootWorkEffortId"/>
+            <parameter name="clientPartyId"/>
+        </in-parameters>
+        <out-parameters><parameter name="rowList" type="List"/><parameter name="totalText"/></out-parameters>
+        <actions><script><![CDATA[
+            rowList = []; totalText = ''
+            ec.service.sync().name('ironstone.BillingServices.check#Money').call()
+            if (ec.message.hasError()) return
+            const out = ec.service.sync().name('mantle.work.ProjectServices.get#UnbilledSummary').parameters({workEffortId: rootWorkEffortId || null, clientPartyId: clientPartyId || null}).call() || {}
+            if (ec.message.hasError()) return
+            const vis = ec.service.sync().name('mantle.work.ProjectServices.get#VisibleProjectInfo').call() || {}
+            const managed = new Set(Array.from(vis.managedProjectIds || []))
+            const manager = !!vis.allProjects || ec.user.isInGroup('BOSS_PROJECT_MANAGER')
+            const uoms = new Set()
+            let total = toDecimal(0)
+            for (const row of Array.from(out.projectList || [])) for (const share of Array.from(row.milestoneDueList || [])) {
+                uoms.add(share.currencyUomId)
+                total = total.add(share.amount)
+                rowList.push({workEffortId: share.workEffortId, milestoneName: share.milestoneName, milestoneUrl: '/qapps/Projects/Projects/MilestoneDetail?workEffortId=' + encodeURIComponent(share.workEffortId),
+                    rootWorkEffortId: row.workEffortId, projectName: row.workEffortName, projectUrl: '/qapps/Projects/Projects/ProjectDetail/Money?workEffortId=' + encodeURIComponent(row.workEffortId),
+                    clientName: row.clientName || '', lineText: share.orderId + ' ' + share.orderItemSeqId + ' · ' + (share.itemDescription || ''),
+                    orderUrl: '/qapps/Projects/Billing/OrderDetail?orderId=' + encodeURIComponent(share.orderId),
+                    shareText: share.invoicePercent != null ? ec.l10n.format(share.percent, '#,##0.##') + '%' : ec.l10n.localize('Fixed'),
+                    amountText: ec.l10n.formatCurrency(share.amount, share.currencyUomId || 'USD'), reachedText: share.reachedDate != null ? ec.l10n.format(new Date(Number(share.reachedDate)), 'MMM d, yyyy') : '',
+                    draftInvoiceId: Array.from(row.draftInvoiceList || [])[0]?.invoiceId || '', canInvoice: manager || managed.has(row.workEffortId)})
+            }
+            totalText = uoms.size === 1 ? ec.l10n.formatCurrency(total, Array.from(uoms)[0]) : uoms.size ? ec.l10n.localize('More than one currency') : ''
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="OrderAccess" allow-remote="false">
+        <description>Whether the user may see an order in Projects: one who manages money and sees one of the projects it is linked to
+            (OrderItemWorkEffort to a project or one of its work efforts); else "not available" as an error, or with need none only the
+            answer. projectIds: those projects; canManage: the user manages one of them.</description>
+        <in-parameters>
+            <parameter name="orderId" required="true"/>
+            <parameter name="need" default-value="view"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="canView" type="Boolean"/>
+            <parameter name="canManage" type="Boolean"/>
+            <parameter name="projectIds" type="List"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            canView = false; canManage = false; projectIds = []
+            const money = ec.service.sync().name('ironstone.BillingServices.check#Money').parameters({need: 'none'}).call()?.managesMoney
+            if (money) {
+                const wasDisabled = ec.artifactExecution.disableAuthz()
+                try {
+                    const ids = new Set()
+                    for (const link of ec.entity.find('mantle.order.OrderItemWorkEffort').condition('orderId', orderId).list()) {
+                        const effort = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', link.workEffortId).one()
+                        if (!effort) continue
+                        ids.add(effort.workEffortTypeEnumId === 'WetProject' ? effort.workEffortId : effort.rootWorkEffortId)
+                    }
+                    for (const id of ids) {
+                        if (!id) continue
+                        const access = ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: id, need: 'none'}).call() || {}
+                        if (!access.canView) continue
+                        projectIds.push(id)
+                        if (access.canManage) canManage = true
+                    }
+                    canView = projectIds.length > 0
+                } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+            }
+            if (!canView && need !== 'none') ec.message.addError(ec.resource.expand('Order ${orderId} is not available', '', {orderId}))
+            else if (need === 'manage' && !canManage) ec.message.addError(ec.l10n.localize('Only those who manage its project change the order\'s links'))
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="OrderDetail">
+        <description>OrderDetail in the Projects context (design-projects.md §10 OrderDetail): for one who may see the order (get#OrderAccess),
+            else detail is null. The header (customer, vendor, status, dates, total, the order's name), the lines (each with its total, the
+            projects and milestones it is linked to and their shares, billed), the milestone shares (get#MilestoneBilling), the invoices that
+            bill it (OrderItemBilling), the projects; the actions: Send estimate for approval (one project, the user manages it, the order
+            open or proposed), Print (the estimate of its project), link a line to the project.</description>
+        <in-parameters><parameter name="orderId" required="true"/></in-parameters>
+        <out-parameters><parameter name="detail" type="Map"/></out-parameters>
+        <actions><script><![CDATA[
+            detail = null
+            const access = ec.service.sync().name('ironstone.BillingServices.get#OrderAccess').parameters({orderId: orderId, need: 'none'}).call() || {}
+            if (!access.canView) return
+            const L = (text) => ec.l10n.localize(text)
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try {
+                const header = ec.entity.find('mantle.order.OrderHeader').condition('orderId', orderId).one()
+                if (!header) return
+                const uom = header.currencyUomId || 'USD'
+                const cash = (value) => value == null ? '' : ec.l10n.formatCurrency(toDecimal(value), uom)
+                const day = (value) => value == null ? '' : ec.l10n.format(value, 'MMM d, yyyy')
+                const nameOf = (id) => {
+                    if (!id) return ''
+                    const party = ec.entity.find('mantle.party.PartyDetail').condition('partyId', id).one()
+                    return party ? (party.organizationName || [party.firstName, party.lastName].filter((part) => part).join(' ') || party.pseudoId || id) : id
+                }
+                const statusText = (id) => id ? (ec.entity.find('moqui.basic.StatusItem').condition('statusId', id).useCache(true).one()?.description || id) : ''
+                const part = Array.from(ec.entity.find('mantle.order.OrderPart').condition('orderId', orderId).orderBy('orderPartSeqId').list())[0]
+                const billing = ec.service.sync().name('mantle.work.ProjectServices.get#MilestoneBilling').parameters({orderId: orderId}).call() || {}
+                ec.message.clearErrors()
+                const shares = Array.from(billing.shareList || [])
+                const projectNames = {}
+                for (const id of access.projectIds) projectNames[id] = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', id).one()?.workEffortName || id
+                const links = Array.from(ec.entity.find('mantle.order.OrderItemWorkEffort').condition('orderId', orderId).list())
+                let total = toDecimal(0)
+                const lineRows = Array.from(ec.entity.find('mantle.order.OrderItem').condition('orderId', orderId).orderBy('orderItemSeqId').list()).map((item) => {
+                    const lineTotal = toDecimal(item.quantity ?? 1).multiply(toDecimal(item.unitAmount ?? 0)).setScale(2, 'HALF_UP')
+                    total = total.add(lineTotal)
+                    const lineShares = shares.filter((share) => share.orderItemSeqId === item.orderItemSeqId)
+                    const projectLinks = links.filter((link) => link.orderItemSeqId === item.orderItemSeqId && access.projectIds.includes(link.workEffortId))
+                    const shared = lineShares.reduce((sum, share) => sum.add(share.amount), toDecimal(0))
+                    const billed = lineShares.filter((share) => share.billed).reduce((sum, share) => sum.add(share.amount), toDecimal(0))
+                    return {orderItemSeqId: item.orderItemSeqId, description: item.itemDescription || '', quantityText: ec.l10n.format(item.quantity ?? 1, '#,##0.##'),
+                        unitText: cash(item.unitAmount ?? 0), totalText: cash(lineTotal),
+                        projectText: projectLinks.map((link) => projectNames[link.workEffortId] || link.workEffortId).join(', '),
+                        sharesText: lineShares.length ? lineShares.map((share) => share.milestoneName + ' ' + (share.invoicePercent != null ? ec.l10n.format(share.percent, '#,##0.##') + '%' : cash(share.amount))).join(', ') : '',
+                        sharedText: lineShares.length ? ec.resource.expand('${shared} of ${total} in milestone shares', '', {shared: cash(shared), total: cash(lineTotal)}) : '',
+                        billedText: billed.isZero() ? '' : ec.resource.expand('${billed} billed', '', {billed: cash(billed)})}
+                })
+                const shareRows = shares.map((share) => ({workEffortId: share.workEffortId, milestoneName: share.milestoneName, orderItemSeqId: share.orderItemSeqId,
+                    milestoneUrl: '/qapps/Projects/Projects/MilestoneDetail?workEffortId=' + encodeURIComponent(share.workEffortId),
+                    shareText: share.invoicePercent != null ? ec.l10n.format(share.percent, '#,##0.##') + '%' : L('Fixed'), amountText: cash(share.amount),
+                    statusText: share.billed ? ec.resource.expand('Billed on ${invoiceId}', '', {invoiceId: share.invoiceId}) : share.due ? L('Due') : share.awaiting ? L('Waiting for approval')
+                        : share.milestoneStatusText, statusColor: share.billed ? 'positive' : share.due ? 'warning' : share.awaiting ? 'info' : 'grey-7',
+                    invoiceUrl: share.invoiceId ? '/qapps/Projects/Billing/InvoiceDetail?invoiceId=' + encodeURIComponent(share.invoiceId) : null}))
+                const invoiceIds = Array.from(new Set(Array.from(ec.entity.find('mantle.order.OrderItemBilling').condition('orderId', orderId).list()).map((row) => row.invoiceId).filter((id) => id)))
+                const invoiceRows = invoiceIds.length ? Array.from(ec.entity.find('mantle.account.invoice.Invoice').condition('invoiceId', 'in', invoiceIds).orderBy('-invoiceDate').list()).map((inv) => ({
+                    invoiceId: inv.invoiceId, url: '/qapps/Projects/Billing/InvoiceDetail?invoiceId=' + encodeURIComponent(inv.invoiceId), dateText: day(inv.invoiceDate),
+                    statusText: statusText(inv.statusId), totalText: cash(inv.invoiceTotal ?? 0)})) : []
+                const projectRows = access.projectIds.map((id) => ({workEffortId: id, name: projectNames[id], url: '/qapps/Projects/Projects/ProjectDetail/Money?workEffortId=' + encodeURIComponent(id)}))
+                const single = access.projectIds.length === 1 ? access.projectIds[0] : null
+                const estimateId = single ? ec.entity.find('mantle.work.effort.WorkEffortSetting').condition('workEffortId', single).condition('settingTypeEnumId', 'WstEstimateMilestone').one()?.settingValue : null
+                const estimate = estimateId ? ec.service.sync().name('mantle.work.ProjectServices.get#MilestoneApprovalAccess').parameters({workEffortId: estimateId, need: 'none'}).call()?.gate : null
+                detail = {orderId: orderId, orderName: header.orderName || '', statusId: header.statusId, statusText: statusText(header.statusId),
+                    customerName: nameOf(part?.customerPartyId), vendorName: nameOf(part?.vendorPartyId), customerPartyId: part?.customerPartyId || null,
+                    entryDateText: day(header.entryDate), placedDateText: day(header.placedDate), approvedDateText: day(header.approvedDate),
+                    totalText: cash(header.grandTotal ?? total), currencyUomId: uom, lineRows: lineRows, shareRows: shareRows, invoiceRows: invoiceRows, projectRows: projectRows,
+                    projectId: single, projectName: single ? projectNames[single] : '', canManage: !!access.canManage,
+                    canSendEstimate: !!single && !!access.canManage && ['OrderOpen', 'OrderProposed'].includes(header.statusId),
+                    estimateText: estimate?.awaiting ? L('The estimate waits for the client\'s approval') : estimate?.approved ? L('The client approved the estimate') : '',
+                    estimateMilestoneUrl: estimateId ? '/qapps/Projects/Projects/MilestoneDetail?workEffortId=' + encodeURIComponent(estimateId) : null,
+                    printUrl: single ? '/apps/Projects/Projects/EstimatePrint?renderMode=html-print&workEffortId=' + encodeURIComponent(single) : null,
+                    stageStatusIds: ['OrderOpen', 'OrderProposed', 'OrderPlaced', 'OrderApproved', 'OrderCompleted']}
+            } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+        ]]></script></actions>
+    </service>
+
+    <service verb="send" noun="Estimate">
+        <description>Send estimate for approval (design-projects.md §4 ProjectMoney): mantle.work.ProjectServices.send#EstimateForApproval
+            for a project the user manages, by one who manages money: the estimate kept as a file of the Estimate milestone and its
+            gate's approval requested from the client.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="depth" type="Integer" default="2"/>
+            <parameter name="comments"/>
+        </in-parameters>
+        <out-parameters><parameter name="milestoneId"/><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.BillingServices.check#Money').call()
+            if (ec.message.hasError()) return
+            ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: workEffortId, need: 'manage'}).call()
+            if (ec.message.hasError()) return
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            let out = {}
+            try {
+                // the Projects managers manage every project they see (get#ProjectAccess): Mantle checks MILESTONE_APPROVE for them
+                out = ec.service.sync().name('mantle.work.ProjectServices.send#EstimateForApproval').parameters({workEffortId: workEffortId, depth: depth, comments: comments || null}).call() || {}
+            } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+            if (ec.message.hasError()) return
+            milestoneId = out.milestoneId
+            const approver = ec.service.sync().name('mantle.work.ProjectServices.get#MilestoneApprovalAccess').parameters({workEffortId: milestoneId, need: 'none'}).call()?.gate?.approverName || ''
+            message = ec.resource.expand('Estimate sent for approval to ${approver}', '', {approver})
         ]]></script></actions>
     </service>
 

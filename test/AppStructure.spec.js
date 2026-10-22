@@ -247,6 +247,11 @@ const demoRecords = {
     "Projects/Billing/Rates": { text: "IronStone support desk" },
     "Shared/InvoiceDetail/": { invoice: true, text: "Brightwater Dental Group" },
     "Projects/Settings/Billing": { text: "Billing defaults" },
+    // Projects P8b: the Money tab on ACME (by the header of ProjectDetail, as the shell loads the tab after it: test/MilestoneBillingWalk.spec.js
+    // renders the tab itself), the estimate print, the shared order detail on Acme's order (data/BossProjectsDemoDataTimeBilling.xml)
+    "Projects/Projects/ProjectDetail/Money": { parameters: { workEffortId: "ACME" }, text: "ProjectStatusBar" },
+    "Projects/Projects/EstimatePrint": { parameters: { workEffortId: "ACME" }, text: "Open the printable estimate" },
+    "Shared/OrderDetail/": { parameters: { orderId: "BOSS_DEMO_ACME_SO" }, text: "Customer portal, fixed fee" },
     // Projects P6b: Time entries (All: the demo's support desk time John Doe manages), the entry dialog (a new entry), the time import
     // wizard's steps (no import yet; test/TimeEntries.spec.js walks them) and its progress, and the time settings
     "Projects/Time/TimeEntries": { parameters: { list: "all" }, text: "Upgraded the client servers" },

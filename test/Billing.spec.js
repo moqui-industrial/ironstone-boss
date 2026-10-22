@@ -139,7 +139,7 @@ feature("the invoice dialog refuses nothing selected, and a project with no clie
         noClient.errors.includes("The project has no client")
         unbilled.output.includes("No client")
         unbilled.output.includes("The project has no client")
-        noneSelected.errors.includes("Select the time to invoice")
+        noneSelected.errors.includes("Select the time or the milestones to invoice")
         joe.status != 200 || joe.errors != ""
         joeSummary.includes("Only those who manage money")
         invoiced == 0

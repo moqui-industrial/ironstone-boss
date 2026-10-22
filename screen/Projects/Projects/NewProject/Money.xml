@@ -14,8 +14,9 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- NewProject step 4, ProjectMoneyStep (design-projects.md §4 NewProject): how it is paid for: the billing basis, the hours budget
     and the client budget (ironstone.ProjectServices.save#ProjectMoney), and the project's rates (Add rate: client billing or
-    worker pay for a person, a work type or everyone, mantle.humanres.RateServices.create#RateAmount scoped to the project; End).
-    The order line it fulfils comes with impl-projects.md P8. -->
+    worker pay for a person, a work type or everyone, mantle.humanres.RateServices.create#RateAmount scoped to the project; End), and
+    for those who manage money the order line it fulfils (impl-projects.md P8b: a line of a sales order to the project's client,
+    ironstone.BillingServices.search#OrderLines and link#OrderLine; milestones take their shares of it later, on MilestoneDetail). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Money" default-menu-index="4">
 
@@ -47,6 +48,23 @@ along with this software (see the LICENSE.md file). If not, see
         <default-response url="."><parameter name="workEffortId"/></default-response>
         <error-response url="."/>
     </transition>
+    <transition name="linkOrderLine">
+        <actions>
+            <service-call name="ironstone.BillingServices.link#OrderLine" out-map="linkOut" in-map="{workEffortId:workEffortId, orderLine:orderLine, orderId:orderId,
+                    orderItemSeqId:orderItemSeqId, remove:(remove == 'Y')}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(linkOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="orderLineSearch" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.BillingServices.search#OrderLines').parameters({workEffortId: workEffortId || '', term: term || ''}).call() || {}
+            ec.message.clearErrors()
+            ec.web.sendJsonResponse(out.optionList || [])
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
     <transition name="peopleSearch" read-only="true">
         <actions>
             <service-call name="ironstone.TaskServices.search#Assignees" in-map="{term:term}" out-map="found"/>
@@ -63,6 +81,18 @@ along with this software (see the LICENSE.md file). If not, see
             moneyValue = {workEffortId: workEffortId, billingBasis: settings.WstBillingBasis || 'TimeAndMaterials', totalTimeAllowed: num(draftProject.totalTimeAllowed),
                 totalClientCostAllowed: num(draftProject.totalClientCostAllowed)}
             rateList = Array.from(ec.service.sync().name('ironstone.ProjectServices.get#ProjectRates').parameters({workEffortId: workEffortId}).call()?.rateList || [])
+            // the order line it fulfils (impl-projects.md P8b), for those who manage money
+            managesMoney = !!ec.service.sync().name('ironstone.BillingServices.check#Money').parameters({need: 'none'}).call()?.managesMoney
+            orderLineRows = []
+            hasClient = false
+            if (managesMoney) {
+                const billing = ec.service.sync().name('mantle.work.ProjectServices.get#MilestoneBilling').parameters({rootWorkEffortId: workEffortId}).call() || {}
+                ec.message.clearErrors()
+                orderLineRows = Array.from(billing.lineList || []).map((line) => ({orderId: line.orderId, orderItemSeqId: line.orderItemSeqId,
+                    text: line.orderId + ' ' + line.orderItemSeqId + ' · ' + (line.description || ''), totalText: ec.l10n.formatCurrency(line.total, line.currencyUomId)}))
+                hasClient = ec.entity.find('mantle.work.effort.WorkEffortParty').condition('workEffortId', workEffortId).condition('roleTypeId', 'in', ['Customer', 'CustomerBillTo'])
+                        .conditionDate('fromDate', 'thruDate', null).disableAuthz().count() > 0
+            }
         ]]></script>
     </actions>
 
@@ -86,6 +116,31 @@ along with this software (see the LICENSE.md file). If not, see
                             <field name="totalClientCostAllowed"><default-field title="Client budget"><text-line size="10" input-type="number"/></default-field></field>
                         </form-single>
                     </box-body></container-box>
+                    <section name="OrderLineBox" condition="managesMoney"><widgets>
+                        <container-box><box-header title="The order line it fulfils"/>
+                            <box-toolbar>
+                                <container-dialog id="NewProjectOrderLine" button-text="Link an order line" icon="sym_o_add_link" width="560" title="An order line this project fulfils"
+                                        condition="hasClient">
+                                    <form-single name="NewProjectLinkOrderLine" transition="linkOrderLine">
+                                        <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                        <field name="orderLine"><default-field title="Order line (the client's sales orders)">
+                                            <drop-down><dynamic-options transition="orderLineSearch" server-search="true" min-length="0" parameter-map="{workEffortId:workEffortId}"/></drop-down></default-field></field>
+                                        <field name="submitButton"><default-field title="Link"><submit/></default-field></field>
+                                    </form-single>
+                                </container-dialog>
+                            </box-toolbar>
+                            <box-body-nopad>
+                                <form-list name="NewProjectOrderLines" list="orderLineRows" skip-form="true" skip-header="true" paginate="false">
+                                    <field name="text"><default-field><display/></default-field></field>
+                                    <field name="totalText" align="right"><default-field><display/></default-field></field>
+                                    <field name="unlink" align="right"><default-field>
+                                        <link url="linkOrderLine" link-type="hidden-form-link" text="Unlink" parameter-map="{workEffortId:workEffortId, orderId:orderId, orderItemSeqId:orderItemSeqId, remove:'Y'}"/></default-field></field>
+                                </form-list>
+                                <label type="p" text="${hasClient ? 'No order line: a project billed by milestones takes its shares of the sales order line it fulfils.' : 'Choose the client (Start) to link its sales order line.'}"
+                                        style="m-muted q-pa-sm q-mb-none" condition="!orderLineRows.length"/>
+                            </box-body-nopad>
+                        </container-box>
+                    </widgets></section>
                 </row-col>
                 <row-col md="6">
                     <container-box><box-header title="Rates on this project"/>

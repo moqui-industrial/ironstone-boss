@@ -14,13 +14,14 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- Roadmap (design-projects.md §4 Roadmap; style-guide §3.2 List): the milestones and releases of the projects the user sees, by
     project and then due date, each with its progress (done of its items, hours), as Redmine's roadmap shows versions. Chips with
-    their counts: Upcoming (open, the default), Overdue, Completed and All, and the kind: All, Milestones, Releases. The find in
+    their counts: Upcoming (open, the default), Overdue, Awaiting approval (a milestone whose gate's approval was asked for and not
+    decided, impl-projects.md P8b), Completed and All, and the kind: All, Milestones, Releases. The find in
     the list's dialog (project, text, due period). The columns: the name (a link to MilestoneDetail or ReleaseDetail) with its
     id, the project, the kind, start, due (edited in place by the project's team), status (moved in place along the Default
     flow), progress and the date it was reached or released. New milestone and New release open dialogs (the id KEY-MS-n or
     KEY-REL-n unless given). Views: the list and a calendar by due date; Timeline opens the Timeline in plan mode (milestones,
-    releases and, in a project, sprints as bars) on the same list and project. Awaiting approval comes with the milestone gate
-    (impl-projects.md P8).
+    releases and, in a project, sprints as bars) on the same list and project. A gated milestone shows a Gate chip in its status,
+    Awaiting approval while its request waits.
 
     ProjectDetail mounts this screen as its Roadmap tab (design-projects.md §4 ProjectRoadmap): its always-actions put the
     project in projectTabId, so the project is fixed (its column and find field are left out), and the project's sprints are a
@@ -111,7 +112,8 @@ along with this software (see the LICENSE.md file). If not, see
             const kept = {}
             for (const [key, value] of [['text', text], ['rootWorkEffortId', projectFixed ? null : rootWorkEffortId], ['due_period', ctx('due_period')],
                     ['due_poffset', ctx('due_poffset')], ['due_pdate', ctx('due_pdate')], ['due_from', ctx('due_from')], ['due_thru', ctx('due_thru')]]) if (value) kept[key] = value
-            const lists = [['upcoming', 'Upcoming', 'sym_o_upcoming'], ['overdue', 'Overdue', 'sym_o_event_busy'], ['completed', 'Completed', 'sym_o_task_alt'], ['all', 'All', 'sym_o_select_all']]
+            const lists = [['upcoming', 'Upcoming', 'sym_o_upcoming'], ['overdue', 'Overdue', 'sym_o_event_busy'], ['awaiting', 'Awaiting approval', 'sym_o_approval'],
+                ['completed', 'Completed', 'sym_o_task_alt'], ['all', 'All', 'sym_o_select_all']]
             listChips = lists.map(([key, label, icon]) => ({label: L(label) + ' · ' + (counts[key] || 0), icon: icon, on: key === list, params: Object.assign({list: key, kind: kind}, kept)}))
             const kinds = [['all', 'All kinds', 'sym_o_category'], ['milestone', 'Milestones', 'sym_o_flag'], ['release', 'Releases', 'sym_o_new_releases']]
                     .concat(projectFixed ? [['sprint', 'Sprints', 'sym_o_sprint']] : [])
@@ -123,7 +125,8 @@ along with this software (see the LICENSE.md file). If not, see
             canAdd = projectFixed ? !!ec.context.get('canManage') || !!ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: projectId, need: 'none'}).call()?.canUpdate
                     : addProjectOptions.length > 0
             addProjectId = projectFixed ? projectId : (projectId && addProjectOptions.some((option) => option.key === projectId) ? projectId : (addProjectOptions[0]?.key || ''))
-            const empty = {upcoming: 'No open milestones or releases', overdue: 'Nothing overdue', completed: 'Nothing reached or released yet', all: 'No milestones or releases yet'}
+            const empty = {upcoming: 'No open milestones or releases', overdue: 'Nothing overdue', awaiting: 'No milestone waits for approval', completed: 'Nothing reached or released yet',
+                all: 'No milestones or releases yet'}
             emptyText = Object.keys(kept).filter((key) => key !== 'rootWorkEffortId').length ? L('Nothing matches') : L(empty[list])
             today = ec.l10n.format(ec.user.nowTimestamp, 'yyyy-MM-dd')
             // the timeline view: the Timeline in plan mode, in the project's Plan tab when the project is fixed
@@ -235,6 +238,10 @@ along with this software (see the LICENSE.md file). If not, see
                     <default-field title="Due"><label text="${dueText}" type="span" style="text-no-wrap ${overdue ? 'text-warning' : ''}"/></default-field>
                 </field>
                 <field name="statusId"><default-field title="Status">
+                    <section name="RoadmapGateChip" condition="awaitingApproval || (gateRequired &amp;&amp; isOpen)"><widgets>
+                        <render-mode><text type="qvt"><![CDATA[<q-chip dense square icon="sym_o_approval" class="q-ma-none q-mr-xs m-tonal text-${awaitingApproval ? 'info' : 'grey-7'}">${WebUtilities.encodeHtml(awaitingApproval ? ec.l10n.localize('Awaiting approval') : ec.l10n.localize('Gate'))}</q-chip>]]></text>
+                            <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify(awaitingApproval ? ec.l10n.localize("Awaiting approval") : ec.l10n.localize("Gate"))}}]]></text></render-mode>
+                    </widgets></section>
                     <section name="RoadmapStatusEdit" condition="canUpdate"><widgets>
                         <render-mode><text type="qvt"><![CDATA[<span @click.stop>]]></text><text type="tui" template="false">[]</text></render-mode>
                         <editable id="RoadmapStatus" text="${statusLabel}" transition="updateField" widget-type="select"

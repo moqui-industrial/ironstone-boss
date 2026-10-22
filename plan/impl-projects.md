@@ -60,7 +60,7 @@ Sections: [1 scope](#1-scope-and-order) · [2 rules](#2-ground-rules) · [3 phas
 | P5 Requests | Mantle, BOSS | Requests, RequestDetail, RequestIntake, ProjectRequests, IntakeSettings | done Oct 22 |
 | P6 Time | Mantle, BOSS | MyTime, Timesheets, TimesheetDetail, TimeEntries, ProjectTime, TimeSettings | done Oct 22 |
 | P7 Resources | Mantle, BOSS | TeamPlanner, Allocations, PersonDetail | done Oct 22 |
-| P8 Billing and money | Mantle, BOSS | Unbilled, Invoices, InvoiceDetail, OrderDetail, Rates, ProjectMoney, BillingSettings | in progress (P8a built Oct 22; P8b ProjectMoney, OrderDetail, milestones, estimate) |
+| P8 Billing and money | Mantle, BOSS | Unbilled, Invoices, InvoiceDetail, OrderDetail, Rates, ProjectMoney, BillingSettings | done Oct 22 |
 | P9 Reports and outputs | Mantle, BOSS | Reports and its seven reports | planned |
 | P10 Client access | mr-moqui, Mantle, BOSS | the client states of §1.1's screens | planned |
 | P11 Finish | BOSS | — | planned |
@@ -395,6 +395,23 @@ tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
   Joe's approved week; specs `Billing` and `BillingWalk` (the walk with authorization on).
 - Runs (Debug): ironstone-boss 552/552, mantle-usl 655/657 (ContactListSend), lint clean.
 
+**Built, P8b** (Oct 22, 2026):
+- Mantle udm: `OrderItemWorkEffort.invoicePercent` and `invoiceAmount`; `WorkEffortApproval` (Requested, Approved,
+  Refused, Cancelled); deliverable order and acceptance on `WorkEffortDeliverableProd`, `DeliverableType` seed; setting
+  `WstEstimateMilestone`, content type `WectEstimate`. Mantle usl: milestone gate and approval (request, approve, refuse,
+  cancel with notices and tray decisions; `update#Milestone` refuses completing a gated milestone not approved),
+  `get#ProjectEstimate` and `send#EstimateForApproval`, milestone shares and `link#ProjectOrderItem`,
+  `get#ProjectMoneySummary`, milestones due in `get#UnbilledSummary`; `InvoiceServices.create#MilestoneInvoiceItems`
+  (WorkEffortBilling, OrderItemBilling, WorkEffortInvoice) and `delete#InvoiceItem` freeing it; permission
+  MILESTONE_APPROVE; topics MilestoneApproval and MilestoneDecision; `test/WorkProjectMilestones.spec.js`.
+- BOSS: ProjectDetail's Money tab (budget against actuals, unbilled, invoices, order lines, shares), `Shared/OrderDetail`,
+  EstimatePrint; MilestoneDetail's Gate, Billing and Deliverables with Ask for approval, Approve, Refuse, Withdraw and
+  Invoice milestone; the Roadmap's Awaiting approval; Unbilled's Milestones due and milestone shares in the invoice
+  dialog; InvoiceDetail's milestone lines; NewProject Money's order line; demo Acme order with two milestone shares (one
+  due, one awaiting approval); `test/MilestoneBillingWalk.spec.js` (P8's walk: approved time and an approved milestone
+  on one invoice with its time detail; an estimate sent and approved).
+- Runs (Debug): ironstone-boss 560/560, mantle-usl 665/667 (ContactListSend), lint clean.
+
 ### P9 — Reports and outputs
 
 - Design §11 report services and screens, Home's manager charts; the §14 print documents and exports not built in an
@@ -474,6 +491,9 @@ Made during the build; each one that changes the design is also written into des
 | Oct 22, 2026 | An allocation's hours spread over the person's working days by each day's hours; leave and holidays do not lower it; a week is overbooked when the larger of allocated and assigned exceeds capacity | P7 |
 | Oct 22, 2026 | Only approved time is invoiced: Unbilled shows all billable uninvoiced time, marks the approved part ready, and the dialog invoices only ticked approved entries; an entry without a client rate cannot be invoiced | P8a |
 | Oct 22, 2026 | InvoiceDetail in Projects is one page: Approve finalizes and posts when the organization keeps a ledger; Send approves a draft and emails the client's billing address; Cancel and Remove a line free their time; worker and expense invoices read only; payments are Accounting's | P8a |
+| Oct 22, 2026 | A gate's requests and decisions are `WorkEffortApproval` rows (the settings still name the requirement and approver); approving reaches the milestone; until P10 a project manager (MILESTONE_APPROVE or ADMIN) records the client's decision, marked `recordedFor` | P8b |
+| Oct 22, 2026 | Sending the estimate makes the order a quote (Proposed); approval moves the project In Planning to Approved and its orders through Placed to Approved; estimate hours priced at the project's standard client rate | P8b |
+| Oct 22, 2026 | No billing share on the Roadmap (it is the team's; money is not) | P8b |
 | Oct 22, 2026 | A recurring item counted from completion takes the completion day at the due date's time of day (UTC days) and the rule without its COUNT, which counts the items made | P2 |
 
 ## 5. Open questions
@@ -586,6 +606,13 @@ Design assumptions found wrong in the code, with the resolution (written into th
 | F94 | P8a: `lastStandalone=true` renders without ProjectDetail's header (F81) | Specs check `get#ProjectHeader` |
 | F95 | P8a: a `header-field` title becomes the column title | Header-only find fields |
 | F96 | P8a: Mantle's per-worker line text includes the party's pseudo-id | Left as Mantle's |
+| F97 | P8b: a Proposed order cannot go straight to Approved | Approval steps through Placed |
+| F98 | P8b: Mantle had no deliverable types or acceptance | Added |
+| F99 | P8b: `create#ProjectInvoiceItems` errors when it bills nothing | Milestones invoiced first, time added to that invoice |
+| F100 | P8b (security, for P10): MILESTONE_APPROVE lets a Projects manager record a client's gate decision on any project they see (marked `recordedFor`) | P10 decides whether recording for a client stays once clients sign in |
+| F101 | P8b: the estimate is not emailed; the gate's notice reaches only users, and a client contact has none before P10 | With P10 |
+| F102 | P8b: the Money tab shows the parent header in AppStructure (F81) | The walk renders the tab |
+| F103 | P8b: a running server keeps old service definitions (F56) | Restart |
 | F7 | P0: a wiki space under an existing repository is documented for a repository root (`rootPageDirectory: "git://docs"`, or `rootPageLocation` `git://<repositoryId>/<SPACE>.md`), not for a subdirectory such as `git://<repositoryId>/docs` | Checked in P4 as the design's §15 row says, before ProjectDocs is built |
 
 ## 7. Later
@@ -648,6 +675,10 @@ Designed, not in this build:
 
 - Billing (P8a): Unbilled's Contractor time and Milestones due (P8b); the project's Billing box in settings; payments and
   adjustments (Accounting); the invoice email in Chatter; client states (P10); TUI checks.
+
+- Billing (P8b): Unbilled's Contractor time and the worker summary; emailing the estimate; agreements, opportunities,
+  purchase lines and MaterialEstimates on Money; a project from an order line (Sales); milestone gates in Home's
+  Approvals block; TUI checks.
 
 ## 8. Verification
 

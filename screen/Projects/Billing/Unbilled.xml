@@ -18,8 +18,10 @@ along with this software (see the LICENSE.md file). If not, see
     unbilled (the default) and Ready to invoice; the find: client, project. Each row: the project and its client, the billing basis,
     the period, unbilled hours and amount, the approved part ready to invoice, what waits for approval, entries without a rate, the
     expenses not billed, the last invoice and an open draft; Create invoice (Unbilled/CreateInvoice.xml, a dialog over the approved
-    entries) when it may be invoiced, else why not, and Review time (the project's Time tab on its unbilled time). Milestones due and
-    contractor time come with impl-projects.md P8b. -->
+    entries and the milestone shares due) when it may be invoiced, else why not, and Review time (the project's Time tab on its unbilled
+    time). The Milestones due chip (impl-projects.md P8b; ironstone.BillingServices.find#MilestonesDue): the milestone billing shares due
+    (reached, approved when gated, not billed), each with Invoice (a new draft, or the project's open one) for those who manage the
+    project. Contractor time is later (impl-projects.md §7). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Unbilled" default-menu-index="1">
 
@@ -31,10 +33,20 @@ along with this software (see the LICENSE.md file). If not, see
         <subscreens-item name="CreateInvoice" location="component://ironstone-boss/screen/Projects/Billing/Unbilled/CreateInvoice.xml" menu-include="false"/>
     </subscreens>
 
+    <transition name="invoiceMilestone">
+        <actions>
+            <service-call name="ironstone.BillingServices.invoice#Milestone" out-map="invoiceOut" in-map="{workEffortId:milestoneId, invoiceId:(invoiceId || null)}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(invoiceOut.message, 'success')</script></if>
+        </actions>
+        <conditional-response url="../InvoiceDetail" condition="invoiceOut?.invoiceId"><parameter name="invoiceId" from="invoiceOut.invoiceId"/></conditional-response>
+        <default-response url="."><parameter name="list" value="milestones"/></default-response>
+        <error-response url="."/>
+    </transition>
+
     <actions>
         <script><![CDATA[
             const L = (text) => ec.l10n.localize(text)
-            if (!['all', 'ready'].includes(list)) list = 'all'
+            if (!['all', 'ready', 'milestones'].includes(list)) list = 'all'
             const money = ec.service.sync().name('ironstone.BillingServices.check#Money').parameters({need: 'none'}).call()?.managesMoney
             managesMoney = !!money
             unbilledRows = []
@@ -42,7 +54,16 @@ along with this software (see the LICENSE.md file). If not, see
             const out = ec.service.sync().name('ironstone.BillingServices.find#UnbilledRows').parameters({clientPartyId: clientPartyId || null,
                 rootWorkEffortId: rootWorkEffortId || null, readyOnly: list === 'ready'}).call() || {}
             ec.message.clearErrors()
-            unbilledRows = Array.from(out.rowList || [])
+            unbilledRows = list === 'milestones' ? [] : Array.from(out.rowList || [])
+            dueRows = []
+            dueTotalText = ''
+            if (list === 'milestones') {
+                const due = ec.service.sync().name('ironstone.BillingServices.find#MilestonesDue').parameters({rootWorkEffortId: rootWorkEffortId || null,
+                    clientPartyId: clientPartyId || null}).call() || {}
+                ec.message.clearErrors()
+                dueRows = Array.from(due.rowList || [])
+                dueTotalText = due.totalText || ''
+            }
             unbilledRowsCount = unbilledRows.length
             totals = out.totals || {}
             clientOptions = Array.from(out.clientOptions || [])
@@ -50,8 +71,8 @@ along with this software (see the LICENSE.md file). If not, see
             const find = {clientPartyId: clientPartyId || null, rootWorkEffortId: rootWorkEffortId || null}
             Object.keys(find).forEach((key) => { if (find[key] == null) delete find[key] })
             filtered = Object.keys(find).length > 0
-            listChips = [['all', 'All unbilled', 'sym_o_request_quote'], ['ready', 'Ready to invoice', 'sym_o_task_alt']].map(([key, label, icon]) => ({key: key,
-                label: L(label), icon: icon, on: key === list, params: Object.assign({}, find, {list: key})}))
+            listChips = [['all', 'All unbilled', 'sym_o_request_quote'], ['ready', 'Ready to invoice', 'sym_o_task_alt'], ['milestones', 'Milestones due', 'sym_o_flag_check']].map(([key, label, icon]) => ({key: key,
+                label: L(label) + (key === 'milestones' ? ' · ' + Number(totals.milestoneDueCount || 0) : ''), icon: icon, on: key === list, params: Object.assign({}, find, {list: key})}))
             emptyText = filtered ? L('No unbilled time matches') : list === 'ready' ? L('No approved time waits to be invoiced') : L('All billable time is invoiced')
         ]]></script>
     </actions>
@@ -75,6 +96,7 @@ along with this software (see the LICENSE.md file). If not, see
                 <number-card title="To invoice" value="${totals.readyAmountText}" icon="sym_o_task_alt" size="sm"/>
                 <number-card title="Hours" value="${totals.hoursText}" icon="sym_o_schedule" size="sm"/>
                 <number-card title="Projects" value="${totals.projectCount} (${totals.readyCount} ready)" icon="sym_o_assignment" size="sm"/>
+                <number-card title="Milestones due" value="${totals.milestoneDueText}" icon="sym_o_flag_check" size="sm" condition="totals.milestoneDueCount"/>
             </dashboard>
 
             <container style="row q-gutter-xs q-mb-sm">
@@ -90,6 +112,32 @@ along with this software (see the LICENSE.md file). If not, see
                 <container style="q-mb-xs"><link url="." link-type="anchor" text="Clear filters" parameter-map="{list:list}"/></container>
             </widgets></section>
 
+            <section name="MilestonesDue" condition="list == 'milestones'"><widgets>
+            <container-box><box-header title="Milestones due · ${dueRows.length}${dueTotalText ? ' · ' + dueTotalText : ''}"/><box-body-nopad>
+                <form-list name="MilestonesDueList" list="dueRows" skip-form="true" paginate="false" show-csv-button="true">
+                    <field name="milestoneName"><default-field title="Milestone">
+                        <link url="${milestoneUrl}" url-type="plain" text="${milestoneName}" link-type="anchor" style="text-weight-medium"/>
+                        <label text="${reachedText ? 'Reached ' + reachedText : ''}" type="div" style="text-caption m-muted" condition="reachedText"/></default-field></field>
+                    <field name="projectName"><default-field title="Project">
+                        <link url="${projectUrl}" url-type="plain" text="${projectName}" link-type="anchor"/>
+                        <label text="${clientName}" type="div" style="text-caption m-muted"/></default-field></field>
+                    <field name="lineText"><default-field title="Order line"><link url="${orderUrl}" url-type="plain" text="${lineText}" link-type="anchor"/></default-field></field>
+                    <field name="shareText" align="right"><default-field title="Share"><display/></default-field></field>
+                    <field name="amountText" align="right"><default-field title="Amount"><label text="${amountText}" type="span" style="text-no-wrap text-weight-medium"/></default-field></field>
+                    <field name="actions" align="right"><default-field title="">
+                        <link url="invoiceMilestone" link-type="hidden-form-link" text="Invoice" icon="sym_o_receipt_long" condition="canInvoice"
+                                parameter-map="{milestoneId:workEffortId, invoiceId:draftInvoiceId}"
+                                confirmation="Invoice ${milestoneName}, ${amountText}? ${draftInvoiceId ? 'It is added to the draft ' + draftInvoiceId + '.' : 'A new draft invoice to the client is made.'}"/></default-field></field>
+                    <columns type="mobile">
+                        <column><field-ref name="milestoneName"/><field-ref name="projectName"/></column>
+                        <column><field-ref name="amountText"/><field-ref name="actions"/></column>
+                    </columns>
+                </form-list>
+                <label type="p" text="No milestone share is due: a share is due when its milestone is reached (and approved when it has a gate)." style="m-muted q-pa-sm q-mb-none" condition="!dueRows.length"/>
+            </box-body-nopad></container-box>
+            </widgets></section>
+
+            <section name="ClientBilling" condition="list != 'milestones'"><widgets>
             <container-box><box-header title="Client billing · ${unbilledRowsCount}"/><box-body-nopad>
                 <form-list name="UnbilledList" list="unbilledRows" skip-form="true" paginate="false" header-dialog="true" select-columns="true" show-csv-button="true">
                     <!-- the find (the list's dialog) -->
@@ -112,7 +160,8 @@ along with this software (see the LICENSE.md file). If not, see
                         <label text="${readyCount ? readyAmountText : '—'}" type="div" style="text-no-wrap ${readyCount ? 'text-positive' : 'm-muted'}"/>
                         <label text="${readyCount ? readyHoursText + ' h' : ''}" type="div" style="text-caption m-muted text-no-wrap"/></default-field></field>
                     <field name="waitingText"><default-field title="Waiting for approval"><label text="${waitingText}" type="span" style="text-caption"/>
-                        <label text="${missingRateText}" type="div" style="text-caption text-warning" condition="missingRateText"/></default-field></field>
+                        <label text="${missingRateText}" type="div" style="text-caption text-warning" condition="missingRateText"/>
+                        <label text="${milestoneDueText}" type="div" style="text-caption text-positive" condition="milestoneDueText"/></default-field></field>
                     <field name="expenseText" align="right"><default-field title="Expenses"><display/></default-field></field>
                     <field name="lastInvoiceText"><default-field title="Last invoiced">
                         <link url="${lastInvoiceUrl}" url-type="plain" text="${lastInvoiceText}" link-type="anchor" condition="lastInvoiceUrl"/>
@@ -137,6 +186,7 @@ along with this software (see the LICENSE.md file). If not, see
                     <label type="p" text="${emptyText}" style="m-muted q-pa-sm q-mb-none"/>
                 </widgets></section>
             </box-body-nopad></container-box>
+            </widgets></section>
             <label type="p" text="Only approved time is invoiced: time waiting for approval stays unbilled until its week is approved. Amounts are at each entry's client rate, to the cent." style="text-caption m-muted q-mt-sm"/>
         </widgets></section>
     </widgets>

@@ -19,9 +19,17 @@ along with this software (see the LICENSE.md file). If not, see
     unfinished items to another milestone or out of any). The number cards: Items done of the items, Percent done, Hours (done
     of the estimate) and Remaining hours. The boxes: Work items, by state with the chips Not started, In progress and Done, as
     WorkItems shows them (only those the user may see), Add items (a search of the project's items) and Remove for the team;
-    Chatter as the right column from 1440 px. The gate (approval), the billing share and the deliverables come with
-    impl-projects.md P8. Services: ironstone.PlanningServices get#PlanItemDetail, save#PlanItem, set#PlanItemItems,
-    move#UnfinishedItems, search#PlanItemCandidates. A milestone of a project the user does not see is "not available". -->
+    Chatter as the right column from 1440 px.
+    The gate, billing share and deliverables (impl-projects.md P8b; ironstone.PlanningServices get#MilestoneExtras): a Gate chip in the
+    title row; the Gate box (whether reaching it needs approval and who approves, a manager or a client contact; the latest request
+    and the ones before it); a gated milestone not approved is not reached by Reach: its primary action is Ask for approval, and while
+    the request waits the approver (or one who manages the project, recording it for them until client users sign in in
+    impl-projects.md P10) has Approve, which reaches it, and Refuse with the reason. The Billing box (those who manage money): the order
+    line shares it releases (percent or a fixed amount), billed or due, Add share and Invoice milestone when due. The Deliverables box:
+    what it hands over, added by the team, accepted by the approver. Services: ironstone.PlanningServices get#PlanItemDetail,
+    save#PlanItem, set#PlanItemItems, move#UnfinishedItems, search#PlanItemCandidates, get#MilestoneExtras, decide#MilestoneGate,
+    save#Deliverable, update#DeliverableState; ironstone.BillingServices save#MilestoneShare, invoice#Milestone. A milestone of a project
+    the user does not see is "not available". -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Milestone" default-menu-include="false">
 
@@ -71,6 +79,63 @@ along with this software (see the LICENSE.md file). If not, see
         <default-response url="."><parameter name="workEffortId"/></default-response>
         <error-response url="."/>
     </transition>
+    <transition name="decideGate">
+        <actions>
+            <service-call name="ironstone.PlanningServices.decide#MilestoneGate" out-map="gateOut" in-map="{workEffortId:workEffortId, action:action,
+                    approvalRequired:approvalRequired, approverPartyId:approverPartyId, comments:comments}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(gateOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="saveShare">
+        <actions>
+            <service-call name="ironstone.BillingServices.save#MilestoneShare" out-map="shareOut" in-map="{workEffortId:workEffortId, orderLine:orderLine, kind:shareKind,
+                    value:shareValue, remove:(remove == 'Y')}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(shareOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="invoiceMilestone">
+        <actions>
+            <service-call name="ironstone.BillingServices.invoice#Milestone" out-map="invoiceOut" in-map="{workEffortId:workEffortId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(invoiceOut.message, 'success')</script></if>
+        </actions>
+        <conditional-response url="//Projects/Billing/InvoiceDetail" condition="invoiceOut?.invoiceId"><parameter name="invoiceId" from="invoiceOut.invoiceId"/></conditional-response>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="saveDeliverable">
+        <actions>
+            <service-call name="ironstone.PlanningServices.save#Deliverable" out-map="deliverableOut" in-map="{workEffortId:workEffortId, deliverableId:(deliverableId || null),
+                    deliverableName:deliverableName, deliverableTypeEnumId:deliverableTypeEnumId, description:description}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(deliverableOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="deliverableState">
+        <actions>
+            <service-call name="ironstone.PlanningServices.update#DeliverableState" out-map="stateOut" in-map="{workEffortId:workEffortId, deliverableId:deliverableId, action:action}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(stateOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <!-- the estimate a request asks to approve (a WorkEffortContent of the milestone), for those who may decide it or who manage money -->
+    <transition name="estimateFile" read-only="true">
+        <actions><script><![CDATA[
+            const gate = ec.service.sync().name('mantle.work.ProjectServices.get#MilestoneApprovalAccess').parameters({workEffortId: workEffortId || '', need: 'none'}).call() || {}
+            const money = ec.service.sync().name('ironstone.BillingServices.check#Money').parameters({need: 'none'}).call()?.managesMoney
+            const content = gate.canView && (money || gate.isApprover) ? ec.entity.find('mantle.work.effort.WorkEffortContent').condition('workEffortContentId', workEffortContentId || '')
+                    .condition('workEffortId', workEffortId || '').disableAuthz().one() : null
+            ec.message.clearErrors()
+            if (content?.contentLocation) ec.web.sendResourceResponse(content.contentLocation, true)
+            else ec.web.sendJsonResponse({errors: ec.l10n.localize('The file is not available')})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
     <!-- Add items: the project's work items not in it, by key or words -->
     <transition name="searchItems" read-only="true">
         <actions><script><![CDATA[
@@ -119,6 +184,26 @@ along with this software (see the LICENSE.md file). If not, see
         beginLabel = L(moveLabels.WeInProgress)
         unfinishedCount = milestone.rowList.filter((row) => row.state === 'notStarted' || row.state === 'inProgress').length
         moveOptions = [{key: '', text: L('Out of any milestone')}].concat(milestone.otherOptions)
+        // the gate, the billing share and the deliverables (impl-projects.md P8b)
+        extras = ec.service.sync().name('ironstone.PlanningServices.get#MilestoneExtras').parameters({workEffortId: workEffortId}).call()?.extras || {required: false,
+            requestRows: [], shareRows: [], deliverables: [], approverOptions: [], lineOptions: []}
+        ec.message.clearErrors()
+        // a gated milestone not approved is reached by its approval, not by Reach
+        gateBlocks = !!extras.required && !extras.approved
+        if (gateBlocks) {
+            if (primaryMove?.statusId === 'WeComplete') primaryMove = null
+            otherMoves = otherMoves.filter((move) => move.statusId !== 'WeComplete' && move.statusId !== 'WeClosed')
+            moveIds = otherMoves.map((move) => move.statusId)
+        }
+        requestRows = extras.requestRows
+        shareRows = extras.shareRows
+        deliverableRows = extras.deliverables
+        gateValue = {workEffortId: workEffortId, approvalRequired: extras.required ? 'Y' : 'N', approverPartyId: extras.approverPartyId || (extras.approverOptions[0]?.key || '')}
+        approveNote = extras.isApprover ? '' : ec.resource.expand('You record the approval of ${approver}.', '', {approver: extras.approverName})
+        deliverableTypes = Array.from(ec.entity.find('moqui.basic.Enumeration').condition('enumTypeId', 'DeliverableType').orderBy('sequenceNum').useCache(true).list())
+                .map((one) => ({key: one.enumId, text: one.description}))
+        if (extras.required) factsHtml = factsHtml.replace(/<\/div>$/, '<q-chip dense square icon="sym_o_approval" class="q-ma-none m-tonal text-' + enc(extras.gateColor) + '">'
+            + enc(L('Gate') + ': ' + extras.gateText) + '</q-chip></div>')
         doneValue = milestone.doneOfTotal
         percentValue = milestone.percentDone + '%'
         hoursValue = milestone.hoursText || '—'
@@ -146,6 +231,29 @@ along with this software (see the LICENSE.md file). If not, see
                     <render-mode><text type="qvt"><![CDATA[${factsHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(factsTui)}]]></text></render-mode>
                 </container>
                 <container style="col-12 col-md-auto row items-center q-gutter-x-xs q-gutter-y-xs">
+                    <container-dialog id="MilestoneAskApproval" button-text="Ask for approval" icon="sym_o_approval" width="520" type="primary"
+                            title="Ask ${extras.approverName} to approve ${milestone.workEffortName}" condition="extras.canRequest">
+                        <form-single name="AskApproval" transition="decideGate" focus-field="comments">
+                            <field name="workEffortId"><default-field><hidden/></default-field></field>
+                            <field name="action" from="'request'"><default-field><hidden/></default-field></field>
+                            <field name="comments"><default-field title="Message (what to look at)"><text-area rows="3" cols="50"/></default-field></field>
+                            <field name="submitButton"><default-field title="Ask for approval"><submit/></default-field></field>
+                        </form-single>
+                        <label type="p" text="Approving it reaches the milestone." style="text-caption m-muted"/>
+                    </container-dialog>
+                    <section name="MilestoneDecide" condition="extras.canDecide"><widgets>
+                        <link url="decideGate" link-type="hidden-form" text="Approve" btn-type="primary" icon="sym_o_thumb_up"
+                                confirmation="Approve ${milestone.workEffortName}? It is reached. ${approveNote}" parameter-map="{workEffortId:workEffortId, action:'approve'}"/>
+                        <container-dialog id="MilestoneRefuse" button-text="Refuse" icon="sym_o_thumb_down" width="480" title="Refuse ${milestone.workEffortName}">
+                            <form-single name="RefuseApproval" transition="decideGate" focus-field="comments">
+                                <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                <field name="action" from="'refuse'"><default-field><hidden/></default-field></field>
+                                <field name="comments"><default-field title="Why (required)"><text-area rows="3" cols="50"/></default-field></field>
+                                <field name="submitButton"><default-field title="Refuse"><submit/></default-field></field>
+                            </form-single>
+                            <label type="p" text="${approveNote}" style="text-caption m-muted" condition="approveNote"/>
+                        </container-dialog>
+                    </widgets></section>
                     <section name="MilestonePrimaryMove" condition="primaryMove"><widgets>
                         <link url="changeStatus" link-type="hidden-form" text="${primaryMove.label}" btn-type="primary" icon="sym_o_arrow_forward"
                                 confirmation="${primaryMove.label}: ${milestone.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:primaryMove.statusId}"/>
@@ -185,6 +293,10 @@ along with this software (see the LICENSE.md file). If not, see
                                 <field name="submitButton"><default-field title="Move"><submit/></default-field></field>
                             </form-single>
                         </container-dialog>
+                        <link url="decideGate" link-type="hidden-form-link" text="Withdraw the request" icon="sym_o_undo" condition="extras.canCancel"
+                                confirmation="Withdraw the approval request of ${milestone.workEffortName}?" parameter-map="{workEffortId:workEffortId, action:'cancel'}"/>
+                        <link url="invoiceMilestone" link-type="hidden-form-link" text="Invoice milestone" icon="sym_o_receipt_long" condition="extras.canInvoice"
+                                confirmation="Invoice the share of ${milestone.workEffortName} due? A new draft invoice to the client is made." parameter-map="{workEffortId:workEffortId}"/>
                         <link url="/qapps/Projects/WorkItems" url-type="plain" text="In Work items" icon="sym_o_checklist" parameter-map="{rootWorkEffortId:milestone.rootWorkEffortId, milestoneId:workEffortId, list:'all'}"/>
                     </button-menu>
                 </container>
@@ -251,6 +363,133 @@ along with this software (see the LICENSE.md file). If not, see
                         </form-list>
                         <label type="p" text="${milestone.rowList.length ? 'No work items in this state.' : 'No work items in this milestone yet: add them here, or set the milestone on a work item.'}" style="m-muted q-pa-sm q-mb-none" condition="!itemRows.length"/>
                     </box-body-nopad></container-box>
+
+                    <!-- the gate: approval to reach it -->
+                    <container-box><box-header title="Gate · ${extras.gateText}"/>
+                        <box-toolbar>
+                            <container-dialog id="MilestoneGateDialog" button-text="Set the gate" icon="sym_o_tune" width="520" title="The gate of ${milestone.workEffortName}" condition="extras.canSetGate">
+                                <form-single name="MilestoneGateForm" transition="decideGate" map="gateValue">
+                                    <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                    <field name="action" from="'gate'"><default-field><hidden/></default-field></field>
+                                    <field name="approvalRequired"><default-field title="Reaching it">
+                                        <radio><option key="Y" text="Needs approval"/><option key="N" text="Needs no approval"/></radio></default-field></field>
+                                    <field name="approverPartyId"><default-field title="Approver (a manager or a client contact)">
+                                        <drop-down allow-empty="true"><list-options list="extras.approverOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                    <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                                </form-single>
+                            </container-dialog>
+                        </box-toolbar>
+                        <box-body>
+                            <label type="p" text="Approver: ${extras.approverName}" style="q-mb-xs" condition="extras.required &amp;&amp; extras.approverName"/>
+                            <label type="p" text="This milestone is the project's Estimate: approving it approves the estimate, and the project moves on." style="text-caption q-mb-xs" condition="extras.isEstimate"/>
+                            <label type="p" text="Reaching this milestone needs no approval. Set the gate when a manager or the client signs it off." style="m-muted q-mb-none" condition="!extras.required &amp;&amp; !requestRows.length"/>
+                        </box-body>
+                        <box-body-nopad>
+                            <form-list name="MilestoneRequests" list="requestRows" skip-form="true" paginate="false">
+                                <field name="statusText"><default-field title="Request">
+                                    <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${statusColor}">${WebUtilities.encodeHtml(statusText ?? '')}</q-chip>]]></text>
+                                        <text type="tui"><![CDATA[{"t": "text", "style": "strong", "text": ${JSON.stringify(statusText ?? "")}}]]></text></render-mode></default-field></field>
+                                <field name="requestedText"><default-field title="Asked">
+                                    <label text="${requestedText}" type="div" style="text-no-wrap"/>
+                                    <label text="${requestedBy}${requestComments ? ': ' + requestComments : ''}" type="div" style="text-caption m-muted"/></default-field></field>
+                                <field name="decidedText"><default-field title="Decided">
+                                    <label text="${decidedText}" type="div" style="text-no-wrap"/>
+                                    <label text="${decidedBy}${decisionComments ? ': ' + decisionComments : ''}" type="div" style="text-caption m-muted" condition="decidedBy || decisionComments"/></default-field></field>
+                                <field name="fileUrl"><default-field title="Estimate">
+                                    <link url="${fileUrl}" url-type="plain" text="Open" icon="sym_o_description" target-window="_blank" condition="fileUrl"/></default-field></field>
+                                <columns type="mobile">
+                                    <column><field-ref name="statusText"/><field-ref name="requestedText"/></column>
+                                    <column><field-ref name="decidedText"/></column>
+                                </columns>
+                            </form-list>
+                        </box-body-nopad>
+                    </container-box>
+
+                    <!-- the billing share: what reaching it releases of the project's order (those who manage money) -->
+                    <section name="MilestoneBilling" condition="extras.managesMoney"><widgets>
+                        <container-box><box-header title="Billing · ${shareRows.length}"/>
+                            <box-toolbar>
+                                <link url="invoiceMilestone" link-type="hidden-form" text="Invoice milestone" icon="sym_o_receipt_long" condition="extras.canInvoice"
+                                        confirmation="Invoice the share of ${milestone.workEffortName} due? A new draft invoice to the client is made." parameter-map="{workEffortId:workEffortId}"/>
+                                <container-dialog id="MilestoneShareDialog" button-text="Add share" icon="sym_o_add" width="560" title="A billing share of ${milestone.workEffortName}"
+                                        condition="extras.canEditShares &amp;&amp; extras.lineOptions.length">
+                                    <form-single name="MilestoneShareForm" transition="saveShare">
+                                        <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                        <field name="orderLine"><default-field title="Order line">
+                                            <drop-down><list-options list="extras.lineOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                        <field name="shareKind" from="'percent'"><default-field title="Share">
+                                            <radio><option key="percent" text="A percent of the line"/><option key="amount" text="A fixed amount"/></radio></default-field></field>
+                                        <field name="shareValue"><default-field title="Percent or amount"><text-line size="10" input-type="number"/></default-field></field>
+                                        <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                                    </form-single>
+                                </container-dialog>
+                            </box-toolbar>
+                            <box-body-nopad>
+                                <form-list name="MilestoneShares" list="shareRows" skip-form="true" paginate="false">
+                                    <field name="lineText"><default-field title="Order line">
+                                        <link url="${orderUrl}" url-type="plain" text="${lineText}" link-type="anchor"/>
+                                        <label text="${lineTotalText}" type="div" style="text-caption m-muted"/></default-field></field>
+                                    <field name="shareText" align="right"><default-field title="Share"><display/></default-field></field>
+                                    <field name="amountText" align="right"><default-field title="Amount"><label text="${amountText}" type="span" style="text-no-wrap text-weight-medium"/></default-field></field>
+                                    <field name="statusText"><default-field title="Status">
+                                        <link url="${invoiceUrl}" url-type="plain" text="${statusText}" link-type="anchor" condition="invoiceUrl"/>
+                                        <label text="${statusText}" type="span" style="text-${statusColor}" condition="!invoiceUrl"/></default-field></field>
+                                    <field name="remove" align="right"><default-field title="">
+                                        <link url="saveShare" link-type="hidden-form-link" text="" icon="sym_o_remove_circle" tooltip="Take the share off" style="m-btn-flat"
+                                                parameter-map="{workEffortId:workEffortId, orderLine:orderLine, remove:'Y'}" condition="extras.canEditShares &amp;&amp; !billed"
+                                                confirmation="Take this billing share off?"/></default-field></field>
+                                    <columns type="mobile">
+                                        <column><field-ref name="lineText"/><field-ref name="statusText"/></column>
+                                        <column><field-ref name="amountText"/><field-ref name="remove"/></column>
+                                    </columns>
+                                </form-list>
+                                <label type="p" text="${extras.lineOptions.length ? 'No share of the order: reaching this milestone bills nothing by itself.' : 'The project has no order line: link one on its Money tab to bill by milestones.'}"
+                                        style="m-muted q-pa-sm q-mb-none" condition="!shareRows.length"/>
+                            </box-body-nopad>
+                        </container-box>
+                    </widgets></section>
+
+                    <!-- the deliverables: what it hands over -->
+                    <container-box><box-header title="Deliverables · ${deliverableRows.length}"/>
+                        <box-toolbar>
+                            <container-dialog id="MilestoneDeliverableDialog" button-text="Add deliverable" icon="sym_o_add" width="520" title="A deliverable of ${milestone.workEffortName}"
+                                    condition="extras.canEditDeliverables">
+                                <form-single name="MilestoneDeliverableForm" transition="saveDeliverable" focus-field="deliverableName">
+                                    <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                    <field name="deliverableName"><default-field title="Name"><text-line size="40"/></default-field></field>
+                                    <field name="deliverableTypeEnumId" from="'DlvtDocument'"><default-field title="Type">
+                                        <drop-down><list-options list="deliverableTypes" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                    <field name="description"><default-field title="Description"><text-area rows="2" cols="50"/></default-field></field>
+                                    <field name="submitButton"><default-field title="Add"><submit/></default-field></field>
+                                </form-single>
+                            </container-dialog>
+                        </box-toolbar>
+                        <box-body-nopad>
+                            <form-list name="MilestoneDeliverables" list="deliverableRows" skip-form="true" paginate="false">
+                                <field name="deliverableName"><default-field title="Deliverable">
+                                    <label text="${deliverableName}" type="div" style="text-weight-medium"/>
+                                    <label text="${description}" type="div" style="text-caption m-muted" condition="description"/></default-field></field>
+                                <field name="typeText"><default-field title="Type"><display/></default-field></field>
+                                <field name="acceptedText"><default-field title="Accepted">
+                                    <label text="${acceptedText}" type="span" style="${accepted ? 'text-positive' : 'm-muted'}"/></default-field></field>
+                                <field name="actions" align="right"><default-field title="">
+                                    <container style="row no-wrap justify-end q-gutter-xs">
+                                        <link url="deliverableState" link-type="hidden-form-link" text="Accept" icon="sym_o_check" parameter-map="{workEffortId:workEffortId, deliverableId:deliverableId, action:'accept'}"
+                                                condition="extras.canAccept &amp;&amp; !accepted"/>
+                                        <link url="deliverableState" link-type="hidden-form-link" text="Undo" icon="sym_o_undo" parameter-map="{workEffortId:workEffortId, deliverableId:deliverableId, action:'unaccept'}"
+                                                condition="extras.canAccept &amp;&amp; accepted"/>
+                                        <link url="deliverableState" link-type="hidden-form-link" text="" icon="sym_o_remove_circle" tooltip="Take it off" style="m-btn-flat"
+                                                parameter-map="{workEffortId:workEffortId, deliverableId:deliverableId, action:'remove'}" condition="extras.canEditDeliverables &amp;&amp; !accepted"
+                                                confirmation="Take ${deliverableName} off the milestone?"/>
+                                    </container></default-field></field>
+                                <columns type="mobile">
+                                    <column><field-ref name="deliverableName"/><field-ref name="acceptedText"/></column>
+                                    <column><field-ref name="actions"/></column>
+                                </columns>
+                            </form-list>
+                            <label type="p" text="No deliverables yet: add what this milestone hands over." style="m-muted q-pa-sm q-mb-none" condition="!deliverableRows.length"/>
+                        </box-body-nopad>
+                    </container-box>
                 </container>
                 <container style="col-12 col-lg-4">
                     <chatter id="MilestoneChatter" record-entity="mantle.work.effort.WorkEffort" record-id="${workEffortId}" default-tab="message"/>
