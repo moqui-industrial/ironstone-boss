@@ -14,19 +14,21 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <entity-facade-xml type="seed-initial">
     <!-- An artifact group and authz per IronStone app, via its root screen. Commons and Comms are for everyone who signs
-        in (design-drawers-commons.md §2); a deployment narrows that with its own authz. Each business app is ADMIN only
+        in (design-drawers-commons.md §2) but the Projects client contacts, denied them below (design-projects.md §1.1; their
+        ALL_USERS authz is AUTHZT_ALLOW, not AUTHZT_ALWAYS, so a deny reaches; impl-projects.md F3, P10); a deployment narrows that
+        with its own authz. Each business app is ADMIN only
         until its design file names its user groups. The active organization limits finds and search, as in PopCommerce;
         MANTLE_USER_ORG limits to all the user's orgs. MANTLE_PRIVATE_CONTACT keeps another user's personal contacts
         hidden whether or not an organization is active. -->
     <artifactGroups artifactGroupId="BOSS_COMMONS" description="IronStone Commons App (via root screen)">
         <artifacts artifactName="component://ironstone-boss/screen/Commons.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
-        <authz artifactAuthzId="BOSS_COMMONS_ALL_USERS" userGroupId="ALL_USERS" authzTypeEnumId="AUTHZT_ALWAYS" authzActionEnumId="AUTHZA_ALL">
+        <authz artifactAuthzId="BOSS_COMMONS_ALL_USERS" userGroupId="ALL_USERS" authzTypeEnumId="AUTHZT_ALLOW" authzActionEnumId="AUTHZA_ALL">
             <filters entityFilterSetId="MANTLE_ACTIVE_ORG"/>
             <filters entityFilterSetId="MANTLE_PRIVATE_CONTACT"/></authz>
     </artifactGroups>
     <artifactGroups artifactGroupId="BOSS_COMMS" description="IronStone Comms App (via root screen)">
         <artifacts artifactName="component://ironstone-boss/screen/Comms.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
-        <authz artifactAuthzId="BOSS_COMMS_ALL_USERS" userGroupId="ALL_USERS" authzTypeEnumId="AUTHZT_ALWAYS" authzActionEnumId="AUTHZA_ALL">
+        <authz artifactAuthzId="BOSS_COMMS_ALL_USERS" userGroupId="ALL_USERS" authzTypeEnumId="AUTHZT_ALLOW" authzActionEnumId="AUTHZA_ALL">
             <filters entityFilterSetId="MANTLE_ACTIVE_ORG"/>
             <filters entityFilterSetId="MANTLE_PRIVATE_CONTACT"/></authz>
     </artifactGroups>
@@ -97,10 +99,65 @@ along with this software (see the LICENSE.md file). If not, see
             <filters entityFilterSetId="MANTLE_ACTIVE_ORG"/>
             <filters entityFilterSetId="MANTLE_PRIVATE_CONTACT"/></authz>
     </artifactGroups>
-    <!-- Projects (design-projects.md §1.1): the project team and the project managers, and the client contacts, whose group
-        gets its filter set and authorization with client access (impl-projects.md P10) and so may not open the app yet.
-        Managers are ALWAYS, so the deny below never reaches them; the team is ALLOW, and denied the managers' screens, which
-        leaves those out of its menu. -->
+    <!-- The client filter set (design-projects.md §15 Client access; impl-projects.md F2, P10): what a client contact's finds see,
+        from the user context mantle.work.ProjectServices.setup#ClientProjectInfo fills in the Projects root's always-actions (each
+        list _NA_ when empty, and _NA_ when it was not set: a filter then matches nothing). A view without an alias a filter needs
+        finds nothing (allowMissingAlias N). The services that read with authorization disabled apply the same rules themselves
+        (get#VisibleProjectInfo, get#RecordLinkInfo, get#ClientRecordVisibility). -->
+    <moqui.security.EntityFilterSet entityFilterSetId="BOSS_PROJECT_CLIENT" description="Projects Client Filters" allowMissingAlias="N">
+        <!-- a client project, a work item of one shared with the client (All users or General), a milestone or release of one -->
+        <filters entityFilterId="BOSS_PROJECT_CLIENT_WE" entityName="mantle.work.effort.WorkEffort"
+                filterMap="({_join: 'or', _list: [{workEffortId: ec.user.context.clientProjectIds || ['_NA_']},
+                    {rootWorkEffortId: ec.user.context.clientProjectIds || ['_NA_'], workEffortTypeEnumId: 'WetTask', visibilityEnumId: ['WevAllUsers', 'WevGeneral']},
+                    {rootWorkEffortId: ec.user.context.clientProjectIds || ['_NA_'], workEffortTypeEnumId: ['WetMilestone', 'WetRelease']}]})"/>
+        <!-- the people and organizations on a client project (not on its items) -->
+        <filters entityFilterId="BOSS_PROJECT_CLIENT_WEP" entityName="mantle.work.effort.WorkEffortParty"
+                filterMap="({workEffortId: ec.user.context.clientProjectIds || ['_NA_']})"/>
+        <!-- a request the user filed, or one of a client project filed by a contact of the user's organization -->
+        <filters entityFilterId="BOSS_PROJECT_CLIENT_REQ" entityName="mantle.request.Request"
+                filterMap="({_join: 'or', _list: [{filedByPartyId: (ec.user.userAccount &amp;&amp; ec.user.userAccount.partyId) || '_NA_'},
+                    {rootWorkEffortId: ec.user.context.clientProjectIds || ['_NA_'], filedByPartyId: ec.user.context.clientContactPartyIds || ['_NA_']}]})"/>
+        <!-- a message from or to the user or its organization, or a status update posted for the client; never a note -->
+        <filters entityFilterId="BOSS_PROJECT_CLIENT_CE" entityName="mantle.party.communication.CommunicationEvent"
+                filterMap="({_join: 'or', _list: [{fromPartyId: ec.user.context.clientPartyIds || ['_NA_']},
+                    {toPartyId: ec.user.context.clientPartyIds || ['_NA_']}, {communicationEventId: ec.user.context.clientStatusUpdateIds || ['_NA_']}]})"/>
+        <filters entityFilterId="BOSS_PROJECT_CLIENT_CE_NOTE" entityName="mantle.party.communication.CommunicationEvent"
+                filterMap="({communicationEventTypeId: 'Comment', _comp: 'not-equals'})"/>
+        <filters entityFilterId="BOSS_PROJECT_CLIENT_WEU" entityName="mantle.work.effort.WorkEffortUpdate"
+                filterMap="({workEffortId: ec.user.context.clientProjectIds || ['_NA_'], clientVisible: 'Y'})"/>
+        <!-- the people and organizations a client may know of (get#ClientProjectInfo scopePartyIds: its organization's contacts,
+            the parties of its projects, their shared items and requests), so a search or drop-down lists no other client -->
+        <filters entityFilterId="BOSS_PROJECT_CLIENT_PARTY" entityName="mantle.party.Party"
+                filterMap="({partyId: ec.user.context.clientScopePartyIds || ['_NA_']})"/>
+        <!-- money: invoices, payments and orders of the client's own parties; no rates, no time, no billing shares -->
+        <filters entityFilterId="BOSS_PROJECT_CLIENT_INV" entityName="mantle.account.invoice.Invoice"
+                filterMap="({toPartyId: ec.user.context.clientPartyIds || ['_NA_']})"/>
+        <filters entityFilterId="BOSS_PROJECT_CLIENT_PAY" entityName="mantle.account.payment.Payment"
+                filterMap="({fromPartyId: ec.user.context.clientPartyIds || ['_NA_']})"/>
+        <filters entityFilterId="BOSS_PROJECT_CLIENT_ORD" entityName="mantle.order.OrderPart"
+                filterMap="({customerPartyId: ec.user.context.clientPartyIds || ['_NA_']})"/>
+        <filters entityFilterId="BOSS_PROJECT_CLIENT_RATE" entityName="mantle.humanres.rate.RateAmount" filterMap="({rateAmountId: '_NA_'})"/>
+        <filters entityFilterId="BOSS_PROJECT_CLIENT_OIWE" entityName="mantle.order.OrderItemWorkEffort" filterMap="({orderId: '_NA_'})"/>
+        <filters entityFilterId="BOSS_PROJECT_CLIENT_WEB" entityName="mantle.work.effort.WorkEffortBilling" filterMap="({workEffortId: '_NA_'})"/>
+        <filters entityFilterId="BOSS_PROJECT_CLIENT_WEI" entityName="mantle.work.effort.WorkEffortInvoice" filterMap="({workEffortId: '_NA_'})"/>
+        <!-- time: none until the client states of P10b (a project that shares its hours, without rates) -->
+        <filters entityFilterId="BOSS_PROJECT_CLIENT_TE" entityName="mantle.work.time.TimeEntry" filterMap="({timeEntryId: '_NA_'})"/>
+        <filters entityFilterId="BOSS_PROJECT_CLIENT_TS" entityName="mantle.work.time.Timesheet" filterMap="({timesheetId: '_NA_'})"/>
+        <filters entityFilterId="BOSS_PROJECT_CLIENT_ALLOC" entityName="mantle.work.effort.WorkEffortAllocation" filterMap="({workEffortAllocationId: '_NA_'})"/>
+        <!-- internal notes and a work effort's files (a request's files are the client's) -->
+        <filters entityFilterId="BOSS_PROJECT_CLIENT_WEN" entityName="mantle.work.effort.WorkEffortNote" filterMap="({workEffortId: '_NA_'})"/>
+        <filters entityFilterId="BOSS_PROJECT_CLIENT_REQN" entityName="mantle.request.RequestNote" filterMap="({requestId: '_NA_'})"/>
+        <filters entityFilterId="BOSS_PROJECT_CLIENT_WEC" entityName="mantle.work.effort.WorkEffortContent" filterMap="({workEffortContentId: '_NA_'})"/>
+        <!-- of a project's settings only what decides a client's view (modules, estimate unit, item types, sharing, a gate) -->
+        <filters entityFilterId="BOSS_PROJECT_CLIENT_WES" entityName="mantle.work.effort.WorkEffortSetting"
+                filterMap="({settingTypeEnumId: ['WstModules', 'WstEstimateUnit', 'WstWorkItemTypes', 'WstClientSignIn', 'WstShareHours',
+                    'WstShareRepositories', 'WstApprovalRequired', 'WstApproverParty']})"/>
+    </moqui.security.EntityFilterSet>
+    <!-- Projects (design-projects.md §1.1): the project team, the project managers and the client contacts. Managers are
+        ALWAYS, so the denies below never reach them; the team is ALLOW, and denied the managers' screens, which leaves those out of
+        its menu; the client contacts (impl-projects.md P10) are ALLOW under the BOSS_PROJECT_CLIENT filter set, denied the
+        managers' and the internal screens (BOSS_PROJECTS_INTERNAL), every write of an IronStone service or a Mantle entity, and
+        Commons and Comms, so Projects' shared part is their whole BOSS. -->
     <moqui.security.UserGroup userGroupId="BOSS_PROJECT_TEAM" description="Project team (IronStone Projects): employees and contractors who do project work"/>
     <moqui.security.UserGroup userGroupId="BOSS_PROJECT_MANAGER" description="Project managers (IronStone Projects): project, delivery and resource managers, and who bills the work"/>
     <moqui.security.UserGroup userGroupId="BOSS_PROJECT_CLIENT" description="Project clients (IronStone Projects): client contacts with a user account"/>
@@ -114,6 +171,10 @@ along with this software (see the LICENSE.md file). If not, see
             <filters entityFilterSetId="MANTLE_PRIVATE_CONTACT"/></authz>
         <authz artifactAuthzId="BOSS_PROJECTS_TEAM" userGroupId="BOSS_PROJECT_TEAM" authzTypeEnumId="AUTHZT_ALLOW" authzActionEnumId="AUTHZA_ALL">
             <filters entityFilterSetId="MANTLE_ACTIVE_ORG"/>
+            <filters entityFilterSetId="MANTLE_PRIVATE_CONTACT"/></authz>
+        <!-- the client contacts: the client filter set in place of the organization filter (design-projects.md §1.1) -->
+        <authz artifactAuthzId="BOSS_PROJECTS_CLIENT" userGroupId="BOSS_PROJECT_CLIENT" authzTypeEnumId="AUTHZT_ALLOW" authzActionEnumId="AUTHZA_ALL">
+            <filters entityFilterSetId="BOSS_PROJECT_CLIENT"/>
             <filters entityFilterSetId="MANTLE_PRIVATE_CONTACT"/></authz>
     </artifactGroups>
     <artifactGroups artifactGroupId="BOSS_PROJECTS_MANAGERS" description="IronStone Projects screens for managers only">
@@ -129,7 +190,55 @@ along with this software (see the LICENSE.md file). If not, see
         <artifacts artifactName="component://ironstone-boss/screen/Projects/Reports/Profitability.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
         <artifacts artifactName="component://ironstone-boss/screen/Projects/Reports/Utilization.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
         <authz artifactAuthzId="BOSS_PROJECTS_MANAGERS_TEAM" userGroupId="BOSS_PROJECT_TEAM" authzTypeEnumId="AUTHZT_DENY" authzActionEnumId="AUTHZA_ALL"/>
+        <authz artifactAuthzId="BOSS_PROJECTS_MANAGERS_CLIENT" userGroupId="BOSS_PROJECT_CLIENT" authzTypeEnumId="AUTHZT_DENY" authzActionEnumId="AUTHZA_ALL"/>
     </artifactGroups>
+    <!-- What the client contacts never reach (impl-projects.md P10; design-projects.md §1.1, §2 Roles): by location, so a screen
+        mounted under another path (a ProjectDetail tab from Time, Backlog or Commons) is denied wherever it is mounted. The
+        sections Code, Time, Resources, Reports (P9: no reports for clients), Settings and Billing (P10b opens Invoices and
+        InvoiceDetail read only), quick create, the wizard and prints, the internal ProjectDetail tabs (Code, Docs, Team, Time,
+        Money, Files, Settings, Plan's Calendar), the Backlog, sprints and import, and every Commons and Comms screen. What a
+        client may open: the root, Home, Projects (List, ProjectDetail with Overview, Work items, Plan's Timeline, Roadmap and
+        Requests), Roadmap, MilestoneDetail, ReleaseDetail, WorkItems (List, WorkItemDetail, Timeline), Requests (List,
+        RequestDetail), Chatter and RecordFiles; test/ClientIsolation.spec.js fails when a screen file is neither. -->
+    <artifactGroups artifactGroupId="BOSS_PROJECTS_INTERNAL" description="IronStone Projects screens and writes the client contacts never reach">
+        <artifacts artifactName="component://ironstone-boss/screen/Projects/(Code|Time|Resources|Reports|Settings|Billing)(\.xml|/.*)"
+                artifactTypeEnumId="AT_XML_SCREEN" nameIsPattern="Y" inheritAuthz="Y"/>
+        <artifacts artifactName="component://ironstone-boss/screen/Projects/(QuickCreate|QuickProject)\.xml"
+                artifactTypeEnumId="AT_XML_SCREEN" nameIsPattern="Y" inheritAuthz="Y"/>
+        <artifacts artifactName="component://ironstone-boss/screen/Projects/Projects/(NewProject|EstimatePrint|StatusReport)(\.xml|/.*)"
+                artifactTypeEnumId="AT_XML_SCREEN" nameIsPattern="Y" inheritAuthz="Y"/>
+        <artifacts artifactName="component://ironstone-boss/screen/Projects/Projects/ProjectDetail/(Code|Files|Money|Settings|Team|Plan/Calendar|Plan/CalendarTui)\.xml"
+                artifactTypeEnumId="AT_XML_SCREEN" nameIsPattern="Y" inheritAuthz="Y"/>
+        <artifacts artifactName="component://ironstone-boss/screen/Projects/WorkItems/(Backlog|BacklogTui|Import|ImportProgress|SprintDetail|SprintReport)(\.xml|/.*)"
+                artifactTypeEnumId="AT_XML_SCREEN" nameIsPattern="Y" inheritAuthz="Y"/>
+        <artifacts artifactName="component://ironstone-boss/screen/Shared/(InvoiceDetail|OrderDetail)\.xml"
+                artifactTypeEnumId="AT_XML_SCREEN" nameIsPattern="Y" inheritAuthz="Y"/>
+        <artifacts artifactName="component://ironstone-boss/screen/(Commons|Comms)(\.xml|/.*)"
+                artifactTypeEnumId="AT_XML_SCREEN" nameIsPattern="Y" inheritAuthz="Y"/>
+        <!-- every write of an IronStone app service (P10b opens the client's own: a message, a request, a gate decision) -->
+        <artifacts artifactName="ironstone\.[A-Za-z]+\.(add|apply|approve|archive|bulk|cancel|change|clockIn|clockOut|clone|close|complete|convert|copy|create|decide|delete|edit|follow|generate|import|invoice|link|log|make|mark|merge|move|post|publish|quickAdd|reassign|refuse|release|remove|rename|reopen|reply|request|return|save|schedule|send|set|share|staff|start|stop|store|submit|toggle|trash|triage|unfollow|unlink|update|upload)#.*"
+                artifactTypeEnumId="AT_SERVICE" nameIsPattern="Y" inheritAuthz="Y"/>
+        <!-- and the searches of the edit forms (people, records, work items and plan items to pick), which list beyond the client's part -->
+        <artifacts artifactName="ironstone\.(InboxServices\.search#LinkRecords|ChatterServices\.search#Users|TaskServices\.search#Assignees|ProjectRequestServices\.search#WorkItemOptions|WorkItemServices\.search#ParentOptions|PlanningServices\.search#PlanItemCandidates)"
+                artifactTypeEnumId="AT_SERVICE" nameIsPattern="Y" inheritAuthz="Y"/>
+        <authz artifactAuthzId="BOSS_PROJECTS_INTERNAL_CLIENT" userGroupId="BOSS_PROJECT_CLIENT" authzTypeEnumId="AUTHZT_DENY" authzActionEnumId="AUTHZA_ALL"/>
+    </artifactGroups>
+    <!-- and no write of a Mantle record at all, whatever the screen or service (P10b narrows it for the client's own writes) -->
+    <artifactGroups artifactGroupId="BOSS_PROJECTS_CLIENT_WRITES" description="Mantle records the client contacts may not create, change or delete">
+        <artifacts artifactName="mantle\..*" artifactTypeEnumId="AT_ENTITY" nameIsPattern="Y" inheritAuthz="Y"/>
+        <authz artifactAuthzId="BOSS_PROJECTS_CLIENT_CREATE" userGroupId="BOSS_PROJECT_CLIENT" authzTypeEnumId="AUTHZT_DENY" authzActionEnumId="AUTHZA_CREATE"/>
+        <authz artifactAuthzId="BOSS_PROJECTS_CLIENT_UPDATE" userGroupId="BOSS_PROJECT_CLIENT" authzTypeEnumId="AUTHZT_DENY" authzActionEnumId="AUTHZA_UPDATE"/>
+        <authz artifactAuthzId="BOSS_PROJECTS_CLIENT_DELETE" userGroupId="BOSS_PROJECT_CLIENT" authzTypeEnumId="AUTHZT_DENY" authzActionEnumId="AUTHZA_DELETE"/>
+    </artifactGroups>
+    <!-- Commons and Comms are denied the client contacts (design-projects.md §1.1, §16): Projects and the public pages are their
+        whole BOSS, the tray's tabs being Commons and Comms screens -->
+    <moqui.security.ArtifactAuthz artifactAuthzId="BOSS_COMMONS_CLIENT" userGroupId="BOSS_PROJECT_CLIENT" artifactGroupId="BOSS_COMMONS"
+            authzTypeEnumId="AUTHZT_DENY" authzActionEnumId="AUTHZA_ALL"/>
+    <moqui.security.ArtifactAuthz artifactAuthzId="BOSS_COMMS_CLIENT" userGroupId="BOSS_PROJECT_CLIENT" artifactGroupId="BOSS_COMMS"
+            authzTypeEnumId="AUTHZT_DENY" authzActionEnumId="AUTHZA_ALL"/>
+    <!-- the Mantle permission that makes the project services see a client's part only (mantle.work.ProjectServices
+        get#ClientProjectInfo, get#VisibleProjectInfo; CommunicationServices get#RecordLinkInfo, get#RecordTimeline) -->
+    <moqui.security.UserGroupPermission userGroupId="BOSS_PROJECT_CLIENT" userPermissionId="PROJECT_CLIENT" fromDate="0"/>
     <!-- Projects' link of the WorkItemAssigned topic that Mantle seeds and sends (mantle.work.TaskServices.notify#TaskAssigned): the
         work item in Projects, for the email; the tray opens the record's screen (ironstone.PaletteServices.get#RecordLink) -->
     <moqui.security.user.NotificationTopic topic="WorkItemAssigned" linkTemplate="/qapps/Projects/WorkItems/WorkItemDetail?workEffortId=${workEffortId}"/>

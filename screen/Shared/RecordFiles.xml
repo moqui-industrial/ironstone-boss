@@ -31,7 +31,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="filesData" method="get" read-only="true">
         <actions><script><![CDATA[
             const recordOut = ec.service.sync().name('ironstone.ChatterServices.get#RecordInfo').parameters({recordEntityName: recordEntity || '',
-                recordId: recordId || ''}).call()
+                recordId: recordId || '', forFiles: true}).call()
             if (!recordOut.visible) { ec.web.sendJsonResponse({visible: false}); return }
             const out = ec.service.sync().name('ironstone.RecordFilesServices.get#RecordFiles').parameters({recordEntityName: recordEntity,
                 recordId: recordId}).call()

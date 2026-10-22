@@ -25,7 +25,8 @@ along with this software (see the LICENSE.md file). If not, see
     <service verb="get" noun="ProjectAccess" allow-remote="false">
         <description>Whether the user may see (view), work in (update: a member, or one who manages) or manage (manage) a
             project; a need not met is an error ("not available" when the user does not see it), except with need none, which
-            only answers. isMember: the user holds a current role on it.</description>
+            only answers. isMember: the user holds a current role on it. A client contact (get#VisibleProjectInfo isClient) sees
+            its client projects only and neither works in nor manages one (impl-projects.md P10).</description>
         <in-parameters>
             <parameter name="workEffortId" required="true"/>
             <parameter name="need" default-value="view"/>
@@ -46,10 +47,14 @@ along with this software (see the LICENSE.md file). If not, see
                 isMember = Array.from(vis.memberProjectIds || []).includes(workEffortId)
                 canView = all || Array.from(vis.visibleProjectIds || []).includes(workEffortId)
                 // a template is seen by those who make projects, as Settings/Templates lists it
-                if (!canView && row.isTemplate === 'Y' && ec.user.isInGroup('BOSS_PROJECT_MANAGER')) canView = true
+                if (!canView && !vis.isClient && row.isTemplate === 'Y' && ec.user.isInGroup('BOSS_PROJECT_MANAGER')) canView = true
                 canManage = canView && (all || Array.from(vis.managedProjectIds || []).includes(workEffortId) || ec.user.isInGroup('BOSS_PROJECT_MANAGER'))
                 canUpdate = canView && (canManage || isMember)
+                // a client contact sees its client projects (get#VisibleProjectInfo) and changes nothing (impl-projects.md P10)
+                if (vis.isClient) { canManage = false; canUpdate = false; isMember = false }
                 if (canView) project = row.getMap()
+                // and no cost of it (design-projects.md §1.1: clients never see costs)
+                if (project && vis.isClient) for (const field of ['actualCost', 'actualClientCost', 'totalClientCostAllowed', 'costUomId']) delete project[field]
             }
             if (need === 'none') return
             if (!canView) { ec.message.addError(ec.resource.expand('Project ${workEffortId} is not available', '', {workEffortId})); return }

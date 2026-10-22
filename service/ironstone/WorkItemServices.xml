@@ -122,6 +122,8 @@ along with this software (see the LICENSE.md file). If not, see
                 if (managed.length) restrictedOk.push(cf.makeCondition('rootWorkEffortId', 'in', managed))
                 if (restricted.length) restrictedOk.push(cf.makeCondition('workEffortId', 'in', restricted))
                 base.push(cf.makeCondition(restrictedOk, 'or'))
+                // a client contact: the items shared with it only (impl-projects.md P10)
+                if (vis.itemVisibilityIds) base.push(cf.makeCondition('visibilityEnumId', 'in', Array.from(vis.itemVisibilityIds)))
             }
             const templateIds = idsOf(ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortTypeEnumId', 'WetProject')
                     .condition('isTemplate', 'Y').selectField('workEffortId').list())

@@ -26,7 +26,8 @@ along with this software (see the LICENSE.md file). If not, see
 
     <service verb="get" noun="ProjectSprints" allow-remote="false">
         <description>The sprints of a project: the open ones (in progress first, then the planned by start) and, with
-            includeClosed, the completed ones (the latest first), each with its dates as text, goal, capacity and status label.</description>
+            includeClosed, the completed ones (the latest first), each with its dates as text, goal, capacity and status label; none for a
+            user who does not see the project or is a client contact (impl-projects.md F111).</description>
         <in-parameters>
             <parameter name="rootWorkEffortId" required="true"/>
             <parameter name="includeClosed" type="Boolean" default="false"/>
@@ -35,6 +36,9 @@ along with this software (see the LICENSE.md file). If not, see
         <actions><script><![CDATA[
             sprintList = []
             const L = (text) => ec.l10n.localize(text)
+            // only for one who sees the project and is no client contact (impl-projects.md F111)
+            const vis = ec.service.sync().name('mantle.work.ProjectServices.get#VisibleProjectInfo').call() || {}
+            if (vis.isClient || !(vis.allProjects || Array.from(vis.visibleProjectIds || []).includes(rootWorkEffortId))) return
             const settings = ec.service.sync().name('mantle.work.ProjectServices.get#ProjectSettings').parameters({workEffortId: rootWorkEffortId}).call()?.settings || {}
             estimateUnit = settings.WstEstimateUnit === 'points' ? 'points' : 'hours'
             const toMillis = (value) => {
@@ -547,6 +551,8 @@ along with this software (see the LICENSE.md file). If not, see
                 const access = ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: row.rootWorkEffortId, need: 'none'}).call() || {}
                 canView = !!access.canView; canUpdate = !!access.canUpdate; canManage = !!access.canManage
                 if (canView) { plan = row.getMap(); project = access.project }
+                // a client contact: no cost of it (design-projects.md §1.1; impl-projects.md P10)
+                if (plan && ec.user.hasPermission('PROJECT_CLIENT')) for (const field of ['actualCost', 'actualClientCost', 'totalClientCostAllowed', 'costUomId']) delete plan[field]
             }
             if (need === 'none') return
             const label = ec.l10n.localize(kind === 'release' ? 'Release' : kind === 'milestone' ? 'Milestone' : 'Plan item')

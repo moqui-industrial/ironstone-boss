@@ -40,9 +40,12 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="recordEntityName"/>
             <parameter name="recordId"/>
             <parameter name="requireVisible" type="Boolean" default="false"/>
+            <parameter name="forFiles" type="Boolean" default="false"><description>For the record's files (RecordFiles): a client
+                contact (the PROJECT_CLIENT permission) sees the files of a request only (impl-projects.md P10)</description></parameter>
         </in-parameters>
         <out-parameters>
             <parameter name="visible" type="Boolean"/>
+            <parameter name="isClient" type="Boolean"/>
             <parameter name="info" type="Map"/>
             <parameter name="title"/>
             <parameter name="typeLabel"/>
@@ -53,6 +56,7 @@ along with this software (see the LICENSE.md file). If not, see
         <actions><script><![CDATA[
             visible = false
             info = null
+            isClient = !!ec.user.userId && ec.user.hasPermission('PROJECT_CLIENT')
             if (!recordEntityName || !recordId) {
                 if (requireVisible) ec.message.addError(ec.l10n.localize('No record given'))
                 return
@@ -67,6 +71,7 @@ along with this software (see the LICENSE.md file). If not, see
                         .parameters({recordEntityName: recordEntityName, recordId: recordId, checkOnly: true}).call()
                 if (ec.message.hasError()) why = ec.message.getErrorsString()
                 else if (out?.recordVisible !== true) why = out?.notVisibleReason || `${recordEntityName} ${recordId} not found`
+                else if (forFiles && isClient && out.recordEntityName !== 'mantle.request.Request') why = `${recordEntityName} ${recordId} has no files for a client`
             } catch (err) {
                 why = err && err.message ? err.message : String(err)
             } finally {
@@ -297,8 +302,11 @@ along with this software (see the LICENSE.md file). If not, see
                     return names[partyId]
                 }
 
+                // a client contact (impl-projects.md P10): no followers, files or parties of the record, and nothing to do
+                const forClient = !!recordOut.isClient
+                if (forClient) { canMessage = false; canSchedule = false; mayUpdate = false }
                 // the followers, and the kinds each gets
-                part('followers', () => {
+                if (!forClient) part('followers', () => {
                     const out = ec.service.sync().name('mantle.party.CommunicationServices.get#RecordFollowers')
                             .parameters({recordEntityName: entityName, recordId: recordId}).call()
                     if (ec.message.hasError()) return
@@ -362,7 +370,7 @@ along with this software (see the LICENSE.md file). If not, see
                 })
 
                 // the attachments strip: the first files
-                if (hasContent) part('files', () => {
+                if (hasContent && !(forClient && entityName !== 'mantle.request.Request')) part('files', () => {
                     const out = ec.service.sync().name('ironstone.RecordFilesServices.get#RecordFiles')
                             .parameters({recordEntityName: entityName, recordId: recordId, limit: 6}).call()
                     if (ec.message.hasError()) return
@@ -372,7 +380,7 @@ along with this software (see the LICENSE.md file). If not, see
                 })
 
                 // the record's parties with an email address, for Email… (Comms Compose)
-                part('parties', () => {
+                if (!forClient) part('parties', () => {
                     let partyIds = []
                     const current = cf.makeConditionDate('fromDate', 'thruDate', ec.user.nowTimestamp)
                     if (info.isParty) partyIds = [recordId]
@@ -960,6 +968,13 @@ along with this software (see the LICENSE.md file). If not, see
             <service-call name="ironstone.ChatterServices.check#CommEventOnRecord"
                     in-map="{info:recordOut.info, recordId:recordId, communicationEventId:eventContent.communicationEventId}"/>
             <if condition="ec.message.hasError()"><return/></if>
+            <!-- a client contact: only an attachment of a message for it (impl-projects.md P10) -->
+            <if condition="recordOut.isClient">
+                <service-call name="mantle.party.CommunicationServices.get#ClientRecordVisibility" out-map="clientOut"
+                        in-map="{communicationEventIds:[eventContent.communicationEventId]}"/>
+                <if condition="ec.message.hasError() || !Array.from(clientOut?.visibleCommunicationEventIds || []).includes(eventContent.communicationEventId)">
+                    <return error="true" message="Attachment ${communicationEventContentId} not found"/></if>
+            </if>
             <script><![CDATA[
                 contentLocation = String(eventContent.contentLocation)
                 const last = contentLocation.substring(contentLocation.lastIndexOf('/') + 1)

@@ -24,6 +24,8 @@ along with this software (see the LICENSE.md file). If not, see
           manager and billing contact, at risk after its latest status update, with a weekly report that repeats;
         - HIRE, Hiring plan 2027, a Work group project only john.doe is on, which the team does not see;
         - ACMEAPP, Acme mobile app, a sub-project of ACME in planning (ACME is its program);
+        - BLUTH, Bluth banana stand site, Bluth Corp's client project, Work group (john.doe its manager), which its client contact
+          Gob Bluth signs in to, as Sheldon Acme to ACME (client access, impl-projects.md P10);
         - TPLWEB, Client web site, a project template (isTemplate) with a tree of work items, a milestone and its settings, which
           NewProject and Settings/Templates offer and the project lists leave out. -->
 
@@ -264,6 +266,20 @@ along with this software (see the LICENSE.md file). If not, see
     <mantle.work.effort.WorkEffortCommEvent workEffortId="ACME" communicationEventId="BOSS_DEMO_ACME_UPD1"/>
     <!-- the project's modules (its later tabs, design-projects.md §4) -->
     <mantle.work.effort.WorkEffortSetting workEffortId="ACME" settingTypeEnumId="WstModules" settingValue="requests,time,money,client"/>
+    <!-- client access (impl-projects.md P10): Acme's contacts sign in (Sheldon Acme, sheldon.acme, in BOSS_PROJECT_CLIENT); on
+        ACME-1 a note the team keeps to itself and a message to Sheldon, of which he sees only the message -->
+    <mantle.work.effort.WorkEffortSetting workEffortId="ACME" settingTypeEnumId="WstClientSignIn" settingValue="Y"/>
+    <mantle.party.communication.CommunicationEvent communicationEventId="BOSS_DEMO_ACME_NOTE1" communicationEventTypeId="Comment"
+            contactMechTypeEnumId="CmtWebForm" statusId="CeSent" fromPartyId="EX_JOHN_DOE" entryDate="2026-10-19 10:00:00"
+            subject="Customer sign-in" contentType="text/html"
+            body="&lt;p&gt;Their directory team is slow; keep the sign-on estimate padded until we have the test accounts.&lt;/p&gt;"/>
+    <mantle.work.effort.WorkEffortCommEvent workEffortId="ACME-1" communicationEventId="BOSS_DEMO_ACME_NOTE1"/>
+    <mantle.party.communication.CommunicationEvent communicationEventId="BOSS_DEMO_ACME_MSG1" communicationEventTypeId="Message"
+            statusId="CeSent" fromPartyId="EX_JOHN_DOE" toPartyId="ORG_ACME_SA" entryDate="2026-10-19 10:30:00"
+            subject="Customer sign-in (ACME-1)" contentType="text/html"
+            body="&lt;p&gt;Could you send us two test accounts in your directory? Sign-in goes live as soon as we have them.&lt;/p&gt;"/>
+    <mantle.party.communication.CommunicationEventParty communicationEventId="BOSS_DEMO_ACME_MSG1" partyId="ORG_ACME_SA" roleTypeId="MessageTo"/>
+    <mantle.work.effort.WorkEffortCommEvent workEffortId="ACME-1" communicationEventId="BOSS_DEMO_ACME_MSG1"/>
 
     <!-- ACMEAPP: a sub-project of ACME, its program -->
     <mantle.work.effort.WorkEffort workEffortId="ACMEAPP" workEffortTypeEnumId="WetProject" purposeEnumId="WepPrClient" statusId="WeInPlanning"
@@ -273,6 +289,28 @@ along with this software (see the LICENSE.md file). If not, see
     <mantle.work.effort.WorkEffortParty workEffortId="ACMEAPP" partyId="ORG_ZIZI_SERVICES" roleTypeId="Vendor" fromDate="2026-10-12 09:00:00"/>
     <mantle.work.effort.WorkEffortParty workEffortId="ACMEAPP" partyId="ORG_ACME" roleTypeId="Customer" fromDate="2026-10-12 09:00:00"/>
     <moqui.entity.SequenceValueItem seqName="Project_ACMEAPP" seqNum="0"/>
+
+    <!-- BLUTH: a second client's project, so client access is seen to keep clients apart (impl-projects.md P10): Bluth Corp's
+        Gob Bluth (gob.bluth, in BOSS_PROJECT_CLIENT) signs in to it; one item shared with the client, one the team's own -->
+    <mantle.work.effort.WorkEffort workEffortId="BLUTH" workEffortTypeEnumId="WetProject" purposeEnumId="WepPrClient" statusId="WeInProgress"
+            visibilityEnumId="WevWorkGroup" priority="4" ownerPartyId="ORG_ZIZI_SERVICES" workEffortName="Bluth banana stand site"
+            description="A site for the banana stand: the menu, the hours and the stand's history." estimatedStartDate="2026-10-05 09:00:00"
+            estimatedCompletionDate="2026-12-18 17:00:00"/>
+    <mantle.work.effort.WorkEffortParty workEffortId="BLUTH" partyId="EX_JOHN_DOE" roleTypeId="ProjectManager" fromDate="2026-10-05 09:00:00" statusId="WeptAssigned"/>
+    <mantle.work.effort.WorkEffortParty workEffortId="BLUTH" partyId="ORG_ZIZI_SERVICES" roleTypeId="Vendor" fromDate="2026-10-05 09:00:00"/>
+    <mantle.work.effort.WorkEffortParty workEffortId="BLUTH" partyId="ORG_BLUTH" roleTypeId="Customer" fromDate="2026-10-05 09:00:00"/>
+    <mantle.work.effort.WorkEffortParty workEffortId="BLUTH" partyId="ORG_BLUTH_GOB" roleTypeId="ClientManager" fromDate="2026-10-05 09:00:00" statusId="WeptAssigned"/>
+    <mantle.work.effort.WorkEffortSetting workEffortId="BLUTH" settingTypeEnumId="WstModules" settingValue="requests,client"/>
+    <mantle.work.effort.WorkEffortSetting workEffortId="BLUTH" settingTypeEnumId="WstClientSignIn" settingValue="Y"/>
+    <moqui.entity.SequenceValueItem seqName="Project_BLUTH" seqNum="2"/>
+    <mantle.work.effort.WorkEffort workEffortId="BLUTH-1" workEffortTypeEnumId="WetTask" purposeEnumId="WepNewFeature" statusId="WeInProgress"
+            resolutionEnumId="WerUnresolved" visibilityEnumId="WevGeneral" priority="3" sequenceNum="1000" rootWorkEffortId="BLUTH"
+            ownerPartyId="EX_JOHN_DOE" workEffortName="Frozen banana menu page" estimatedWorkTime="12" remainingWorkTime="8"
+            estimatedCompletionDate="2026-11-06 17:00:00"/>
+    <mantle.work.effort.WorkEffort workEffortId="BLUTH-2" workEffortTypeEnumId="WetTask" purposeEnumId="WepTask" statusId="WeInPlanning"
+            resolutionEnumId="WerUnresolved" visibilityEnumId="WevWorkGroup" priority="4" sequenceNum="2000" rootWorkEffortId="BLUTH"
+            ownerPartyId="EX_JOHN_DOE" workEffortName="Price the stand's hosting"/>
+    <mantle.work.effort.WorkEffortParty workEffortId="BLUTH-1" partyId="ORG_ZIZI_JD" roleTypeId="Assignee" fromDate="2026-10-12 09:00:00" statusId="WeptAssigned"/>
 
     <!-- HIRE: a Work group project only john.doe is on -->
     <mantle.work.effort.WorkEffort workEffortId="HIRE" workEffortTypeEnumId="WetProject" purposeEnumId="WepPrOrgMgmt" statusId="WeInPlanning"

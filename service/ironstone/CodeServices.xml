@@ -1080,7 +1080,8 @@ along with this software (see the LICENSE.md file). If not, see
 
     <service verb="search" noun="CodePalette">
         <description>The palette's Code group (Projects.xml palette-source): mantle.work.GitServices.search#Code as rows with
-            title, subtitle, icon and the /qapps link of RepositoryDetail or MergeRequestDetail.</description>
+            title, subtitle, icon and the /qapps link of RepositoryDetail or MergeRequestDetail. None for a client contact, who has
+            no Code screens (impl-projects.md P10).</description>
         <in-parameters>
             <parameter name="text"/>
             <parameter name="limit" type="Integer" default="5"/>
@@ -1090,6 +1091,7 @@ along with this software (see the LICENSE.md file). If not, see
         <out-parameters><parameter name="rows" type="List"/></out-parameters>
         <actions><script><![CDATA[
             rows = []
+            if (ec.user.hasPermission('PROJECT_CLIENT')) return
             const hosting = ec.service.sync().name('ironstone.CodeServices.get#CodeHosting').call()?.available
             if (!hosting) return
             const found = Array.from(ec.service.sync().name('mantle.work.GitServices.search#Code').parameters({text, limit}).call()?.resultList || [])
