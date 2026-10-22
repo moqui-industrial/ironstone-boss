@@ -1207,7 +1207,8 @@ along with this software (see the LICENSE.md file). If not, see
             updated first; org.moqui.impl.GitReviewServices.find#MergeRequests waitingForUserId, decorated by
             ironstone.CodeServices.decorate#MergeRequestRows), with hosting false when the build has no git hosting. timer: the
             user's running timer, and approvalList: the submitted weeks the user approves (ironstone.TimeServices.get#HomeTime;
-            impl-projects.md P6a). Allocation approvals (P7) and the charts (P9) come with their phases.</description>
+            impl-projects.md P6a), then the requested allocations the user decides (ironstone.ResourceServices.get#HomeAllocations;
+            impl-projects.md P7). The charts (P9) come with their phase.</description>
         <out-parameters><parameter name="home" type="Map"/></out-parameters>
         <actions><script><![CDATA[
             const managers = ec.user.isInGroup('BOSS_PROJECT_MANAGER') || ec.user.isInGroup('ADMIN')
@@ -1234,6 +1235,12 @@ along with this software (see the LICENSE.md file). If not, see
                 const out = ec.service.sync().name('ironstone.TimeServices.get#HomeTime').parameters({managers: managers}).call() || {}
                 home.timer = out.timer || null
                 home.approvalList = Array.from(out.approvalList || [])
+            })
+            // impl-projects.md P7: the requested allocations the user decides, after the weeks
+            part('allocations', () => {
+                if (!managers) return
+                const rows = Array.from(ec.service.sync().name('ironstone.ResourceServices.get#HomeAllocations').call()?.approvalList || [])
+                home.approvalList = home.approvalList.concat(rows)
             })
             part('reviews', () => {
                 home.hosting = !!ec.service.sync().name('ironstone.CodeServices.get#CodeHosting').call()?.available

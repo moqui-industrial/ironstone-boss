@@ -642,7 +642,8 @@ along with this software (see the LICENSE.md file). If not, see
             const rows = Array.from(ec.service.sync().name('mantle.work.TimesheetServices.find#Timesheets').parameters({list: 'toApprove', withCounts: false})
                     .call()?.rowList || [])
             rows.sort((a, b) => String(a.weekStart).localeCompare(String(b.weekStart)) || String(a.personName).localeCompare(String(b.personName)))
-            approvalList = rows.slice(0, 5).map((row) => ({timesheetId: row.timesheetId, personName: row.personName, weekText: row.weekText,
+            approvalList = rows.slice(0, 5).map((row) => ({kind: 'timesheet', timesheetId: row.timesheetId, personName: row.personName, weekText: row.weekText,
+                whatText: ec.l10n.localize('Timesheet') + ' · ' + row.weekText, sortDate: row.submittedDate ? Number(String(row.submittedDate)) : 0,
                 hoursText: ec.l10n.format(row.hours, '#,##0.##') + ' h', sinceText: row.submittedDate ? ec.l10n.format(String(row.submittedDate), 'MMM d') : '',
                 url: '/qapps/Projects/Time/TimesheetDetail?timesheetId=' + encodeURIComponent(row.timesheetId)}))
         ]]></script></actions>

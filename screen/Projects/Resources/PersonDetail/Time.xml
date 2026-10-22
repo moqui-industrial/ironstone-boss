@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- PersonDetail's Time (design-projects.md §9 PersonDetail): the person's time of the last four weeks as the viewer may see it (the
+    person, the managers of its projects, their line managers, ADMIN; ironstone.TimeServices.find#TimeEntryRows with the person, over
+    mantle.work.TimeServices.find#TimeEntries), with the totals, and their timesheets (find#TimesheetRows all with the person), each
+    opening TimesheetDetail; others see that the time is not theirs to see. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Time" default-menu-index="4">
+
+    <actions><script><![CDATA[
+        timeRows = []; sheetRows = []
+        if (!personFound) return
+        const nowMs = Number(String(ec.user.nowTimestamp))
+        const out = ec.service.sync().name('ironstone.TimeServices.find#TimeEntryRows').parameters({list: 'all', partyId: partyId, pageSize: 100,
+            dateFrom: new Date(nowMs - 28 * 86400000), withTotals: true}).call() || {}
+        ec.message.clearErrors()
+        timeRows = Array.from(out.rowList || [])
+        totalText = ec.l10n.format(out.totals?.hours ?? 0, '#,##0.##') + ' h'
+        const sheets = ec.service.sync().name('ironstone.TimeServices.find#TimesheetRows').parameters({list: 'all', partyId: partyId}).call() || {}
+        ec.message.clearErrors()
+        sheetRows = Array.from(sheets.rowList || []).filter((row) => row.timesheetId).slice(0, 8)
+        entriesUrl = '/qapps/Projects/Time/TimeEntries?list=all&partyId=' + encodeURIComponent(partyId)
+        sheetsUrl = '/qapps/Projects/Time/Timesheets?list=all&partyId=' + encodeURIComponent(partyId)
+    ]]></script></actions>
+
+    <widgets>
+        <container-row>
+            <row-col md="8">
+                <container-box><box-header title="The last four weeks · ${totalText}"/><box-toolbar>
+                    <link url="${entriesUrl}" url-type="plain" link-type="anchor" text="In Time entries"/>
+                </box-toolbar><box-body-nopad>
+                    <form-list name="PersonTime" list="timeRows" skip-form="true" paginate="false">
+                        <field name="dateText"><default-field title="Day"><display/></default-field></field>
+                        <field name="itemText"><default-field title="Work item"><link url="${itemUrl}" url-type="plain" text="${itemText}" link-type="anchor"/>
+                            <label text="${projectName || ''}" type="div" style="text-caption m-muted"/></default-field></field>
+                        <field name="hoursText" align="right"><default-field title="Hours"><display/></default-field></field>
+                        <field name="comments"><default-field title="Comment"><display/></default-field></field>
+                        <columns type="mobile">
+                            <column><field-ref name="dateText"/><field-ref name="itemText"/></column>
+                            <column><field-ref name="hoursText"/></column>
+                        </columns>
+                    </form-list>
+                    <section name="NoTime" condition="!timeRows.length"><widgets>
+                        <label type="p" text="No time you may see in the last four weeks" style="m-muted q-pa-sm q-mb-none"/>
+                    </widgets></section>
+                </box-body-nopad></container-box>
+            </row-col>
+            <row-col md="4">
+                <container-box><box-header title="Timesheets"/><box-toolbar>
+                    <link url="${sheetsUrl}" url-type="plain" link-type="anchor" text="All"/>
+                </box-toolbar><box-body-nopad>
+                    <form-list name="PersonTimesheets" list="sheetRows" skip-form="true" skip-header="true" paginate="false">
+                        <field name="weekText"><default-field><link url="${detailUrl}" url-type="plain" text="${weekText}" link-type="anchor"/></default-field></field>
+                        <field name="statusLabel"><default-field>
+                            <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${statusColor}">${WebUtilities.encodeHtml(statusLabel ?? '')}</q-chip>]]></text>
+                                <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify(statusLabel ?? "")}}]]></text></render-mode></default-field></field>
+                        <field name="hoursText" align="right"><default-field><display/></default-field></field>
+                    </form-list>
+                    <section name="NoSheets" condition="!sheetRows.length"><widgets>
+                        <label type="p" text="No timesheets you may see" style="m-muted q-pa-sm q-mb-none"/>
+                    </widgets></section>
+                </box-body-nopad></container-box>
+            </row-col>
+        </container-row>
+    </widgets>
+</screen>

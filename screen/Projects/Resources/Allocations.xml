@@ -12,10 +12,169 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for the allocations (design-projects.md §9 Allocations; impl-projects.md P7). -->
+<!-- Allocations (design-projects.md §9 Allocations; style-guide §3.2 List): the allocations of the projects the user sees
+    (service/ironstone/ResourceServices.xml find#AllocationRows over mantle.work.ResourceServices.find#Allocations). The chips with their
+    counts: Requested (to decide; the default for the Projects managers), Unstaffed (placeholders), Mine (mine, or requested by me; the
+    default for others), Allocated and All. The find (the list's dialog): project, person, and a period the allocations overlap. Each
+    row: the project, the person or the placeholder's role and skill, from, thru, hours a week (or the percent), the status chip, who
+    requested and who decided, the note; Staff opens StaffAllocation (Allocations/Staff.xml: the candidates ranked by free hours, skill
+    and role), Edit opens EditAllocation (Allocations/EditAllocation.xml), Approve and Cancel act on the row, the planner opens on its
+    project and weeks. The bulk decisions on the selected rows (AllocationDecision: Approve, Reject with a reason), each on its own.
+    New allocation opens EditAllocation. The tray's Approvals group decides the same requests through the AllocationRequest topic
+    (design §8 Context passed). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Allocations" default-menu-index="2">
+
+    <parameter name="list"/>
+    <parameter name="rootWorkEffortId"/>
+    <parameter name="partyId"/>
+    <parameter name="fromDate"/>
+    <parameter name="thruDate"/>
+
+    <subscreens>
+        <subscreens-item name="EditAllocation" location="component://ironstone-boss/screen/Projects/Resources/Allocations/EditAllocation.xml" menu-include="false"/>
+        <subscreens-item name="Staff" location="component://ironstone-boss/screen/Projects/Resources/Allocations/Staff.xml" menu-include="false"/>
+    </subscreens>
+
+    <transition name="decide">
+        <actions>
+            <service-call name="ironstone.ResourceServices.decide#Allocation" out-map="decideOut" in-map="{workEffortAllocationId:workEffortAllocationId, action:action,
+                    reason:(reason || null), partyId:(staffPartyId || null)}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(decideOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="list"/><parameter name="rootWorkEffortId"/><parameter name="partyId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="bulkAction">
+        <actions>
+            <service-call name="ironstone.ResourceServices.bulk#Allocations" out-map="bulkOut" in-map="{action:bulk, selectedIds:(selectedIds || ''), reason:(reason || null)}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(bulkOut.message, bulkOut.failedCount ? 'warning' : 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="list"/><parameter name="rootWorkEffortId"/><parameter name="partyId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="planner"><default-response url="../TeamPlanner"/></transition>
+
+    <actions>
+        <script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const out = ec.service.sync().name('ironstone.ResourceServices.find#AllocationRows').parameters({list: list || null, rootWorkEffortId: rootWorkEffortId || null,
+                partyId: partyId || null, fromDate: fromDate || null, thruDate: thruDate || null}).call() || {}
+            ec.message.clearErrors()
+            list = out.list || 'mine'
+            isApprover = !!out.isApprover
+            allocationRows = Array.from(out.rowList || [])
+            allocationRowsCount = allocationRows.length
+            const counts = out.counts || {}
+            const lists = [['requested', 'Requested', 'sym_o_approval'], ['unstaffed', 'Unstaffed', 'sym_o_person_search'], ['mine', 'Mine', 'sym_o_person'],
+                ['allocated', 'Allocated', 'sym_o_event_available'], ['all', 'All', 'sym_o_select_all']]
+            const find = {rootWorkEffortId: rootWorkEffortId || null, partyId: partyId || null, fromDate: fromDate || null, thruDate: thruDate || null}
+            Object.keys(find).forEach((key) => { if (find[key] == null) delete find[key] })
+            filtered = Object.keys(find).length > 0
+            listChips = lists.map(([key, label, icon]) => ({key: key, label: L(label) + (counts[key] == null ? '' : ' · ' + counts[key]), icon: icon, on: key === list,
+                params: Object.assign({}, find, {list: key})}))
+            listLabel = L(lists.find((entry) => entry[0] === list)[1])
+            canDecide = allocationRows.some((row) => row.canApprove)
+            const projects = {}, people = {}
+            for (const row of allocationRows) { projects[row.rootWorkEffortId] = row.projectName; if (row.partyId) people[row.partyId] = row.personName }
+            projectOptions = Object.keys(projects).map((id) => ({key: id, text: projects[id]})).sort((a, b) => a.text.localeCompare(b.text))
+            personOptions = Object.keys(people).map((id) => ({key: id, text: people[id]})).sort((a, b) => a.text.localeCompare(b.text))
+            const empty = {requested: 'No allocation waits for a decision', unstaffed: 'No placeholder to staff', mine: 'No allocations of yours',
+                allocated: 'No allocations', all: 'No allocations'}
+            emptyText = filtered ? L('No allocations match') : L(empty[list] || 'No allocations')
+        ]]></script>
+    </actions>
+
     <widgets>
-        <label text="Placeholder: Allocations: allocation requests and placeholders to staff, approve or reject." type="p"/>
+        <context selection-form="AllocationList"/>
+
+        <container style="row items-center q-mb-sm q-gutter-y-xs">
+            <label text="Allocations" type="h5" style="q-my-none q-mr-sm"/>
+            <container style="col"/>
+            <link url="planner" text="Team planner" icon="sym_o_group_work" link-type="anchor-button" style="q-mr-sm"/>
+            <dynamic-dialog id="NewAllocationDialog" button-text="New allocation" icon="sym_o_add" transition="EditAllocation" width="600" title="New allocation"
+                    parameter-map="{workEffortId:(rootWorkEffortId || null), partyId:(partyId || null)}"/>
+        </container>
+
+        <container style="row q-gutter-xs q-mb-sm m-allocation-chips">
+            <section-iterate name="ListChip" list="listChips" entry="chip"><widgets>
+                <section name="ListChipOn" condition="chip.on"><widgets>
+                    <link url="." link-type="anchor-button" btn-type="primary" text="${chip.label}" icon="${chip.icon}" parameter-map="chip.params"/>
+                </widgets><fail-widgets>
+                    <link url="." link-type="anchor-button" text="${chip.label}" icon="${chip.icon}" parameter-map="chip.params"/>
+                </fail-widgets></section>
+            </widgets></section-iterate>
+        </container>
+        <section name="ClearFilters" condition="filtered"><widgets>
+            <container style="q-mb-xs"><link url="." link-type="anchor" text="Clear filters" parameter-map="{list:list}"/></container>
+        </widgets></section>
+
+        <container-box><box-header title="${listLabel} · ${allocationRowsCount}"/><box-body-nopad>
+            <form-list name="AllocationList" list="allocationRows" skip-form="true" paginate="false" header-dialog="true" select-columns="true" show-csv-button="true">
+                <row-selection id-field="rowKey" parameter="selectedIds" list-mode="true">
+                    <action><form-single name="BulkApprove" transition="bulkAction">
+                        <field name="bulk" from="'approve'"><default-field><hidden/></default-field></field>
+                        <field name="list"><default-field><hidden/></default-field></field>
+                        <field name="submitButton"><default-field title="Approve"><submit icon="sym_o_task_alt"/></default-field></field>
+                    </form-single></action>
+                    <action><dialog button-text="Reject" button-icon="sym_o_block" title="Reject the selected allocations"/>
+                        <form-single name="BulkReject" transition="bulkAction">
+                            <field name="bulk" from="'reject'"><default-field><hidden/></default-field></field>
+                            <field name="list"><default-field><hidden/></default-field></field>
+                            <field name="reason"><default-field title="Why"><text-area rows="3" cols="50"/></default-field></field>
+                            <field name="submitButton"><default-field title="Reject them"><submit/></default-field></field>
+                        </form-single></action>
+                </row-selection>
+
+                <!-- the find (the list's dialog) -->
+                <field name="list"><header-field><hidden/></header-field></field>
+                <field name="rootWorkEffortId"><header-field title="Project">
+                        <drop-down allow-empty="true"><list-options list="projectOptions" key="${key}" text="${text}"/></drop-down></header-field>
+                    <default-field title="Project"><link url="${projectUrl}" url-type="plain" text="${projectName}" link-type="anchor"/>
+                        <label text="${itemName || ''}" type="div" style="text-caption m-muted"/></default-field></field>
+                <field name="partyId"><header-field title="Person">
+                        <drop-down allow-empty="true"><list-options list="personOptions" key="${key}" text="${text}"/></drop-down></header-field>
+                    <default-field title="Person or role">
+                        <render-mode><text type="qvt"><![CDATA[<div class="row items-center no-wrap">${isPlaceholder ? '<q-icon name="sym_o_person_search" size="24px" class="q-mr-sm m-muted"></q-icon>' : '<m-avatar name="' + WebUtilities.encodeHtml(personName ?? '') + '" size="24px" class="q-mr-sm"></m-avatar>'}<div>${isPlaceholder ? WebUtilities.encodeHtml(whoText ?? '') : '<a href="' + WebUtilities.encodeHtml(personUrl ?? '') + '">' + WebUtilities.encodeHtml(personName ?? '') + '</a>'}<div class="text-caption m-muted">${WebUtilities.encodeHtml(isPlaceholder ? ec.l10n.localize('To staff') : (roleSkillText ?? ''))}</div></div></div>]]></text>
+                            <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify((whoText ?? "") + (isPlaceholder ? " (to staff)" : ""))}}]]></text></render-mode>
+                    </default-field></field>
+                <field name="fromDate"><header-field title="From"><date-time type="date" format="yyyy-MM-dd"/></header-field>
+                    <default-field title="From"><label text="${fromText}" type="span" style="text-no-wrap"/></default-field></field>
+                <field name="thruDate"><header-field title="Thru"><date-time type="date" format="yyyy-MM-dd"/></header-field>
+                    <default-field title="Thru"><label text="${thruText}" type="span" style="text-no-wrap"/></default-field></field>
+                <field name="amountText" align="right"><default-field title="Hours"><label text="${amountText}" type="span" style="text-no-wrap"/></default-field></field>
+                <field name="statusLabel"><default-field title="Status">
+                    <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${statusColor}" data-status="${statusId ?? ''}">${WebUtilities.encodeHtml(statusLabel ?? '')}</q-chip>]]></text>
+                        <text type="tui"><![CDATA[{"t": "text", "style": "strong", "text": ${JSON.stringify(statusLabel ?? "")}}]]></text></render-mode>
+                </default-field></field>
+                <field name="requestedByName"><default-field title="Requested, decided">
+                    <label text="${requestedByName}" type="div" style="text-no-wrap"/>
+                    <label text="${reviewedByName ? ec.l10n.localize('by') + ' ' + reviewedByName : ''}${reviewComments ? ': ' + reviewComments : ''}" type="div" style="text-caption m-muted"/></default-field></field>
+                <field name="comments"><default-field title="Note"><display/></default-field></field>
+                <field name="actions" align="right"><default-field title="">
+                    <container style="row items-center justify-end q-gutter-xs">
+                        <link url="decide" link-type="hidden-form-link" text="Approve" icon="sym_o_task_alt" parameter-map="{workEffortAllocationId:workEffortAllocationId, action:'approve', list:list}"
+                                condition="canApprove"/>
+                        <dynamic-dialog id="StaffDialog" button-text="Staff" icon="sym_o_person_search" transition="Staff" width="680" title="Staff ${whoText}"
+                                parameter-map="{workEffortAllocationId:workEffortAllocationId}" condition="isPlaceholder &amp;&amp; isOpen"/>
+                        <dynamic-dialog id="EditDialog" button-text="" icon="sym_o_edit" transition="EditAllocation" width="600" title="Edit allocation"
+                                parameter-map="{workEffortAllocationId:workEffortAllocationId}" condition="canChange"/>
+                        <link url="decide" link-type="hidden-form-link" text="" icon="sym_o_cancel" tooltip="Cancel the allocation" style="m-btn-flat"
+                                confirmation="Cancel this allocation of ${whoText} on ${projectName}?"
+                                parameter-map="{workEffortAllocationId:workEffortAllocationId, action:'cancel', list:list}" condition="canChange"/>
+                        <link url="${plannerUrl}" url-type="plain" text="" icon="sym_o_group_work" tooltip="Open in the team planner" link-type="anchor"/>
+                    </container>
+                </default-field></field>
+                <field name="findButton"><header-field title="Find"><submit/></header-field></field>
+
+                <columns type="mobile">
+                    <column><field-ref name="partyId"/><field-ref name="rootWorkEffortId"/></column>
+                    <column><field-ref name="statusLabel"/><field-ref name="amountText"/><field-ref name="actions"/></column>
+                </columns>
+            </form-list>
+            <section name="NoAllocations" condition="!allocationRows.length"><widgets>
+                <label type="p" text="${emptyText}" style="m-muted q-pa-sm q-mb-none"/>
+            </widgets></section>
+        </box-body-nopad></container-box>
     </widgets>
 </screen>

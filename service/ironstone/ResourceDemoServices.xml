@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The resources demo of IronStone Projects (impl-projects.md P7): data/BossProjectsDemoDataTimeResources.xml calls load#ResourceDemo
+    after the support desk project SUPP and Ana Designer. -->
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
+
+    <service verb="load" noun="ResourceDemo" authenticate="anonymous-all" allow-remote="false">
+        <description>
+            Dated from the week the data is loaded (week 0 its Monday):
+            - Ana Designer's working hours: Monday to Thursday, 9:00 to 17:00 (32 hours a week), a weekly WetAvailable work effort
+              from four weeks back, as ironstone.CalendarServices.store#WorkingHours writes one;
+            - a day of leave for Bob Developer, the Monday of week 3 (a WetTimeOff event he is on);
+            - the allocations, as records (no notices, so the tray's approvals stay the M2 demo's), requested by John Doe:
+              Joe on IRON 24 h, on ACME 16 h (weeks -1 to 6) and on SUPP 8 h a week, 48 of his 40 (over-allocated); Bob on IRON
+              20 h and on SUPP 12 h; Ana on ACME 24 h of her 32 (weeks 0 to 8); John Doe on IRON at 20 % and on SUPP 4 h; a
+              placeholder UI designer (UI design) on ACME, 20 h a week in weeks 2 to 9, requested; Bob on ACME 8 h in weeks 3 to 8,
+              requested.
+            Each part on its own: one that fails is logged and the rest go on. Loading again adds nothing when Joe already has an
+            allocation on IRON.
+        </description>
+        <actions><script><![CDATA[
+            const step = (name, run) => {
+                ec.message.pushErrors()
+                try { run(); if (ec.message.hasError()) throw new Error(ec.message.getErrorsString()) }
+                catch (err) { ec.logger.error(`Resource demo: ${name} not loaded: ${err && err.message ? err.message : err}`) }
+                finally { ec.message.clearErrors(); ec.message.popErrors() }
+            }
+            const call = (name, parameters) => {
+                const out = ec.service.sync().name(name).parameters(parameters || {}).call()
+                if (ec.message.hasError()) throw new Error(`${name}: ${ec.message.getErrorsString()}`)
+                return out || {}
+            }
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try {
+                for (const id of ['IRON', 'ACME', 'SUPP']) if (!ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', id).one()) {
+                    ec.logger.warn(`The resource demo needs the project ${id}; nothing loaded`); return }
+                if (ec.entity.find('mantle.work.effort.WorkEffortAllocation').condition('partyId', 'ORG_ZIZI_JD').condition('rootWorkEffortId', 'IRON').count() > 0) {
+                    ec.logger.info('The resource demo is already loaded'); return }
+                const nowMs = Date.now()
+                const addDays = (text, days) => { const d = new Date(text + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + days); return d.toISOString().substring(0, 10) }
+                const today = new Date(nowMs).toISOString().substring(0, 10)
+                const js = new Date(today + 'T12:00:00Z').getUTCDay()
+                const week0 = addDays(today, -((js + 6) % 7))
+                const weekDay = (week, day) => addDays(week0, week * 7 + day)
+                const at = (day, hour) => ec.l10n.parseTimestamp(day + ' ' + String(hour).padStart(2, '0') + ':00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS')
+                const john = ec.entity.find('moqui.security.UserAccount').condition('username', 'john.doe').one()?.userId || null
+
+                step('Ana\'s working hours', () => {
+                    const first = weekDay(-4, 0)
+                    const workEffortId = call('create#mantle.work.effort.WorkEffort', {workEffortTypeEnumId: 'WetAvailable', workEffortName: 'Working hours',
+                        statusId: 'WeApproved', ownerPartyId: 'EX_PRJ_ANA', timeUomId: 'TF_hr', sourceReferenceId: 'BossWorkingHours', visibilityEnumId: 'WevRestricted',
+                        estimatedStartDate: at(first, 9), estimatedCompletionDate: at(first, 17), estimatedWorkDuration: 8}).workEffortId
+                    call('create#mantle.work.effort.WorkEffortParty', {workEffortId: workEffortId, partyId: 'EX_PRJ_ANA', roleTypeId: 'Assignee',
+                        fromDate: at(first, 0), statusId: 'WeptAssigned'})
+                    call('create#mantle.work.effort.WorkEffortRecurrence', {workEffortId: workEffortId, rrule: 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH'})
+                })
+                step('Bob\'s day of leave', () => {
+                    const day = weekDay(3, 0)
+                    const workEffortId = call('create#mantle.work.effort.WorkEffort', {workEffortTypeEnumId: 'WetTimeOff', workEffortName: 'Day off',
+                        statusId: 'WeApproved', ownerPartyId: 'ORG_ZIZI_BD', allDayStart: day, estimatedStartDate: at(day, 0),
+                        estimatedCompletionDate: at(addDays(day, 1), 0), visibilityEnumId: 'WevGeneral'}).workEffortId
+                    call('create#mantle.work.effort.WorkEffortParty', {workEffortId: workEffortId, partyId: 'ORG_ZIZI_BD', roleTypeId: 'Assignee',
+                        fromDate: at(weekDay(0, 0), 0), statusId: 'WeptAssigned'})
+                })
+                const allocation = (label, fields) => step(label, () => call('create#mantle.work.effort.WorkEffortAllocation', Object.assign({
+                    workEffortId: fields.rootWorkEffortId, statusId: 'WealAllocated', requestedByUserId: john, requestedDate: at(weekDay(-2, 1), 10),
+                    reviewedByUserId: fields.statusId === 'WealRequested' ? null : john, reviewedDate: fields.statusId === 'WealRequested' ? null : at(weekDay(-2, 1), 11)}, fields)))
+                allocation('Joe on IRON', {rootWorkEffortId: 'IRON', partyId: 'ORG_ZIZI_JD', roleTypeId: 'Programmer', fromDate: weekDay(0, 0), thruDate: weekDay(11, 4),
+                    hoursPerWeek: 24, comments: 'The time and billing screens'})
+                allocation('Joe on ACME', {rootWorkEffortId: 'ACME', partyId: 'ORG_ZIZI_JD', roleTypeId: 'Programmer', fromDate: weekDay(-1, 0), thruDate: weekDay(6, 4),
+                    hoursPerWeek: 16, comments: 'The portal\'s order pages'})
+                allocation('Joe on SUPP', {rootWorkEffortId: 'SUPP', partyId: 'ORG_ZIZI_JD', roleTypeId: 'Programmer', fromDate: weekDay(-4, 0), thruDate: weekDay(9, 4),
+                    hoursPerWeek: 8, comments: 'Upgrades on Wednesdays'})
+                allocation('Bob on IRON', {rootWorkEffortId: 'IRON', partyId: 'ORG_ZIZI_BD', roleTypeId: 'QualityAnalyst', fromDate: weekDay(0, 0), thruDate: weekDay(11, 4),
+                    hoursPerWeek: 20})
+                allocation('Bob on SUPP', {rootWorkEffortId: 'SUPP', partyId: 'ORG_ZIZI_BD', roleTypeId: 'QualityAnalyst', fromDate: weekDay(-4, 0), thruDate: weekDay(9, 4),
+                    hoursPerWeek: 12})
+                allocation('Ana on ACME', {rootWorkEffortId: 'ACME', partyId: 'EX_PRJ_ANA', roleTypeId: 'UiDesigner', fromDate: weekDay(0, 0), thruDate: weekDay(8, 3),
+                    hoursPerWeek: 24, comments: 'The portal\'s pages and the style guide'})
+                allocation('John Doe on IRON', {rootWorkEffortId: 'IRON', partyId: 'EX_JOHN_DOE', roleTypeId: 'ProjectManager', fromDate: weekDay(0, 0), thruDate: weekDay(11, 4),
+                    allocationPercent: 20})
+                allocation('John Doe on SUPP', {rootWorkEffortId: 'SUPP', partyId: 'EX_JOHN_DOE', roleTypeId: 'ProjectManager', fromDate: weekDay(-4, 0), thruDate: weekDay(9, 4),
+                    hoursPerWeek: 4})
+                allocation('The UI designer to staff on ACME', {rootWorkEffortId: 'ACME', roleTypeId: 'UiDesigner', skillTypeEnumId: 'BossSkUiDesign', fromDate: weekDay(2, 0),
+                    thruDate: weekDay(9, 4), hoursPerWeek: 20, statusId: 'WealRequested', requestedDate: at(weekDay(0, 0), 9),
+                    comments: 'A second designer for the portal\'s mobile pages'})
+                allocation('Bob requested on ACME', {rootWorkEffortId: 'ACME', partyId: 'ORG_ZIZI_BD', roleTypeId: 'QualityAnalyst', fromDate: weekDay(3, 0), thruDate: weekDay(8, 4),
+                    hoursPerWeek: 8, statusId: 'WealRequested', requestedDate: at(weekDay(0, 0), 10), comments: 'Testing the portal before the launch'})
+            } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+        ]]></script></actions>
+    </service>
+</services>

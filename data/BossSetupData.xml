@@ -149,6 +149,10 @@ along with this software (see the LICENSE.md file). If not, see
     <moqui.security.user.NotificationTopic topic="TimesheetReturned" linkTemplate="/qapps/Projects/Time/MyTime?weekDate=${weekStart}"/>
     <moqui.security.user.NotificationTopic topic="TimesheetApproved" linkTemplate="/qapps/Projects/Time/MyTime?weekDate=${weekStart}"/>
     <moqui.security.user.NotificationTopic topic="TimesheetMissing" linkTemplate="/qapps/Projects/Time/MyTime?weekDate=${weekStart}"/>
+    <!-- and of the allocation topics (mantle.work.ResourceServices, impl-projects.md P7): the request opens Allocations' Requested list,
+        the decision the team planner on the allocation's project -->
+    <moqui.security.user.NotificationTopic topic="AllocationRequest" linkTemplate="/qapps/Projects/Resources/Allocations?list=requested"/>
+    <moqui.security.user.NotificationTopic topic="AllocationDecision" linkTemplate="/qapps/Projects/Resources/TeamPlanner?rootWorkEffortId=${rootWorkEffortId}"/>
     <!-- the saved finds of WorkItems every Projects user has beside their own (design-projects.md §5 WorkItems; Blocked waits for the
         dependency find of impl-projects.md P4) -->
     <moqui.screen.form.FormListFind formListFindId="BOSS_PROJ_OPEN_BUGS" description="Open bugs"
@@ -181,6 +185,9 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the Projects managers manage money (design-projects.md §1.1): they see and set time entry rates and amounts
         (mantle.work.TimeServices.find#TimeEntries withRates; TimeEntries, ProjectTime; impl-projects.md P6b) -->
     <moqui.security.UserGroupPermission userGroupId="BOSS_PROJECT_MANAGER" userPermissionId="TIME_ENTRY_RATE" fromDate="0"/>
+    <!-- the Projects managers decide allocations (design-projects.md §1.1, §9): approve, reject, change and staff them, and allocate at
+        once (mantle.work.ResourceServices; impl-projects.md P7); a project's own managers request allocations on it -->
+    <moqui.security.UserGroupPermission userGroupId="BOSS_PROJECT_MANAGER" userPermissionId="ALLOCATION_APPROVE" fromDate="0"/>
     <artifactGroups artifactGroupId="BOSS_INSIGHTS" description="IronStone Insights App (via root screen)">
         <artifacts artifactName="component://ironstone-boss/screen/Insights.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
         <authz artifactAuthzId="BOSS_INSIGHTS_ADMIN" userGroupId="ADMIN" authzTypeEnumId="AUTHZT_ALWAYS" authzActionEnumId="AUTHZA_ALL">

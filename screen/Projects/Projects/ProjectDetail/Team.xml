@@ -15,7 +15,10 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- ProjectTeam (design-projects.md §4 ProjectTeam): boxes of the members and their roles (Add member, End for those who manage
     the project), the teams on it (OrgTeam) and the client contacts (Customer, ClientManager, ClientBilling, CustomerBillTo) with
     their email and whether they have a user; client sign-in itself is impl-projects.md P10 (ProjectSettings keeps the choice).
-    The allocations box comes with P7. Service: ironstone.ProjectServices get#ProjectTeam, add#ProjectMember, end#ProjectMember. -->
+    The Allocations box (impl-projects.md P7): who is planned on it, a person or a placeholder role, from, thru, hours a week (or the
+    percent), the status chip; Request allocation for its managers and the Projects managers (allocated at once by the latter unless they
+    ask for approval), Approve and Cancel on a row, and the team planner on the project. Services: ironstone.ProjectServices
+    get#ProjectTeam, add#ProjectMember, end#ProjectMember; ironstone.ResourceServices get#ProjectAllocations, save#, decide#Allocation. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Team" default-menu-index="9">
 
@@ -34,6 +37,31 @@ along with this software (see the LICENSE.md file). If not, see
         </actions>
         <default-response url="."><parameter name="workEffortId"/></default-response>
         <error-response url="."/>
+    </transition>
+    <transition name="requestAllocation">
+        <actions>
+            <service-call name="ironstone.ResourceServices.save#Allocation" out-map="allocOut" in-map="{workEffortId:workEffortId, partyId:(allocPartyId || null),
+                    roleTypeId:(allocRoleTypeId || null), skillTypeEnumId:(allocSkillTypeEnumId || null), fromDate:allocFromDate, thruDate:allocThruDate, amount:amount,
+                    unit:(unit || 'h'), comments:(comments || null), request:(request || null)}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(allocOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="decideAllocation">
+        <actions>
+            <service-call name="ironstone.ResourceServices.decide#Allocation" out-map="decideOut" in-map="{workEffortAllocationId:workEffortAllocationId, action:action}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(decideOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="allocationPeople" read-only="true">
+        <actions>
+            <service-call name="ironstone.ResourceServices.search#AllocationPeople" in-map="{term:term}" out-map="found"/>
+            <script>ec.web.sendJsonResponse(found.optionList || [])</script>
+        </actions>
+        <default-response type="none"/>
     </transition>
     <transition name="peopleSearch" read-only="true">
         <actions>
@@ -71,6 +99,19 @@ along with this software (see the LICENSE.md file). If not, see
             clientList = Array.from(team.clientList || [])
             roleOptions = Array.from(team.roleOptions || [])
             canManage = !!team.canManage
+            const allocations = ec.service.sync().name('ironstone.ResourceServices.get#ProjectAllocations').parameters({workEffortId: workEffortId}).call() || {}
+            ec.message.clearErrors()
+            allocationList = Array.from(allocations.allocationList || [])
+            canRequestAllocation = !!allocations.canRequest
+            canApproveAllocation = !!allocations.canApprove
+            const allocOptions = ec.service.sync().name('ironstone.ResourceServices.get#AllocationRoleOptions').call() || {}
+            allocRoleOptions = Array.from(allocOptions.roleOptions || []).map((one) => ({key: one.value, text: one.label}))
+            allocSkillOptions = Array.from(allocOptions.skillOptions || []).map((one) => ({key: one.value, text: one.label}))
+            const today = ec.l10n.format(ec.user.nowTimestamp, 'yyyy-MM-dd')
+            const js = new Date(today + 'T12:00:00Z').getUTCDay()
+            allocFromDefault = new Date(Date.parse(today + 'T12:00:00Z') - ((js + 6) % 7) * 86400000).toISOString().slice(0, 10)
+            allocThruDefault = new Date(Date.parse(allocFromDefault + 'T12:00:00Z') + 27 * 86400000).toISOString().slice(0, 10)
+            plannerUrl = '/qapps/Projects/Resources/TeamPlanner?rootWorkEffortId=' + encodeURIComponent(workEffortId)
         ]]></script>
     </actions>
 
@@ -167,7 +208,72 @@ along with this software (see the LICENSE.md file). If not, see
                 </box-body-nopad></container-box>
             </row-col>
         </container-row>
-        <label type="p" text="Allocations (who is planned on the project, hours per week) come with Resources." style="text-caption m-muted"/>
+        <container-box><box-header title="Allocations · ${allocationList.length}"/>
+            <box-toolbar>
+                <link url="${plannerUrl}" url-type="plain" link-type="anchor" text="Team planner" icon="sym_o_group_work"/>
+                <container-dialog id="TeamRequestAllocationDialog" button-text="Request allocation" icon="sym_o_event_available" width="600"
+                        title="An allocation on ${project.workEffortName}" condition="canRequestAllocation">
+                    <form-single name="RequestAllocation" transition="requestAllocation">
+                        <field name="workEffortId"><default-field><hidden/></default-field></field>
+                        <field name="allocPartyId"><default-field title="Person (empty: a role to staff)">
+                            <drop-down allow-empty="true"><dynamic-options transition="allocationPeople" server-search="true" min-length="0"/></drop-down></default-field></field>
+                        <field name="allocRoleTypeId" from="'Programmer'"><default-field title="Project role">
+                            <drop-down allow-empty="true"><list-options list="allocRoleOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                        <field name="allocSkillTypeEnumId"><default-field title="Skill">
+                            <drop-down allow-empty="true"><list-options list="allocSkillOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                        <field name="allocFromDate" from="allocFromDefault"><default-field title="From"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                        <field name="allocThruDate" from="allocThruDefault"><default-field title="Thru"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                        <field name="amount" from="'8'"><default-field title="Amount"><text-line size="6" input-type="number"/></default-field></field>
+                        <field name="unit" from="'h'"><default-field title="As">
+                            <radio><option key="h" text="Hours a week"/><option key="pct" text="Percent of capacity"/></radio></default-field></field>
+                        <field name="comments"><default-field title="Note"><text-area rows="2" cols="50"/></default-field></field>
+                        <field name="request"><conditional-field condition="canApproveAllocation" title="">
+                                <check><option key="Y" text="Request it for approval instead of allocating now"/></check></conditional-field>
+                            <default-field><hidden/></default-field></field>
+                        <field name="submitButton"><default-field title="${canApproveAllocation ? 'Allocate' : 'Request'}"><submit/></default-field></field>
+                        <field-layout>
+                            <field-ref name="workEffortId"/>
+                            <field-ref name="allocPartyId"/>
+                            <field-row><field-ref name="allocRoleTypeId"/><field-ref name="allocSkillTypeEnumId"/></field-row>
+                            <field-row><field-ref name="allocFromDate"/><field-ref name="allocThruDate"/></field-row>
+                            <field-row><field-ref name="amount"/><field-ref name="unit"/></field-row>
+                            <field-ref name="comments"/>
+                            <field-ref name="request"/>
+                            <field-ref name="submitButton"/>
+                        </field-layout>
+                    </form-single>
+                </container-dialog>
+            </box-toolbar>
+            <box-body-nopad>
+            <form-list name="ProjectAllocations" list="allocationList" skip-form="true" paginate="false">
+                <field name="whoText"><default-field title="Person or role">
+                    <render-mode><text type="qvt"><![CDATA[<div class="row items-center no-wrap">${isPlaceholder ? '<q-icon name="sym_o_person_search" size="24px" class="q-mr-sm m-muted"></q-icon>' : '<m-avatar name="' + WebUtilities.encodeHtml(personName ?? '') + '" size="24px" class="q-mr-sm"></m-avatar>'}<div>${isPlaceholder ? WebUtilities.encodeHtml(whoText ?? '') : '<a href="' + WebUtilities.encodeHtml(personUrl ?? '') + '">' + WebUtilities.encodeHtml(personName ?? '') + '</a>'}<div class="text-caption m-muted">${WebUtilities.encodeHtml(isPlaceholder ? ec.l10n.localize('To staff') : (roleSkillText ?? ''))}</div></div></div>]]></text>
+                        <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify((whoText ?? "") + (isPlaceholder ? " (to staff)" : ""))}}]]></text></render-mode></default-field></field>
+                <field name="fromText"><default-field title="From"><display/></default-field></field>
+                <field name="thruText"><default-field title="Thru"><display/></default-field></field>
+                <field name="amountText" align="right"><default-field title="Hours"><display/></default-field></field>
+                <field name="statusLabel"><default-field title="Status">
+                    <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${statusColor}">${WebUtilities.encodeHtml(statusLabel ?? '')}</q-chip>]]></text>
+                        <text type="tui"><![CDATA[{"t": "text", "style": "strong", "text": ${JSON.stringify(statusLabel ?? "")}}]]></text></render-mode></default-field></field>
+                <field name="actions" align="right"><default-field title="">
+                    <container style="row no-wrap items-center justify-end q-gutter-xs">
+                        <link url="decideAllocation" link-type="hidden-form-link" text="Approve" parameter-map="{workEffortId:workEffortId, workEffortAllocationId:workEffortAllocationId, action:'approve'}"
+                                condition="canApprove"/>
+                        <link url="/qapps/Projects/Resources/Allocations" url-type="plain" text="Staff" link-type="anchor" parameter-map="{list:'unstaffed', rootWorkEffortId:rootWorkEffortId}"
+                                condition="isPlaceholder &amp;&amp; canChange"/>
+                        <link url="decideAllocation" link-type="hidden-form-link" text="Cancel" confirmation="Cancel this allocation of ${whoText}?"
+                                parameter-map="{workEffortId:workEffortId, workEffortAllocationId:workEffortAllocationId, action:'cancel'}" condition="canChange"/>
+                    </container></default-field></field>
+                <columns type="mobile">
+                    <column><field-ref name="whoText"/><field-ref name="fromText"/></column>
+                    <column><field-ref name="statusLabel"/><field-ref name="amountText"/></column>
+                    <column><field-ref name="actions"/></column>
+                </columns>
+            </form-list>
+            <section name="NoAllocations" condition="!allocationList.length"><widgets>
+                <label type="p" text="No one is planned on it yet" style="m-muted q-pa-sm q-mb-none"/>
+            </widgets></section>
+        </box-body-nopad></container-box>
         </widgets></section>
     </widgets>
 </screen>

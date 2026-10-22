@@ -59,7 +59,7 @@ Sections: [1 scope](#1-scope-and-order) · [2 rules](#2-ground-rules) · [3 phas
 | P4 Planning | Mantle, BOSS (mr-moqui) | Backlog, SprintDetail, Timeline, WorkItemImport, Roadmap, MilestoneDetail, ReleaseDetail, ProjectBacklog, ProjectTimeline, ProjectCalendar, ProjectRoadmap, ProjectDocs | done Oct 22 |
 | P5 Requests | Mantle, BOSS | Requests, RequestDetail, RequestIntake, ProjectRequests, IntakeSettings | done Oct 22 |
 | P6 Time | Mantle, BOSS | MyTime, Timesheets, TimesheetDetail, TimeEntries, ProjectTime, TimeSettings | done Oct 22 |
-| P7 Resources | Mantle, BOSS | TeamPlanner, Allocations, PersonDetail | planned |
+| P7 Resources | Mantle, BOSS | TeamPlanner, Allocations, PersonDetail | done Oct 22 |
 | P8 Billing and money | Mantle, BOSS | Unbilled, Invoices, InvoiceDetail, OrderDetail, Rates, ProjectMoney, BillingSettings | planned |
 | P9 Reports and outputs | Mantle, BOSS | Reports and its seven reports | planned |
 | P10 Client access | mr-moqui, Mantle, BOSS | the client states of §1.1's screens | planned |
@@ -356,7 +356,23 @@ tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
 - Usable when: a manager requests a placeholder, staffs it from the candidates, and the planner shows capacity against
   the allocations.
 
-### P8 — Billing and money
+**Built** (Oct 22, 2026):
+- Mantle udm: `WorkEffortAllocation` (a person or a placeholder role with a skill on a project for days at hours or
+  percent; Requested, Allocated, Rejected, Cancelled). Mantle usl: new `ResourceServices` (capacity from WetAvailable
+  hours else the policy week, less holidays and WetTimeOff leave; allocation access, create, update, staff, approve,
+  reject, cancel with notices and tray decisions; `find#Allocations`, `get#TeamPlan` per person and week,
+  `find#StaffingCandidates` ranked by fit, skill, role and free hours); `get#WeekDays(partyId)` now gives capacity;
+  Home's allocation requests; permission ALLOCATION_APPROVE; topics AllocationRequest and AllocationDecision;
+  `test/WorkResources.spec.js`.
+- BOSS: `ironstone.ResourceServices`, `ResourceDemoServices`; Resources/TeamPlanner (`.qvue`, people by week with
+  capacity against allocations, overbooked weeks marked, bars dragged by days, requests hatched; `TeamPlannerTui` read
+  only), Allocations (with Edit and Staff), PersonDetail (Overview, Allocations, Work items, Time, Capacity);
+  ProjectDetail Team's Allocations box; NewProject Team's hours a week; Home's counter and approvals; demo people,
+  skills, leave, allocations (Joe over-allocated, a placeholder request); specs `Resources`, `ResourceWalk` (the
+  usable-when walk with authorization on).
+- Runs (Debug, with the F77 fix): ironstone-boss 541/541, mantle-usl 648/650 (ContactListSend), moqui-core lib 1754,
+  tui_screens ok, lint clean. TimeEntries.spec now asserts authorization is on after the Today panel (F77).
+ — Billing and money
 
 - Design §10: Rates, Unbilled, Invoices, InvoiceDetail, OrderDetail, BillingSettings; §4 ProjectMoney; the milestone
   billing share, milestone approval and the estimate sent for approval; Home's unbilled.
@@ -437,6 +453,8 @@ Made during the build; each one that changes the design is also written into des
 | Oct 22, 2026 | One timer per person (starting another stops the first; under a minute is discarded); a running timer blocks submitting its week | P6a |
 | Oct 22, 2026 | Time is seen by the person, the managers of its projects, their line managers, ADMIN and (policy any) TIMESHEET_APPROVE holders; rates and amounts only by TIME_ENTRY_RATE holders (managers) and ADMIN; a submitted or approved week's entries change only in money, by them; nothing changes an invoiced or running entry | P6b |
 | Oct 22, 2026 | The offered work types are the organization's `ProjWorkTypes` setting, read by MyTime, QuickTime, the entry dialog and bulk | P6b |
+| Oct 22, 2026 | Placeholders name a project role and a skill (few EmplPositionClass records exist); a project's managers request allocations; ALLOCATION_APPROVE holders (Projects managers, ADMIN) approve, change and staff; the team sees the planner read only | P7 |
+| Oct 22, 2026 | An allocation's hours spread over the person's working days by each day's hours; leave and holidays do not lower it; a week is overbooked when the larger of allocated and assigned exceeds capacity | P7 |
 | Oct 22, 2026 | A recurring item counted from completion takes the completion day at the due date's time of day (UTC days) and the rule without its COUNT, which counts the items made | P2 |
 
 ## 5. Open questions
@@ -531,6 +549,13 @@ Design assumptions found wrong in the code, with the resolution (written into th
 | F76 | P6b: the lint calls a property ending in `Items` a collection (F60) | Renamed |
 | F77 | P6b (security): after a spec renders a Commons screen (root authz ALWAYS), authorization stays disabled in that execution context | Not ALWAYS: `ExecutionContext::script_disable_authz` held a guard even when authorization was already off, so a script's `wasDisabled = disableAuthz() ... if (!wasDisabled) enableAuthz()` under framework code that had disabled it (the shell counts service behind `getShellData` on Commons Home and Today) left the rest of that execution context without authorization or entity filters. Within one request only (each request, TUI send and job gets a fresh context), but exploitable there (the Today panel's sources ran unchecked). Fixed in mr-moqui e29d336f with tests; TimeEntries.spec's re-enable loop to be removed |
 | F78 | P6b: `find#TimeEntries` and the timesheet status filter use IN lists up to 20000 ids (F17, F69) | A subquery or view at scale |
+| F79 | P7 (bug): a `date` field reaches a script as epoch millis of its UTC midnight, so `String(d).substring(0,10)` gave digits; since P6a `get#WeekDays` never marked a holiday and since P4c the Timeline never shaded one | Fixed in both with a UTC conversion; the same pattern remains in CalendarDavServices.xml 88-89, Mantle EventServices.xml 1150, BOSS EventServices.xml 398 and CalendarServices.xml 911, to check |
+| F80 | P7: ProjectsShell's record-link feature passed only because of the F77 leak | It calls the palette service as its screens' app root grants it (as F36) |
+| F81 | P7: AppStructure renders a tab with `lastStandalone -2`, showing the parent's header (with F52) | Resources.spec renders PersonDetail's tabs |
+| F82 | P7: `EmplPositionClass` has almost no seed records | Placeholders use project roles |
+| F83 | P7: Mantle seeds no SkillType enumerations | The BOSS demo seeds `BossSk*`; a skills settings page, later |
+| F84 | P7: `get#TeamPlan` makes two calendar reads per person and caps at 300 people | Batch at scale (F17, F69) |
+| F85 | P7: allocation request notices go to every ALLOCATION_APPROVE holder without checking they see the project | Filter by project visibility, with P10 |
 | F7 | P0: a wiki space under an existing repository is documented for a repository root (`rootPageDirectory: "git://docs"`, or `rootPageLocation` `git://<repositoryId>/<SPACE>.md`), not for a subdirectory such as `git://<repositoryId>/docs` | Checked in P4 as the design's §15 row says, before ProjectDocs is built |
 
 ## 7. Later
@@ -586,6 +611,10 @@ Designed, not in this build:
 - Time (P6b): TeamTime; import presets for Toggl, Harvest and Clockify (§16); item search in the entry dialog; chip
   counts on TimeEntries; clock-in for another; time edits in the terminal (P11); ProjectTime's client states (P10);
   imported rows stacked after a day's existing entries.
+
+- Resources (P7): planner changes in the terminal (P11); request again after a rejection; allocations on one work item
+  in the screens; a leave marker in MyTime; a skills settings page; the planner grouped by team; sprint capacity from
+  availability; people's own leave records; a screen test of the tray's decisions.
 
 ## 8. Verification
 

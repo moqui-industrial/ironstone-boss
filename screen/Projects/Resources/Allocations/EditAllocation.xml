@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- EditAllocation (design-projects.md §9 AllocationForm): the dialog of Allocations' New allocation (prefilled with the project and
+    person of the find) and of a row's Edit: the project (a new one: those the user may request on), the person (with their hours free
+    a week in the period; empty for a placeholder to staff), the project role, the skill, from, thru, the hours a week or a percent of
+    capacity, the note; an approver allocates at once unless Request is ticked (service/ironstone/ResourceServices.xml
+    get#AllocationEdit, save#Allocation). Each change answers the list again. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Allocation" default-menu-include="false">
+
+    <parameter name="workEffortAllocationId"/>
+    <parameter name="workEffortId"/>
+    <parameter name="partyId"/>
+
+    <transition name="saveAllocation">
+        <actions>
+            <service-call name="ironstone.ResourceServices.save#Allocation" out-map="saveOut" in-map="{workEffortAllocationId:(workEffortAllocationId || null),
+                    workEffortId:(allocWorkEffortId || null), partyId:(partyId || null), roleTypeId:(allocRoleTypeId ?? null), skillTypeEnumId:(allocSkillTypeEnumId ?? null),
+                    fromDate:(allocFromDate || null), thruDate:(allocThruDate || null), amount:amount, unit:(unit || 'h'), comments:(comments ?? null), request:(request || null)}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if>
+        </actions>
+        <default-response url=".."/>
+        <error-response url=".."/>
+    </transition>
+    <transition name="people" read-only="true">
+        <actions>
+            <service-call name="ironstone.ResourceServices.search#AllocationPeople" in-map="{term:term}" out-map="found"/>
+            <script>ec.web.sendJsonResponse(found.optionList || [])</script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+
+    <actions>
+        <service-call name="ironstone.ResourceServices.get#AllocationEdit" out-map="editOut"
+                in-map="{workEffortAllocationId:(workEffortAllocationId || null), workEffortId:(workEffortId || null), partyId:(partyId || null)}"/>
+        <script><![CDATA[
+            ec.message.clearErrors()
+            edit = editOut.edit || null
+            found = !!edit
+            if (!edit) return
+            allocValue = edit.values
+            projectOptions = edit.projectOptions
+            roleOptions = edit.roleOptions
+            skillOptions = edit.skillOptions
+            isNew = !!edit.isNew
+            isApprover = !!edit.isApprover
+        ]]></script>
+    </actions>
+
+    <widgets>
+        <section name="AllocationNotFound" condition="!found"><widgets>
+            <label type="p" text="This allocation is not yours to change, or you manage no project to request one on." style="text-warning"/>
+        </widgets></section>
+        <section name="AllocationFound" condition="found"><widgets>
+            <form-single name="AllocationForm" transition="saveAllocation" map="allocValue">
+                <field name="workEffortAllocationId"><default-field><hidden/></default-field></field>
+                <field name="allocWorkEffortId"><conditional-field condition="isNew" title="Project">
+                        <drop-down><list-options list="projectOptions" key="${key}" text="${text}"/></drop-down></conditional-field>
+                    <default-field><hidden/></default-field></field>
+                <field name="partyId"><conditional-field condition="isNew" title="Person (empty: a role to staff)">
+                        <drop-down allow-empty="true"><dynamic-options transition="people" server-search="true" min-length="0"/></drop-down></conditional-field>
+                    <default-field><hidden/></default-field></field>
+                <field name="allocRoleTypeId"><default-field title="Project role">
+                    <drop-down allow-empty="true"><list-options list="roleOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                <field name="allocSkillTypeEnumId"><default-field title="Skill">
+                    <drop-down allow-empty="true"><list-options list="skillOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                <field name="allocFromDate"><default-field title="From"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                <field name="allocThruDate"><default-field title="Thru"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                <field name="amount"><default-field title="Amount"><text-line size="6" input-type="number"/></default-field></field>
+                <field name="unit"><default-field title="As">
+                    <radio><option key="h" text="Hours a week"/><option key="pct" text="Percent of capacity"/></radio></default-field></field>
+                <field name="comments"><default-field title="Note"><text-area rows="2" cols="50"/></default-field></field>
+                <field name="request"><conditional-field condition="isNew &amp;&amp; isApprover" title="">
+                        <check><option key="Y" text="Request it for approval instead of allocating now"/></check></conditional-field>
+                    <default-field><hidden/></default-field></field>
+                <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                <field-layout>
+                    <field-ref name="workEffortAllocationId"/>
+                    <field-ref name="allocWorkEffortId"/>
+                    <field-ref name="partyId"/>
+                    <field-row><field-ref name="allocRoleTypeId"/><field-ref name="allocSkillTypeEnumId"/></field-row>
+                    <field-row><field-ref name="allocFromDate"/><field-ref name="allocThruDate"/></field-row>
+                    <field-row><field-ref name="amount"/><field-ref name="unit"/></field-row>
+                    <field-ref name="comments"/>
+                    <field-ref name="request"/>
+                    <field-ref name="submitButton"/>
+                </field-layout>
+            </form-single>
+        </widgets></section>
+    </widgets>
+</screen>

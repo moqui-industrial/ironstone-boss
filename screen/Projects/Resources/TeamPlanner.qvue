@@ -1,0 +1,682 @@
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- TeamPlanner (design-projects.md §9 TeamPlanner), the component TeamPlanner.xml serves in the qvue render mode. A toolbar (the
+    weeks shown: back, This week, on, and 8, 12 or 26 of them; By person or By project; the find: project, role, skill, team; New
+    allocation for those who may make one), then one scroll area: the left column (the people, grouped by their project role, with
+    the placeholders to staff on top; By project the projects with their people) kept in place as the weeks scroll sideways, and the
+    weeks: for each person a load row, each week cell framing the capacity (a line at it), the allocated hours stacked by project in
+    the chart series colors and the requested ones hatched over them, the assigned work as a dashed line, leave and holidays as an
+    icon, an overbooked week in the warning tint (past 120 % the negative one); under it the person's allocations as bars over their
+    days. A manager drags a bar to move it, its ends to stretch it (by days); a click on a bar shows the allocation with Edit, Staff,
+    Approve, Reject and Cancel as the user may; a click on a person's empty week opens New allocation for them; a person's name opens
+    PersonDetail. Team members see it read only. Bars and cells are positioned elements, as Timeline.qvue draws; the colors are brand
+    color names (style-guide §5.1; the warning and negative series colors are left out, they mean overbooked here). -->
+<template><div class="boss-planner">
+    <!-- ===== the toolbar ===== -->
+    <div class="row items-center q-gutter-sm q-mb-xs">
+        <div class="text-h5 q-mr-sm">{{t('Team planner')}}</div>
+        <q-btn-group flat>
+            <q-btn flat dense round icon="chevron_left" :aria-label="t('Earlier weeks')" @click="shiftWeeks(-4)"><q-tooltip>{{t('Earlier weeks')}}</q-tooltip></q-btn>
+            <q-btn unelevated dense no-caps class="m-btn-tonal q-px-sm" :label="t('This week')" @click="thisWeek"></q-btn>
+            <q-btn flat dense round icon="chevron_right" :aria-label="t('Later weeks')" @click="shiftWeeks(4)"><q-tooltip>{{t('Later weeks')}}</q-tooltip></q-btn>
+        </q-btn-group>
+        <div v-if="planner" class="text-body2 m-muted">{{rangeText}}</div>
+        <q-space></q-space>
+        <q-btn-toggle v-model="weekCount" dense no-caps unelevated toggle-color="primary" :options="weekOptions"></q-btn-toggle>
+        <q-btn-toggle v-model="view" dense no-caps unelevated toggle-color="primary" :options="viewOptions"></q-btn-toggle>
+        <q-btn v-if="planner && planner.canRequest" unelevated no-caps color="primary" icon="sym_o_add" :label="t('New allocation')" @click="openNew(null, null)"></q-btn>
+    </div>
+    <div v-if="planner && planner.options" class="row items-center q-gutter-sm q-mb-sm">
+        <div :style="fieldStyle(240)"><m-drop-down id="boss-planner-project" name="plannerProject" v-model="filter.rootWorkEffortId" allow-empty
+                :options="planner.options.projectOptions || []" :label="t('Project')"></m-drop-down></div>
+        <div :style="fieldStyle(170)"><m-drop-down id="boss-planner-role" name="plannerRole" v-model="filter.roleTypeId" allow-empty
+                :options="planner.options.roleOptions || []" :label="t('Role')"></m-drop-down></div>
+        <div :style="fieldStyle(170)"><m-drop-down id="boss-planner-skill" name="plannerSkill" v-model="filter.skillTypeEnumId" allow-empty
+                :options="planner.options.skillOptions || []" :label="t('Skill')"></m-drop-down></div>
+        <div v-if="(planner.options.teamOptions || []).length" :style="fieldStyle(190)"><m-drop-down id="boss-planner-team" name="plannerTeam"
+                v-model="filter.teamPartyId" allow-empty :options="planner.options.teamOptions" :label="t('Team')"></m-drop-down></div>
+        <q-btn v-if="filtered" flat dense no-caps color="primary" :label="t('Clear filters')" @click="clearFilters"></q-btn>
+    </div>
+
+    <div v-if="loading && !planner" class="q-pa-md">
+        <q-skeleton type="text" width="30%"></q-skeleton>
+        <q-skeleton type="rect" height="260px" class="q-mt-md"></q-skeleton>
+    </div>
+    <div v-else-if="notAvailable" class="q-pa-lg text-center">
+        <q-icon name="sym_o_visibility_off" size="48px" class="m-muted"></q-icon>
+        <div class="text-h6 q-mt-sm">{{t('The team plan is not available')}}</div>
+    </div>
+    <template v-else-if="planner">
+        <div v-if="!rows.length" class="q-pa-lg text-center rounded-borders" :class="dark ? 'bg-grey-9' : 'bg-blue-grey-1'">
+            <div class="text-body2 m-muted">{{filtered ? t('No one matches the find') : t('No one to plan: the people on the projects you see show here.')}}</div>
+        </div>
+        <!-- ===== the scroll area ===== -->
+        <div v-else ref="scroller" class="boss-tp-scroll rounded-borders" :class="dark ? 'boss-tp-dark' : ''" :style="{maxHeight: 'calc(100vh - 230px)'}">
+            <div class="relative-position" :style="{width: (gridW + chartW) + 'px'}">
+                <!-- the header: the weeks -->
+                <div class="boss-tp-head row no-wrap" :style="{height: headH + 'px'}">
+                    <div class="boss-tp-corner row items-end q-px-sm q-pb-xs text-caption text-weight-medium m-muted" :style="{width: gridW + 'px', height: headH + 'px'}">
+                        {{view === 'project' ? t('Project') : t('Person')}}</div>
+                    <div v-for="week in weeks" :key="week.weekStart" class="boss-tp-weekhead column justify-end q-px-xs q-pb-xs text-caption"
+                            :class="week.isCurrent ? 'text-primary text-weight-bold' : ''" :style="{width: weekW + 'px', height: headH + 'px'}">
+                        <div v-if="week.monthLabel" class="text-weight-medium ellipsis" :class="week.isCurrent ? '' : (dark ? 'text-grey-4' : 'text-grey-8')">{{week.monthLabel}}</div>
+                        <div class="ellipsis" :class="week.isCurrent ? '' : 'm-muted'">{{week.label}}</div>
+                    </div>
+                </div>
+                <!-- the rows -->
+                <div v-for="row in rows" :key="row.key" class="row no-wrap boss-tp-row" :class="'boss-tp-' + row.kind" :style="{height: row.height + 'px'}">
+                    <!-- the left column -->
+                    <div class="boss-tp-cell row no-wrap items-center q-pr-sm" :style="{width: gridW + 'px', paddingLeft: (row.indent ? (phone ? 14 : 28) : 8) + 'px'}">
+                        <template v-if="row.kind === 'group'">
+                            <q-icon :name="row.icon" size="xs" class="q-mr-xs m-muted"></q-icon>
+                            <a v-if="row.url" :href="row.url" class="text-weight-medium ellipsis col" style="color:inherit" @click.prevent="go(row.url)">{{row.label}}</a>
+                            <div v-else class="text-weight-medium ellipsis col">{{row.label}}</div>
+                            <div class="text-caption m-muted q-ml-xs">{{row.count}}</div>
+                        </template>
+                        <template v-else-if="row.kind === 'person'">
+                            <q-btn flat round dense size="xs" :icon="isOpen(row.person.partyId) ? 'expand_more' : 'chevron_right'" class="q-mr-xs"
+                                    :aria-label="(isOpen(row.person.partyId) ? t('Hide the allocations of') : t('Show the allocations of')) + ' ' + row.person.name"
+                                    @click="toggle(row.person.partyId)"></q-btn>
+                            <m-avatar v-if="!phone" :name="row.person.name" size="24px" class="q-mr-sm" style="flex:none"></m-avatar>
+                            <div class="col" style="min-width:0">
+                                <a :href="row.person.url" class="ellipsis text-body2 text-weight-medium" style="display:block;color:inherit;text-decoration:none" :title="row.person.name"
+                                        @click.prevent="go(row.person.url)">{{row.person.name}}</a>
+                                <div class="ellipsis text-caption m-muted">{{personCaption(row.person)}}</div>
+                            </div>
+                            <q-icon v-if="row.overWeeks" name="sym_o_warning" size="xs" class="text-warning q-ml-xs" style="flex:none">
+                                <q-tooltip>{{t('Overbooked in')}} {{row.overWeeks}} {{row.overWeeks === 1 ? t('week') : t('weeks')}}</q-tooltip></q-icon>
+                        </template>
+                        <template v-else>
+                            <span class="boss-tp-swatch q-mr-xs" :class="['text-' + row.color, row.alloc.statusId === 'WealRequested' ? 'boss-tp-hatch' : '']" style="flex:none"></span>
+                            <div class="col" style="min-width:0">
+                                <div class="ellipsis text-body2 boss-tp-lane-label" :class="row.alloc.hidden ? 'm-muted' : ''" :title="row.label">{{row.label}}</div>
+                                <div v-if="row.sub" class="ellipsis text-caption m-muted boss-tp-lane-sub">{{row.sub}}</div>
+                            </div>
+                        </template>
+                    </div>
+                    <!-- the weeks -->
+                    <div class="relative-position" :style="{width: chartW + 'px', height: row.height + 'px'}">
+                        <div v-for="week in weeks" :key="'l' + week.weekStart" class="absolute boss-tp-line" :class="week.isCurrent ? 'boss-tp-now' : ''"
+                                :style="{left: week.left + 'px', width: weekW + 'px', top: 0, bottom: 0}"></div>
+                        <!-- a project's weekly hours (By project) -->
+                        <template v-if="row.kind === 'group' && row.weekTotals">
+                            <div v-for="week in weeks" :key="'t' + week.weekStart" class="absolute text-caption m-muted text-center"
+                                    :style="{left: week.left + 'px', width: weekW + 'px', top: '6px'}">{{row.weekTotals[week.weekStart] ? fmt(row.weekTotals[week.weekStart]) : ''}}</div>
+                        </template>
+                        <!-- a person's load by week -->
+                        <template v-if="row.kind === 'person'">
+                            <div v-for="cell in row.cells" :key="cell.weekStart" class="absolute boss-tp-load" :class="[cell.cls, canRequestFor(row.person) ? 'cursor-pointer' : '']"
+                                    :style="{left: (cell.left + 2) + 'px', width: (weekW - 4) + 'px', top: '3px', height: (row.height - 6) + 'px'}"
+                                    @click="cellClick(row.person, cell)">
+                                <div v-for="seg in cell.segments" :key="seg.key" class="absolute boss-tp-seg" :class="['text-' + seg.color, seg.requested ? 'boss-tp-hatch' : '']"
+                                        :style="{left: '3px', right: '3px', bottom: seg.bottom + 'px', height: seg.height + 'px'}"></div>
+                                <div v-if="cell.capY != null" class="absolute boss-tp-cap" :style="{left: 0, right: 0, bottom: cell.capY + 'px'}"></div>
+                                <div v-if="cell.assignedY != null" class="absolute boss-tp-assigned" :style="{left: '1px', right: '1px', bottom: cell.assignedY + 'px'}"></div>
+                                <div v-if="weekW >= 56" class="absolute text-caption boss-tp-num" :style="{left: '4px', top: '0px'}">{{cell.text}}</div>
+                                <q-icon v-if="cell.offIcon" :name="cell.offIcon" size="12px" class="absolute m-muted" :style="{right: '3px', top: '2px'}"></q-icon>
+                                <q-tooltip :delay="300"><div v-for="line in cell.tip" :key="line">{{line}}</div></q-tooltip>
+                            </div>
+                        </template>
+                        <!-- an allocation's bar -->
+                        <div v-if="row.bar" class="absolute boss-tp-bar rounded-borders" :class="['text-' + row.color, row.alloc.statusId === 'WealRequested' ? 'boss-tp-hatch boss-tp-requested' : '',
+                                    row.alloc.canChange && !phone ? 'boss-tp-grab' : '', row.alloc.hidden ? 'boss-tp-faint' : '']"
+                                :data-alloc="row.alloc.workEffortAllocationId || ''" :tabindex="row.alloc.hidden ? -1 : 0" role="button" :aria-label="row.aria"
+                                :style="barStyle(row)" @pointerdown="onBarDown($event, row, 'move')" @keydown.enter="openView(row.alloc)">
+                            <div class="relative-position ellipsis q-px-xs text-caption boss-tp-label">{{row.barLabel}}</div>
+                            <template v-if="row.alloc.canChange && !phone">
+                                <div class="absolute boss-tp-edge" style="left:-2px" @pointerdown.stop="onBarDown($event, row, 'start')"></div>
+                                <div class="absolute boss-tp-edge" style="right:-2px" @pointerdown.stop="onBarDown($event, row, 'end')"></div>
+                            </template>
+                            <q-tooltip :delay="400">{{row.tip}}</q-tooltip>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- ===== the legend ===== -->
+        <div class="row items-center q-gutter-md q-mt-xs text-caption m-muted">
+            <span v-for="project in legendProjects" :key="project.workEffortId"><span class="boss-tp-swatch" :class="'text-' + project.color"></span> {{project.workEffortName}}</span>
+            <span><span class="boss-tp-swatch boss-tp-hatch text-grey-7"></span> {{t('Requested')}}</span>
+            <span><span class="boss-tp-legend-cap"></span> {{t('Capacity')}}</span>
+            <span><span class="boss-tp-legend-assigned"></span> {{t('Assigned work')}}</span>
+            <span><span class="boss-tp-swatch boss-tp-over-swatch"></span> {{t('Overbooked')}}</span>
+            <span><q-icon name="sym_o_beach_access"></q-icon> {{t('Leave or holiday')}}</span>
+            <span v-if="planner.canPlan && !phone">{{t('Drag a bar to move it, its ends to change its days; click a week to allocate.')}}</span>
+            <span v-else-if="!planner.canPlan && !planner.canRequest">{{t('Read only: the Projects managers plan allocations.')}}</span>
+        </div>
+    </template>
+
+    <!-- ===== an allocation ===== -->
+    <m-dialog v-model="viewer.open" :title="viewer.alloc ? viewTitle(viewer.alloc) : ''" width="520">
+        <div v-if="viewer.alloc" class="q-gutter-y-xs">
+            <div class="row items-center q-gutter-sm">
+                <q-chip dense square class="q-ma-none m-tonal" :class="'text-' + statusColor(viewer.alloc.statusId)">{{statusLabel(viewer.alloc.statusId)}}</q-chip>
+                <a :href="projectUrl(viewer.alloc)" class="text-body2" @click.prevent="go(projectUrl(viewer.alloc))">{{viewer.alloc.projectName}}</a>
+            </div>
+            <div class="text-body2">{{periodText(viewer.alloc)}} · {{amountText(viewer.alloc)}}</div>
+            <div v-if="viewer.alloc.roleText || viewer.alloc.skillText" class="text-body2 m-muted">{{[viewer.alloc.roleText, viewer.alloc.skillText].filter(Boolean).join(' · ')}}</div>
+            <div v-if="viewer.alloc.comments" class="text-body2">{{viewer.alloc.comments}}</div>
+        </div>
+        <div class="row justify-end q-gutter-sm q-mt-md">
+            <template v-if="viewer.alloc && viewer.alloc.canChange">
+                <q-btn flat no-caps color="negative" :label="t('Cancel allocation')" @click="decide(viewer.alloc, 'cancel')"></q-btn>
+                <q-btn v-if="viewer.alloc.statusId === 'WealRequested' && planner && planner.isApprover" flat no-caps color="negative" :label="t('Reject')"
+                        @click="openReject(viewer.alloc)"></q-btn>
+            </template>
+            <q-space></q-space>
+            <q-btn v-if="viewer.alloc && viewer.alloc.canChange && !viewer.alloc.partyId" unelevated no-caps class="m-btn-tonal" icon="sym_o_person_search" :label="t('Staff')"
+                    @click="openStaff(viewer.alloc)"></q-btn>
+            <q-btn v-if="viewer.alloc && viewer.alloc.canChange" unelevated no-caps class="m-btn-tonal" icon="sym_o_edit" :label="t('Edit')" @click="openEdit(viewer.alloc)"></q-btn>
+            <q-btn v-if="viewer.alloc && viewer.alloc.statusId === 'WealRequested' && planner && planner.isApprover" unelevated no-caps color="primary" icon="sym_o_task_alt"
+                    :label="t('Approve')" @click="decide(viewer.alloc, 'approve')"></q-btn>
+        </div>
+    </m-dialog>
+
+    <!-- ===== AllocationForm: a new allocation, or the changes to one ===== -->
+    <m-dialog v-model="form.open" :title="form.isNew ? t('New allocation') : t('Edit allocation')" width="560">
+        <m-form :key="'alloc' + form.key" :action="action('saveAllocation')" :fields-initial="form.initial" @submitted="afterChange(form)" v-slot="formProps">
+            <m-drop-down v-if="form.isNew" id="boss-alloc-project" name="allocWorkEffortId" v-model="formProps.fields.allocWorkEffortId"
+                    :options="(planner && planner.options && planner.options.requestProjectOptions) || []" :label="t('Project')" required></m-drop-down>
+            <div v-else class="text-body2 q-mb-sm">{{form.projectName}}<span v-if="form.who"> · {{form.who}}</span></div>
+            <template v-if="form.isNew">
+                <q-toggle v-model="formProps.fields.placeholder" true-value="Y" false-value="N" dense :label="t('A role to staff (no person yet)')" class="q-mb-xs"></q-toggle>
+                <m-drop-down v-if="formProps.fields.placeholder !== 'Y'" id="boss-alloc-person" name="partyId" v-model="formProps.fields.partyId"
+                        :options="peopleOptions" :label="t('Person')"></m-drop-down>
+            </template>
+            <div class="row q-col-gutter-sm q-mt-none">
+                <div class="col-12 col-sm-6"><m-drop-down id="boss-alloc-role" name="allocRoleTypeId" v-model="formProps.fields.allocRoleTypeId" allow-empty
+                        :options="(planner && planner.roleOptions) || []" :label="t('Project role')"></m-drop-down></div>
+                <div class="col-12 col-sm-6"><m-drop-down id="boss-alloc-skill" name="allocSkillTypeEnumId" v-model="formProps.fields.allocSkillTypeEnumId" allow-empty
+                        :options="(planner && planner.options && planner.options.skillOptions) || []" :label="t('Skill')"></m-drop-down></div>
+            </div>
+            <div class="row q-col-gutter-sm q-mt-none">
+                <div class="col-6"><m-date-time v-model="formProps.fields.allocFromDate" name="allocFromDate" id="boss-alloc-from" type="date" :label="t('From')"></m-date-time></div>
+                <div class="col-6"><m-date-time v-model="formProps.fields.allocThruDate" name="allocThruDate" id="boss-alloc-thru" type="date" :label="t('Thru')"></m-date-time></div>
+            </div>
+            <div class="row items-end q-col-gutter-sm q-mt-none">
+                <div class="col"><m-text-line v-model="formProps.fields.amount" name="amount" id="boss-alloc-amount" input-type="number"
+                        :label="formProps.fields.unit === 'pct' ? t('Percent of capacity') : t('Hours a week')"></m-text-line></div>
+                <div class="col-auto q-pb-sm"><q-btn-toggle v-model="formProps.fields.unit" dense no-caps unelevated toggle-color="primary"
+                        :options="[{label: t('h a week'), value: 'h'}, {label: '%', value: 'pct'}]"></q-btn-toggle></div>
+            </div>
+            <m-text-area v-model="formProps.fields.comments" name="comments" id="boss-alloc-comments" rows="2" :label="t('Note')"></m-text-area>
+            <q-checkbox v-if="form.isNew && planner && planner.isApprover" v-model="formProps.fields.request" true-value="Y" false-value="N" dense
+                    :label="t('Request it for approval instead of allocating now')" class="q-mt-xs"></q-checkbox>
+            <div v-if="form.isNew && planner && !planner.isApprover" class="text-caption m-muted q-mt-xs">{{t('It is requested: a Projects manager approves it.')}}</div>
+            <div class="row justify-end q-gutter-sm q-mt-md">
+                <q-btn flat no-caps :label="t('Cancel')" v-close-popup></q-btn>
+                <q-btn unelevated no-caps color="primary" type="submit"
+                        :label="!form.isNew ? t('Save') : (planner && planner.isApprover && formProps.fields.request !== 'Y' ? t('Allocate') : t('Request'))"></q-btn>
+            </div>
+        </m-form>
+    </m-dialog>
+
+    <!-- ===== StaffAllocation: the candidates of a placeholder ===== -->
+    <m-dialog v-model="staff.open" :title="t('Staff') + (staff.alloc ? ': ' + viewTitle(staff.alloc) : '')" width="640">
+        <div v-if="staff.alloc" class="text-body2 m-muted q-mb-sm">{{staff.alloc.projectName}} · {{periodText(staff.alloc)}} · {{amountText(staff.alloc)}}</div>
+        <div v-if="staff.loading" class="q-pa-md"><q-skeleton type="text"></q-skeleton><q-skeleton type="text"></q-skeleton></div>
+        <div v-else-if="!staff.candidates.length" class="text-body2 m-muted q-pa-sm">{{t('No one to propose: no one keeps time on a project, has the skill or holds the role.')}}</div>
+        <q-list v-else separator bordered class="rounded-borders">
+            <q-item v-for="one in staff.candidates" :key="one.partyId">
+                <q-item-section avatar><m-avatar :name="one.name" size="32px"></m-avatar></q-item-section>
+                <q-item-section>
+                    <q-item-label><a :href="one.personUrl" @click.prevent="go(one.personUrl)">{{one.name}}</a>
+                        <q-chip dense square class="q-my-none q-ml-sm m-tonal" :class="'text-' + one.fitColor">{{one.fitText}}</q-chip></q-item-label>
+                    <q-item-label caption>{{[one.freeText, one.skillText, one.roleText, one.rateText].filter(Boolean).join(' · ')}}</q-item-label>
+                    <q-item-label caption class="ellipsis">{{one.projectsText}}</q-item-label>
+                </q-item-section>
+                <q-item-section side v-if="staff.canStaff">
+                    <q-btn unelevated no-caps dense class="m-btn-tonal q-px-sm" :label="t('Staff')" @click="staffWith(one)"></q-btn>
+                </q-item-section>
+            </q-item>
+        </q-list>
+        <div class="row justify-end q-mt-md"><q-btn flat no-caps :label="t('Close')" v-close-popup></q-btn></div>
+    </m-dialog>
+
+    <!-- ===== Reject with a reason ===== -->
+    <m-dialog v-model="rejecter.open" :title="t('Reject the allocation')" width="480">
+        <m-text-area v-model="rejecter.reason" name="reason" id="boss-alloc-reason" rows="3" :label="t('Why')"></m-text-area>
+        <div class="row justify-end q-gutter-sm q-mt-md">
+            <q-btn flat no-caps :label="t('Cancel')" v-close-popup></q-btn>
+            <q-btn unelevated no-caps color="negative" :label="t('Reject')" :disable="!rejecter.reason.trim()" @click="reject"></q-btn>
+        </div>
+    </m-dialog>
+</div></template>
+
+<script>
+const t = (text) => (moqui.l10n && moqui.l10n.localize ? moqui.l10n.localize(text) : text);
+// days are yyyy-MM-dd text, counted as UTC days so the browser's own zone never counts
+const dayNum = (text) => Math.floor(Date.parse(String(text).slice(0, 10) + 'T00:00:00Z') / 86400000);
+const dayText = (num) => new Date(num * 86400000).toISOString().slice(0, 10);
+const addDays = (text, days) => dayText(dayNum(text) + days);
+const isoDay = (text) => { const js = new Date(dayNum(text) * 86400000).getUTCDay(); return js === 0 ? 7 : js; };
+const mondayOf = (text) => addDays(text, 1 - isoDay(text));
+// the chart series (style-guide §5.1) less warning and negative, which mean overbooked here
+const COLORS = ['primary', 'secondary', 'accent', 'info', 'positive', 'blue-8', 'teal-8', 'purple-8', 'orange-8', 'green-8'];
+const store = {
+    get(key) { try { return window.localStorage.getItem('boss.planner.' + key); } catch (err) { return null; } },
+    set(key, value) { try { window.localStorage.setItem('boss.planner.' + key, value); } catch (err) { /* private window */ } }
+};
+
+module.exports = {
+    name: 'BossTeamPlanner',
+    data() {
+        const params = (this.$root && this.$root.currentParameters) || {};
+        return {
+            loading: false, seq: 0, planner: null, notAvailable: false,
+            fromDate: params.fromDate ? mondayOf(params.fromDate) : null,
+            weekCount: Number(params.weeks) || Number(store.get('weeks')) || 12, view: store.get('view') || 'person',
+            filter: { rootWorkEffortId: params.rootWorkEffortId || null, roleTypeId: params.roleTypeId || null, skillTypeEnumId: params.skillTypeEnumId || null,
+                teamPartyId: params.teamPartyId || null },
+            closed: {}, drag: null, preview: null, peopleOptions: [],
+            viewer: { open: false, alloc: null },
+            form: { open: false, key: 0, isNew: true, initial: {}, projectName: '', who: '' },
+            staff: { open: false, alloc: null, loading: false, candidates: [], canStaff: false },
+            rejecter: { open: false, alloc: null, reason: '' }
+        };
+    },
+    computed: {
+        phone() { return this.$q.screen.lt.sm; },
+        dark() { return this.$q.dark.isActive; },
+        locale() { return String((moqui.config && moqui.config.locale) || 'en-US').replace('_', '-'); },
+        pathList() { return this.$root.currentPathList || []; },
+        tIndex() { return this.pathList.lastIndexOf('TeamPlanner'); },
+        screenPath() { return this.$root.basePath + '/' + (this.tIndex >= 0 ? this.pathList.slice(0, this.tIndex + 1) : ['Projects', 'Resources', 'TeamPlanner']).join('/'); },
+        weekOptions() { return [8, 12, 26].map((count) => ({ label: count + ' ' + this.t('wk'), value: count })); },
+        viewOptions() { return [{ label: this.t('By person'), value: 'person' }, { label: this.t('By project'), value: 'project' }]; },
+        filtered() { return Object.keys(this.filter).some((key) => this.filter[key]); },
+        gridW() { return this.phone ? 128 : (this.$q.screen.gt.md ? 260 : 210); },
+        weekW() {
+            const base = { 8: 112, 12: 84, 26: 46 }[this.weekCount] || 84;
+            return this.phone ? Math.max(40, Math.round(base * 0.68)) : base;
+        },
+        dayPx() { return this.weekW / 7; },
+        headH() { return 40; },
+        chartW() { return this.weeks.length * this.weekW; },
+        weeks() {
+            if (!this.planner) return [];
+            let lastMonth = null;
+            return (this.planner.weekList || []).map((week, index) => {
+                const month = week.weekStart.slice(0, 7);
+                const monthLabel = month !== lastMonth ? this.fmt(week.weekStart, { month: 'short', year: index === 0 || month.endsWith('-01') ? 'numeric' : undefined }) : '';
+                lastMonth = month;
+                return Object.assign({}, week, { left: index * this.weekW, monthLabel, label: this.fmt(week.weekStart, { day: 'numeric' }) });
+            });
+        },
+        rangeText() {
+            if (!this.planner) return '';
+            return this.fmt(this.planner.fromDate, { month: 'short', day: 'numeric' }) + ' – ' + this.fmt(this.planner.thruDate, { month: 'short', day: 'numeric', year: 'numeric' });
+        },
+        colorOf() {
+            const map = {};
+            ((this.planner && this.planner.projectList) || []).forEach((project, index) => { map[project.workEffortId] = COLORS[index % COLORS.length]; });
+            return map;
+        },
+        legendProjects() { return ((this.planner && this.planner.projectList) || []).map((project) => Object.assign({}, project, { color: this.colorOf[project.workEffortId] })); },
+        // the rows: a group header, a person's load row, an allocation's lane
+        rows() {
+            if (!this.planner) return [];
+            const out = [];
+            const people = this.planner.personList || [];
+            const placeholders = this.planner.placeholderList || [];
+            const laneH = 36;
+            const lane = (alloc, indent, label, sub) => out.push(this.laneRow(alloc, indent, label, sub, laneH));
+            if (this.view === 'project') {
+                const byProject = new Map();
+                const add = (alloc, person) => {
+                    if (alloc.hidden) return;
+                    if (!byProject.has(alloc.rootWorkEffortId)) byProject.set(alloc.rootWorkEffortId, { name: alloc.projectName, list: [] });
+                    byProject.get(alloc.rootWorkEffortId).list.push({ alloc, person });
+                };
+                for (const person of people) for (const alloc of person.allocationList || []) add(alloc, person);
+                for (const alloc of placeholders) add(alloc, null);
+                const ids = Array.from(byProject.keys()).sort((a, b) => byProject.get(a).name.localeCompare(byProject.get(b).name));
+                for (const id of ids) {
+                    const group = byProject.get(id);
+                    const totals = {};
+                    for (const entry of group.list) for (const [week, hours] of Object.entries(entry.alloc.weekHours || {})) totals[week] = (totals[week] || 0) + hours;
+                    out.push({ kind: 'group', key: 'g' + id, label: group.name, icon: 'sym_o_folder', count: group.list.length, height: 30, weekTotals: totals,
+                        url: '/qapps/Projects/Projects/ProjectDetail?workEffortId=' + encodeURIComponent(id) });
+                    group.list.sort((a, b) => (a.person ? 1 : 0) - (b.person ? 1 : 0) || String(a.alloc.personName || '').localeCompare(String(b.alloc.personName || '')));
+                    for (const entry of group.list) lane(entry.alloc, 1, entry.person ? entry.person.name : this.placeholderName(entry.alloc), this.amountText(entry.alloc));
+                }
+                return out;
+            }
+            if (placeholders.length) {
+                out.push({ kind: 'group', key: 'g-staff', label: this.t('To staff'), icon: 'sym_o_person_search', count: placeholders.length, height: 30 });
+                for (const alloc of placeholders) lane(alloc, 1, this.placeholderName(alloc), alloc.projectName + ' · ' + this.amountText(alloc));
+            }
+            const groups = new Map();
+            for (const person of people) {
+                const key = person.roleText || this.t('No project role');
+                if (!groups.has(key)) groups.set(key, []);
+                groups.get(key).push(person);
+            }
+            const keys = Array.from(groups.keys()).sort((a, b) => a.localeCompare(b));
+            for (const key of keys) {
+                out.push({ kind: 'group', key: 'r' + key, label: key, icon: 'sym_o_badge', count: groups.get(key).length, height: 30 });
+                for (const person of groups.get(key)) {
+                    out.push(this.personRow(person));
+                    if (!this.isOpen(person.partyId)) continue;
+                    const list = (person.allocationList || []).slice().sort((a, b) => (a.hidden ? 1 : 0) - (b.hidden ? 1 : 0) || String(a.fromDay).localeCompare(String(b.fromDay)));
+                    for (const alloc of list) lane(alloc, 1, alloc.projectName, this.amountText(alloc));
+                }
+            }
+            return out;
+        }
+    },
+    watch: {
+        'filter.rootWorkEffortId'() { this.load(); },
+        'filter.roleTypeId'() { this.load(); },
+        'filter.skillTypeEnumId'() { this.load(); },
+        'filter.teamPartyId'() { this.load(); },
+        weekCount(value) { store.set('weeks', String(value)); this.load(); },
+        view(value) { store.set('view', value); }
+    },
+    methods: {
+        t,
+        url(name) { return this.screenPath + '/' + name; },
+        action(name) {
+            const rootPath = this.$root.appRootPath || '';
+            const path = this.url(name);
+            return rootPath && path.indexOf(rootPath) === 0 ? path.slice(rootPath.length) : path;
+        },
+        fmt(value, options) {
+            if (typeof value === 'number') return (Math.round(value * 10) / 10).toLocaleString(this.locale);
+            try { return new Intl.DateTimeFormat(this.locale, Object.assign({ timeZone: 'UTC' }, options)).format(new Date(dayNum(value) * 86400000)); }
+            catch (err) { return value; }
+        },
+        go(url) { if (url) this.$root.setUrl(url); },
+        fieldStyle(width) { return this.phone ? { width: 'calc(50% - 8px)' } : { width: width + 'px', maxWidth: '100%' }; },
+        isOpen(partyId) { return this.closed[partyId] === undefined ? !this.phone : !this.closed[partyId]; },
+        toggle(partyId) { this.closed = Object.assign({}, this.closed, { [partyId]: this.isOpen(partyId) }); },
+        statusLabel(statusId) { return { WealRequested: this.t('Requested'), WealAllocated: this.t('Allocated'), WealRejected: this.t('Rejected'), WealCancelled: this.t('Cancelled') }[statusId] || statusId; },
+        statusColor(statusId) { return { WealRequested: 'grey-7', WealAllocated: 'primary', WealRejected: 'negative', WealCancelled: 'negative' }[statusId] || 'grey-7'; },
+        projectUrl(alloc) { return '/qapps/Projects/Projects/ProjectDetail?workEffortId=' + encodeURIComponent(alloc.rootWorkEffortId || ''); },
+        placeholderName(alloc) { return [alloc.roleText || this.t('A person'), alloc.skillText ? '(' + alloc.skillText + ')' : ''].filter(Boolean).join(' '); },
+        viewTitle(alloc) { return alloc.partyId ? alloc.personName : this.placeholderName(alloc); },
+        amountText(alloc) {
+            const requested = alloc.statusId === 'WealRequested' ? ' · ' + this.t('requested') : '';
+            if (alloc.hidden) return this.t('Not shown to you') + requested;
+            return (alloc.allocationPercent != null ? this.fmt(alloc.allocationPercent) + ' %' : this.fmt(alloc.hoursPerWeek || 0) + ' h ' + this.t('a week')) + requested;
+        },
+        periodText(alloc) { return this.fmt(alloc.fromDay, { month: 'short', day: 'numeric' }) + ' – ' + this.fmt(alloc.thruDay, { month: 'short', day: 'numeric', year: 'numeric' }); },
+        personCaption(person) {
+            const parts = [];
+            if (person.skillList && person.skillList.length) parts.push(person.skillList.slice(0, 2).map((skill) => skill.label).join(', '));
+            if (person.source === 'available') parts.push(this.t('own hours'));
+            return parts.join(' · ');
+        },
+        canRequestFor() { return !!(this.planner && this.planner.canRequest); },
+        // a person's load row, with each week's cell
+        personRow(person) {
+            const height = this.phone ? 46 : 48;
+            const plot = height - 6 - 14;
+            let overWeeks = 0;
+            const cells = (person.weekList || []).map((week, index) => {
+                const segments = [];
+                const byProject = {};
+                for (const alloc of person.allocationList || []) {
+                    const hours = (alloc.weekHours || {})[week.weekStart] || 0;
+                    if (!(hours > 0)) continue;
+                    const key = (alloc.hidden ? '_other' : alloc.rootWorkEffortId) + (alloc.statusId === 'WealRequested' ? '|r' : '');
+                    if (!byProject[key]) byProject[key] = { key, hours: 0, color: alloc.hidden ? 'grey-6' : (this.colorOf[alloc.rootWorkEffortId] || 'grey-6'),
+                        requested: alloc.statusId === 'WealRequested', name: alloc.projectName };
+                    byProject[key].hours += hours;
+                }
+                const ref = Math.max(week.base || 0, week.capacity || 0, week.allocated + week.requested > 0 ? 8 : 1);
+                const scale = plot / (ref * 1.25);
+                let bottom = 0;
+                const list = Object.values(byProject).sort((a, b) => (a.requested ? 1 : 0) - (b.requested ? 1 : 0) || a.name.localeCompare(b.name));
+                for (const seg of list) {
+                    const h = Math.max(1, Math.min(plot - bottom, seg.hours * scale));
+                    if (h <= 0) break;
+                    segments.push({ key: seg.key, color: seg.color, requested: seg.requested, bottom, height: h });
+                    bottom += h;
+                }
+                if (week.over) overWeeks++;
+                const off = week.holidayHours || week.leaveHours;
+                const pct = week.capacity > 0 ? Math.round(week.load * 100) + ' %' : '';
+                const tip = [this.t('Week of') + ' ' + this.fmt(week.weekStart, { month: 'short', day: 'numeric' }),
+                    this.t('Capacity') + ': ' + this.fmt(week.capacity) + ' h' + (week.base !== week.capacity ? ' (' + this.t('of') + ' ' + this.fmt(week.base) + ' h)' : ''),
+                    this.t('Allocated') + ': ' + this.fmt(week.allocated) + ' h' + (pct ? ' · ' + pct : ''),
+                    week.requested ? this.t('Requested') + ': ' + this.fmt(week.requested) + ' h' : '',
+                    this.t('Assigned work') + ': ' + this.fmt(week.assigned) + ' h',
+                    week.logged ? this.t('Logged') + ': ' + this.fmt(week.logged) + ' h' : '',
+                    week.holidayHours ? this.t('Holiday') + ': ' + this.fmt(week.holidayHours) + ' h' : '',
+                    week.leaveHours ? this.t('Leave') + ': ' + this.fmt(week.leaveHours) + ' h' : '',
+                    list.filter((seg) => !seg.requested).map((seg) => seg.name + ' ' + this.fmt(seg.hours) + ' h').join(', ')].filter(Boolean);
+                return { weekStart: week.weekStart, left: index * this.weekW, segments, tip, text: this.fmt(week.allocated) + '/' + this.fmt(week.capacity),
+                    capY: ref > 0 ? Math.min(plot, (week.capacity || 0) * scale) : null,
+                    assignedY: week.assigned > 0 ? Math.min(plot, week.assigned * scale) : null, offIcon: off ? 'sym_o_beach_access' : null,
+                    cls: week.load > 1.2 || (week.capacity <= 0 && week.over) ? 'boss-tp-danger' : (week.over ? 'boss-tp-over' : (week.base <= 0 ? 'boss-tp-off' : '')) };
+            });
+            return { kind: 'person', key: 'p' + person.partyId, person, cells, overWeeks, height };
+        },
+        // an allocation's lane, with its bar over its days in the range
+        laneRow(alloc, indent, label, sub, height) {
+            const first = this.planner.fromDate;
+            const last = this.planner.thruDate;
+            const from = alloc.fromDay < first ? first : alloc.fromDay;
+            const thru = alloc.thruDay > last ? last : alloc.thruDay;
+            const bar = thru >= from ? { left: (dayNum(from) - dayNum(first)) * this.dayPx, width: (dayNum(thru) - dayNum(from) + 1) * this.dayPx,
+                cutStart: alloc.fromDay < first, cutEnd: alloc.thruDay > last } : null;
+            const color = alloc.hidden ? 'grey-6' : (this.colorOf[alloc.rootWorkEffortId] || 'grey-7');
+            const amount = alloc.hidden ? '' : (alloc.allocationPercent != null ? this.fmt(alloc.allocationPercent) + ' %' : this.fmt(alloc.hoursPerWeek || 0) + ' h');
+            const who = alloc.partyId ? alloc.personName : this.placeholderName(alloc);
+            return { kind: 'lane', key: 'a' + (alloc.workEffortAllocationId || ('h' + sub + alloc.fromDay + alloc.thruDay + Object.values(alloc.weekHours || {}).join(','))), alloc, indent, label, sub, height, bar, color,
+                barLabel: amount + (this.weekW * 2 > 90 && bar && bar.width > 90 ? ' · ' + (this.view === 'project' ? who : alloc.projectName) : ''),
+                tip: [who, alloc.projectName, this.periodText(alloc), this.amountText(alloc), this.statusLabel(alloc.statusId)].filter(Boolean).join(' · '),
+                aria: [who, alloc.projectName, this.periodText(alloc), this.amountText(alloc)].filter(Boolean).join(', ') };
+        },
+        previewDelta(row, edge) { return this.preview && this.preview.key === row.key && this.preview.edge === edge ? this.preview.delta * this.dayPx : 0; },
+        barStyle(row) {
+            const shift = this.previewDelta(row, 'move');
+            const start = this.previewDelta(row, 'start');
+            const grow = this.previewDelta(row, 'end');
+            const height = Math.min(24, row.height - 8);
+            return { left: (row.bar.left + shift + start) + 'px', width: Math.max(this.dayPx, row.bar.width - start + grow) + 'px', top: ((row.height - height) / 2) + 'px',
+                height: height + 'px', zIndex: this.preview && this.preview.key === row.key ? 3 : 2,
+                borderTopLeftRadius: row.bar.cutStart ? 0 : null, borderBottomLeftRadius: row.bar.cutStart ? 0 : null,
+                borderTopRightRadius: row.bar.cutEnd ? 0 : null, borderBottomRightRadius: row.bar.cutEnd ? 0 : null };
+        },
+        params() {
+            const params = { weeks: String(this.weekCount) };
+            if (this.fromDate) params.fromDate = this.fromDate;
+            Object.keys(this.filter).forEach((key) => { if (this.filter[key]) params[key] = this.filter[key]; });
+            return params;
+        },
+        load() {
+            const seq = ++this.seq;
+            this.loading = true;
+            return moqui.request(this.url('plan'), { params: this.params() }).then((result) => {
+                if (seq !== this.seq) return;
+                this.loading = false;
+                const json = result.json || {};
+                this.notAvailable = !!json.notAvailable;
+                this.planner = json.planner || null;
+            }, (err) => { if (seq !== this.seq) return; this.loading = false; moqui.handleAjaxError(err); });
+        },
+        post(name, params) {
+            return moqui.request(this.url(name), { method: 'POST', params: params || {} }).then((result) => {
+                const json = result.json || {};
+                if (json.messageInfos && json.messageInfos.length) moqui.notifyMessages(json.messageInfos);
+                return json;
+            }, (err) => { moqui.handleAjaxError(err); throw err; });
+        },
+        shiftWeeks(count) { this.fromDate = addDays(this.planner ? this.planner.fromDate : mondayOf(new Date().toISOString().slice(0, 10)), count * 7); this.load(); },
+        thisWeek() { this.fromDate = null; this.load(); },
+        clearFilters() { this.filter = { rootWorkEffortId: null, roleTypeId: null, skillTypeEnumId: null, teamPartyId: null }; },
+        // ===== the dialogs =====
+        loadPeople(initial) {
+            moqui.request(this.url('people'), { params: { allocFromDate: initial.allocFromDate || '', allocThruDate: initial.allocThruDate || '', amount: initial.amount || '',
+                unit: initial.unit || 'h' } }).then((result) => {
+                const list = Array.isArray(result.json) ? result.json : [];
+                if (initial.partyId && !list.some((one) => one.value === initial.partyId)) list.unshift({ value: initial.partyId, label: initial.partyName || initial.partyId });
+                this.peopleOptions = list;
+            }, () => {});
+        },
+        openNew(person, weekStart) {
+            if (!this.planner || !this.planner.canRequest) return;
+            const projects = this.planner.options.requestProjectOptions || [];
+            const start = weekStart || mondayOf(this.planner.today || new Date().toISOString().slice(0, 10));
+            const initial = { workEffortAllocationId: '', allocWorkEffortId: this.filter.rootWorkEffortId && projects.some((one) => one.value === this.filter.rootWorkEffortId)
+                    ? this.filter.rootWorkEffortId : (projects.length === 1 ? projects[0].value : ''),
+                placeholder: 'N', partyId: person ? person.partyId : '', partyName: person ? person.name : '', allocRoleTypeId: person && person.roleTypeId ? person.roleTypeId : '',
+                allocSkillTypeEnumId: '', allocFromDate: start, allocThruDate: addDays(start, weekStart ? 4 : 27), amount: '8', unit: 'h', comments: '', request: 'N' };
+            this.peopleOptions = person ? [{ value: person.partyId, label: person.name }] : [];
+            this.loadPeople(initial);
+            this.form = { open: true, key: this.form.key + 1, isNew: true, initial, projectName: '', who: '' };
+        },
+        openEdit(alloc) {
+            this.viewer.open = false;
+            const initial = { workEffortAllocationId: alloc.workEffortAllocationId, allocRoleTypeId: alloc.roleTypeId || '', allocSkillTypeEnumId: alloc.skillTypeEnumId || '',
+                allocFromDate: alloc.fromDay, allocThruDate: alloc.thruDay, amount: String(alloc.allocationPercent != null ? alloc.allocationPercent : (alloc.hoursPerWeek || '')),
+                unit: alloc.allocationPercent != null ? 'pct' : 'h', comments: alloc.comments || '' };
+            this.form = { open: true, key: this.form.key + 1, isNew: false, initial, projectName: alloc.projectName, who: this.viewTitle(alloc) };
+        },
+        openView(alloc) { if (alloc && !alloc.hidden) this.viewer = { open: true, alloc }; },
+        cellClick(person, cell) { if (this.canRequestFor(person)) this.openNew(person, cell.weekStart); },
+        afterChange(dialog) { dialog.open = false; this.load(); },
+        decide(alloc, action) {
+            this.post('decideAllocation', { workEffortAllocationId: alloc.workEffortAllocationId, action }).then((json) => {
+                if (!json.decided) return;
+                this.viewer.open = false;
+                this.load();
+            }, () => {});
+        },
+        openReject(alloc) { this.viewer.open = false; this.rejecter = { open: true, alloc, reason: '' }; },
+        reject() {
+            this.post('decideAllocation', { workEffortAllocationId: this.rejecter.alloc.workEffortAllocationId, action: 'reject', reason: this.rejecter.reason }).then((json) => {
+                if (!json.decided) return;
+                this.rejecter.open = false;
+                this.load();
+            }, () => {});
+        },
+        openStaff(alloc) {
+            this.viewer.open = false;
+            this.staff = { open: true, alloc, loading: true, candidates: [], canStaff: false };
+            moqui.request(this.url('candidates'), { params: { workEffortAllocationId: alloc.workEffortAllocationId } }).then((result) => {
+                const json = result.json || {};
+                this.staff = Object.assign({}, this.staff, { loading: false, candidates: json.candidateList || [], canStaff: !!json.canStaff });
+            }, (err) => { this.staff.loading = false; moqui.handleAjaxError(err); });
+        },
+        staffWith(one) {
+            this.post('decideAllocation', { workEffortAllocationId: this.staff.alloc.workEffortAllocationId, action: 'staff', partyId: one.partyId }).then((json) => {
+                if (!json.decided) return;
+                this.staff.open = false;
+                this.load();
+            }, () => {});
+        },
+        // ===== a bar dragged: moved, or an end stretched, by days =====
+        onBarDown(event, row, edge) {
+            if (event.button !== 0 || row.alloc.hidden) return;
+            const movable = row.alloc.canChange && event.pointerType !== 'touch' && !this.phone;
+            if (movable) event.preventDefault();
+            this.drag = { row, edge, x: event.clientX, y: event.clientY, started: false, movable };
+            window.addEventListener('pointermove', this.onMove);
+            window.addEventListener('pointerup', this.onUp);
+        },
+        onMove(event) {
+            const drag = this.drag;
+            if (!drag) return;
+            if (!drag.started) {
+                if (Math.abs(event.clientX - drag.x) + Math.abs(event.clientY - drag.y) < 5) return;
+                if (!drag.movable) { this.endDrag(); return; }
+                drag.started = true;
+            }
+            this.preview = { key: drag.row.key, edge: drag.edge, delta: Math.round((event.clientX - drag.x) / this.dayPx) };
+        },
+        endDrag() {
+            window.removeEventListener('pointermove', this.onMove);
+            window.removeEventListener('pointerup', this.onUp);
+            this.drag = null;
+        },
+        onUp() {
+            const drag = this.drag;
+            const preview = this.preview;
+            this.endDrag();
+            this.preview = null;
+            if (!drag) return;
+            if (!drag.started) { this.openView(drag.row.alloc); return; }
+            if (!preview || !preview.delta) return;
+            const alloc = drag.row.alloc;
+            const params = { workEffortAllocationId: alloc.workEffortAllocationId };
+            if (drag.edge === 'move') params.shiftDays = String(preview.delta);
+            else if (drag.edge === 'start') {
+                const from = addDays(alloc.fromDay, preview.delta);
+                if (from > alloc.thruDay) return;
+                params.allocFromDate = from;
+            } else {
+                const thru = addDays(alloc.thruDay, preview.delta);
+                if (thru < alloc.fromDay) return;
+                params.allocThruDate = thru;
+            }
+            this.post('moveAllocation', params).then(() => this.load(), () => this.load());
+        }
+    },
+    mounted() { this.load(); },
+    beforeUnmount() { this.endDrag(); }
+};
+</script>
+
+<style>
+.boss-tp-scroll { overflow: auto; border: 1px solid rgba(0, 0, 0, .12); position: relative; --boss-tp-bg: #fff; }
+.boss-tp-dark.boss-tp-scroll { border-color: rgba(255, 255, 255, .14); --boss-tp-bg: var(--q-dark-page, #121212); }
+.boss-tp-head { position: sticky; top: 0; z-index: 5; background: var(--boss-tp-bg); border-bottom: 1px solid rgba(0, 0, 0, .12); }
+.boss-tp-dark .boss-tp-head { border-bottom-color: rgba(255, 255, 255, .14); }
+.boss-tp-corner, .boss-tp-cell { position: sticky; left: 0; z-index: 4; background: var(--boss-tp-bg); border-right: 1px solid rgba(0, 0, 0, .12); flex: none; }
+.boss-tp-dark .boss-tp-corner, .boss-tp-dark .boss-tp-cell { border-right-color: rgba(255, 255, 255, .14); }
+.boss-tp-corner { z-index: 6; }
+.boss-tp-weekhead { flex: none; border-left: 1px solid rgba(0, 0, 0, .06); line-height: 1.2; }
+.boss-tp-dark .boss-tp-weekhead { border-left-color: rgba(255, 255, 255, .06); }
+.boss-tp-row { border-bottom: 1px solid rgba(0, 0, 0, .05); }
+.boss-tp-dark .boss-tp-row { border-bottom-color: rgba(255, 255, 255, .05); }
+.boss-tp-person { border-top: 1px solid rgba(0, 0, 0, .08); }
+.boss-tp-dark .boss-tp-person { border-top-color: rgba(255, 255, 255, .1); }
+.boss-tp-group .boss-tp-cell { background: color-mix(in srgb, var(--boss-tp-bg) 94%, currentColor); }
+.boss-tp-group { background: color-mix(in srgb, var(--boss-tp-bg) 97%, currentColor); }
+.boss-tp-line { border-left: 1px solid rgba(0, 0, 0, .06); }
+.boss-tp-dark .boss-tp-line { border-left-color: rgba(255, 255, 255, .06); }
+.boss-tp-now { background: color-mix(in srgb, var(--q-primary) 6%, transparent); }
+.boss-tp-load { border: 1px solid rgba(0, 0, 0, .14); border-radius: 3px; overflow: hidden; }
+.boss-tp-dark .boss-tp-load { border-color: rgba(255, 255, 255, .18); }
+.boss-tp-off { opacity: .5; }
+.boss-tp-over { background: color-mix(in srgb, var(--q-warning) 22%, transparent); border-color: var(--q-warning); }
+.boss-tp-danger { background: color-mix(in srgb, var(--q-negative) 16%, transparent); border-color: var(--q-negative); }
+.boss-tp-seg { background: currentColor; opacity: .75; border-radius: 1px; }
+.boss-tp-seg.boss-tp-hatch { opacity: 1; }
+.boss-tp-hatch { background: repeating-linear-gradient(135deg, color-mix(in srgb, currentColor 55%, transparent) 0 3px, transparent 3px 6px); }
+.boss-tp-cap { height: 0; border-top: 2px solid rgba(0, 0, 0, .55); }
+.boss-tp-dark .boss-tp-cap { border-top-color: rgba(255, 255, 255, .7); }
+.boss-tp-assigned { height: 0; border-top: 2px dashed var(--q-info); }
+.boss-tp-num { line-height: 14px; font-size: 11px; color: rgba(0, 0, 0, .7); }
+.boss-tp-dark .boss-tp-num { color: rgba(255, 255, 255, .8); }
+.boss-tp-bar { border: 1px solid currentColor; background: color-mix(in srgb, currentColor 18%, transparent); user-select: none; cursor: pointer; }
+.boss-tp-bar.boss-tp-hatch { background: repeating-linear-gradient(135deg, color-mix(in srgb, currentColor 30%, transparent) 0 4px, color-mix(in srgb, currentColor 8%, transparent) 4px 8px); }
+.boss-tp-requested { border-style: dashed; }
+.boss-tp-bar:focus-visible { outline: 2px solid var(--q-primary); outline-offset: 2px; }
+.boss-tp-label { color: rgba(0, 0, 0, .87); line-height: 18px; }
+.boss-tp-dark .boss-tp-label { color: rgba(255, 255, 255, .92); }
+.boss-tp-faint { opacity: .55; cursor: default; }
+.boss-tp-grab { cursor: grab; }
+.boss-tp-edge { top: 0; bottom: 0; width: 7px; cursor: ew-resize; z-index: 2; }
+.boss-tp-swatch { display: inline-block; width: 12px; height: 12px; vertical-align: middle; border-radius: 2px; background: currentColor; }
+.boss-tp-swatch.boss-tp-hatch { background: repeating-linear-gradient(135deg, currentColor 0 2px, transparent 2px 4px); border: 1px solid currentColor; }
+.boss-tp-over-swatch { background: color-mix(in srgb, var(--q-warning) 40%, transparent); border: 1px solid var(--q-warning); }
+.boss-tp-lane-label { line-height: 17px; }
+.boss-tp-lane-sub { line-height: 14px; }
+.boss-tp-legend-cap { display: inline-block; width: 14px; height: 0; vertical-align: middle; border-top: 2px solid currentColor; }
+.boss-tp-legend-assigned { display: inline-block; width: 14px; height: 0; vertical-align: middle; border-top: 2px dashed var(--q-info); }
+</style>

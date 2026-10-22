@@ -220,7 +220,22 @@ const demoRecords = {
     "Projects/Time/MyTimeTui": { text: "Triage of the new tickets" },
     "Projects/Time/Timesheets": { parameters: { list: "toApprove" }, text: "Joe Developer" },
     "Projects/Time/TimesheetDetail": { timesheet: true, text: "Upgraded the client servers" },
-    "Projects/Resources": { text: "Placeholder: Team planner" },
+    // Projects P7: Resources opens on the team planner (a .qvue: its component; in qvt it says so), its terminal twin on the demo's
+    // allocations, Allocations (All: the demo's on IRON, ACME and SUPP), its dialogs (a new allocation; staffing the demo's placeholder,
+    // looked up in setupSpec) by the list they open over, and PersonDetail on Joe Developer with its tabs by its header (the shell loads
+    // a tab after it; test/Resources.spec.js renders the tabs themselves)
+    "Projects/Resources": { text: "The team planner opens in the browser app" },
+    "Projects/Resources/TeamPlanner": {},
+    "Projects/Resources/TeamPlannerTui": { text: "Joe Developer" },
+    "Projects/Resources/Allocations": { parameters: { list: "all" }, text: "Acme customer portal" },
+    "Projects/Resources/Allocations/EditAllocation": { text: "Acme customer portal" },
+    "Projects/Resources/Allocations/Staff": { placeholder: true, text: "Acme customer portal" },
+    "Projects/Resources/PersonDetail": { parameters: { partyId: "ORG_ZIZI_JD" }, text: "Joe Developer" },
+    "Projects/Resources/PersonDetail/Overview": { parameters: { partyId: "ORG_ZIZI_JD" }, text: "Joe Developer" },
+    "Projects/Resources/PersonDetail/Allocations": { parameters: { partyId: "ORG_ZIZI_JD" }, text: "Joe Developer" },
+    "Projects/Resources/PersonDetail/WorkItems": { parameters: { partyId: "ORG_ZIZI_JD" }, text: "Joe Developer" },
+    "Projects/Resources/PersonDetail/Time": { parameters: { partyId: "ORG_ZIZI_JD" }, text: "Joe Developer" },
+    "Projects/Resources/PersonDetail/Capacity": { parameters: { partyId: "ORG_ZIZI_JD" }, text: "Joe Developer" },
     "Projects/Billing": { text: "Placeholder: Unbilled" },
     // Projects P6b: Time entries (All: the demo's support desk time John Doe manages), the entry dialog (a new entry), the time import
     // wizard's steps (no import yet; test/TimeEntries.spec.js walks them) and its progress, and the time settings
@@ -250,6 +265,10 @@ spec({
         // the time demo's submitted week of Joe Developer (a sequenced id)
         const sheet = Array.from(ec.entity.find("mantle.work.time.Timesheet").condition({ partyId: "ORG_ZIZI_JD", statusId: "TmshCompleted" }).disableAuthz().list())[0]
         for (const demo of Object.values(demoRecords)) if (demo.timesheet) demo.parameters = { timesheetId: sheet ? sheet.timesheetId : "_NA_" }
+        // the resource demo's placeholder UI designer on ACME (a sequenced id)
+        const placeholder = Array.from(ec.entity.find("mantle.work.effort.WorkEffortAllocation").condition({ rootWorkEffortId: "ACME" })
+                .condition("partyId", "is-null", null).disableAuthz().list())[0]
+        for (const demo of Object.values(demoRecords)) if (demo.placeholder) demo.parameters = { workEffortAllocationId: placeholder ? placeholder.workEffortAllocationId : "_NA_" }
     },
     setup() { ec.artifactExecution.disableAuthz() },
     cleanup() { ec.artifactExecution.enableAuthz() },
@@ -289,8 +308,8 @@ feature("every placeholder screen renders in qvt without errors, with its menu",
     then({ failures }) {
         // fewer as the milestones replace them (129 after M4, 114 after M10 and the Comms mail settings, 110 after M9's
         // Knowledge and Notes, 104 after M8's Files and Shares and the public page moved out of Commons; Projects P1 adds the
-        // placeholders of its menu, 25 more)
-        placeholders.length >= 104
+        // placeholders of its menu, 25 more, which its phases replace: 102 after P7's Team planner and Allocations)
+        placeholders.length >= 102
         failures.join("\n") == ""
     },
 })

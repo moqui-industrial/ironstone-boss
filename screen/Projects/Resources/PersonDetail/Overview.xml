@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- PersonDetail's Overview (design-projects.md §9 PersonDetail): the directory card (email, phone, organizations), the position and the
+    line managers, the skills (PartySkill) with their ratings, the working hours (their own, or the timesheet policy's week) and the
+    next four weeks' load (capacity, allocated, assigned, the load chip), from ironstone.ResourceServices.get#PersonOverview. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Overview" default-menu-index="1">
+
+    <actions><script><![CDATA[
+        overview = null
+        if (!personFound) return
+        overview = ec.service.sync().name('ironstone.ResourceServices.get#PersonOverview').parameters({partyId: partyId, weeks: 4}).call()?.overview || null
+        ec.message.clearErrors()
+        if (!overview) return
+        skillList = Array.from(overview.skillList || [])
+        managerList = Array.from(overview.managerList || [])
+        weekList = Array.from(overview.weekList || [])
+        weekListCount = weekList.length
+        managersText = managerList.map((one) => one.name).join(', ')
+    ]]></script></actions>
+
+    <widgets>
+        <section name="OverviewNotFound" condition="!personFound"><widgets>
+            <label type="p" text="This person is not available: they are on no project you see." style="text-warning"/>
+        </widgets></section>
+        <section name="OverviewFound" condition="overview"><widgets>
+            <container-row>
+                <row-col md="5">
+                    <container-box><box-header title="Contact"/><box-body>
+                        <label text="${overview.emailText || ''}" type="div" condition="overview.emailText"/>
+                        <label text="${overview.phoneText || ''}" type="div" condition="overview.phoneText"/>
+                        <label text="${overview.organizationText || ''}" type="div" style="text-caption m-muted" condition="overview.organizationText"/>
+                        <label text="Position: ${overview.positionText}" type="div" style="q-mt-sm" condition="overview.positionText"/>
+                        <label text="Line manager: ${managersText}" type="div" condition="managersText"/>
+                        <label text="No contact details" type="div" style="m-muted" condition="!overview.emailText &amp;&amp; !overview.phoneText"/>
+                    </box-body></container-box>
+                    <container-box><box-header title="Working hours"/><box-body>
+                        <label text="${overview.hoursText || ''}" type="div" style="text-h6"/>
+                        <label text="${overview.sourceText || ''}" type="div" style="text-caption m-muted"/>
+                    </box-body></container-box>
+                    <container-box><box-header title="Skills"/><box-body-nopad>
+                        <form-list name="PersonSkills" list="skillList" skip-form="true" skip-header="true" paginate="false">
+                            <field name="label"><default-field><display/></default-field></field>
+                            <field name="ratingText" align="right"><default-field><display/></default-field></field>
+                            <field name="yearsText" align="right"><default-field><label text="${yearsText}" type="span" style="m-muted"/></default-field></field>
+                        </form-list>
+                        <section name="NoSkills" condition="!skillList.length"><widgets>
+                            <label type="p" text="No skills recorded" style="m-muted q-pa-sm q-mb-none"/>
+                        </widgets></section>
+                    </box-body-nopad></container-box>
+                </row-col>
+                <row-col md="7">
+                    <container-box><box-header title="The next weeks"/><box-toolbar>
+                        <link url="../Capacity" link-type="anchor" text="Twelve weeks" parameter-map="{partyId:partyId}"/>
+                    </box-toolbar><box-body-nopad>
+                        <form-list name="PersonNextWeeks" list="weekList" skip-form="true" paginate="false">
+                            <field name="weekText"><default-field title="Week of"><display/></default-field></field>
+                            <field name="capacityText" align="right"><default-field title="Capacity"><display/></default-field></field>
+                            <field name="allocatedText" align="right"><default-field title="Allocated"><display/></default-field></field>
+                            <field name="assignedText" align="right"><default-field title="Assigned"><display/></default-field></field>
+                            <field name="loadText" align="right"><default-field title="Load">
+                                <render-mode><text type="qvt"><![CDATA[${loadText ? '<q-chip dense square class="q-ma-none m-tonal text-' + loadColor + '">' + WebUtilities.encodeHtml(loadText) + '</q-chip>' : ''}]]></text>
+                                    <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify(loadText ?? "")}}]]></text></render-mode></default-field></field>
+                            <columns type="mobile">
+                                <column><field-ref name="weekText"/><field-ref name="capacityText"/></column>
+                                <column><field-ref name="allocatedText"/><field-ref name="loadText"/></column>
+                            </columns>
+                        </form-list>
+                    </box-body-nopad></container-box>
+                    <label type="p" text="Overbooked in ${overview.overWeeks} of these weeks: the allocations or assigned work pass the capacity." style="text-warning text-caption"
+                            condition="overview.overWeeks"/>
+                    <label type="p" text="${ec.l10n.format(overview.undatedHours || 0, '#,##0.#')} h of assigned work has no due date and is not spread over the weeks." style="text-caption m-muted"
+                            condition="overview.undatedHours"/>
+                </row-col>
+            </container-row>
+        </widgets></section>
+    </widgets>
+</screen>

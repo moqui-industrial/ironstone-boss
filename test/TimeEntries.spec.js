@@ -251,10 +251,8 @@ feature("the Today source gives joe's running timer and his week to submit, and 
             ec.message.clearErrors()
             return JSON.parse(String(str.output || "{}"))
         })
-        // a render of a Commons screen (its root's authz is ALWAYS) leaves authorization off in this execution context (impl-projects.md
-        // F77): on again, so the features after check it
-        let guard = 0
-        while (ec.artifactExecution.authzDisabled() && guard++ < 20) ec.artifactExecution.enableAuthz()
+        // authorization is on again after a Commons render (mr-moqui e29d336f, impl-projects.md F77), so the features after check it
+        if (ec.artifactExecution.authzDisabled()) throw new Error("authorization left off after the Today panel")
         return { group, timer, week, johnItems, panel, stopped, timerAfter: as("joe.developer", () => sys(() => call("mantle.work.TimesheetServices.get#Timer", {}).timer)) }
     },
     then({ group, timer, week, johnItems, panel, stopped, timerAfter }) {

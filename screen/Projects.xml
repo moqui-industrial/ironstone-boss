@@ -50,6 +50,7 @@ along with this software (see the LICENSE.md file). If not, see
         <palette-action label="Log time" icon="sym_o_more_time" screen="Projects/QuickCreate" sequence="12">
             <parameter name="kind" value="time"/></palette-action>
         <palette-action label="My time" icon="sym_o_schedule" screen="Projects/Time/MyTime" sequence="13"/>
+        <palette-action label="Team planner" icon="sym_o_group_work" screen="Projects/Resources/TeamPlanner" sequence="14"/>
 
         <!-- the Code group (design-projects.md §1.4): repositories by name and merge requests by number (!12) or title, among those
             the user may view (ironstone.CodeServices.search#CodePalette over mantle.work.GitServices.search#Code) -->
@@ -70,6 +71,8 @@ along with this software (see the LICENSE.md file). If not, see
         <notification-topic topic="TimesheetReturned"/>
         <notification-topic topic="TimesheetApproved"/>
         <notification-topic topic="TimesheetMissing"/>
+        <notification-topic topic="AllocationRequest"/>
+        <notification-topic topic="AllocationDecision"/>
 
         <palette-type doc-type="MantleProject"/>
         <palette-type doc-type="MantleTask"/>

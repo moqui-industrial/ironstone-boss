@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The terminal twin of TeamPlanner (style-guide §4.8): TeamPlanner.xml's tui text is a dynamic container of this screen. The
+    placeholders to staff, then each person with their allocated hours against their capacity in each of the first weeks (an
+    overbooked week marked with !), then the allocations, from the same service as TeamPlanner.qvue (ironstone.ResourceServices
+    get#Planner), read only; requesting, moving, approving and staffing allocations are the browser's, and Allocations' (impl-projects.md
+    P11 for the terminal). A person opens PersonDetail. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Team planner" default-menu-include="false">
+
+    <parameter name="fromDate"/>
+    <parameter name="weeks"/>
+    <parameter name="rootWorkEffortId"/>
+    <parameter name="roleTypeId"/>
+    <parameter name="skillTypeEnumId"/>
+    <parameter name="teamPartyId"/>
+
+    <actions><script><![CDATA[
+        const L = (text) => ec.l10n.localize(text)
+        const out = ec.service.sync().name('ironstone.ResourceServices.get#Planner').parameters({fromDate: fromDate || null, weeks: Math.min(Number(weeks) || 6, 8),
+            rootWorkEffortId: rootWorkEffortId || null, roleTypeId: roleTypeId || null, skillTypeEnumId: skillTypeEnumId || null, teamPartyId: teamPartyId || null}).call() || {}
+        ec.message.clearErrors()
+        const planner = out.planner || {}
+        const n = (value) => ec.l10n.format(value ?? 0, '#,##0.#')
+        const day = (text) => ec.l10n.format(ec.l10n.parseTimestamp(String(text).slice(0, 10) + ' 12:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS'), 'MMM d')
+        const weekList = Array.from(planner.weekList || [])
+        rangeText = weekList.length ? L('Team planner') + ' · ' + day(planner.fromDate) + ' – ' + day(planner.thruDate) : L('Team planner')
+        weekTitles = weekList.map((week) => day(week.weekStart))
+        const amount = (alloc) => alloc.allocationPercent != null ? n(alloc.allocationPercent) + ' %' : n(alloc.hoursPerWeek) + ' h'
+        personRows = Array.from(planner.personList || []).map((person) => {
+            const row = {partyId: person.partyId, name: person.name, roleText: person.roleText || '', url: person.url}
+            Array.from(person.weekList || []).forEach((week, index) => {
+                row['w' + index] = n(week.allocated) + '/' + n(week.capacity) + (week.over ? ' !' : '') + (week.holidayHours || week.leaveHours ? ' ~' : '')
+            })
+            return row
+        })
+        placeholderRows = Array.from(planner.placeholderList || []).map((alloc) => ({who: [alloc.roleText, alloc.skillText ? '(' + alloc.skillText + ')' : ''].filter((one) => one).join(' ') || L('A person'),
+            projectName: alloc.projectName, whenText: day(alloc.fromDay) + ' – ' + day(alloc.thruDay), amountText: amount(alloc),
+            statusText: alloc.statusId === 'WealRequested' ? L('Requested') : L('Allocated')}))
+        allocationRows = []
+        for (const person of Array.from(planner.personList || [])) for (const alloc of Array.from(person.allocationList || [])) {
+            if (alloc.hidden) continue
+            allocationRows.push({name: person.name, projectName: alloc.projectName, whenText: day(alloc.fromDay) + ' – ' + day(alloc.thruDay), amountText: amount(alloc),
+                statusText: alloc.statusId === 'WealRequested' ? L('Requested') : L('Allocated')})
+        }
+        weekCount = weekTitles.length
+    ]]></script></actions>
+    <widgets>
+        <label text="${rangeText}" type="h5"/>
+        <label text="Each week: allocated / capacity hours; ! overbooked, ~ leave or a holiday. Planning is in the browser app." type="p" style="text-caption m-muted"/>
+        <section name="TeamPlannerTuiStaff" condition="placeholderRows.length"><widgets>
+            <container-box><box-header title="To staff"/><box-body-nopad>
+                <form-list name="TeamPlannerTuiPlaceholders" list="placeholderRows" skip-form="true" paginate="false">
+                    <field name="who"><default-field title="Role"><display/></default-field></field>
+                    <field name="projectName"><default-field title="Project"><display/></default-field></field>
+                    <field name="whenText"><default-field title="When"><display/></default-field></field>
+                    <field name="amountText"><default-field title="A week"><display/></default-field></field>
+                    <field name="statusText"><default-field title="Status"><display/></default-field></field>
+                </form-list>
+            </box-body-nopad></container-box>
+        </widgets></section>
+        <container-box><box-header title="People"/><box-body-nopad>
+            <form-list name="TeamPlannerTuiPeople" list="personRows" skip-form="true" paginate="false">
+                <field name="name"><default-field title="Person"><link url="${url}" url-type="plain" text="${name}" link-type="anchor"/></default-field></field>
+                <field name="roleText"><default-field title="Role"><display/></default-field></field>
+                <field name="w0"><conditional-field condition="weekCount &gt; 0" title="${weekTitles[0]}"><display/></conditional-field><default-field><ignored/></default-field></field>
+                <field name="w1"><conditional-field condition="weekCount &gt; 1" title="${weekTitles[1]}"><display/></conditional-field><default-field><ignored/></default-field></field>
+                <field name="w2"><conditional-field condition="weekCount &gt; 2" title="${weekTitles[2]}"><display/></conditional-field><default-field><ignored/></default-field></field>
+                <field name="w3"><conditional-field condition="weekCount &gt; 3" title="${weekTitles[3]}"><display/></conditional-field><default-field><ignored/></default-field></field>
+                <field name="w4"><conditional-field condition="weekCount &gt; 4" title="${weekTitles[4]}"><display/></conditional-field><default-field><ignored/></default-field></field>
+                <field name="w5"><conditional-field condition="weekCount &gt; 5" title="${weekTitles[5]}"><display/></conditional-field><default-field><ignored/></default-field></field>
+            </form-list>
+            <label type="p" text="No one to plan" style="m-muted q-pa-sm q-mb-none" condition="!personRows.length"/>
+        </box-body-nopad></container-box>
+        <container-box><box-header title="Allocations"/><box-body-nopad>
+            <form-list name="TeamPlannerTuiAllocations" list="allocationRows" skip-form="true" paginate="false">
+                <field name="name"><default-field title="Person"><display/></default-field></field>
+                <field name="projectName"><default-field title="Project"><display/></default-field></field>
+                <field name="whenText"><default-field title="When"><display/></default-field></field>
+                <field name="amountText"><default-field title="A week"><display/></default-field></field>
+                <field name="statusText"><default-field title="Status"><display/></default-field></field>
+            </form-list>
+        </box-body-nopad></container-box>
+    </widgets>
+</screen>

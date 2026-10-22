@@ -60,10 +60,11 @@ feature("shellData lists Projects with its quick-create kinds, palette actions a
         title == "IronStone Projects"
         kinds == ["workItem", "time", "project"]
         kindUrls == ["/qapps/Projects/QuickCreate?kind=workItem", "/qapps/Projects/QuickCreate?kind=time", "/qapps/Projects/QuickProject"]
-        actions == ["New work item", "New project", "Log time", "My time"]
+        actions == ["New work item", "New project", "Log time", "My time", "Team planner"]
         team.kinds == ["workItem", "time"]
-        team.actions == ["New work item", "Log time", "My time"]
+        team.actions == ["New work item", "Log time", "My time", "Team planner"]
         actionUrls[3] == "/qapps/Projects/Time/MyTime"
+        actionUrls[4] == "/qapps/Projects/Resources/TeamPlanner"
         types == ["MantleProject", "MantleTask", "MantleRequest"]
         keymaps == [{ scope: "projects", keys: ["g w", "g b", "g r", "g o", "g t"] }]
     },
@@ -89,12 +90,17 @@ feature("the Projects menu: managers get every entry, the team not Import, Billi
 
 feature("a project's records open in Projects for its users, in Commons for others; a personal task stays in Commons", {
     when() {
-        const forJohn = { project: link({ docType: "MantleProject", id: "IRON" }), task: link({ recordEntityName: "mantle.work.effort.WorkEffort", id: "IRON-3" }),
-            personal: link({ docType: "MantleTask", id: "BOSS_DEMO_TASK" }), request: link({ docType: "MantleRequest", id: "BOSS_DEMO_REQUEST" }) }
-        // Sheldon Acme has no Projects
-        const forSheldon = as("sheldon.acme", () => ({ project: link({ docType: "MantleProject", id: "IRON" }),
-            task: link({ docType: "MantleTask", id: "IRON-3" }) }))
-        return { forJohn, forSheldon }
+        // the service as the palette calls it (its screens' app root grants it); since mr-moqui e29d336f (impl-projects.md F77) an earlier
+        // feature's shell data no longer leaves authorization off in this context
+        const wasDisabled = ec.artifactExecution.disableAuthz()
+        try {
+            const forJohn = { project: link({ docType: "MantleProject", id: "IRON" }), task: link({ recordEntityName: "mantle.work.effort.WorkEffort", id: "IRON-3" }),
+                personal: link({ docType: "MantleTask", id: "BOSS_DEMO_TASK" }), request: link({ docType: "MantleRequest", id: "BOSS_DEMO_REQUEST" }) }
+            // Sheldon Acme has no Projects
+            const forSheldon = as("sheldon.acme", () => ({ project: link({ docType: "MantleProject", id: "IRON" }),
+                task: link({ docType: "MantleTask", id: "IRON-3" }) }))
+            return { forJohn, forSheldon }
+        } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
     },
     then({ forJohn, forSheldon }) {
         forJohn.project.url == "/qapps/Projects/Projects/ProjectDetail?workEffortId=IRON"

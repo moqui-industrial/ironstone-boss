@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- PersonDetail's Work items (design-projects.md §9 PersonDetail): the open work items assigned to the person in the projects the
+    viewer sees (ironstone.WorkItemServices.find#WorkItems list open with the assignee), by due date, fifty; the list opens WorkItems on
+    the person. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Work items" default-menu-index="3">
+
+    <actions><script><![CDATA[
+        workItemList = []
+        if (!personFound) return
+        const out = ec.service.sync().name('ironstone.WorkItemServices.find#WorkItems').parameters({list: 'open', assigneePartyId: partyId, pageSize: 50,
+            withCounts: false}).call() || {}
+        ec.message.clearErrors()
+        const rows = Array.from(out.rowList || [])
+        const due = (row) => row.estimatedCompletionDate == null ? Number.MAX_SAFE_INTEGER : Number(String(row.estimatedCompletionDate))
+        rows.sort((a, b) => due(a) - due(b) || Number(a.priority ?? 5) - Number(b.priority ?? 5))
+        workItemList = rows
+        workItemsUrl = '/qapps/Projects/WorkItems?list=open&assigneePartyId=' + encodeURIComponent(partyId)
+        remainingText = ec.l10n.format(rows.reduce((sum, row) => sum + Number(String(row.remainingWorkTime ?? 0)), 0), '#,##0.#') + ' h ' + ec.l10n.localize('remaining')
+    ]]></script></actions>
+
+    <widgets>
+        <container-box><box-header title="Open work items · ${workItemList.length} · ${remainingText}"/><box-toolbar>
+            <link url="${workItemsUrl}" url-type="plain" link-type="anchor" text="In Work items"/>
+        </box-toolbar><box-body-nopad>
+            <form-list name="PersonWorkItems" list="workItemList" skip-form="true" paginate="false">
+                <field name="workEffortId"><default-field title="Key">
+                    <link url="/qapps/Projects/WorkItems/WorkItemDetail" url-type="plain" text="${workEffortId}" parameter-map="{workEffortId:workEffortId}" link-type="anchor" style="text-mono text-no-wrap"/></default-field></field>
+                <field name="workEffortName"><default-field title="Title"><display/>
+                    <label text="${projectName || ''}" type="div" style="text-caption m-muted"/></default-field></field>
+                <field name="statusLabel"><default-field title="Status">
+                    <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${statusColor}">${WebUtilities.encodeHtml(statusLabel ?? '')}</q-chip>]]></text>
+                        <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify(statusLabel ?? "")}}]]></text></render-mode></default-field></field>
+                <field name="remainingWorkTime" align="right"><default-field title="Remaining h"><display format="#,##0.#"/></default-field></field>
+                <field name="dueText" align="right"><default-field title="Due"><label text="${dueText || ''}" type="span" style="text-no-wrap ${overdue ? 'text-warning' : 'm-muted'}"/></default-field></field>
+                <columns type="mobile">
+                    <column><field-ref name="workEffortId"/><field-ref name="workEffortName"/></column>
+                    <column><field-ref name="statusLabel"/><field-ref name="dueText"/></column>
+                </columns>
+            </form-list>
+            <section name="NoWorkItems" condition="!workItemList.length"><widgets>
+                <label type="p" text="No open work items assigned" style="m-muted q-pa-sm q-mb-none"/>
+            </widgets></section>
+        </box-body-nopad></container-box>
+    </widgets>
+</screen>
