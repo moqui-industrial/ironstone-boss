@@ -1102,4 +1102,754 @@ along with this software (see the LICENSE.md file). If not, see
             }
         ]]></script></actions>
     </service>
+    <!-- ========== Merge requests (design-projects.md §7 MergeRequests, MergeRequestDetail, MergeRequestChanges) ========== -->
+
+    <service verb="get" noun="MergeRequestLabels" allow-remote="false">
+        <description>The labels and colors of the merge request flow, the reviewers' states, the checks and the merge methods, for
+            the Code screens.</description>
+        <out-parameters><parameter name="labels" type="Map"/></out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            labels = {
+                status: {GmrDraft: [L('Draft'), 'grey-8', 'sym_o_draft'], GmrOpen: [L('Open'), 'positive', 'sym_o_merge'], GmrMerged: [L('Merged'), 'purple', 'sym_o_call_merge'],
+                    GmrClosed: [L('Closed'), 'negative', 'sym_o_cancel']},
+                reviewer: {GmrrRequested: [L('Review requested'), 'grey-8', 'sym_o_pending'], GmrrApproved: [L('Approved'), 'positive', 'sym_o_check_circle'],
+                    GmrrChangesRequested: [L('Changes requested'), 'warning', 'sym_o_report'], GmrrCommented: [L('Commented'), 'info', 'sym_o_chat_bubble']},
+                check: {success: [L('Passed'), 'positive', 'sym_o_check_circle'], failure: [L('Failed'), 'negative', 'sym_o_cancel'],
+                    error: [L('Error'), 'negative', 'sym_o_error'], pending: [L('Pending'), 'warning', 'sym_o_pending']},
+                method: {GmmMerge: L('Merge commit'), GmmFastForward: L('Fast-forward'), GmmSquash: L('Squash'), GmmRebase: L('Rebase')}
+            }
+        ]]></script></actions>
+    </service>
+
+    <service verb="find" noun="MergeRequests">
+        <description>MergeRequests (design-projects.md §7) and RepositoryMergeRequests (repositoryId fixed) over
+            org.moqui.impl.GitReviewServices.find#MergeRequests (the repositories the user may view), by chip: waiting (open ones whose
+            review the user was asked for and has not given; the default when there are any), mine (the user's own, open or draft),
+            open (open and draft), draft, merged, closed and all; narrowed by text in the title, repository, project (its
+            repositories), author, reviewer and target branch; paged by 25, last updated first. Each row with its number, status,
+            branches, author, reviewers and their states, the head's checks, comments, the linked work items the user sees and
+            when it changed; counts by chip.</description>
+        <in-parameters>
+            <parameter name="list"/>
+            <parameter name="text"/>
+            <parameter name="repositoryId"/>
+            <parameter name="projectId"/>
+            <parameter name="authorUserId"/>
+            <parameter name="reviewerUserId"/>
+            <parameter name="targetRef"/>
+            <parameter name="pageIndex" type="Integer" default="0"/>
+            <parameter name="pageSize" type="Integer" default="25"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="rowList" type="List"/>
+            <parameter name="rowCount" type="Integer"/>
+            <parameter name="counts" type="Map"/>
+            <parameter name="list"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            rowList = []; rowCount = 0
+            const keys = ['waiting', 'mine', 'open', 'draft', 'merged', 'closed', 'all']
+            counts = {}
+            const me = ec.user.userId
+            let repos = null
+            if (repositoryId) repos = [String(repositoryId)]
+            if (projectId) {
+                const ids = Array.from(ec.entity.find('mantle.work.effort.WorkEffortGitRepository').condition('workEffortId', projectId)
+                        .conditionDate('fromDate', 'thruDate', null).list()).map((row) => row.repositoryId)
+                repos = repos ? repos.filter((id) => ids.includes(id)) : ids
+                if (!repos.length) repos = ['_NA_']
+            }
+            const base = {repositoryIdList: repos, text: text || null, authorUserId: authorUserId || null, reviewerUserId: reviewerUserId || null,
+                targetRef: targetRef || null}
+            const byList = {waiting: {waitingForUserId: me || '_NA_'}, mine: {authorUserId: me || '_NA_', statusIdList: ['GmrDraft', 'GmrOpen']},
+                open: {statusIdList: ['GmrDraft', 'GmrOpen']}, draft: {statusIdList: ['GmrDraft']}, merged: {statusIdList: ['GmrMerged']},
+                closed: {statusIdList: ['GmrClosed']}, all: {}}
+            const find = (key, size, index) => {
+                const parameters = Object.assign({}, base, byList[key], {pageIndex: index || 0, pageSize: size})
+                // the author narrowing and Mine both name an author: Mine wins
+                if (key === 'mine' && authorUserId && authorUserId !== me) parameters.authorUserId = '_NA_'
+                const out = ec.service.sync().name('org.moqui.impl.GitReviewServices.find#MergeRequests').parameters(parameters).call() || {}
+                if (ec.message.hasError()) throw new Error(ec.message.getErrorsString())
+                return out
+            }
+            for (const key of keys) {
+                ec.message.pushErrors()
+                try { counts[key] = Number(find(key, 1).mergeRequestListCount || 0) }
+                catch (err) { counts[key] = 0; ec.logger.warn(`Merge requests: the ${key} count was not read: ${err && err.message ? err.message : err}`) }
+                finally { ec.message.clearErrors(); ec.message.popErrors() }
+            }
+            if (!keys.includes(list)) list = counts.waiting > 0 ? 'waiting' : 'open'
+            const size = Math.max(1, Number(pageSize) || 25)
+            const out = find(list, size, Number(pageIndex || 0))
+            rowCount = Number(out.mergeRequestListCount || 0)
+            rowList = ec.service.sync().name('ironstone.CodeServices.decorate#MergeRequestRows').parameters({mergeRequestList: Array.from(out.mergeRequestList || [])})
+                    .call()?.rowList || []
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="MergeRequestFindOptions" allow-remote="false">
+        <description>The options of the merge requests' find: the repositories the user may view (not archived), the projects the
+            user sees, and the people who wrote or review merge requests of those repositories.</description>
+        <out-parameters>
+            <parameter name="repositoryOptions" type="List"/>
+            <parameter name="projectOptions" type="List"/>
+            <parameter name="userOptions" type="List"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            repositoryOptions = []; projectOptions = []; userOptions = []
+            const repos = Array.from(ec.service.sync().name('org.moqui.impl.GitServices.find#GitRepositories').parameters({pageNoLimit: true}).call()?.repositoryList || [])
+            if (ec.message.hasError()) return
+            repositoryOptions = repos.map((repo) => ({key: repo.repositoryId, text: repo.repositoryId}))
+            projectOptions = ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').call()?.projectList || []
+            const ids = repos.map((repo) => repo.repositoryId)
+            if (!ids.length) return
+            const mrs = Array.from(ec.entity.find('moqui.resource.GitMergeRequest').condition('repositoryId', 'in', ids).selectField('mergeRequestId,authorUserId')
+                    .orderBy('-lastUpdatedDate').limit(500).disableAuthz().list())
+            const userIds = new Set(mrs.map((row) => row.authorUserId).filter((id) => id))
+            const mrIds = mrs.map((row) => row.mergeRequestId)
+            if (mrIds.length) for (const row of Array.from(ec.entity.find('moqui.resource.GitMergeRequestReviewer').condition('mergeRequestId', 'in', mrIds)
+                    .selectField('userId').disableAuthz().list())) userIds.add(row.userId)
+            if (userIds.size) userOptions = Array.from(ec.entity.find('moqui.security.UserAccount').condition('userId', 'in', Array.from(userIds)).disableAuthz().list())
+                    .map((account) => ({key: account.userId, text: account.userFullName || account.username})).sort((a, b) => String(a.text).localeCompare(String(b.text)))
+        ]]></script></actions>
+    </service>
+
+    <service verb="decorate" noun="MergeRequestRows" allow-remote="false">
+        <description>The rows of a merge request list (find#MergeRequests of the framework, already of repositories the user may view)
+            as the screens show them: numText, statusLabel and statusColor, branchText, reviewers with their state labels, the
+            check's label and color, commentCount (the comments filed on it with their replies), the linked work items in projects
+            the user sees (itemList, itemsText), conflict, updatedText.</description>
+        <in-parameters><parameter name="mergeRequestList" type="List"/></in-parameters>
+        <out-parameters><parameter name="rowList" type="List"/></out-parameters>
+        <actions><script><![CDATA[
+            rowList = []
+            const rows = Array.from(mergeRequestList || [])
+            if (!rows.length) return
+            const labels = ec.service.sync().name('ironstone.CodeServices.get#MergeRequestLabels').call()?.labels || {}
+            const ids = rows.map((row) => row.mergeRequestId)
+            const vis = ec.service.sync().name('mantle.work.ProjectServices.get#VisibleProjectInfo').call() || {}
+            const visible = new Set(Array.from(vis.visibleProjectIds || []))
+            const links = Array.from(ec.entity.find('mantle.work.effort.WorkEffortGitMergeRequest').condition('mergeRequestId', 'in', ids).disableAuthz().list())
+            const efforts = {}
+            const effortIds = Array.from(new Set(links.map((link) => link.workEffortId)))
+            if (effortIds.length) for (const row of Array.from(ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', 'in', effortIds)
+                    .selectField('workEffortId,workEffortName,rootWorkEffortId,statusId').list())) efforts[row.workEffortId] = row
+            // the comments: those filed on each merge request, and their replies
+            const roots = Array.from(ec.entity.find('mantle.party.communication.CommunicationEventRecord').condition('recordEntityName', 'moqui.resource.GitMergeRequest')
+                    .condition('recordId', 'in', ids).disableAuthz().list())
+            const replies = {}
+            const rootIds = roots.map((row) => row.communicationEventId)
+            if (rootIds.length) for (const reply of Array.from(ec.entity.find('mantle.party.communication.CommunicationEvent').condition('rootCommEventId', 'in', rootIds)
+                    .selectField('communicationEventId,rootCommEventId').disableAuthz().list())) {
+                if (reply.communicationEventId !== reply.rootCommEventId) replies[reply.rootCommEventId] = (replies[reply.rootCommEventId] || 0) + 1
+            }
+            for (const mr of rows) {
+                const status = labels.status[mr.statusId] || [mr.statusId, 'grey-8', 'sym_o_merge']
+                const check = mr.checkState ? labels.check[mr.checkState] || [mr.checkState, 'grey-7', 'sym_o_pending'] : null
+                const reviewers = Array.from(mr.reviewerList || []).map((reviewer) => {
+                    const state = labels.reviewer[reviewer.statusId] || [reviewer.statusId, 'grey-8', 'sym_o_person']
+                    return {userId: reviewer.userId, name: reviewer.name, statusId: reviewer.statusId, stateLabel: state[0], stateColor: state[1], stateIcon: state[2]}
+                })
+                const filed = roots.filter((row) => row.recordId === mr.mergeRequestId)
+                const commentCount = filed.length + filed.reduce((sum, row) => sum + (replies[row.communicationEventId] || 0), 0)
+                const items = links.filter((link) => link.mergeRequestId === mr.mergeRequestId).map((link) => efforts[link.workEffortId])
+                        .filter((effort) => effort && (vis.allProjects || visible.has(effort.rootWorkEffortId)))
+                        .map((effort) => ({workEffortId: effort.workEffortId, workEffortName: effort.workEffortName || ''}))
+                rowList.push(Object.assign({}, mr, {numText: '!' + mr.mergeRequestNum, statusLabel: status[0], statusColor: status[1], statusIcon: status[2],
+                    branchText: mr.sourceRef + ' → ' + mr.targetRef, reviewerList: reviewers,
+                    reviewersText: reviewers.map((reviewer) => reviewer.name + ' (' + reviewer.stateLabel + ')').join(', '),
+                    checkLabel: check ? check[0] : '', checkColor: check ? check[1] : '', commentCount, itemList: items,
+                    itemsText: items.map((item) => item.workEffortId).join(', '), conflict: mr.mergeableEnumId === 'GmaConflict',
+                    isOpen: ['GmrDraft', 'GmrOpen'].includes(mr.statusId),
+                    updatedText: mr.lastUpdatedDate ? ec.l10n.format(mr.lastUpdatedDate, 'MMM d, yyyy') : ''}))
+            }
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="MergeRequestAccess" allow-remote="false">
+        <description>A merge request for its screens' always-actions, cheap enough for each tab and transition: canView (the user
+            may view its repository; else nothing), its number, title, status, branches and repository, and the repository's
+            canPush and archived.</description>
+        <in-parameters><parameter name="mergeRequestId" required="true"/></in-parameters>
+        <out-parameters>
+            <parameter name="canView" type="Boolean"/>
+            <parameter name="canPush" type="Boolean"/>
+            <parameter name="archived" type="Boolean"/>
+            <parameter name="mergeRequest" type="Map"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            canView = false; canPush = false; archived = false; mergeRequest = null
+            if (!mergeRequestId) return
+            const mr = ec.entity.find('moqui.resource.GitMergeRequest').condition('mergeRequestId', mergeRequestId).disableAuthz().one()
+            if (mr == null) return
+            ec.message.pushErrors()
+            try {
+                const access = ec.service.sync().name('org.moqui.impl.GitServices.get#GitRepositoryAccess').parameters({repositoryId: mr.repositoryId}).call() || {}
+                if (ec.message.hasError() || !access.canView) return
+                canView = true; canPush = !!(access.canCreate || access.canUpdate); archived = !!access.archived
+                mergeRequest = {mergeRequestId: mr.mergeRequestId, repositoryId: mr.repositoryId, mergeRequestNum: mr.mergeRequestNum, title: mr.title,
+                    statusId: mr.statusId, sourceRef: mr.sourceRef, targetRef: mr.targetRef, authorUserId: mr.authorUserId}
+            } catch (err) {
+                ec.logger.warn(`Merge request ${mergeRequestId}: its access was not read: ${err && err.message ? err.message : err}`)
+                canView = false
+            } finally { ec.message.clearErrors(); ec.message.popErrors() }
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="MergeRequestDetail">
+        <description>MergeRequestDetail (design-projects.md §7) for a user who may view its repository
+            (org.moqui.impl.GitReviewServices.get#MergeRequest; else found false): the merge request with its labels, the reviewers
+            with their states (and whether each approval is of the current head), the approvals given of required, the head's
+            checks, what keeps it from merging (missingList), the merge methods the target's branch rules allow with the default,
+            whether it would fast-forward, the default squash and merge commit messages, the linked work items the user sees
+            (mantle.work.GitServices.get#MergeRequestItems), its commits with their checks (get#MergeRequestDiff without diffs), the
+            review threads' counts, and what the user may do: edit (its author or a maintainer, while open or draft), merge (push
+            rights and every rule met), review (any viewer but the author approves), link work items (who works in their
+            project) and the primary action (Mark ready on a draft, Merge, else Review for a requested reviewer). Each extra part
+            on its own: one that fails is logged and left empty.</description>
+        <in-parameters>
+            <parameter name="mergeRequestId" required="true"/>
+            <parameter name="parts"><description>Comma separated: items, commits, threads, reviewerOptions; empty: all. The header
+                needs none of them.</description></parameter>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="found" type="Boolean"/>
+            <parameter name="detail" type="Map"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            found = false; detail = null
+            const L = (text) => ec.l10n.localize(text)
+            const wanted = parts == null ? null : String(parts).split(',').map((name) => name.trim()).filter((name) => name)
+            const wants = (name) => wanted == null || wanted.includes(name)
+            ec.message.pushErrors()
+            let got = null
+            try {
+                got = ec.service.sync().name('org.moqui.impl.GitReviewServices.get#MergeRequest').parameters({mergeRequestId}).call()
+                if (ec.message.hasError()) got = null
+            } catch (err) {
+                ec.logger.warn(`Merge request ${mergeRequestId}: not read: ${err && err.message ? err.message : err}`)
+                got = null
+            } finally { ec.message.clearErrors(); ec.message.popErrors() }
+            if (!got || !got.mergeRequest) return
+            found = true
+            const labels = ec.service.sync().name('ironstone.CodeServices.get#MergeRequestLabels').call()?.labels || {}
+            const mr = got.mergeRequest
+            const fmt = (value, pattern) => value ? ec.l10n.format(value, pattern || 'MMM d, yyyy h:mm a') : ''
+            const failedParts = []
+            const part = (name, run) => {
+                ec.message.pushErrors()
+                try { run(); if (ec.message.hasError()) throw new Error(ec.message.getErrorsString()) }
+                catch (err) { failedParts.push(name); ec.logger.warn(`Merge request ${mergeRequestId}: ${name} not read: ${err && err.message ? err.message : err}`) }
+                finally { ec.message.clearErrors(); ec.message.popErrors() }
+            }
+            const access = ec.service.sync().name('org.moqui.impl.GitServices.get#GitRepositoryAccess').parameters({repositoryId: mr.repositoryId}).call() || {}
+            const me = ec.user.userId
+            const isOpen = ['GmrDraft', 'GmrOpen'].includes(mr.statusId)
+            const status = labels.status[mr.statusId] || [mr.statusId, 'grey-8', 'sym_o_merge']
+            const rules = got.branchRules || {}
+            const requiredApprovals = Number(rules.requiredApprovals || 0)
+            const reviewerList = Array.from(got.reviewerList || []).map((reviewer) => {
+                const state = labels.reviewer[reviewer.statusId] || [reviewer.statusId, 'grey-8', 'sym_o_person']
+                const stale = reviewer.statusId === 'GmrrApproved' && !reviewer.ofCurrentHead
+                return Object.assign({}, reviewer, {stateLabel: state[0] + (stale ? ' (' + L('an earlier push') + ')' : ''), stateColor: stale ? 'grey-7' : state[1],
+                    stateIcon: state[2], whenText: fmt(reviewer.reviewedDate || reviewer.requestedDate, 'MMM d, h:mm a'), isMe: reviewer.userId === me,
+                    atText: reviewer.reviewedCommitId ? String(reviewer.reviewedCommitId).substring(0, 10) : '', canRemove: false})
+            })
+            const myReview = reviewerList.find((reviewer) => reviewer.isMe) || null
+            const checkList = Array.from(got.checkList || []).map((check) => {
+                const state = labels.check[check.state] || [check.state, 'grey-7', 'sym_o_pending']
+                return {checkContext: check.context || 'default', state: check.state, label: state[0], color: state[1], icon: state[2], description: check.description || '',
+                    targetUrl: check.targetUrl || '', required: Array.from(rules.requiredStatusContexts || []).includes(check.context || 'default')}
+            })
+            for (const context of Array.from(rules.requiredStatusContexts || [])) if (!checkList.some((check) => check.checkContext === context))
+                checkList.push({checkContext: context, state: null, label: L('Expected'), color: 'grey-7', icon: 'sym_o_schedule', description: L('Required by the branch rules; not posted yet'),
+                    targetUrl: '', required: true})
+            const allowed = Array.from(rules.allowedMergeMethods || [])
+            const methods = ['GmmMerge', 'GmmFastForward', 'GmmSquash', 'GmmRebase'].filter((id) => !allowed.length || allowed.includes(id))
+            const canEdit = !!got.canEdit
+            const canPush = !!(access.canUpdate)
+            detail = {mergeRequest: Object.assign({}, mr, {numText: '!' + mr.mergeRequestNum, statusLabel: status[0], statusColor: status[1], statusIcon: status[2],
+                    isOpen, isDraft: mr.statusId === 'GmrDraft', createdText: fmt(mr.createdDate), updatedText: fmt(mr.lastUpdatedDate),
+                    mergedText: fmt(mr.mergedDate), closedText: fmt(mr.closedDate), headShortId: mr.headCommitId ? String(mr.headCommitId).substring(0, 10) : '',
+                    mergeCommitShortId: mr.mergeCommitId ? String(mr.mergeCommitId).substring(0, 10) : '', deleteSourceBranch: mr.deleteSourceBranch === 'Y',
+                    mergeableLabel: {GmaMergeable: L('Able to merge'), GmaConflict: L('Conflicts'), GmaUnchecked: L('The target moved; checking'), GmaMerged: L('Merged')}[mr.mergeableEnumId] || ''}),
+                reviewerList, myReview, approvalCount: Number(got.approvalCount || 0), requiredApprovals, dismissStale: !!rules.dismissStaleApprovals,
+                approvalsText: requiredApprovals ? ec.resource.expand('${count} of ${required} approvals', '', {count: Number(got.approvalCount || 0), required: requiredApprovals})
+                    : ec.resource.expand('${count} approvals, none required', '', {count: Number(got.approvalCount || 0)}),
+                checkState: got.checkState || null, checkList, missingList: Array.from(got.missingList || []).map((text) => L(String(text))),
+                canEdit, canMerge: !!got.canMerge && isOpen, canPush, canView: !!access.canView, archived: !!access.archived,
+                canReview: isOpen && !!me, isAuthor: me === mr.authorUserId,
+                mergeMethodEnumId: got.mergeMethodEnumId || 'GmmMerge', methodOptions: methods.map((id) => ({key: id, text: labels.method[id] || id})),
+                squashMessage: mr.title + ' (!' + mr.mergeRequestNum + ')', mergeMessage: 'Merge !' + mr.mergeRequestNum + ': ' + mr.title,
+                fastForwardPossible: false, itemList: [], commitList: [], threadCounts: {total: 0, open: 0, resolved: 0, outdated: 0}, failedParts}
+            detail.isRequestedReviewer = !!(myReview && myReview.statusId === 'GmrrRequested')
+            detail.primaryAction = !isOpen ? null : detail.mergeRequest.isDraft ? (canEdit ? 'ready' : null) : detail.canMerge ? 'merge'
+                    : (detail.isRequestedReviewer || (myReview && !myReview.ofCurrentHead)) ? 'review' : null
+            if (wants('items')) part('the work items', () => {
+                const vis = ec.service.sync().name('mantle.work.ProjectServices.get#VisibleProjectInfo').call() || {}
+                const visible = new Set(Array.from(vis.visibleProjectIds || []))
+                const items = Array.from(ec.service.sync().name('mantle.work.GitServices.get#MergeRequestItems').parameters({mergeRequestId}).call()?.itemList || [])
+                for (const item of items) {
+                    if (!vis.allProjects && !visible.has(item.rootWorkEffortId)) continue
+                    const assignee = ec.entity.find('mantle.work.effort.WorkEffortParty').condition({workEffortId: item.workEffortId, roleTypeId: 'Assignee'})
+                            .conditionDate('fromDate', 'thruDate', null).list()[0]
+                    const party = assignee ? ec.entity.find('mantle.party.PartyDetail').condition('partyId', assignee.partyId).one() : null
+                    detail.itemList.push(Object.assign({}, item, {assigneeName: party ? [party.firstName, party.lastName].filter((part) => part).join(' ') || party.organizationName || '' : '',
+                        url: '/qapps/Projects/WorkItems/WorkItemDetail?workEffortId=' + encodeURIComponent(item.workEffortId),
+                        completeText: item.completeOnMerge ? L('Completes on merge') : '', isDone: ['WeComplete', 'WeClosed', 'WeCancelled'].includes(item.statusId)}))
+                }
+            })
+            if (wants('commits')) part('the commits', () => {
+                const diff = ec.service.sync().name('org.moqui.impl.GitReviewServices.get#MergeRequestDiff').parameters({mergeRequestId, withDiffs: false}).call() || {}
+                if (ec.message.hasError()) return
+                detail.fastForwardPossible = isOpen && Number(diff.behindBy || 0) === 0
+                detail.behindBy = Number(diff.behindBy || 0)
+                detail.aheadBy = Number(diff.aheadBy || 0)
+                detail.fileCount = Array.from(diff.fileList || []).length
+                detail.insertions = Number(diff.insertions || 0)
+                detail.deletions = Number(diff.deletions || 0)
+                const commits = Array.from(diff.commitList || [])
+                let states = {}
+                if (commits.length) states = ec.service.sync().name('org.moqui.impl.GitServices.get#GitCommitStatuses').parameters({repositoryId: mr.repositoryId,
+                    commitIdList: commits.map((commit) => commit.commitId)}).call()?.stateByCommit || {}
+                // newest first, as a log reads
+                detail.commitList = commits.slice().reverse().map((commit) => {
+                    const state = states[commit.commitId] ? labels.check[states[commit.commitId]] || null : null
+                    return {commitId: commit.commitId, shortId: commit.shortId || String(commit.commitId).substring(0, 10), summary: commit.summary || '',
+                        authorName: commit.authorName || '', moquiUserId: commit.moquiUserId || null, dateText: fmt(commit.committerDate, 'MMM d, yyyy'),
+                        checkLabel: state ? state[0] : '', checkColor: state ? state[1] : ''}
+                })
+            })
+            if (wants('threads')) part('the review threads', () => {
+                const threads = Array.from(ec.service.sync().name('mantle.work.GitServices.get#ReviewThreads').parameters({mergeRequestId}).call()?.threadList || [])
+                detail.threadCounts = {total: threads.length, open: threads.filter((thread) => !thread.resolved).length,
+                    resolved: threads.filter((thread) => thread.resolved).length, outdated: threads.filter((thread) => thread.outdated).length}
+            })
+            // who may be asked to review: the internal members of the repository's projects with an account, not the author or a reviewer
+            if (wants('reviewerOptions')) part('the reviewer options', () => {
+                const projectIds = Array.from(ec.service.sync().name('mantle.work.GitServices.get#RepositoryProjects').parameters({repositoryId: mr.repositoryId}).call()?.projectIdList || [])
+                const clientRoles = ['Customer', 'CustomerBillTo', 'ClientManager', 'ClientBilling']
+                const memberIds = projectIds.length ? Array.from(new Set(Array.from(ec.entity.find('mantle.work.effort.WorkEffortParty').condition('workEffortId', 'in', projectIds)
+                        .conditionDate('fromDate', 'thruDate', null).list()).filter((row) => !clientRoles.includes(row.roleTypeId)).map((row) => row.partyId))) : []
+                const taken = new Set(reviewerList.map((reviewer) => reviewer.userId).concat([mr.authorUserId]))
+                detail.reviewerOptions = memberIds.length ? Array.from(ec.entity.find('moqui.security.UserAccount').condition('partyId', 'in', memberIds).disableAuthz().list())
+                        .filter((account) => !taken.has(account.userId) && account.disabled !== 'Y')
+                        .map((account) => ({key: account.userId, text: account.userFullName || account.username})).sort((a, b) => String(a.text).localeCompare(String(b.text))) : []
+            })
+            if (!detail.reviewerOptions) detail.reviewerOptions = []
+            for (const reviewer of detail.reviewerList) reviewer.canRemove = canEdit
+            detail.checkoutText = 'git fetch origin\ngit checkout ' + mr.sourceRef
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="MergeRequestChanges">
+        <description>MergeRequestChanges (design-projects.md §7) for a user who may view the repository: the files the merge request
+            changes (get#MergeRequestDiff: path, change, insertions, deletions, and each file's hunks of numbered lines, the line
+            text as data, never html), its review threads by file (mantle.work.GitServices.get#ReviewThreads, each comment with
+            its author and markdown body), the head commit (the viewed marks in the browser are kept per head), and what the user
+            may do (comment while open; review: approve, request changes or comment, an author not approving their own).</description>
+        <in-parameters><parameter name="mergeRequestId" required="true"/></in-parameters>
+        <out-parameters>
+            <parameter name="found" type="Boolean"/>
+            <parameter name="changes" type="Map"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            found = false; changes = null
+            const L = (text) => ec.l10n.localize(text)
+            const mr = ec.entity.find('moqui.resource.GitMergeRequest').condition('mergeRequestId', mergeRequestId).disableAuthz().one()
+            if (!mr) return
+            const access = ec.service.sync().name('org.moqui.impl.GitServices.get#GitRepositoryAccess').parameters({repositoryId: mr.repositoryId}).call() || {}
+            if (ec.message.hasError() || !access.canView) { ec.message.clearErrors(); return }
+            const diff = ec.service.sync().name('org.moqui.impl.GitReviewServices.get#MergeRequestDiff').parameters({mergeRequestId, withDiffs: true}).call() || {}
+            if (ec.message.hasError()) return
+            found = true
+            const isOpen = ['GmrDraft', 'GmrOpen'].includes(mr.statusId)
+            const changeLabel = {added: 'Added', modified: 'Modified', deleted: 'Deleted', renamed: 'Renamed'}
+            const fileList = Array.from(diff.fileList || []).map((file) => ({path: file.path, oldPath: file.oldPath || null, changeType: file.changeType,
+                changeLabel: L(changeLabel[file.changeType] || file.changeType || ''), insertions: file.insertions || 0, deletions: file.deletions || 0,
+                binary: !!file.binary, tooLarge: !!file.tooLarge,
+                hunkList: Array.from(file.hunks || []).map((hunk) => ({oldStart: hunk.oldStart, oldLines: hunk.oldLines, newStart: hunk.newStart, newLines: hunk.newLines,
+                    lineList: Array.from(hunk.lines || []).map((line) => ({tag: line.tag, oldNo: line.oldNo ?? null, newNo: line.newNo ?? null, text: line.text == null ? '' : String(line.text)}))}))}))
+            let threads = []
+            ec.message.pushErrors()
+            try { threads = Array.from(ec.service.sync().name('mantle.work.GitServices.get#ReviewThreads').parameters({mergeRequestId}).call()?.threadList || []) }
+            catch (err) { ec.logger.warn(`Merge request ${mergeRequestId}: its review threads were not read: ${err}`) }
+            finally { ec.message.clearErrors(); ec.message.popErrors() }
+            const nowMillis = Number(String(ec.user.nowTimestamp))
+            const when = (value) => {
+                if (!value) return ''
+                const millis = Number(String(value.getTime ? value.getTime() : value))
+                const minutes = Math.floor((nowMillis - millis) / 60000)
+                if (minutes >= 0 && minutes < 1) return L('just now')
+                if (minutes >= 0 && minutes < 60) return minutes + ' ' + L('min ago')
+                return ec.l10n.format(value, 'MMM d, h:mm a')
+            }
+            const myPartyId = ec.user.userAccount?.partyId || null
+            const userOf = {}
+            const userIdOf = (partyId) => {
+                if (!partyId) return null
+                if (!(partyId in userOf)) userOf[partyId] = ec.entity.find('moqui.security.UserAccount').condition('partyId', partyId).disableAuthz().list()[0]?.userId || null
+                return userOf[partyId]
+            }
+            const threadList = threads.map((thread) => ({communicationEventId: thread.communicationEventId, path: thread.path, oldLine: thread.oldLine ?? null,
+                newLine: thread.newLine ?? null, lineText: thread.lineText || '', commitId: thread.commitId || null, outdated: !!thread.outdated, resolved: !!thread.resolved,
+                commentList: Array.from(thread.commentList || []).map((comment) => ({communicationEventId: comment.communicationEventId, authorName: comment.authorName || L('Someone'),
+                    userId: userIdOf(comment.fromPartyId), isMine: !!myPartyId && comment.fromPartyId === myPartyId, whenText: when(comment.entryDate), body: comment.body || ''}))}))
+            const me = ec.user.userId
+            const myReview = me ? ec.entity.find('moqui.resource.GitMergeRequestReviewer').condition({mergeRequestId, userId: me}).disableAuthz().one() : null
+            changes = {mergeRequestId, repositoryId: mr.repositoryId, mergeRequestNum: mr.mergeRequestNum, title: mr.title, statusId: mr.statusId, isOpen,
+                sourceRef: mr.sourceRef, targetRef: mr.targetRef, headCommitId: diff.headCommitId || mr.headCommitId || null, baseCommitId: diff.baseCommitId || null,
+                insertions: diff.insertions || 0, deletions: diff.deletions || 0, fileList, threadList, canComment: isOpen && !!me, canReview: isOpen && !!me,
+                isAuthor: me === mr.authorUserId, myReviewStatusId: myReview?.statusId || null, myReviewOfHead: !!(myReview && myReview.reviewedCommitId === mr.headCommitId)}
+        ]]></script></actions>
+    </service>
+
+    <service verb="update" noun="MergeRequestInfo">
+        <description>MergeRequestDetail's Edit, Mark ready and Mark as draft: org.moqui.impl.GitReviewServices.update#MergeRequest
+            (its author or a maintainer, while open or draft); then its work items linked again from the new text
+            (mantle.work.GitServices.link#MergeRequestItems runs on the updated event).</description>
+        <in-parameters>
+            <parameter name="mergeRequestId" required="true"/>
+            <parameter name="title"/>
+            <parameter name="description" allow-html="any"/>
+            <parameter name="targetRef"/>
+            <parameter name="draft"><description>Y a draft, N ready, empty unchanged</description></parameter>
+            <parameter name="deleteSourceBranch"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            const parameters = {mergeRequestId}
+            if (title != null && String(title).trim()) parameters.title = String(title).trim()
+            if (description != null) parameters.description = String(description)
+            if (targetRef) parameters.targetRef = String(targetRef).trim()
+            if (draft === 'Y' || draft === 'N') parameters.draft = draft === 'Y'
+            if (deleteSourceBranch === 'Y' || deleteSourceBranch === 'N') parameters.deleteSourceBranch = deleteSourceBranch === 'Y'
+            ec.service.sync().name('org.moqui.impl.GitReviewServices.update#MergeRequest').parameters(parameters).call()
+            if (ec.message.hasError()) return
+            message = draft === 'N' ? ec.l10n.localize('Marked ready for review') : draft === 'Y' ? ec.l10n.localize('Marked as a draft') : ec.l10n.localize('Merge request saved')
+        ]]></script></actions>
+    </service>
+
+    <service verb="set" noun="MergeRequestReviewersBoss">
+        <description>MergeRequestDetail's Add reviewers and Remove: org.moqui.impl.GitReviewServices.set#MergeRequestReviewers (its
+            author or a maintainer); the reviewers added are told (the Mantle rule on the service).</description>
+        <in-parameters>
+            <parameter name="mergeRequestId" required="true"/>
+            <parameter name="addUserIds" type="Object"/>
+            <parameter name="removeUserId"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            const added = addUserIds == null ? [] : (Array.isArray(addUserIds) ? addUserIds : (typeof addUserIds === 'object' && addUserIds.length != null
+                    ? Array.from(addUserIds) : String(addUserIds).split(','))).map((id) => String(id).trim()).filter((id) => id)
+            if (!added.length && !removeUserId) { ec.message.addError(ec.l10n.localize('Choose a reviewer')); return }
+            ec.service.sync().name('org.moqui.impl.GitReviewServices.set#MergeRequestReviewers').parameters({mergeRequestId, addUserIdList: added,
+                removeUserIdList: removeUserId ? [removeUserId] : []}).call()
+            if (ec.message.hasError()) return
+            message = removeUserId ? ec.l10n.localize('Reviewer removed') : ec.l10n.localize('Review requested')
+        ]]></script></actions>
+    </service>
+
+    <service verb="submit" noun="Review">
+        <description>The review dialog of MergeRequestDetail and MergeRequestChanges: approve, request changes or comment with a
+            summary (org.moqui.impl.GitReviewServices.submit#MergeRequestReview, at the current head; the author does not
+            approve their own); the author and reviewers are told (the Mantle rule on the reviewed event).</description>
+        <in-parameters>
+            <parameter name="mergeRequestId" required="true"/>
+            <parameter name="decision" required="true"/>
+            <parameter name="note" allow-html="safe"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/><parameter name="statusId"/></out-parameters>
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('org.moqui.impl.GitReviewServices.submit#MergeRequestReview').parameters({mergeRequestId, decision,
+                note: note && String(note).trim() ? String(note).trim() : null}).call() || {}
+            if (ec.message.hasError()) return
+            statusId = out.statusId
+            message = {GmrrApproved: ec.l10n.localize('Approved'), GmrrChangesRequested: ec.l10n.localize('Changes requested'),
+                GmrrCommented: ec.l10n.localize('Review sent')}[statusId] || ec.l10n.localize('Review sent')
+        ]]></script></actions>
+    </service>
+
+    <service verb="close" noun="MergeRequestBoss">
+        <description>Close (or with reopen, open again) a merge request: org.moqui.impl.GitReviewServices close#MergeRequest,
+            reopen#MergeRequest (its author or a maintainer).</description>
+        <in-parameters>
+            <parameter name="mergeRequestId" required="true"/>
+            <parameter name="reopen" type="Boolean" default="false"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            ec.service.sync().name(reopen ? 'org.moqui.impl.GitReviewServices.reopen#MergeRequest' : 'org.moqui.impl.GitReviewServices.close#MergeRequest')
+                    .parameters({mergeRequestId}).call()
+            if (!ec.message.hasError()) message = reopen ? ec.l10n.localize('Merge request reopened') : ec.l10n.localize('Merge request closed')
+        ]]></script></actions>
+    </service>
+
+    <service verb="merge" noun="MergeRequestBoss">
+        <description>The merge box's Merge: org.moqui.impl.GitReviewServices.merge#MergeRequest by the method chosen (the ones the
+            target's branch rules allow), with the squash or merge commit message, deleting the source branch when asked. Needs push
+            rights on the repository and every rule met; refused on a conflict. The linked work items complete as the project and
+            the Closes lines say (the Mantle rule on the merge).</description>
+        <in-parameters>
+            <parameter name="mergeRequestId" required="true"/>
+            <parameter name="mergeMethodEnumId"/>
+            <parameter name="commitMessage" allow-html="any"/>
+            <parameter name="deleteSourceBranch"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/><parameter name="commitId"/></out-parameters>
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('org.moqui.impl.GitReviewServices.merge#MergeRequest').parameters({mergeRequestId,
+                mergeMethodEnumId: mergeMethodEnumId || null, message: commitMessage && String(commitMessage).trim() ? String(commitMessage).trim() : null,
+                deleteSourceBranch: deleteSourceBranch === 'Y' || deleteSourceBranch === true || deleteSourceBranch === 'true'}).call() || {}
+            if (ec.message.hasError()) return
+            commitId = out.commitId || null
+            const mr = ec.entity.find('moqui.resource.GitMergeRequest').condition('mergeRequestId', mergeRequestId).disableAuthz().one()
+            message = ec.resource.expand('!${num} merged into ${target}', '', {num: mr?.mergeRequestNum, target: mr?.targetRef})
+        ]]></script></actions>
+    </service>
+
+    <service verb="link" noun="MergeRequestItem">
+        <description>MergeRequestDetail's Link: a work item of a project the user works in (ironstone.ProjectServices.get#ProjectAccess
+            update) to a merge request whose repository the user may view (mantle.work.GitServices.add#MergeRequestItem), completed
+            on merge when asked.</description>
+        <in-parameters>
+            <parameter name="mergeRequestId" required="true"/>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="completeOnMerge" default-value="N"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            const task = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', String(workEffortId).trim()).one()
+            if (task == null || task.workEffortTypeEnumId !== 'WetTask' || !task.rootWorkEffortId) { ec.message.addError(ec.resource.expand('Work item ${workEffortId} not found', '', {workEffortId})); return }
+            ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: task.rootWorkEffortId, need: 'update'}).call()
+            if (ec.message.hasError()) return
+            ec.service.sync().name('mantle.work.GitServices.add#MergeRequestItem').parameters({mergeRequestId, workEffortId: task.workEffortId,
+                completeOnMerge: completeOnMerge === 'Y' ? 'Y' : 'N'}).call()
+            if (!ec.message.hasError()) message = ec.resource.expand('Linked to ${workEffortId}', '', {workEffortId: task.workEffortId})
+        ]]></script></actions>
+    </service>
+    <service verb="unlink" noun="MergeRequestItem">
+        <description>MergeRequestDetail's Unlink, for one who works in the item's project and may view the repository.</description>
+        <in-parameters>
+            <parameter name="mergeRequestId" required="true"/>
+            <parameter name="workEffortId" required="true"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            const task = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', workEffortId).one()
+            if (task?.rootWorkEffortId) ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: task.rootWorkEffortId, need: 'update'}).call()
+            if (ec.message.hasError()) return
+            ec.service.sync().name('mantle.work.GitServices.remove#MergeRequestItem').parameters({mergeRequestId, workEffortId}).call()
+            if (!ec.message.hasError()) message = ec.l10n.localize('Link removed')
+        ]]></script></actions>
+    </service>
+
+    <service verb="comment" noun="MergeRequest">
+        <description>MergeRequestChanges' line comment and reply: mantle.work.GitServices.create#ReviewComment (a comment on a line
+            of the diff, at the head, when path and a line are given; a reply with parentCommEventId), for a user who may view the
+            repository, while the merge request is open or a draft.</description>
+        <in-parameters>
+            <parameter name="mergeRequestId" required="true"/>
+            <parameter name="body" required="true" allow-html="safe"/>
+            <parameter name="path"/>
+            <parameter name="oldLine" type="Integer"/>
+            <parameter name="newLine" type="Integer"/>
+            <parameter name="lineText"/>
+            <parameter name="parentCommEventId"/>
+        </in-parameters>
+        <out-parameters><parameter name="communicationEventId"/></out-parameters>
+        <actions><script><![CDATA[
+            const mr = ec.entity.find('moqui.resource.GitMergeRequest').condition('mergeRequestId', mergeRequestId).disableAuthz().one()
+            if (mr && !['GmrDraft', 'GmrOpen'].includes(mr.statusId)) { ec.message.addError(ec.l10n.localize('A merged or closed merge request takes no comments')); return }
+            communicationEventId = ec.service.sync().name('mantle.work.GitServices.create#ReviewComment').parameters({mergeRequestId, body,
+                path: parentCommEventId ? null : (path || null), oldLine: parentCommEventId ? null : (oldLine ?? null), newLine: parentCommEventId ? null : (newLine ?? null),
+                lineText: parentCommEventId ? null : (lineText || null), parentCommEventId: parentCommEventId || null}).call()?.communicationEventId || null
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== A work item's development (design-projects.md §5 WorkItemDetail, the Development tab) ========== -->
+
+    <service verb="get" noun="WorkItemDevelopment">
+        <description>WorkItemDetail's Development tab for a work item the user sees (ironstone.TaskServices.get#TaskAccess, projects):
+            whether it shows (the item's project has the Code module on or a repository linked); its branches (WorkEffortGitRef of
+            repositories the user may view) with their head, ahead and behind the default branch, open merge request and check;
+            its commits (WorkEffortGitCommit, the newest 30) with their branch and how they were linked; its merge requests
+            (WorkEffortGitMergeRequest) with status, approvals of required and check; its tags; and Create branch: the project's
+            repositories the user may push to, the default name (mantle.work.GitServices.get#TaskBranchName) and whether the user
+            may work on the item. Each part on its own: one that fails is logged and left empty.</description>
+        <in-parameters><parameter name="workEffortId" required="true"/></in-parameters>
+        <out-parameters><parameter name="development" type="Map"/></out-parameters>
+        <actions><script><![CDATA[
+            development = null
+            const access = ec.service.sync().name('ironstone.TaskServices.get#TaskAccess').parameters({workEffortId, need: 'check', app: 'projects'}).call() || {}
+            if (ec.message.hasError() || !access.visible) { ec.message.clearErrors(); return }
+            const L = (text) => ec.l10n.localize(text)
+            const task = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', workEffortId).one()
+            const projectId = task?.rootWorkEffortId || null
+            development = {shown: false, codeOn: false, hosting: false, canUpdate: !!access.canUpdate, repositoryList: [], branchList: [], commitList: [],
+                mergeRequestList: [], tagList: [], branchName: '', failedParts: []}
+            if (!projectId) return
+            const settings = ec.service.sync().name('mantle.work.ProjectServices.get#ProjectSettings').parameters({workEffortId: projectId}).call()?.settings || {}
+            development.codeOn = String(settings.WstModules || '').split(',').map((key) => key.trim()).includes('code')
+            const linkedIds = Array.from(new Set(Array.from(ec.entity.find('mantle.work.effort.WorkEffortGitRepository').condition('workEffortId', projectId)
+                    .conditionDate('fromDate', 'thruDate', null).list()).map((row) => row.repositoryId)))
+            development.shown = development.codeOn || linkedIds.length > 0
+            if (!development.shown) return
+            development.hosting = !!ec.service.sync().name('ironstone.CodeServices.get#CodeHosting').call()?.available
+            if (!development.hosting) return
+            const labels = ec.service.sync().name('ironstone.CodeServices.get#MergeRequestLabels').call()?.labels || {}
+            const part = (name, run) => {
+                ec.message.pushErrors()
+                try { run(); if (ec.message.hasError()) throw new Error(ec.message.getErrorsString()) }
+                catch (err) { development.failedParts.push(name); ec.logger.warn(`Development of ${workEffortId}: ${name} not read: ${err && err.message ? err.message : err}`) }
+                finally { ec.message.clearErrors(); ec.message.popErrors() }
+            }
+            const fmt = (value) => value ? ec.l10n.format(value, 'MMM d, yyyy') : ''
+            // the repositories the user may view: those of the project, and any other one a link names
+            const viewable = {}
+            const accessOf = (repositoryId) => {
+                if (!(repositoryId in viewable)) {
+                    ec.message.pushErrors()
+                    try {
+                        const repoAccess = ec.service.sync().name('org.moqui.impl.GitServices.get#GitRepositoryAccess').parameters({repositoryId}).call() || {}
+                        viewable[repositoryId] = ec.message.hasError() || !repoAccess.canView ? null : repoAccess
+                    } catch (err) { viewable[repositoryId] = null }
+                    finally { ec.message.clearErrors(); ec.message.popErrors() }
+                }
+                return viewable[repositoryId]
+            }
+            const defaults = {}
+            const refsOf = {}
+            const refs = (repositoryId) => {
+                if (!(repositoryId in refsOf)) {
+                    const out = ec.service.sync().name('org.moqui.impl.GitServices.get#GitRefs').parameters({repositoryId}).call() || {}
+                    refsOf[repositoryId] = Array.from(out.refList || [])
+                    defaults[repositoryId] = out.defaultBranch || 'main'
+                }
+                return refsOf[repositoryId]
+            }
+            part('the repositories', () => {
+                for (const repositoryId of linkedIds) {
+                    const repoAccess = accessOf(repositoryId)
+                    if (!repoAccess) continue
+                    refs(repositoryId)
+                    development.repositoryList.push({repositoryId, defaultBranch: defaults[repositoryId] || 'main', canPush: !!(repoAccess.canCreate || repoAccess.canUpdate) && !repoAccess.archived,
+                        archived: !!repoAccess.archived})
+                }
+            })
+            part('the merge requests', () => {
+                const links = Array.from(ec.entity.find('mantle.work.effort.WorkEffortGitMergeRequest').condition('workEffortId', workEffortId).disableAuthz().list())
+                for (const link of links) {
+                    const got = ec.service.sync().name('org.moqui.impl.GitReviewServices.get#MergeRequest').parameters({mergeRequestId: link.mergeRequestId}).call()
+                    if (ec.message.hasError()) { ec.message.clearErrors(); continue }
+                    const mr = got?.mergeRequest
+                    if (!mr) continue
+                    const status = labels.status[mr.statusId] || [mr.statusId, 'grey-8', 'sym_o_merge']
+                    const check = got.checkState ? labels.check[got.checkState] || null : null
+                    const required = Number(got.branchRules?.requiredApprovals || 0)
+                    development.mergeRequestList.push({mergeRequestId: mr.mergeRequestId, repositoryId: mr.repositoryId, mergeRequestNum: mr.mergeRequestNum,
+                        numText: '!' + mr.mergeRequestNum, title: mr.title, statusId: mr.statusId, statusLabel: status[0], statusColor: status[1],
+                        sourceRef: mr.sourceRef, targetRef: mr.targetRef, approvalsText: required ? got.approvalCount + '/' + required : String(got.approvalCount || 0),
+                        checkLabel: check ? check[0] : '', checkColor: check ? check[1] : '', mergedText: fmt(mr.mergedDate), completeOnMerge: link.completeOnMerge === 'Y',
+                        url: '/qapps/Projects/Code/MergeRequestDetail?mergeRequestId=' + encodeURIComponent(mr.mergeRequestId), updated: Number(String(mr.lastUpdatedDate || 0))})
+                }
+                development.mergeRequestList.sort((a, b) => b.updated - a.updated)
+            })
+            part('the branches', () => {
+                const links = Array.from(ec.entity.find('mantle.work.effort.WorkEffortGitRef').condition('workEffortId', workEffortId).condition('refType', 'branch')
+                        .condition('thruDate', 'is-null', null).orderBy('-linkedDate').disableAuthz().list())
+                const labelsBy = {WglsExplicit: L('By hand'), WglsBranchName: L('Branch name')}
+                const heads = {}
+                for (const link of links) {
+                    if (!accessOf(link.repositoryId)) continue
+                    const ref = refs(link.repositoryId).find((one) => one.refName === link.refName)
+                    const name = String(link.refName).replace(/^refs\/heads\//, '')
+                    const row = {repositoryId: link.repositoryId, refName: link.refName, name, exists: !!ref, commitId: ref?.commitId || link.objectId || null,
+                        shortId: (ref?.commitId || link.objectId) ? String(ref?.commitId || link.objectId).substring(0, 10) : '', summary: ref?.summary || '',
+                        dateText: ref?.commitDate ? fmt(ref.commitDate) : '', aheadBy: null, behindBy: null, aheadText: '', checkLabel: '', checkColor: '',
+                        linkedBy: labelsBy[link.linkSourceEnumId] || L('Linked'), mergeRequest: null, isDefault: !!ref?.isDefault}
+                    if (ref && !ref.isDefault) {
+                        ec.message.pushErrors()
+                        try {
+                            const cmp = ec.service.sync().name('org.moqui.impl.GitServices.get#GitCompare').parameters({repositoryId: link.repositoryId,
+                                base: 'refs/heads/' + (defaults[link.repositoryId] || 'main'), head: link.refName}).call() || {}
+                            if (!ec.message.hasError()) { row.aheadBy = cmp.aheadBy ?? null; row.behindBy = cmp.behindBy ?? null }
+                        } catch (err) { ec.logger.warn(`Development of ${workEffortId}: ${name} not compared: ${err}`) }
+                        finally { ec.message.clearErrors(); ec.message.popErrors() }
+                        row.aheadText = row.aheadBy == null ? '' : row.aheadBy + ' ↑ · ' + row.behindBy + ' ↓'
+                    }
+                    if (row.commitId) (heads[link.repositoryId] = heads[link.repositoryId] || []).push(row.commitId)
+                    const mr = development.mergeRequestList.find((one) => one.repositoryId === link.repositoryId && one.sourceRef === name && ['GmrDraft', 'GmrOpen'].includes(one.statusId))
+                    if (mr) row.mergeRequest = {mergeRequestId: mr.mergeRequestId, numText: mr.numText, url: mr.url}
+                    development.branchList.push(row)
+                }
+                for (const repositoryId of Object.keys(heads)) {
+                    const states = ec.service.sync().name('org.moqui.impl.GitServices.get#GitCommitStatuses').parameters({repositoryId, commitIdList: heads[repositoryId]})
+                            .call()?.stateByCommit || {}
+                    for (const row of development.branchList.filter((one) => one.repositoryId === repositoryId)) {
+                        const check = states[row.commitId] ? labels.check[states[row.commitId]] || null : null
+                        if (check) { row.checkLabel = check[0]; row.checkColor = check[1] }
+                    }
+                }
+                // a branch ahead of the default with no open merge request may open one (Compare)
+                for (const row of development.branchList) row.canOpenMergeRequest = row.exists && !row.mergeRequest && Number(row.aheadBy || 0) > 0
+                        && development.repositoryList.some((repo) => repo.repositoryId === row.repositoryId && repo.canPush)
+            })
+            part('the commits', () => {
+                const links = Array.from(ec.entity.find('mantle.work.effort.WorkEffortGitCommit').condition('workEffortId', workEffortId).orderBy('-commitDate')
+                        .limit(60).disableAuthz().list())
+                const labelsBy = {WglsExplicit: L('By hand'), WglsMessage: L('Commit message'), WglsTrailer: L('Task trailer')}
+                for (const link of links) {
+                    if (!accessOf(link.repositoryId)) continue
+                    if (development.commitList.length >= 30) break
+                    development.commitList.push({repositoryId: link.repositoryId, commitId: link.commitId, shortId: String(link.commitId).substring(0, 10),
+                        summary: link.summary || '', authorName: link.authorName || '', dateText: fmt(link.commitDate),
+                        refText: link.refName ? String(link.refName).replace(/^refs\/(heads|tags)\//, '') : '', linkedBy: labelsBy[link.linkSourceEnumId] || L('Linked')})
+                }
+            })
+            part('the tags', () => {
+                const links = Array.from(ec.entity.find('mantle.work.effort.WorkEffortGitRef').condition('workEffortId', workEffortId).condition('refType', 'tag')
+                        .condition('thruDate', 'is-null', null).orderBy('-linkedDate').disableAuthz().list())
+                for (const link of links) {
+                    if (!accessOf(link.repositoryId)) continue
+                    development.tagList.push({repositoryId: link.repositoryId, name: String(link.refName).replace(/^refs\/tags\//, ''), commitId: link.objectId || null,
+                        shortId: link.objectId ? String(link.objectId).substring(0, 10) : '', whenText: fmt(link.linkedDate)})
+                }
+            })
+            part('the branch name', () => {
+                development.branchName = ec.service.sync().name('mantle.work.GitServices.get#TaskBranchName').parameters({workEffortId}).call()?.branchName || ''
+            })
+            development.canCreateBranch = !!access.canUpdate && development.repositoryList.some((repo) => repo.canPush)
+            development.pushRepositoryOptions = development.repositoryList.filter((repo) => repo.canPush).map((repo) => ({key: repo.repositoryId,
+                text: repo.repositoryId + ' (' + L('from') + ' ' + repo.defaultBranch + ')'}))
+        ]]></script></actions>
+    </service>
+
+    <service verb="create" noun="WorkItemBranch">
+        <description>WorkItemDetail's Create branch: for one who may work on the item (ironstone.TaskServices.get#TaskAccess update,
+            projects), mantle.work.GitServices.create#TaskBranch in a repository of the item's project (the user's push right and
+            the branch rules apply), from the default branch unless fromRef is given; message with the checkout commands.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="repositoryId"/>
+            <parameter name="fromRef"/>
+            <parameter name="branchName"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/><parameter name="branchName"/><parameter name="repositoryId"/></out-parameters>
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.TaskServices.get#TaskAccess').parameters({workEffortId, need: 'update', app: 'projects'}).call()
+            if (ec.message.hasError()) return
+            const task = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', workEffortId).one()
+            if (repositoryId && task?.rootWorkEffortId && !ec.entity.find('mantle.work.effort.WorkEffortGitRepository').condition({workEffortId: task.rootWorkEffortId, repositoryId})
+                    .conditionDate('fromDate', 'thruDate', null).count()) {
+                ec.message.addError(ec.resource.expand('Repository ${repositoryId} is not one of the project\'s', '', {repositoryId})); return }
+            const out = ec.service.sync().name('mantle.work.GitServices.create#TaskBranch').parameters({workEffortId, repositoryId: repositoryId || null,
+                fromRef: fromRef || null, branchName: branchName && String(branchName).trim() ? String(branchName).trim() : null}).call() || {}
+            if (ec.message.hasError()) return
+            branchName = out.branchName
+            repositoryId = out.repositoryId
+            message = ec.resource.expand('Branch ${branchName} made in ${repositoryId}: git fetch origin, then git checkout ${branchName}', '', {branchName, repositoryId})
+        ]]></script></actions>
+    </service>
 </services>

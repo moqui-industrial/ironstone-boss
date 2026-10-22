@@ -55,7 +55,7 @@ Sections: [1 scope](#1-scope-and-order) · [2 rules](#2-ground-rules) · [3 phas
 | P1 Foundation | mr-moqui, Mantle, BOSS | the Projects root and menu | done Oct 21 |
 | P2 Projects and work items | Mantle, BOSS (mr-moqui) | Home, QuickCreate, Projects, NewProject, ProjectDetail and its Overview, Work items, Team, Files and Settings tabs, WorkItems, WorkItemDetail, WorkItemTypes, Workflows, Labels, Templates | done Oct 22 |
 | P3a Code: framework | mr-moqui | — | done Oct 21 |
-| P3b Code: Mantle and BOSS | Mantle, BOSS | every §7 screen, ProjectCode, CodeSettings | in progress (P3b1 built Oct 22; P3b2 merge requests and review) |
+| P3b Code: Mantle and BOSS | Mantle, BOSS | every §7 screen, ProjectCode, CodeSettings | done Oct 22 |
 | P4 Planning | Mantle, BOSS (mr-moqui) | Backlog, SprintDetail, Timeline, WorkItemImport, Roadmap, MilestoneDetail, ReleaseDetail, ProjectBacklog, ProjectTimeline, ProjectCalendar, ProjectRoadmap, ProjectDocs | planned |
 | P5 Requests | Mantle, BOSS | Requests, RequestDetail, RequestIntake, ProjectRequests, IntakeSettings | planned |
 | P6 Time | Mantle, BOSS | MyTime, Timesheets, TimesheetDetail, TimeEntries, ProjectTime, TimeSettings | planned |
@@ -219,6 +219,20 @@ tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
   moqui-core lib 1565, example 86/86, SimpleScreens GitScreens 8/8; moqui-host `it` fails
   `system_sync::system_messages_and_entity_syncs_run_over_rest` with or without these changes (not Projects).
 
+**Built, P3b2** (Oct 22, 2026, after the framework merged the LLM/Assist work as 76cfc8c5):
+- Mantle usl: `get#ProjectHomeCounts` fills `reviewsWaiting` (null without git).
+- BOSS: `ironstone.CodeServices` merge request find (chips with counts), access, detail, changes, edits, reviewers,
+  review, close and reopen, merge, item links, comments, and the Development tab's `get#WorkItemDevelopment` and
+  `create#WorkItemBranch`; `Code/MergeRequests` (Waiting for my review, Mine, Open, Draft, Merged, Closed, All; mounted
+  as RepositoryDetail's tab with the repository fixed); `MergeRequestDetail` (Overview with the merge box, items,
+  reviewers and Chatter; Commits; Changes as `Changes.qvue` with file tree, unified and side-by-side diff, threads,
+  resolve, outdated marks, viewed marks, the review dialog, j/k/v; `ChangesTui.xml` read only); Compare opens into
+  MergeRequestDetail; WorkItemDetail's Development tab (branches with ahead and behind, checks, New merge request,
+  Create branch; merge requests, commits, tags); Home's Reviews waiting counter and block; demo !1 with a review
+  thread; specs `MergeRequests` and `CodeReviewWalk` (the usable-when walk, authorization on, through the screens'
+  transitions).
+- Runs (Debug): ironstone-boss 482/482, mantle-usl 594/596 (ContactListSend), lint clean with the Debug binary.
+
 ### P4 — Planning
 
 - Sprints and rank services; design §5 Backlog, SprintDetail, Timeline (`.qvue`) and WorkItemImport; §4 Roadmap,
@@ -309,6 +323,8 @@ Made during the build; each one that changes the design is also written into des
 | Oct 22, 2026 | Repository rights: internal members view, create and update; leads (ProjectManager, Manager, ProgrammerLead, SysArchitect) also delete; client contacts view only when the project shares its repositories (their own party's roles; P10 adds client organizations' contacts) | P3b1 |
 | Oct 22, 2026 | CodeSettings: no default webhooks (each needs its own secret); managers grant or revoke SSH_GIT per group, never ADMIN | P3b1 |
 | Oct 22, 2026 | The Code tab is always on ProjectDetail and says when the module is off (F24) | P3b1 |
+| Oct 22, 2026 | Line comments are markdown (`m-text-area`, shown with `m-markdown`), as `create#ReviewComment` stores; diff lines are always text, never html | P3b2 |
+| Oct 22, 2026 | MergeRequests' Open chip includes drafts; no updated-period find; the merge box has one message field seeded by the repository's method; Review is also in More for the terminal | P3b2 |
 | Oct 22, 2026 | A recurring item counted from completion takes the completion day at the due date's time of day (UTC days) and the rule without its COUNT, which counts the items made | P2 |
 
 ## 5. Open questions
@@ -357,6 +373,10 @@ Design assumptions found wrong in the code, with the resolution (written into th
 | F30 | P3b1: the lite build had no feature entry for the git_hosting services, so they failed to load | Framework `FEATURE_LOCATIONS` entry |
 | F31 | P3b1: `GitRepository.headCommitId` is the head of the last branch written, not the default branch's | ProjectCode reads the default branch's log |
 | F32 | P3b1 review (security): Raw sent any pushed file inline by its name's type, so an `.html` or `.svg` file ran in the app's origin for whoever opened it | Raw is inline only for images and PDFs (the record files' rule); anything else downloads. The framework's `sendResourceResponse` could refuse active types inline everywhere, later |
+| F33 | P3b2: the lite binary's `lint --screens` flags `code-view` as unknown (git is not built in) | Lint with the Debug binary |
+| F34 | P3b2: the screen lint's gstring check flagged a template literal in a script, likely reading a `/"/g` regex as a string's start | Worked around with concatenation; check the lint later |
+| F35 | P3b2: Chatter's header shows a `moqui.*` record by type and id ("Merge request 100000") | A label for framework records in Chatter, later |
+| F36 | P3b2: a team user calling `org.moqui.impl.GitServices` outside a screen is refused (only the app root's ALLOW grants the services) | As intended; specs stand in for a push with authorization off |
 | F7 | P0: a wiki space under an existing repository is documented for a repository root (`rootPageDirectory: "git://docs"`, or `rootPageLocation` `git://<repositoryId>/<SPACE>.md`), not for a subdirectory such as `git://<repositoryId>/docs` | Checked in P4 as the design's §15 row says, before ProjectDocs is built |
 
 ## 7. Later
@@ -387,6 +407,9 @@ Designed, not in this build:
 - Code (P3b1): requiring a work item key in commits to protected branches (a pre-receive rule); copy buttons for clone
   URLs; the palette's New merge request (Compare needs a repository); the Code screens' client states (P10); the
   current LFS patterns on Files; specs for mirrors, storage and export; TUI checks of the Code screens.
+
+- Code (P3b2): MergeRequests' updated-period find; a link from a line comment in Chatter into Changes; @mentions in line
+  comments; the terminal diff for Changes (P11); the Development tab's Unlink on phones; a screenshot of side-by-side.
 
 ## 8. Verification
 

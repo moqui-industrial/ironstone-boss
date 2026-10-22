@@ -17,8 +17,8 @@ along with this software (see the LICENSE.md file). If not, see
     and deletions, "Able to merge" or "Conflicts in n files" from a trial merge); the New merge request form (title from the
     branch's work item or the first commit, a Closes line per work item named, the projects' leads as reviewers (any internal member of them may be chosen), draft,
     complete the linked items on merge as the project says, delete the branch after); then the commits and every file's diff
-    (the moqui-diff table), up to 25 files, past that a file list opening each. Opening the merge request stays here with its
-    number until MergeRequestDetail (impl-projects.md P3b2) is there to open. Services: ironstone.CodeServices get#CompareInfo,
+    (the moqui-diff table), up to 25 files, past that a file list opening each. Opening the merge request goes on to its
+    MergeRequestDetail. Services: ironstone.CodeServices get#CompareInfo,
     create#MergeRequestFromCompare (org.moqui.impl.GitServices.get#GitCompare, org.moqui.impl.GitReviewServices.create#MergeRequest,
     mantle.work.GitServices.link#MergeRequestItems). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
@@ -39,6 +39,7 @@ along with this software (see the LICENSE.md file). If not, see
                     completeItems:(completeItems || 'N'), deleteSourceBranch:(deleteSourceBranch || 'N')}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(openOut.message, 'success')</script></if>
         </actions>
+        <conditional-response url="../MergeRequestDetail" condition="openOut?.mergeRequestId"><parameter name="mergeRequestId" from="openOut.mergeRequestId"/></conditional-response>
         <default-response url="."><parameter name="repositoryId"/><parameter name="base" from="targetRef"/><parameter name="head" from="sourceRef"/></default-response>
         <error-response url="."/>
     </transition>

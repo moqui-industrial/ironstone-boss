@@ -1,0 +1,238 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- MergeRequestDetail (design-projects.md §7 MergeRequestDetail; style-guide §3.3 Detail): one merge request of a repository the
+    user may view (ironstone.CodeServices get#MergeRequestAccess in always-actions, so a tab loaded on its own has it,
+    impl-projects.md F18; get#MergeRequestDetail over org.moqui.impl.GitReviewServices.get#MergeRequest for the header). The title
+    row: the number and title, the stages of the merge request flow (Draft, Open, Merged; Open and Closed for a closed one), the
+    repository, the source and target branches, the author and when it was opened. The primary action by state: Mark ready on a
+    draft (its author or a maintainer), Merge when every rule is met for one who may push (the merge dialog: the method the
+    branch rules allow, the commit message, delete the source branch), else Review for a requested reviewer, which opens Changes
+    with the review dialog. The More menu: Edit (title, description, target branch), Add reviewers, Review, Mark as draft,
+    Close or Reopen, and the checkout commands. Merged and closed merge requests are read only. The tabs: Overview (the
+    description, the merge box, the work items, the reviewers; Chatter beside them from 1440 px), Commits and Changes (the diff
+    with its review threads, a .qvue). A merge request the user may not view is "not available". Without git hosting in the
+    build it says so. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Merge request" default-menu-include="false">
+
+    <parameter name="mergeRequestId" required="true"/>
+
+    <always-actions><script><![CDATA[
+        mrAccess = codeHosting ? (ec.service.sync().name('ironstone.CodeServices.get#MergeRequestAccess').parameters({mergeRequestId: mergeRequestId || ''}).call() || {}) : {}
+        recordFound = !!mrAccess.canView
+        mrBasic = mrAccess.mergeRequest || {}
+        canPush = !!mrAccess.canPush
+        isArchived = !!mrAccess.archived
+    ]]></script></always-actions>
+
+    <subscreens default-item="Overview"/>
+
+    <transition name="mergeRequests"><default-response url="../MergeRequests"/></transition>
+    <transition name="repositoryDetail"><default-response url="../RepositoryDetail"/></transition>
+    <transition name="markReady">
+        <actions>
+            <service-call name="ironstone.CodeServices.update#MergeRequestInfo" out-map="updateOut" in-map="{mergeRequestId:mergeRequestId, draft:(draft || 'N')}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(updateOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="mergeRequestId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="editMergeRequest">
+        <actions>
+            <service-call name="ironstone.CodeServices.update#MergeRequestInfo" out-map="updateOut" in-map="{mergeRequestId:mergeRequestId, title:title,
+                    description:(description || ''), targetRef:targetRef}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(updateOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="mergeRequestId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="addReviewers">
+        <actions>
+            <service-call name="ironstone.CodeServices.set#MergeRequestReviewersBoss" out-map="reviewersOut" in-map="{mergeRequestId:mergeRequestId, addUserIds:addUserIds}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(reviewersOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="mergeRequestId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="submitReview">
+        <actions>
+            <service-call name="ironstone.CodeServices.submit#Review" out-map="reviewOut" in-map="{mergeRequestId:mergeRequestId, decision:decision, note:note}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(reviewOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="mergeRequestId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="closeMergeRequest">
+        <actions>
+            <service-call name="ironstone.CodeServices.close#MergeRequestBoss" out-map="closeOut" in-map="{mergeRequestId:mergeRequestId, reopen:(reopen == 'Y')}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(closeOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="mergeRequestId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="mergeMergeRequest">
+        <actions>
+            <service-call name="ironstone.CodeServices.merge#MergeRequestBoss" out-map="mergeOut" in-map="{mergeRequestId:mergeRequestId, mergeMethodEnumId:mergeMethodEnumId,
+                    commitMessage:commitMessage, deleteSourceBranch:(deleteSourceBranch || 'N')}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(mergeOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="mergeRequestId"/></default-response>
+        <error-response url="."/>
+    </transition>
+
+    <actions>
+        <script><![CDATA[
+            if (!recordFound) return
+            const L = (text) => ec.l10n.localize(text)
+            const enc = (text) => String(text == null ? '' : text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+            const out = ec.service.sync().name('ironstone.CodeServices.get#MergeRequestDetail').parameters({mergeRequestId: mergeRequestId, parts: 'reviewerOptions'}).call() || {}
+            ec.message.clearErrors()
+            headerFound = !!out.found
+            if (!headerFound) return
+            detail = out.detail
+            mr = detail.mergeRequest
+            stageStatusIds = mr.statusId === 'GmrClosed' ? ['GmrOpen', 'GmrClosed'] : ['GmrDraft', 'GmrOpen', 'GmrMerged']
+            primaryAction = detail.primaryAction
+            const chip = (text, cls, icon) => '<q-chip dense square class="q-my-none q-ml-none q-mr-sm ' + cls + '"' + (icon ? ' icon="' + icon + '"' : '') + '>' + enc(text) + '</q-chip>'
+            const repoUrl = '/qapps/Projects/Code/RepositoryDetail?repositoryId=' + encodeURIComponent(mr.repositoryId)
+            chipsHtml = '<div class="row items-center q-mt-xs m-mr-chips">'
+                + '<m-link href="' + enc(repoUrl) + '">' + chip(mr.repositoryId, 'm-tonal text-primary text-mono', 'sym_o_folder_data') + '</m-link>'
+                + chip(mr.sourceRef, 'm-tonal text-grey-8 text-mono', 'sym_o_call_split') + '<q-icon name="sym_o_arrow_forward" size="xs" class="q-mr-sm m-muted"></q-icon>'
+                + chip(mr.targetRef, 'm-tonal text-grey-8 text-mono', 'sym_o_call_merge')
+                + '<span class="row inline items-center no-wrap q-mr-sm text-body2"><m-avatar name="' + enc(mr.authorName) + '"'
+                + (mr.authorUserId ? ' user-id="' + enc(mr.authorUserId) + '"' : '') + ' size="22px" class="q-mr-xs"></m-avatar>' + enc(mr.authorName) + '</span>'
+                + '<span class="text-caption m-muted">' + enc(L('opened') + ' ' + mr.createdText) + '</span></div>'
+            chipsTui = {t: 'text', id: 'MergeRequestChips', text: [mr.repositoryId, mr.sourceRef + ' -> ' + mr.targetRef, mr.authorName, L('opened') + ' ' + mr.createdText].join(' · ')}
+            reviewerOptions = detail.reviewerOptions || []
+            methodOptions = detail.methodOptions || []
+            commitMessage = detail.mergeMethodEnumId === 'GmmSquash' ? detail.squashMessage : detail.mergeMessage
+            editValue = {mergeRequestId: mergeRequestId, title: mr.title, description: mr.description || '', targetRef: mr.targetRef}
+            mergeValue = {mergeRequestId: mergeRequestId, mergeMethodEnumId: detail.mergeMethodEnumId, commitMessage: commitMessage, deleteSourceBranch: mr.deleteSourceBranch ? 'Y' : 'N'}
+            changesUrl = '/qapps/Projects/Code/MergeRequestDetail/Changes?mergeRequestId=' + encodeURIComponent(mergeRequestId)
+            reviewUrl = changesUrl + '&review=true'
+            targetOptions = []
+            if (detail.canEdit) {
+                ec.message.pushErrors()
+                try {
+                    targetOptions = Array.from(ec.service.sync().name('ironstone.CodeServices.get#RefOptions').parameters({repositoryId: mr.repositoryId}).call()?.optionList || [])
+                            .filter((option) => !String(option.text).startsWith(L('Tag')) && option.key !== mr.sourceRef)
+                } catch (err) { ec.logger.warn('Merge request ' + mergeRequestId + ': no branches for Edit: ' + err) }
+                finally { ec.message.clearErrors(); ec.message.popErrors() }
+            }
+        ]]></script>
+    </actions>
+
+    <widgets>
+        <section name="NoCodeHosting" condition="!codeHosting"><widgets>
+            <container-box type="warning"><box-header title="Code hosting is not in this build"/><box-body>
+                <label type="p" text="This server was built without git hosting, so merge request ${mergeRequestId} cannot be shown." style="q-mb-none"/>
+            </box-body></container-box>
+        </widgets></section>
+        <section name="MergeRequestNotFound" condition="codeHosting &amp;&amp; !(recordFound &amp;&amp; headerFound)"><widgets>
+            <container-box type="warning"><box-header title="Not available"/><box-body>
+                <label type="p" text="Merge request ${mergeRequestId} is not available: it does not exist, or you may not view its repository."/>
+                <link url="mergeRequests" text="Back to Merge requests" link-type="anchor"/>
+            </box-body></container-box>
+        </widgets></section>
+
+        <section name="MergeRequestFound" condition="codeHosting &amp;&amp; recordFound &amp;&amp; headerFound"><widgets>
+            <context record-entity="moqui.resource.GitMergeRequest" record-id="${mergeRequestId}" title="${mr.numText} ${mr.title}"/>
+
+            <section name="ArchivedBanner" condition="detail.archived"><widgets>
+                <container-box type="warning"><box-body>
+                    <label type="p" text="The repository is archived: this merge request is read only." style="q-mb-none"/>
+                </box-body></container-box>
+            </widgets></section>
+
+            <container style="row items-start q-col-gutter-sm q-mb-sm m-mr-header">
+                <container style="col-12 col-md">
+                    <container style="row items-center no-wrap">
+                        <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none q-mr-sm text-mono m-tonal text-${mr.statusColor}" icon="${mr.statusIcon}">${WebUtilities.encodeHtml(mr.numText)}</q-chip>]]></text>
+                            <text type="tui"><![CDATA[${JSON.stringify({t: "text", id: "MergeRequestNum", style: "strong", text: mr.numText})}]]></text></render-mode>
+                        <label text="${mr.title}" type="h5" style="q-my-none ${mr.isOpen ? '' : 'm-muted'}"/>
+                    </container>
+                    <status-bar id="MergeRequestStatusBar" status-id="${mr.statusId}" status-flow-id="Default" stages="${stageStatusIds}" read-only="true"/>
+                    <render-mode><text type="qvt"><![CDATA[${chipsHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(chipsTui)}]]></text></render-mode>
+                </container>
+                <container style="col-12 col-md-auto row items-center q-gutter-y-xs m-mr-actions">
+                    <section name="PrimaryReady" condition="primaryAction == 'ready'"><widgets>
+                        <link url="markReady" link-type="hidden-form" text="Mark ready" btn-type="primary" icon="sym_o_done_all"
+                                confirmation="Mark ${mr.numText} ready for review? Its reviewers are told." parameter-map="{mergeRequestId:mergeRequestId, draft:'N'}"/>
+                    </widgets></section>
+                    <section name="PrimaryMerge" condition="primaryAction == 'merge'"><widgets>
+                        <container-dialog id="MergeDialog" button-text="Merge" icon="sym_o_call_merge" type="primary" width="560" title="Merge ${mr.numText} into ${mr.targetRef}">
+                            <form-single name="MergeHeader" transition="mergeMergeRequest" map="mergeValue">
+                                <field name="mergeRequestId"><default-field><hidden/></default-field></field>
+                                <field name="mergeMethodEnumId"><default-field title="Method">
+                                    <drop-down><list-options list="methodOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                <field name="commitMessage"><default-field title="Commit message (of a merge commit or a squash)"><text-area rows="3" cols="60"/></default-field></field>
+                                <field name="deleteSourceBranch"><default-field title=" "><check><option key="Y" text="Delete ${mr.sourceRef} after the merge"/></check></default-field></field>
+                                <field name="submitButton"><default-field title="Merge into ${mr.targetRef}"><submit confirmation="Merge ${mr.numText} into ${mr.targetRef}?"/></default-field></field>
+                            </form-single>
+                        </container-dialog>
+                    </widgets></section>
+                    <section name="PrimaryReview" condition="primaryAction == 'review'"><widgets>
+                        <link url="${reviewUrl}" url-type="plain" text="Review" btn-type="primary" icon="sym_o_rate_review"/>
+                    </widgets></section>
+                    <button-menu text="More" icon="more_horiz" style="q-ml-xs">
+                        <container-dialog id="EditMergeRequestDialog" button-text="Edit" icon="sym_o_edit" width="720" title="Edit ${mr.numText}" condition="detail.canEdit">
+                            <form-single name="EditMergeRequest" transition="editMergeRequest" map="editValue" focus-field="title">
+                                <field name="mergeRequestId"><default-field><hidden/></default-field></field>
+                                <field name="title"><default-field title="Title"><text-line size="70"/></default-field></field>
+                                <field name="description"><default-field title="Description (markdown; Closes PROJ-12 completes the item when it merges)">
+                                    <text-area rows="8" cols="70" editor-type="md"/></default-field></field>
+                                <field name="targetRef"><default-field title="Target branch">
+                                    <drop-down><list-options list="targetOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                            </form-single>
+                        </container-dialog>
+                        <container-dialog id="AddReviewersDialog" button-text="Add reviewers" icon="sym_o_person_add" width="480" title="Ask for a review of ${mr.numText}"
+                                condition="detail.canEdit">
+                            <form-single name="AddReviewers" transition="addReviewers">
+                                <field name="mergeRequestId"><default-field><hidden/></default-field></field>
+                                <field name="addUserIds"><default-field title="Reviewers">
+                                    <drop-down allow-multiple="true"><list-options list="reviewerOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                <field name="submitButton"><default-field title="Request review"><submit/></default-field></field>
+                            </form-single>
+                        </container-dialog>
+                        <container-dialog id="ReviewDialog" button-text="Review" icon="sym_o_rate_review" width="560" title="Review ${mr.numText}" condition="detail.canReview">
+                            <form-single name="SubmitReview" transition="submitReview">
+                                <field name="mergeRequestId"><default-field><hidden/></default-field></field>
+                                <field name="decision" from="'comment'"><default-field title="Your review">
+                                    <radio><option key="comment" text="Comment: feedback without a decision"/><option key="approve" text="Approve: ready to merge"/>
+                                        <option key="request_changes" text="Request changes: to be fixed before it merges"/></radio></default-field></field>
+                                <field name="note"><default-field title="Summary (markdown)"><text-area rows="5" cols="60" editor-type="md"/></default-field></field>
+                                <field name="submitButton"><default-field title="Submit review"><submit/></default-field></field>
+                            </form-single>
+                            <label type="p" text="Line comments are made on Changes." style="text-caption m-muted q-mb-none"/>
+                        </container-dialog>
+                        <link url="markReady" link-type="hidden-form-link" text="Mark as draft" icon="sym_o_draft" condition="detail.canEdit &amp;&amp; mr.statusId == 'GmrOpen'"
+                                confirmation="Make ${mr.numText} a draft? It does not merge until marked ready." parameter-map="{mergeRequestId:mergeRequestId, draft:'Y'}"/>
+                        <link url="closeMergeRequest" link-type="hidden-form-link" text="Close" icon="sym_o_cancel" btn-type="danger" condition="detail.canEdit"
+                                confirmation="Close ${mr.numText} without merging it?" parameter-map="{mergeRequestId:mergeRequestId, reopen:'N'}"/>
+                        <link url="closeMergeRequest" link-type="hidden-form-link" text="Reopen" icon="sym_o_undo"
+                                condition="mr.statusId == 'GmrClosed' &amp;&amp; (canPush || mr.authorUserId == ec.user.userId) &amp;&amp; !detail.archived"
+                                confirmation="Reopen ${mr.numText}?" parameter-map="{mergeRequestId:mergeRequestId, reopen:'Y'}"/>
+                        <container-dialog id="CheckoutDialog" button-text="Checkout commands" icon="sym_o_terminal" width="520" title="Check out ${mr.sourceRef}">
+                            <label text="${detail.checkoutText}" type="pre" style="text-mono q-mb-none"/>
+                        </container-dialog>
+                    </button-menu>
+                </container>
+            </container>
+
+            <subscreens-panel id="MergeRequestTabs" type="tab"/>
+        </widgets></section>
+    </widgets>
+</screen>

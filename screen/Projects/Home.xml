@@ -19,10 +19,13 @@ along with this software (see the LICENSE.md file). If not, see
     milestones in fourteen days; my next work items (ten, by due date then priority); what changed lately in my projects; my
     projects (managers: those they manage) with their health, status, progress, next milestone and open items; the shortcuts.
 
+    Reviews waiting on me (impl-projects.md P3b2): a counter into Code's Merge requests waiting for my review, and a block of the
+    five latest (number, title, repository, author, checks, updated), both left out when the build has no git hosting.
+
     Seams for the later phases, each an addition here: the timer strip above the counters and Start timer on a work item (P6,
-    with My time), Reviews waiting on me as a counter and a list (P3b, GitReviewServices find#MergeRequests), Timesheets to
-    approve, Allocation requests and the Approvals block (P6, P7), Unbilled and the two charts (P8, P9), and the clients' Home
-    (P10). Each counter comes from mantle.work.ProjectServices.get#ProjectHomeCounts, which already answers null for those. -->
+    with My time), Timesheets to approve, Allocation requests and the Approvals block (P6, P7), Unbilled and the two charts
+    (P8, P9), and the clients' Home (P10). Each counter comes from mantle.work.ProjectServices.get#ProjectHomeCounts, which
+    already answers null for those. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Home" default-menu-index="1">
 
@@ -46,6 +49,9 @@ along with this software (see the LICENSE.md file). If not, see
             myOpenText = n(counts.myOpen); dueWeekText = n(counts.dueWeek); overdueText = n(counts.overdue)
             hoursWeekText = counts.hoursWeek == null ? '—' : ec.l10n.format(counts.hoursWeek, '#,##0.##') + ' h'
             atRiskText = n(counts.projectsAtRisk); milestonesText = n(counts.milestonesSoon)
+            reviewsShown = !!home.hosting && counts.reviewsWaiting != null
+            reviewsText = n(counts.reviewsWaiting)
+            reviewList = Array.from(home.reviewList || [])
             const me = ec.user.userAccount?.partyId || ''
             dueWeekLink = '../WorkItems?list=week&assigneePartyId=' + encodeURIComponent(me)
             overdueLink = '../WorkItems?list=overdue&assigneePartyId=' + encodeURIComponent(me)
@@ -80,6 +86,7 @@ along with this software (see the LICENSE.md file). If not, see
             <number-card title="My open items" value="${myOpenText}" icon="sym_o_checklist" link="../WorkItems?list=mine"/>
             <number-card title="Due this week" value="${dueWeekText}" icon="sym_o_date_range" link="${dueWeekLink}"/>
             <number-card title="Overdue" value="${overdueText}" icon="sym_o_assignment_late" link="${overdueLink}"/>
+            <number-card title="Reviews waiting" value="${reviewsText}" icon="sym_o_rate_review" link="../Code/MergeRequests?list=waiting" condition="reviewsShown"/>
             <number-card title="My hours" value="${hoursWeekText}" icon="sym_o_schedule" link="../Time/TimeEntries"/>
             <number-card title="At risk" value="${atRiskText}" icon="sym_o_warning" link="../Projects?list=atRisk" condition="isManager"/>
             <number-card title="Milestones" value="${milestonesText}" icon="sym_o_flag_circle" link="../Projects/Roadmap" condition="isManager"/>
@@ -110,6 +117,29 @@ along with this software (see the LICENSE.md file). If not, see
                         <label type="p" text="Nothing assigned to you" style="m-muted q-pa-sm q-mb-none"/>
                     </widgets></section>
                 </box-body-nopad></container-box>
+
+                <section name="ReviewsWaiting" condition="reviewsShown"><widgets>
+                    <container-box><box-header title="Reviews waiting on me"/><box-toolbar>
+                        <link url="../Code/MergeRequests" link-type="anchor" text="All merge requests" parameter-map="{list:'waiting'}"/>
+                    </box-toolbar><box-body-nopad>
+                        <form-list name="ReviewsWaitingList" list="reviewList" skip-form="true" skip-header="true" paginate="false">
+                            <field name="title"><default-field>
+                                <link url="/qapps/Projects/Code/MergeRequestDetail" url-type="plain" text="${numText} ${title}" parameter-map="{mergeRequestId:mergeRequestId}"/>
+                                <label text="${repositoryId} · ${authorName} · ${branchText}" type="div" style="text-caption m-muted"/></default-field></field>
+                            <field name="checkLabel"><default-field>
+                                <render-mode><text type="qvt"><![CDATA[${checkLabel ? '<q-chip dense square class="q-ma-none m-tonal text-' + checkColor + '">' + WebUtilities.encodeHtml(checkLabel) + '</q-chip>' : ''}]]></text>
+                                    <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify(checkLabel ?? "")}}]]></text></render-mode></default-field></field>
+                            <field name="updatedText" align="right"><default-field><label text="${updatedText}" type="span" style="text-no-wrap m-muted"/></default-field></field>
+                            <columns type="mobile">
+                                <column><field-ref name="title"/></column>
+                                <column><field-ref name="checkLabel"/><field-ref name="updatedText"/></column>
+                            </columns>
+                        </form-list>
+                        <section name="NoReviews" condition="!reviewList.length"><widgets>
+                            <label type="p" text="No review is waiting for you" style="m-muted q-pa-sm q-mb-none"/>
+                        </widgets></section>
+                    </box-body-nopad></container-box>
+                </widgets></section>
 
                 <container-box><box-header title="${projectsTitle}"/><box-toolbar>
                     <link url="../Projects" link-type="anchor" text="All projects"/>

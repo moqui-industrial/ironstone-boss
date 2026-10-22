@@ -373,7 +373,7 @@ Profitability report), and a separate project expenses screen (ProjectMoney's Ex
 | `TimerStrip` | display | The running timer | work item key and title, project, started, elapsed; Stop | `m-elapsed` (new) for the ticking time | `mantle.work.TimeServices.store#TimeEntry` (stop sets `thruDate`) | OpenProject menu timer; ERPNext timer |
 | `Counters` | display | The group's numbers | as above | `dashboard` of `number-card`s, each a link to the filtered list | `mantle.work.ProjectServices.get#ProjectHomeCounts` (new) | ERPNext Projects workspace number cards; OpenProject My page |
 | `MyWorkItems` | list | My next work | key, title, project, status chip, priority, due; Start timer | `skip-header`, ten rows | `WorkEffortAndParty` (`entity`) | SimpleScreens `MyAccount/User/Task/MyTasks` `MyTasks`; Redmine My page "issues assigned to me" |
-| `ReviewsWaiting` | list | Merge requests where I am a requested reviewer | `!num`, title, repository, author, CI state, updated | | `org.moqui.impl.GitReviewServices.find#MergeRequests` (new) | GitLab "Review requests" (outside the research set) |
+| `ReviewsWaiting` | list | Merge requests where I am a requested reviewer | `!num`, title, repository, author, CI state, updated (five, with All merge requests to the Waiting chip) | | `org.moqui.impl.GitReviewServices.find#MergeRequests` (new) with `waitingForUserId`; the counter from `get#ProjectHomeCounts` `reviewsWaiting`; both left out when the build has no git hosting | GitLab "Review requests" (outside the research set) |
 | `RecentChanges` | list | What moved in my projects | item, change (status, assignee, comment), by, when | | `mantle.work.ProjectServices.get#ProjectActivity` (new) | Redmine and OpenProject activity |
 | `MyProjects` | list | Projects I am on or manage, or a client's | key, name, health chip, status, progress, next milestone, open items | `q-linear-progress` by `render-mode` | `WorkEffortAndParty` (`entity`); `mantle.work.ProjectServices.get#ProjectStats` | ERPNext project summary; OpenProject project list |
 | `Approvals` | list | Waiting on me as a manager | kind (timesheet, allocation, gate), who, what, since | links to the owning list | the approval topics of §15 through `NotificationMessageUser` (`entity`) | design-drawers-commons §4 `Approvals` |
@@ -834,8 +834,9 @@ actions.
   the type icon, the key as a `text-mono` chip with copy, the title (`h5`, edited in place), the `status-bar` of the item's flow with Hold and Cancel beside it, and the next status as the primary
   action. A facts row under it: assignees, due (overdue in warning), priority, estimate (for a parent, its own and
   "with sub-items", the roll-up), sprint, milestone, release.
-  Secondary menu: Assign to me, Start or stop the timer, Log time, Create branch, Create merge request (when a linked
-  branch is ahead of the default), Repeat, Watch or Unwatch, Move to project, Clone, Convert to request, Print,
+  Secondary menu: Assign to me, Start or stop the timer, Log time, Create branch (opens the Development tab, whose
+  Branches box has the dialog; Create merge request is a branch row's New merge request there, for a branch ahead of the
+  default), Repeat, Watch or Unwatch, Move to project, Clone, Convert to request, Print,
   Delete (the owner or a manager, for an item with no time, sub-items, comments or links).
 - **Recurring work items:** periodic work (a monthly report, a quarterly filing, a weekly backup check, a yearly
   renewal) repeats by a rule on the item, Commons' RRULE (`WorkEffortRecurrence`, design-drawers-commons §7). One
@@ -854,7 +855,10 @@ actions.
   - Sub-items: the item's subtree as a tree, to any depth, with each row's roll-up, the subtree's totals and progress
     above, and a quick-add row; a sub-item may be added under any row of it.
   - Links: relations by kind.
-  - Development (when the project has a repository): branches, commits, merge requests, tags, CI.
+  - Development (after Links, when the item's project has the Code module on or a repository linked; its records are read
+    only while the tab is open): branches, merge requests, commits, tags, CI. Create branch is the Branches box's dialog
+    (More's Create branch opens the tab), and a branch ahead of the default with no open merge request has New merge
+    request (Compare with the branch) on its row.
   - Time: the entries, the timer, Log time.
   - Files: `record-files`.
   - Chatter: the right column of Overview from 1440 px, a tab below; Projects opens it on Log note and shows time
@@ -1224,7 +1228,9 @@ files are read here and changed in a clone.
 
 ### RepositoryMergeRequests (Context passed)
 
-MergeRequests (below) with the repository fixed.
+MergeRequests (below) with the repository fixed: RepositoryDetail mounts `Code/MergeRequests.xml` as its Merge requests tab
+(a `subscreens-item`), which sees the repository the detail's `always-actions` read; the repository column is left out and the
+find stays in it.
 
 ### RepositoryActivity
 
@@ -1298,14 +1304,15 @@ MergeRequests (below) with the repository fixed.
 
 ### MergeRequests
 
-- **Layout:** list. Chips: Waiting for my review (default when there are any), Mine, Open, Draft, Merged, Closed,
-  All. New merge request opens Compare.
+- **Layout:** list. Chips: Waiting for my review (default when there are any, else Open), Mine (my open and draft ones),
+  Open (open and draft), Draft, Merged, Closed, All, each with its count; the find narrows every chip. New merge request
+  opens Compare (of the one repository the user may view, else a dialog to choose it).
 - **Forms:**
 
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
 | --- | --- | --- | --- | --- | --- | --- |
-| `MergeRequestFind` | find | Narrow | text, repository, project, author, reviewer, target branch, status, updated period | | | GitLab merge request filters |
-| `MergeRequestList` | list | The merge requests | `!num` and title (link), repository, source to target, author, reviewers with their state, CI state, comments, linked items, updated | `saved-finds` | `org.moqui.impl.GitReviewServices.find#MergeRequests` (new) | GitLab merge requests list (familiar shape) |
+| `MergeRequestFind` | find | Narrow | text in the title, repository, project (its repositories), author, reviewer (the people who write or review merge requests the user may view), target branch; the status is the chips' | `header-dialog` | | GitLab merge request filters |
+| `MergeRequestList` | list | The merge requests | `!num` and title (link) with source to target, status, repository, author, reviewers with their state, CI state, comments (with replies), linked items, updated | `saved-finds` | `ironstone.CodeServices.find#MergeRequests` over `org.moqui.impl.GitReviewServices.find#MergeRequests` (new) | GitLab merge requests list (familiar shape) |
 
 - **Needs:** Code review store.
 
@@ -1319,9 +1326,10 @@ MergeRequests (below) with the repository fixed.
   commit, fast-forward when possible, squash or rebase, as the branch rules allow; squash shows the commit message to
   edit) and Delete source branch; Merge is the primary action when the branch rules are met and otherwise the
   box says what is missing. A draft's primary action is Mark ready; a requested reviewer's is Review, which opens
-  Changes with the review dialog. Chatter is the right column of Overview from 1440 px and a tab below; line
-  comments appear in it with their file and line and a link into Changes. Secondary menu: Edit, Add reviewers,
-  Close or Reopen, Copy checkout commands.
+  Changes with the review dialog. Chatter is the right column of Overview from 1440 px and below the boxes narrower
+  (no Chatter tab, as ProjectDetail); line comments appear in it with their file and line (their subject). Secondary
+  menu: Edit, Add reviewers, Review (the same dialog, for the terminal too), Mark as draft, Close or Reopen, Checkout
+  commands (shown to copy by hand: there is no clipboard helper yet).
 - **Forms:**
 
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
@@ -1347,15 +1355,19 @@ MergeRequests (below) with the repository fixed.
 - **Layout:** split as `.qvue`: the changed files as a tree on the side (each with insertions, deletions, comment
   count and a viewed mark kept in the browser), and the diffs in the main pane, unified, with a side-by-side
   toggle. A line shows "+" on hover to start a comment; a thread shows under its line with replies, Resolve, and
-  "outdated" when a later push changed the line. Submit review opens the review dialog. It uses `m-rich-text` in
-  its light mode for comments, `m-avatar`, `m-dialog` and `m-form`.
+  "outdated" when a later push changed the line; a thread whose line is no longer in the diff shows at the top of its
+  file. Submit review opens the review dialog. Comments are markdown (`m-text-area` with `editor-type="md"`, shown by
+  `m-markdown`), as `create#ReviewComment` stores them (`text/markdown`); with `m-avatar` and `m-dialog`. The diff's
+  lines are text, never html, so nothing pushed runs in the app's origin (impl-projects.md F32). Keys: j and k the next
+  and previous file, v viewed. The terminal (`ChangesTui`) lists the files and the threads read only; the full terminal
+  diff is P11's.
 - **Forms:**
 
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
 | --- | --- | --- | --- | --- | --- | --- |
-| `FileTree` | component | Changed files | path, change, insertions, deletions, comments, viewed | | `org.moqui.impl.GitReviewServices.get#MergeRequestDiff` (new) | GitLab file browser in changes |
-| `DiffView` | component | The diffs with threads | old and new line numbers, the line, threads | per-line comment start | `get#MergeRequestDiff` (new) | GitLab changes tab; GitHub files changed |
-| `LineComment` | single | A comment on a line or a reply | body, mentions | `m-rich-text` light | `mantle.party.CommunicationServices.create#Message` (a `Comment` linked to the merge request) with `mantle.work.GitServices.store#ReviewAnchor` (new); `mantle.party.CommunicationServices.reply#CommunicationEvent` | Chatter `LogNote` |
+| `FileTree` | component | Changed files | path, change, insertions, deletions, open threads, viewed (kept in the browser per head commit) | `q-tree` | `org.moqui.impl.GitReviewServices.get#MergeRequestDiff` (new) through `ironstone.CodeServices.get#MergeRequestChanges` | GitLab file browser in changes |
+| `DiffView` | component | The diffs with threads | old and new line numbers, the line, threads; unified or side by side (kept in the browser) | per-line comment start | `get#MergeRequestDiff` (new) hunks of numbered lines; `mantle.work.GitServices.get#ReviewThreads` | GitLab changes tab; GitHub files changed |
+| `LineComment` | single | A comment on a line or a reply | body (markdown) | `m-text-area` `editor-type="md"` | `mantle.work.GitServices.create#ReviewComment` (new: a `Comment` filed on the merge request with its anchor, or a reply) through `ironstone.CodeServices.comment#MergeRequest` | Chatter `LogNote` |
 | `ResolveThread` | single | Resolve or reopen a thread | resolved | | `mantle.work.GitServices.resolve#ReviewThread` (new: the thread's first comment to `CeResolved` and back) | GitLab resolve thread |
 
 - **Devices:** desktop and tablet only.

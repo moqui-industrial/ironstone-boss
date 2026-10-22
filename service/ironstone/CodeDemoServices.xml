@@ -24,7 +24,7 @@ along with this software (see the LICENSE.md file). If not, see
             - iron: the repository iron (database) of IRON: five commits on main by joe.developer and john.doe naming IRON-2, IRON-5
               and IRON-3, the tag IRON/v0.1, a rule protecting main from force pushes and deletes; the branch IRON-3-expand-collapse
               with two commits and an open merge request of it by joe.developer (Closes IRON-3, john.doe asked to review, without
-              a notification); the branch IRON-7-timer with one commit by bob.developer; ci/build passed on main and on the merge
+              a notification, and a review thread on a line of src/tree.js: john's question and joe's answer); the branch IRON-7-timer with one commit by bob.developer; ci/build passed on main and on the merge
               request's head, failed on IRON-7-timer.
             - acme: the repository acme-portal (database) of ACME: two commits by joe.developer naming ACME-1 and ACME-3, the tag
               ACME/v0.1.
@@ -140,6 +140,22 @@ along with this software (see the LICENSE.md file). If not, see
                     const reviewer = ec.entity.makeValue('moqui.resource.GitMergeRequestReviewer')
                     reviewer.setFields({mergeRequestId: mr.mergeRequestId, userId: ids.john, statusId: 'GmrrRequested', requestedDate: ec.user.nowTimestamp}, true, null, null)
                     reviewer.create()
+                    // a review thread on a line of src/tree.js: john asks, joe answers (as create#ReviewComment files them, without its notices)
+                    const comment = (who, daysAgo, body, parent) => as(who, daysAgo, () => {
+                        const id = call('create#mantle.party.communication.CommunicationEvent', {communicationEventTypeId: 'Comment', contactMechTypeEnumId: 'CmtWebForm',
+                            statusId: 'CeSent', fromPartyId: ec.user.userAccount?.partyId || null, entryDate: ec.user.nowTimestamp, contentType: 'text/markdown',
+                            subject: 'Review of !' + mr.mergeRequestNum + (parent ? '' : ' src/tree.js:7'), body, parentCommEventId: parent || null,
+                            rootCommEventId: parent || null}).communicationEventId
+                        if (!parent) {
+                            call('create#mantle.party.communication.CommunicationEventRecord', {communicationEventId: id, recordEntityName: 'moqui.resource.GitMergeRequest',
+                                recordId: mr.mergeRequestId, linkedByUserId: ec.user.userId, linkedDate: ec.user.nowTimestamp})
+                            call('mantle.work.GitServices.store#ReviewAnchor', {communicationEventId: id, mergeRequestId: mr.mergeRequestId, path: 'src/tree.js', newLine: 7,
+                                lineText: "const expanded = new Set(JSON.parse(localStorage.getItem('tree.expanded') || '[]'))"})
+                        }
+                        return id
+                    })
+                    const thread = comment('john', 0.5, 'Should the open rows be kept **per project**? Two projects\' trees share this key now.', null)
+                    comment('joe', 0.3, 'Good point: I will add the project to the key.', thread)
                     if (!tagged.refName) ec.logger.warn('Code demo: the tag IRON/v0.1 was not made')
                 }
                 if (part === 'acme') {

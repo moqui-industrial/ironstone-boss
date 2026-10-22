@@ -1,0 +1,244 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- MergeRequestDetail's Overview (design-projects.md §7 MergeRequestDetail): the description; the merge box (the head's checks by
+    context, those the branch rules require among them; the approvals given of required; mergeability, or the conflicting files,
+    or "the target moved; checking"; what keeps it from merging; then the merge form for one who may push when every rule is
+    met: the method the branch rules allow, the commit message of a merge commit or squash, delete the source branch; once
+    merged, by whom, when and the commit; once closed, when); the linked work items (Link and Unlink for those who work in
+    their project, each that completes on merge marked); the reviewers with their state, the commit they reviewed and when
+    (Add reviewers and Remove for its author or a maintainer); and Chatter on the merge request, a column from 1440 px, below the
+    boxes narrower, where the line comments of Changes appear with their file and line. Services: ironstone.CodeServices
+    get#MergeRequestDetail, merge#MergeRequestBoss, set#MergeRequestReviewersBoss, link#MergeRequestItem, unlink#MergeRequestItem. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Overview" default-menu-index="1">
+
+    <transition name="mergeMergeRequest">
+        <actions>
+            <service-call name="ironstone.CodeServices.merge#MergeRequestBoss" out-map="mergeOut" in-map="{mergeRequestId:mergeRequestId, mergeMethodEnumId:mergeMethodEnumId,
+                    commitMessage:commitMessage, deleteSourceBranch:(deleteSourceBranch || 'N')}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(mergeOut.message, 'success')</script></if>
+        </actions>
+        <default-response url=".."><parameter name="mergeRequestId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="removeReviewer">
+        <actions>
+            <service-call name="ironstone.CodeServices.set#MergeRequestReviewersBoss" out-map="reviewersOut" in-map="{mergeRequestId:mergeRequestId, removeUserId:removeUserId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(reviewersOut.message, 'success')</script></if>
+        </actions>
+        <default-response url=".."><parameter name="mergeRequestId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="addReviewers">
+        <actions>
+            <service-call name="ironstone.CodeServices.set#MergeRequestReviewersBoss" out-map="reviewersOut" in-map="{mergeRequestId:mergeRequestId, addUserIds:addUserIds}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(reviewersOut.message, 'success')</script></if>
+        </actions>
+        <default-response url=".."><parameter name="mergeRequestId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="linkItem">
+        <actions>
+            <service-call name="ironstone.CodeServices.link#MergeRequestItem" out-map="linkOut" in-map="{mergeRequestId:mergeRequestId, workEffortId:workEffortId,
+                    completeOnMerge:(completeOnMerge || 'N')}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(linkOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="mergeRequestId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="unlinkItem">
+        <actions>
+            <service-call name="ironstone.CodeServices.unlink#MergeRequestItem" out-map="linkOut" in-map="{mergeRequestId:mergeRequestId, workEffortId:workEffortId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(linkOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="mergeRequestId"/></default-response>
+        <error-response url="."/>
+    </transition>
+
+    <actions>
+        <script><![CDATA[
+            overviewFound = false
+            if (!recordFound) return
+            const L = (text) => ec.l10n.localize(text)
+            const out = ec.service.sync().name('ironstone.CodeServices.get#MergeRequestDetail').parameters({mergeRequestId: mergeRequestId, parts: 'items,commits,threads,reviewerOptions'}).call() || {}
+            ec.message.clearErrors()
+            overviewFound = !!out.found
+            if (!overviewFound) return
+            detail = out.detail
+            mr = detail.mergeRequest
+            itemList = detail.itemList || []
+            reviewerList = detail.reviewerList || []
+            checkList = detail.checkList || []
+            missingList = detail.missingList || []
+            reviewerOptions = detail.reviewerOptions || []
+            methodOptions = detail.methodOptions || []
+            mergeValue = {mergeRequestId: mergeRequestId, mergeMethodEnumId: detail.mergeMethodEnumId,
+                commitMessage: detail.mergeMethodEnumId === 'GmmSquash' ? detail.squashMessage : detail.mergeMessage, deleteSourceBranch: mr.deleteSourceBranch ? 'Y' : 'N'}
+            canLink = !!detail.canEdit || !!canPush
+            mergeableColor = mr.mergeableEnumId === 'GmaMergeable' ? 'positive' : mr.mergeableEnumId === 'GmaConflict' ? 'negative' : 'grey-7'
+            const ff = detail.fastForwardPossible ? ' (' + L('fast-forward possible') + ')' : ''
+            mergeableText = mr.mergeableEnumId === 'GmaConflict' ? ec.resource.expand('Conflicts in ${count} files: ${paths}', '', {count: (mr.conflictPathList || []).length,
+                paths: (mr.conflictPathList || []).join(', ')}) : (mr.mergeableLabel || L('Not checked yet')) + (mr.mergeableEnumId === 'GmaMergeable' ? ff : '')
+            approvalsColor = detail.requiredApprovals && detail.approvalCount < detail.requiredApprovals ? 'warning' : 'positive'
+            changesUrl = '/qapps/Projects/Code/MergeRequestDetail/Changes?mergeRequestId=' + encodeURIComponent(mergeRequestId)
+            threadsText = detail.threadCounts.total ? ec.resource.expand('${open} open and ${resolved} resolved review threads', '', detail.threadCounts) : ''
+            summaryText = [detail.aheadBy != null ? detail.aheadBy + ' ' + (detail.aheadBy == 1 ? L('commit') : L('commits')) : '',
+                detail.fileCount != null ? detail.fileCount + ' ' + (detail.fileCount == 1 ? L('file') : L('files')) : '',
+                detail.insertions != null ? '+' + detail.insertions + ' −' + detail.deletions : '', detail.behindBy ? detail.behindBy + ' ' + L('behind') + ' ' + mr.targetRef : '']
+                    .filter((part) => part).join(' · ')
+        ]]></script>
+    </actions>
+
+    <widgets>
+        <section name="OverviewFound" condition="overviewFound"><widgets>
+            <container style="row q-col-gutter-sm">
+                <container style="col-12 col-lg-8">
+                    <container-box><box-header title="Description"/><box-body>
+                        <markdown-view text="${mr.description || ''}"/>
+                        <label text="No description" type="p" style="m-muted q-mb-none" condition="!mr.description"/>
+                        <container style="row items-center q-gutter-x-sm q-mt-sm text-caption m-muted">
+                            <label text="${summaryText}" type="span"/>
+                            <link url="${changesUrl}" url-type="plain" text="See the changes${threadsText ? ' · ' + threadsText : ''}" link-type="anchor"/>
+                        </container>
+                    </box-body></container-box>
+
+                    <!-- ===== the merge box ===== -->
+                    <container-box><box-header title="${mr.isOpen ? 'Merge' : mr.statusId == 'GmrMerged' ? 'Merged' : 'Closed'}"/><box-body>
+                        <section name="MergedInfo" condition="mr.statusId == 'GmrMerged'"><widgets>
+                            <container style="row items-center q-gutter-x-sm">
+                                <label text="Merged into ${mr.targetRef}${mr.mergedByName ? ' by ' + mr.mergedByName : ''} ${mr.mergedText}" type="span"/>
+                                <link url="/qapps/Projects/Code/CommitDetail" url-type="plain" text="${mr.mergeCommitShortId}" link-type="anchor" style="text-mono"
+                                        parameter-map="{repositoryId:mr.repositoryId, commitId:mr.mergeCommitId}" condition="mr.mergeCommitId"/>
+                            </container>
+                        </widgets></section>
+                        <section name="ClosedInfo" condition="mr.statusId == 'GmrClosed'"><widgets>
+                            <label text="Closed without merging ${mr.closedText}. Its author or a maintainer may reopen it from the More menu." type="p" style="q-mb-none"/>
+                        </widgets></section>
+                        <section name="OpenMergeBox" condition="mr.isOpen"><widgets>
+                            <!-- checks -->
+                            <label text="Checks" type="div" style="text-subtitle2"/>
+                            <form-list name="MergeChecks" list="checkList" skip-form="true" skip-header="true" paginate="false">
+                                <field name="checkContext"><default-field>
+                                    <label text="${checkContext}${required ? ' · ' + ec.l10n.localize('required') : ''}" type="div" style="text-mono"/>
+                                    <label text="${description}" type="div" style="text-caption m-muted" condition="description"/></default-field></field>
+                                <field name="label"><default-field>
+                                    <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${color}" icon="${icon}" data-check="${WebUtilities.encodeHtml(state ?? '')}">${WebUtilities.encodeHtml(label ?? '')}</q-chip>]]></text>
+                                        <text type="tui"><![CDATA[{"t": "text", "style": "strong", "text": ${JSON.stringify(label ?? "")}}]]></text></render-mode></default-field></field>
+                                <field name="targetUrl"><default-field>
+                                    <link url="${targetUrl}" url-type="plain" text="Run" icon="sym_o_open_in_new" link-type="anchor" target-window="_blank" condition="targetUrl"/></default-field></field>
+                            </form-list>
+                            <label type="p" text="No checks posted on ${mr.headShortId}. Outside CI posts them over REST with an access token." style="m-muted q-mb-sm" condition="!checkList.length"/>
+                            <!-- approvals and mergeability -->
+                            <container style="row items-center q-gutter-sm q-my-sm">
+                                <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${approvalsColor}" icon="sym_o_how_to_reg">${WebUtilities.encodeHtml(detail.approvalsText)}</q-chip><q-chip dense square class="q-ma-none m-tonal text-${mergeableColor}" icon="sym_o_merge_type" data-mergeable="${WebUtilities.encodeHtml(mr.mergeableEnumId ?? '')}">${WebUtilities.encodeHtml(mergeableText)}</q-chip>]]></text>
+                                    <text type="tui"><![CDATA[${JSON.stringify({t: "text", id: "MergeState", style: "strong", text: detail.approvalsText + " · " + mergeableText})}]]></text></render-mode>
+                            </container>
+                            <section name="MergeMissing" condition="missingList.length"><widgets>
+                                <label text="Before it merges" type="div" style="text-subtitle2"/>
+                                <section-iterate name="MissingItem" list="missingList" entry="missing"><widgets>
+                                    <container style="row items-center no-wrap text-body2">
+                                        <render-mode><text type="qvt"><![CDATA[<q-icon name="sym_o_error" size="xs" class="q-mr-xs text-warning"></q-icon>]]></text><text type="tui" template="false">[]</text></render-mode>
+                                        <label text="${missing}" type="span"/>
+                                    </container>
+                                </widgets></section-iterate>
+                            </widgets></section>
+                            <section name="MergeForm" condition="detail.canMerge"><widgets>
+                                <form-single name="MergeBox" transition="mergeMergeRequest" map="mergeValue">
+                                    <field name="mergeRequestId"><default-field><hidden/></default-field></field>
+                                    <field name="mergeMethodEnumId"><default-field title="Method">
+                                        <drop-down><list-options list="methodOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                    <field name="commitMessage"><default-field title="Commit message (of a merge commit or a squash)"><text-area rows="2" cols="60"/></default-field></field>
+                                    <field name="deleteSourceBranch"><default-field title=" "><check><option key="Y" text="Delete ${mr.sourceRef} after the merge"/></check></default-field></field>
+                                    <field name="submitButton"><default-field title="Merge into ${mr.targetRef}"><submit confirmation="Merge ${mr.numText} into ${mr.targetRef}?"/></default-field></field>
+                                    <field-layout><field-row><field-ref name="mergeMethodEnumId"/><field-ref name="deleteSourceBranch"/></field-row>
+                                        <field-ref name="commitMessage"/><field-ref name="submitButton"/></field-layout>
+                                </form-single>
+                            </widgets></section>
+                        </widgets></section>
+                    </box-body></container-box>
+
+                    <container style="row q-col-gutter-sm">
+                        <container style="col-12 col-md-6">
+                            <container-box><box-header title="Work items"/>
+                                <box-toolbar>
+                                    <container-dialog id="LinkItemDialog" button-text="Link" icon="sym_o_link" width="440" title="Link a work item to ${mr.numText}"
+                                            condition="mr.isOpen">
+                                        <form-single name="LinkMergeRequestItem" transition="linkItem">
+                                            <field name="mergeRequestId"><default-field><hidden/></default-field></field>
+                                            <field name="workEffortId"><default-field title="Work item key (IRON-12)"><text-line size="20"/></default-field></field>
+                                            <field name="completeOnMerge"><default-field title=" "><check><option key="Y" text="Complete it when this merges"/></check></default-field></field>
+                                            <field name="submitButton"><default-field title="Link"><submit/></default-field></field>
+                                        </form-single>
+                                    </container-dialog>
+                                </box-toolbar>
+                                <box-body-nopad>
+                                    <form-list name="MergeRequestItems" list="itemList" skip-form="true" skip-header="true" paginate="false">
+                                        <field name="workEffortId"><default-field>
+                                            <link url="${url}" url-type="plain" text="${workEffortId}" link-type="anchor" style="text-mono"/>
+                                            <label text="${workEffortName}" type="div" style="text-caption ${isDone ? 'm-muted' : ''}"/>
+                                            <label text="${[status, assigneeName, completeText].filter((part) => part).join(' · ')}" type="div" style="text-caption m-muted"/></default-field></field>
+                                        <field name="unlink" align="right"><default-field>
+                                            <link url="unlinkItem" link-type="hidden-form-link" text="" icon="sym_o_link_off" tooltip="Unlink" style="m-btn-flat" condition="mr.isOpen"
+                                                    confirmation="Unlink ${workEffortId} from ${mr.numText}?" parameter-map="{mergeRequestId:mergeRequestId, workEffortId:workEffortId}"/></default-field></field>
+                                    </form-list>
+                                    <section name="NoMergeRequestItems" condition="!itemList.length"><widgets>
+                                        <label type="p" text="No work item. A key in the branch name, the title or the description links one; Closes IRON-12 completes it on merge." style="m-muted q-pa-sm q-mb-none"/>
+                                    </widgets></section>
+                                </box-body-nopad>
+                            </container-box>
+                        </container>
+                        <container style="col-12 col-md-6">
+                            <container-box><box-header title="Reviewers · ${detail.approvalsText}"/>
+                                <box-toolbar>
+                                    <container-dialog id="OverviewAddReviewersDialog" button-text="Add" icon="sym_o_person_add" width="480" title="Ask for a review of ${mr.numText}"
+                                            condition="detail.canEdit &amp;&amp; reviewerOptions.length">
+                                        <form-single name="OverviewAddReviewers" transition="addReviewers">
+                                            <field name="mergeRequestId"><default-field><hidden/></default-field></field>
+                                            <field name="addUserIds"><default-field title="Reviewers">
+                                                <drop-down allow-multiple="true"><list-options list="reviewerOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                            <field name="submitButton"><default-field title="Request review"><submit/></default-field></field>
+                                        </form-single>
+                                    </container-dialog>
+                                </box-toolbar>
+                                <box-body-nopad>
+                                    <form-list name="MergeRequestReviewers" list="reviewerList" skip-form="true" skip-header="true" paginate="false">
+                                        <field name="name"><default-field>
+                                            <render-mode><text type="qvt"><![CDATA[<span class="row inline no-wrap items-center"><m-avatar name="${WebUtilities.encodeHtml(name ?? '')}" user-id="${WebUtilities.encodeHtml(userId ?? '')}" size="24px" class="q-mr-xs"></m-avatar><span>${WebUtilities.encodeHtml(name ?? '')}</span></span>]]></text>
+                                                <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify(name ?? "")}}]]></text></render-mode>
+                                            <label text="${reviewNote}" type="div" style="text-caption" condition="reviewNote"/>
+                                            <label text="${[whenText, atText ? ec.l10n.localize('at') + ' ' + atText : ''].filter((part) => part).join(' · ')}" type="div" style="text-caption m-muted"/></default-field></field>
+                                        <field name="stateLabel"><default-field>
+                                            <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${stateColor}" icon="${stateIcon}" data-review="${WebUtilities.encodeHtml(statusId ?? '')}">${WebUtilities.encodeHtml(stateLabel ?? '')}</q-chip>]]></text>
+                                                <text type="tui"><![CDATA[{"t": "text", "style": "strong", "text": ${JSON.stringify(stateLabel ?? "")}}]]></text></render-mode></default-field></field>
+                                        <field name="remove" align="right"><default-field>
+                                            <link url="removeReviewer" link-type="hidden-form-link" text="" icon="sym_o_person_remove" tooltip="Remove" style="m-btn-flat"
+                                                    condition="canRemove &amp;&amp; mr.isOpen" confirmation="Remove ${name} as a reviewer?" parameter-map="{mergeRequestId:mergeRequestId, removeUserId:userId}"/></default-field></field>
+                                    </form-list>
+                                    <section name="NoReviewers" condition="!reviewerList.length"><widgets>
+                                        <label type="p" text="No reviewers yet" style="m-muted q-pa-sm q-mb-none"/>
+                                    </widgets></section>
+                                </box-body-nopad>
+                            </container-box>
+                        </container>
+                    </container>
+                </container>
+                <!-- Chatter beside the boxes from 1440 px; the line comments appear in it with their file and line -->
+                <container style="col-12 col-lg-4">
+                    <chatter id="MergeRequestChatter" record-entity="moqui.resource.GitMergeRequest" record-id="${mergeRequestId}" default-tab="message"/>
+                </container>
+            </container>
+        </widgets></section>
+    </widgets>
+</screen>

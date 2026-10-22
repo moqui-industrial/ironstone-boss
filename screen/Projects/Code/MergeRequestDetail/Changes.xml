@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- MergeRequestChanges (design-projects.md §7 MergeRequestChanges; style-guide §3.8 Split, §4.8 .qvue): the diff of a merge request
+    with its review threads. The component is Changes.qvue next to this file; every read and change goes through the JSON
+    transitions below, services of ironstone.CodeServices that check the repository's view right (get#MergeRequestChanges over
+    org.moqui.impl.GitReviewServices.get#MergeRequestDiff and mantle.work.GitServices.get#ReviewThreads; comment#MergeRequest over
+    create#ReviewComment; submit#Review; mantle.work.GitServices.resolve#ReviewThread). The diff's lines are data the component
+    shows as text, never html, so nothing pushed to the repository runs in the app's origin (impl-projects.md F32). review=true
+    opens the review dialog (MergeRequestDetail's Review). The terminal: ChangesTui beside this file, the files and threads
+    read only. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Changes" default-menu-index="3" render-modes="vue,qvue,tui" server-static="vue,qvue">
+
+    <parameter name="review"/>
+
+    <!-- the files, their hunks and the threads -->
+    <transition name="changes" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.CodeServices.get#MergeRequestChanges').parameters({mergeRequestId: mergeRequestId || ''}).call() || {}
+            if (!ec.message.hasError() && !out.found) ec.message.addError(ec.resource.expand('Merge request ${mergeRequestId} is not available', '', {mergeRequestId}))
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {changes: out.changes})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- a comment on a line, or a reply to a thread (parentCommEventId) -->
+    <transition name="comment">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.CodeServices.comment#MergeRequest').parameters({mergeRequestId: mergeRequestId || '', body: body || '',
+                path: path || null, oldLine: oldLine ? Number(oldLine) : null, newLine: newLine ? Number(newLine) : null, lineText: lineText || null,
+                parentCommEventId: parentCommEventId || null}).call() || {}
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {communicationEventId: out.communicationEventId})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="resolveThread">
+        <actions><script><![CDATA[
+            // the thread must be of this merge request
+            const anchor = communicationEventId ? ec.service.sync().name('mantle.work.GitServices.get#ReviewThreads').parameters({mergeRequestId: mergeRequestId || ''}).call()
+                    ?.threadList?.find((thread) => thread.communicationEventId === communicationEventId) : null
+            if (!ec.message.hasError() && !anchor) ec.message.addError(ec.resource.expand('Review thread ${communicationEventId} not found', '', {communicationEventId}))
+            if (!ec.message.hasError()) ec.service.sync().name('mantle.work.GitServices.resolve#ReviewThread').parameters({communicationEventId: communicationEventId,
+                resolved: String(resolved) !== 'false'}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {resolved: String(resolved) !== 'false'})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="submitReview">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.CodeServices.submit#Review').parameters({mergeRequestId: mergeRequestId || '', decision: decision || '',
+                note: note || null}).call() || {}
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {statusId: out.statusId, messageInfos: [{type: 'success', message: out.message}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+
+    <widgets>
+        <render-mode><text type="qvue" location="component://ironstone-boss/screen/Projects/Code/MergeRequestDetail/Changes.qvue" template="false"/>
+            <!-- the terminal: ChangesTui, the plain screen beside this one, on the same merge request -->
+            <text type="tui"><![CDATA[${JSON.stringify([{t: "dynamicContainer", id: "ChangesTui",
+                url: sri.buildUrl("../ChangesTui").addParameters({mergeRequestId: mergeRequestId || null}).getUrlWithParams()}])}]]></text></render-mode>
+    </widgets>
+</screen>

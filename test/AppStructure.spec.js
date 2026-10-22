@@ -167,12 +167,19 @@ const demoRecords = {
     "Projects/Code/RepositoryDetail/Commits": { parameters: { repositoryId: "iron" }, codeText: "IronStone Projects, the app" },
     "Projects/Code/RepositoryDetail/Branches": { parameters: { repositoryId: "iron" }, codeText: "IronStone Projects, the app" },
     "Projects/Code/RepositoryDetail/Tags": { parameters: { repositoryId: "iron" }, codeText: "IronStone Projects, the app" },
-    "Projects/Code/RepositoryDetail/MergeRequests": { parameters: { repositoryId: "iron" } },
+    "Projects/Code/RepositoryDetail/MergeRequests": { parameters: { repositoryId: "iron", list: "all" }, codeText: "Expand and collapse rows (IRON-3)" },
     "Projects/Code/RepositoryDetail/Activity": { parameters: { repositoryId: "iron" }, codeText: "IronStone Projects, the app" },
     "Projects/Code/RepositoryDetail/Settings": { parameters: { repositoryId: "iron" }, codeText: "IronStone Projects, the app" },
     "Projects/Code/Compare": { parameters: { repositoryId: "iron", head: "IRON-3-expand-collapse" }, codeText: "Able to merge" },
     "Projects/Code/CommitDetail": { parameters: { repositoryId: "iron", commitId: "main" }, codeText: "IRON-3 Expand and collapse rows" },
     "Projects/Code/GitAccess": { text: "How to clone" },
+    // Projects P3b2: the merge requests, the demo's !1 (its id is looked up in setupSpec), a tab by its header
+    "Projects/Code/MergeRequests": { parameters: { list: "all" }, codeText: "Expand and collapse rows (IRON-3)" },
+    "Projects/Code/MergeRequestDetail": { mergeRequest: true, codeText: "Expand and collapse rows (IRON-3)" },
+    "Projects/Code/MergeRequestDetail/Overview": { mergeRequest: true, codeText: "Expand and collapse rows (IRON-3)" },
+    "Projects/Code/MergeRequestDetail/Commits": { mergeRequest: true, codeText: "Expand and collapse rows (IRON-3)" },
+    "Projects/Code/MergeRequestDetail/Changes": { mergeRequest: true },
+    "Projects/Code/MergeRequestDetail/ChangesTui": { mergeRequest: true, codeText: "Expand and collapse rows (IRON-3)" },
     "Projects/Settings/Code": { text: "Repository defaults" },
     "Projects/Projects/ProjectDetail/Code": { parameters: { workEffortId: "IRON" }, text: "ProjectStatusBar" },
     "Projects/Time": { text: "Placeholder: My time" },
@@ -191,6 +198,9 @@ spec({
         let codeHosting
         try { codeHosting = !!call("ironstone.CodeServices.get#CodeHosting", {}).available } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
         for (const demo of Object.values(demoRecords)) if (demo.codeText) demo.text = codeHosting ? demo.codeText : "Code hosting is not in this build"
+        // the demo's merge request !1 of iron (a sequenced id)
+        const mergeRequest = ec.entity.find("moqui.resource.GitMergeRequest").condition({ repositoryId: "iron", mergeRequestNum: 1 }).disableAuthz().one()
+        for (const demo of Object.values(demoRecords)) if (demo.mergeRequest) demo.parameters = { mergeRequestId: mergeRequest ? mergeRequest.mergeRequestId : "_NA_" }
     },
     setup() { ec.artifactExecution.disableAuthz() },
     cleanup() { ec.artifactExecution.enableAuthz() },

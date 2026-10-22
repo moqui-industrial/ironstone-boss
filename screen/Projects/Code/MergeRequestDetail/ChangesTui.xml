@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The terminal twin of MergeRequestChanges (style-guide §4.8): Changes.xml's tui text is a dynamic container of this screen. The
+    files the merge request changes with their insertions and deletions, and its review threads by file and line with their
+    comments, read only, from the same service as Changes.qvue (ironstone.CodeServices.get#MergeRequestChanges, the repository's
+    view right). Line comments, replies, resolving and the review are the browser's; the review is also MergeRequestDetail's
+    Review dialog. The full terminal diff waits for impl-projects.md P11. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Changes" default-menu-include="false">
+
+    <actions><script><![CDATA[
+        fileList = []; threadList = []; changesFound = false
+        if (!recordFound) return
+        const L = (text) => ec.l10n.localize(text)
+        const out = ec.service.sync().name('ironstone.CodeServices.get#MergeRequestChanges').parameters({mergeRequestId: mergeRequestId || ''}).call() || {}
+        ec.message.clearErrors()
+        changesFound = !!out.found
+        if (!changesFound) return
+        const changes = out.changes
+        fileList = Array.from(changes.fileList || []).map((file) => ({path: file.path, changeLabel: file.changeLabel, countText: '+' + file.insertions + ' -' + file.deletions,
+            threadCount: Array.from(changes.threadList || []).filter((thread) => thread.path === file.path).length}))
+        threadList = Array.from(changes.threadList || []).map((thread) => ({where: thread.path + ':' + (thread.newLine ?? thread.oldLine ?? ''),
+            stateText: [thread.resolved ? L('Resolved') : L('Open'), thread.outdated ? L('outdated') : ''].filter((part) => part).join(', '),
+            lineText: thread.lineText || '', commentsText: Array.from(thread.commentList || []).map((comment) => comment.authorName + ': ' + comment.body).join('\n')}))
+        summaryText = fileList.length + ' ' + L('files') + ' · +' + (changes.insertions || 0) + ' -' + (changes.deletions || 0)
+    ]]></script></actions>
+    <widgets>
+        <section name="ChangesTuiFound" condition="changesFound"><widgets>
+            <container-box><box-header title="Files · ${summaryText}"/><box-body-nopad>
+                <form-list name="ChangesTuiFiles" list="fileList" skip-form="true" paginate="false">
+                    <field name="path"><default-field title="File"><display/></default-field></field>
+                    <field name="changeLabel"><default-field title="Change"><display/></default-field></field>
+                    <field name="countText"><default-field title="Lines"><display/></default-field></field>
+                    <field name="threadCount"><default-field title="Threads"><display/></default-field></field>
+                </form-list>
+            </box-body-nopad></container-box>
+            <container-box><box-header title="Review threads"/><box-body-nopad>
+                <form-list name="ChangesTuiThreads" list="threadList" skip-form="true" paginate="false">
+                    <field name="where"><default-field title="Line"><display/></default-field></field>
+                    <field name="stateText"><default-field title="State"><display/></default-field></field>
+                    <field name="lineText"><default-field title="Code"><display/></default-field></field>
+                    <field name="commentsText"><default-field title="Comments"><display/></default-field></field>
+                </form-list>
+                <label type="p" text="No review threads" style="m-muted q-pa-sm q-mb-none" condition="!threadList.length"/>
+            </box-body-nopad></container-box>
+        </widgets><fail-widgets>
+            <label type="p" text="Merge request ${mergeRequestId} is not available." style="m-muted"/>
+        </fail-widgets></section>
+    </widgets>
+</screen>

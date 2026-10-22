@@ -36,7 +36,8 @@ feature("a manager's Home: the counters with the projects at risk, my work items
         home.counts.myOpen >= 1
         home.counts.projectsAtRisk >= 1
         home.atRiskProjectIds.includes("ACME")
-        home.counts.reviewsWaiting == null
+        // john.doe is asked to review the code demo's !1 (null without git hosting in the build)
+        home.counts.reviewsWaiting == null || home.counts.reviewsWaiting >= 1
         home.workItemList.map((row) => row.workEffortId).includes("HIRE-1")
         home.projectList.map((row) => row.workEffortId).includes("ACME")
         home.projectList.map((row) => row.workEffortId).includes("IRON")

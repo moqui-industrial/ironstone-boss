@@ -17,7 +17,7 @@ along with this software (see the LICENSE.md file). If not, see
     tab loaded on its own has it, impl-projects.md F18). The title row: the id, the description, the storage, the default branch
     and the linked projects as chips; Clone (a dialog with the HTTPS and SSH URLs and the way to Git access) and New merge
     request (primary, opening Compare). An archived repository shows its banner on every tab. The tabs: Files, Commits,
-    Branches, Tags, Merge requests (impl-projects.md P3b2), Activity and Settings (its maintainers change it). A repository the
+    Branches, Tags, Merge requests (Code/MergeRequests mounted with the repository fixed), Activity and Settings (its maintainers change it). A repository the
     user may not view is "not available", as one that is not there. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Repository" default-menu-include="false">
@@ -35,7 +35,10 @@ along with this software (see the LICENSE.md file). If not, see
         isAdmin = !!repoAccess.isAdmin
     ]]></script></always-actions>
 
-    <subscreens default-item="Files"/>
+    <subscreens default-item="Files">
+        <!-- RepositoryMergeRequests (design-projects.md §7): MergeRequests with the repository fixed (it sees repoAccess) -->
+        <subscreens-item name="MergeRequests" location="component://ironstone-boss/screen/Projects/Code/MergeRequests.xml" menu-title="Merge requests" menu-index="5"/>
+    </subscreens>
 
     <transition name="repositories"><default-response url="../Repositories"/></transition>
     <transition name="compare"><default-response url="../Compare"/></transition>

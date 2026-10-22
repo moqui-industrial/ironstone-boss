@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- MergeRequestDetail's Commits (design-projects.md §7 MergeRequestCommits): the commits the source has that the target lacks
+    (org.moqui.impl.GitReviewServices.get#MergeRequestDiff without diffs, through ironstone.CodeServices.get#MergeRequestDetail;
+    from the recorded merge base to the recorded head once merged or closed), newest first, each with its summary (a link to
+    CommitDetail), author, date, short id and CI state. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Commits" default-menu-index="2">
+
+    <actions>
+        <script><![CDATA[
+            commitsFound = false
+            commitList = []
+            if (!recordFound) return
+            const out = ec.service.sync().name('ironstone.CodeServices.get#MergeRequestDetail').parameters({mergeRequestId: mergeRequestId, parts: 'commits'}).call() || {}
+            ec.message.clearErrors()
+            commitsFound = !!out.found
+            if (!commitsFound) return
+            commitList = out.detail.commitList || []
+            repositoryId = out.detail.mergeRequest.repositoryId
+            commitsTitle = commitList.length + ' ' + (commitList.length == 1 ? ec.l10n.localize('commit') : ec.l10n.localize('commits'))
+        ]]></script>
+    </actions>
+
+    <widgets>
+        <section name="CommitsFound" condition="commitsFound"><widgets>
+            <container-box><box-header title="${commitsTitle}"/><box-body-nopad>
+                <form-list name="MergeRequestCommits" list="commitList" skip-form="true" paginate="false">
+                    <field name="summary"><default-field title="Commit">
+                        <link url="/qapps/Projects/Code/CommitDetail" url-type="plain" text="${summary}" link-type="anchor" parameter-map="{repositoryId:repositoryId, commitId:commitId}"/>
+                    </default-field></field>
+                    <field name="authorName"><default-field title="Author">
+                        <render-mode><text type="qvt"><![CDATA[<span class="row inline no-wrap items-center"><m-avatar name="${WebUtilities.encodeHtml(authorName ?? '')}"${moquiUserId ? ' user-id="' + WebUtilities.encodeHtml(moquiUserId) + '"' : ''} size="22px" class="q-mr-xs"></m-avatar><span>${WebUtilities.encodeHtml(authorName ?? '')}</span></span>]]></text>
+                            <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify(authorName ?? "")}}]]></text></render-mode>
+                    </default-field></field>
+                    <field name="dateText"><default-field title="Date"><label text="${dateText}" type="span" style="text-no-wrap"/></default-field></field>
+                    <field name="checkLabel"><default-field title="Checks">
+                        <render-mode><text type="qvt"><![CDATA[${checkLabel ? '<q-chip dense square class="q-ma-none m-tonal text-' + checkColor + '">' + WebUtilities.encodeHtml(checkLabel) + '</q-chip>' : ''}]]></text>
+                            <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify(checkLabel ?? "")}}]]></text></render-mode>
+                    </default-field></field>
+                    <field name="shortId"><default-field title="ID">
+                        <link url="/qapps/Projects/Code/CommitDetail" url-type="plain" text="${shortId}" link-type="anchor" parameter-map="{repositoryId:repositoryId, commitId:commitId}" style="text-mono"/>
+                    </default-field></field>
+                    <columns type="mobile">
+                        <column><field-ref name="summary"/><field-ref name="dateText"/></column>
+                        <column><field-ref name="checkLabel"/><field-ref name="shortId"/></column>
+                    </columns>
+                </form-list>
+                <section name="NoCommits" condition="!commitList.length"><widgets>
+                    <label type="p" text="No commits: the source has nothing the target lacks." style="m-muted q-pa-sm q-mb-none"/>
+                </widgets></section>
+            </box-body-nopad></container-box>
+        </widgets></section>
+    </widgets>
+</screen>
