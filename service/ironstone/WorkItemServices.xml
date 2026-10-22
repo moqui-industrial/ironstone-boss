@@ -1036,38 +1036,11 @@ along with this software (see the LICENSE.md file). If not, see
         </in-parameters>
         <out-parameters><parameter name="projectId"/><parameter name="url"/><parameter name="message"/></out-parameters>
         <actions><script><![CDATA[
-            if (!ec.user.isInGroup('BOSS_PROJECT_MANAGER') && !ec.user.isInGroup('ADMIN')) {
-                ec.message.addError(ec.l10n.localize('Only project managers make projects'))
-                return
-            }
-            const key = String(workEffortId || '').trim().toUpperCase()
-            if (!/^[A-Z0-9]{1,8}$/.test(key)) { ec.message.addError(ec.l10n.localize('A project key is one to eight letters or digits')); return }
-            if (ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', key).one() != null) {
-                ec.message.addError(ec.resource.expand('The key ${key} is taken', '', {key})); return
-            }
-            const me = ec.user.userAccount?.partyId || null
-            const vis = ec.service.sync().name('mantle.work.ProjectServices.get#VisibleProjectInfo').call() || {}
-            const orgId = ec.user.context?.activeOrgId || Array.from(vis.orgIds || [])[0] || null
-            const name = String(workEffortName).trim()
-            if (templateWorkEffortId) {
-                const template = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', templateWorkEffortId).one()
-                if (template == null || template.isTemplate !== 'Y') { ec.message.addError(ec.resource.expand('${templateWorkEffortId} is not a template', '', {templateWorkEffortId})); return }
-                ec.service.sync().name('mantle.work.ProjectServices.clone#Project').parameters({baseWorkEffortId: templateWorkEffortId, workEffortId: key,
-                    workEffortName: name, isTemplate: 'N', visibilityEnumId: 'WevGeneral', ownerPartyId: orgId}).call()
-                if (ec.message.hasError()) return
-                if (me) ec.service.sync().name('mantle.work.WorkEffortServices.add#WorkEffortParty').parameters({workEffortId: key, partyId: me,
-                    roleTypeId: 'ProjectManager', statusId: 'WeptAssigned'}).call()
-                if (clientPartyId) ec.service.sync().name('mantle.work.WorkEffortServices.add#WorkEffortParty').parameters({workEffortId: key, partyId: clientPartyId,
-                    roleTypeId: 'Customer'}).call()
-            } else {
-                ec.service.sync().name('mantle.work.ProjectServices.create#Project').parameters({workEffortId: key, workEffortName: name, visibilityEnumId: 'WevGeneral',
-                    ownerPartyId: orgId, vendorPartyId: orgId, clientPartyId: clientPartyId || null, purposeEnumId: clientPartyId ? 'WepPrClient' : null,
-                    assignToPartyId: me, assignRoleTypeId: 'ProjectManager'}).call()
-            }
+            // NewProject's Start step with the defaults for the rest (ironstone.ProjectServices.create#NewProject)
+            const out = ec.service.sync().name('ironstone.ProjectServices.create#NewProject').parameters({workEffortId: workEffortId, workEffortName: workEffortName,
+                clientPartyId: clientPartyId || null, templateWorkEffortId: templateWorkEffortId || null}).call() || {}
             if (ec.message.hasError()) return
-            projectId = key
-            url = '/qapps/Projects/Projects/ProjectDetail?workEffortId=' + encodeURIComponent(key)
-            message = ec.resource.expand('Project ${key} made: ${name}', '', {key, name})
+            projectId = out.projectId; url = out.url; message = out.message
         ]]></script></actions>
     </service>
 </services>

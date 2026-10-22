@@ -12,10 +12,60 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for templates settings (design-projects.md §12 Templates; impl-projects.md P2). -->
+<!-- Templates (design-projects.md §12 Templates; style-guide §3.9 Settings): the project templates (projects with isTemplate) with
+    their key, work items, milestones, members and the projects made from them (mantle.work.ProjectServices.get#ProjectTemplates);
+    a template opens as a project with the template banner, where it is changed; NewTemplate makes one from scratch or as a copy of
+    a project (ironstone.ProjectServices.save#ProjectAsTemplate). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Templates" default-menu-index="4">
+
+    <transition name="projectDetail"><default-response url="//Projects/Projects/ProjectDetail"/></transition>
+    <transition name="createTemplate">
+        <service-call name="ironstone.ProjectServices.save#ProjectAsTemplate" in-map="{baseWorkEffortId:baseWorkEffortId, workEffortId:workEffortId,
+                workEffortName:workEffortName}" out-map="templateOut"/>
+        <actions><if condition="!ec.message.hasError()"><script>ec.message.addMessage(templateOut.message, 'success')</script></if></actions>
+        <default-response url="."/>
+        <error-response url="."/>
+    </transition>
+
+    <actions>
+        <script><![CDATA[
+            const orgId = ec.service.sync().name('ironstone.ProjectServices.get#SettingsOrganization').call()?.organizationPartyId || null
+            templateList = Array.from(ec.service.sync().name('mantle.work.ProjectServices.get#ProjectTemplates').parameters({organizationPartyId: orgId}).call()?.templateList || [])
+            projectOptions = ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').call()?.projectList || []
+        ]]></script>
+    </actions>
+
     <widgets>
-        <label text="Placeholder: Templates: the project templates." type="p"/>
+        <container style="row items-center q-mb-sm">
+            <label type="h5" text="Project templates" style="q-my-none"/>
+            <container style="col"/>
+            <container-dialog id="NewTemplateDialog" button-text="New template" icon="sym_o_content_paste" width="520" title="A project template">
+                <form-single name="NewTemplate" transition="createTemplate" focus-field="workEffortName">
+                    <field name="baseWorkEffortId"><default-field title="From (empty: a blank template)">
+                        <drop-down allow-empty="true"><list-options list="projectOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                    <field name="workEffortName"><default-field title="Name"><text-line size="36"/></default-field></field>
+                    <field name="workEffortId"><default-field title="Key (1 to 8 letters or digits)"><text-line size="10"/></default-field></field>
+                    <field name="submitButton"><default-field title="Make"><submit/></default-field></field>
+                </form-single>
+                <label type="p" text="A copy keeps the work items, plan items, members and settings, the items back in planning and without dates." style="text-caption m-muted"/>
+            </container-dialog>
+        </container>
+        <label type="p" text="New projects start from a template in New project; a template is changed as any project, with its banner." style="m-muted"/>
+        <container-box><box-header title="Templates · ${templateList.length}"/><box-body-nopad>
+            <form-list name="TemplateList" list="templateList" skip-form="true" paginate="false">
+                <field name="workEffortName"><default-field title="Template">
+                    <link url="projectDetail" text="${workEffortName}" parameter-map="{workEffortId:workEffortId}"/>
+                    <label text="${description}" type="div" style="text-caption m-muted" condition="description"/></default-field></field>
+                <field name="workEffortId"><default-field title="Key"><label text="${workEffortId}" type="span" style="text-mono"/></default-field></field>
+                <field name="itemCount" align="right"><default-field title="Work items"><display/></default-field></field>
+                <field name="milestoneCount" align="right"><default-field title="Milestones"><display/></default-field></field>
+                <field name="memberCount" align="right"><default-field title="Members"><display/></default-field></field>
+                <field name="usedCount" align="right"><default-field title="Projects made"><display/></default-field></field>
+            </form-list>
+            <section name="NoTemplates" condition="!templateList.length"><widgets>
+                <label type="p" text="No templates yet: make one from scratch or save a project as a template." style="m-muted q-pa-sm q-mb-none"/>
+            </widgets></section>
+        </box-body-nopad></container-box>
     </widgets>
 </screen>

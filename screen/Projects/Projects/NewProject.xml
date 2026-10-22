@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- NewProject (design-projects.md §4 NewProject; style-guide §3.10 Wizard): a project from a blank start or a template, as a
+    subscreens-panel type="wizard" over the steps in NewProject/: Start (template, name, key, purpose, client, manager, dates,
+    visibility, program; Create now skips to the project with the template's or the default settings), Team (members and their
+    roles; allocations come with impl-projects.md P7), Modules and code (modules, estimate unit, work item flow, a repository
+    made or linked, documentation on database files: in the repository comes with P4), Money (billing basis, the hours and
+    client budgets, the project's rates) and Review (everything chosen; Create opens the project). After Start the project exists
+    In Planning (service/ironstone/ProjectServices.xml create#NewProject), so a wizard left keeps a draft project; each later step
+    carries its workEffortId in the URL. For managers (BOSS_PROJECTS_MANAGERS); QuickProject's More options opens it. The
+    request's Convert to project and the sales order's Create project come with impl-projects.md P5 and Sales. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="New project" default-menu-include="false">
+
+    <parameter name="workEffortId"/>
+    <subscreens default-item="Start"/>
+
+    <!-- the project the steps after Start work on, one the user manages (not another's draft); in always-actions since the client
+        loads a step on its own -->
+    <always-actions>
+        <script><![CDATA[
+            draftProject = null
+            if (workEffortId) {
+                const access = ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: workEffortId, need: 'none'}).call() || {}
+                if (access.canManage) draftProject = access.project
+            }
+        ]]></script>
+    </always-actions>
+
+    <widgets>
+        <container style="row items-center q-mb-sm">
+            <label type="h5" text="${draftProject ? 'New project: ' + (draftProject.workEffortName || workEffortId) : 'New project'}" style="q-my-none"/>
+            <container style="col"/>
+            <link url="../List" text="Projects" icon="sym_o_assignment" style="q-ml-sm"/>
+        </container>
+        <subscreens-panel id="NewProjectWizard" type="wizard" finish-text="Create"/>
+    </widgets>
+</screen>

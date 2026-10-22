@@ -128,7 +128,30 @@ const demoRecords = {
     "Insights/ScheduledReports/ScheduledReportDetail": { parameters: { screenScheduledId: "BOSS_DEMO_MY_TASKS" }, text: "Open tasks" },
     // Projects P1: the sections show their default placeholder (design-projects.md §1.2), and the first port's time entry list
     // (Time/TimeEntries) john.doe's time
-    "Projects/Projects": { text: "Placeholder: Projects" },
+    // Projects P2: Home, the project list (the default of Projects), the NewProject wizard and its steps (the fragment is the
+    // wizard's level: test/NewProject.spec.js renders the steps), ProjectDetail and its tabs on IRON (the fragment is the detail's
+    // level, its header: test/ProjectDetail.spec.js renders the tabs), the status report, and the settings pages
+    "Projects/Home": { text: "My open items" },
+    "Projects/Projects": { text: "Acme customer portal" },
+    "Projects/Projects/List": { parameters: { list: "all" }, text: "Hiring plan 2027" },
+    "Projects/Projects/NewProject": { text: "New project" },
+    "Projects/Projects/NewProject/Start": { text: "New project" },
+    "Projects/Projects/NewProject/Team": { text: "New project" },
+    "Projects/Projects/NewProject/Modules": { text: "New project" },
+    "Projects/Projects/NewProject/Money": { text: "New project" },
+    "Projects/Projects/NewProject/Review": { text: "New project" },
+    "Projects/Projects/ProjectDetail": { parameters: { workEffortId: "IRON" }, text: "ProjectStatusBar" },
+    "Projects/Projects/ProjectDetail/Overview": { parameters: { workEffortId: "IRON" }, text: "ProjectStatusBar" },
+    "Projects/Projects/ProjectDetail/Team": { parameters: { workEffortId: "IRON" }, text: "ProjectStatusBar" },
+    "Projects/Projects/ProjectDetail/Files": { parameters: { workEffortId: "IRON" }, text: "ProjectStatusBar" },
+    "Projects/Projects/ProjectDetail/Settings": { parameters: { workEffortId: "IRON" }, text: "ProjectStatusBar" },
+    "Projects/Projects/StatusReport": { parameters: { workEffortId: "IRON" }, text: "Open the printable status report" },
+    "Projects/Settings": { text: "Projects settings" },
+    "Projects/Settings/Index": { text: "Projects settings" },
+    "Projects/Settings/WorkItemTypes": { text: "Bug Fix" },
+    "Projects/Settings/Workflows": { text: "In Review" },
+    "Projects/Settings/Labels": { text: "Services" },
+    "Projects/Settings/Templates": { text: "Client web site" },
     // Projects P2: the work items, their list the default of WorkItems, and the quick-create forms
     "Projects/WorkItems": { text: "Expand and collapse rows" },
     "Projects/WorkItems/List": { parameters: { rootWorkEffortId: "IRON", list: "all" }, text: "Write the getting started guide" },
@@ -139,7 +162,6 @@ const demoRecords = {
     "Projects/Time": { text: "Placeholder: My time" },
     "Projects/Resources": { text: "Placeholder: Team planner" },
     "Projects/Billing": { text: "Placeholder: Unbilled" },
-    "Projects/Settings": { text: "Placeholder: The Projects settings" },
     "Projects/Time/TimeEntries": { text: "Walked the new floor and listed the rooms" },
 }
 

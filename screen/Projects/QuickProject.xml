@@ -16,8 +16,8 @@ along with this software (see the LICENSE.md file). If not, see
     project in one step: name, key (made upper case; not yet suggested from the name), client, template, the user its project manager,
     General visibility (impl-projects.md F10) (service/ironstone/WorkItemServices.xml create#QuickProject). A screen of its
     own in BOSS_PROJECTS_MANAGERS (data/BossSetupData.xml), since the shell offers a quick-create kind by its screen's
-    authorization: the team is not offered it (impl-projects.md F8), and the service refuses a non-manager too. More options
-    opens the NewProject wizard (P2's projects half). -->
+    authorization: the team is not offered it (impl-projects.md F8), and the service refuses a non-manager too
+    (ironstone.ProjectServices.create#NewProject does the work). More options opens the NewProject wizard. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="New project" default-menu-include="false">
 
@@ -67,5 +67,6 @@ along with this software (see the LICENSE.md file). If not, see
             </field-layout>
         </form-single>
         <label type="p" text="You are its project manager; it is seen by everyone in your organization (General). Change both in the project's settings." style="text-caption m-muted"/>
+        <link url="../Projects/NewProject" link-type="anchor" text="More options" icon="sym_o_tune"/>
     </widgets>
 </screen>

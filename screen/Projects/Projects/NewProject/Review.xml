@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- NewProject step 5, ProjectReview (design-projects.md §4 NewProject; style-guide §3.10 review step): everything chosen (the
+    project, its team, modules, repository and documentation, budget and rates), each step's link to change it; Create opens the
+    project, which is in planning until it is approved. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Review" default-menu-index="5">
+
+    <parameter name="workEffortId"/>
+
+    <transition name="finish">
+        <actions><if condition="draftProject"><script>ec.message.addMessage(ec.resource.expand('${name} is ready, in planning', '', {name: draftProject.workEffortName || workEffortId}), 'success')</script></if></actions>
+        <default-response url="//Projects/Projects/ProjectDetail"><parameter name="workEffortId"/></default-response>
+    </transition>
+
+    <actions>
+        <script><![CDATA[
+            if (!draftProject) return
+            const L = (text) => ec.l10n.localize(text)
+            const header = ec.service.sync().name('ironstone.ProjectServices.get#ProjectHeader').parameters({workEffortId: workEffortId}).call()?.header || {}
+            const settings = ec.service.sync().name('mantle.work.ProjectServices.get#ProjectSettings').parameters({workEffortId: workEffortId}).call()?.settings || {}
+            const team = ec.service.sync().name('ironstone.ProjectServices.get#ProjectTeam').parameters({workEffortId: workEffortId}).call() || {}
+            const rates = Array.from(ec.service.sync().name('ironstone.ProjectServices.get#ProjectRates').parameters({workEffortId: workEffortId}).call()?.rateList || [])
+            const moduleNames = {backlog: 'Backlog and sprints', requests: 'Requests', code: 'Code', docs: 'Docs', time: 'Time', money: 'Money', client: 'Client access'}
+            const repos = Array.from(ec.entity.find('mantle.work.effort.WorkEffortGitRepository').condition('workEffortId', workEffortId)
+                    .conditionDate('fromDate', 'thruDate', null).list()).map((row) => row.repositoryId)
+            const bases = {TimeAndMaterials: 'Time and materials', FixedPrice: 'Fixed price', Milestones: 'By milestones', NotBilled: 'Not billed'}
+            const hours = (value) => value == null ? '' : ec.l10n.format(value, '#,##0.##')
+            reviewList = [
+                ['Project', (header.workEffortName || workEffortId) + ' (' + workEffortId + ')', '../Start'],
+                ['Purpose', header.purposeLabel, '../Start'], ['Client', header.clientName || L('Internal'), '../Start'], ['Manager', header.managerName, '../Start'],
+                ['Start', header.startText, '../Start'], ['Target date', header.dueText, '../Start'],
+                ['Who sees it', draftProject.visibilityEnumId === 'WevWorkGroup' ? L('Its members only') : L('Everyone in the organization'), '../Start'],
+                ['Members', Array.from(team.memberList || []).map((row) => row.name + ' (' + row.roleText + ')').join(', ') || L('None yet'), '../Team'],
+                ['Modules', String(settings.WstModules || '').split(',').filter((key) => key).map((key) => L(moduleNames[key] || key)).join(', ') || L('None'), '../Modules'],
+                ['Estimates in', settings.WstEstimateUnit === 'points' ? L('Story points') : L('Hours'), '../Modules'],
+                ['Work item flow', draftProject.statusFlowId === 'WorkEffortDevelopment' ? L('Development') : L('Default'), '../Modules'],
+                ['Repository', repos.join(', ') || L('None'), '../Modules'], ['Documentation', settings.WstDocsWikiSpace || L('None'), '../Modules'],
+                ['Billing basis', L(bases[settings.WstBillingBasis] || 'Not set'), '../Money'],
+                ['Hours budget', draftProject.totalTimeAllowed != null ? hours(draftProject.totalTimeAllowed) + ' h' : L('None'), '../Money'],
+                ['Client budget', draftProject.totalClientCostAllowed != null ? ec.l10n.formatCurrency(draftProject.totalClientCostAllowed, draftProject.costUomId || 'USD') : L('None'), '../Money'],
+                ['Rates', rates.map((rate) => rate.appliesText + ' ' + rate.amountText).join(', ') || L('None of its own'), '../Money']]
+                    .map(([label, value, step]) => ({label: L(label), value: value || '—', step: step}))
+        ]]></script>
+    </actions>
+
+    <widgets>
+        <section name="NotStarted" condition="!draftProject"><widgets>
+            <container-box type="warning"><box-body>
+                <label type="p" text="Start the project first: this step works on the project the Start step makes." style="q-mb-xs"/>
+                <link url="../Start" link-type="anchor" text="Back to Start"/>
+            </box-body></container-box>
+        </widgets></section>
+        <section name="ReviewStep" condition="draftProject"><widgets>
+            <container-box><box-header title="Review"/><box-body-nopad>
+                <form-list name="ProjectReview" list="reviewList" skip-form="true" skip-header="true" paginate="false">
+                    <field name="label"><default-field><label text="${label}" type="span" style="text-weight-medium"/></default-field></field>
+                    <field name="value"><default-field><display/></default-field></field>
+                    <field name="step" align="right"><default-field><link url="${step}" text="Change" link-type="anchor" parameter-map="{workEffortId:workEffortId}"/></default-field></field>
+                </form-list>
+            </box-body-nopad></container-box>
+            <form-single name="ProjectReviewStep" transition="finish">
+                <field name="workEffortId"><default-field><hidden/></default-field></field>
+            </form-single>
+        </widgets></section>
+    </widgets>
+</screen>

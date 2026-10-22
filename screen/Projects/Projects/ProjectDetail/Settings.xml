@@ -1,0 +1,218 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- ProjectSettings (design-projects.md §4 ProjectSettings; style-guide §3.9 Settings): boxes of the project's own choices, for
+    managers (BOSS_PROJECTS_MANAGERS) who manage the project: General (update#Project), Modules (the later tabs on or off,
+    WstModules), Work items (the types offered, the work item flow, the estimate unit, several sprints, new items shared with the
+    client, Fixes keywords, a request completing with its work), Client access (client sign-in, repositories shared read only:
+    the settings only, enforced with impl-projects.md P10), Template and Close or delete. A value the project has not set shows
+    the organization's (get#ProjectSettings). The Intake, Code and Billing boxes come with P5, P3b and P8; components with the
+    plan items of P4. Service: ironstone.ProjectServices get#ProjectSettingsInfo, save#ProjectGeneral, save#ProjectSettingValues,
+    set#ProjectTemplateFlag, set#ProjectStatus, delete#EmptyProject. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Settings" default-menu-index="9">
+
+    <transition name="saveGeneral">
+        <actions>
+            <service-call name="ironstone.ProjectServices.save#ProjectGeneral" out-map="saveOut" in-map="{workEffortId:workEffortId, workEffortName:workEffortName,
+                    purposeEnumId:purposeEnumId, priority:priority, visibilityEnumId:visibilityEnumId, clientPartyId:clientPartyId,
+                    parentWorkEffortId:parentWorkEffortId, estimatedStartDate:estimatedStartDate, estimatedCompletionDate:estimatedCompletionDate,
+                    description:description}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="saveValues">
+        <actions>
+            <service-call name="ironstone.ProjectServices.save#ProjectSettingValues" out-map="saveOut" in-map="{workEffortId:workEffortId, box:box,
+                    modules:(box == 'modules' ? (modules ?? []) : null), workItemTypes:(box == 'workItems' ? (workItemTypes ?? []) : null),
+                    statusFlowId:statusFlowId, estimateUnit:estimateUnit, severalSprints:(box == 'workItems' ? (severalSprints || 'N') : null),
+                    shareNewItems:(box == 'workItems' ? (shareNewItems || 'N') : null), keywordComplete:(box == 'workItems' ? (keywordComplete || 'N') : null),
+                    requestFromWork:(box == 'workItems' ? (requestFromWork || 'N') : null), clientSignIn:(box == 'clientAccess' ? (clientSignIn || 'N') : null),
+                    shareRepositories:(box == 'clientAccess' ? (shareRepositories || 'N') : null)}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="setTemplate">
+        <actions>
+            <service-call name="ironstone.ProjectServices.set#ProjectTemplateFlag" out-map="flagOut" in-map="{workEffortId:workEffortId, isTemplate:isTemplate}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(flagOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="setStatus">
+        <actions>
+            <service-call name="ironstone.ProjectServices.set#ProjectStatus" out-map="statusOut" in-map="{workEffortId:workEffortId, statusId:statusId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(statusOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="deleteProject">
+        <actions>
+            <service-call name="ironstone.ProjectServices.delete#EmptyProject" out-map="deleteOut" in-map="{workEffortId:workEffortId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(deleteOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="//Projects/Projects/List"/>
+        <error-response url="."/>
+    </transition>
+    <transition name="clientSearch" read-only="true">
+        <actions>
+            <entity-find entity-name="mantle.party.PartyDetail" list="partyList" limit="20">
+                <econdition field-name="partyTypeEnumId" value="PtyOrganization"/>
+                <econdition field-name="organizationName" operator="like" value="%${term}%" ignore-case="true" ignore="!term"/>
+                <econdition field-name="disabled" operator="not-equals" value="Y" or-null="true"/>
+                <econdition field-name="privateOwnerUserId" from="ec.user.userId" or-null="true"/>
+                <order-by field-name="^organizationName"/>
+            </entity-find>
+            <script>ec.web.sendJsonResponse(Array.from(partyList).map((party) => ({value: party.partyId, label: party.organizationName || party.partyId})))</script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+
+    <actions>
+        <script><![CDATA[
+            if (!recordFound) return
+            info = ec.service.sync().name('ironstone.ProjectServices.get#ProjectSettingsInfo').parameters({workEffortId: workEffortId}).call()?.info || {}
+            general = info.general || {}
+            modulesValue = {workEffortId: workEffortId, box: 'modules', modules: info.modules || []}
+            workItemsValue = Object.assign({workEffortId: workEffortId, box: 'workItems'}, info.workItems || {})
+            clientAccessValue = Object.assign({workEffortId: workEffortId, box: 'clientAccess'}, info.clientAccess || {})
+            typeOptions = info.typeOptions || []
+            programOptions = (ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').call()?.projectList || []).filter((option) => option.key !== workEffortId)
+            canManageSettings = !!info.canManage
+            canDelete = !!info.canDelete
+            statusId = project.statusId
+            const sources = info.settingSources || {}
+            orgDefaultsText = Object.values(sources).some((source) => source === 'organization') ? ec.l10n.localize('Values not set here come from your organization\'s Projects settings.') : ''
+        ]]></script>
+    </actions>
+
+    <widgets>
+        <section name="SettingsFound" condition="recordFound &amp;&amp; canManageSettings"><widgets>
+        <container-row>
+            <row-col md="6">
+                <container-box><box-header title="General"/><box-body>
+                    <form-single name="ProjectGeneral" transition="saveGeneral" map="general">
+                        <field name="workEffortId"><default-field><hidden/></default-field></field>
+                        <field name="workEffortName"><default-field title="Name"><text-line size="40"/></default-field></field>
+                        <field name="purposeEnumId"><default-field title="Purpose">
+                            <drop-down allow-empty="true"><entity-options key="${enumId}" text="${description}">
+                                <entity-find entity-name="moqui.basic.Enumeration" cache="true"><econdition field-name="enumTypeId" value="WorkEffortPurpose"/>
+                                    <econdition field-name="parentEnumId" value="WetProject"/><order-by field-name="description"/></entity-find></entity-options></drop-down></default-field></field>
+                        <field name="priority"><default-field title="Priority">
+                            <drop-down><option key="1" text="1 (highest)"/><option key="2"/><option key="3"/><option key="4"/><option key="5" text="5 (normal)"/>
+                                <option key="6"/><option key="7"/><option key="8"/><option key="9" text="9 (lowest)"/></drop-down></default-field></field>
+                        <field name="visibilityEnumId"><default-field title="Who sees it">
+                            <drop-down><option key="WevGeneral" text="Everyone in the organization (General)"/><option key="WevAllUsers" text="All users"/>
+                                <option key="WevWorkGroup" text="Its members only (Work group)"/></drop-down></default-field></field>
+                        <field name="clientPartyId"><default-field title="Client">
+                            <drop-down allow-empty="true" current-description="${general.clientName}"><dynamic-options transition="clientSearch" server-search="true" min-length="0"/></drop-down></default-field></field>
+                        <field name="parentWorkEffortId"><default-field title="Program (the project it is under)">
+                            <drop-down allow-empty="true"><list-options list="programOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                        <field name="estimatedStartDate"><default-field title="Start"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                        <field name="estimatedCompletionDate"><default-field title="Target date"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                        <field name="description"><default-field title="Description (markdown)"><text-area rows="4" cols="60"/></default-field></field>
+                        <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                        <field-layout>
+                            <field-ref name="workEffortName"/>
+                            <field-row><field-ref name="purposeEnumId"/><field-ref name="priority"/></field-row>
+                            <field-row><field-ref name="visibilityEnumId"/><field-ref name="clientPartyId"/></field-row>
+                            <field-ref name="parentWorkEffortId"/>
+                            <field-row><field-ref name="estimatedStartDate"/><field-ref name="estimatedCompletionDate"/></field-row>
+                            <field-ref name="description"/><field-ref name="submitButton"/>
+                        </field-layout>
+                    </form-single>
+                </box-body></container-box>
+
+                <container-box><box-header title="Template"/><box-body>
+                    <section name="IsTemplate" condition="info.isTemplate"><widgets>
+                        <label type="p" text="This project is a template: it is offered in New project and Settings, Templates, and left out of the project lists." style="m-muted"/>
+                        <link url="setTemplate" link-type="hidden-form" text="Make it a project again" icon="sym_o_undo" confirmation="Make ${project.workEffortName} a project again?"
+                                parameter-map="{workEffortId:workEffortId, isTemplate:'N'}"/>
+                    </widgets><fail-widgets>
+                        <label type="p" text="Save a copy as a template from the More menu (Save as template), or make this project itself a template." style="m-muted"/>
+                        <link url="setTemplate" link-type="hidden-form" text="This project is a template" icon="sym_o_content_paste"
+                                confirmation="Make ${project.workEffortName} a template? It leaves the project lists." parameter-map="{workEffortId:workEffortId, isTemplate:'Y'}"/>
+                    </fail-widgets></section>
+                </box-body></container-box>
+
+                <container-box type="danger"><box-header title="Close or delete"/><box-body>
+                    <label type="p" text="Closing keeps everything and makes the project read only (Re-open brings it back). Cancelling ends a project that will not be done. Only a project with no work items, time, invoices or commits can be deleted." style="m-muted"/>
+                    <container style="row q-gutter-sm">
+                        <link url="setStatus" link-type="hidden-form" text="Close" icon="sym_o_archive" condition="statusId == 'WeComplete'"
+                                confirmation="Close ${project.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:'WeClosed'}"/>
+                        <link url="setStatus" link-type="hidden-form" text="Complete" icon="sym_o_task_alt" condition="['WeInPlanning', 'WeApproved', 'WeInProgress', 'WeOnHold'].includes(statusId)"
+                                confirmation="Complete ${project.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:'WeComplete'}"/>
+                        <link url="setStatus" link-type="hidden-form" text="Cancel the project" icon="sym_o_cancel" btn-type="danger"
+                                condition="['WeInPlanning', 'WeApproved', 'WeInProgress', 'WeOnHold'].includes(statusId)"
+                                confirmation="Cancel ${project.workEffortName}? It will not be done." parameter-map="{workEffortId:workEffortId, statusId:'WeCancelled'}"/>
+                        <link url="deleteProject" link-type="hidden-form" text="Delete" icon="sym_o_delete" btn-type="danger" condition="canDelete"
+                                confirmation="Delete ${project.workEffortName} (${workEffortId})? This cannot be undone." parameter-map="{workEffortId:workEffortId}"/>
+                    </container>
+                </box-body></container-box>
+            </row-col>
+            <row-col md="6">
+                <container-box><box-header title="Modules"/><box-body>
+                    <label type="p" text="The tabs the project has beside Overview, Work items, Team and Files. Each comes with its part of Projects." style="m-muted"/>
+                    <form-single name="ProjectModules" transition="saveValues" map="modulesValue">
+                        <field name="workEffortId"><default-field><hidden/></default-field></field>
+                        <field name="box"><default-field><hidden/></default-field></field>
+                        <field name="modules"><default-field title="Modules"><check>
+                            <option key="backlog" text="Backlog and sprints"/><option key="requests" text="Requests"/><option key="code" text="Code"/>
+                            <option key="docs" text="Docs"/><option key="time" text="Time"/><option key="money" text="Money"/><option key="client" text="Client access"/></check></default-field></field>
+                        <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                    </form-single>
+                </box-body></container-box>
+
+                <container-box><box-header title="Work items"/><box-body>
+                    <form-single name="ProjectWorkItemSettings" transition="saveValues" map="workItemsValue">
+                        <field name="workEffortId"><default-field><hidden/></default-field></field>
+                        <field name="box"><default-field><hidden/></default-field></field>
+                        <field name="workItemTypes"><default-field title="Types offered (in this order)">
+                            <drop-down allow-multiple="true"><list-options list="typeOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                        <field name="statusFlowId"><default-field title="Work item flow">
+                            <radio><option key="Default" text="Default"/><option key="WorkEffortDevelopment" text="Development (with In Review and In Testing)"/></radio></default-field></field>
+                        <field name="estimateUnit"><default-field title="Estimates in"><radio><option key="hours" text="Hours"/><option key="points" text="Points"/></radio></default-field></field>
+                        <field name="severalSprints"><default-field title=" "><check><option key="Y" text="Several active sprints (teams sharing the project)"/></check></default-field></field>
+                        <field name="shareNewItems"><default-field title=" "><check><option key="Y" text="New work items are shared with the client"/></check></default-field></field>
+                        <field name="keywordComplete"><default-field title=" "><check><option key="Y" text="Fixes keywords in commits complete work items"/></check></default-field></field>
+                        <field name="requestFromWork"><default-field title=" "><check><option key="Y" text="A request completes when its work does"/></check></default-field></field>
+                        <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                    </form-single>
+                    <label type="p" text="${orgDefaultsText}" style="text-caption m-muted q-mb-none" condition="orgDefaultsText"/>
+                </box-body></container-box>
+
+                <container-box><box-header title="Client access"/><box-body>
+                    <label type="p" text="What the client's contacts see when they sign in to Projects (client sign-in comes with client access; these keep the choice)." style="m-muted"/>
+                    <form-single name="ClientAccess" transition="saveValues" map="clientAccessValue">
+                        <field name="workEffortId"><default-field><hidden/></default-field></field>
+                        <field name="box"><default-field><hidden/></default-field></field>
+                        <field name="clientSignIn"><default-field title=" "><check><option key="Y" text="The client's contacts may sign in to this project"/></check></default-field></field>
+                        <field name="shareRepositories"><default-field title=" "><check><option key="Y" text="Its repositories are shared with them, read only"/></check></default-field></field>
+                        <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                    </form-single>
+                </box-body></container-box>
+            </row-col>
+        </container-row>
+        </widgets></section>
+        <section name="SettingsNotManager" condition="recordFound &amp;&amp; !canManageSettings"><widgets>
+            <label type="p" text="Only the managers of this project change its settings." style="m-muted"/>
+        </widgets></section>
+    </widgets>
+</screen>

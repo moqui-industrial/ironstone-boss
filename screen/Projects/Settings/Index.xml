@@ -12,10 +12,54 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for the settings index (design-projects.md §12 Settings; impl-projects.md P2). -->
+<!-- The Projects settings index (design-projects.md §12 Settings; style-guide §3.9 Settings): a card per settings page with a
+    line about it and its link (the Time, Billing, Code and Intake pages are placeholders until impl-projects.md P6, P8, P3b and
+    P5), and links to Commons' notification settings and to Admin's user groups, where people are put in the three Projects
+    groups. Managers only (BOSS_PROJECTS_MANAGERS). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="All settings" default-menu-include="false">
+        default-menu-title="All settings" default-menu-include="false" server-static="qvt">
     <widgets>
-        <label text="Placeholder: The Projects settings: work item types, workflows, labels, templates, time, billing, code and intake." type="p"/>
+        <label type="h5" text="Projects settings" style="q-mt-none q-mb-sm"/>
+        <container-row>
+            <row-col md="4" sm="6"><container-box><box-header title="Work item types"/><box-body>
+                <label type="p" text="Which work item types the projects offer, their order and icons, and your own types." style="m-muted"/>
+                <link url="../WorkItemTypes" text="Work item types" icon="sym_o_category"/>
+            </box-body></container-box></row-col>
+            <row-col md="4" sm="6"><container-box><box-header title="Workflows"/><box-body>
+                <label type="p" text="The status flows of work items: their moves between statuses, and the statuses' names and colors." style="m-muted"/>
+                <link url="../Workflows" text="Workflows" icon="sym_o_account_tree"/>
+            </box-body></container-box></row-col>
+            <row-col md="4" sm="6"><container-box><box-header title="Labels"/><box-body>
+                <label type="p" text="The labels work items take, their colors, and merging two." style="m-muted"/>
+                <link url="../Labels" text="Labels" icon="sym_o_label"/>
+            </box-body></container-box></row-col>
+            <row-col md="4" sm="6"><container-box><box-header title="Templates"/><box-body>
+                <label type="p" text="Project templates: the work items, members and settings a new project starts from." style="m-muted"/>
+                <link url="../Templates" text="Templates" icon="sym_o_content_paste"/>
+            </box-body></container-box></row-col>
+            <row-col md="4" sm="6"><container-box><box-header title="Time"/><box-body>
+                <label type="p" text="Work types, the timesheet week, approvers, required fields and reminders." style="m-muted"/>
+                <link url="../Time" text="Time" icon="sym_o_schedule"/>
+            </box-body></container-box></row-col>
+            <row-col md="4" sm="6"><container-box><box-header title="Billing"/><box-body>
+                <label type="p" text="Billing defaults for new projects, invoice grouping and time detail, contractor billing." style="m-muted"/>
+                <link url="../Billing" text="Billing" icon="sym_o_receipt_long"/>
+            </box-body></container-box></row-col>
+            <row-col md="4" sm="6"><container-box><box-header title="Code"/><box-body>
+                <label type="p" text="Repository defaults, commit and branch conventions, branch rules and SSH access." style="m-muted"/>
+                <link url="../Code" text="Code" icon="sym_o_code"/>
+            </box-body></container-box></row-col>
+            <row-col md="4" sm="6"><container-box><box-header title="Intake"/><box-body>
+                <label type="p" text="Request types and categories, triage, email intake addresses and the public form." style="m-muted"/>
+                <link url="../Intake" text="Intake" icon="sym_o_inbox"/>
+            </box-body></container-box></row-col>
+            <row-col md="4" sm="6"><container-box><box-header title="People and notifications"/><box-body>
+                <label type="p" text="Put people in the Projects groups (team, managers, clients) in Admin, and choose your notifications in Commons." style="m-muted"/>
+                <container style="row q-gutter-sm">
+                    <link url="/qapps/Admin/Users" url-type="plain" text="Users and groups" icon="sym_o_group"/>
+                    <link url="/qapps/Commons/Settings/Notifications" url-type="plain" text="Notification settings" icon="sym_o_notifications"/>
+                </container>
+            </box-body></container-box></row-col>
+        </container-row>
     </widgets>
 </screen>

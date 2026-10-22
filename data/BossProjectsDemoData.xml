@@ -21,7 +21,10 @@ along with this software (see the LICENSE.md file). If not, see
           (epics of epics) with hours and points, ranked, in a milestone, a release and a sprint, with labels;
         - ACME, Acme customer portal, a client project (WepPrClient) for Another Company Making Everything with its client
           manager and billing contact, at risk after its latest status update, with a weekly report that repeats;
-        - HIRE, Hiring plan 2027, a Work group project only john.doe is on, which the team does not see. -->
+        - HIRE, Hiring plan 2027, a Work group project only john.doe is on, which the team does not see;
+        - ACMEAPP, Acme mobile app, a sub-project of ACME in planning (ACME is its program);
+        - TPLWEB, Client web site, a project template (isTemplate) with a tree of work items, a milestone and its settings, which
+          NewProject and Settings/Templates offer and the project lists leave out. -->
 
     <!-- labels of the organization -->
     <mantle.work.effort.WorkEffortCategory workEffortCategoryId="BOSS_DEMO_LBL_UI" categoryTypeEnumId="WcatLabel" description="UI"
@@ -118,6 +121,14 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the project's own choices; the rest come from the organization -->
     <mantle.work.effort.WorkEffortSetting workEffortId="IRON" settingTypeEnumId="WstEstimateUnit" settingValue="points"/>
     <mantle.work.effort.WorkEffortSetting workEffortId="IRON" settingTypeEnumId="WstBranchPattern" settingValue="IRON-&lt;n&gt;-&lt;words&gt;"/>
+    <mantle.work.effort.WorkEffortSetting workEffortId="IRON" settingTypeEnumId="WstModules" settingValue="backlog,code,docs,time"/>
+    <!-- the latest status update, on the project's Chatter -->
+    <mantle.party.communication.CommunicationEvent communicationEventId="BOSS_DEMO_IRON_UPD1" communicationEventTypeId="StatusUpdate"
+            statusId="CeSent" fromPartyId="EX_JOHN_DOE" entryDate="2026-10-19 10:00:00" subject="Sprint 1 started on time"
+            contentType="text/markdown" body="The tree view is in review and the timer is half done. **Next:** the timesheet grid."/>
+    <mantle.work.effort.WorkEffortUpdate workEffortId="IRON" communicationEventId="BOSS_DEMO_IRON_UPD1" updateDate="2026-10-19 10:00:00"
+            healthEnumId="WehOnTrack" percentComplete="20" clientVisible="N"/>
+    <mantle.work.effort.WorkEffortCommEvent workEffortId="IRON" communicationEventId="BOSS_DEMO_IRON_UPD1"/>
 
     <!-- ACME: a client project for Another Company Making Everything -->
     <mantle.work.effort.WorkEffort workEffortId="ACME" workEffortTypeEnumId="WetProject" purposeEnumId="WepPrClient" statusId="WeInProgress"
@@ -173,6 +184,18 @@ along with this software (see the LICENSE.md file). If not, see
             contentType="text/plain" body="The sign-on with Acme's directory needs their test accounts, which come next week. The order history starts on time."/>
     <mantle.work.effort.WorkEffortUpdate workEffortId="ACME" communicationEventId="BOSS_DEMO_ACME_UPD1" updateDate="2026-10-16 16:00:00"
             healthEnumId="WehAtRisk" percentComplete="35" clientVisible="Y"/>
+    <mantle.work.effort.WorkEffortCommEvent workEffortId="ACME" communicationEventId="BOSS_DEMO_ACME_UPD1"/>
+    <!-- the project's modules (its later tabs, design-projects.md §4) -->
+    <mantle.work.effort.WorkEffortSetting workEffortId="ACME" settingTypeEnumId="WstModules" settingValue="requests,time,money,client"/>
+
+    <!-- ACMEAPP: a sub-project of ACME, its program -->
+    <mantle.work.effort.WorkEffort workEffortId="ACMEAPP" workEffortTypeEnumId="WetProject" purposeEnumId="WepPrClient" statusId="WeInPlanning"
+            visibilityEnumId="WevGeneral" priority="4" ownerPartyId="ORG_ZIZI_SERVICES" parentWorkEffortId="ACME" workEffortName="Acme mobile app"
+            description="The portal's orders and invoices on phones." estimatedStartDate="2027-01-11 09:00:00" timeUomId="TF_hr"/>
+    <mantle.work.effort.WorkEffortParty workEffortId="ACMEAPP" partyId="EX_JOHN_DOE" roleTypeId="ProjectManager" fromDate="2026-10-12 09:00:00" statusId="WeptAssigned"/>
+    <mantle.work.effort.WorkEffortParty workEffortId="ACMEAPP" partyId="ORG_ZIZI_SERVICES" roleTypeId="Vendor" fromDate="2026-10-12 09:00:00"/>
+    <mantle.work.effort.WorkEffortParty workEffortId="ACMEAPP" partyId="ORG_ACME" roleTypeId="Customer" fromDate="2026-10-12 09:00:00"/>
+    <moqui.entity.SequenceValueItem seqName="Project_ACMEAPP" seqNum="0"/>
 
     <!-- HIRE: a Work group project only john.doe is on -->
     <mantle.work.effort.WorkEffort workEffortId="HIRE" workEffortTypeEnumId="WetProject" purposeEnumId="WepPrOrgMgmt" statusId="WeInPlanning"
@@ -184,6 +207,30 @@ along with this software (see the LICENSE.md file). If not, see
             resolutionEnumId="WerUnresolved" visibilityEnumId="WevWorkGroup" priority="5" sequenceNum="1000" rootWorkEffortId="HIRE"
             ownerPartyId="EX_JOHN_DOE" workEffortName="List the roles for next year" estimatedWorkTime="2" remainingWorkTime="2" timeUomId="TF_hr"/>
     <mantle.work.effort.WorkEffortParty workEffortId="HIRE-1" partyId="EX_JOHN_DOE" roleTypeId="Assignee" fromDate="2026-10-15 09:00:00" statusId="WeptAssigned"/>
+
+    <!-- TPLWEB: a project template, its items numbered from 1 -->
+    <mantle.work.effort.WorkEffort workEffortId="TPLWEB" workEffortTypeEnumId="WetProject" purposeEnumId="WepPrClient" statusId="WeInPlanning"
+            visibilityEnumId="WevGeneral" isTemplate="Y" priority="5" ownerPartyId="ORG_ZIZI_SERVICES" workEffortName="Client web site"
+            description="A small business web site: discovery, design, build and launch." timeUomId="TF_hr" totalTimeAllowed="80"/>
+    <mantle.work.effort.WorkEffortParty workEffortId="TPLWEB" partyId="EX_JOHN_DOE" roleTypeId="ProjectManager" fromDate="2026-09-01 09:00:00" statusId="WeptAssigned"/>
+    <mantle.work.effort.WorkEffortParty workEffortId="TPLWEB" partyId="ORG_ZIZI_SERVICES" roleTypeId="Vendor" fromDate="2026-09-01 09:00:00"/>
+    <moqui.entity.SequenceValueItem seqName="Project_TPLWEB" seqNum="4"/>
+    <mantle.work.effort.WorkEffort workEffortId="TPLWEB-1" workEffortTypeEnumId="WetTask" purposeEnumId="WepTask" statusId="WeInPlanning"
+            resolutionEnumId="WerUnresolved" visibilityEnumId="WevGeneral" priority="3" sequenceNum="1000" rootWorkEffortId="TPLWEB"
+            ownerPartyId="EX_JOHN_DOE" workEffortName="Discovery and site map" estimatedWorkTime="8" remainingWorkTime="8" timeUomId="TF_hr"/>
+    <mantle.work.effort.WorkEffort workEffortId="TPLWEB-2" workEffortTypeEnumId="WetTask" purposeEnumId="WepNewFeature" statusId="WeInPlanning"
+            resolutionEnumId="WerUnresolved" visibilityEnumId="WevGeneral" priority="4" sequenceNum="2000" rootWorkEffortId="TPLWEB"
+            ownerPartyId="EX_JOHN_DOE" workEffortName="Design and build the pages" estimatedWorkTime="40" remainingWorkTime="40" timeUomId="TF_hr"/>
+    <mantle.work.effort.WorkEffort workEffortId="TPLWEB-3" workEffortTypeEnumId="WetTask" purposeEnumId="WepTask" statusId="WeInPlanning"
+            resolutionEnumId="WerUnresolved" visibilityEnumId="WevGeneral" priority="4" sequenceNum="1000" rootWorkEffortId="TPLWEB"
+            parentWorkEffortId="TPLWEB-2" ownerPartyId="EX_JOHN_DOE" workEffortName="Home page" estimatedWorkTime="12" remainingWorkTime="12" timeUomId="TF_hr"/>
+    <mantle.work.effort.WorkEffort workEffortId="TPLWEB-4" workEffortTypeEnumId="WetTask" purposeEnumId="WepTask" statusId="WeInPlanning"
+            resolutionEnumId="WerUnresolved" visibilityEnumId="WevGeneral" priority="5" sequenceNum="3000" rootWorkEffortId="TPLWEB"
+            ownerPartyId="EX_JOHN_DOE" workEffortName="Launch and hand over" estimatedWorkTime="6" remainingWorkTime="6" timeUomId="TF_hr"/>
+    <mantle.work.effort.WorkEffort workEffortId="TPLWEB-MS-1" workEffortTypeEnumId="WetMilestone" statusId="WeInPlanning" rootWorkEffortId="TPLWEB"
+            workEffortName="Launch"/>
+    <mantle.work.effort.WorkEffortSetting workEffortId="TPLWEB" settingTypeEnumId="WstModules" settingValue="requests,time,money,client"/>
+    <mantle.work.effort.WorkEffortSetting workEffortId="TPLWEB" settingTypeEnumId="WstShareNewItems" settingValue="Y"/>
 
     <!-- the organization's Projects settings: billing defaults and the commit conventions -->
     <mantle.party.PartySetting partyId="ORG_ZIZI_SERVICES" partySettingTypeId="ProjBillingDefaults"

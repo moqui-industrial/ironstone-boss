@@ -15,7 +15,8 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- QuickCreate (design-projects.md §3 QuickCreate; style-guide §3.11 Dialog): the screen of the Projects + menu kinds workItem
     and time, as Commons/QuickCreate is for Commons, with the record of the screen context (recordEntity, recordId and
     recordTitle, which the shell adds). QuickWorkItem: a work item in a project the user is on (the project of the screen
-    context, of the list it was opened from, else the first), its type, title, assignee (unassigned by default, "me" one
+    context, of the list it was opened from, else the first), its type (of the types that project offers,
+    ironstone.ProjectServices.get#WorkItemTypes), title, assignee (unassigned by default, "me" one
     click), priority and due (service/ironstone/WorkItemServices.xml quickAdd#WorkItem); a record that is not a work effort is
     linked to it. The sprint waits for impl-projects.md P4. QuickTime waits for P6: the kind stays and says so, with a link to
     the time entries. The project kind is the managers-only screen Projects/QuickProject (impl-projects.md F8); here it only
@@ -65,6 +66,9 @@ along with this software (see the LICENSE.md file). If not, see
             }
             defaultProjectId = projectId && projectOptions.some((option) => option.key === projectId) ? projectId : (projectOptions[0]?.key || '')
             linkRecord = hasRecord && recordEntity !== 'mantle.work.effort.WorkEffort'
+            // the types the project offers (its WstWorkItemTypes, else the organization's; Settings, Work item types)
+            typeOptions = Array.from(ec.service.sync().name('ironstone.ProjectServices.get#WorkItemTypes').parameters({rootWorkEffortId: defaultProjectId || null}).call()?.offeredList || [])
+            defaultTypeId = typeOptions.some((type) => type.enumId === 'WepTask') ? 'WepTask' : (typeOptions[0]?.enumId || 'WepTask')
             isProjectsManager = ec.user.isInGroup('BOSS_PROJECT_MANAGER') || ec.user.isInGroup('ADMIN')
         ]]></script>
     </actions>
@@ -87,9 +91,8 @@ along with this software (see the LICENSE.md file). If not, see
                     <field name="recordId"><default-field><hidden/></default-field></field>
                     <field name="rootWorkEffortId" from="defaultProjectId"><default-field title="Project">
                         <drop-down><list-options list="projectOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
-                    <field name="purposeEnumId" from="'WepTask'"><default-field title="Type"><radio>
-                        <option key="WepTask" text="Task"/><option key="WepFix" text="Bug"/><option key="WepNewFeature" text="Feature"/>
-                        <option key="WepFeatureEnhance" text="Enhancement"/><option key="WepDocument" text="Document"/><option key="WepSupport" text="Support"/></radio></default-field></field>
+                    <field name="purposeEnumId" from="defaultTypeId"><default-field title="Type"><radio>
+                        <list-options list="typeOptions" key="${enumId}" text="${label}"/></radio></default-field></field>
                     <field name="workEffortName"><default-field title="Title"><text-line size="44"/></default-field></field>
                     <field name="assignToPartyId"><default-field title="Assignee (empty: unassigned)">
                         <drop-down allow-empty="true"><dynamic-options transition="searchPeople" server-search="true" min-length="0"/></drop-down></default-field></field>

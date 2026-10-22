@@ -1,0 +1,1537 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The projects of IronStone Projects (design-projects.md §3 Home, §4 Projects, NewProject, ProjectDetail and its tabs, §12
+    the Settings pages; impl-projects.md P2): a project is a Mantle WorkEffort of type WetProject. The finds see the projects
+    the user sees (mantle.work.ProjectServices.get#VisibleProjectInfo, impl-projects.md F1) and leave out templates. A
+    project is seen by those who see it, worked by its members and managed (status, settings, team, updates) by its
+    ProjectManager and Manager parties, the Projects managers group (BOSS_PROJECT_MANAGER) for the projects it sees, and
+    ADMIN (get#ProjectAccess). The money numbers are for those who manage. -->
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
+
+    <!-- ========== Access ========== -->
+
+    <service verb="get" noun="ProjectAccess" allow-remote="false">
+        <description>Whether the user may see (view), work in (update: a member, or one who manages) or manage (manage) a
+            project; a need not met is an error ("not available" when the user does not see it), except with need none, which
+            only answers. isMember: the user holds a current role on it.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="need" default-value="view"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="project" type="Map"/>
+            <parameter name="canView" type="Boolean"/>
+            <parameter name="canUpdate" type="Boolean"/>
+            <parameter name="canManage" type="Boolean"/>
+            <parameter name="isMember" type="Boolean"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            canView = false; canUpdate = false; canManage = false; isMember = false; project = null
+            const row = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', workEffortId).one()
+            const vis = ec.service.sync().name('mantle.work.ProjectServices.get#VisibleProjectInfo').call() || {}
+            if (row != null && row.workEffortTypeEnumId === 'WetProject') {
+                const all = !!vis.allProjects
+                isMember = Array.from(vis.memberProjectIds || []).includes(workEffortId)
+                canView = all || Array.from(vis.visibleProjectIds || []).includes(workEffortId)
+                // a template is seen by those who make projects, as Settings/Templates lists it
+                if (!canView && row.isTemplate === 'Y' && ec.user.isInGroup('BOSS_PROJECT_MANAGER')) canView = true
+                canManage = canView && (all || Array.from(vis.managedProjectIds || []).includes(workEffortId) || ec.user.isInGroup('BOSS_PROJECT_MANAGER'))
+                canUpdate = canView && (canManage || isMember)
+                if (canView) project = row.getMap()
+            }
+            if (need === 'none') return
+            if (!canView) { ec.message.addError(ec.resource.expand('Project ${workEffortId} is not available', '', {workEffortId})); return }
+            if (need === 'update' && !canUpdate) ec.message.addError(ec.resource.expand('You are not on project ${workEffortId}', '', {workEffortId}))
+            else if (need === 'manage' && !canManage) ec.message.addError(ec.resource.expand('Only the managers of ${workEffortId} change that', '', {workEffortId}))
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== The list ========== -->
+
+    <service verb="find" noun="Projects">
+        <description>
+            The rows of Projects (design-projects.md §4 Projects): the projects the user sees, not templates, in one of the
+            chips, narrowed by the find, sorted and paged, each decorated (decorate#ProjectRows), with the count of each chip.
+            The chips: active (the default: Approved or In Progress), mine (open, the user holds a role), planned (In
+            Planning), onHold, atRisk (open with the health At risk or Off track, or whose numbers warn: get#ProjectStats
+            projectWarning or projectDanger, as Home's counter), completed (Complete), closed (Closed or
+            Cancelled) and all. A status in the find takes the place of the chip's. Without subProjects only the top-level
+            projects are rows (a program shows the count of its sub-projects); with subProjects Y each top-level row is followed
+            by its sub-projects, indented, and its numbers sum theirs.
+        </description>
+        <in-parameters>
+            <parameter name="list" default-value="active"/>
+            <parameter name="text"/>
+            <parameter name="statusId"><description>Comma list</description></parameter>
+            <parameter name="healthEnumId"/>
+            <parameter name="clientPartyId"/>
+            <parameter name="managerPartyId"/>
+            <parameter name="purposeEnumId"/>
+            <parameter name="parentWorkEffortId"/>
+            <parameter name="subProjects"/>
+            <parameter name="dueFrom" type="Timestamp"/>
+            <parameter name="dueThru" type="Timestamp"/>
+            <parameter name="orderByField"/>
+            <parameter name="pageIndex" type="Integer" default="0"/>
+            <parameter name="pageSize" type="Integer" default="25"/>
+            <parameter name="pageNoLimit" type="Boolean" default="false"/>
+            <parameter name="withCounts" type="Boolean" default="true"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="list"/>
+            <parameter name="rowList" type="List"/>
+            <parameter name="rowCount" type="Integer"/>
+            <parameter name="pageIndex" type="Integer"/>
+            <parameter name="pageSize" type="Integer"/>
+            <parameter name="pageMaxIndex" type="Integer"/>
+            <parameter name="pageRangeLow" type="Integer"/>
+            <parameter name="pageRangeHigh" type="Integer"/>
+            <parameter name="counts" type="Map"/>
+            <parameter name="withMoney" type="Boolean"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const lists = ['active', 'mine', 'planned', 'onHold', 'atRisk', 'completed', 'closed', 'all']
+            if (!lists.includes(list)) list = 'active'
+            rowList = []; rowCount = 0; pageMaxIndex = 0; pageRangeLow = 0; pageRangeHigh = 0; counts = {}
+            for (const key of lists) counts[key] = 0
+            withMoney = ec.user.isInGroup('BOSS_PROJECT_MANAGER') || ec.user.isInGroup('ADMIN')
+            const cf = ec.entity.conditionFactory
+            const vis = ec.service.sync().name('mantle.work.ProjectServices.get#VisibleProjectInfo').call() || {}
+            const all = !!vis.allProjects
+            const visibleIds = Array.from(vis.visibleProjectIds || [])
+            if (!all && !visibleIds.length) return
+            const split = (value) => value == null || value === '' ? [] : String(value).split(',').map((id) => id.trim()).filter((id) => id)
+            const none = cf.makeCondition('workEffortId', 'equals', '_NONE_')
+            const inIds = (ids) => ids.length ? cf.makeCondition('workEffortId', 'in', ids) : none
+            const base = [cf.makeCondition('workEffortTypeEnumId', 'equals', 'WetProject'), cf.makeCondition('isTemplate', 'not-equals', 'Y', true)]
+            if (!all) base.push(cf.makeCondition('workEffortId', 'in', visibleIds))
+            const ended = ['WeClosed', 'WeCancelled']
+            const openCond = cf.makeCondition('statusId', 'not-in', ended)
+            // at risk: open, with the health At risk or Off track, or numbers that warn (get#ProjectStats), as Home's counter has it
+            const riskyIds = () => {
+                const ids = []
+                let find = ec.entity.find('mantle.work.effort.WorkEffort').condition(cf.makeCondition(base.concat([openCond]), 'and'))
+                for (const row of find.limit(1000).list()) {
+                    let risky = ['WehAtRisk', 'WehOffTrack'].includes(row.healthEnumId)
+                    if (!risky) {
+                        const stats = ec.service.sync().name('mantle.work.ProjectServices.get#ProjectStats').parameters({workEffort: row}).call() || {}
+                        risky = !!(stats.projectWarning || stats.projectDanger)
+                    }
+                    if (risky) ids.push(row.workEffortId)
+                }
+                return ids
+            }
+            const listConds = {
+                active: [cf.makeCondition('statusId', 'in', ['WeApproved', 'WeInProgress'])],
+                mine: [openCond, inIds(Array.from(vis.memberProjectIds || []))],
+                planned: [cf.makeCondition('statusId', 'equals', 'WeInPlanning')],
+                onHold: [cf.makeCondition('statusId', 'equals', 'WeOnHold')],
+                atRisk: (withCounts || list === 'atRisk') ? [openCond, inIds(riskyIds())] : [openCond, none],
+                completed: [cf.makeCondition('statusId', 'equals', 'WeComplete')],
+                closed: [cf.makeCondition('statusId', 'in', ended)],
+                all: [],
+            }
+            const topOnly = subProjects !== 'Y' && !parentWorkEffortId
+            const top = topOnly ? [cf.makeCondition('parentWorkEffortId', 'is-null', null)] : []
+            const countOf = (conds) => ec.entity.find('mantle.work.effort.WorkEffort').condition(cf.makeCondition(base.concat(conds, top), 'and')).count()
+            if (withCounts) for (const key of lists) counts[key] = countOf(listConds[key])
+
+            const statusIds = split(statusId)
+            const conds = statusIds.length ? [cf.makeCondition('statusId', 'in', statusIds)].concat(list === 'mine' ? [listConds.mine[1]] : []) : listConds[list].slice()
+            const words = text ? String(text).trim() : ''
+            if (words) conds.push(cf.makeCondition([cf.makeCondition('workEffortName', 'like', `%${words}%`, false, true),
+                cf.makeCondition('workEffortId', 'like', `%${words}%`, false, true)], 'or'))
+            if (healthEnumId) conds.push(cf.makeCondition('healthEnumId', 'equals', healthEnumId))
+            if (purposeEnumId) conds.push(cf.makeCondition('purposeEnumId', 'equals', purposeEnumId))
+            if (parentWorkEffortId) conds.push(cf.makeCondition('parentWorkEffortId', 'equals', parentWorkEffortId))
+            const byRole = (partyId, roles) => Array.from(new Set(Array.from(ec.entity.find('mantle.work.effort.WorkEffortParty').condition('partyId', partyId)
+                    .condition('roleTypeId', 'in', roles).condition(cf.makeConditionDate('fromDate', 'thruDate', null)).selectField('workEffortId').list())
+                    .map((row) => row.workEffortId)))
+            if (clientPartyId) conds.push(inIds(byRole(clientPartyId, ['Customer', 'ClientManager', 'ClientBilling'])))
+            if (managerPartyId) conds.push(inIds(byRole(managerPartyId, ['ProjectManager', 'Manager'])))
+            if (dueFrom != null) conds.push(cf.makeCondition('estimatedCompletionDate', 'greater-equals', dueFrom))
+            if (dueThru != null) conds.push(cf.makeCondition('estimatedCompletionDate', 'less-than', dueThru))
+
+            const condition = cf.makeCondition(base.concat(conds, top), 'and')
+            rowCount = ec.entity.find('mantle.work.effort.WorkEffort').condition(condition).count()
+            const sortable = ['workEffortId', 'workEffortName', 'statusId', 'priority', 'estimatedCompletionDate', 'estimatedStartDate', 'lastUpdatedStamp', 'healthEnumId']
+            const orderField = orderByField ? String(orderByField).replace(/^[+^]/, '') : ''
+            const orderBy = orderField && sortable.includes(orderField.replace(/^-/, '')) ? [orderField, 'workEffortId'] : ['priority', 'workEffortName', 'workEffortId']
+            const size = pageNoLimit ? Math.max(1, Math.min(rowCount, 500)) : Math.max(1, Math.min(Number(pageSize) || 25, 200))
+            pageSize = size
+            pageMaxIndex = rowCount ? Math.floor((rowCount - 1) / size) : 0
+            pageIndex = pageNoLimit ? 0 : Math.min(Math.max(0, Number(pageIndex) || 0), pageMaxIndex)
+            let find = ec.entity.find('mantle.work.effort.WorkEffort').condition(condition)
+            for (const field of orderBy) find = find.orderBy(field)
+            let page = Array.from(find.offset(pageIndex * size).limit(size).list()).map((row) => row.getMap())
+            pageRangeLow = rowCount ? pageIndex * size + 1 : 0
+            pageRangeHigh = Math.min((pageIndex + 1) * size, rowCount)
+            // with the sub-projects: each program's sub-projects after it (those on the page, then the others it has that the user
+            // sees, not templates), a sub-project whose program is on the page moved under it
+            if (subProjects === 'Y' && !parentWorkEffortId && page.length) {
+                const onPage = new Set(page.map((row) => row.workEffortId))
+                const nested = []
+                for (const row of page) {
+                    if (row.parentWorkEffortId && onPage.has(row.parentWorkEffortId)) continue
+                    nested.push(row)
+                    const children = page.filter((other) => other.parentWorkEffortId === row.workEffortId)
+                    for (const child of ec.entity.find('mantle.work.effort.WorkEffort').condition('parentWorkEffortId', row.workEffortId)
+                            .condition(cf.makeCondition(base, 'and')).orderBy('workEffortName').limit(100).list())
+                        if (!onPage.has(child.workEffortId)) children.push(child.getMap())
+                    for (const child of children) nested.push(Object.assign({}, child, {isSubProject: true}))
+                }
+                page = nested
+            }
+            rowList = ec.service.sync().name('ironstone.ProjectServices.decorate#ProjectRows').parameters({projectList: page, withMoney: withMoney,
+                sumSubProjects: subProjects === 'Y'}).call()?.rowList || []
+        ]]></script></actions>
+    </service>
+
+    <service verb="decorate" noun="ProjectRows" allow-remote="false">
+        <description>Projects as Projects, its board and Home's projects show them: the link, the client and the manager (the
+            first ProjectManager, else Manager), the status and the health (label and color), the work items (open, overdue,
+            done of total, as a percent), the next open milestone, the hours (actual of the hours budget, else of the
+            estimate), with withMoney the client budget used (get#ProjectStats), a warning when the hours pass the budget or
+            the numbers warn (hoursOver for the hours alone), the count of sub-projects, the last change. With sumSubProjects a program's items and hours sum
+            those of its sub-projects in the list.</description>
+        <in-parameters>
+            <parameter name="projectList" type="List" required="true"/>
+            <parameter name="withMoney" type="Boolean" default="false"/>
+            <parameter name="sumSubProjects" type="Boolean" default="false"/>
+        </in-parameters>
+        <out-parameters><parameter name="rowList" type="List"/></out-parameters>
+        <actions><script><![CDATA[
+            rowList = []
+            const projects = Array.from(projectList || [])
+            if (!projects.length) return
+            const cf = ec.entity.conditionFactory
+            const L = (text) => ec.l10n.localize(text)
+            const nowMillis = Number(String(ec.user.nowTimestamp))
+            const today = ec.user.getPeriodRange('day', '0')
+            const todayStart = today ? Number(String(today[0])) : nowMillis
+            const num = (value) => value == null ? 0 : Number(String(value))
+            const hours = (value) => ec.l10n.format(Math.round(value * 100) / 100, '#,##0.##')
+            const healthColors = {WehOnTrack: 'positive', WehAtRisk: 'warning', WehOffTrack: 'negative'}
+            const label = (entityName, field, id) => id ? (ec.entity.find(entityName).condition(field, id).useCache(true).one()?.description || id) : ''
+            const colors = ec.service.sync().name('org.moqui.impl.StatusServices.get#StatusColors').parameters({statusIdList: Array.from(new Set(projects
+                    .map((row) => row.statusId).filter((id) => id)))}).call()?.colors || {}
+            const nameOf = (partyId) => {
+                if (!partyId) return ''
+                const party = ec.entity.find('mantle.party.PartyDetail').condition('partyId', partyId).one()
+                return party ? (party.organizationName || [party.firstName, party.lastName].filter((part) => part).join(' ') || partyId) : partyId
+            }
+            const parties = (id, roles) => Array.from(ec.entity.find('mantle.work.effort.WorkEffortParty').condition('workEffortId', id).condition('roleTypeId', 'in', roles)
+                    .condition(cf.makeConditionDate('fromDate', 'thruDate', null)).orderBy('fromDate').list())
+            const itemStats = (id) => {
+                const stats = {total: 0, done: 0, open: 0, overdue: 0, actual: 0, estimated: 0, remaining: 0}
+                for (const item of ec.entity.find('mantle.work.effort.WorkEffort').condition('rootWorkEffortId', id).condition('workEffortTypeEnumId', 'WetTask')
+                        .selectField('statusId').selectField('estimatedCompletionDate').selectField('estimatedWorkTime').selectField('actualWorkTime')
+                        .selectField('remainingWorkTime').limit(10000).list()) {
+                    if (item.statusId === 'WeCancelled') continue
+                    stats.total++
+                    const done = item.statusId === 'WeComplete' || item.statusId === 'WeClosed'
+                    if (done) stats.done++
+                    else {
+                        stats.open++
+                        if (item.estimatedCompletionDate != null && num(item.estimatedCompletionDate) < todayStart) stats.overdue++
+                    }
+                    stats.actual += num(item.actualWorkTime); stats.estimated += num(item.estimatedWorkTime); stats.remaining += num(item.remainingWorkTime)
+                }
+                return stats
+            }
+            const byId = new Map()
+            for (const project of projects) {
+                const id = project.workEffortId
+                const stats = itemStats(id)
+                byId.set(id, stats)
+                const client = parties(id, ['Customer'])[0]
+                const managers = parties(id, ['ProjectManager', 'Manager'])
+                const manager = managers.find((row) => row.roleTypeId === 'ProjectManager') || managers[0]
+                const managerUser = manager ? ec.entity.find('moqui.security.UserAccount').condition('partyId', manager.partyId).selectField('userId').disableAuthz().list()[0] : null
+                const milestone = Array.from(ec.entity.find('mantle.work.effort.WorkEffort').condition('rootWorkEffortId', id).condition('workEffortTypeEnumId', 'WetMilestone')
+                        .condition(cf.makeCondition('statusId', 'not-in', ['WeComplete', 'WeClosed', 'WeCancelled'], true))
+                        .condition('estimatedCompletionDate', 'is-not-null', null).orderBy('estimatedCompletionDate').limit(1).list())[0]
+                const budget = num(project.totalTimeAllowed)
+                let budgetUsedText = ''
+                let warning = false
+                if (withMoney) {
+                    const out = ec.service.sync().name('mantle.work.ProjectServices.get#ProjectStats').parameters({workEffort: project}).call() || {}
+                    if (num(project.totalClientCostAllowed) > 0) budgetUsedText = ec.l10n.format(Math.round(num(out.clientBudgetUsedPercent)), '#,##0') + '%'
+                    warning = !!(out.projectWarning || out.projectDanger)
+                }
+                rowList.push({workEffortId: id, workEffortName: project.workEffortName || id, url: '/qapps/Projects/Projects/ProjectDetail?workEffortId=' + encodeURIComponent(id),
+                    description: project.description || '', parentWorkEffortId: project.parentWorkEffortId || null, isSubProject: !!project.isSubProject,
+                    clientPartyId: client?.partyId || null, clientName: client ? nameOf(client.partyId) : '',
+                    managerPartyId: manager?.partyId || null, managerName: manager ? nameOf(manager.partyId) : '', managerUserId: managerUser?.userId || null,
+                    statusId: project.statusId || null, statusLabel: label('moqui.basic.StatusItem', 'statusId', project.statusId), statusColor: colors[project.statusId] || 'grey-7',
+                    healthEnumId: project.healthEnumId || null, healthLabel: label('moqui.basic.Enumeration', 'enumId', project.healthEnumId),
+                    healthColor: healthColors[project.healthEnumId] || 'grey-7', purposeLabel: label('moqui.basic.Enumeration', 'enumId', project.purposeEnumId),
+                    nextMilestoneId: milestone?.workEffortId || null, nextMilestoneName: milestone?.workEffortName || '',
+                    nextMilestoneText: milestone ? (milestone.workEffortName || milestone.workEffortId) + ' · ' + ec.l10n.format(milestone.estimatedCompletionDate, 'MMM d') : '',
+                    totalTimeAllowed: budget, budgetUsedText: budgetUsedText, warning: warning || (budget > 0 && stats.actual + stats.remaining > budget),
+                    hoursOver: budget > 0 && stats.actual + stats.remaining > budget,
+                    subProjectCount: ec.entity.find('mantle.work.effort.WorkEffort').condition('parentWorkEffortId', id).condition('workEffortTypeEnumId', 'WetProject')
+                        .condition(cf.makeCondition('isTemplate', 'not-equals', 'Y', true)).count(),
+                    estimatedStartDate: project.estimatedStartDate ?? null, estimatedCompletionDate: project.estimatedCompletionDate ?? null,
+                    dueText: project.estimatedCompletionDate != null ? ec.l10n.format(project.estimatedCompletionDate, 'MMM d, yyyy') : '',
+                    updatedText: project.lastUpdatedStamp != null ? ec.l10n.format(project.lastUpdatedStamp, 'MMM d') : ''})
+            }
+            // the numbers of a row: its own, or with sumSubProjects its own and those of its sub-projects in the list
+            for (const row of rowList) {
+                const stats = Object.assign({}, byId.get(row.workEffortId))
+                if (sumSubProjects && !row.isSubProject) for (const child of rowList) if (child.parentWorkEffortId === row.workEffortId) {
+                    const more = byId.get(child.workEffortId)
+                    for (const key of Object.keys(stats)) stats[key] += more[key]
+                }
+                const percent = stats.total ? Math.round(stats.done * 100 / stats.total) : 0
+                const of = row.totalTimeAllowed > 0 ? row.totalTimeAllowed : stats.estimated
+                Object.assign(row, {openItems: stats.open, overdueItems: stats.overdue, itemCount: stats.total, doneCount: stats.done, percentDone: percent,
+                    progressText: stats.total ? percent + '% · ' + stats.done + '/' + stats.total : '—',
+                    hoursActual: stats.actual, hoursEstimated: stats.estimated, hoursRemaining: stats.remaining,
+                    hoursText: of > 0 ? hours(stats.actual) + ' ' + L('of') + ' ' + hours(of) + ' h' : (stats.actual > 0 ? hours(stats.actual) + ' h' : '—'),
+                    hoursPercent: of > 0 ? Math.min(100, Math.round(stats.actual * 100 / of)) : 0,
+                    itemsText: stats.open + (stats.overdue ? ' · ' + stats.overdue + ' ' + L('overdue') : '')})
+            }
+        ]]></script></actions>
+    </service>
+
+    <service verb="bulk" noun="Projects">
+        <description>ProjectBulk (design-projects.md §4 Projects) on the selected projects (workEffortIds, a list or comma
+            text), for those who manage each: manager (value the party, as the ProjectManager), hold (On Hold) and close
+            (Closed, from Complete; a project not complete is completed first). Each project in its own transaction: one that
+            fails is logged and counted with its reason, the others go on.</description>
+        <in-parameters>
+            <parameter name="action" required="true"/>
+            <parameter name="workEffortIds" type="Object"/>
+            <parameter name="value"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="doneCount" type="Integer"/>
+            <parameter name="failedCount" type="Integer"/>
+            <parameter name="message"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            doneCount = 0; failedCount = 0
+            const failures = []
+            const ids = (Array.isArray(workEffortIds) ? workEffortIds : String(workEffortIds || '').split(',')).map((id) => String(id).trim()).filter((id) => id)
+            if (!['manager', 'hold', 'close'].includes(action)) { ec.message.addError(ec.resource.expand('${action} is not a bulk change', '', {action})); return }
+            if (!ids.length) { ec.message.addError(ec.l10n.localize('Select one or more projects first')); return }
+            if (action === 'manager' && !value) { ec.message.addError(ec.l10n.localize('Choose the manager')); return }
+            for (const id of ids) {
+                ec.message.pushErrors()
+                let reason = null
+                try {
+                    const access = ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: id, need: 'none'}).call() || {}
+                    if (!access.canView) reason = ec.l10n.localize('not available')
+                    else if (!access.canManage) reason = ec.l10n.localize('you do not manage it')
+                    else if (action === 'manager') ec.service.sync().name('mantle.work.WorkEffortServices.replace#WorkEffortParty').parameters({workEffortId: id,
+                        roleTypeId: 'ProjectManager', newPartyId: value, statusId: 'WeptAssigned'}).requireNewTransaction(true).call()
+                    else {
+                        const steps = action === 'hold' ? ['WeOnHold'] : (access.project.statusId === 'WeComplete' ? ['WeClosed'] : ['WeComplete', 'WeClosed'])
+                        for (const statusId of steps) {
+                            ec.service.sync().name('ironstone.ProjectServices.set#ProjectStatus').parameters({workEffortId: id, statusId: statusId}).requireNewTransaction(true).call()
+                            if (ec.message.hasError()) break
+                        }
+                    }
+                    if (!reason && ec.message.hasError()) reason = ec.message.getErrorsString()
+                } catch (err) {
+                    reason = String(err && err.message ? err.message : err)
+                } finally {
+                    ec.message.clearErrors()
+                    ec.message.popErrors()
+                }
+                if (reason) {
+                    failedCount++
+                    failures.push(id + ' ' + reason)
+                    ec.logger.warn(`Projects bulk ${action}: ${id} skipped: ${reason}`)
+                } else doneCount++
+            }
+            message = ec.resource.expand('${count} projects changed', '', {count: doneCount}) + (failedCount ? ec.resource.expand('; ${count} skipped: ${reasons}', '',
+                {count: failedCount, reasons: failures.join(', ')}) : '')
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== Status and the header ========== -->
+
+    <service verb="set" noun="ProjectStatus">
+        <description>Moves a project along the Default flow (In Planning, Approved, In Progress, On Hold, Complete, Closed,
+            Cancelled and the re-open moves; a project's own statusFlowId is its work items' flow), by one who manages it.
+            The first move to In Progress sets the actual start, Complete the actual completion.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="statusId" required="true"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            const access = ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: workEffortId, need: 'manage'}).call() || {}
+            if (ec.message.hasError()) return
+            const project = access.project
+            if (project.statusId === statusId) { message = ec.l10n.localize('No change'); return }
+            const move = ec.entity.find('moqui.basic.StatusFlowTransition').condition('statusFlowId', 'Default').condition('statusId', project.statusId)
+                    .condition('toStatusId', statusId).useCache(true).one()
+            const toText = ec.entity.find('moqui.basic.StatusItem').condition('statusId', statusId).useCache(true).one()?.description || statusId
+            if (move == null) {
+                const fromText = ec.entity.find('moqui.basic.StatusItem').condition('statusId', project.statusId).useCache(true).one()?.description || project.statusId
+                ec.message.addError(ec.resource.expand('A project does not go from ${fromText} to ${toText}', '', {fromText, toText}))
+                return
+            }
+            const fields = {workEffortId: workEffortId, statusId: statusId}
+            if (statusId === 'WeInProgress' && project.actualStartDate == null) fields.actualStartDate = ec.user.nowTimestamp
+            if (statusId === 'WeComplete') fields.actualCompletionDate = ec.user.nowTimestamp
+            ec.service.sync().name('update#mantle.work.effort.WorkEffort').parameters(fields).call()
+            if (ec.message.hasError()) return
+            message = ec.resource.expand('${name} is ${toText}', '', {name: project.workEffortName || workEffortId, toText})
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="ProjectHeader">
+        <description>ProjectDetail's title row and numbers (design-projects.md §4 ProjectDetail): the project, its status
+            stages, the health with the date of the latest update, the client and the manager, the number cards (open items,
+            overdue, the next milestone, the hours of the budget or estimate; for managers the client budget used), the
+            primary action by status (Approve, Begin, Post update, Resume, Close, Re-open) and the other moves of the flow for
+            the secondary menu, the modules on (WstModules), and whether it is a template or closed. visible false for a
+            project the user does not see.</description>
+        <in-parameters><parameter name="workEffortId" required="true"/></in-parameters>
+        <out-parameters>
+            <parameter name="visible" type="Boolean"/>
+            <parameter name="header" type="Map"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            visible = false; header = {}
+            const access = ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: workEffortId, need: 'none'}).call() || {}
+            if (!access.canView) return
+            visible = true
+            const project = access.project
+            const L = (text) => ec.l10n.localize(text)
+            const row = (ec.service.sync().name('ironstone.ProjectServices.decorate#ProjectRows').parameters({projectList: [project], withMoney: !!access.canManage}).call()?.rowList || [])[0] || {}
+            const latest = Array.from(ec.entity.find('mantle.work.effort.WorkEffortUpdate').condition('workEffortId', workEffortId).orderBy('-updateDate').limit(1).list())[0]
+            const settings = ec.service.sync().name('mantle.work.ProjectServices.get#ProjectSettings').parameters({workEffortId: workEffortId}).call()?.settings || {}
+            const moves = Array.from(ec.entity.find('moqui.basic.StatusFlowTransition').condition('statusFlowId', 'Default').condition('statusId', project.statusId)
+                    .useCache(true).list()).filter((move) => String(move.toStatusId).startsWith('We'))
+            const primaries = {WeInPlanning: 'WeApproved', WeApproved: 'WeInProgress', WeOnHold: 'WeInProgress', WeComplete: 'WeClosed', WeClosed: 'WeInPlanning', WeCancelled: 'WeInPlanning'}
+            const primaryTo = primaries[project.statusId] || null
+            const primaryMove = primaryTo ? moves.find((move) => move.toStatusId === primaryTo) : null
+            const ended = ['WeClosed', 'WeCancelled'].includes(project.statusId)
+            header = Object.assign({}, row, {
+                canManage: !!access.canManage, canUpdate: !!access.canUpdate, isMember: !!access.isMember,
+                isTemplate: project.isTemplate === 'Y', isEnded: ended,
+                statusFlowId: project.statusFlowId || 'Default',
+                stageStatusIds: ['WeInPlanning', 'WeApproved', 'WeInProgress', 'WeComplete', 'WeClosed'],
+                healthDateText: latest ? ec.l10n.format(latest.updateDate, 'MMM d') : '',
+                primaryAction: project.statusId === 'WeInProgress' ? {kind: 'update', label: L('Post update')}
+                    : primaryMove ? {kind: 'status', statusId: primaryMove.toStatusId, label: L(primaryMove.transitionName || primaryMove.toStatusId)} : null,
+                otherMoves: moves.filter((move) => move.toStatusId !== (project.statusId === 'WeInProgress' ? null : primaryTo))
+                        .map((move) => ({statusId: move.toStatusId, label: L(move.transitionName || move.toStatusId)})),
+                modules: String(settings.WstModules || '').split(',').map((key) => key.trim()).filter((key) => key),
+                unbilledText: '',
+                description: project.description || '', visibilityEnumId: project.visibilityEnumId || null,
+                startText: project.estimatedStartDate != null ? ec.l10n.format(project.estimatedStartDate, 'MMM d, yyyy') : ''})
+        ]]></script></actions>
+    </service>
+    <!-- ========== ProjectOverview ========== -->
+
+    <service verb="get" noun="ProjectOverview">
+        <description>The boxes of ProjectOverview (design-projects.md §4 ProjectOverview): the latest status updates (the first
+            the StatusBox, the rest its short list), the next three open milestones and releases with their items done of
+            total, the work items by status (get#ProjectStats taskCountByStatusMap, each with its color and the Work items tab's
+            link), the top-level items with their subtrees' roll-ups (get#WorkItemTree), the time and budget for those who
+            manage (get#ProjectStats), the members, the linked repositories the user may view (org.moqui.impl.GitServices
+            find#GitRepositories with their clone URLs; none when the git hosting is not in the build) and the recent activity
+            (get#ProjectActivity). Each box is read on its own: one that fails is logged and left empty.</description>
+        <in-parameters><parameter name="workEffortId" required="true"/></in-parameters>
+        <out-parameters><parameter name="overview" type="Map"/></out-parameters>
+        <actions><script><![CDATA[
+            overview = {updateList: [], milestoneList: [], statusCountList: [], topItemList: [], timeBudget: null, memberList: [], repositoryList: [],
+                activityList: [], activityMore: false, failedBoxes: []}
+            const access = ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: workEffortId}).call() || {}
+            if (ec.message.hasError()) return
+            const project = access.project
+            const cf = ec.entity.conditionFactory
+            const L = (text) => ec.l10n.localize(text)
+            const num = (value) => value == null || value === '' ? 0 : Number(String(value))
+            const hours = (value) => ec.l10n.format(Math.round(value * 100) / 100, '#,##0.##')
+            const healthColors = {WehOnTrack: 'positive', WehAtRisk: 'warning', WehOffTrack: 'negative'}
+            const enumText = (id) => id ? (ec.entity.find('moqui.basic.Enumeration').condition('enumId', id).useCache(true).one()?.description || id) : ''
+            const statusText = (id) => id ? (ec.entity.find('moqui.basic.StatusItem').condition('statusId', id).useCache(true).one()?.description || id) : ''
+            const nameOf = (partyId) => {
+                if (!partyId) return ''
+                const party = ec.entity.find('mantle.party.PartyDetail').condition('partyId', partyId).one()
+                return party ? (party.organizationName || [party.firstName, party.lastName].filter((part) => part).join(' ') || partyId) : partyId
+            }
+            const box = (name, run) => {
+                ec.message.pushErrors()
+                try { run() } catch (err) {
+                    overview.failedBoxes.push(name)
+                    ec.logger.error(`Overview of project ${workEffortId}: the ${name} box failed and is left empty: ${err && err.message ? err.message : err}`)
+                } finally {
+                    if (ec.message.hasError()) { overview.failedBoxes.push(name); ec.logger.warn(`Overview of project ${workEffortId}, ${name}: ${ec.message.getErrorsString()}`) }
+                    ec.message.clearErrors(); ec.message.popErrors()
+                }
+            }
+            const tabUrl = (more) => '/qapps/Projects/Projects/ProjectDetail/WorkItems?workEffortId=' + encodeURIComponent(workEffortId) + (more || '')
+
+            box('status', () => {
+                for (const update of ec.entity.find('mantle.work.effort.WorkEffortUpdate').condition('workEffortId', workEffortId).orderBy('-updateDate').limit(4).list()) {
+                    const event = ec.entity.find('mantle.party.communication.CommunicationEvent').condition('communicationEventId', update.communicationEventId).one()
+                    overview.updateList.push({communicationEventId: update.communicationEventId, dateText: ec.l10n.format(update.updateDate, 'MMM d, yyyy'),
+                        healthEnumId: update.healthEnumId, healthLabel: enumText(update.healthEnumId), healthColor: healthColors[update.healthEnumId] || 'grey-7',
+                        percentComplete: update.percentComplete, percentText: update.percentComplete != null ? update.percentComplete + '%' : '',
+                        clientVisible: update.clientVisible === 'Y', authorName: nameOf(event?.fromPartyId), subject: event?.subject || '', body: event?.body || ''})
+                }
+            })
+            box('milestones', () => {
+                for (const plan of ec.entity.find('mantle.work.effort.WorkEffort').condition('rootWorkEffortId', workEffortId)
+                        .condition('workEffortTypeEnumId', 'in', ['WetMilestone', 'WetRelease']).condition(cf.makeCondition('statusId', 'not-in', ['WeComplete', 'WeClosed', 'WeCancelled'], true))
+                        .orderBy('estimatedCompletionDate').orderBy('workEffortName').limit(3).list()) {
+                    const type = plan.workEffortTypeEnumId === 'WetRelease' ? 'WeatRelease' : 'WeatMilestone'
+                    const itemIds = Array.from(ec.entity.find('mantle.work.effort.WorkEffortAssoc').condition('workEffortId', plan.workEffortId)
+                            .condition('workEffortAssocTypeEnumId', type).condition(cf.makeConditionDate('fromDate', 'thruDate', null)).selectField('toWorkEffortId').list()).map((row) => row.toWorkEffortId)
+                    let total = 0, done = 0
+                    if (itemIds.length) for (const item of ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', 'in', itemIds).selectField('statusId').list()) {
+                        if (item.statusId === 'WeCancelled') continue
+                        total++
+                        if (item.statusId === 'WeComplete' || item.statusId === 'WeClosed') done++
+                    }
+                    overview.milestoneList.push({workEffortId: plan.workEffortId, workEffortName: plan.workEffortName || plan.workEffortId,
+                        typeLabel: plan.workEffortTypeEnumId === 'WetRelease' ? L('Release') : L('Milestone'), statusId: plan.statusId, statusLabel: statusText(plan.statusId),
+                        dueText: plan.estimatedCompletionDate != null ? ec.l10n.format(plan.estimatedCompletionDate, 'MMM d, yyyy') : '—',
+                        progress: total ? Math.round(done * 100 / total) : 0, progressText: done + '/' + total,
+                        url: tabUrl('&list=all&' + (type === 'WeatRelease' ? 'releaseId=' : 'milestoneId=') + encodeURIComponent(plan.workEffortId))})
+                }
+                const colors = ec.service.sync().name('org.moqui.impl.StatusServices.get#StatusColors').parameters({statusIdList: overview.milestoneList.map((row) => row.statusId)}).call()?.colors || {}
+                for (const row of overview.milestoneList) row.statusColor = colors[row.statusId] || 'grey-7'
+            })
+            let stats = null
+            box('work', () => {
+                stats = ec.service.sync().name('mantle.work.ProjectServices.get#ProjectStats').parameters({workEffort: project}).call() || {}
+                const byStatus = stats.taskCountByStatusMap || {}
+                const ids = Array.from(ec.entity.find('moqui.basic.StatusItem').condition('statusTypeId', 'WorkEffort').orderBy('sequenceNum').useCache(true).list())
+                        .map((row) => row.statusId).filter((id) => num(byStatus[id]) > 0)
+                const colors = ec.service.sync().name('org.moqui.impl.StatusServices.get#StatusColors').parameters({statusIdList: ids}).call()?.colors || {}
+                overview.statusCountList = ids.map((id) => ({statusId: id, label: statusText(id), count: num(byStatus[id]), color: colors[id] || 'grey-7',
+                    url: tabUrl('&list=all&statusId=' + encodeURIComponent(id))}))
+                overview.itemCount = overview.statusCountList.reduce((sum, row) => sum + row.count, 0)
+            })
+            box('breakdown', () => {
+                const out = ec.service.sync().name('mantle.work.ProjectServices.get#WorkItemTree').parameters({rootWorkEffortId: workEffortId, topLevel: true}).call() || {}
+                const colors = ec.service.sync().name('org.moqui.impl.StatusServices.get#StatusColors').parameters({statusIdList: Array.from(out.workItemList || [])
+                        .map((row) => row.statusId)}).call()?.colors || {}
+                for (const row of Array.from(out.workItemList || []).slice(0, 12)) {
+                    const estimate = num(row.totalEstimatedWorkTime)
+                    const used = num(row.totalActualWorkTime) + num(row.totalRemainingWorkTime)
+                    const budget = num(row.totalBudget)
+                    overview.topItemList.push({workEffortId: row.workEffortId, workEffortName: row.workEffortName || row.workEffortId, statusId: row.statusId,
+                        statusLabel: statusText(row.statusId), statusColor: colors[row.statusId] || 'grey-7', estimateText: estimate ? hours(estimate) + ' h' : '—',
+                        usedText: hours(num(row.totalActualWorkTime)) + ' + ' + hours(num(row.totalRemainingWorkTime)) + ' h',
+                        usedPercent: estimate ? Math.min(100, Math.round(used * 100 / estimate)) : 0,
+                        barColor: budget && used > budget ? 'negative' : estimate && used > estimate ? 'warning' : 'primary',
+                        doneText: (num(row.doneCount) + (['WeComplete', 'WeClosed'].includes(row.statusId) ? 1 : 0)) + '/' + (num(row.itemCount) + 1),
+                        url: tabUrl('&list=all&view=tree&underWorkEffortId=' + encodeURIComponent(row.workEffortId))})
+                }
+            })
+            if (access.canManage) box('time', () => {
+                const sums = {estimated: 0, actual: 0, remaining: 0}
+                for (const item of ec.entity.find('mantle.work.effort.WorkEffort').condition('rootWorkEffortId', workEffortId).condition('workEffortTypeEnumId', 'WetTask')
+                        .condition('statusId', 'not-equals', 'WeCancelled').selectField('estimatedWorkTime').selectField('actualWorkTime').selectField('remainingWorkTime').limit(10000).list()) {
+                    sums.estimated += num(item.estimatedWorkTime); sums.actual += num(item.actualWorkTime); sums.remaining += num(item.remainingWorkTime)
+                }
+                const budget = num(project.totalTimeAllowed)
+                const clientBudget = num(project.totalClientCostAllowed)
+                const st = stats || ec.service.sync().name('mantle.work.ProjectServices.get#ProjectStats').parameters({workEffort: project}).call() || {}
+                const over = budget > 0 && sums.actual + sums.remaining > budget
+                overview.timeBudget = {estimatedText: hours(sums.estimated) + ' h', actualText: hours(sums.actual) + ' h', remainingText: hours(sums.remaining) + ' h',
+                    budgetText: budget ? hours(budget) + ' h' : L('No hours budget'), hoursPercent: budget ? Math.min(100, Math.round(sums.actual * 100 / budget)) : 0,
+                    forecastPercent: budget ? Math.min(100, Math.round((sums.actual + sums.remaining) * 100 / budget)) : 0, hasBudget: budget > 0,
+                    clientBudgetText: clientBudget ? ec.l10n.formatCurrency(clientBudget, project.costUomId || 'USD') : '',
+                    clientUsedText: clientBudget ? ec.l10n.format(Math.round(num(st.clientBudgetUsedPercent)), '#,##0') + '%' : '',
+                    profitText: num(project.actualClientCost) || num(project.actualCost) ? ec.l10n.formatCurrency(num(st.actualProfit), project.costUomId || 'USD') : '',
+                    flag: over || st.projectDanger ? 'danger' : st.projectWarning ? 'warning' : '',
+                    flagText: over ? L('The hours pass the budget') : st.projectDanger ? L('Over the estimate or the client budget') : st.projectWarning ? L('Spending ahead of the work done') : ''}
+            })
+            box('members', () => {
+                const people = new Map()
+                for (const row of ec.entity.find('mantle.work.effort.WorkEffortParty').condition('workEffortId', workEffortId)
+                        .condition(cf.makeConditionDate('fromDate', 'thruDate', null)).orderBy('fromDate').list()) {
+                    if (['Customer', 'CustomerBillTo', 'ClientManager', 'ClientBilling', 'Vendor', 'VendorBillFrom'].includes(row.roleTypeId)) continue
+                    const role = ec.entity.find('mantle.party.RoleType').condition('roleTypeId', row.roleTypeId).useCache(true).one()?.description || row.roleTypeId
+                    if (!people.has(row.partyId)) {
+                        const user = ec.entity.find('moqui.security.UserAccount').condition('partyId', row.partyId).selectField('userId').disableAuthz().list()[0]
+                        people.set(row.partyId, {partyId: row.partyId, name: nameOf(row.partyId), userId: user?.userId || null, roles: []})
+                    }
+                    people.get(row.partyId).roles.push(role)
+                }
+                overview.memberList = Array.from(people.values()).map((row) => Object.assign(row, {roleText: row.roles.join(', ')}))
+            })
+            box('repositories', () => {
+                const ids = Array.from(new Set(Array.from(ec.entity.find('mantle.work.effort.WorkEffortGitRepository').condition('workEffortId', workEffortId)
+                        .condition(cf.makeConditionDate('fromDate', 'thruDate', null)).list()).map((row) => row.repositoryId)))
+                if (!ids.length) return
+                const found = ec.service.sync().name('org.moqui.impl.GitServices.find#GitRepositories').parameters({repositoryIdList: ids, pageNoLimit: true}).call() || {}
+                for (const repo of Array.from(found.repositoryList || [])) {
+                    let urls = {}
+                    try { urls = ec.service.sync().name('org.moqui.impl.GitServices.get#GitCloneUrls').parameters({repositoryId: repo.repositoryId}).call() || {} }
+                    catch (err) { ec.logger.warn(`Overview of project ${workEffortId}: no clone URLs of ${repo.repositoryId}: ${err}`) }
+                    overview.repositoryList.push({repositoryId: repo.repositoryId, description: repo.description || '', branch: repo.branch || '',
+                        kindLabel: repo.repositoryKind === 'db' ? L('In the database') : repo.repositoryKind === 'remote' ? L('Mirror') : L('On disk'),
+                        lastText: repo.lastUpdateDate != null ? ec.l10n.format(repo.lastUpdateDate, 'MMM d, yyyy') : L('No pushes yet'),
+                        httpsUrl: urls.httpsUrl || '', sshUrl: urls.sshUrl || ''})
+                }
+            })
+            box('activity', () => {
+                const out = ec.service.sync().name('mantle.work.ProjectServices.get#ProjectActivity').parameters({workEffortId: workEffortId, pageSize: 10}).call() || {}
+                overview.activityList = Array.from(out.activityList || []).map((entry) => Object.assign({}, entry, {whenText: entry.date ? ec.l10n.format(new Date(entry.date), 'MMM d, h:mm a') : '',
+                    itemUrl: entry.workEffortId === workEffortId ? '' : '/qapps/Projects/WorkItems/WorkItemDetail?workEffortId=' + encodeURIComponent(entry.workEffortId),
+                    icon: {status: 'sym_o_flag', comment: 'sym_o_chat_bubble', update: 'sym_o_campaign', commit: 'sym_o_commit'}[entry.kind] || 'sym_o_history'}))
+                overview.activityMore = !!out.hasMore
+            })
+        ]]></script></actions>
+    </service>
+
+    <service verb="post" noun="ProjectUpdate">
+        <description>PostUpdate (design-projects.md §4 ProjectOverview): a status update by one who manages the project
+            (mantle.work.ProjectServices.post#ProjectUpdate).</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="healthEnumId" required="true"/>
+            <parameter name="percentComplete"/>
+            <parameter name="body" allow-html="any"/>
+            <parameter name="clientVisible"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: workEffortId, need: 'manage'}).call()
+            if (ec.message.hasError()) return
+            const percent = percentComplete == null || String(percentComplete).trim() === '' ? null : Number(String(percentComplete).trim())
+            if (percent != null && (!Number.isInteger(percent) || percent < 0 || percent > 100)) { ec.message.addError(ec.l10n.localize('The percent complete is a whole number from 0 to 100')); return }
+            ec.service.sync().name('mantle.work.ProjectServices.post#ProjectUpdate').parameters({workEffortId: workEffortId, healthEnumId: healthEnumId,
+                percentComplete: percent, body: body || '', clientVisible: clientVisible === 'Y' ? 'Y' : 'N'}).call()
+            if (ec.message.hasError()) return
+            message = ec.l10n.localize('Status update posted')
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== ProjectTeam ========== -->
+
+    <service verb="get" noun="ProjectTeam">
+        <description>ProjectTeam (design-projects.md §4): the members (the current WorkEffortParty rows in the project roles, not
+            the client's, the vendor's or a team's), the teams (OrgTeam) and the client contacts (Customer, ClientManager,
+            ClientBilling, CustomerBillTo, with their email and whether they have a user), and the roles a member may take
+            (RoleGroupMember RgpProject less the client and vendor roles).</description>
+        <in-parameters><parameter name="workEffortId" required="true"/></in-parameters>
+        <out-parameters>
+            <parameter name="memberList" type="List"/>
+            <parameter name="teamList" type="List"/>
+            <parameter name="clientList" type="List"/>
+            <parameter name="roleOptions" type="List"/>
+            <parameter name="canManage" type="Boolean"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            memberList = []; teamList = []; clientList = []; roleOptions = []
+            const access = ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: workEffortId}).call() || {}
+            if (ec.message.hasError()) return
+            canManage = !!access.canManage
+            const clientRoles = ['Customer', 'CustomerBillTo', 'ClientManager', 'ClientBilling']
+            const other = clientRoles.concat(['Vendor', 'VendorBillFrom', 'OrgTeam'])
+            const roleText = (id) => ec.entity.find('mantle.party.RoleType').condition('roleTypeId', id).useCache(true).one()?.description || id
+            const day = (value) => value == null ? '' : ec.l10n.format(value, 'MMM d, yyyy')
+            for (const row of ec.entity.find('mantle.party.RoleGroupMember').condition('roleGroupEnumId', 'RgpProject').useCache(true).list())
+                if (!other.includes(row.roleTypeId)) roleOptions.push({key: row.roleTypeId, text: roleText(row.roleTypeId)})
+            roleOptions.sort((a, b) => a.text.localeCompare(b.text))
+            for (const row of ec.entity.find('mantle.work.effort.WorkEffortParty').condition('workEffortId', workEffortId)
+                    .condition(ec.entity.conditionFactory.makeConditionDate('fromDate', 'thruDate', null)).orderBy('fromDate').list()) {
+                const party = ec.entity.find('mantle.party.PartyDetail').condition('partyId', row.partyId).one()
+                const name = party ? (party.organizationName || [party.firstName, party.lastName].filter((part) => part).join(' ') || row.partyId) : row.partyId
+                const user = ec.entity.find('moqui.security.UserAccount').condition('partyId', row.partyId).selectField('userId').selectField('username').disableAuthz().list()[0]
+                const entry = {partyId: row.partyId, name: name, roleTypeId: row.roleTypeId, roleText: roleText(row.roleTypeId), fromText: day(row.fromDate),
+                    fromDate: row.fromDate, userId: user?.userId || null, hasUser: !!user, statusText: row.statusId ? (ec.entity.find('moqui.basic.StatusItem')
+                        .condition('statusId', row.statusId).useCache(true).one()?.description || row.statusId) : ''}
+                if (row.roleTypeId === 'Vendor' || row.roleTypeId === 'VendorBillFrom') continue
+                if (row.roleTypeId === 'OrgTeam') teamList.push(entry)
+                else if (clientRoles.includes(row.roleTypeId)) {
+                    const email = ec.entity.find('mantle.party.contact.PartyContactMechInfo').condition('partyId', row.partyId)
+                            .condition('contactMechTypeEnumId', 'CmtEmailAddress').conditionDate('fromDate', 'thruDate', null).list()[0]
+                    entry.email = email?.infoString || ''
+                    entry.signInText = user ? ec.l10n.localize('Has a user') : ''
+                    clientList.push(entry)
+                } else memberList.push(entry)
+            }
+        ]]></script></actions>
+    </service>
+    <service verb="add" noun="ProjectMember">
+        <description>A person or team on a project in a role (a project role, OrgTeam for a team, or a client role for a client
+            contact), by one who manages it (mantle.work.WorkEffortServices.add#WorkEffortParty).</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="partyId" required="true"/>
+            <parameter name="roleTypeId" required="true"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: workEffortId, need: 'manage'}).call()
+            if (ec.message.hasError()) return
+            const inGroup = ec.entity.find('mantle.party.RoleGroupMember').condition('roleGroupEnumId', 'RgpProject').condition('roleTypeId', roleTypeId).useCache(true).one()
+            if (inGroup == null || roleTypeId === 'Vendor' || roleTypeId === 'VendorBillFrom') { ec.message.addError(ec.resource.expand('${roleTypeId} is not a project role', '', {roleTypeId})); return }
+            const party = ec.entity.find('mantle.party.PartyDetail').condition('partyId', partyId).one()
+            if (party == null) { ec.message.addError(ec.resource.expand('Party ${partyId} not found', '', {partyId})); return }
+            ec.service.sync().name('mantle.work.WorkEffortServices.add#WorkEffortParty').parameters({workEffortId: workEffortId, partyId: partyId, roleTypeId: roleTypeId,
+                statusId: ['Customer', 'CustomerBillTo', 'OrgTeam'].includes(roleTypeId) ? null : 'WeptAssigned'}).call()
+            if (ec.message.hasError()) return
+            const name = party.organizationName || [party.firstName, party.lastName].filter((part) => part).join(' ') || partyId
+            const role = ec.entity.find('mantle.party.RoleType').condition('roleTypeId', roleTypeId).useCache(true).one()?.description || roleTypeId
+            message = ec.resource.expand('${name} added as ${role}', '', {name, role})
+        ]]></script></actions>
+    </service>
+    <service verb="end" noun="ProjectMember">
+        <description>Ends a party's role on a project now (thruDate; the history stays), by one who manages it.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="partyId" required="true"/>
+            <parameter name="roleTypeId" required="true"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: workEffortId, need: 'manage'}).call()
+            if (ec.message.hasError()) return
+            ec.service.sync().name('mantle.work.WorkEffortServices.remove#WorkEffortParty').parameters({workEffortId: workEffortId, partyId: partyId, roleTypeId: roleTypeId}).call()
+            if (!ec.message.hasError()) message = ec.l10n.localize('Taken off the project')
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== ProjectSettings ========== -->
+
+    <service verb="get" noun="ProjectSettingsInfo">
+        <description>The values of ProjectSettings' boxes (design-projects.md §4 ProjectSettings): the project's fields
+            (General), its modules (WstModules: backlog, requests, code, docs, time, money, client), its work item settings (the
+            types offered, the work item flow on the project's statusFlowId, the estimate unit, several sprints, new items
+            shared with the client, Fixes keywords, a request completing with its work), its client access settings, whether
+            it is a template, and whether it may be deleted (no work items, time, invoices or commits). The settings come from
+            get#ProjectSettings, so an organization default shows until the project sets its own.</description>
+        <in-parameters><parameter name="workEffortId" required="true"/></in-parameters>
+        <out-parameters><parameter name="info" type="Map"/></out-parameters>
+        <actions><script><![CDATA[
+            info = {}
+            const access = ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: workEffortId}).call() || {}
+            if (ec.message.hasError()) return
+            const project = access.project
+            const out = ec.service.sync().name('mantle.work.ProjectServices.get#ProjectSettings').parameters({workEffortId: workEffortId}).call() || {}
+            const settings = out.settings || {}
+            const day = (value) => value == null ? '' : ec.l10n.format(value, 'yyyy-MM-dd')
+            const cf = ec.entity.conditionFactory
+            const client = Array.from(ec.entity.find('mantle.work.effort.WorkEffortParty').condition('workEffortId', workEffortId).condition('roleTypeId', 'Customer')
+                    .condition(cf.makeConditionDate('fromDate', 'thruDate', null)).list())[0]
+            const clientParty = client ? ec.entity.find('mantle.party.PartyDetail').condition('partyId', client.partyId).one() : null
+            const program = project.parentWorkEffortId ? ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', project.parentWorkEffortId).one() : null
+            const types = ec.service.sync().name('ironstone.ProjectServices.get#WorkItemTypes').parameters({rootWorkEffortId: workEffortId}).call() || {}
+            const itemIds = Array.from(ec.entity.find('mantle.work.effort.WorkEffort').condition('rootWorkEffortId', workEffortId).selectField('workEffortId').limit(5000).list())
+                    .map((row) => row.workEffortId).concat([workEffortId])
+            const hasItems = ec.entity.find('mantle.work.effort.WorkEffort').condition('rootWorkEffortId', workEffortId).condition('workEffortTypeEnumId', 'WetTask').count() > 0
+            const linked = (entityName) => ec.entity.find(entityName).condition('workEffortId', 'in', itemIds).count() > 0
+            const yn = (key) => settings[key] === 'Y' ? 'Y' : 'N'
+            info = {canManage: !!access.canManage, project: project,
+                general: {workEffortId: workEffortId, workEffortName: project.workEffortName || '', purposeEnumId: project.purposeEnumId || '',
+                    priority: project.priority != null ? String(project.priority) : '5', visibilityEnumId: project.visibilityEnumId || '',
+                    clientPartyId: client?.partyId || '', clientName: clientParty ? (clientParty.organizationName || [clientParty.firstName, clientParty.lastName].filter((part) => part).join(' ')) : '',
+                    parentWorkEffortId: project.parentWorkEffortId || '', programName: program ? (program.workEffortName || program.workEffortId) + ' (' + program.workEffortId + ')' : '',
+                    estimatedStartDate: day(project.estimatedStartDate), estimatedCompletionDate: day(project.estimatedCompletionDate), description: project.description || ''},
+                modules: String(settings.WstModules || '').split(',').map((key) => key.trim()).filter((key) => key),
+                workItems: {workItemTypes: Array.from(types.offeredList || []).map((row) => row.enumId), statusFlowId: project.statusFlowId || 'Default',
+                    estimateUnit: settings.WstEstimateUnit || 'hours', severalSprints: yn('WstSeveralSprints'), shareNewItems: yn('WstShareNewItems'),
+                    keywordComplete: settings.WstKeywordComplete === 'N' ? 'N' : 'Y', requestFromWork: settings.WstRequestFromWork === 'N' ? 'N' : 'Y'},
+                clientAccess: {clientSignIn: yn('WstClientSignIn'), shareRepositories: yn('WstShareRepositories')},
+                typeOptions: Array.from(types.typeList || []).map((row) => ({key: row.enumId, text: row.label})),
+                isTemplate: project.isTemplate === 'Y', settingSources: out.settingSources || {},
+                canDelete: !hasItems && !linked('mantle.work.time.TimeEntry') && !linked('mantle.work.effort.WorkEffortInvoice') && !linked('mantle.work.effort.WorkEffortGitCommit')}
+        ]]></script></actions>
+    </service>
+    <service verb="save" noun="ProjectGeneral">
+        <description>ProjectSettings' General box: the project's name, purpose, priority, visibility, client (the Customer
+            role), program (a project that is not this one or under it), dates and description (mantle.work.ProjectServices
+            update#Project), by one who manages it.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="workEffortName" required="true"/>
+            <parameter name="purposeEnumId"/>
+            <parameter name="priority"/>
+            <parameter name="visibilityEnumId"/>
+            <parameter name="clientPartyId"/>
+            <parameter name="parentWorkEffortId"/>
+            <parameter name="estimatedStartDate"/>
+            <parameter name="estimatedCompletionDate"/>
+            <parameter name="description" allow-html="any"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            const access = ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: workEffortId, need: 'manage'}).call() || {}
+            if (ec.message.hasError()) return
+            const dayOf = (text, label) => {
+                const value = text == null ? '' : String(text).trim().substring(0, 10)
+                if (!value) return null
+                if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) { ec.message.addError(ec.resource.expand('${label} is not a date (yyyy-MM-dd)', '', {label})); return null }
+                return ec.l10n.parseTimestamp(value + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS')
+            }
+            const start = dayOf(estimatedStartDate, ec.l10n.localize('The start'))
+            const due = dayOf(estimatedCompletionDate, ec.l10n.localize('The target date'))
+            if (ec.message.hasError()) return
+            const program = parentWorkEffortId ? String(parentWorkEffortId).trim() : ''
+            if (program) {
+                let at = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', program).one()
+                if (at == null || at.workEffortTypeEnumId !== 'WetProject') { ec.message.addError(ec.resource.expand('${program} is not a project', '', {program})); return }
+                for (let depth = 0; at != null && depth < 50; depth++) {
+                    if (at.workEffortId === workEffortId) { ec.message.addError(ec.l10n.localize('A project cannot be under itself or one of its sub-projects')); return }
+                    at = at.parentWorkEffortId ? ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', at.parentWorkEffortId).one() : null
+                }
+            }
+            const name = String(workEffortName).trim()
+            if (!name) { ec.message.addError(ec.l10n.localize('A project needs a name')); return }
+            ec.service.sync().name('mantle.work.ProjectServices.update#Project').parameters({workEffortId: workEffortId, workEffortName: name,
+                purposeEnumId: purposeEnumId || null, priority: priority && /^[1-9]$/.test(String(priority)) ? Number(priority) : null,
+                visibilityEnumId: visibilityEnumId || null, parentWorkEffortId: program || null, estimatedStartDate: start, estimatedCompletionDate: due,
+                description: description || null, clientPartyId: clientPartyId || null}).call()
+            if (!ec.message.hasError()) message = ec.l10n.localize('Project saved')
+        ]]></script></actions>
+    </service>
+    <service verb="save" noun="ProjectSettingValues">
+        <description>ProjectSettings' Modules, Work items and Client access boxes, by one who manages the project: modules (a
+            list or comma text of backlog, requests, code, docs, time, money, client) as WstModules; workItemTypes as
+            WstWorkItemTypes, in their order; the work item flow (Default or WorkEffortDevelopment) on the project's
+            statusFlowId; estimateUnit (hours or points), severalSprints, shareNewItems, keywordComplete, requestFromWork,
+            clientSignIn and shareRepositories (Y or N) as their WorkEffortSettings. Only the values given change.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="box"><description>modules, workItems or clientAccess: an empty modules or types list counts only for its box</description></parameter>
+            <parameter name="modules" type="Object"/>
+            <parameter name="workItemTypes" type="Object"/>
+            <parameter name="statusFlowId"/>
+            <parameter name="estimateUnit"/>
+            <parameter name="severalSprints"/>
+            <parameter name="shareNewItems"/>
+            <parameter name="keywordComplete"/>
+            <parameter name="requestFromWork"/>
+            <parameter name="clientSignIn"/>
+            <parameter name="shareRepositories"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: workEffortId, need: 'manage'}).call()
+            if (ec.message.hasError()) return
+            const listOf = (value) => value == null ? [] : (Array.isArray(value) ? value : (typeof value === 'object' && value.length != null ? Array.from(value) : String(value).split(',')))
+                    .map((part) => String(part).trim()).filter((part) => part)
+            const store = (type, value) => ec.service.sync().name('mantle.work.ProjectServices.store#ProjectSetting').parameters({workEffortId: workEffortId,
+                settingTypeEnumId: type, settingValue: value}).call()
+            if (box === 'modules' || modules != null) {
+                const known = ['backlog', 'requests', 'code', 'docs', 'time', 'money', 'client']
+                const chosen = listOf(modules).filter((key) => known.includes(key))
+                store('WstModules', known.filter((key) => chosen.includes(key)).join(','))
+            }
+            if (box === 'workItems' || workItemTypes != null) {
+                const types = listOf(workItemTypes)
+                const known = Array.from(ec.service.sync().name('ironstone.ProjectServices.get#WorkItemTypes').call()?.typeList || []).map((row) => row.enumId)
+                const unknown = types.filter((id) => !known.includes(id))
+                if (unknown.length) { ec.message.addError(ec.resource.expand('Not a work item type: ${ids}', '', {ids: unknown.join(', ')})); return }
+                if (box === 'workItems' && !types.length) { ec.message.addError(ec.l10n.localize('Offer at least one work item type')); return }
+                if (types.length) store('WstWorkItemTypes', types.join(','))
+            }
+            if (statusFlowId) {
+                if (!['Default', 'WorkEffortDevelopment'].includes(statusFlowId)) { ec.message.addError(ec.resource.expand('${statusFlowId} is not a work item flow', '', {statusFlowId})); return }
+                ec.service.sync().name('update#mantle.work.effort.WorkEffort').parameters({workEffortId: workEffortId, statusFlowId: statusFlowId}).call()
+            }
+            if (estimateUnit) {
+                if (!['hours', 'points'].includes(estimateUnit)) { ec.message.addError(ec.l10n.localize('The estimate unit is hours or points')); return }
+                store('WstEstimateUnit', estimateUnit)
+            }
+            const flags = {severalSprints: 'WstSeveralSprints', shareNewItems: 'WstShareNewItems', keywordComplete: 'WstKeywordComplete',
+                requestFromWork: 'WstRequestFromWork', clientSignIn: 'WstClientSignIn', shareRepositories: 'WstShareRepositories'}
+            const given = {severalSprints, shareNewItems, keywordComplete, requestFromWork, clientSignIn, shareRepositories}
+            for (const [key, type] of Object.entries(flags)) {
+                const value = given[key]
+                if (value == null || value === '') continue
+                store(type, value === 'Y' || value === 'true' || value === true ? 'Y' : 'N')
+            }
+            if (!ec.message.hasError()) message = ec.l10n.localize('Settings saved')
+        ]]></script></actions>
+    </service>
+    <service verb="set" noun="ProjectTemplateFlag">
+        <description>TemplateBox's "this project is a template" (WorkEffort isTemplate), by one who manages it: a template
+            leaves the project lists and is offered in NewProject and Settings/Templates.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="isTemplate" required="true"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: workEffortId, need: 'manage'}).call()
+            if (ec.message.hasError()) return
+            const flag = isTemplate === 'Y' ? 'Y' : 'N'
+            ec.service.sync().name('update#mantle.work.effort.WorkEffort').parameters({workEffortId: workEffortId, isTemplate: flag}).call()
+            if (!ec.message.hasError()) message = flag === 'Y' ? ec.l10n.localize('This project is now a template') : ec.l10n.localize('This project is no longer a template')
+        ]]></script></actions>
+    </service>
+    <service verb="save" noun="ProjectAsTemplate">
+        <description>TemplateBox's and Settings/Templates' "save as template": a copy of the project kept as a template
+            (mantle.work.ProjectServices.create#ProjectTemplate), with a key and a name; or with no project a blank template.
+            For the Projects managers.</description>
+        <in-parameters>
+            <parameter name="baseWorkEffortId"/>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="workEffortName" required="true"/>
+        </in-parameters>
+        <out-parameters><parameter name="templateId"/><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            if (!ec.user.isInGroup('BOSS_PROJECT_MANAGER') && !ec.user.isInGroup('ADMIN')) { ec.message.addError(ec.l10n.localize('Only project managers make templates')); return }
+            if (baseWorkEffortId) {
+                ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: baseWorkEffortId}).call()
+                if (ec.message.hasError()) return
+            }
+            const key = String(workEffortId || '').trim().toUpperCase()
+            if (!/^[A-Z0-9]{1,8}$/.test(key)) { ec.message.addError(ec.l10n.localize('A project key is one to eight letters or digits')); return }
+            const orgId = ec.service.sync().name('ironstone.ProjectServices.get#SettingsOrganization').call()?.organizationPartyId || null
+            ec.service.sync().name('mantle.work.ProjectServices.create#ProjectTemplate').parameters({workEffortId: key, workEffortName: String(workEffortName).trim(),
+                baseWorkEffortId: baseWorkEffortId || null, ownerPartyId: orgId}).call()
+            if (ec.message.hasError()) return
+            templateId = key
+            message = ec.resource.expand('Template ${key} made', '', {key})
+        ]]></script></actions>
+    </service>
+    <service verb="delete" noun="EmptyProject">
+        <description>CloseProject's Delete: a project with no work items, time, invoices or commits linked, with its members,
+            settings, status updates and plan items, by one who manages it.</description>
+        <in-parameters><parameter name="workEffortId" required="true"/></in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            const access = ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: workEffortId, need: 'manage'}).call() || {}
+            if (ec.message.hasError()) return
+            const info = ec.service.sync().name('ironstone.ProjectServices.get#ProjectSettingsInfo').parameters({workEffortId: workEffortId}).call()?.info || {}
+            if (!info.canDelete) { ec.message.addError(ec.l10n.localize('Only a project with no work items, time, invoices or commits is deleted; close or cancel it instead')); return }
+            const name = access.project.workEffortName || workEffortId
+            const ids = Array.from(ec.entity.find('mantle.work.effort.WorkEffort').condition('rootWorkEffortId', workEffortId).selectField('workEffortId').list())
+                    .map((row) => row.workEffortId).concat([workEffortId])
+            for (const entityName of ['mantle.work.effort.WorkEffortSetting', 'mantle.work.effort.WorkEffortUpdate', 'mantle.work.effort.WorkEffortCommEvent',
+                    'mantle.work.effort.WorkEffortGitRepository', 'mantle.work.effort.WorkEffortCategoryAppl'])
+                ec.entity.find(entityName).condition('workEffortId', 'in', ids).deleteAll()
+            ec.entity.find('mantle.work.effort.WorkEffortAssoc').condition('workEffortId', 'in', ids).deleteAll()
+            ec.entity.find('mantle.work.effort.WorkEffortAssoc').condition('toWorkEffortId', 'in', ids).deleteAll()
+            ec.service.sync().name('mantle.work.WorkEffortServices.delete#WorkEffort').parameters({workEffortId: workEffortId, deleteChildWorkEfforts: true,
+                deleteWorkEffortParties: true}).call()
+            if (!ec.message.hasError()) message = ec.resource.expand('${name} deleted', '', {name})
+        ]]></script></actions>
+    </service>
+    <!-- ========== NewProject ========== -->
+
+    <service verb="create" noun="NewProject">
+        <description>NewProject's Start step and QuickCreate's QuickProject (design-projects.md §4 NewProject ProjectStart, §3
+            QuickProject): a project with a key (one to eight letters or digits, upper case, not taken), a name, a purpose
+            (Client Project when a client is given and no purpose), a client (Customer), a manager (ProjectManager; the user
+            by default), dates, a visibility (General, all internal users, by default, impl-projects.md F10; or Work group,
+            members only), a program and a description, owned by the user's internal organization (also its Vendor); from a
+            template (clone#Project with its tree, members and settings; the dates of the copy are cleared) when one is
+            given. The project starts In Planning. For Projects managers (BOSS_PROJECT_MANAGER) and ADMIN only
+            (impl-projects.md F8).</description>
+        <in-parameters>
+            <parameter name="workEffortId"><description>The key; when empty, suggested from the name (the first letters of its words,
+                or the start of a one-word name, with a digit when taken)</description></parameter>
+            <parameter name="workEffortName" required="true"/>
+            <parameter name="purposeEnumId"/>
+            <parameter name="clientPartyId"/>
+            <parameter name="managerPartyId"/>
+            <parameter name="estimatedStartDate"/>
+            <parameter name="estimatedCompletionDate"/>
+            <parameter name="visibilityEnumId" default-value="WevGeneral"/>
+            <parameter name="parentWorkEffortId"/>
+            <parameter name="templateWorkEffortId"/>
+            <parameter name="cloneFromWorkEffortId"><description>ProjectDetail's Clone: a copy of a project the user sees, as from a template</description></parameter>
+            <parameter name="description" allow-html="any"/>
+        </in-parameters>
+        <out-parameters><parameter name="projectId"/><parameter name="url"/><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            if (!ec.user.isInGroup('BOSS_PROJECT_MANAGER') && !ec.user.isInGroup('ADMIN')) {
+                ec.message.addError(ec.l10n.localize('Only project managers make projects'))
+                return
+            }
+            const name = String(workEffortName || '').trim()
+            if (!name) { ec.message.addError(ec.l10n.localize('A project needs a name')); return }
+            const taken = (id) => ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', id).one() != null
+            let key = String(workEffortId || '').trim().toUpperCase()
+            if (!key) {
+                const words = name.toUpperCase().replace(/[^A-Z0-9 ]/g, ' ').split(/\s+/).filter((word) => word)
+                const base = (words.length > 1 ? words.map((word) => word[0]).join('') : (words[0] || 'P')).substring(0, 6) || 'P'
+                key = base
+                for (let n = 2; taken(key) && n < 100; n++) key = base + n
+            }
+            if (!/^[A-Z0-9]{1,8}$/.test(key)) { ec.message.addError(ec.l10n.localize('A project key is one to eight letters or digits')); return }
+            if (taken(key)) { ec.message.addError(ec.resource.expand('The key ${key} is taken', '', {key})); return }
+            if (!['WevGeneral', 'WevWorkGroup', 'WevAllUsers'].includes(visibilityEnumId)) { ec.message.addError(ec.l10n.localize('Choose who sees the project')); return }
+            const dayOf = (text) => {
+                const value = text == null ? '' : String(text).trim().substring(0, 10)
+                if (!value) return null
+                if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) { ec.message.addError(ec.resource.expand('Not a date: ${value}; use yyyy-MM-dd', '', {value})); return null }
+                return ec.l10n.parseTimestamp(value + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS')
+            }
+            const start = dayOf(estimatedStartDate)
+            const due = dayOf(estimatedCompletionDate)
+            if (ec.message.hasError()) return
+            if (start != null && due != null && Number(String(due)) < Number(String(start))) { ec.message.addError(ec.l10n.localize('The target date is before the start')); return }
+            if (parentWorkEffortId) {
+                const program = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', parentWorkEffortId).one()
+                if (program == null || program.workEffortTypeEnumId !== 'WetProject') { ec.message.addError(ec.resource.expand('${parentWorkEffortId} is not a project', '', {parentWorkEffortId})); return }
+            }
+            const me = ec.user.userAccount?.partyId || null
+            const manager = managerPartyId || me
+            const orgId = ec.service.sync().name('ironstone.ProjectServices.get#SettingsOrganization').call()?.organizationPartyId || null
+            const purpose = purposeEnumId || (clientPartyId ? 'WepPrClient' : null)
+            if (cloneFromWorkEffortId) {
+                ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: cloneFromWorkEffortId}).call()
+                if (ec.message.hasError()) return
+            }
+            const baseId = templateWorkEffortId || cloneFromWorkEffortId
+            if (baseId) {
+                const template = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', baseId).one()
+                if (template == null || (templateWorkEffortId && template.isTemplate !== 'Y')) { ec.message.addError(ec.resource.expand('${baseId} is not a template', '', {baseId})); return }
+                ec.service.sync().name('mantle.work.ProjectServices.clone#Project').parameters({baseWorkEffortId: baseId, workEffortId: key,
+                    workEffortName: name, isTemplate: 'N', visibilityEnumId: visibilityEnumId, ownerPartyId: orgId, purposeEnumId: purpose || template.purposeEnumId || null,
+                    estimatedStartDate: start, estimatedCompletionDate: due, parentWorkEffortId: parentWorkEffortId || null,
+                    description: description || template.description || null}).call()
+                if (ec.message.hasError()) return
+                if (orgId) ec.service.sync().name('mantle.work.WorkEffortServices.add#WorkEffortParty').parameters({workEffortId: key, partyId: orgId, roleTypeId: 'Vendor'}).call()
+                if (clientPartyId) ec.service.sync().name('mantle.work.WorkEffortServices.add#WorkEffortParty').parameters({workEffortId: key, partyId: clientPartyId,
+                    roleTypeId: 'Customer'}).call()
+            } else {
+                ec.service.sync().name('mantle.work.ProjectServices.create#Project').parameters({workEffortId: key, workEffortName: name, visibilityEnumId: visibilityEnumId,
+                    ownerPartyId: orgId, vendorPartyId: orgId, clientPartyId: clientPartyId || null, purposeEnumId: purpose,
+                    estimatedStartDate: start, estimatedCompletionDate: due, parentWorkEffortId: parentWorkEffortId || null, description: description || null}).call()
+            }
+            if (ec.message.hasError()) return
+            if (manager) ec.service.sync().name('mantle.work.WorkEffortServices.add#WorkEffortParty').parameters({workEffortId: key, partyId: manager,
+                roleTypeId: 'ProjectManager', statusId: 'WeptAssigned'}).call()
+            if (ec.message.hasError()) return
+            projectId = key
+            url = '/qapps/Projects/Projects/ProjectDetail?workEffortId=' + encodeURIComponent(key)
+            message = ec.resource.expand('Project ${key} made: ${name}', '', {key, name})
+        ]]></script></actions>
+    </service>
+    <service verb="save" noun="ProjectModules">
+        <description>NewProject's Modules and code step (design-projects.md §4 ProjectModulesStep): the modules, the estimate unit
+            and the work item flow (save#ProjectSettingValues); a repository (repositoryChoice none, local or db: a new one,
+            mantle.work.GitServices.create#ProjectRepository with repositoryId, by default the key in lower case; link: an
+            existing one the user may view, add#ProjectRepository); documentation (docsChoice none or db: a wiki space on
+            database files, org.moqui.impl.WikiServices.create#WikiSpace, named in WstDocsWikiSpace; in the repository comes
+            with impl-projects.md P4). By one who manages the project; a repository already linked or a space already set is
+            left as it is.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="modules" type="Object"/>
+            <parameter name="estimateUnit"/>
+            <parameter name="statusFlowId"/>
+            <parameter name="repositoryChoice" default-value="none"/>
+            <parameter name="repositoryId"/>
+            <parameter name="linkRepositoryId"/>
+            <parameter name="docsChoice" default-value="none"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/><parameter name="repositoryId"/><parameter name="wikiSpaceId"/></out-parameters>
+        <actions><script><![CDATA[
+            const access = ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: workEffortId, need: 'manage'}).call() || {}
+            if (ec.message.hasError()) return
+            const project = access.project
+            ec.service.sync().name('ironstone.ProjectServices.save#ProjectSettingValues').parameters({workEffortId: workEffortId, box: 'modules', modules: modules,
+                estimateUnit: estimateUnit || null, statusFlowId: statusFlowId || null}).call()
+            if (ec.message.hasError()) return
+            const parts = [ec.l10n.localize('Modules saved')]
+            if (repositoryChoice === 'local' || repositoryChoice === 'db') {
+                const out = ec.service.sync().name('mantle.work.GitServices.create#ProjectRepository').parameters({workEffortId: workEffortId,
+                    repositoryId: repositoryId ? String(repositoryId).trim() : null, repositoryKind: repositoryChoice, description: project.workEffortName}).call() || {}
+                if (ec.message.hasError()) return
+                repositoryId = out.repositoryId
+                parts.push(ec.resource.expand('repository ${repositoryId} made', '', {repositoryId}))
+            } else if (repositoryChoice === 'link') {
+                if (!linkRepositoryId) { ec.message.addError(ec.l10n.localize('Choose the repository to link')); return }
+                const viewable = ec.service.sync().name('org.moqui.impl.GitServices.find#GitRepositories').parameters({repositoryIdList: [linkRepositoryId]}).call()?.repositoryList || []
+                if (ec.message.hasError()) return
+                if (!Array.from(viewable).length) { ec.message.addError(ec.resource.expand('Repository ${linkRepositoryId} is not available', '', {linkRepositoryId})); return }
+                ec.service.sync().name('mantle.work.GitServices.add#ProjectRepository').parameters({workEffortId: workEffortId, repositoryId: linkRepositoryId}).call()
+                if (ec.message.hasError()) return
+                repositoryId = linkRepositoryId
+                parts.push(ec.resource.expand('repository ${linkRepositoryId} linked', '', {linkRepositoryId}))
+            }
+            if (docsChoice === 'db') {
+                const settings = ec.service.sync().name('mantle.work.ProjectServices.get#ProjectSettings').parameters({workEffortId: workEffortId}).call()?.settings || {}
+                if (settings.WstDocsWikiSpace) wikiSpaceId = settings.WstDocsWikiSpace
+                else {
+                    // a space id is 3 to 8 letters, digits or _, from a letter: the key, else the key with DOCS
+                    const key = /^[A-Z]/.test(workEffortId) ? workEffortId : 'P' + workEffortId
+                    const tries = [key, (key + 'DOCS').substring(0, 8), (key.substring(0, 5) + 'DOC').substring(0, 8), (key.substring(0, 4) + 'WIKI')].filter((id) => id.length >= 3)
+                    const free = tries.find((id) => ec.entity.find('moqui.resource.wiki.WikiSpace').condition('wikiSpaceId', id).one() == null)
+                    if (!free) { ec.message.addError(ec.l10n.localize('No documentation space id is free for this key')); return }
+                    wikiSpaceId = ec.service.sync().name('org.moqui.impl.WikiServices.create#WikiSpace').parameters({wikiSpaceId: free,
+                        description: (project.workEffortName || workEffortId) + ' ' + ec.l10n.localize('documentation')}).call()?.wikiSpaceId
+                    if (ec.message.hasError()) return
+                    ec.service.sync().name('mantle.work.ProjectServices.store#ProjectSetting').parameters({workEffortId: workEffortId,
+                        settingTypeEnumId: 'WstDocsWikiSpace', settingValue: wikiSpaceId}).call()
+                    if (ec.message.hasError()) return
+                    parts.push(ec.resource.expand('documentation space ${wikiSpaceId} made', '', {wikiSpaceId}))
+                }
+            }
+            message = parts.join(', ')
+        ]]></script></actions>
+    </service>
+    <service verb="save" noun="ProjectMoney">
+        <description>NewProject's Money step (design-projects.md §4 ProjectMoneyStep): the billing basis (WstBillingBasis:
+            TimeAndMaterials, FixedPrice, Milestones or NotBilled), the hours budget (totalTimeAllowed) and the client budget
+            (totalClientCostAllowed, in costUomId), by one who manages the project. An empty budget clears it.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="billingBasis"/>
+            <parameter name="totalTimeAllowed"/>
+            <parameter name="totalClientCostAllowed"/>
+            <parameter name="costUomId"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            const access = ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: workEffortId, need: 'manage'}).call() || {}
+            if (ec.message.hasError()) return
+            const amount = (value, label) => {
+                const text = value == null ? '' : String(value).trim().replace(/,/g, '')
+                if (!text) return null
+                if (!/^\d+(\.\d+)?$/.test(text)) { ec.message.addError(ec.resource.expand('${label} is not a number', '', {label})); return null }
+                return Number(text)
+            }
+            const hours = amount(totalTimeAllowed, ec.l10n.localize('The hours budget'))
+            const client = amount(totalClientCostAllowed, ec.l10n.localize('The client budget'))
+            if (ec.message.hasError()) return
+            if (billingBasis && !['TimeAndMaterials', 'FixedPrice', 'Milestones', 'NotBilled'].includes(billingBasis)) {
+                ec.message.addError(ec.resource.expand('${billingBasis} is not a billing basis', '', {billingBasis})); return }
+            const fields = {workEffortId: workEffortId, totalTimeAllowed: hours, totalClientCostAllowed: client, timeUomId: access.project.timeUomId || 'TF_hr'}
+            if (client != null) fields.costUomId = costUomId || access.project.costUomId || ec.user.getPreference('CurrencyDefault') || 'USD'
+            ec.service.sync().name('update#mantle.work.effort.WorkEffort').parameters(fields).call()
+            if (billingBasis) ec.service.sync().name('mantle.work.ProjectServices.store#ProjectSetting').parameters({workEffortId: workEffortId,
+                settingTypeEnumId: 'WstBillingBasis', settingValue: billingBasis}).call()
+            if (!ec.message.hasError()) message = ec.l10n.localize('Budget saved')
+        ]]></script></actions>
+    </service>
+    <service verb="get" noun="ProjectRates">
+        <description>The rates scoped to a project (RateAmount with its workEffortId, current and coming), for those who manage
+            it: purpose, the person, work type or position class, the amount and the dates.</description>
+        <in-parameters><parameter name="workEffortId" required="true"/></in-parameters>
+        <out-parameters><parameter name="rateList" type="List"/></out-parameters>
+        <actions><script><![CDATA[
+            rateList = []
+            ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: workEffortId, need: 'manage'}).call()
+            if (ec.message.hasError()) return
+            const enumText = (id) => id ? (ec.entity.find('moqui.basic.Enumeration').condition('enumId', id).useCache(true).one()?.description || id) : ''
+            for (const row of ec.entity.find('mantle.humanres.rate.RateAmount').condition('workEffortId', workEffortId)
+                    .condition(ec.entity.conditionFactory.makeCondition('thruDate', 'greater-than', ec.user.nowTimestamp, true)).orderBy('ratePurposeEnumId').orderBy('fromDate').list()) {
+                const party = row.partyId ? ec.entity.find('mantle.party.PartyDetail').condition('partyId', row.partyId).one() : null
+                const position = row.emplPositionClassId ? ec.entity.find('mantle.humanres.position.EmplPositionClass').condition('emplPositionClassId', row.emplPositionClassId).one() : null
+                rateList.push({rateAmountId: row.rateAmountId, purposeText: enumText(row.ratePurposeEnumId),
+                    appliesText: [party ? (party.organizationName || [party.firstName, party.lastName].filter((part) => part).join(' ')) : '', enumText(row.workTypeEnumId),
+                        position?.title || ''].filter((part) => part).join(' · ') || ec.l10n.localize('Everyone'),
+                    amountText: ec.l10n.formatCurrency(row.rateAmount, row.rateCurrencyUomId || 'USD') + ' / h',
+                    fromText: row.fromDate != null ? ec.l10n.format(row.fromDate, 'MMM d, yyyy') : '', thruText: row.thruDate != null ? ec.l10n.format(row.thruDate, 'MMM d, yyyy') : ''})
+            }
+        ]]></script></actions>
+    </service>
+    <service verb="add" noun="ProjectRate">
+        <description>A rate scoped to a project (mantle.humanres.RateServices.create#RateAmount with the project's workEffortId,
+            from now): client billing (RaprClient) or worker pay (RaprVendor), for a person, a work type or a position class,
+            or everyone on the project; by one who manages it.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="ratePurposeEnumId" default-value="RaprClient"/>
+            <parameter name="partyId"/>
+            <parameter name="workTypeEnumId"/>
+            <parameter name="emplPositionClassId"/>
+            <parameter name="rateAmount" required="true"/>
+            <parameter name="rateCurrencyUomId"/>
+        </in-parameters>
+        <out-parameters><parameter name="rateAmountId"/><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            const access = ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: workEffortId, need: 'manage'}).call() || {}
+            if (ec.message.hasError()) return
+            if (!['RaprClient', 'RaprVendor'].includes(ratePurposeEnumId)) { ec.message.addError(ec.l10n.localize('A rate is for client billing or worker pay')); return }
+            const text = String(rateAmount).trim().replace(/,/g, '')
+            if (!/^\d+(\.\d+)?$/.test(text)) { ec.message.addError(ec.l10n.localize('The rate is a number')); return }
+            rateAmountId = ec.service.sync().name('mantle.humanres.RateServices.create#RateAmount').parameters({workEffortId: workEffortId, ratePurposeEnumId: ratePurposeEnumId,
+                rateTypeEnumId: 'RatpStandard', partyId: partyId || null, workTypeEnumId: workTypeEnumId || null, emplPositionClassId: emplPositionClassId || null,
+                rateAmount: Number(text), rateCurrencyUomId: rateCurrencyUomId || access.project.costUomId || 'USD', timePeriodUomId: 'TF_hr',
+                fromDate: ec.user.nowTimestamp}).call()?.rateAmountId
+            if (!ec.message.hasError()) message = ec.l10n.localize('Rate added')
+        ]]></script></actions>
+    </service>
+    <service verb="end" noun="ProjectRate">
+        <description>Ends a project's rate now (thruDate), by one who manages the project.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="rateAmountId" required="true"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: workEffortId, need: 'manage'}).call()
+            if (ec.message.hasError()) return
+            const rate = ec.entity.find('mantle.humanres.rate.RateAmount').condition('rateAmountId', rateAmountId).one()
+            if (rate == null || rate.workEffortId !== workEffortId) { ec.message.addError(ec.resource.expand('Rate ${rateAmountId} is not one of this project', '', {rateAmountId})); return }
+            ec.service.sync().name('update#mantle.humanres.rate.RateAmount').parameters({rateAmountId: rateAmountId, thruDate: ec.user.nowTimestamp}).call()
+            if (!ec.message.hasError()) message = ec.l10n.localize('Rate ended')
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== Home ========== -->
+
+    <service verb="get" noun="ProjectsHome">
+        <description>Projects Home (design-projects.md §3 Home) for the team and the managers: the counters
+            (mantle.work.ProjectServices.get#ProjectHomeCounts, the managers' with managers), my next work items (the open items
+            assigned to me, by due date then priority, ten; WorkItemServices find#WorkItems list mine), what changed lately in
+            my projects (get#ProjectActivity of up to six of them, merged, ten), and my projects (the managers' those they
+            manage, else those they are on; decorated, twelve). firstRun when the user sees no project. Each part stands
+            alone: one that fails is logged and left empty. The timer strip (impl-projects.md P6), the reviews waiting (P3b),
+            the approvals (P6, P7) and the charts (P9) come with their phases.</description>
+        <out-parameters><parameter name="home" type="Map"/></out-parameters>
+        <actions><script><![CDATA[
+            const managers = ec.user.isInGroup('BOSS_PROJECT_MANAGER') || ec.user.isInGroup('ADMIN')
+            home = {isManager: managers, counts: {}, atRiskProjectIds: [], workItemList: [], activityList: [], projectList: [], firstRun: false, failedParts: []}
+            const part = (name, run) => {
+                ec.message.pushErrors()
+                try { run() } catch (err) {
+                    home.failedParts.push(name)
+                    ec.logger.error(`Projects home: ${name} failed and is left out: ${err && err.message ? err.message : err}`)
+                } finally {
+                    if (ec.message.hasError()) { home.failedParts.push(name); ec.logger.warn(`Projects home, ${name}: ${ec.message.getErrorsString()}`) }
+                    ec.message.clearErrors(); ec.message.popErrors()
+                }
+            }
+            const vis = ec.service.sync().name('mantle.work.ProjectServices.get#VisibleProjectInfo').call() || {}
+            home.firstRun = !vis.allProjects && !Array.from(vis.visibleProjectIds || []).length
+            part('counts', () => {
+                const out = ec.service.sync().name('mantle.work.ProjectServices.get#ProjectHomeCounts').parameters({managers: managers}).call() || {}
+                home.counts = out.counts || {}
+                home.atRiskProjectIds = Array.from(out.atRiskProjectIds || [])
+            })
+            part('workItems', () => {
+                const out = ec.service.sync().name('ironstone.WorkItemServices.find#WorkItems').parameters({list: 'mine', orderByField: 'estimatedCompletionDate',
+                    pageSize: 40, withCounts: false}).call() || {}
+                // by due date, those with none last, then priority
+                const rows = Array.from(out.rowList || [])
+                const due = (row) => row.estimatedCompletionDate == null ? Number.MAX_SAFE_INTEGER : Number(String(row.estimatedCompletionDate))
+                rows.sort((a, b) => due(a) - due(b) || Number(a.priority ?? 5) - Number(b.priority ?? 5))
+                home.workItemList = rows.slice(0, 10)
+            })
+            const projectIds = (() => {
+                const managed = Array.from(vis.managedProjectIds || [])
+                const member = Array.from(vis.memberProjectIds || [])
+                return managers && managed.length ? managed : member
+            })()
+            const open = projectIds.length ? Array.from(ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', 'in', projectIds)
+                    .condition('workEffortTypeEnumId', 'WetProject').condition('statusId', 'not-in', ['WeClosed', 'WeCancelled'])
+                    .condition(ec.entity.conditionFactory.makeCondition('isTemplate', 'not-equals', 'Y', true)).orderBy('priority').orderBy('workEffortName').limit(12).list())
+                    .map((row) => row.getMap()) : []
+            part('activity', () => {
+                const entries = []
+                for (const project of open.slice(0, 6)) {
+                    const out = ec.service.sync().name('mantle.work.ProjectServices.get#ProjectActivity').parameters({workEffortId: project.workEffortId, pageSize: 10}).call() || {}
+                    for (const entry of Array.from(out.activityList || [])) entries.push(Object.assign({}, entry, {projectId: project.workEffortId,
+                        projectName: project.workEffortName || project.workEffortId}))
+                }
+                entries.sort((a, b) => b.date - a.date)
+                home.activityList = entries.slice(0, 10).map((entry) => Object.assign(entry, {whenText: entry.date ? ec.l10n.format(new Date(entry.date), 'MMM d, h:mm a') : '',
+                    url: entry.workEffortId === entry.projectId ? '/qapps/Projects/Projects/ProjectDetail?workEffortId=' + encodeURIComponent(entry.projectId)
+                        : '/qapps/Projects/WorkItems/WorkItemDetail?workEffortId=' + encodeURIComponent(entry.workEffortId),
+                    icon: {status: 'sym_o_flag', comment: 'sym_o_chat_bubble', update: 'sym_o_campaign', commit: 'sym_o_commit'}[entry.kind] || 'sym_o_history'}))
+            })
+            part('projects', () => {
+                home.projectList = ec.service.sync().name('ironstone.ProjectServices.decorate#ProjectRows').parameters({projectList: open, withMoney: managers}).call()?.rowList || []
+            })
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== The app settings (Projects/Settings) ========== -->
+
+    <service verb="get" noun="SettingsOrganization">
+        <description>The organization whose Projects settings the user sees and changes: the active organization, else the
+            first of the user's organizations (get#VisibleProjectInfo orgIds).</description>
+        <out-parameters><parameter name="organizationPartyId"/><parameter name="organizationName"/></out-parameters>
+        <actions><script><![CDATA[
+            const vis = ec.service.sync().name('mantle.work.ProjectServices.get#VisibleProjectInfo').call() || {}
+            organizationPartyId = ec.user.context?.activeOrgId || Array.from(vis.orgIds || [])[0] || null
+            if (organizationPartyId) {
+                const party = ec.entity.find('mantle.party.PartyDetail').condition('partyId', organizationPartyId).one()
+                organizationName = party?.organizationName || organizationPartyId
+            }
+        ]]></script></actions>
+    </service>
+    <service verb="check" noun="SettingsManager" allow-remote="false">
+        <description>A Projects settings change is for the Projects managers and ADMIN; others get an error.</description>
+        <actions><script><![CDATA[
+            if (!ec.user.isInGroup('BOSS_PROJECT_MANAGER') && !ec.user.isInGroup('ADMIN')) ec.message.addError(ec.l10n.localize('Only project managers change the Projects settings'))
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="WorkItemTypes">
+        <description>
+            The work item types (design-projects.md §12 WorkItemTypes): the purposes a work item may take (WorkEffortPurpose
+            under WetTask, not To Do, Communication or Placeholder, and Support, Research, Development and Deployment), each
+            with its label, its icon (the organization's choice, else the standard one) and whether it is offered, with its
+            place. The offered types are the project's WstWorkItemTypes when rootWorkEffortId is given (its own, else the
+            organization's), else the organization's ProjWorkItemTypes offered; with no setting Task, Bug Fix, New Feature,
+            Feature Enhancement, Document and Support. offeredList is the offered types in order.
+        </description>
+        <in-parameters><parameter name="rootWorkEffortId"/></in-parameters>
+        <out-parameters>
+            <parameter name="typeList" type="List"/>
+            <parameter name="offeredList" type="List"/>
+            <parameter name="organizationPartyId"/>
+            <parameter name="fromProject" type="Boolean"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            typeList = []; offeredList = []; fromProject = false
+            const icons = {WepTask: 'sym_o_task_alt', WepFix: 'sym_o_bug_report', WepNewFeature: 'sym_o_new_releases', WepFeatureEnhance: 'sym_o_trending_up',
+                WepFeatureTest: 'sym_o_science', WepDocument: 'sym_o_description', WepSupport: 'sym_o_support_agent', WepResearch: 'sym_o_travel_explore',
+                WepDeployment: 'sym_o_rocket_launch', WepDevelopment: 'sym_o_code'}
+            const defaults = ['WepTask', 'WepFix', 'WepNewFeature', 'WepFeatureEnhance', 'WepDocument', 'WepSupport']
+            organizationPartyId = ec.service.sync().name('ironstone.ProjectServices.get#SettingsOrganization').call()?.organizationPartyId || null
+            let appSetting = {}
+            if (organizationPartyId) {
+                const row = ec.entity.find('mantle.party.PartySetting').condition('partyId', organizationPartyId).condition('partySettingTypeId', 'ProjWorkItemTypes').one()
+                if (row?.settingValue) {
+                    try { const parsed = JSON.parse(row.settingValue); if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) appSetting = parsed }
+                    catch (err) { ec.logger.error(`Work item types of ${organizationPartyId}: the ProjWorkItemTypes setting is not JSON, skipped: ${err}`) }
+                }
+            }
+            const chosenIcons = appSetting.icons && typeof appSetting.icons === 'object' ? appSetting.icons : {}
+            let offered = null
+            if (rootWorkEffortId) {
+                const value = ec.service.sync().name('mantle.work.ProjectServices.get#ProjectSettings').parameters({workEffortId: rootWorkEffortId}).call()?.settings?.WstWorkItemTypes
+                if (value) { offered = String(value).split(',').map((id) => id.trim()).filter((id) => id); fromProject = true }
+            }
+            if (offered == null && appSetting.offered) offered = String(appSetting.offered).split(',').map((id) => id.trim()).filter((id) => id)
+            if (offered == null) offered = defaults
+            const candidates = Array.from(ec.entity.find('moqui.basic.Enumeration').condition('enumTypeId', 'WorkEffortPurpose').useCache(true).list())
+                    .filter((row) => (row.parentEnumId === 'WetTask' && !['WepToDo', 'WepCommunication', 'WepPlaceholder'].includes(row.enumId))
+                        || ['WepSupport', 'WepResearch', 'WepDevelopment', 'WepDeployment'].includes(row.enumId))
+            for (const row of candidates) {
+                const at = offered.indexOf(row.enumId)
+                typeList.push({enumId: row.enumId, label: row.description || row.enumId, icon: chosenIcons[row.enumId] || icons[row.enumId] || 'sym_o_task_alt',
+                    offered: at >= 0, sequence: at >= 0 ? at + 1 : null, isOwn: !icons[row.enumId] && row.enumId.startsWith('WepOrg')})
+            }
+            typeList.sort((a, b) => (a.offered === b.offered ? 0 : a.offered ? -1 : 1) || (a.sequence ?? 0) - (b.sequence ?? 0) || a.label.localeCompare(b.label))
+            offeredList = offered.map((id) => typeList.find((row) => row.enumId === id)).filter((row) => row)
+        ]]></script></actions>
+    </service>
+    <service verb="store" noun="WorkItemTypes">
+        <description>The organization's work item types (PartySetting ProjWorkItemTypes, a JSON object: offered, the types in
+            order as a comma list; icons, the icon chosen for a type when it is not the standard one). offered a list or
+            comma text; icons a map of enumId to a Material Symbols name. For the Projects managers.</description>
+        <in-parameters>
+            <parameter name="offered" type="Object"/>
+            <parameter name="icons" type="Map"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.ProjectServices.check#SettingsManager').call()
+            if (ec.message.hasError()) return
+            const info = ec.service.sync().name('ironstone.ProjectServices.get#WorkItemTypes').call() || {}
+            const orgId = info.organizationPartyId
+            if (!orgId) { ec.message.addError(ec.l10n.localize('You belong to no organization, so there is nowhere to keep the setting')); return }
+            const known = Array.from(info.typeList || []).map((row) => row.enumId)
+            const list = (offered == null ? Array.from(info.offeredList || []).map((row) => row.enumId) : (Array.isArray(offered) ? offered : (typeof offered === 'object' && offered.length != null
+                    ? Array.from(offered) : String(offered).split(',')))).map((id) => String(id).trim()).filter((id) => id)
+            const unknown = list.filter((id) => !known.includes(id))
+            if (unknown.length) { ec.message.addError(ec.resource.expand('Not a work item type: ${ids}', '', {ids: unknown.join(', ')})); return }
+            if (!list.length) { ec.message.addError(ec.l10n.localize('Offer at least one work item type')); return }
+            let current = {}
+            const row = ec.entity.find('mantle.party.PartySetting').condition('partyId', orgId).condition('partySettingTypeId', 'ProjWorkItemTypes').one()
+            if (row?.settingValue) { try { current = JSON.parse(row.settingValue) || {} } catch (err) { current = {} } }
+            const value = {offered: Array.from(new Set(list)).join(',')}
+            const iconMap = Object.assign({}, current.icons || {})
+            if (icons) for (const [id, icon] of Object.entries(icons)) {
+                if (!known.includes(id)) continue
+                if (icon && !/^sym_o_[a-z0-9_]+$/.test(String(icon))) { ec.message.addError(ec.resource.expand('${icon} is not an icon name (sym_o_...)', '', {icon})); return }
+                if (icon) iconMap[id] = String(icon); else delete iconMap[id]
+            }
+            if (Object.keys(iconMap).length) value.icons = iconMap
+            ec.service.sync().name('store#mantle.party.PartySetting').parameters({partyId: orgId, partySettingTypeId: 'ProjWorkItemTypes', settingValue: JSON.stringify(value)}).call()
+            if (!ec.message.hasError()) message = ec.l10n.localize('Work item types saved')
+        ]]></script></actions>
+    </service>
+    <service verb="create" noun="WorkItemType">
+        <description>WorkItemTypes' NewType: a type of the organization's own, an Enumeration of WorkEffortPurpose under WetTask
+            (id WepOrg and a number) with its label, offered at the end with its icon. For the Projects managers.</description>
+        <in-parameters>
+            <parameter name="label" required="true"/>
+            <parameter name="icon"/>
+        </in-parameters>
+        <out-parameters><parameter name="enumId"/><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.ProjectServices.check#SettingsManager').call()
+            if (ec.message.hasError()) return
+            const name = String(label).trim()
+            if (!name) { ec.message.addError(ec.l10n.localize('A type needs a label')); return }
+            const info = ec.service.sync().name('ironstone.ProjectServices.get#WorkItemTypes').call() || {}
+            if (Array.from(info.typeList || []).some((row) => String(row.label).toLowerCase() === name.toLowerCase())) {
+                ec.message.addError(ec.resource.expand('There is a type ${name} already', '', {name})); return }
+            enumId = 'WepOrg' + ec.entity.sequencedIdPrimary('moqui.basic.Enumeration.WepOrg', null, null)
+            ec.service.sync().name('create#moqui.basic.Enumeration').parameters({enumId: enumId, enumTypeId: 'WorkEffortPurpose', parentEnumId: 'WetTask',
+                description: name}).call()
+            if (ec.message.hasError()) return
+            ec.service.sync().name('ironstone.ProjectServices.store#WorkItemTypes').parameters({offered: Array.from(info.offeredList || []).map((row) => row.enumId).concat([enumId]),
+                icons: icon ? Object.fromEntries([[enumId, icon]]) : null}).call()
+            if (!ec.message.hasError()) message = ec.resource.expand('Type ${name} added', '', {name})
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="Workflows">
+        <description>Workflows (design-projects.md §12): the flows of projects and work items (Default and
+            WorkEffortDevelopment, and any other flow of WorkEffort statuses) with the projects using each as their work
+            item flow; the transitions of one flow between WorkEffort statuses (from, to, name); and the WorkEffort statuses
+            with their sequence and color (StatusItem statusColor, else the guessed one).</description>
+        <in-parameters><parameter name="statusFlowId" default-value="WorkEffortDevelopment"/></in-parameters>
+        <out-parameters>
+            <parameter name="flowList" type="List"/>
+            <parameter name="transitionList" type="List"/>
+            <parameter name="statusList" type="List"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const statuses = Array.from(ec.entity.find('moqui.basic.StatusItem').condition('statusTypeId', 'WorkEffort').orderBy('sequenceNum').list())
+            const ids = statuses.map((row) => row.statusId)
+            const colors = ec.service.sync().name('org.moqui.impl.StatusServices.get#StatusColors').parameters({statusIdList: ids}).call()?.colors || {}
+            const text = (id) => statuses.find((row) => row.statusId === id)?.description || id
+            statusList = statuses.map((row) => ({statusId: row.statusId, description: row.description || row.statusId, sequenceNum: row.sequenceNum,
+                statusColor: row.statusColor || '', colorShown: colors[row.statusId] || 'grey-7'}))
+            const flowIds = new Set(['Default', 'WorkEffortDevelopment'])
+            for (const row of ec.entity.find('moqui.basic.StatusFlowTransition').condition('statusId', 'in', ids).selectField('statusFlowId').distinct(true).list()) flowIds.add(row.statusFlowId)
+            flowList = []
+            for (const id of flowIds) {
+                const flow = ec.entity.find('moqui.basic.StatusFlow').condition('statusFlowId', id).one()
+                if (flow == null) continue
+                flowList.push({statusFlowId: id, description: flow.description || id, projectCount: ec.entity.find('mantle.work.effort.WorkEffort')
+                    .condition('workEffortTypeEnumId', 'WetProject').condition('statusFlowId', id).count(),
+                    transitionCount: ec.entity.find('moqui.basic.StatusFlowTransition').condition('statusFlowId', id).condition('statusId', 'in', ids).count()})
+            }
+            flowList.sort((a, b) => (a.statusFlowId === 'Default' ? -1 : b.statusFlowId === 'Default' ? 1 : a.statusFlowId.localeCompare(b.statusFlowId)))
+            transitionList = Array.from(ec.entity.find('moqui.basic.StatusFlowTransition').condition('statusFlowId', statusFlowId).condition('statusId', 'in', ids)
+                    .condition('toStatusId', 'in', ids).list()).map((row) => ({statusFlowId: row.statusFlowId, statusId: row.statusId, toStatusId: row.toStatusId,
+                        fromText: text(row.statusId), toText: text(row.toStatusId), transitionName: row.transitionName || '', fromSeq: Number(String(statuses.find((s) => s.statusId === row.statusId)?.sequenceNum ?? 0))}))
+                    .sort((a, b) => a.fromSeq - b.fromSeq || a.toText.localeCompare(b.toText))
+        ]]></script></actions>
+    </service>
+    <service verb="store" noun="FlowTransition">
+        <description>Adds or renames a move of a flow between WorkEffort statuses (StatusFlowTransition), or with remove Y
+            takes it out. For the Projects managers.</description>
+        <in-parameters>
+            <parameter name="statusFlowId" required="true"/>
+            <parameter name="statusId" required="true"/>
+            <parameter name="toStatusId" required="true"/>
+            <parameter name="transitionName"/>
+            <parameter name="remove"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.ProjectServices.check#SettingsManager').call()
+            if (ec.message.hasError()) return
+            const status = (id) => ec.entity.find('moqui.basic.StatusItem').condition('statusId', id).one()
+            const from = status(statusId), to = status(toStatusId)
+            if (from?.statusTypeId !== 'WorkEffort' || to?.statusTypeId !== 'WorkEffort') { ec.message.addError(ec.l10n.localize('A work flow moves between work statuses')); return }
+            if (statusId === toStatusId) { ec.message.addError(ec.l10n.localize('A move goes to another status')); return }
+            if (ec.entity.find('moqui.basic.StatusFlow').condition('statusFlowId', statusFlowId).one() == null) { ec.message.addError(ec.resource.expand('No flow ${statusFlowId}', '', {statusFlowId})); return }
+            const pk = {statusFlowId: statusFlowId, statusId: statusId, toStatusId: toStatusId}
+            const existing = ec.entity.find('moqui.basic.StatusFlowTransition').condition(pk).one()
+            if (remove === 'Y') {
+                if (existing != null) existing.delete()
+                message = ec.resource.expand('${from} to ${to} taken out', '', {from: from.description, to: to.description})
+                return
+            }
+            const name = String(transitionName || '').trim() || to.description
+            ec.service.sync().name('store#moqui.basic.StatusFlowTransition').parameters(Object.assign({transitionName: name}, pk)).call()
+            if (!ec.message.hasError()) message = ec.resource.expand('${from} to ${to}: ${name}', '', {from: from.description, to: to.description, name})
+        ]]></script></actions>
+    </service>
+    <service verb="update" noun="WorkStatus">
+        <description>A WorkEffort status's description, sequence or color (statusColor: grey-7, primary, warning, positive,
+            negative or info; empty for the guessed one). For the Projects managers.</description>
+        <in-parameters>
+            <parameter name="statusId" required="true"/>
+            <parameter name="description"/>
+            <parameter name="sequenceNum"/>
+            <parameter name="statusColor"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.ProjectServices.check#SettingsManager').call()
+            if (ec.message.hasError()) return
+            const status = ec.entity.find('moqui.basic.StatusItem').condition('statusId', statusId).one()
+            if (status?.statusTypeId !== 'WorkEffort') { ec.message.addError(ec.resource.expand('${statusId} is not a work status', '', {statusId})); return }
+            if (statusColor && !['grey-7', 'primary', 'warning', 'positive', 'negative', 'info'].includes(statusColor)) {
+                ec.message.addError(ec.resource.expand('${statusColor} is not a status color', '', {statusColor})); return }
+            const fields = {statusId: statusId, statusColor: statusColor || null}
+            if (description != null && String(description).trim()) fields.description = String(description).trim()
+            if (sequenceNum != null && String(sequenceNum).trim() !== '') {
+                if (!/^\d{1,4}$/.test(String(sequenceNum).trim())) { ec.message.addError(ec.l10n.localize('The sequence is a whole number')); return }
+                fields.sequenceNum = Number(String(sequenceNum).trim())
+            }
+            ec.service.sync().name('update#moqui.basic.StatusItem').parameters(fields).call()
+            if (!ec.message.hasError()) message = ec.resource.expand('${name} saved', '', {name: fields.description || status.description})
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="Labels">
+        <description>Labels (design-projects.md §12): the organization's labels (WorkEffortCategory WcatLabel, owned by it or by
+            no one) by name, each with its color and the count of work items that have it.</description>
+        <out-parameters><parameter name="labelList" type="List"/><parameter name="organizationPartyId"/></out-parameters>
+        <actions><script><![CDATA[
+            labelList = []
+            organizationPartyId = ec.service.sync().name('ironstone.ProjectServices.get#SettingsOrganization').call()?.organizationPartyId || null
+            const cf = ec.entity.conditionFactory
+            const owners = [cf.makeCondition('ownerPartyId', 'is-null', null)].concat(organizationPartyId ? [cf.makeCondition('ownerPartyId', 'equals', organizationPartyId)] : [])
+            for (const row of ec.entity.find('mantle.work.effort.WorkEffortCategory').condition('categoryTypeEnumId', 'WcatLabel').condition(cf.makeCondition(owners, 'or'))
+                    .orderBy('description').limit(500).list())
+                labelList.push({workEffortCategoryId: row.workEffortCategoryId, description: row.description || row.workEffortCategoryId, colorName: row.colorName || 'grey',
+                    itemCount: ec.entity.find('mantle.work.effort.WorkEffortCategoryAppl').condition('workEffortCategoryId', row.workEffortCategoryId).count()})
+        ]]></script></actions>
+    </service>
+    <service verb="change" noun="Label">
+        <description>The Labels page's changes, for the Projects managers, on the organization's labels: action create
+            (description, colorName), update (workEffortCategoryId, description, colorName), delete (workEffortCategoryId) or
+            merge (fromCategoryId into intoCategoryId), through the mantle.work.TaskServices label services.</description>
+        <in-parameters>
+            <parameter name="action" required="true"/>
+            <parameter name="workEffortCategoryId"/>
+            <parameter name="description"/>
+            <parameter name="colorName"/>
+            <parameter name="fromCategoryId"/>
+            <parameter name="intoCategoryId"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.ProjectServices.check#SettingsManager').call()
+            if (ec.message.hasError()) return
+            const info = ec.service.sync().name('ironstone.ProjectServices.get#Labels').call() || {}
+            const mine = new Set(Array.from(info.labelList || []).map((row) => row.workEffortCategoryId))
+            const check = (id) => { if (!mine.has(id)) ec.message.addError(ec.resource.expand('${id} is not one of your labels', '', {id})); return mine.has(id) }
+            const T = 'mantle.work.TaskServices.'
+            if (action === 'create') {
+                ec.service.sync().name(T + 'create#Label').parameters({description: description || '', colorName: colorName || 'grey', ownerPartyId: info.organizationPartyId}).call()
+                if (!ec.message.hasError()) message = ec.resource.expand('Label ${description} added', '', {description})
+            } else if (action === 'update') {
+                if (!check(workEffortCategoryId)) return
+                ec.service.sync().name(T + 'update#Label').parameters({workEffortCategoryId, description: description ?? null, colorName: colorName || null}).call()
+                if (!ec.message.hasError()) message = ec.l10n.localize('Label saved')
+            } else if (action === 'delete') {
+                if (!check(workEffortCategoryId)) return
+                const out = ec.service.sync().name(T + 'delete#Label').parameters({workEffortCategoryId}).call() || {}
+                if (!ec.message.hasError()) message = ec.resource.expand('Label deleted; taken off ${count} work items', '', {count: out.itemCount || 0})
+            } else if (action === 'merge') {
+                if (!check(fromCategoryId) || !check(intoCategoryId)) return
+                const out = ec.service.sync().name(T + 'merge#Labels').parameters({fromCategoryId, intoCategoryId}).call() || {}
+                if (!ec.message.hasError()) message = ec.resource.expand('Labels merged; ${count} work items moved', '', {count: out.itemCount || 0})
+            } else ec.message.addError(ec.resource.expand('No label action ${action}', '', {action}))
+        ]]></script></actions>
+    </service>
+</services>

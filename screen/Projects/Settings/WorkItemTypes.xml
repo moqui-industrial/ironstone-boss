@@ -12,10 +12,101 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for work item types settings (design-projects.md §12 WorkItemTypes; impl-projects.md P2). -->
+<!-- WorkItemTypes (design-projects.md §12 WorkItemTypes; style-guide §3.9 Settings): the organization's work item types (PartySetting
+    ProjWorkItemTypes: the types offered in their order and the icons chosen), each type's icon, label, whether it is offered and
+    its place (Offer or Stop offering, Up and Down, Icon), and NewType: a type of the organization's own (a WorkEffortPurpose under
+    WetTask). A project offers these unless it chooses its own in its settings (WstWorkItemTypes); QuickCreate and the WorkItems
+    quick add offer them. Service: ironstone.ProjectServices get#WorkItemTypes, store#WorkItemTypes, create#WorkItemType. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Work item types" default-menu-index="1">
+
+    <!-- a change of the offered list: offer or stop offering a type, move it up or down, or its icon -->
+    <transition name="changeType">
+        <actions><script><![CDATA[
+            const info = ec.service.sync().name('ironstone.ProjectServices.get#WorkItemTypes').call() || {}
+            const offered = Array.from(info.offeredList || []).map((row) => row.enumId)
+            const at = offered.indexOf(enumId)
+            if (change === 'offer' && at < 0) offered.push(enumId)
+            else if (change === 'stop' && at >= 0) offered.splice(at, 1)
+            else if (change === 'up' && at > 0) offered.splice(at - 1, 0, offered.splice(at, 1)[0])
+            else if (change === 'down' && at >= 0 && at < offered.length - 1) offered.splice(at + 1, 0, offered.splice(at, 1)[0])
+            const out = ec.service.sync().name('ironstone.ProjectServices.store#WorkItemTypes').parameters({offered: offered,
+                icons: change === 'icon' ? Object.fromEntries([[enumId, icon || '']]) : null}).call()
+            if (!ec.message.hasError()) ec.message.addMessage(out.message, 'success')
+        ]]></script></actions>
+        <default-response url="."/>
+        <error-response url="."/>
+    </transition>
+    <transition name="createType">
+        <service-call name="ironstone.ProjectServices.create#WorkItemType" in-map="{label:label, icon:icon}" out-map="typeOut"/>
+        <actions><if condition="!ec.message.hasError()"><script>ec.message.addMessage(typeOut.message, 'success')</script></if></actions>
+        <default-response url="."/>
+        <error-response url="."/>
+    </transition>
+
+    <actions>
+        <script><![CDATA[
+            const info = ec.service.sync().name('ironstone.ProjectServices.get#WorkItemTypes').call() || {}
+            const offeredCount = Array.from(info.offeredList || []).length
+            typeList = Array.from(info.typeList || []).map((row) => Object.assign({}, row, {isFirst: row.sequence === 1, isLast: row.sequence === offeredCount}))
+            hasOrganization = !!info.organizationPartyId
+        ]]></script>
+    </actions>
+
     <widgets>
-        <label text="Placeholder: Work item types: which are offered, their order and icons." type="p"/>
+        <container style="row items-center q-mb-sm">
+            <label type="h5" text="Work item types" style="q-my-none"/>
+            <container style="col"/>
+            <container-dialog id="NewTypeDialog" button-text="New type" icon="sym_o_add" width="480" title="A work item type of your own" condition="hasOrganization">
+                <form-single name="NewType" transition="createType" focus-field="label">
+                    <field name="label"><default-field title="Label"><text-line size="30"/></default-field></field>
+                    <field name="icon" from="'sym_o_task_alt'"><default-field title="Icon"><drop-down>
+                                <option key="sym_o_task_alt" text="Task"/><option key="sym_o_bug_report" text="Bug"/><option key="sym_o_new_releases" text="New"/>
+                                <option key="sym_o_trending_up" text="Improvement"/><option key="sym_o_science" text="Test"/><option key="sym_o_description" text="Document"/>
+                                <option key="sym_o_support_agent" text="Support"/><option key="sym_o_travel_explore" text="Research"/><option key="sym_o_rocket_launch" text="Launch"/>
+                                <option key="sym_o_code" text="Code"/><option key="sym_o_design_services" text="Design"/><option key="sym_o_campaign" text="Campaign"/>
+                                <option key="sym_o_build" text="Build"/><option key="sym_o_security" text="Security"/><option key="sym_o_speed" text="Performance"/>
+                                <option key="sym_o_gavel" text="Legal"/><option key="sym_o_school" text="Training"/><option key="sym_o_event" text="Event"/></drop-down></default-field></field>
+                    <field name="submitButton"><default-field title="Add"><submit/></default-field></field>
+                </form-single>
+            </container-dialog>
+        </container>
+        <label type="p" text="The types the projects offer, in this order, in quick create and the work item lists; a project may choose its own in its settings." style="m-muted"/>
+        <section name="NoOrganization" condition="!hasOrganization"><widgets>
+            <label type="p" text="You belong to no organization, so there is nowhere to keep these settings." style="text-warning"/>
+        </widgets></section>
+        <container-box><box-header title="Types"/><box-body-nopad>
+            <form-list name="TypeList" list="typeList" skip-form="true" paginate="false">
+                <field name="icon"><default-field title="">
+                    <render-mode><text type="qvt"><![CDATA[<q-icon name="${WebUtilities.encodeHtml(icon ?? '')}" size="sm" class="${offered ? 'text-primary' : 'm-muted'}"></q-icon>]]></text>
+                        <text type="tui"><![CDATA[{"t": "text", "text": ""}]]></text></render-mode></default-field></field>
+                <field name="label"><default-field title="Type"><label text="${label}" type="span" style="${offered ? 'text-weight-medium' : 'm-muted'}"/></default-field></field>
+                <field name="sequence" align="right"><default-field title="Order"><display text="${sequence ?? ''}"/></default-field></field>
+                <field name="offered"><default-field title="Offered">
+                    <section name="OfferedOn" condition="offered"><widgets>
+                        <link url="changeType" link-type="hidden-form-link" text="Stop offering" parameter-map="{enumId:enumId, change:'stop'}"/>
+                    </widgets><fail-widgets>
+                        <link url="changeType" link-type="hidden-form-link" text="Offer" parameter-map="{enumId:enumId, change:'offer'}"/>
+                    </fail-widgets></section></default-field></field>
+                <field name="move"><default-field title="">
+                    <link url="changeType" link-type="hidden-form-link" text="Up" condition="offered &amp;&amp; !isFirst" parameter-map="{enumId:enumId, change:'up'}"/>
+                    <link url="changeType" link-type="hidden-form-link" text="Down" condition="offered &amp;&amp; !isLast" parameter-map="{enumId:enumId, change:'down'}"/></default-field></field>
+                <field name="iconEdit"><default-field title="">
+                    <container-dialog id="TypeIconDialog" button-text="Icon" icon="sym_o_palette" width="420" title="The icon of ${label}">
+                        <form-single name="TypeIcon" transition="changeType">
+                            <field name="enumId"><default-field><hidden/></default-field></field>
+                            <field name="change" from="'icon'"><default-field><hidden/></default-field></field>
+                            <field name="icon"><default-field title="Icon"><drop-down>
+                                <option key="sym_o_task_alt" text="Task"/><option key="sym_o_bug_report" text="Bug"/><option key="sym_o_new_releases" text="New"/>
+                                <option key="sym_o_trending_up" text="Improvement"/><option key="sym_o_science" text="Test"/><option key="sym_o_description" text="Document"/>
+                                <option key="sym_o_support_agent" text="Support"/><option key="sym_o_travel_explore" text="Research"/><option key="sym_o_rocket_launch" text="Launch"/>
+                                <option key="sym_o_code" text="Code"/><option key="sym_o_design_services" text="Design"/><option key="sym_o_campaign" text="Campaign"/>
+                                <option key="sym_o_build" text="Build"/><option key="sym_o_security" text="Security"/><option key="sym_o_speed" text="Performance"/>
+                                <option key="sym_o_gavel" text="Legal"/><option key="sym_o_school" text="Training"/><option key="sym_o_event" text="Event"/></drop-down></default-field></field>
+                            <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                        </form-single>
+                    </container-dialog></default-field></field>
+            </form-list>
+        </box-body-nopad></container-box>
     </widgets>
 </screen>

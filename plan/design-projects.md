@@ -413,7 +413,8 @@ project with sub-projects (`parentWorkEffortId`); there is no separate portfolio
 
 ### Projects
 
-- **Layout:** list. Chips: Active (Approved and In Progress, default), Mine, Planned, On hold, At risk,
+- **Layout:** list. Chips: Active (Approved and In Progress, default), Mine, Planned, On hold, At risk (open, with
+  the health At risk or Off track or numbers that warn by `get#ProjectStats`, as Home's counter),
   Completed, Closed, All. New project opens NewProject; Quick project is in quick create. Sub-projects show
   indented under their program when "Show sub-projects" is on, with the program's row summing their numbers.
 - **Forms:**
@@ -444,7 +445,7 @@ project with sub-projects (`parentWorkEffortId`); there is no separate portfolio
 
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
 | --- | --- | --- | --- | --- | --- | --- |
-| `ProjectStart` | wizard step | What and for whom | template (blank or one of Settings/Templates, with what it brings), name, key, purpose, client, manager (me), start, target date, visibility (all internal users, members only), program | key suggested from the name and checked as typed; template as cards by `render-mode` | `create#Project`; from a template `mantle.work.ProjectServices.clone#Project` (`deepClone`, ids prefixed with the new key, dates moved to the start date) | `FindProject` `NewProject`; `EditProject` `CloneProject`; OpenProject creation wizard and templates; ERPNext project template |
+| `ProjectStart` | wizard step | What and for whom | template (blank or one of Settings/Templates, with what it brings), name, key, purpose, client, manager (me), start, target date, visibility (all internal users, members only), program | key suggested from the name (the first letters of its words) when left empty; template as cards by `render-mode` | `create#Project`; from a template `mantle.work.ProjectServices.clone#Project` (`deepClone`, ids prefixed with the new key, dates moved to the start date) | `FindProject` `NewProject`; `EditProject` `CloneProject`; OpenProject creation wizard and templates; ERPNext project template |
 | `ProjectTeamStep` | wizard step, editable rows | Who works on it | person or team, role (`RgpProject`), hours per week, from, thru | person `server-search`; role defaults from the template's members | `mantle.work.WorkEffortServices.add#WorkEffortParty`; `mantle.work.ResourceServices.create#Allocation` (new) | `Project/EditUsers` `AddUserAssignForm`; OpenProject members; Odoo project roles |
 | `ProjectModulesStep` | wizard step | How it works | modules (Backlog and sprints, Requests, Code, Docs, Time, Money, Client access), estimate in hours or points, work item flow (`Default` or `WorkEffortDevelopment`), repository (none, new on disk, new in the database, link one, mirror a URL for admins), documentation (none, in the repository, in the database) | checks for modules; repository as a `radio` with its fields shown by `visible-when` | `mantle.work.ProjectServices.store#ProjectSetting` (new); `mantle.work.GitServices.create#ProjectRepository`, `add#ProjectRepository`; `org.moqui.impl.WikiServices.create#WikiSpace` | Redmine project modules; OpenProject project modules and repository settings |
 | `ProjectMoneyStep` | wizard step | How it is paid for (Money on) | billing basis (time and materials, fixed price, milestones, not billed), hours budget (`totalTimeAllowed`), client budget (`totalClientCostAllowed`), the order line it fulfils, project client rates (person, position class or work type, rate) | order line `server-search` over open sales order items of the client | `update#Project`; `mantle.humanres.RateServices.create#RateAmount`; `OrderItemWorkEffort` (`entity`) | `EditProject` `EditProject` budget fields; Odoo service product tracking; ERPNext project costing |
@@ -462,10 +463,16 @@ project with sub-projects (`parentWorkEffortId`); there is no separate portfolio
   flow, the health chip with the date of the last update, the client chip and the manager's avatar. Below it a row
   of `number-card`s in `size="sm"`: Open items, Overdue, Next milestone (date and name), Hours (actual of budget or
   estimate), and for managers Budget used and Unbilled. The primary action follows the status: Approve (In
-  Planning), Begin (Approved), Post update (In Progress), Close (Complete). Secondary menu: Post update, Follow,
-  New work item, Log time, Clone (`CloneProject`), Save as template, Print status report, Hold, Cancel.
+  Planning), Begin (Approved), Post update (In Progress), Resume (On Hold), Close (Complete), Re-open (Closed,
+  Cancelled); the `status-bar` shows the stages read only and the other moves of the flow are in the menu. Secondary
+  menu: the other moves (Hold, Complete, Cancel), Follow, Clone (`CloneProject`), Save as template, Print status
+  report (a sibling screen `Projects/Projects/StatusReport` in `html-print`); Post update stays beside the primary
+  outside In Progress; New work item is the Work items tab's and the shell's quick create, which takes the project
+  from the screen context; Log time comes with Time.
 - **Sections and tabs:** `subscreens-panel type="tab"`: Overview, Work items, Backlog, Plan (Timeline and Calendar
-  as a toggle), Roadmap, Requests, Code, Docs, Team, Time, Money, Files, Settings. A module that is off has no tab.
+  as a toggle), Roadmap, Requests, Code, Docs, Team, Time, Money, Files, Settings. A module that is off has no tab;
+  a tab is left out until its phase builds it, while ProjectSettings already keeps the modules (`WstModules`: backlog,
+  requests, code, docs, time, money, client).
   Clients see Overview, Work items, Plan (Timeline only), Roadmap and Requests, plus Time when the project shares
   hours with the client and Code when a repository is shared with them.
 - **Navigation:** from Projects, Home, the palette, a work item's project link, a notification. Every tab is a
@@ -479,7 +486,8 @@ project with sub-projects (`parentWorkEffortId`); there is no separate portfolio
 
 ### ProjectOverview
 
-- **Layout:** detail tab with two columns of boxes; Chatter as the right column from 1440 px and the last tab below.
+- **Layout:** detail tab with two columns of boxes; Chatter as the right column from 1440 px and below the boxes on a
+  narrower screen (the tabs are subscreens, so a width-dependent Chatter tab is not offered).
   Left: Status, Next milestones and releases, Work items, Breakdown, Time and budget. Right: Description, Members,
   Repositories, Recent activity.
 - **Forms:**
@@ -1733,8 +1741,8 @@ ProjectSettings. Global configuration defines and a project chooses among it, as
 
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
 | --- | --- | --- | --- | --- | --- | --- |
-| `TypeList` | list, editable rows | Types offered | purpose, label, icon, offered, sequence | icon from a fixed list of symbols | `PartySetting` `ProjWorkItemTypes` (new type, `entity`) | OpenProject types; Redmine trackers |
-| `NewType` | dialog | A type of the organization's own | label, icon | | `Enumeration` of `WorkEffortPurpose` with `parentEnumId` `WetTask` (`entity`) | Redmine new tracker |
+| `TypeList` | list, editable rows | Types offered | purpose, label, icon, offered, sequence | icon from a fixed list of symbols | `PartySetting` `ProjWorkItemTypes` (new type, `entity`): a JSON object with `offered` (the types in order, a comma list) and `icons` (only those not the standard one); with no setting Task, Bug Fix, New Feature, Feature Enhancement, Document and Support | OpenProject types; Redmine trackers |
+| `NewType` | dialog | A type of the organization's own | label, icon | | `Enumeration` of `WorkEffortPurpose` with `parentEnumId` `WetTask` (`entity`), id `WepOrg` and a number, offered at the end | Redmine new tracker |
 
 ### Workflows
 
@@ -1984,7 +1992,7 @@ record is read through a service that checks the repository's rights (R21).
 | Project health | data model + service type + seed data | `WorkEffort.healthEnumId` (new `WorkEffortHealth`: `WehOnTrack`, `WehAtRisk`, `WehOffTrack`); `mantle.work.effort.WorkEffortUpdate` {workEffortId, communicationEventId, updateDate, healthEnumId, percentComplete, clientVisible}; `CommunicationEventType` `StatusUpdate`; `post#ProjectUpdate`; topic `ProjectStatusUpdate` | ProjectOverview, Projects, Home, PortfolioReport | |
 | Project settings | data model + service type | `mantle.work.effort.WorkEffortSetting` {workEffortId, settingTypeEnumId, settingValue} with `WorkEffortSettingType` (`WstModules`, `WstEstimateUnit`, `WstWorkItemTypes`, `WstSeveralSprints`, `WstShareNewItems`, `WstKeywordComplete`, `WstRequestFromWork`, `WstIntakeAccount`, `WstIntakePlusTag`, `WstIntakeToken`, `WstTriageParty`, `WstBranchPattern`, `WstMergeRequestMoves`, `WstBillingBasis`, `WstInvoiceGrouping`, `WstShareHours`, `WstClientSignIn`, `WstShareRepositories`, `WstDocsWikiSpace`, `WstApprovalRequired`, `WstApproverParty`); `store#ProjectSetting`, `mantle.work.ProjectServices.get#ProjectSettings` (the project's, else the organization's `PartySetting`) | ProjectSettings, NewProject, every screen that reads a module | as `PartySetting` and `ProductStoreSetting` |
 | App settings | seed data | `PartySettingType`s `ProjWorkItemTypes`, `ProjTimesheetPolicy`, `ProjBillingDefaults`, `ProjRepositoryDefaults`, `ProjConventions`, `ProjIntake`, `ProjPublicForm` | the Settings pages | |
-| Template flag | data model | `WorkEffort.isTemplate` (text-indicator): left out of every list, count, report and search but Templates and NewProject's choice; `clone#Project` clears it on the copy unless asked to make a template | Templates, NewProject, Projects | |
+| Template flag | data model | `WorkEffort.isTemplate` (text-indicator): left out of every list, count, report and search but Templates and NewProject's choice; `clone#Project` clears it on the copy unless asked to make a template, copies the base's `WorkEffortSetting` rows (not `WstIntakeToken` or `WstDocsWikiSpace`), and links a project made from a template to it by `WorkEffortAssoc` `WeatBasedOn`, which Templates counts as its uses; `create#ProjectTemplate`, `get#ProjectTemplates` | Templates, NewProject, Projects | |
 | Work item keys from 1 | service type | `create#Project` and `clone#Project` start the project's sequence (`Project_<KEY>`) at 1 with a bank of 1, so new projects number `PROJ-1`, `PROJ-2` without gaps; existing projects keep theirs | every screen | today the numbers start at 100000 in banks of 10 |
 | Client project purpose | seed data | `Enumeration` `WepPrClient` ("Client Project") under `WetProject` | NewProject, ProjectSettings | |
 | Milestone approval | service type + seed data | `request#MilestoneApproval`, `approve#MilestoneApproval`, `refuse#MilestoneApproval` (the requirement and the approver in the milestone's `WorkEffortSetting`); topic `MilestoneApproval` naming the two decision services; `mantle.work.ProjectServices.send#EstimateForApproval` (the estimate's `html-print` saved as a `WorkEffortContent` file of the project's Estimate milestone, made first when missing with its gate and the client approver, then `request#MilestoneApproval`) | MilestoneDetail, ProjectMoney, the tray's Approvals | |

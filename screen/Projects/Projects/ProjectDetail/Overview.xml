@@ -1,0 +1,232 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- ProjectOverview (design-projects.md §4 ProjectOverview): two columns of boxes, and Chatter at the right from 1440 px (below
+    them on a narrower screen). Left: Status (the latest update with its health, date, author, progress and summary, the
+    earlier ones as a short list; Post update is the title row's), Next milestones and releases (with their items done of total),
+    Work items (a chip per status with its count, each into the Work items tab, and a donut), Breakdown (the top-level items with
+    their subtrees' estimate, actual and remaining as a bar: warning past the estimate, danger past the hours budget; a row opens
+    the Work items tab's tree under it) and, for managers, Time and budget. Right: Description (edited in place by managers),
+    Members, Repositories (with their HTTPS clone URLs, as text: a copy button wants a framework helper; empty without git
+    hosting in the build) and Recent activity (status changes,
+    comments, updates and commits). Every box is read by ironstone.ProjectServices.get#ProjectOverview, each on its own. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Overview" default-menu-index="1">
+
+    <transition name="saveDescription">
+        <actions><script><![CDATA[
+            const access = ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: workEffortId, need: 'manage'}).call()
+            if (!ec.message.hasError()) ec.service.sync().name('update#mantle.work.effort.WorkEffort').parameters({workEffortId: workEffortId,
+                description: description == null ? null : String(description)}).call()
+            if (!ec.message.hasError()) ec.message.addMessage(ec.l10n.localize('Description saved'), 'success')
+        ]]></script></actions>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+
+    <actions>
+        <script><![CDATA[
+            if (!recordFound) return
+            overview = ec.service.sync().name('ironstone.ProjectServices.get#ProjectOverview').parameters({workEffortId: workEffortId}).call()?.overview || {}
+            const L = (text) => ec.l10n.localize(text)
+            const enc = (text) => String(text == null ? '' : text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+            const updates = Array.from(overview.updateList || [])
+            latestUpdate = updates[0] || null
+            earlierUpdates = updates.slice(1)
+            milestoneList = Array.from(overview.milestoneList || [])
+            statusCountList = Array.from(overview.statusCountList || [])
+            topItemList = Array.from(overview.topItemList || [])
+            timeBudget = overview.timeBudget || null
+            memberList = Array.from(overview.memberList || [])
+            repositoryList = Array.from(overview.repositoryList || [])
+            activityList = Array.from(overview.activityList || [])
+            descriptionText = project.description || ''
+            // the status chips with their counts, and the donut over them (the brand colors, grey for the waiting ones)
+            statusChipsHtml = statusCountList.map((row) => '<m-link href="' + enc(row.url) + '"><q-chip dense square clickable class="q-ml-none m-tonal text-' + enc(row.color)
+                    + '" data-status="' + enc(row.statusId) + '">' + enc(row.label) + ' · ' + row.count + '</q-chip></m-link>').join('')
+            donutLabels = JSON.stringify(statusCountList.map((row) => row.label))
+            donutCounts = JSON.stringify(statusCountList.map((row) => row.count))
+            donutColors = JSON.stringify(statusCountList.map((row) => String(row.color).startsWith('grey') ? '' : row.color))
+            latestUpdateHtml = latestUpdate ? '<div class="row items-center q-gutter-x-sm q-mb-xs"><q-chip dense square class="q-ma-none m-tonal text-' + enc(latestUpdate.healthColor) + '">'
+                    + enc(latestUpdate.healthLabel) + '</q-chip><span class="text-weight-medium">' + enc(latestUpdate.subject) + '</span></div><div class="text-caption m-muted q-mb-xs">'
+                    + enc([latestUpdate.dateText, latestUpdate.authorName, latestUpdate.percentText ? L('Progress') + ' ' + latestUpdate.percentText : '',
+                        latestUpdate.clientVisible ? L('Shown to the client') : ''].filter((part) => part).join(' · ')) + '</div>'
+                    + (latestUpdate.percentComplete != null ? '<q-linear-progress rounded size="6px" :value="' + (Number(latestUpdate.percentComplete) / 100) + '" color="primary" track-color="grey-3" class="q-mb-sm"></q-linear-progress>' : '') : ''
+        ]]></script>
+    </actions>
+
+    <widgets>
+        <section name="OverviewFound" condition="recordFound"><widgets>
+        <container style="row q-col-gutter-sm">
+            <container style="col-12 col-lg-8">
+                <container style="row q-col-gutter-sm">
+                    <!-- ===== left ===== -->
+                    <container style="col-12 col-md-6">
+                        <container-box><box-header title="Status"/><box-body>
+                            <section name="LatestUpdate" condition="latestUpdate"><widgets>
+                                <render-mode><text type="qvt"><![CDATA[${latestUpdateHtml}]]></text>
+                                    <text type="tui"><![CDATA[${JSON.stringify({t: "text", id: "StatusLatest", text: latestUpdate.healthLabel + " · " + latestUpdate.subject + " · " + latestUpdate.dateText})}]]></text></render-mode>
+                                <markdown-view text="${latestUpdate.body}"/>
+                                <section name="EarlierUpdates" condition="earlierUpdates.length"><widgets>
+                                    <label text="Earlier" type="div" style="text-subtitle2 q-mt-sm"/>
+                                    <section-iterate name="EarlierUpdate" list="earlierUpdates" entry="update"><widgets>
+                                        <label text="${update.dateText} · ${update.healthLabel} · ${update.subject}" type="div" style="text-caption"/>
+                                    </widgets></section-iterate>
+                                </widgets></section>
+                            </widgets><fail-widgets>
+                                <label type="p" text="No status update yet. Post one to set the project's health." style="m-muted q-mb-none"/>
+                            </fail-widgets></section>
+                        </box-body></container-box>
+
+                        <container-box><box-header title="Next milestones and releases"/><box-body-nopad>
+                            <form-list name="NextMilestones" list="milestoneList" skip-form="true" skip-header="true" paginate="false">
+                                <field name="workEffortName"><default-field><link url="${url}" url-type="plain" text="${workEffortName}" link-type="anchor"/></default-field></field>
+                                <field name="typeLabel"><default-field><label text="${typeLabel} · ${dueText}" type="span" style="text-caption m-muted text-no-wrap"/></default-field></field>
+                                <field name="statusLabel"><default-field>
+                                    <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${statusColor}">${WebUtilities.encodeHtml(statusLabel ?? '')}</q-chip>]]></text>
+                                        <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify(statusLabel ?? "")}}]]></text></render-mode></default-field></field>
+                                <field name="progress" align="right"><default-field>
+                                    <render-mode><text type="qvt"><![CDATA[<div style="min-width: 80px"><span class="text-caption">${WebUtilities.encodeHtml(progressText ?? '')}</span><q-linear-progress rounded size="6px" :value="${Number(progress || 0) / 100}" color="primary" track-color="grey-3"></q-linear-progress></div>]]></text>
+                                        <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify(progressText ?? "")}}]]></text></render-mode></default-field></field>
+                            </form-list>
+                            <section name="NoMilestones" condition="!milestoneList.length"><widgets>
+                                <label type="p" text="No open milestones or releases" style="m-muted q-pa-sm q-mb-none"/>
+                            </widgets></section>
+                        </box-body-nopad></container-box>
+
+                        <container-box><box-header title="Work items · ${overview.itemCount || 0}"/><box-toolbar>
+                            <link url="../WorkItems" link-type="anchor" text="All work items" parameter-map="{workEffortId:workEffortId, list:'all'}"/>
+                        </box-toolbar><box-body>
+                            <section name="WorkCounts" condition="statusCountList.length"><widgets>
+                                <render-mode><text type="qvt"><![CDATA[<div class="row items-center q-col-gutter-sm"><div class="col-12 col-sm-7 row q-gutter-xs">${statusChipsHtml}</div>
+                                    <div class="col-12 col-sm-5"><m-chart height="140px" :config='((cv, tc) => ({type: "doughnut",
+                                        data: {labels: ${donutLabels}, datasets: [{data: ${donutCounts}, borderWidth: 0,
+                                            backgroundColor: (c) => { const name = ${donutColors}[c.dataIndex]; return name ? cv(name)(c) : tc(c).replace(/^rgba?\((\d+,\s*\d+,\s*\d+)[^)]*\)$/, "rgba($1, 0.3)") }}]},
+                                        options: {maintainAspectRatio: false, animation: false, cutout: "62%", plugins: {legend: {display: false}}}}))(
+                                        (name) => (c) => c.chart.canvas.ownerDocument.defaultView.getComputedStyle(c.chart.canvas).getPropertyValue("--q-" + name).trim(),
+                                        (c) => c.chart.canvas.ownerDocument.defaultView.getComputedStyle(c.chart.canvas).color)'></m-chart></div></div>]]></text>
+                                    <text type="tui"><![CDATA[${JSON.stringify({t: "text", id: "WorkCounts", text: statusCountList.map((row) => row.label + " " + row.count).join(" · ")})}]]></text></render-mode>
+                            </widgets><fail-widgets>
+                                <label type="p" text="No work items yet" style="m-muted q-mb-none"/>
+                            </fail-widgets></section>
+                        </box-body></container-box>
+
+                        <container-box><box-header title="Breakdown"/><box-body-nopad>
+                            <form-list name="TopLevelProgress" list="topItemList" skip-form="true" paginate="false">
+                                <field name="workEffortName"><default-field title="Item"><link url="${url}" url-type="plain" text="${workEffortId} ${workEffortName}" link-type="anchor"/></default-field></field>
+                                <field name="statusLabel"><default-field title="Status">
+                                    <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${statusColor}">${WebUtilities.encodeHtml(statusLabel ?? '')}</q-chip>]]></text>
+                                        <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify(statusLabel ?? "")}}]]></text></render-mode></default-field></field>
+                                <field name="estimateText" align="right"><default-field title="Estimate"><display/></default-field></field>
+                                <field name="usedPercent"><default-field title="Actual + remaining">
+                                    <render-mode><text type="qvt"><![CDATA[<div style="min-width: 110px"><span class="text-caption">${WebUtilities.encodeHtml(usedText ?? '')}</span><q-linear-progress rounded size="6px" :value="${Number(usedPercent || 0) / 100}" color="${barColor}" track-color="grey-3"></q-linear-progress></div>]]></text>
+                                        <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify(usedText ?? "")}}]]></text></render-mode></default-field></field>
+                                <field name="doneText" align="right"><default-field title="Done"><display/></default-field></field>
+                            </form-list>
+                            <section name="NoTopItems" condition="!topItemList.length"><widgets>
+                                <label type="p" text="No work items yet" style="m-muted q-pa-sm q-mb-none"/>
+                            </widgets></section>
+                        </box-body-nopad></container-box>
+
+                        <section name="TimeBudgetBox" condition="timeBudget"><widgets>
+                            <container-box><box-header title="Time and budget"/><box-body>
+                                <section name="TimeFlag" condition="timeBudget.flagText"><widgets>
+                                    <label text="${timeBudget.flagText}" type="p" style="${timeBudget.flag == 'danger' ? 'text-negative' : 'text-warning'} text-weight-medium q-mb-xs"/>
+                                </widgets></section>
+                                <render-mode><text type="qvt"><![CDATA[<div class="row q-col-gutter-md q-mb-sm">
+                                    <div class="col-auto"><div class="text-caption m-muted">${ec.l10n.localize('Estimated')}</div><div>${WebUtilities.encodeHtml(timeBudget.estimatedText)}</div></div>
+                                    <div class="col-auto"><div class="text-caption m-muted">${ec.l10n.localize('Actual')}</div><div>${WebUtilities.encodeHtml(timeBudget.actualText)}</div></div>
+                                    <div class="col-auto"><div class="text-caption m-muted">${ec.l10n.localize('Remaining')}</div><div>${WebUtilities.encodeHtml(timeBudget.remainingText)}</div></div>
+                                    <div class="col-auto"><div class="text-caption m-muted">${ec.l10n.localize('Hours budget')}</div><div>${WebUtilities.encodeHtml(timeBudget.budgetText)}</div></div>
+                                    ${timeBudget.clientBudgetText ? '<div class="col-auto"><div class="text-caption m-muted">' + ec.l10n.localize('Client budget') + '</div><div>' + WebUtilities.encodeHtml(timeBudget.clientBudgetText) + (timeBudget.clientUsedText ? ' · ' + WebUtilities.encodeHtml(timeBudget.clientUsedText) + ' ' + ec.l10n.localize('used') : '') + '</div></div>' : ''}
+                                    ${timeBudget.profitText ? '<div class="col-auto"><div class="text-caption m-muted">' + ec.l10n.localize('Profit') + '</div><div>' + WebUtilities.encodeHtml(timeBudget.profitText) + '</div></div>' : ''}
+                                    </div>${timeBudget.hasBudget ? '<div class="text-caption m-muted">' + ec.l10n.localize('Hours of the budget: actual, and actual with remaining') + '</div><q-linear-progress rounded size="8px" :value="' + (timeBudget.hoursPercent / 100) + '" :buffer="' + (timeBudget.forecastPercent / 100) + '" color="' + (timeBudget.flag == 'danger' ? 'negative' : 'primary') + '" track-color="grey-3"></q-linear-progress>' : ''}]]></text>
+                                    <text type="tui"><![CDATA[${JSON.stringify({t: "text", id: "TimeBudget", text: [timeBudget.estimatedText + " estimated", timeBudget.actualText + " actual", timeBudget.remainingText + " remaining", timeBudget.budgetText].join(" · ")})}]]></text></render-mode>
+                            </box-body></container-box>
+                        </widgets></section>
+                    </container>
+
+                    <!-- ===== right ===== -->
+                    <container style="col-12 col-md-6">
+                        <container-box><box-header title="Description"/>
+                            <box-toolbar>
+                                <container-dialog id="ProjectDescriptionDialog" button-text="Edit" icon="sym_o_edit" width="720" title="Description of ${project.workEffortName}" condition="canManage">
+                                    <form-single name="ProjectDescription" transition="saveDescription">
+                                        <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                        <field name="description" from="descriptionText"><default-field title="Description (markdown)"><text-area rows="10" cols="80" editor-type="md"/></default-field></field>
+                                        <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                                    </form-single>
+                                </container-dialog>
+                            </box-toolbar>
+                            <box-body>
+                                <markdown-view text="${descriptionText}"/>
+                                <label text="No description" type="p" style="m-muted q-mb-none" condition="!descriptionText"/>
+                            </box-body></container-box>
+
+                        <container-box><box-header title="Members · ${memberList.length}"/><box-toolbar>
+                            <link url="../Team" link-type="anchor" text="Team" parameter-map="{workEffortId:workEffortId}"/>
+                        </box-toolbar><box-body-nopad>
+                            <form-list name="Members" list="memberList" skip-form="true" skip-header="true" paginate="false">
+                                <field name="name"><default-field>
+                                    <render-mode><text type="qvt"><![CDATA[<span class="row inline no-wrap items-center"><m-avatar name="${WebUtilities.encodeHtml(name ?? '')}"${userId ? ' user-id="' + WebUtilities.encodeHtml(userId) + '"' : ''} size="24px" class="q-mr-sm"></m-avatar>${WebUtilities.encodeHtml(name ?? '')}</span>]]></text>
+                                        <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify(name ?? "")}}]]></text></render-mode></default-field></field>
+                                <field name="roleText"><default-field><label text="${roleText}" type="span" style="m-muted"/></default-field></field>
+                            </form-list>
+                            <section name="NoMembers" condition="!memberList.length"><widgets>
+                                <label type="p" text="No members yet" style="m-muted q-pa-sm q-mb-none"/>
+                            </widgets></section>
+                        </box-body-nopad></container-box>
+
+                        <container-box><box-header title="Repositories"/><box-body-nopad>
+                            <form-list name="RepositoriesBox" list="repositoryList" skip-form="true" skip-header="true" paginate="false">
+                                <field name="repositoryId"><default-field>
+                                    <label text="${repositoryId}" type="div" style="text-mono text-weight-medium"/>
+                                    <label text="${[description, kindLabel, branch].filter((part) => part).join(' · ')}" type="div" style="text-caption m-muted"/></default-field></field>
+                                <field name="httpsUrl"><default-field>
+                                    <label text="${httpsUrl || sshUrl || ''}" type="div" style="text-caption text-mono"/>
+                                    <label text="${lastText}" type="div" style="text-caption m-muted"/></default-field></field>
+                            </form-list>
+                            <section name="NoRepositories" condition="!repositoryList.length"><widgets>
+                                <label type="p" text="No repository linked. Code comes with the project's Code tab; a repository can be made in the new project wizard." style="m-muted q-pa-sm q-mb-none"/>
+                            </widgets></section>
+                        </box-body-nopad></container-box>
+
+                        <container-box><box-header title="Recent activity"/><box-body-nopad>
+                            <form-list name="RecentActivity" list="activityList" skip-form="true" skip-header="true" paginate="false">
+                                <field name="title"><default-field>
+                                    <render-mode><text type="qvt"><![CDATA[<div class="row no-wrap items-start"><q-icon name="${icon}" size="xs" class="q-mr-sm q-mt-xs m-muted"></q-icon><div>]]></text><text type="tui" template="false">[]</text></render-mode>
+                                    <section name="ActivityItemLink" condition="itemUrl"><widgets>
+                                        <link url="${itemUrl}" url-type="plain" text="${workEffortId}" link-type="anchor" style="text-mono q-mr-xs"/>
+                                    </widgets></section>
+                                    <label text="${title}" type="span"/>
+                                    <label text="${text}" type="div" style="text-caption m-muted ellipsis" condition="text"/>
+                                    <label text="${[authorName, whenText].filter((part) => part).join(' · ')}" type="div" style="text-caption m-muted"/>
+                                    <render-mode><text type="qvt"><![CDATA[</div></div>]]></text><text type="tui" template="false">[]</text></render-mode>
+                                </default-field></field>
+                            </form-list>
+                            <section name="NoActivity" condition="!activityList.length"><widgets>
+                                <label type="p" text="Nothing has changed yet" style="m-muted q-pa-sm q-mb-none"/>
+                            </widgets></section>
+                        </box-body-nopad></container-box>
+                    </container>
+                </container>
+            </container>
+            <!-- Chatter beside the boxes from 1440 px, below them on a narrower screen -->
+            <container style="col-12 col-lg-4">
+                <chatter id="ProjectChatter" record-entity="mantle.work.effort.WorkEffort" record-id="${workEffortId}" default-tab="message"/>
+            </container>
+        </container>
+        </widgets></section>
+    </widgets>
+</screen>

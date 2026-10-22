@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The project status report (design-projects.md §14; style-guide §8 Print documents), ProjectDetail's Print status report:
+    with renderMode=html-print a printed page of the project's health and latest update, its next milestones, its work items by
+    status, its top-level items, and for those who manage it the hours and budget (ironstone.ProjectServices get#ProjectHeader and
+    get#ProjectOverview), every value escaped. A sibling of ProjectDetail, so the page has none of the detail's header and tabs;
+    in another render mode it links to the printed page. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Status report" default-menu-include="false">
+
+    <parameter name="workEffortId" required="true"/>
+
+    <actions>
+        <service-call name="ironstone.ProjectServices.get#ProjectHeader" in-map="{workEffortId:workEffortId}" out-map="headerOut"/>
+        <script><![CDATA[
+            recordFound = !!headerOut.visible
+            const L = (text) => ec.l10n.localize(text)
+            const enc = (text) => String(text == null ? '' : text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+            printUrl = '/apps/Projects/Projects/StatusReport?renderMode=html-print&workEffortId=' + encodeURIComponent(workEffortId)
+            if (!recordFound) { printHtml = '<p>' + enc(L('This project is not available')) + '</p>'; return }
+            const header = headerOut.header
+            const overview = ec.service.sync().name('ironstone.ProjectServices.get#ProjectOverview').parameters({workEffortId: workEffortId}).call()?.overview || {}
+            const row = (label, value) => value ? '<tr><td class="field-title">' + enc(L(label)) + '</td><td class="field-value">' + value + '</td></tr>' : ''
+            const lines = (text) => enc(text).replace(/\n/g, '<br>')
+            const table = (heads, rows) => rows.length ? '<table class="list"><tr>' + heads.map((head) => '<th>' + enc(L(head)) + '</th>').join('') + '</tr>'
+                    + rows.map((cells) => '<tr>' + cells.map((cell) => '<td>' + enc(cell) + '</td>').join('') + '</tr>').join('') + '</table>' : '<p style="color:#555">' + enc(L('None')) + '</p>'
+            const latest = Array.from(overview.updateList || [])[0]
+            const budget = overview.timeBudget
+            printHtml = '<div class="box-header">' + enc(header.workEffortName) + ' (' + enc(workEffortId) + ')</div>'
+                + '<p style="color:#555">' + enc([L('Status report'), ec.l10n.format(ec.user.nowTimestamp, 'MMMM d, yyyy')].join(' · ')) + '</p>'
+                + '<table class="field">' + row('Status', enc(header.statusLabel)) + row('Health', enc(header.healthLabel ? header.healthLabel + (header.healthDateText ? ' (' + header.healthDateText + ')' : '') : L('Not set')))
+                + row('Client', enc(header.clientName)) + row('Manager', enc(header.managerName)) + row('Target date', enc(header.dueText))
+                + row('Work items', enc(header.progressText + ' · ' + header.openItems + ' ' + L('open') + (header.overdueItems ? ', ' + header.overdueItems + ' ' + L('overdue') : '')))
+                + row('Hours', enc(header.hoursText)) + '</table>'
+                + '<div class="group-title" style="margin-top:8pt">' + enc(L('Latest update')) + '</div>'
+                + (latest ? '<p><strong>' + enc(latest.subject) + '</strong><br><span style="color:#555">' + enc([latest.dateText, latest.authorName, latest.percentText].filter((part) => part).join(' · '))
+                    + '</span></p><p>' + lines(latest.body) + '</p>' : '<p style="color:#555">' + enc(L('No status update yet')) + '</p>')
+                + '<div class="group-title" style="margin-top:8pt">' + enc(L('Next milestones and releases')) + '</div>'
+                + table(['Name', 'Type', 'Due', 'Status', 'Done'], Array.from(overview.milestoneList || []).map((ms) => [ms.workEffortName, ms.typeLabel, ms.dueText, ms.statusLabel, ms.progressText]))
+                + '<div class="group-title" style="margin-top:8pt">' + enc(L('Work items by status')) + '</div>'
+                + table(['Status', 'Items'], Array.from(overview.statusCountList || []).map((st) => [st.label, String(st.count)]))
+                + '<div class="group-title" style="margin-top:8pt">' + enc(L('Breakdown')) + '</div>'
+                + table(['Item', 'Status', 'Estimate', 'Actual + remaining', 'Done'], Array.from(overview.topItemList || []).map((it) => [it.workEffortId + ' ' + it.workEffortName,
+                    it.statusLabel, it.estimateText, it.usedText, it.doneText]))
+                + (budget ? '<div class="group-title" style="margin-top:8pt">' + enc(L('Time and budget')) + '</div><table class="field">' + row('Estimated', enc(budget.estimatedText))
+                    + row('Actual', enc(budget.actualText)) + row('Remaining', enc(budget.remainingText)) + row('Hours budget', enc(budget.budgetText))
+                    + row('Client budget', enc(budget.clientBudgetText ? budget.clientBudgetText + (budget.clientUsedText ? ' · ' + budget.clientUsedText + ' ' + L('used') : '') : ''))
+                    + row('Note', enc(budget.flagText)) + '</table>' : '')
+        ]]></script>
+    </actions>
+
+    <widgets>
+        <render-mode>
+            <text type="html-print"><![CDATA[${printHtml}]]></text>
+            <text type="qvt"><![CDATA[<p><a href="${WebUtilities.encodeHtml(printUrl)}" target="_blank">${ec.l10n.localize('Open the printable status report')}</a></p>]]></text>
+            <text type="tui"><![CDATA[${JSON.stringify({t: "link", id: "StatusReportPrint", text: ec.l10n.localize("Open the printable status report"), url: printUrl})}]]></text>
+        </render-mode>
+    </widgets>
+</screen>

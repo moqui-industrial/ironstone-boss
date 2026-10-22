@@ -107,7 +107,7 @@ feature("a project's records open in Projects for its users, in Commons for othe
     },
 })
 
-feature("the details the links open render: the project's placeholder, the work item's detail (P2), the request in Commons", {
+feature("the details the links open render: the project's detail and the work item's (P2), the request in Commons", {
     when() {
         const render = (path, parameters) => {
             const str = ec.screen.makeTest().rootScreen("component://ironstone-boss/screen/Projects.xml").renderMode("qvt").withStaticData()
@@ -119,7 +119,9 @@ feature("the details the links open render: the project's placeholder, the work 
     },
     then({ project, task, request }) {
         project.status == 200
-        project.output.includes("The project IRON")
+        project.errors == ""
+        project.output.includes("IronStone Projects")
+        project.output.includes("ProjectStatusBar")
         task.status == 200
         task.errors == ""
         task.output.includes("Expand and collapse rows")

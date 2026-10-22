@@ -53,7 +53,7 @@ Sections: [1 scope](#1-scope-and-order) · [2 rules](#2-ground-rules) · [3 phas
 | --- | --- | --- | --- |
 | P0 Checks | all (read) | — | done Oct 21 (§6 F1–F7) |
 | P1 Foundation | mr-moqui, Mantle, BOSS | the Projects root and menu | done Oct 21 |
-| P2 Projects and work items | Mantle, BOSS (mr-moqui) | Home, QuickCreate, Projects, NewProject, ProjectDetail and its Overview, Work items, Team, Files and Settings tabs, WorkItems, WorkItemDetail, WorkItemTypes, Workflows, Labels, Templates | in progress (work items half built Oct 22) |
+| P2 Projects and work items | Mantle, BOSS (mr-moqui) | Home, QuickCreate, Projects, NewProject, ProjectDetail and its Overview, Work items, Team, Files and Settings tabs, WorkItems, WorkItemDetail, WorkItemTypes, Workflows, Labels, Templates | done Oct 22 |
 | P3a Code: framework | mr-moqui | — | done Oct 21 |
 | P3b Code: Mantle and BOSS | Mantle, BOSS | every §7 screen, ProjectCode, CodeSettings | planned |
 | P4 Planning | Mantle, BOSS (mr-moqui) | Backlog, SprintDetail, Timeline, WorkItemImport, Roadmap, MilestoneDetail, ReleaseDetail, ProjectBacklog, ProjectTimeline, ProjectCalendar, ProjectRoadmap, ProjectDocs | planned |
@@ -143,6 +143,26 @@ new ExampleDetail). moqui-core 1548 passed, moqui-tui 139, node 187, `./moq test
   (F8, F10); `ironstone.WorkItemServices`; `ironstone.TaskServices` take an `app` (projects: the project's visibility
   and team); the topic's link and two seeded saved finds; ACME-6 repeats weekly in the demo; specs `WorkItems`,
   `WorkItemDetail`, AppStructure, ProjectsShell and TuiRender updated.
+
+**Built, projects half** (Oct 22, 2026):
+- Step 0 baseline on the Debug package after P3a's merge: ironstone-boss 436/436, mantle-usl the two known failures,
+  example 86/86, moqui-core lib 1564; the gallery TUI snapshots regenerated (P3a's enumerations widened the List).
+  gate3 fails two tests that today's ScreenWeb parity commits outdated, not Projects: the `display String` class on a
+  display field, and the static Cache-Control `max-age=86400, must-revalidate, public` (f9ee72a7 and nearby).
+- Mantle usl: `clone#Project` copies the base's settings (not the intake token or docs space), links a copy of a
+  template `WeatBasedOn`, and takes the copy's visibility, owner, purpose, parent and description (F19);
+  `post#ProjectUpdate` (StatusUpdate on Chatter, `WorkEffortUpdate`, the health, topic `ProjectStatusUpdate` to the
+  internal members); `get#ProjectActivity` (audit-log status changes, comments and updates, commits; each source on its
+  own); `get#ProjectHomeCounts` (later phases' counters null); `get#ProjectTemplates`, `create#ProjectTemplate`;
+  `TaskServices` `create#`, `update#`, `delete#Label`, `merge#Labels`; `test/WorkProjectHub.spec.js`.
+- BOSS: `ironstone.ProjectServices` (access by `get#ProjectAccess` view, update or manage; the find with board, bulk and
+  status; header, overview, team, settings, NewProject steps, rates, Home, the app settings); screens `Projects/List`,
+  `ProjectDetail` (Overview, Work items mounting `WorkItems/List`, Team, Files, Settings), `NewProject` (Start, Team,
+  Modules, Money, Review), `StatusReport` (print), Home, Settings Index, WorkItemTypes, Workflows, Labels, Templates;
+  QuickWorkItem and quick add offer the project's types; QuickProject links to NewProject; demo `ACMEAPP` (sub-project),
+  `TPLWEB` (template), an IRON status update, modules; specs `Projects`, `ProjectDetail`, `NewProject`, `ProjectsHome`,
+  `ProjectsSettings`. Final runs: ironstone-boss 461/461, mantle-usl the two known failures, lint clean, screenshots light
+  and dark at 390, 1280 and 1440.
 
 ### P3a — Code: framework
 
@@ -256,13 +276,18 @@ Made during the build; each one that changes the design is also written into des
 | Oct 22, 2026 | The shared WorkItemDetail picks its context by the app root's `appRoot`; `ironstone.TaskServices` take `app` (commons or projects): in Projects an item of a project the user sees is visible and the project's team changes it, in Commons the owner and assignees as before | P2 |
 | Oct 22, 2026 | `set#TaskRank` and `move#Task` take `previousSiblingId` (the tree's name, P1) rather than the design's `afterWorkEffortId` | P2 |
 | Oct 22, 2026 | The + menu's Project kind is a screen of its own, `Projects/QuickProject`, in `BOSS_PROJECTS_MANAGERS`, so the team is not offered it (F8) | P2 |
+| Oct 22, 2026 | ProjectDetail's later tabs (Backlog, Plan, Roadmap, Requests, Code, Docs, Time, Money) are added by their phases; the Modules box already stores which are on | P2 |
+| Oct 22, 2026 | Overview's Chatter is a column from 1440 px, below the boxes narrower; no Chatter tab | P2 |
+| Oct 22, 2026 | ProjectDetail's status-bar is read-only and the moves are buttons, primary by status (Approve, Begin, Resume, Close, Re-open; In Progress: Post update) | P2 |
+| Oct 22, 2026 | A project is managed by its ProjectManager or Manager parties, a Projects manager who sees it, or ADMIN; status-update notices go to internal members only until P10 | P2 |
+| Oct 22, 2026 | ProjectDetail's menu leaves out New work item (the tab and the shell's + cover it) and Log time (P6) | P2 |
 | Oct 22, 2026 | A recurring item counted from completion takes the completion day at the due date's time of day (UTC days) and the rule without its COUNT, which counts the items made | P2 |
 
 ## 5. Open questions
 
 | Question | Decides | Notes |
 | --- | --- | --- |
-| How much of the framework list pieces P1 builds versus P2 building each when first needed | at P1 start | |
+| How much of the framework list pieces P1 builds versus P2 building each when first needed | at P1 start | Settled: P1 built them all |
 
 People's working-schedule record and Employee 360 do not exist; design §16 already settles that capacity reads
 `WetAvailable` and PersonDetail is a Projects screen, so P7 does not wait.
@@ -289,6 +314,11 @@ Design assumptions found wrong in the code, with the resolution (written into th
 | F15 | P2: the framework checks a status change against every flow (any `StatusFlowTransition` from the old status to the new), so a task's own flow is checked only by `mantle.work.TaskServices.set#TaskStatus`; a direct `update#Task` with a status passes any flow's move | Every Projects and Commons status change goes through `set#TaskStatus` |
 | F16 | P2: a screen has no way to bind its own keys (the `keymap` element is an app root's), so WorkItemDetail's `a`, `s` and `m` (§1.4) are not bound | A framework screen-level key binding, later |
 | F17 | P2: `find#WorkItems` reads the ids of the user's roles and, for Unassigned, of every assigned open item of the visible projects, as IN lists (as F1's `get#VisibleProjectInfo`) | A subquery or view with the §7 item on `get#VisibleProjectInfo` |
+| F18 | P2: a wizard step or detail tab loaded on its own (`lastStandalone`) runs without its parent screen's `actions` | The project or draft comes from `always-actions` (a cheap `get#ProjectAccess` with need none), or each step loads it; later tabs follow the pattern |
+| F19 | P2: `clone#Project` dropped visibility, owner, purpose, parent and description, so QuickProject from a template never set General | Fixed in Mantle |
+| F20 | P2: `button-menu` takes only `link`, `label` and dialogs (no `section-iterate` or `render-mode`) | A menu of computed items is one conditional link per possible item |
+| F21 | P2: the framework's status flow check refuses a spec putting a status back through `update#` | Specs restore status with an entity value update |
+| F22 | P2: project estimates roll up from their items (Mantle ECA), so the demo ACME shows Over the estimate (109 h of 105 h) | Left as demo data that shows the warning |
 | F7 | P0: a wiki space under an existing repository is documented for a repository root (`rootPageDirectory: "git://docs"`, or `rootPageLocation` `git://<repositoryId>/<SPACE>.md`), not for a subdirectory such as `git://<repositoryId>/docs` | Checked in P4 as the design's §15 row says, before ProjectDocs is built |
 
 ## 7. Later
@@ -311,6 +341,10 @@ Designed, not in this build:
   the add-sub-item button on a row, Enter and Ctrl+Enter in the quick-add row, the drop line at the landing depth, the
   focused row's guide line in the primary color, a confirmation before Expand all passes 500 rows (it stops with a
   message), and in the tui tree fetched levels, ancestors, moves and the totals row.
+
+- Projects Home (P2): the timer strip, reviews waiting, approvals, Unbilled and the charts wait for their phases; the
+  counts service answers null for them. Projects' timeline view link (P4). A copy button for clone URLs (templates have
+  no clipboard helper). QuickWorkItem's types do not reload when the project changes in the form.
 
 ## 8. Verification
 

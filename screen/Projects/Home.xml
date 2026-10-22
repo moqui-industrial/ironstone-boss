@@ -12,10 +12,156 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for the Projects landing page (design-projects.md §3 Home; impl-projects.md P2): the group's counters, my work, my projects and, for managers, approvals and charts. -->
+<!-- Projects Home (design-projects.md §3 Home; style-guide §3.1 Landing), for the team and the managers
+    (service/ironstone/ProjectServices.xml get#ProjectsHome): a greeting; a first-run card when the user sees no project (create
+    a project, import work items, connect a repository); the counters, each a link into its list: my open work items, due this
+    week, overdue and my hours this week, and for managers the projects at risk (the health, or numbers that warn) and the
+    milestones in fourteen days; my next work items (ten, by due date then priority); what changed lately in my projects; my
+    projects (managers: those they manage) with their health, status, progress, next milestone and open items; the shortcuts.
+
+    Seams for the later phases, each an addition here: the timer strip above the counters and Start timer on a work item (P6,
+    with My time), Reviews waiting on me as a counter and a list (P3b, GitReviewServices find#MergeRequests), Timesheets to
+    approve, Allocation requests and the Approvals block (P6, P7), Unbilled and the two charts (P8, P9), and the clients' Home
+    (P10). Each counter comes from mantle.work.ProjectServices.get#ProjectHomeCounts, which already answers null for those. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Home" default-menu-index="1">
+
+    <transition name="workItemDetail"><default-response url="../WorkItems/WorkItemDetail"/></transition>
+    <transition name="projectDetail"><default-response url="../Projects/ProjectDetail"/></transition>
+
+    <actions>
+        <service-call name="ironstone.ProjectServices.get#ProjectsHome" out-map="homeOut"/>
+        <script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const home = homeOut.home || {}
+            const nowMillis = Number(String(ec.user.nowTimestamp))
+            const hour = Number(ec.l10n.format(new Date(nowMillis), 'H'))
+            const name = String(ec.user.userAccount?.userFullName || ec.user.username || '').split(' ')[0]
+            greeting = (hour < 12 ? L('Good morning') : hour < 18 ? L('Good afternoon') : L('Good evening')) + (name ? ', ' + name : '')
+            todayText = ec.l10n.format(new Date(nowMillis), 'EEEE, MMMM d')
+            isManager = !!home.isManager
+            firstRun = !!home.firstRun
+            const counts = home.counts || {}
+            const n = (value) => value == null ? '—' : ec.l10n.format(value, '#,##0')
+            myOpenText = n(counts.myOpen); dueWeekText = n(counts.dueWeek); overdueText = n(counts.overdue)
+            hoursWeekText = counts.hoursWeek == null ? '—' : ec.l10n.format(counts.hoursWeek, '#,##0.##') + ' h'
+            atRiskText = n(counts.projectsAtRisk); milestonesText = n(counts.milestonesSoon)
+            const me = ec.user.userAccount?.partyId || ''
+            dueWeekLink = '../WorkItems?list=week&assigneePartyId=' + encodeURIComponent(me)
+            overdueLink = '../WorkItems?list=overdue&assigneePartyId=' + encodeURIComponent(me)
+            workItemList = Array.from(home.workItemList || [])
+            activityList = Array.from(home.activityList || [])
+            projectList = Array.from(home.projectList || [])
+            projectsTitle = isManager ? L('Projects I manage') : L('My projects')
+        ]]></script>
+    </actions>
+
     <widgets>
-        <label text="Placeholder: The IronStone Projects landing page: my work items, reviews and hours; projects at risk, approvals and unbilled work for managers." type="p"/>
+        <container style="q-mb-md">
+            <label type="h4" text="${greeting}" style="q-my-none"/>
+            <label type="div" text="${todayText}" style="text-caption m-muted"/>
+        </container>
+
+        <!-- first run: no project yet -->
+        <section name="FirstRun" condition="firstRun"><widgets>
+            <container-box type="info"><box-header title="Get started with Projects"/><box-body>
+                <label type="p" text="You are on no project yet. A project holds the work items, the team, the code and the time of one piece of work." style="m-muted"/>
+                <container style="row q-gutter-sm">
+                    <link url="../Projects/NewProject" text="Create a project" icon="sym_o_create_new_folder" condition="isManager"/>
+                    <link url="../WorkItems/Import" text="Import work items" icon="sym_o_upload_file" condition="isManager"/>
+                    <link url="../Code/Repositories" text="Connect a repository" icon="sym_o_code"/>
+                </container>
+                <label type="p" text="Ask a project manager to add you to a project." style="text-caption m-muted q-mt-sm q-mb-none" condition="!isManager"/>
+            </box-body></container-box>
+        </widgets></section>
+
+        <!-- the counters, each a link into its list; two a row on a phone -->
+        <dashboard min-width="170" style="q-mb-md">
+            <number-card title="My open items" value="${myOpenText}" icon="sym_o_checklist" link="../WorkItems?list=mine"/>
+            <number-card title="Due this week" value="${dueWeekText}" icon="sym_o_date_range" link="${dueWeekLink}"/>
+            <number-card title="Overdue" value="${overdueText}" icon="sym_o_assignment_late" link="${overdueLink}"/>
+            <number-card title="My hours" value="${hoursWeekText}" icon="sym_o_schedule" link="../Time/TimeEntries"/>
+            <number-card title="At risk" value="${atRiskText}" icon="sym_o_warning" link="../Projects?list=atRisk" condition="isManager"/>
+            <number-card title="Milestones" value="${milestonesText}" icon="sym_o_flag_circle" link="../Projects/Roadmap" condition="isManager"/>
+        </dashboard>
+
+        <container-row>
+            <row-col md="8">
+                <container-box><box-header title="My work items"/><box-toolbar>
+                    <link url="../WorkItems" link-type="anchor" text="All my work items" parameter-map="{list:'mine'}"/>
+                </box-toolbar><box-body-nopad>
+                    <form-list name="MyWorkItems" list="workItemList" skip-form="true" skip-header="true" paginate="false">
+                        <field name="workEffortId"><default-field>
+                            <link url="workItemDetail" text="${workEffortId}" parameter-map="{workEffortId:workEffortId}" link-type="anchor" style="text-mono text-no-wrap"/></default-field></field>
+                        <field name="workEffortName"><default-field>
+                            <link url="workItemDetail" text="${workEffortName}" parameter-map="{workEffortId:workEffortId}"/>
+                            <label text="${projectName || ''}" type="div" style="text-caption m-muted"/></default-field></field>
+                        <field name="statusLabel"><default-field>
+                            <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${statusColor}">${WebUtilities.encodeHtml(statusLabel ?? '')}</q-chip>]]></text>
+                                <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify(statusLabel ?? "")}}]]></text></render-mode></default-field></field>
+                        <field name="dueText" align="right"><default-field>
+                            <label text="${dueText || ''}" type="span" style="text-no-wrap ${overdue ? 'text-warning' : 'm-muted'}"/></default-field></field>
+                        <columns type="mobile">
+                            <column><field-ref name="workEffortId"/><field-ref name="workEffortName"/></column>
+                            <column><field-ref name="statusLabel"/><field-ref name="dueText"/></column>
+                        </columns>
+                    </form-list>
+                    <section name="NoWorkItems" condition="!workItemList.length"><widgets>
+                        <label type="p" text="Nothing assigned to you" style="m-muted q-pa-sm q-mb-none"/>
+                    </widgets></section>
+                </box-body-nopad></container-box>
+
+                <container-box><box-header title="${projectsTitle}"/><box-toolbar>
+                    <link url="../Projects" link-type="anchor" text="All projects"/>
+                </box-toolbar><box-body-nopad>
+                    <form-list name="MyProjects" list="projectList" skip-form="true" skip-header="true" paginate="false">
+                        <field name="workEffortName"><default-field>
+                            <link url="projectDetail" text="${workEffortName}" parameter-map="{workEffortId:workEffortId}"/>
+                            <label text="${workEffortId}${nextMilestoneText ? ' · ' + nextMilestoneText : ''}" type="div" style="text-caption m-muted"/></default-field></field>
+                        <field name="healthLabel"><default-field>
+                            <render-mode><text type="qvt"><![CDATA[<div class="row no-wrap">${healthLabel ? '<q-chip dense square class="q-my-none q-ml-none q-mr-xs m-tonal text-' + healthColor + '">' + WebUtilities.encodeHtml(healthLabel) + '</q-chip>' : ''}<q-chip dense square class="q-ma-none m-tonal text-${statusColor}">${WebUtilities.encodeHtml(statusLabel ?? '')}</q-chip></div>]]></text>
+                                <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify([healthLabel, statusLabel].filter((part) => part).join(" · "))}}]]></text></render-mode></default-field></field>
+                        <field name="percentDone" align="right"><default-field>
+                            <render-mode><text type="qvt"><![CDATA[<div style="min-width: 90px"><span class="text-caption">${WebUtilities.encodeHtml(progressText ?? '')} · ${openItems} ${ec.l10n.localize('open')}</span><q-linear-progress rounded size="6px" :value="${Number(percentDone || 0) / 100}" color="primary" track-color="grey-3"></q-linear-progress></div>]]></text>
+                                <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify((progressText ?? "") + " · " + openItems + " open")}}]]></text></render-mode></default-field></field>
+                        <columns type="mobile">
+                            <column><field-ref name="workEffortName"/></column>
+                            <column><field-ref name="healthLabel"/><field-ref name="percentDone"/></column>
+                        </columns>
+                    </form-list>
+                    <section name="NoProjects" condition="!projectList.length"><widgets>
+                        <label type="p" text="${isManager ? 'You manage no open project' : 'You are on no open project'}" style="m-muted q-pa-sm q-mb-none"/>
+                    </widgets></section>
+                </box-body-nopad></container-box>
+            </row-col>
+            <row-col md="4">
+                <!-- shortcuts: the shell's quick-create kinds and the screens a team member goes to -->
+                <container-box><box-header title="Shortcuts"/><box-body>
+                    <render-mode><text type="qvt"><![CDATA[<div class="column q-gutter-sm items-start q-mb-sm">
+                        <q-btn unelevated dense no-caps class="m-btn-tonal q-px-sm" icon="sym_o_add_task" label="${ec.l10n.localize('New work item')}" @click="$root.openQuickCreate && $root.openQuickCreate(($root.quickCreateItems || []).find((kind) => kind.kind === 'workItem'))"></q-btn>
+                        <q-btn unelevated dense no-caps class="m-btn-tonal q-px-sm" icon="sym_o_more_time" label="${ec.l10n.localize('Log time')}" @click="$root.openQuickCreate && $root.openQuickCreate(($root.quickCreateItems || []).find((kind) => kind.kind === 'time'))"></q-btn></div>]]></text>
+                        <text type="tui"><![CDATA[${JSON.stringify({t: "link", id: "HomeNewWorkItem", text: ec.l10n.localize("New work item"), url: sri.buildUrl("//Projects/QuickCreate").path + "?kind=workItem"})}]]></text></render-mode>
+                    <container style="column q-gutter-sm items-start">
+                        <link url="../Time/MyTime" text="My time" icon="sym_o_schedule"/>
+                        <link url="../Projects/NewProject" text="New project" icon="sym_o_create_new_folder" condition="isManager"/>
+                    </container>
+                </box-body></container-box>
+
+                <container-box><box-header title="Recently changed in my projects"/><box-body-nopad>
+                    <form-list name="RecentChanges" list="activityList" skip-form="true" skip-header="true" paginate="false">
+                        <field name="title"><default-field>
+                            <render-mode><text type="qvt"><![CDATA[<div class="row no-wrap items-start"><q-icon name="${icon}" size="xs" class="q-mr-sm q-mt-xs m-muted"></q-icon><div>]]></text><text type="tui" template="false">[]</text></render-mode>
+                            <link url="${url}" url-type="plain" text="${workEffortId}" link-type="anchor" style="text-mono q-mr-xs"/>
+                            <label text="${title}" type="span"/>
+                            <label text="${[projectName, authorName, whenText].filter((part) => part).join(' · ')}" type="div" style="text-caption m-muted"/>
+                            <render-mode><text type="qvt"><![CDATA[</div></div>]]></text><text type="tui" template="false">[]</text></render-mode>
+                        </default-field></field>
+                    </form-list>
+                    <section name="NoChanges" condition="!activityList.length"><widgets>
+                        <label type="p" text="Nothing changed lately" style="m-muted q-pa-sm q-mb-none"/>
+                    </widgets></section>
+                </box-body-nopad></container-box>
+            </row-col>
+        </container-row>
     </widgets>
 </screen>

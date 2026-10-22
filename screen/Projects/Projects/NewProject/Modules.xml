@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- NewProject step 3, ProjectModulesStep (design-projects.md §4 NewProject): the modules (the project's later tabs), the estimate
+    unit and the work item flow; a repository: none, a new one on disk or in the database (mantle.work.GitServices
+    create#ProjectRepository, its id the key in lower case unless given) or one linked that the user may view
+    (add#ProjectRepository; a mirror of a URL is an administrator's, in the tools); documentation: none, or a wiki space on
+    database files (in the repository comes with impl-projects.md P4). Next saves them
+    (ironstone.ProjectServices.save#ProjectModules); without git hosting in the build no repository can be made or linked. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Modules and code" default-menu-index="3">
+
+    <parameter name="workEffortId"/>
+
+    <transition name="saveModules">
+        <actions>
+            <service-call name="ironstone.ProjectServices.save#ProjectModules" out-map="saveOut" in-map="{workEffortId:workEffortId, modules:(modules ?? []),
+                    estimateUnit:estimateUnit, statusFlowId:statusFlowId, repositoryChoice:(repositoryChoice || 'none'), repositoryId:repositoryId,
+                    linkRepositoryId:linkRepositoryId, docsChoice:(docsChoice || 'none')}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+
+    <actions>
+        <script><![CDATA[
+            if (!draftProject) return
+            const settings = ec.service.sync().name('mantle.work.ProjectServices.get#ProjectSettings').parameters({workEffortId: workEffortId}).call()?.settings || {}
+            const linked = Array.from(ec.entity.find('mantle.work.effort.WorkEffortGitRepository').condition('workEffortId', workEffortId)
+                    .conditionDate('fromDate', 'thruDate', null).list()).map((row) => row.repositoryId)
+            linkedText = linked.join(', ')
+            docsSpaceId = settings.WstDocsWikiSpace || ''
+            modulesValue = {workEffortId: workEffortId, modules: String(settings.WstModules || '').split(',').filter((key) => key),
+                estimateUnit: settings.WstEstimateUnit || 'hours', statusFlowId: draftProject.statusFlowId || 'Default', repositoryChoice: 'none',
+                repositoryId: String(workEffortId).toLowerCase(), docsChoice: 'none'}
+            // the repositories the user may view, to link one (none without git hosting in the build)
+            repositoryOptions = []
+            ec.message.pushErrors()
+            try {
+                repositoryOptions = Array.from(ec.service.sync().name('org.moqui.impl.GitServices.find#GitRepositories').parameters({pageNoLimit: true}).call()?.repositoryList || [])
+                        .filter((repo) => !linked.includes(repo.repositoryId)).map((repo) => ({key: repo.repositoryId, text: repo.repositoryId + (repo.description ? ' · ' + repo.description : '')}))
+            } catch (err) {
+                ec.logger.warn('New project modules: the repositories are not listed: ' + err)
+            } finally { ec.message.clearErrors(); ec.message.popErrors() }
+        ]]></script>
+    </actions>
+
+    <widgets>
+        <section name="NotStarted" condition="!draftProject"><widgets>
+            <container-box type="warning"><box-body>
+                <label type="p" text="Start the project first: this step works on the project the Start step makes." style="q-mb-xs"/>
+                <link url="../Start" link-type="anchor" text="Back to Start"/>
+            </box-body></container-box>
+        </widgets></section>
+        <section name="ModulesStep" condition="draftProject"><widgets>
+            <container-box><box-header title="How it works"/><box-body>
+                <form-single name="ProjectModulesStep" transition="saveModules" map="modulesValue">
+                    <field name="workEffortId"><default-field><hidden/></default-field></field>
+                    <field name="modules"><default-field title="Modules (the project's tabs beside Overview, Work items, Team and Files)"><check>
+                        <option key="backlog" text="Backlog and sprints"/><option key="requests" text="Requests"/><option key="code" text="Code"/>
+                        <option key="docs" text="Docs"/><option key="time" text="Time"/><option key="money" text="Money"/><option key="client" text="Client access"/></check></default-field></field>
+                    <field name="estimateUnit"><default-field title="Estimates in"><radio><option key="hours" text="Hours"/><option key="points" text="Story points"/></radio></default-field></field>
+                    <field name="statusFlowId"><default-field title="Work item flow">
+                        <radio><option key="Default" text="Default"/><option key="WorkEffortDevelopment" text="Development (with In Review and In Testing)"/></radio></default-field></field>
+                    <field name="repositoryChoice"><default-field title="Repository">
+                        <radio><option key="none" text="None"/><option key="local" text="A new one on disk (code)"/><option key="db" text="A new one in the database"/>
+                            <option key="link" text="Link one"/></radio></default-field></field>
+                    <field name="repositoryId"><default-field title="Repository id">
+                        <text-line size="20"/><visible-when field="repositoryChoice" from="['local', 'db']"/></default-field></field>
+                    <field name="linkRepositoryId"><default-field title="Repository to link">
+                        <drop-down allow-empty="true"><list-options list="repositoryOptions" key="${key}" text="${text}"/></drop-down>
+                        <visible-when field="repositoryChoice" value="link"/></default-field></field>
+                    <field name="docsChoice"><default-field title="Documentation">
+                        <radio><option key="none" text="None"/><option key="db" text="A documentation space (in the database)"/></radio></default-field></field>
+                </form-single>
+                <label type="p" text="Linked now: ${linkedText}" style="text-caption m-muted" condition="linkedText"/>
+                <label type="p" text="Documentation space: ${docsSpaceId}" style="text-caption m-muted" condition="docsSpaceId"/>
+                <label type="p" text="Documentation in the project's repository, beside the code, comes with the project's Docs tab." style="text-caption m-muted"/>
+            </box-body></container-box>
+        </widgets></section>
+    </widgets>
+</screen>

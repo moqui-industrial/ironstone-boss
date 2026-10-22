@@ -18,14 +18,16 @@ along with this software (see the LICENSE.md file). If not, see
     week, Overdue, Recently changed, Done, All); the find in the list's dialog (text or a key, project, type, status, priority band,
     assignee, milestone, release, label, under an item, top-level only, due period, visibility, repeating), whose saved finds
     the user keeps and the seeded ones of the Projects groups (Open bugs, In review) appear beside it; the quick-add row
-    (type, title, assignee, project); the bulk changes on the selected rows (assign, unassign, status, priority, due, milestone,
+    (type, of those the project offers, title, assignee, project); the bulk changes on the selected rows (assign, unassign, status, priority, due, milestone,
     release, add or remove a label, visibility, move to a project, move under an item, delete for managers), each item on its
     own; due and priority edited in place; the sums of estimate, remaining and actual of the find above the rows. The views are the
     list, the board (by status along each item's flow, or grouped by assignee, priority, milestone or release, every row of
     the find; a drag sets the field), the calendar by due date (the dates shown asked for, a drag moving the due date) and
     the tree (the work breakdown: a row under its parent, the parents the find leaves out muted, a level fetched per open
     in rank order, the roll-ups of each branch, a drag or Tab moving an item through mantle.work.TaskServices.move#Task).
-    Peek opens a row's WorkItemDetail compact beside the list from 1280 px. Sprints (the Current sprint chip, the board's
+    Peek opens a row's WorkItemDetail compact beside the list from 1280 px. ProjectDetail mounts this screen as its Work items tab
+    (design-projects.md §4 ProjectWorkItems): there the project is fixed (the detail's workEffortId), the project column and the
+    title are left out, and the detail and peek links are absolute so they open Projects/WorkItems/WorkItemDetail. Sprints (the Current sprint chip, the board's
     sprint group, the quick-add sprint) come with impl-projects.md P4. The list's state is in the URL; each change answers
     this screen again with it (the keep field, a JSON of the find). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
@@ -53,7 +55,7 @@ along with this software (see the LICENSE.md file). If not, see
     <parameter name="due_from"/>
     <parameter name="due_thru"/>
 
-    <transition name="workItemDetail"><default-response url="../WorkItemDetail"/></transition>
+    <transition name="workItemDetail"><default-response url="//Projects/WorkItems/WorkItemDetail"/></transition>
 
     <!-- ========== changes that show the list again, with the find of the keep field ========== -->
     <transition name="quickAdd">
@@ -175,6 +177,9 @@ along with this software (see the LICENSE.md file). If not, see
 
     <actions>
         <script><![CDATA[
+            // in ProjectDetail's Work items tab (its always-actions put the project it shows in projectTabId) the project is fixed
+            projectFixed = !!ec.context.get('projectTabId')
+            if (projectFixed) rootWorkEffortId = ec.context.get('projectTabId')
             const L = (text) => ec.l10n.localize(text)
             const lists = [['open', 'Open', 'sym_o_checklist'], ['mine', 'Assigned to me', 'sym_o_person'], ['reported', 'Reported by me', 'sym_o_edit_note'],
                 ['watching', 'Watching', 'sym_o_visibility'], ['unassigned', 'Unassigned', 'sym_o_person_off'], ['week', 'Due this week', 'sym_o_date_range'],
@@ -236,6 +241,9 @@ along with this software (see the LICENSE.md file). If not, see
             projectOptions = ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').call()?.projectList || []
             addProjectOptions = ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').parameters({memberOnly: true}).call()?.projectList || []
             addProjectId = rootWorkEffortId && addProjectOptions.some((option) => option.key === rootWorkEffortId) ? rootWorkEffortId : (addProjectOptions[0]?.key || '')
+            // the quick-add types: those the project offers (Settings, Work item types; the project's own WstWorkItemTypes)
+            addTypeOptions = Array.from(ec.service.sync().name('ironstone.ProjectServices.get#WorkItemTypes').parameters({rootWorkEffortId: addProjectId || null}).call()?.offeredList || [])
+            addTypeId = addTypeOptions.some((type) => type.enumId === 'WepTask') ? 'WepTask' : (addTypeOptions[0]?.enumId || 'WepTask')
             milestoneOptions = ec.service.sync().name('ironstone.WorkItemServices.get#PlanItemOptions').parameters({rootWorkEffortId: rootWorkEffortId || null,
                 workEffortTypeEnumId: 'WetMilestone'}).call()?.optionList || []
             releaseOptions = ec.service.sync().name('ironstone.WorkItemServices.get#PlanItemOptions').parameters({rootWorkEffortId: rootWorkEffortId || null,
@@ -258,9 +266,9 @@ along with this software (see the LICENSE.md file). If not, see
 
         <!-- title row: New work item (the views switch and Peek are above the list) -->
         <container style="row items-center q-mb-sm q-gutter-y-xs">
-            <label text="Work items" type="h5" style="q-my-none q-mr-sm"/>
+            <label text="Work items" type="h5" style="q-my-none q-mr-sm" condition="!projectFixed"/>
             <container style="col"/>
-            <render-mode><text type="qvt"><![CDATA[${newItemHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify({t: "link", id: "WorkItemsNew", text: ec.l10n.localize("New work item"), url: sri.buildUrl("../../QuickCreate").path + "?kind=workItem"})}]]></text></render-mode>
+            <render-mode><text type="qvt"><![CDATA[${newItemHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify({t: "link", id: "WorkItemsNew", text: ec.l10n.localize("New work item"), url: sri.buildUrl("//Projects/QuickCreate").path + "?kind=workItem" + (rootWorkEffortId ? "&rootWorkEffortId=" + encodeURIComponent(rootWorkEffortId) : "")})}]]></text></render-mode>
         </container>
 
         <!-- the smart lists, each with its count -->
@@ -291,13 +299,8 @@ along with this software (see the LICENSE.md file). If not, see
                 <container style="q-px-sm q-pt-sm m-task-quick-add">
                     <form-single name="NewWorkItem" transition="quickAdd" focus-field="workEffortName">
                         <field name="keep" from="keepJson"><default-field><hidden/></default-field></field>
-                        <field name="purposeEnumId" from="'WepTask'"><default-field title="Type">
-                            <drop-down><entity-options key="${enumId}" text="${description}">
-                                <entity-find entity-name="moqui.basic.Enumeration" cache="true">
-                                    <econdition field-name="enumTypeId" value="WorkEffortPurpose"/><econdition field-name="parentEnumId" value="WetTask"/>
-                                    <econdition field-name="enumId" operator="not-in" value="WepToDo,WepCommunication,WepPlaceholder"/>
-                                    <order-by field-name="description"/></entity-find>
-                            </entity-options></drop-down></default-field></field>
+                        <field name="purposeEnumId" from="addTypeId"><default-field title="Type">
+                            <drop-down><list-options list="addTypeOptions" key="${enumId}" text="${label}"/></drop-down></default-field></field>
                         <field name="workEffortName" from="''"><default-field title="Add a work item"><text-line size="36"/></default-field></field>
                         <field name="assignToPartyId"><default-field title="Assignee">
                             <drop-down allow-empty="true"><dynamic-options transition="assigneeSearch" server-search="true" min-length="0"/></drop-down></default-field></field>
@@ -311,7 +314,7 @@ along with this software (see the LICENSE.md file). If not, see
             </widgets></section>
 
             <form-list name="WorkItemList" list="workItemRows" skip-form="true" paginate="true" show-page-size="false" views="list,board,calendar,tree"
-                    header-dialog="true" saved-finds="true" select-columns="true" show-csv-button="true" show-xlsx-button="true" peek-url="../WorkItemDetail">
+                    header-dialog="true" saved-finds="true" select-columns="true" show-csv-button="true" show-xlsx-button="true" peek-url="//Projects/WorkItems/WorkItemDetail">
                 <row-selection id-field="workEffortId" parameter="selectedIds" list-mode="true">
                     <action><dialog button-text="Assign" button-icon="sym_o_person_add" title="Assign the selected work items to"/>
                         <form-single name="BulkAssign" transition="bulkAction">
@@ -481,6 +484,7 @@ along with this software (see the LICENSE.md file). If not, see
                 </field>
                 <field name="rootWorkEffortId"><header-field title="Project" show-order-by="true">
                         <drop-down allow-empty="true"><list-options list="projectOptions" key="${key}" text="${text}"/></drop-down></header-field>
+                    <conditional-field condition="projectFixed"><ignored/></conditional-field>
                     <default-field title="Project"><display text="${projectName || ''}"/></default-field></field>
                 <field name="parentWorkEffortId"><default-field title="Parent"><display text="${parentWorkEffortId ? parentWorkEffortId + ' ' + parentName : ''}"/></default-field></field>
                 <field name="milestoneId"><header-field title="Milestone">

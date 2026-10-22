@@ -12,10 +12,83 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for labels settings (design-projects.md §12 Labels; impl-projects.md P2). -->
+<!-- Labels (design-projects.md §12 Labels; style-guide §3.9 Settings): the organization's work item labels (WorkEffortCategory
+    WcatLabel) with their color (of the theme's set) and the count of work items that have each; New label, Edit (name and color)
+    and Delete (taken off its items) on a row, and Merge (MergeLabels: the items of one get the other, which stays). Service:
+    ironstone.ProjectServices get#Labels and change#Label over the mantle.work.TaskServices label services. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Labels" default-menu-index="3">
+
+    <transition name="changeLabel">
+        <service-call name="ironstone.ProjectServices.change#Label" in-map="{action:action, workEffortCategoryId:workEffortCategoryId, description:description,
+                colorName:colorName, fromCategoryId:fromCategoryId, intoCategoryId:intoCategoryId}" out-map="labelOut"/>
+        <actions><if condition="!ec.message.hasError()"><script>ec.message.addMessage(labelOut.message, 'success')</script></if></actions>
+        <default-response url="."/>
+        <error-response url="."/>
+    </transition>
+
+    <actions>
+        <script><![CDATA[
+            const info = ec.service.sync().name('ironstone.ProjectServices.get#Labels').call() || {}
+            labelList = Array.from(info.labelList || [])
+            hasOrganization = !!info.organizationPartyId
+        ]]></script>
+    </actions>
+
     <widgets>
-        <label text="Placeholder: Labels: the work item labels and their colors." type="p"/>
+        <container style="row items-center q-mb-sm q-gutter-x-sm">
+            <label type="h5" text="Labels" style="q-my-none"/>
+            <container style="col"/>
+            <container-dialog id="MergeLabelsDialog" button-text="Merge" icon="sym_o_merge" width="480" title="Merge two labels" condition="labelList.length &gt; 1">
+                <form-single name="MergeLabels" transition="changeLabel">
+                    <field name="action" from="'merge'"><default-field><hidden/></default-field></field>
+                    <field name="fromCategoryId"><default-field title="Merge">
+                        <drop-down><list-options list="labelList" key="${workEffortCategoryId}" text="${description}"/></drop-down></default-field></field>
+                    <field name="intoCategoryId"><default-field title="Into (it stays)">
+                        <drop-down><list-options list="labelList" key="${workEffortCategoryId}" text="${description}"/></drop-down></default-field></field>
+                    <field name="submitButton"><default-field title="Merge"><submit confirmation="Merge the labels? The first one is deleted."/></default-field></field>
+                </form-single>
+            </container-dialog>
+            <container-dialog id="NewLabelDialog" button-text="New label" icon="sym_o_new_label" width="440" title="A label" condition="hasOrganization">
+                <form-single name="NewLabel" transition="changeLabel" focus-field="description">
+                    <field name="action" from="'create'"><default-field><hidden/></default-field></field>
+                    <field name="description"><default-field title="Name"><text-line size="24"/></default-field></field>
+                    <field name="colorName" from="'blue'"><default-field title="Color"><drop-down>
+                                <option key="grey" text="Grey"/><option key="blue" text="Blue"/><option key="indigo" text="Indigo"/>
+                                <option key="purple" text="Purple"/><option key="pink" text="Pink"/><option key="red" text="Red"/><option key="orange" text="Orange"/>
+                                <option key="amber" text="Amber"/><option key="green" text="Green"/><option key="teal" text="Teal"/><option key="cyan" text="Cyan"/>
+                                <option key="brown" text="Brown"/></drop-down></default-field></field>
+                    <field name="submitButton"><default-field title="Add"><submit/></default-field></field>
+                </form-single>
+            </container-dialog>
+        </container>
+        <container-box><box-header title="Work item labels · ${labelList.length}"/><box-body-nopad>
+            <form-list name="LabelList" list="labelList" skip-form="true" paginate="false">
+                <field name="description"><default-field title="Label">
+                    <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${colorName}" data-label="${WebUtilities.encodeHtml(workEffortCategoryId)}">${WebUtilities.encodeHtml(description ?? '')}</q-chip>]]></text>
+                        <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify(description ?? "")}}]]></text></render-mode></default-field></field>
+                <field name="colorName"><default-field title="Color"><display/></default-field></field>
+                <field name="itemCount" align="right"><default-field title="Work items"><display/></default-field></field>
+                <field name="edit"><default-field title="">
+                    <container-dialog id="EditLabelDialog" button-text="Edit" icon="sym_o_edit" width="440" title="Label ${description}">
+                        <form-single name="EditLabel" transition="changeLabel">
+                            <field name="action" from="'update'"><default-field><hidden/></default-field></field>
+                            <field name="workEffortCategoryId"><default-field><hidden/></default-field></field>
+                            <field name="description"><default-field title="Name"><text-line size="24"/></default-field></field>
+                            <field name="colorName"><default-field title="Color"><drop-down>
+                                <option key="grey" text="Grey"/><option key="blue" text="Blue"/><option key="indigo" text="Indigo"/>
+                                <option key="purple" text="Purple"/><option key="pink" text="Pink"/><option key="red" text="Red"/><option key="orange" text="Orange"/>
+                                <option key="amber" text="Amber"/><option key="green" text="Green"/><option key="teal" text="Teal"/><option key="cyan" text="Cyan"/>
+                                <option key="brown" text="Brown"/></drop-down></default-field></field>
+                            <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                        </form-single>
+                    </container-dialog>
+                    <link url="changeLabel" link-type="hidden-form-link" text="Delete" confirmation="Delete the label ${description}? It is taken off ${itemCount} work items."
+                            parameter-map="{action:'delete', workEffortCategoryId:workEffortCategoryId}"/></default-field></field>
+            </form-list>
+            <section name="NoLabels" condition="!labelList.length"><widgets>
+                <label type="p" text="No labels yet" style="m-muted q-pa-sm q-mb-none"/>
+            </widgets></section>
+        </box-body-nopad></container-box>
     </widgets>
 </screen>

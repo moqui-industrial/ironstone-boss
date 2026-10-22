@@ -12,10 +12,279 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for the project list (design-projects.md §4 Projects; impl-projects.md P2). -->
+<!-- Projects (design-projects.md §4 Projects; style-guide §3.2 List, §3.6 Board): the projects the user sees, not templates
+    (service/ironstone/ProjectServices.xml find#Projects, impl-projects.md F1). A chip row with the counts (Active, Mine,
+    Planned, On hold, At risk, Completed, Closed, All) and Show sub-projects (each program's sub-projects indented under it, its
+    numbers summing theirs); the find in the list's dialog (text or key, status, health, client, manager, purpose, program, due
+    period), with saved finds; the columns key, name, client, manager, status and health chips, progress (items done), next
+    milestone, open and overdue items, hours of the budget, client budget used (managers) and the last change. The board groups
+    by status along the Default flow, every row of the find, a drag moving the project (managers; set#ProjectStatus). Bulk for
+    managers: set the manager, put on hold, close. New project opens the NewProject wizard; the timeline view (Timeline's
+    portfolio mode) comes with impl-projects.md P4. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Projects" default-menu-include="false">
+
+    <parameter name="list"/>
+    <parameter name="text"/>
+    <parameter name="statusId"/>
+    <parameter name="healthEnumId"/>
+    <parameter name="clientPartyId"/>
+    <parameter name="managerPartyId"/>
+    <parameter name="purposeEnumId"/>
+    <parameter name="parentWorkEffortId"/>
+    <parameter name="subProjects"/>
+    <parameter name="orderByField"/>
+    <parameter name="pageIndex"/>
+    <parameter name="due_period"/>
+    <parameter name="due_poffset"/>
+    <parameter name="due_pdate"/>
+    <parameter name="due_from"/>
+    <parameter name="due_thru"/>
+
+    <transition name="projectDetail"><default-response url="../ProjectDetail"/></transition>
+    <transition name="newProject"><default-response url="../NewProject"/></transition>
+
+    <!-- the bulk changes: selectedIds (a comma list), the change and its value -->
+    <transition name="bulkAction">
+        <actions>
+            <service-call name="ironstone.ProjectServices.bulk#Projects" out-map="bulkOut" in-map="{action:bulk, workEffortIds:(selectedIds || ''), value:(value || null)}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(bulkOut.message, bulkOut.failedCount ? 'warning' : 'success')</script></if>
+            <script><![CDATA[
+                let kept = {}
+                try { kept = JSON.parse(keep || '{}') || {} } catch (err) { kept = {} }
+                ec.context.putAll(kept)
+            ]]></script>
+        </actions>
+        <default-response url=".">
+            <parameter name="list"/><parameter name="text"/><parameter name="statusId"/><parameter name="healthEnumId"/><parameter name="clientPartyId"/>
+            <parameter name="managerPartyId"/><parameter name="purposeEnumId"/><parameter name="parentWorkEffortId"/><parameter name="subProjects"/>
+            <parameter name="orderByField"/><parameter name="pageIndex"/>
+            <parameter name="due_period"/><parameter name="due_poffset"/><parameter name="due_pdate"/><parameter name="due_from"/><parameter name="due_thru"/>
+        </default-response>
+        <error-response url="."/>
+    </transition>
+    <!-- the board: a card moved to another status column -->
+    <transition name="moveCard">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.ProjectServices.set#ProjectStatus').parameters({workEffortId: workEffortId, statusId: statusId || ''}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: out.message}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="clientSearch" read-only="true">
+        <actions>
+            <entity-find entity-name="mantle.party.PartyDetail" list="partyList" limit="20">
+                <econdition field-name="partyTypeEnumId" value="PtyOrganization"/>
+                <econdition field-name="organizationName" operator="like" value="%${term}%" ignore-case="true" ignore="!term"/>
+                <econdition field-name="disabled" operator="not-equals" value="Y" or-null="true"/>
+                <econdition field-name="privateOwnerUserId" from="ec.user.userId" or-null="true"/>
+                <order-by field-name="^organizationName"/>
+            </entity-find>
+            <script>ec.web.sendJsonResponse(Array.from(partyList).map((party) => ({value: party.partyId, label: party.organizationName || party.partyId})))</script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="peopleSearch" read-only="true">
+        <actions>
+            <service-call name="ironstone.TaskServices.search#Assignees" in-map="{term:term}" out-map="found"/>
+            <script>ec.web.sendJsonResponse(found.optionList || [])</script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+
+    <actions>
+        <script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const lists = [['active', 'Active', 'sym_o_play_circle'], ['mine', 'Mine', 'sym_o_person'], ['planned', 'Planned', 'sym_o_edit_calendar'],
+                ['onHold', 'On hold', 'sym_o_pause_circle'], ['atRisk', 'At risk', 'sym_o_warning'], ['completed', 'Completed', 'sym_o_task_alt'],
+                ['closed', 'Closed', 'sym_o_archive'], ['all', 'All', 'sym_o_select_all']]
+            if (!lists.some((entry) => entry[0] === list)) list = 'active'
+            const param = (name) => { const value = ec.web.parameters[name]; return value == null || value === '' ? null : String(value) }
+            const ctx = (name) => { const value = ec.context.get(name); return value == null || value === '' ? null : String(value) }
+            let dueFrom = null
+            let dueThru = null
+            if (ctx('due_period')) {
+                const range = ec.user.getPeriodRange(ctx('due_period'), ctx('due_poffset') || '0', ctx('due_pdate'))
+                if (range) { dueFrom = range[0]; dueThru = range[1] }
+            } else {
+                if (ctx('due_from')) dueFrom = ec.l10n.parseTimestamp(ctx('due_from').substring(0, 10) + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS')
+                if (ctx('due_thru')) dueThru = new Date(Number(String(ec.l10n.parseTimestamp(ctx('due_thru').substring(0, 10) + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS'))) + 86400000)
+            }
+            const noLimit = param('pageNoLimit') === 'true'
+            const out = ec.service.sync().name('ironstone.ProjectServices.find#Projects').parameters({list: list, text: text || null, statusId: statusId || null,
+                healthEnumId: healthEnumId || null, clientPartyId: clientPartyId || null, managerPartyId: managerPartyId || null, purposeEnumId: purposeEnumId || null,
+                parentWorkEffortId: parentWorkEffortId || null, subProjects: subProjects || null, dueFrom: dueFrom, dueThru: dueThru, orderByField: orderByField || null,
+                pageIndex: Number(pageIndex || 0) || 0, pageSize: 25, pageNoLimit: noLimit, withCounts: !noLimit}).call() || {}
+            projectRows = Array.from(out.rowList || [])
+            projectRowsCount = out.rowCount || 0
+            projectRowsPageIndex = out.pageIndex || 0
+            projectRowsPageSize = out.pageSize || 25
+            projectRowsPageMaxIndex = out.pageMaxIndex || 0
+            projectRowsPageRangeLow = out.pageRangeLow || 0
+            projectRowsPageRangeHigh = out.pageRangeHigh || 0
+            withMoney = !!out.withMoney
+            const counts = out.counts || {}
+            const find = {text: text || null, statusId: statusId || null, healthEnumId: healthEnumId || null, clientPartyId: clientPartyId || null,
+                managerPartyId: managerPartyId || null, purposeEnumId: purposeEnumId || null, parentWorkEffortId: parentWorkEffortId || null,
+                orderByField: orderByField || null, due_period: ctx('due_period'), due_poffset: ctx('due_poffset'), due_pdate: ctx('due_pdate'),
+                due_from: ctx('due_from'), due_thru: ctx('due_thru')}
+            Object.keys(find).forEach((key) => { if (find[key] == null) delete find[key] })
+            filtered = Object.keys(find).some((key) => key !== 'orderByField')
+            const shown = Object.assign({}, find, subProjects === 'Y' ? {subProjects: 'Y'} : {})
+            keepJson = JSON.stringify(Object.assign({list: list}, shown, projectRowsPageIndex ? {pageIndex: String(projectRowsPageIndex)} : {}))
+            listChips = lists.map(([key, label, icon]) => ({key: key, label: L(label) + ' · ' + (counts[key] || 0), icon: icon, on: key === list,
+                params: Object.assign({}, shown, {list: key})}))
+            listLabel = L(lists.find((entry) => entry[0] === list)[1])
+            subProjectsOn = subProjects === 'Y'
+            subProjectsParams = Object.assign({list: list}, find, subProjectsOn ? {} : {subProjects: 'Y'})
+            isProjectsManager = ec.user.isInGroup('BOSS_PROJECT_MANAGER') || ec.user.isInGroup('ADMIN')
+            programOptions = ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').call()?.projectList || []
+            const empty = {active: 'No active projects', mine: 'You are on no open project', planned: 'No projects in planning', onHold: 'No projects on hold',
+                atRisk: 'No projects at risk', completed: 'No completed projects', closed: 'No closed projects', all: 'No projects yet'}
+            emptyText = filtered ? L('No projects match') : L(empty[list])
+        ]]></script>
+    </actions>
+
     <widgets>
-        <label text="Placeholder: Projects: saved finds, health, progress and budget, sub-projects; list, board and timeline views." type="p"/>
+        <context selection-form="ProjectList"/>
+
+        <!-- title row: New project for managers -->
+        <container style="row items-center q-mb-sm q-gutter-y-xs">
+            <label text="Projects" type="h5" style="q-my-none q-mr-sm"/>
+            <container style="col"/>
+            <link url="newProject" text="New project" icon="sym_o_create_new_folder" btn-type="primary" condition="isProjectsManager"/>
+        </container>
+
+        <!-- the chips, each with its count, and Show sub-projects -->
+        <container style="row q-gutter-xs q-mb-sm m-task-chips">
+            <section-iterate name="ListChip" list="listChips" entry="chip"><widgets>
+                <section name="ListChipOn" condition="chip.on"><widgets>
+                    <link url="." link-type="anchor-button" btn-type="primary" text="${chip.label}" icon="${chip.icon}" parameter-map="chip.params"/>
+                </widgets><fail-widgets>
+                    <link url="." link-type="anchor-button" text="${chip.label}" icon="${chip.icon}" parameter-map="chip.params"/>
+                </fail-widgets></section>
+            </widgets></section-iterate>
+            <section name="SubProjectsOn" condition="subProjectsOn"><widgets>
+                <link url="." link-type="anchor-button" btn-type="primary" text="Sub-projects shown" icon="sym_o_account_tree" parameter-map="subProjectsParams"/>
+            </widgets><fail-widgets>
+                <link url="." link-type="anchor-button" text="Show sub-projects" icon="sym_o_account_tree" parameter-map="subProjectsParams"/>
+            </fail-widgets></section>
+        </container>
+        <section name="ClearFilters" condition="filtered"><widgets>
+            <container style="q-mb-xs"><link url="." link-type="anchor" text="Clear filters" parameter-map="{list:list}"/></container>
+        </widgets></section>
+
+        <container-box><box-header title="${listLabel} · ${projectRowsCount}"/><box-body-nopad>
+            <form-list name="ProjectList" list="projectRows" skip-form="true" paginate="true" show-page-size="false" views="list,board"
+                    header-dialog="true" saved-finds="true" select-columns="true" show-csv-button="true" show-xlsx-button="true">
+                <row-selection id-field="workEffortId" parameter="selectedIds" list-mode="true">
+                    <action><dialog button-text="Set manager" button-icon="sym_o_manage_accounts" title="The project manager of the selected projects"/>
+                        <form-single name="BulkManager" transition="bulkAction">
+                            <field name="bulk" from="'manager'"><default-field><hidden/></default-field></field>
+                            <field name="keep" from="keepJson"><default-field><hidden/></default-field></field>
+                            <field name="value"><default-field title="Project manager">
+                                <drop-down><dynamic-options transition="peopleSearch" server-search="true" min-length="0"/></drop-down></default-field></field>
+                            <field name="submitButton"><default-field title="Set manager"><submit/></default-field></field>
+                        </form-single></action>
+                    <action><form-single name="BulkHold" transition="bulkAction">
+                        <field name="bulk" from="'hold'"><default-field><hidden/></default-field></field>
+                        <field name="keep" from="keepJson"><default-field><hidden/></default-field></field>
+                        <field name="submitButton"><default-field title="Put on hold"><submit icon="sym_o_pause_circle" confirmation="Put the selected projects on hold?"/></default-field></field>
+                    </form-single></action>
+                    <action><form-single name="BulkClose" transition="bulkAction">
+                        <field name="bulk" from="'close'"><default-field><hidden/></default-field></field>
+                        <field name="keep" from="keepJson"><default-field><hidden/></default-field></field>
+                        <field name="submitButton"><default-field title="Close"><submit icon="sym_o_archive" confirmation="Close the selected projects? Those not complete are completed first."/></default-field></field>
+                    </form-single></action>
+                </row-selection>
+
+                <!-- the find (the list's dialog) -->
+                <field name="text"><header-field title="Text or key"><text-line size="20"/></header-field></field>
+                <field name="list"><header-field><hidden/></header-field></field>
+                <field name="subProjects"><header-field><hidden/></header-field></field>
+                <field name="due"><header-field title="Target date"><date-period allow-empty="true"/></header-field></field>
+                <field name="healthEnumId"><header-field title="Health">
+                    <drop-down allow-empty="true"><option key="WehOnTrack" text="On track"/><option key="WehAtRisk" text="At risk"/>
+                        <option key="WehOffTrack" text="Off track"/></drop-down></header-field></field>
+                <field name="managerPartyId"><header-field title="Manager">
+                    <drop-down allow-empty="true"><dynamic-options transition="peopleSearch" server-search="true" min-length="0"/></drop-down></header-field></field>
+                <field name="purposeEnumId"><header-field title="Purpose">
+                    <drop-down allow-empty="true"><entity-options key="${enumId}" text="${description}">
+                        <entity-find entity-name="moqui.basic.Enumeration" cache="true"><econdition field-name="enumTypeId" value="WorkEffortPurpose"/>
+                            <econdition field-name="parentEnumId" value="WetProject"/><order-by field-name="description"/></entity-find></entity-options></drop-down></header-field></field>
+                <field name="parentWorkEffortId"><header-field title="Program">
+                    <drop-down allow-empty="true"><list-options list="programOptions" key="${key}" text="${text}"/></drop-down></header-field></field>
+
+                <!-- the columns -->
+                <field name="workEffortId"><header-field title="Key" show-order-by="true"/><default-field>
+                    <link url="projectDetail" text="${workEffortId}" parameter-map="{workEffortId:workEffortId}" link-type="anchor" style="text-mono text-no-wrap"/>
+                </default-field></field>
+                <field name="workEffortName"><header-field title="Name" show-order-by="true"/><default-field>
+                    <link url="projectDetail" text="${isSubProject ? '↳ ' : ''}${workEffortName}${subProjectCount &amp;&amp; !subProjectsOn ? ' · ' + subProjectCount + (subProjectCount == 1 ? ' sub-project' : ' sub-projects') : ''}"
+                            parameter-map="{workEffortId:workEffortId}"/>
+                </default-field></field>
+                <field name="clientPartyId"><header-field title="Client">
+                        <drop-down allow-empty="true"><dynamic-options transition="clientSearch" server-search="true" min-length="0"/></drop-down></header-field>
+                    <default-field title="Client"><display text="${clientName || ''}"/></default-field></field>
+                <field name="managerName"><default-field title="Manager">
+                    <render-mode><text type="qvt"><![CDATA[${managerName ? '<span class="row inline no-wrap items-center"><m-avatar name="' + WebUtilities.encodeHtml(managerName) + '"' + (managerUserId ? ' user-id="' + WebUtilities.encodeHtml(managerUserId) + '"' : '') + ' size="22px" class="q-mr-xs"></m-avatar>' + WebUtilities.encodeHtml(managerName) + '</span>' : ''}]]></text>
+                        <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify(managerName ?? "")}}]]></text></render-mode>
+                </default-field></field>
+                <field name="statusId"><header-field title="Status" show-order-by="true">
+                        <drop-down allow-empty="true" allow-multiple="true"><option key="WeInPlanning" text="In Planning"/><option key="WeApproved" text="Approved"/>
+                            <option key="WeInProgress" text="In Progress"/><option key="WeOnHold" text="On Hold"/><option key="WeComplete" text="Complete"/>
+                            <option key="WeClosed" text="Closed"/><option key="WeCancelled" text="Cancelled"/></drop-down></header-field>
+                    <default-field>
+                        <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${statusColor}" data-status="${statusId}">${WebUtilities.encodeHtml(statusLabel ?? '')}</q-chip>]]></text><text type="tui"><![CDATA[{"t": "text", "style": "strong", "text": ${JSON.stringify(statusLabel ?? "")}}]]></text></render-mode>
+                    </default-field></field>
+                <field name="healthLabel"><header-field title="Health" show-order-by="true"/><default-field title="Health">
+                    <render-mode><text type="qvt"><![CDATA[${healthLabel ? '<q-chip dense square class="q-ma-none m-tonal text-' + healthColor + '" data-health="' + WebUtilities.encodeHtml(healthEnumId ?? '') + '">' + WebUtilities.encodeHtml(healthLabel) + '</q-chip>' : '<span class="m-muted">—</span>'}]]></text>
+                        <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify(healthLabel || "—")}}]]></text></render-mode>
+                </default-field></field>
+                <field name="percentDone" align="right"><default-field title="Progress">
+                    <render-mode><text type="qvt"><![CDATA[<div class="column items-end" style="min-width: 90px"><span class="text-caption">${WebUtilities.encodeHtml(progressText ?? '')}</span><q-linear-progress rounded size="6px" :value="${Number(percentDone || 0) / 100}" color="${percentDone >= 100 ? 'positive' : 'primary'}" track-color="grey-3" class="q-mt-xs"></q-linear-progress></div>]]></text>
+                        <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify(progressText ?? "")}}]]></text></render-mode>
+                </default-field></field>
+                <field name="nextMilestoneText"><default-field title="Next milestone"><display/></default-field></field>
+                <field name="openItems" align="right"><default-field title="Open items">
+                    <label text="${itemsText}" type="span" style="text-no-wrap ${overdueItems ? 'text-warning' : ''}"/></default-field></field>
+                <field name="hoursText" align="right"><default-field title="Hours">
+                    <label text="${hoursText}" type="span" style="text-no-wrap ${hoursOver ? 'text-negative' : ''}"/></default-field></field>
+                <field name="budgetUsedText" align="right"><header-field title="Budget used"/><conditional-field condition="withMoney" title="Budget used"><display/></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="estimatedCompletionDate"><header-field title="Target" show-order-by="true"/><default-field title="Target">
+                    <display text="${dueText || ''}"/></default-field></field>
+                <field name="updatedText"><default-field title="Updated"><display/></default-field></field>
+                <field name="findButton"><header-field title="Find"><submit/></header-field></field>
+
+                <form-list-column><field-ref name="workEffortId"/></form-list-column>
+                <form-list-column><field-ref name="workEffortName"/></form-list-column>
+                <form-list-column><field-ref name="clientPartyId"/></form-list-column>
+                <form-list-column><field-ref name="managerName"/></form-list-column>
+                <form-list-column><field-ref name="statusId"/></form-list-column>
+                <form-list-column><field-ref name="healthLabel"/></form-list-column>
+                <form-list-column><field-ref name="percentDone"/></form-list-column>
+                <form-list-column><field-ref name="nextMilestoneText"/></form-list-column>
+                <form-list-column><field-ref name="openItems"/></form-list-column>
+                <form-list-column><field-ref name="hoursText"/></form-list-column>
+                <form-list-column><field-ref name="budgetUsedText"/></form-list-column>
+                <form-list-column><field-ref name="estimatedCompletionDate"/></form-list-column>
+                <form-list-column><field-ref name="updatedText"/></form-list-column>
+                <form-list-column><field-ref name="findButton"/></form-list-column>
+
+                <!-- the board by status along the Default flow: a card is the project's name with its key, client and health -->
+                <view-board group-field="statusId" card-title-field="workEffortName" card-fields="workEffortId,clientPartyId,healthLabel"
+                        badge-field="openItems" key-fields="workEffortId" transition="moveCard" status-type-id="WorkEffort" status-flow-id="Default"
+                        column-order="WeInPlanning,WeApproved,WeInProgress,WeOnHold,WeComplete" all-rows="true"/>
+            </form-list>
+            <section name="NoProjects" condition="!projectRows.length"><widgets>
+                <container style="q-pa-sm">
+                    <label type="p" text="${emptyText}" style="m-muted q-mb-xs"/>
+                    <section name="NoProjectsClear" condition="filtered"><widgets>
+                        <link url="." link-type="anchor" text="Clear filters" parameter-map="{list:list}"/>
+                    </widgets></section>
+                </container>
+            </widgets></section>
+        </box-body-nopad></container-box>
     </widgets>
 </screen>

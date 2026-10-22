@@ -12,11 +12,226 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for the project hub (design-projects.md §4 ProjectDetail; impl-projects.md P2), which the palette and notification links of a project open (ironstone.PaletteServices.get#RecordLink). -->
+<!-- ProjectDetail (design-projects.md §4 ProjectDetail; style-guide §3.3 Detail): the project hub, which the palette and
+    notification links of a project open (ironstone.PaletteServices.get#RecordLink). The title row: the key as a mono chip, the
+    name, the stages of the Default flow (read only: the moves are the actions), the health chip with the date of the latest
+    update, the client and the manager; the number cards (open items, overdue, the next milestone, the hours of the budget or
+    the estimate, and for managers the client budget used); the primary action by status (Approve, Begin, Resume, Close,
+    Re-open), Post update beside it (the primary in progress), and the More menu (the other moves of the flow, Follow, Clone,
+    Save as template, Print status report). New work item is the Work items tab's and the shell's +, which takes the project
+    from the screen context. A template shows its banner, a closed or cancelled project is read only but for
+    Re-open (service/ironstone/ProjectServices.xml get#ProjectHeader).
+
+    The tabs are subscreens, each with the project as its context: Overview, Work items (WorkItems/List with the project fixed),
+    Team, Files and Settings (managers, BOSS_PROJECTS_MANAGERS). The later phases' tabs (Backlog, Plan, Roadmap, Requests, Code,
+    Docs, Time, Money; impl-projects.md P3b to P8) are left out until they are built; the Modules box of Settings already keeps
+    which are on (WstModules). A project the user may not see is "not available". -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Project" default-menu-include="false">
-    <parameter name="workEffortId"/>
+
+    <parameter name="workEffortId" required="true"/>
+
+    <!-- the project for the tabs, which the client loads on their own (their actions run without this screen's): visible and
+        managed by the user, cheap enough for every transition (a task's id in a Work items transition is not a project) -->
+    <always-actions><script><![CDATA[
+        const projectAccess = ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: workEffortId || '', need: 'none'}).call() || {}
+        recordFound = !!projectAccess.canView
+        project = projectAccess.project || null
+        projectTabId = recordFound ? workEffortId : null
+        canManage = !!projectAccess.canManage
+    ]]></script></always-actions>
+
+    <subscreens default-item="Overview">
+        <subscreens-item name="WorkItems" location="component://ironstone-boss/screen/Projects/WorkItems/List.xml" menu-title="Work items" menu-index="2"/>
+    </subscreens>
+
+    <transition name="projects"><default-response url="../List"/></transition>
+    <transition name="changeStatus">
+        <actions>
+            <service-call name="ironstone.ProjectServices.set#ProjectStatus" out-map="statusOut" in-map="{workEffortId:workEffortId, statusId:statusId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(statusOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="postUpdate">
+        <actions>
+            <service-call name="ironstone.ProjectServices.post#ProjectUpdate" out-map="updateOut" in-map="{workEffortId:workEffortId, healthEnumId:healthEnumId,
+                    percentComplete:percentComplete, body:body, clientVisible:clientVisible}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(updateOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="follow">
+        <actions>
+            <service-call name="ironstone.ChatterServices.follow#Record" out-map="followOut" in-map="{recordEntityName:'mantle.work.effort.WorkEffort', recordId:workEffortId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(followOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="unfollow">
+        <actions>
+            <service-call name="ironstone.ChatterServices.unfollow#Record" out-map="followOut" in-map="{recordEntityName:'mantle.work.effort.WorkEffort', recordId:workEffortId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(followOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="cloneProject">
+        <actions>
+            <service-call name="ironstone.ProjectServices.create#NewProject" out-map="cloneOut" in-map="{workEffortId:newWorkEffortId, workEffortName:newWorkEffortName,
+                    templateWorkEffortId:(isTemplate == 'Y' ? workEffortId : null), cloneFromWorkEffortId:(isTemplate == 'Y' ? null : workEffortId),
+                    clientPartyId:null}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(cloneOut.message, 'success'); workEffortId = cloneOut.projectId</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="saveAsTemplate">
+        <actions>
+            <service-call name="ironstone.ProjectServices.save#ProjectAsTemplate" out-map="templateOut" in-map="{baseWorkEffortId:workEffortId,
+                    workEffortId:templateWorkEffortId, workEffortName:templateName}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(templateOut.message, 'success'); workEffortId = templateOut.templateId</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+
+    <actions>
+        <service-call name="ironstone.ProjectServices.get#ProjectHeader" in-map="{workEffortId:workEffortId}" out-map="headerOut"/>
+        <script><![CDATA[
+            if (!recordFound || !headerOut.visible) return
+            const L = (text) => ec.l10n.localize(text)
+            const enc = (text) => String(text == null ? '' : text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+            header = headerOut.header
+            isProjectsManager = ec.user.isInGroup('BOSS_PROJECT_MANAGER') || ec.user.isInGroup('ADMIN')
+            primaryAction = canManage ? header.primaryAction : null
+            // the other moves of the flow, in the More menu
+            moveIds = canManage ? Array.from(header.otherMoves || []).map((move) => move.statusId) : []
+            isFollower = ec.entity.find('mantle.party.communication.RecordFollower').condition('recordEntityName', 'mantle.work.effort.WorkEffort')
+                    .condition('recordId', workEffortId).condition('userId', ec.user.userId).count() > 0
+            // the chips of the title row: health with the date of its update, the client, the manager
+            const chip = (text, cls, icon) => '<q-chip dense square class="q-my-none q-ml-none q-mr-sm ' + cls + '"' + (icon ? ' icon="' + icon + '"' : '') + '>' + enc(text) + '</q-chip>'
+            chipsHtml = '<div class="row items-center q-mt-xs m-project-chips">'
+                + (header.healthLabel ? chip(header.healthLabel + (header.healthDateText ? ' · ' + header.healthDateText : ''), 'm-tonal text-' + header.healthColor, 'sym_o_monitor_heart') : '')
+                + (header.clientName ? chip(header.clientName, 'm-tonal text-grey-8', 'sym_o_domain') : '')
+                + (header.managerName ? '<span class="row inline items-center no-wrap q-mr-sm text-body2"><m-avatar name="' + enc(header.managerName) + '"'
+                    + (header.managerUserId ? ' user-id="' + enc(header.managerUserId) + '"' : '') + ' size="22px" class="q-mr-xs"></m-avatar>' + enc(header.managerName) + '</span>' : '')
+                + (header.purposeLabel ? '<span class="text-caption m-muted">' + enc(header.purposeLabel) + '</span>' : '') + '</div>'
+            chipsTui = {t: 'text', id: 'ProjectChips', text: [header.healthLabel ? L('Health') + ': ' + header.healthLabel : '', header.clientName ? L('Client') + ': ' + header.clientName : '',
+                header.managerName ? L('Manager') + ': ' + header.managerName : ''].filter((part) => part).join(' · ')}
+            const tabBase = '/qapps/Projects/Projects/ProjectDetail/WorkItems?workEffortId=' + encodeURIComponent(workEffortId)
+            openItemsLink = tabBase + '&list=open'
+            overdueLink = tabBase + '&list=overdue'
+            nextMilestoneLink = header.nextMilestoneId ? tabBase + '&list=all&milestoneId=' + encodeURIComponent(header.nextMilestoneId) : ''
+            printUrl = '/apps/Projects/Projects/StatusReport?renderMode=html-print&workEffortId=' + encodeURIComponent(workEffortId)
+            healthToday = header.healthEnumId || 'WehOnTrack'
+        ]]></script>
+    </actions>
+
     <widgets>
-        <label text="Placeholder: The project ${workEffortId || ''}: its header, status, health and a tab per module." type="p"/>
+        <section name="ProjectNotFound" condition="!recordFound"><widgets>
+            <container-box type="warning"><box-header title="Not available"/><box-body>
+                <label type="p" text="Project ${workEffortId} is not available: it does not exist, or it is a Work group project you are not on."/>
+                <link url="projects" text="Back to Projects" link-type="anchor"/>
+            </box-body></container-box>
+        </widgets></section>
+
+        <section name="ProjectFound" condition="recordFound"><widgets>
+            <!-- the record for the shell: quick create's link chip and project, Chatter, Assist -->
+            <context record-entity="mantle.work.effort.WorkEffort" record-id="${workEffortId}" title="${header.workEffortName}"/>
+
+            <section name="TemplateBanner" condition="header.isTemplate"><widgets>
+                <container-box type="info"><box-body>
+                    <label type="p" text="Template: changes here shape the new projects made from it. It is left out of the project lists; Settings, Templates lists it." style="q-mb-none"/>
+                </box-body></container-box>
+            </widgets></section>
+
+            <!-- title row -->
+            <container style="row items-start q-col-gutter-sm q-mb-sm m-project-header">
+                <container style="col-12 col-md">
+                    <container style="row items-center no-wrap">
+                        <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none q-mr-sm text-mono m-project-key">${WebUtilities.encodeHtml(workEffortId)}</q-chip>]]></text>
+                            <text type="tui"><![CDATA[${JSON.stringify({t: "text", id: "ProjectKey", style: "strong", text: workEffortId})}]]></text></render-mode>
+                        <label text="${header.workEffortName}" type="h5" style="q-my-none ${header.isEnded ? 'm-muted' : ''}"/>
+                    </container>
+                    <status-bar id="ProjectStatusBar" status-id="${header.statusId}" status-flow-id="Default" stages="${header.stageStatusIds}" read-only="true"/>
+                    <render-mode><text type="qvt"><![CDATA[${chipsHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(chipsTui)}]]></text></render-mode>
+                </container>
+                <container style="col-12 col-md-auto row items-center q-gutter-y-xs m-project-actions">
+                    <!-- the primary action: a move along the flow, or in progress the status update -->
+                    <section name="PrimaryMove" condition="primaryAction &amp;&amp; primaryAction.kind == 'status'"><widgets>
+                        <link url="changeStatus" link-type="hidden-form" text="${primaryAction.label}" btn-type="primary" icon="sym_o_arrow_forward"
+                                confirmation="${primaryAction.label}: ${header.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:primaryAction.statusId}"/>
+                    </widgets></section>
+                    <container-dialog id="ProjectPostUpdateDialog" button-text="Post update" icon="sym_o_campaign" width="640" title="Status update of ${header.workEffortName}"
+                            condition="canManage">
+                        <form-single name="PostUpdate" transition="postUpdate" focus-field="body">
+                            <field name="workEffortId"><default-field><hidden/></default-field></field>
+                            <field name="healthEnumId" from="healthToday"><default-field title="Health">
+                                <radio><option key="WehOnTrack" text="On track"/><option key="WehAtRisk" text="At risk"/><option key="WehOffTrack" text="Off track"/></radio></default-field></field>
+                            <field name="percentComplete"><default-field title="Progress (%)"><text-line size="5" input-type="number"/></default-field></field>
+                            <field name="body"><default-field title="Summary (markdown): what was done, what comes next, what is in the way">
+                                <text-area rows="7" cols="70" editor-type="md"/></default-field></field>
+                            <field name="clientVisible"><default-field title=" "><check><option key="Y" text="Shown to the client"/></check></default-field></field>
+                            <field name="submitButton"><default-field title="Post update"><submit/></default-field></field>
+                            <field-layout><field-row><field-ref name="healthEnumId"/><field-ref name="percentComplete"/></field-row>
+                                <field-ref name="body"/><field-ref name="clientVisible"/><field-ref name="submitButton"/></field-layout>
+                        </form-single>
+                    </container-dialog>
+                    <button-menu text="More" icon="more_horiz" style="q-ml-xs">
+                        <link url="changeStatus" link-type="hidden-form-link" text="Approve" icon="sym_o_thumb_up" condition="moveIds.includes('WeApproved')"
+                                confirmation="Approve: ${header.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:'WeApproved'}"/>
+                        <link url="changeStatus" link-type="hidden-form-link" text="${header.statusId == 'WeInPlanning' || header.statusId == 'WeApproved' ? 'Begin' : 'Resume'}" icon="sym_o_play_arrow" condition="moveIds.includes('WeInProgress')"
+                                confirmation="${header.statusId == 'WeInPlanning' || header.statusId == 'WeApproved' ? 'Begin' : 'Resume'}: ${header.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:'WeInProgress'}"/>
+                        <link url="changeStatus" link-type="hidden-form-link" text="Hold" icon="sym_o_pause" condition="moveIds.includes('WeOnHold')"
+                                confirmation="Hold: ${header.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:'WeOnHold'}"/>
+                        <link url="changeStatus" link-type="hidden-form-link" text="Complete" icon="sym_o_task_alt" condition="moveIds.includes('WeComplete')"
+                                confirmation="Complete: ${header.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:'WeComplete'}"/>
+                        <link url="changeStatus" link-type="hidden-form-link" text="Close" icon="sym_o_archive" condition="moveIds.includes('WeClosed')"
+                                confirmation="Close: ${header.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:'WeClosed'}"/>
+                        <link url="changeStatus" link-type="hidden-form-link" text="Re-open" icon="sym_o_undo" condition="moveIds.includes('WeInPlanning')"
+                                confirmation="Re-open: ${header.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:'WeInPlanning'}"/>
+                        <link url="changeStatus" link-type="hidden-form-link" text="Cancel" icon="sym_o_cancel" btn-type="danger" condition="moveIds.includes('WeCancelled')"
+                                confirmation="Cancel: ${header.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:'WeCancelled'}"/>
+                        <link url="follow" link-type="hidden-form-link" text="Follow" icon="sym_o_visibility" condition="!isFollower" parameter-map="{workEffortId:workEffortId}"/>
+                        <link url="unfollow" link-type="hidden-form-link" text="Unfollow" icon="sym_o_visibility_off" condition="isFollower" parameter-map="{workEffortId:workEffortId}"/>
+                        <container-dialog id="ProjectCloneDialog" button-text="Clone" icon="sym_o_content_copy" width="520" title="A copy of ${header.workEffortName}" condition="isProjectsManager">
+                            <form-single name="CloneProject" transition="cloneProject" focus-field="newWorkEffortName">
+                                <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                <field name="isTemplate" from="header.isTemplate ? 'Y' : 'N'"><default-field><hidden/></default-field></field>
+                                <field name="newWorkEffortName" from="header.workEffortName + ' (copy)'"><default-field title="Name"><text-line size="40"/></default-field></field>
+                                <field name="newWorkEffortId"><default-field title="Key (1 to 8 letters or digits)"><text-line size="10"/></default-field></field>
+                                <field name="submitButton"><default-field title="Clone"><submit/></default-field></field>
+                            </form-single>
+                            <label type="p" text="The copy has the work items, members and settings, its items back in planning and without dates." style="text-caption m-muted"/>
+                        </container-dialog>
+                        <container-dialog id="ProjectTemplateDialog" button-text="Save as template" icon="sym_o_content_paste" width="520" title="A template from ${header.workEffortName}"
+                                condition="isProjectsManager &amp;&amp; !header.isTemplate">
+                            <form-single name="SaveAsTemplate" transition="saveAsTemplate" focus-field="templateName">
+                                <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                <field name="templateName" from="header.workEffortName + ' template'"><default-field title="Template name"><text-line size="40"/></default-field></field>
+                                <field name="templateWorkEffortId"><default-field title="Key (1 to 8 letters or digits)"><text-line size="10"/></default-field></field>
+                                <field name="submitButton"><default-field title="Save as template"><submit/></default-field></field>
+                            </form-single>
+                        </container-dialog>
+                        <link url="${printUrl}" url-type="plain" text="Print status report" icon="sym_o_print" target-window="_blank"/>
+                    </button-menu>
+                </container>
+            </container>
+
+            <!-- the numbers, each a link into the Work items tab -->
+            <dashboard min-width="150" style="q-mb-sm">
+                <number-card title="Open items" value="${ec.l10n.format(header.openItems || 0, '#,##0')}" icon="sym_o_checklist" size="sm" link="${openItemsLink}"/>
+                <number-card title="Overdue" value="${ec.l10n.format(header.overdueItems || 0, '#,##0')}" icon="sym_o_assignment_late" size="sm" link="${overdueLink}"/>
+                <number-card title="Next milestone" value="${header.nextMilestoneText || '—'}" icon="sym_o_flag_circle" size="sm" link="${nextMilestoneLink}"/>
+                <number-card title="Hours" value="${header.hoursText}" icon="sym_o_schedule" size="sm"/>
+                <number-card title="Budget used" value="${header.budgetUsedText}" icon="sym_o_account_balance_wallet" size="sm" condition="canManage &amp;&amp; header.budgetUsedText"/>
+            </dashboard>
+
+            <subscreens-panel id="ProjectTabs" type="tab"/>
+        </widgets></section>
     </widgets>
 </screen>

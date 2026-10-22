@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- NewProject step 1, ProjectStart (design-projects.md §4 NewProject): the template (blank, or one of Settings/Templates with what
+    it brings), name, key (one to eight letters or digits; suggested from the name when left empty), purpose, client, manager (the
+    user by default), start and target dates, who sees it (General or Work group), program and description. Next makes the project
+    In Planning (ironstone.ProjectServices.create#NewProject) and carries its workEffortId on; Create now opens it at once. Back on
+    a project already made shows what was chosen, whose basics change in the project's settings. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Start" default-menu-index="1">
+
+    <parameter name="workEffortId"/>
+
+    <transition name="createProject">
+        <actions>
+            <service-call name="ironstone.ProjectServices.create#NewProject" out-map="createOut" in-map="{workEffortId:(projectKey || ''), workEffortName:workEffortName,
+                    purposeEnumId:purposeEnumId, clientPartyId:clientPartyId, managerPartyId:managerPartyId, estimatedStartDate:estimatedStartDate,
+                    estimatedCompletionDate:estimatedCompletionDate, visibilityEnumId:(visibilityEnumId || 'WevGeneral'), parentWorkEffortId:parentWorkEffortId,
+                    templateWorkEffortId:templateWorkEffortId, description:description}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(createOut.message, 'success'); workEffortId = createOut.projectId</script></if>
+        </actions>
+        <conditional-response url="//Projects/Projects/ProjectDetail" condition="createNow == 'Y' &amp;&amp; !ec.message.hasError()"><parameter name="workEffortId"/></conditional-response>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <!-- Back to Start on a project made: Next goes on with it -->
+    <transition name="keepStart"><default-response url="."><parameter name="workEffortId"/></default-response></transition>
+    <transition name="clientSearch" read-only="true">
+        <actions>
+            <entity-find entity-name="mantle.party.PartyDetail" list="partyList" limit="20">
+                <econdition field-name="partyTypeEnumId" value="PtyOrganization"/>
+                <econdition field-name="organizationName" operator="like" value="%${term}%" ignore-case="true" ignore="!term"/>
+                <econdition field-name="disabled" operator="not-equals" value="Y" or-null="true"/>
+                <econdition field-name="privateOwnerUserId" from="ec.user.userId" or-null="true"/>
+                <order-by field-name="^organizationName"/>
+            </entity-find>
+            <script>ec.web.sendJsonResponse(Array.from(partyList).map((party) => ({value: party.partyId, label: party.organizationName || party.partyId})))</script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="peopleSearch" read-only="true">
+        <actions>
+            <service-call name="ironstone.TaskServices.search#Assignees" in-map="{term:term}" out-map="found"/>
+            <script>ec.web.sendJsonResponse(found.optionList || [])</script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+
+    <actions>
+        <script><![CDATA[
+            const orgId = ec.service.sync().name('ironstone.ProjectServices.get#SettingsOrganization').call()?.organizationPartyId || null
+            templateList = Array.from(ec.service.sync().name('mantle.work.ProjectServices.get#ProjectTemplates').parameters({organizationPartyId: orgId}).call()?.templateList || [])
+                    .map((row) => Object.assign({}, row, {text: row.workEffortName + ' (' + row.itemCount + ' ' + ec.l10n.localize('work items') + ', ' + row.milestoneCount + ' '
+                        + ec.l10n.localize('milestones') + ', ' + row.memberCount + ' ' + ec.l10n.localize('members') + ')'}))
+            programOptions = ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').call()?.projectList || []
+            myPartyId = ec.user.userAccount?.partyId || ''
+            myName = ec.user.userAccount?.userFullName || ec.user.username
+            start = {templateWorkEffortId: '', visibilityEnumId: 'WevGeneral', managerPartyId: myPartyId, estimatedStartDate: ec.l10n.format(ec.user.nowTimestamp, 'yyyy-MM-dd')}
+            if (draftProject) startSummary = [draftProject.workEffortName, draftProject.workEffortId].join(' · ')
+        ]]></script>
+    </actions>
+
+    <widgets>
+        <section name="StartMade" condition="draftProject"><widgets>
+            <container-box><box-header title="Made"/><box-body>
+                <label type="p" text="${startSummary} is made, in planning. Go on with its team, modules and money; its name, client and dates change in its settings."/>
+                <form-single name="ProjectStartDone" transition="keepStart">
+                    <field name="workEffortId"><default-field><hidden/></default-field></field>
+                </form-single>
+            </box-body></container-box>
+        </widgets><fail-widgets>
+        <container-box><box-header title="What and for whom"/><box-body>
+            <form-single name="ProjectStart" transition="createProject" map="start" focus-field="workEffortName">
+                <field name="templateWorkEffortId"><default-field title="Start from a template (empty: a blank project)">
+                    <drop-down allow-empty="true"><list-options list="templateList" key="${workEffortId}" text="${text}"/></drop-down></default-field></field>
+                <field name="workEffortName"><default-field title="Name"><text-line size="40"/></default-field></field>
+                <field name="projectKey"><default-field title="Key (1 to 8 letters or digits; empty: from the name)"
+                        tooltip="Work items are numbered KEY-1, KEY-2; the key is typed in commit messages and branch names"><text-line size="10"/></default-field></field>
+                <field name="purposeEnumId"><default-field title="Purpose (empty: Client Project with a client)">
+                    <drop-down allow-empty="true"><entity-options key="${enumId}" text="${description}">
+                        <entity-find entity-name="moqui.basic.Enumeration" cache="true"><econdition field-name="enumTypeId" value="WorkEffortPurpose"/>
+                            <econdition field-name="parentEnumId" value="WetProject"/><order-by field-name="description"/></entity-find></entity-options></drop-down></default-field></field>
+                <field name="clientPartyId"><default-field title="Client (empty: an internal project)">
+                    <drop-down allow-empty="true"><dynamic-options transition="clientSearch" server-search="true" min-length="0"/></drop-down></default-field></field>
+                <field name="managerPartyId"><default-field title="Project manager">
+                    <drop-down current-description="${myName}"><dynamic-options transition="peopleSearch" server-search="true" min-length="0"/></drop-down></default-field></field>
+                <field name="estimatedStartDate"><default-field title="Start"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                <field name="estimatedCompletionDate"><default-field title="Target date"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                <field name="visibilityEnumId"><default-field title="Who sees it">
+                    <radio><option key="WevGeneral" text="Everyone in the organization"/><option key="WevWorkGroup" text="Its members only"/></radio></default-field></field>
+                <field name="parentWorkEffortId"><default-field title="Program (the project it is under)">
+                    <drop-down allow-empty="true"><list-options list="programOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                <field name="description"><default-field title="Description (markdown)"><text-area rows="3" cols="60"/></default-field></field>
+                <field name="createNow"><default-field title=" "><check><option key="Y" text="Create now: the template's or the default settings for the rest"/></check></default-field></field>
+                <field-layout>
+                    <field-ref name="templateWorkEffortId"/>
+                    <field-row><field-ref name="workEffortName"/><field-ref name="projectKey"/></field-row>
+                    <field-row><field-ref name="purposeEnumId"/><field-ref name="clientPartyId"/></field-row>
+                    <field-row><field-ref name="managerPartyId"/><field-ref name="parentWorkEffortId"/></field-row>
+                    <field-row><field-ref name="estimatedStartDate"/><field-ref name="estimatedCompletionDate"/></field-row>
+                    <field-ref name="visibilityEnumId"/><field-ref name="description"/><field-ref name="createNow"/>
+                </field-layout>
+            </form-single>
+        </box-body></container-box>
+        </fail-widgets></section>
+    </widgets>
+</screen>
