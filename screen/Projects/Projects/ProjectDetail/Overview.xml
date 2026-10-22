@@ -191,14 +191,15 @@ along with this software (see the LICENSE.md file). If not, see
                         <container-box><box-header title="Repositories"/><box-body-nopad>
                             <form-list name="RepositoriesBox" list="repositoryList" skip-form="true" skip-header="true" paginate="false">
                                 <field name="repositoryId"><default-field>
-                                    <label text="${repositoryId}" type="div" style="text-mono text-weight-medium"/>
+                                    <link url="/qapps/Projects/Code/RepositoryDetail" url-type="plain" text="${repositoryId}" link-type="anchor" parameter-map="{repositoryId:repositoryId}"
+                                            style="text-mono text-weight-medium"/>
                                     <label text="${[description, kindLabel, branch].filter((part) => part).join(' · ')}" type="div" style="text-caption m-muted"/></default-field></field>
                                 <field name="httpsUrl"><default-field>
                                     <label text="${httpsUrl || sshUrl || ''}" type="div" style="text-caption text-mono"/>
                                     <label text="${lastText}" type="div" style="text-caption m-muted"/></default-field></field>
                             </form-list>
                             <section name="NoRepositories" condition="!repositoryList.length"><widgets>
-                                <label type="p" text="No repository linked. Code comes with the project's Code tab; a repository can be made in the new project wizard." style="m-muted q-pa-sm q-mb-none"/>
+                                <label type="p" text="No repository linked. Make or link one in the Code tab." style="m-muted q-pa-sm q-mb-none"/>
                             </widgets></section>
                         </box-body-nopad></container-box>
 

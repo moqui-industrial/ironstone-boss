@@ -12,10 +12,137 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for git access (design-projects.md §7 GitAccess; impl-projects.md P3b). -->
+<!-- GitAccess (design-projects.md §7 GitAccess; style-guide §3.9 Settings): the user's own SSH keys (add, remove) and access
+    tokens (make one, shown once; revoke), and how to clone and commit: the HTTPS and SSH addresses, the user name, an access
+    token or an app password of Commons Settings, Sync as the password, git config user.email so commits show as the user's, and
+    whether the user may use SSH (SSH_GIT; without it, ask an administrator, HTTPS works now). Every form is the current user's
+    own (org.moqui.impl.UserServices create#UserSshKey, delete#UserSshKey, create#UserAccessToken, revoke#UserAccessToken, which
+    act on ec.user). Commons Settings, Account links here for a user who has Projects. The keys and tokens need no git hosting;
+    the clone addresses do. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Git access" default-menu-index="3">
+
+    <transition name="createAccessToken">
+        <service-call name="org.moqui.impl.UserServices.create#UserAccessToken" out-map="tokenOut" in-map="{description:description, expireDays:expireDays}"/>
+        <actions><script>ec.web.sessionAttributes.newAccessToken = tokenOut.accessToken ?? ''</script></actions>
+        <default-response url="."/><error-response url="."/>
+    </transition>
+    <transition name="revokeAccessToken">
+        <service-call name="org.moqui.impl.UserServices.revoke#UserAccessToken" in-map="{loginKey:loginKey}"/>
+        <actions><message type="success">Access token revoked</message></actions>
+        <default-response url="."/><error-response url="."/>
+    </transition>
+    <transition name="addSshKey">
+        <service-call name="org.moqui.impl.UserServices.create#UserSshKey" in-map="{publicKey:publicKey, description:description}"/>
+        <actions><message type="success">SSH key added</message></actions>
+        <default-response url="."/><error-response url="."/>
+    </transition>
+    <transition name="deleteSshKey">
+        <service-call name="org.moqui.impl.UserServices.delete#UserSshKey" in-map="{sshKeyId:sshKeyId}"/>
+        <actions><message type="success">SSH key removed</message></actions>
+        <default-response url="."/><error-response url="."/>
+    </transition>
+
+    <actions>
+        <script><![CDATA[
+            const info = ec.service.sync().name('ironstone.CodeServices.get#GitAccess').call() || {}
+            newAccessToken = ec.web?.sessionAttributes?.remove ? (ec.web.sessionAttributes.remove('newAccessToken') || null) : null
+            sshKeyList = Array.from(info.sshKeyList || [])
+            tokenList = Array.from(info.tokenList || [])
+            hasSsh = !!info.hasSsh
+            username = info.username || ''
+            emailAddress = info.emailAddress || ''
+            userFullName = info.userFullName || username
+            sampleHttpsUrl = info.sampleHttpsUrl || ''
+            sampleSshUrl = info.sampleSshUrl || ''
+            configText = 'git config --global user.name "' + userFullName + '"\ngit config --global user.email "' + (emailAddress || 'you@example.com') + '"'
+        ]]></script>
+    </actions>
+
     <widgets>
-        <label text="Placeholder: Git access: my SSH keys and access tokens, and how to clone." type="p"/>
+        <container style="row items-center q-mb-sm">
+            <label text="Git access" type="h5" style="q-my-none"/>
+        </container>
+        <container-row>
+            <row-col md="6">
+                <container-box><box-header title="SSH keys"/>
+                    <box-toolbar>
+                        <container-dialog id="AddSshKeyDialog" button-text="Add SSH key" icon="sym_o_add" width="640" title="Add an SSH key">
+                            <form-single name="AddSshKey" transition="addSshKey" focus-field="publicKey">
+                                <field name="publicKey"><default-field title="Public key (the line of ~/.ssh/id_ed25519.pub)"><text-area rows="4" cols="70"/></default-field></field>
+                                <field name="description"><default-field title="Description (this laptop)"><text-line size="40"/></default-field></field>
+                                <field name="submitButton"><default-field title="Add"><submit/></default-field></field>
+                            </form-single>
+                        </container-dialog>
+                    </box-toolbar>
+                    <box-body-nopad>
+                        <section name="NoSshAccess" condition="!hasSsh"><widgets>
+                            <container style="q-pa-sm">
+                                <label type="p" text="You may not use git over SSH yet: ask an administrator for SSH access. Git over HTTPS with an access token works now." style="text-warning q-mb-none"/>
+                            </container>
+                        </widgets></section>
+                        <form-list name="SshKeys" list="sshKeyList" skip-form="true" paginate="false">
+                            <field name="description"><default-field title="Key">
+                                <label text="${description || 'SSH key'}" type="div"/>
+                                <label text="${fingerprint}" type="div" style="text-caption text-mono m-muted"/></default-field></field>
+                            <field name="addedText"><default-field title="Added"><display/></default-field></field>
+                            <field name="remove"><default-field title="">
+                                <link url="deleteSshKey" link-type="hidden-form-link" text="Remove" icon="sym_o_delete" confirmation="Remove the SSH key ${description}?"
+                                        parameter-map="{sshKeyId:sshKeyId}"/></default-field></field>
+                        </form-list>
+                        <section name="NoSshKeys" condition="!sshKeyList.length"><widgets>
+                            <label type="p" text="No SSH keys. Add the public key of a key pair to clone and push over SSH." style="m-muted q-pa-sm q-mb-none"/>
+                        </widgets></section>
+                    </box-body-nopad>
+                </container-box>
+
+                <container-box><box-header title="Access tokens"/>
+                    <box-toolbar>
+                        <container-dialog id="NewAccessTokenDialog" button-text="New access token" icon="sym_o_key" width="480" title="A new access token">
+                            <form-single name="NewAccessToken" transition="createAccessToken" focus-field="description">
+                                <field name="description"><default-field title="For (git on my laptop, CI)"><text-line size="40"/></default-field></field>
+                                <field name="expireDays" from="90"><default-field title="Expires in days"><text-line size="6" input-type="number"/></default-field></field>
+                                <field name="submitButton"><default-field title="Make token"><submit/></default-field></field>
+                            </form-single>
+                        </container-dialog>
+                    </box-toolbar>
+                    <box-body-nopad>
+                        <section name="NewTokenShown" condition="newAccessToken"><widgets>
+                            <container-box type="success"><box-body>
+                                <label type="p" text="Your new access token, shown only now: copy it somewhere safe." style="text-weight-medium q-mb-xs"/>
+                                <label text="${newAccessToken}" type="div" style="text-mono"/>
+                            </box-body></container-box>
+                        </widgets></section>
+                        <form-list name="AccessTokens" list="tokenList" skip-form="true" paginate="false">
+                            <field name="description"><default-field title="For"><display/></default-field></field>
+                            <field name="createdText"><default-field title="Made"><display/></default-field></field>
+                            <field name="expiresText"><default-field title="Expires"><display/></default-field></field>
+                            <field name="revoke"><default-field title="">
+                                <link url="revokeAccessToken" link-type="hidden-form-link" text="Revoke" icon="sym_o_block" confirmation="Revoke the access token for ${description}?"
+                                        parameter-map="{loginKey:loginKey}"/></default-field></field>
+                        </form-list>
+                        <section name="NoTokens" condition="!tokenList.length"><widgets>
+                            <label type="p" text="No access tokens. A token is the password for git over HTTPS and for the REST API." style="m-muted q-pa-sm q-mb-none"/>
+                        </widgets></section>
+                    </box-body-nopad>
+                </container-box>
+            </row-col>
+            <row-col md="6">
+                <container-box><box-header title="How to clone"/><box-body>
+                    <section name="CloneUrls" condition="codeHosting"><widgets>
+                        <label text="Over HTTPS, as ${username}, with an access token (or an app password of Commons Settings, Sync) as the password:" type="p" style="q-mb-xs"/>
+                        <label text="git clone ${sampleHttpsUrl || 'https://this-server/git/repository.git'}" type="div" style="text-mono q-mb-sm"/>
+                        <label text="Over SSH, with a key added here:" type="p" style="q-mb-xs"/>
+                        <label text="git clone ${sampleSshUrl || 'ssh://' + username + '@this-server/repository.git'}" type="div" style="text-mono q-mb-sm"/>
+                        <label text="Each repository shows its own addresses under Clone." type="p" style="text-caption m-muted"/>
+                    </widgets><fail-widgets>
+                        <label type="p" text="Code hosting is not in this build, so there is nothing to clone here; the keys and tokens still serve SFTP and the REST API."/>
+                    </fail-widgets></section>
+                    <label text="So your commits show as yours, commit with your account's email:" type="p" style="q-mb-xs q-mt-sm"/>
+                    <label text="${configText}" type="pre"/>
+                    <label type="p" text="A work item's key in a commit message (IRON-12) links the commit to it; Fixes IRON-12 completes it when the commit reaches the default branch." style="text-caption m-muted"/>
+                </box-body></container-box>
+            </row-col>
+        </container-row>
     </widgets>
 </screen>

@@ -750,6 +750,7 @@ along with this software (see the LICENSE.md file). If not, see
                     estimateUnit: settings.WstEstimateUnit || 'hours', severalSprints: yn('WstSeveralSprints'), shareNewItems: yn('WstShareNewItems'),
                     keywordComplete: settings.WstKeywordComplete === 'N' ? 'N' : 'Y', requestFromWork: settings.WstRequestFromWork === 'N' ? 'N' : 'Y'},
                 clientAccess: {clientSignIn: yn('WstClientSignIn'), shareRepositories: yn('WstShareRepositories')},
+                code: {branchPattern: settings.WstBranchPattern || '', mergeRequestMoves: yn('WstMergeRequestMoves')},
                 typeOptions: Array.from(types.typeList || []).map((row) => ({key: row.enumId, text: row.label})),
                 isTemplate: project.isTemplate === 'Y', settingSources: out.settingSources || {},
                 canDelete: !hasItems && !linked('mantle.work.time.TimeEntry') && !linked('mantle.work.effort.WorkEffortInvoice') && !linked('mantle.work.effort.WorkEffortGitCommit')}
@@ -807,7 +808,8 @@ along with this software (see the LICENSE.md file). If not, see
             list or comma text of backlog, requests, code, docs, time, money, client) as WstModules; workItemTypes as
             WstWorkItemTypes, in their order; the work item flow (Default or WorkEffortDevelopment) on the project's
             statusFlowId; estimateUnit (hours or points), severalSprints, shareNewItems, keywordComplete, requestFromWork,
-            clientSignIn and shareRepositories (Y or N) as their WorkEffortSettings. Only the values given change.</description>
+            clientSignIn, shareRepositories and mergeRequestMoves (Y or N) as their WorkEffortSettings; branchPattern as
+            WstBranchPattern (empty: the organization's). Only the values given change.</description>
         <in-parameters>
             <parameter name="workEffortId" required="true"/>
             <parameter name="box"><description>modules, workItems or clientAccess: an empty modules or types list counts only for its box</description></parameter>
@@ -821,6 +823,8 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="requestFromWork"/>
             <parameter name="clientSignIn"/>
             <parameter name="shareRepositories"/>
+            <parameter name="branchPattern" allow-html="any"><description>Empty: the organization's (the setting removed)</description></parameter>
+            <parameter name="mergeRequestMoves"/>
         </in-parameters>
         <out-parameters><parameter name="message"/></out-parameters>
         <actions><script><![CDATA[
@@ -851,9 +855,15 @@ along with this software (see the LICENSE.md file). If not, see
                 if (!['hours', 'points'].includes(estimateUnit)) { ec.message.addError(ec.l10n.localize('The estimate unit is hours or points')); return }
                 store('WstEstimateUnit', estimateUnit)
             }
+            if (branchPattern != null) {
+                const pattern = String(branchPattern).trim()
+                if (pattern && (pattern.length > 120 || !/<(id|n)>/.test(pattern))) { ec.message.addError(ec.l10n.localize('A branch pattern names the work item: <id>, or <KEY>-<n>')); return }
+                if (pattern) store('WstBranchPattern', pattern)
+                else ec.entity.find('mantle.work.effort.WorkEffortSetting').condition('workEffortId', workEffortId).condition('settingTypeEnumId', 'WstBranchPattern').deleteAll()
+            }
             const flags = {severalSprints: 'WstSeveralSprints', shareNewItems: 'WstShareNewItems', keywordComplete: 'WstKeywordComplete',
-                requestFromWork: 'WstRequestFromWork', clientSignIn: 'WstClientSignIn', shareRepositories: 'WstShareRepositories'}
-            const given = {severalSprints, shareNewItems, keywordComplete, requestFromWork, clientSignIn, shareRepositories}
+                requestFromWork: 'WstRequestFromWork', clientSignIn: 'WstClientSignIn', shareRepositories: 'WstShareRepositories', mergeRequestMoves: 'WstMergeRequestMoves'}
+            const given = {severalSprints, shareNewItems, keywordComplete, requestFromWork, clientSignIn, shareRepositories, mergeRequestMoves}
             for (const [key, type] of Object.entries(flags)) {
                 const value = given[key]
                 if (value == null || value === '') continue

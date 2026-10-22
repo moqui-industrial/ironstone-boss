@@ -158,7 +158,23 @@ const demoRecords = {
     "Projects/QuickCreate": { parameters: { kind: "workItem" }, text: "QuickWorkItem" },
     "Projects/QuickProject": { text: "From template" },
     "Projects/Requests": { text: "Placeholder: Requests" },
-    "Projects/Code": { text: "Placeholder: Repositories" },
+    // Projects P3b1: the code screens on the code demo (service/ironstone/CodeDemoServices.xml), a RepositoryDetail tab by its
+    // header (the shell loads the tab after it); without git hosting in the build (codeText given) each says so instead
+    "Projects/Code": { codeText: "acme-portal" },
+    "Projects/Code/Repositories": { parameters: { list: "all" }, codeText: "IronStone Projects, the app" },
+    "Projects/Code/RepositoryDetail": { parameters: { repositoryId: "iron" }, codeText: "IronStone Projects, the app" },
+    "Projects/Code/RepositoryDetail/Files": { parameters: { repositoryId: "iron" }, codeText: "IronStone Projects, the app" },
+    "Projects/Code/RepositoryDetail/Commits": { parameters: { repositoryId: "iron" }, codeText: "IronStone Projects, the app" },
+    "Projects/Code/RepositoryDetail/Branches": { parameters: { repositoryId: "iron" }, codeText: "IronStone Projects, the app" },
+    "Projects/Code/RepositoryDetail/Tags": { parameters: { repositoryId: "iron" }, codeText: "IronStone Projects, the app" },
+    "Projects/Code/RepositoryDetail/MergeRequests": { parameters: { repositoryId: "iron" } },
+    "Projects/Code/RepositoryDetail/Activity": { parameters: { repositoryId: "iron" }, codeText: "IronStone Projects, the app" },
+    "Projects/Code/RepositoryDetail/Settings": { parameters: { repositoryId: "iron" }, codeText: "IronStone Projects, the app" },
+    "Projects/Code/Compare": { parameters: { repositoryId: "iron", head: "IRON-3-expand-collapse" }, codeText: "Able to merge" },
+    "Projects/Code/CommitDetail": { parameters: { repositoryId: "iron", commitId: "main" }, codeText: "IRON-3 Expand and collapse rows" },
+    "Projects/Code/GitAccess": { text: "How to clone" },
+    "Projects/Settings/Code": { text: "Repository defaults" },
+    "Projects/Projects/ProjectDetail/Code": { parameters: { workEffortId: "IRON" }, text: "ProjectStatusBar" },
     "Projects/Time": { text: "Placeholder: My time" },
     "Projects/Resources": { text: "Placeholder: Team planner" },
     "Projects/Billing": { text: "Placeholder: Unbilled" },
@@ -170,6 +186,11 @@ spec({
         login("john.doe")
         placeholders = findScreenFiles(apps, isPlaceholder)
         screens = findScreenFiles(["Commons", "Comms", "Insights", "Projects"], (location) => !isPlaceholder(location))
+        // the code screens show the demo's repositories with git hosting in the build, else that it is not
+        const wasDisabled = ec.artifactExecution.disableAuthz()
+        let codeHosting
+        try { codeHosting = !!call("ironstone.CodeServices.get#CodeHosting", {}).available } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+        for (const demo of Object.values(demoRecords)) if (demo.codeText) demo.text = codeHosting ? demo.codeText : "Code hosting is not in this build"
     },
     setup() { ec.artifactExecution.disableAuthz() },
     cleanup() { ec.artifactExecution.enableAuthz() },

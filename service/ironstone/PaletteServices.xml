@@ -36,7 +36,8 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="docType"><description>MantleParty, MantleTask, MantleEvent, MantleRequest, MantleProject,
                 MantleWikiPage, MantleCommunicationEvent, or MantleWorkEffort with workEffortTypeEnumId</description></parameter>
             <parameter name="recordEntityName"><description>Instead of docType: mantle.party.Party, mantle.request.Request,
-                mantle.work.effort.WorkEffort, moqui.resource.wiki.WikiPage or mantle.party.communication.CommunicationEvent</description></parameter>
+                mantle.work.effort.WorkEffort, moqui.resource.wiki.WikiPage, mantle.party.communication.CommunicationEvent,
+                moqui.resource.GitMergeRequest or moqui.resource.GitRepository (Projects' Code)</description></parameter>
             <parameter name="id" required="true"/>
             <parameter name="workEffortTypeEnumId"/>
             <parameter name="partyTypeEnumId"/>
@@ -62,26 +63,37 @@ along with this software (see the LICENSE.md file). If not, see
                 icon = 'sym_o_rate_review'
                 return
             }
+            // whether the user may open IronStone Projects: an authorization of the user's groups on its root, with no deny
+            const mayOpenProjects = () => {
+                if (!ec.user.userId) return false
+                try {
+                    const groupIds = Array.from(ec.user.getUserGroupIdSet() || [])
+                    const root = 'component://ironstone-boss/screen/Projects.xml'
+                    const rows = Array.from(ec.entity.find('moqui.security.ArtifactAuthzCheckView').condition('userGroupId', 'in', groupIds)
+                            .condition('artifactTypeEnumId', 'AT_XML_SCREEN').condition('authzActionEnumId', 'in', ['AUTHZA_ALL', 'AUTHZA_VIEW'])
+                            .disableAuthz().list()).filter((row) => row.nameIsPattern === 'Y' ? new RegExp(`^(?:${row.artifactName})$`).test(root)
+                                    : row.artifactName === root)
+                    return rows.some((row) => row.authzTypeEnumId === 'AUTHZT_ALLOW' || row.authzTypeEnumId === 'AUTHZT_ALWAYS')
+                            && !rows.some((row) => row.authzTypeEnumId === 'AUTHZT_DENY')
+                } catch (err) {
+                    ec.logger.error(`Record link of ${type || recordEntityName} ${id}: the Projects authorization of user ${ec.user.userId} was not read: ${err}`)
+                    return false
+                }
+            }
+            // a merge request or a repository (the code topics, Chatter on them) opens in Projects' Code
+            if (!type && (recordEntityName === 'moqui.resource.GitMergeRequest' || recordEntityName === 'moqui.resource.GitRepository')) {
+                const isMergeRequest = recordEntityName === 'moqui.resource.GitMergeRequest'
+                url = mayOpenProjects() ? (isMergeRequest ? '/qapps/Projects/Code/MergeRequestDetail?mergeRequestId=' : '/qapps/Projects/Code/RepositoryDetail?repositoryId=') + q : null
+                icon = isMergeRequest ? 'sym_o_merge' : 'sym_o_folder_data'
+                return
+            }
             // IronStone Projects: a project, and a task or a request of a project, for a user who may open the app
             if (type === 'MantleProject' || type === 'MantleTask' || type === 'MantleRequest') {
                 const entityName = type === 'MantleRequest' ? 'mantle.request.Request' : 'mantle.work.effort.WorkEffort'
                 const inProject = type === 'MantleProject' || !!ec.entity.find(entityName).condition(type === 'MantleRequest' ? 'requestId' : 'workEffortId', id)
                         .selectField('rootWorkEffortId').disableAuthz().one()?.rootWorkEffortId
                 if (inProject && ec.user.userId) {
-                    let mayOpen = false
-                    try {
-                        const groupIds = Array.from(ec.user.getUserGroupIdSet() || [])
-                        const root = 'component://ironstone-boss/screen/Projects.xml'
-                        const rows = Array.from(ec.entity.find('moqui.security.ArtifactAuthzCheckView').condition('userGroupId', 'in', groupIds)
-                                .condition('artifactTypeEnumId', 'AT_XML_SCREEN').condition('authzActionEnumId', 'in', ['AUTHZA_ALL', 'AUTHZA_VIEW'])
-                                .disableAuthz().list()).filter((row) => row.nameIsPattern === 'Y' ? new RegExp(`^(?:${row.artifactName})$`).test(root)
-                                        : row.artifactName === root)
-                        mayOpen = rows.some((row) => row.authzTypeEnumId === 'AUTHZT_ALLOW' || row.authzTypeEnumId === 'AUTHZT_ALWAYS')
-                                && !rows.some((row) => row.authzTypeEnumId === 'AUTHZT_DENY')
-                    } catch (err) {
-                        ec.logger.error(`Record link of ${type} ${id}: the Projects authorization of user ${ec.user.userId} was not read, linking to Commons: ${err}`)
-                    }
-                    if (mayOpen) {
+                    if (mayOpenProjects()) {
                         const projects = {MantleProject: ['/qapps/Projects/Projects/ProjectDetail?workEffortId=', 'sym_o_assignment'],
                             MantleTask: ['/qapps/Projects/WorkItems/WorkItemDetail?workEffortId=', 'sym_o_task_alt'],
                             MantleRequest: ['/qapps/Projects/Requests/RequestDetail?requestId=', 'sym_o_support']}[type]

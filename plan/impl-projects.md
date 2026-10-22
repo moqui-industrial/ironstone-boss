@@ -55,7 +55,7 @@ Sections: [1 scope](#1-scope-and-order) · [2 rules](#2-ground-rules) · [3 phas
 | P1 Foundation | mr-moqui, Mantle, BOSS | the Projects root and menu | done Oct 21 |
 | P2 Projects and work items | Mantle, BOSS (mr-moqui) | Home, QuickCreate, Projects, NewProject, ProjectDetail and its Overview, Work items, Team, Files and Settings tabs, WorkItems, WorkItemDetail, WorkItemTypes, Workflows, Labels, Templates | done Oct 22 |
 | P3a Code: framework | mr-moqui | — | done Oct 21 |
-| P3b Code: Mantle and BOSS | Mantle, BOSS | every §7 screen, ProjectCode, CodeSettings | planned |
+| P3b Code: Mantle and BOSS | Mantle, BOSS | every §7 screen, ProjectCode, CodeSettings | in progress (P3b1 built Oct 22; P3b2 merge requests and review) |
 | P4 Planning | Mantle, BOSS (mr-moqui) | Backlog, SprintDetail, Timeline, WorkItemImport, Roadmap, MilestoneDetail, ReleaseDetail, ProjectBacklog, ProjectTimeline, ProjectCalendar, ProjectRoadmap, ProjectDocs | planned |
 | P5 Requests | Mantle, BOSS | Requests, RequestDetail, RequestIntake, ProjectRequests, IntakeSettings | planned |
 | P6 Time | Mantle, BOSS | MyTime, Timesheets, TimesheetDetail, TimeEntries, ProjectTime, TimeSettings | planned |
@@ -195,6 +195,29 @@ tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
   `CommitStatusFailed`.
 - Usable when: a developer makes a branch from a work item, pushes, opens a merge request, a reviewer comments on a
   line and approves, a CI status posts, the merge closes the item.
+- Built in two halves (Oct 22): P3b1 the Mantle rows, the repository screens, Compare, CommitDetail, GitAccess,
+  CodeSettings and ProjectCode; P3b2 MergeRequests, MergeRequestDetail, MergeRequestChanges, the Development tab and
+  Home's reviews waiting.
+
+**Built, P3b1** (Oct 22, 2026):
+- Framework: `authorize_own` decides `AT_GIT_REPOSITORY` from the repository's own records (F23); git update events put
+  the caller's user back (F26); a parameter or result named `context` stays out of SECA and rule frames (F25); the lite
+  build reports the git_hosting services as not built in (F30); docs/Git-Hosting.md Access.
+- Mantle udm: `WorkEffortGitMergeRequest`, `CommunicationEventGitAnchor`, link sources `WglsReleaseVersion`,
+  `WglsMergeRequestBranch`, `WglsMergeRequestText`.
+- Mantle usl `GitServices`: rights by project role in `check#GitRepositoryAuthz`, repository defaults, merge request
+  item links and completion, review comments, anchors and threads (`refresh#ReviewAnchors` on synchronize), task
+  branches, release tags by version, `search#Code`, merge request and failed-check notices; `WorkGit.secas.xml`;
+  `get#RecordLinkInfo` knows GitMergeRequest and GitRepository; topics `MergeRequestReview`, `MergeRequestUpdate`,
+  `CommitStatusFailed`; `test/WorkGitReview.spec.js`.
+- BOSS: `ironstone.CodeServices` and `CodeDemoServices`; Repositories, RepositoryDetail (Files, Commits, Branches, Tags,
+  a Merge requests note for P3b2, Activity, Settings), Compare, CommitDetail, GitAccess with the Commons Account box,
+  Settings/Code, ProjectDetail's Code tab and Settings Code box; the `!` Code palette source; "Code hosting is not in this
+  build" on the lite build; demo `BossProjectsDemoDataCode.xml` (repositories `iron` and more, merge request !1, a failed
+  check on IRON-7-timer); `test/Code.spec.js`. Review fix: Raw shows only images and PDFs inline (F32).
+- Runs (Debug): ironstone-boss 469/469, mantle-usl 594/596 (ContactListSend and its stepwise skip; InboxThreads passed),
+  moqui-core lib 1565, example 86/86, SimpleScreens GitScreens 8/8; moqui-host `it` fails
+  `system_sync::system_messages_and_entity_syncs_run_over_rest` with or without these changes (not Projects).
 
 ### P4 — Planning
 
@@ -281,6 +304,11 @@ Made during the build; each one that changes the design is also written into des
 | Oct 22, 2026 | ProjectDetail's status-bar is read-only and the moves are buttons, primary by status (Approve, Begin, Resume, Close, Re-open; In Progress: Post update) | P2 |
 | Oct 22, 2026 | A project is managed by its ProjectManager or Manager parties, a Projects manager who sees it, or ADMIN; status-update notices go to internal members only until P10 | P2 |
 | Oct 22, 2026 | ProjectDetail's menu leaves out New work item (the tab and the shell's + cover it) and Log time (P6) | P2 |
+| Oct 22, 2026 | Merge request rules are SECAs (`WorkGit.secas.xml` on `queue#MergeRequestEvent`, `merge#MergeRequest`, `set#MergeRequestReviewers`, through `handle#MergeRequestEvent`), not gitECA rules: they are not git events | P3b1 |
+| Oct 22, 2026 | A linked item completes on merge when the description says Closes <key>, the author ticks it on Compare, or the project's WstMergeRequestMoves is on | P3b1 |
+| Oct 22, 2026 | Repository rights: internal members view, create and update; leads (ProjectManager, Manager, ProgrammerLead, SysArchitect) also delete; client contacts view only when the project shares its repositories (their own party's roles; P10 adds client organizations' contacts) | P3b1 |
+| Oct 22, 2026 | CodeSettings: no default webhooks (each needs its own secret); managers grant or revoke SSH_GIT per group, never ADMIN | P3b1 |
+| Oct 22, 2026 | The Code tab is always on ProjectDetail and says when the module is off (F24) | P3b1 |
 | Oct 22, 2026 | A recurring item counted from completion takes the completion day at the due date's time of day (UTC days) and the rule without its COUNT, which counts the items made | P2 |
 
 ## 5. Open questions
@@ -319,6 +347,16 @@ Design assumptions found wrong in the code, with the resolution (written into th
 | F20 | P2: `button-menu` takes only `link`, `label` and dialogs (no `section-iterate` or `render-mode`) | A menu of computed items is one conditional link per possible item |
 | F21 | P2: the framework's status flow check refuses a spec putting a status back through `update#` | Specs restore status with an entity value update |
 | F22 | P2: project estimates roll up from their items (Mantle ECA), so the demo ACME shows Over the estimate (109 h of 105 h) | Left as demo data that shows the warning |
+| F23 | P3b1 (security): an app root's inheritable ALLOW granted every repository check inside its screens and services, so any BOSS team member could view or push any repository through the Code screens | Framework `authorize_own`: `AT_GIT_REPOSITORY` decided by the repository's own records, as the git server does |
+| F24 | P3b1: a subscreen tab cannot be hidden by a condition (`disable-when` is commented out in the XSD; `menu-include` is static) | The tab is always there and says why it is empty; a framework condition on tabs, later |
+| F25 | P3b1: a service parameter named `context` (`create#GitCommitStatus`) broke every SECA on the service; `${context}` in a notification template is the context map | Framework rule frames skip it; the failed-check field is `checkContext` |
+| F26 | P3b1 (security): calling `process#GitUpdate` or `process#PendingGitUpdates` directly left the caller signed in as the update's user for the rest of the request | Framework puts the caller back |
+| F27 | P3b1: `moqui load` and the test copy shut down with git pool events running (a GitUpdate stuck at running until the next start); a GitUpdate in its own transaction fails on a repository made in an uncommitted one; the loader runs a data file in one transaction | Demo repositories in their own file, `BossProjectsDemoDataCode.xml`; Code.spec puts stuck updates back to pending. The loader waiting for the pool, later |
+| F28 | P3b1: `compare` is a read-only host global in the script runtime | Not used as a variable name |
+| F29 | P3b1: a `git://path#version` read needs a commit that changed the file | Raw reads the file's last commit up to the one asked |
+| F30 | P3b1: the lite build had no feature entry for the git_hosting services, so they failed to load | Framework `FEATURE_LOCATIONS` entry |
+| F31 | P3b1: `GitRepository.headCommitId` is the head of the last branch written, not the default branch's | ProjectCode reads the default branch's log |
+| F32 | P3b1 review (security): Raw sent any pushed file inline by its name's type, so an `.html` or `.svg` file ran in the app's origin for whoever opened it | Raw is inline only for images and PDFs (the record files' rule); anything else downloads. The framework's `sendResourceResponse` could refuse active types inline everywhere, later |
 | F7 | P0: a wiki space under an existing repository is documented for a repository root (`rootPageDirectory: "git://docs"`, or `rootPageLocation` `git://<repositoryId>/<SPACE>.md`), not for a subdirectory such as `git://<repositoryId>/docs` | Checked in P4 as the design's §15 row says, before ProjectDocs is built |
 
 ## 7. Later
@@ -345,6 +383,10 @@ Designed, not in this build:
 - Projects Home (P2): the timer strip, reviews waiting, approvals, Unbilled and the charts wait for their phases; the
   counts service answers null for them. Projects' timeline view link (P4). A copy button for clone URLs (templates have
   no clipboard helper). QuickWorkItem's types do not reload when the project changes in the form.
+
+- Code (P3b1): requiring a work item key in commits to protected branches (a pre-receive rule); copy buttons for clone
+  URLs; the palette's New merge request (Compare needs a repository); the Code screens' client states (P10); the
+  current LFS patterns on Files; specs for mirrors, storage and export; TUI checks of the Code screens.
 
 ## 8. Verification
 

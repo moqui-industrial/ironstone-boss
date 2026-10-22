@@ -12,10 +12,179 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for the repository list (design-projects.md §7 Repositories; impl-projects.md P3b). -->
+<!-- Repositories (design-projects.md §7 Repositories; style-guide §3.2 List): the repositories the user may view
+    (org.moqui.impl.GitServices.find#GitRepositories through ironstone.CodeServices.find#Repositories). Chips with their counts:
+    Mine (of my projects, the default), All, Mirrors and Archived, an archived one left out of the others; the columns
+    repository, description, projects, storage, default branch, last change, open merge requests and the clone URLs (as text: a
+    copy button wants a framework helper, impl-projects.md §7). New repository (a project's, for those who manage it; any for
+    administrators; with an import from a URL for one in the database), Link repository (for a maintainer of the repository who
+    manages the project) and, for administrators, Mirror. Without git hosting in the build it says so. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Repositories" default-menu-index="1">
+
+    <parameter name="list"/>
+    <parameter name="text"/>
+    <parameter name="pageIndex"/>
+
+    <transition name="repositoryDetail"><default-response url="../RepositoryDetail"/></transition>
+    <transition name="createRepository">
+        <actions>
+            <service-call name="ironstone.CodeServices.create#Repository" out-map="createOut" in-map="{workEffortId:workEffortId, repositoryId:repositoryId,
+                    description:description, repositoryKind:repositoryKind, contentRepository:(contentRepository || 'N'), importUrl:importUrl}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(createOut.message, 'success'); repositoryId = createOut.repositoryId</script></if>
+        </actions>
+        <default-response url="../RepositoryDetail"><parameter name="repositoryId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="linkRepository">
+        <actions>
+            <service-call name="ironstone.CodeServices.link#Repository" out-map="linkOut" in-map="{repositoryId:repositoryId, workEffortId:workEffortId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(linkOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."/>
+        <error-response url="."/>
+    </transition>
+    <transition name="createMirror">
+        <actions>
+            <service-call name="ironstone.CodeServices.create#Mirror" out-map="mirrorOut" in-map="{repositoryId:repositoryId, remoteUrl:remoteUrl, description:description,
+                    username:username, accessToken:accessToken, fetchIntervalMinutes:fetchIntervalMinutes, workEffortId:workEffortId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(mirrorOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="list" value="mirrors"/></default-response>
+        <error-response url="."/>
+    </transition>
+
+    <actions>
+        <script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const lists = [['mine', 'Mine', 'sym_o_person'], ['all', 'All', 'sym_o_select_all'], ['mirrors', 'Mirrors', 'sym_o_sync'], ['archived', 'Archived', 'sym_o_archive']]
+            if (!lists.some((entry) => entry[0] === list)) list = 'mine'
+            isAdmin = ec.user.isInGroup('ADMIN')
+            isProjectsManager = isAdmin || ec.user.isInGroup('BOSS_PROJECT_MANAGER')
+            repositoryRows = []; repositoryRowsCount = 0; repositoryRowsPageIndex = 0; repositoryRowsPageSize = 25; repositoryRowsPageMaxIndex = 0
+            repositoryRowsPageRangeLow = 0; repositoryRowsPageRangeHigh = 0; listChips = []; projectOptions = []; linkOptions = []
+            if (!codeHosting) return
+            const out = ec.service.sync().name('ironstone.CodeServices.find#Repositories').parameters({list: list, text: text || null,
+                pageIndex: Number(pageIndex || 0) || 0, pageSize: 25}).call() || {}
+            repositoryRows = Array.from(out.rowList || [])
+            repositoryRowsCount = out.rowCount || 0
+            repositoryRowsPageIndex = Number(pageIndex || 0) || 0
+            repositoryRowsPageMaxIndex = Math.max(0, Math.ceil(repositoryRowsCount / 25) - 1)
+            repositoryRowsPageRangeLow = repositoryRowsCount ? repositoryRowsPageIndex * 25 + 1 : 0
+            repositoryRowsPageRangeHigh = Math.min(repositoryRowsCount, (repositoryRowsPageIndex + 1) * 25)
+            const counts = out.counts || {}
+            listChips = lists.map(([key, label, icon]) => ({label: L(label) + ' · ' + (counts[key] || 0), icon: icon, on: key === list,
+                params: Object.assign({list: key}, text ? {text: text} : {})}))
+            listLabel = L(lists.find((entry) => entry[0] === list)[1])
+            projectOptions = ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').call()?.projectList || []
+            linkOptions = Array.from(ec.service.sync().name('org.moqui.impl.GitServices.find#GitRepositories').parameters({pageNoLimit: true}).call()?.repositoryList || [])
+                    .map((repo) => ({key: repo.repositoryId, text: repo.repositoryId + (repo.description ? ' · ' + repo.description : '')}))
+            const empty = {mine: 'No repository of your projects', all: 'No repositories yet', mirrors: 'No mirrors', archived: 'No archived repositories'}
+            emptyText = text ? L('No repositories match') : L(empty[list])
+        ]]></script>
+    </actions>
+
     <widgets>
-        <label text="Placeholder: Repositories: the repositories I may view, with their clone addresses." type="p"/>
+        <container style="row items-center q-mb-sm q-gutter-y-xs">
+            <label text="Repositories" type="h5" style="q-my-none q-mr-sm"/>
+            <container style="col"/>
+            <section name="RepositoryActions" condition="codeHosting"><widgets>
+                <container-dialog id="MirrorRepositoryDialog" button-text="Mirror" icon="sym_o_sync" width="560" title="A mirror of a repository hosted elsewhere"
+                        condition="isAdmin">
+                    <form-single name="MirrorRepository" transition="createMirror" focus-field="repositoryId">
+                        <field name="repositoryId"><default-field title="Repository ID"><text-line size="30"/></default-field></field>
+                        <field name="remoteUrl"><default-field title="Remote URL (https://…)"><text-line size="50"/></default-field></field>
+                        <field name="description"><default-field title="Description"><text-line size="50"/></default-field></field>
+                        <field name="username"><default-field title="User name"><text-line size="30"/></default-field></field>
+                        <field name="accessToken"><default-field title="Access token"><password size="30"/></default-field></field>
+                        <field name="fetchIntervalMinutes" from="60"><default-field title="Fetch every (minutes)"><text-line size="6" input-type="number"/></default-field></field>
+                        <field name="workEffortId"><default-field title="Project"><drop-down allow-empty="true"><list-options list="projectOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                        <field name="submitButton"><default-field title="Make mirror"><submit/></default-field></field>
+                    </form-single>
+                </container-dialog>
+                <container-dialog id="LinkRepositoryDialog" button-text="Link to a project" icon="sym_o_link" width="520" title="Link a repository to a project">
+                    <form-single name="LinkRepository" transition="linkRepository">
+                        <field name="repositoryId"><default-field title="Repository"><drop-down><list-options list="linkOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                        <field name="workEffortId"><default-field title="Project"><drop-down><list-options list="projectOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                        <field name="submitButton"><default-field title="Link"><submit/></default-field></field>
+                    </form-single>
+                    <label type="p" text="The project's members may then clone it and push to it; its leads also force-push and delete branches." style="text-caption m-muted"/>
+                </container-dialog>
+                <container-dialog id="NewRepositoryDialog" button-text="New repository" icon="sym_o_add" width="560" title="A new repository" condition="isProjectsManager">
+                    <form-single name="NewRepository" transition="createRepository" focus-field="workEffortId">
+                        <field name="workEffortId"><default-field title="${isAdmin ? 'Project (optional for administrators)' : 'Project'}">
+                            <drop-down allow-empty="true"><list-options list="projectOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                        <field name="repositoryId"><default-field title="Repository ID (empty: the project's key in lower case)"><text-line size="30"/></default-field></field>
+                        <field name="description"><default-field title="Description"><text-line size="50"/></default-field></field>
+                        <field name="repositoryKind"><default-field title="Storage (empty: your organization's default)"><drop-down allow-empty="true">
+                            <option key="local" text="On disk, for code"/><option key="db" text="In the database, with the backup"/></drop-down></default-field></field>
+                        <field name="contentRepository"><default-field title=" "><check><option key="Y" text="Content: keep images, video, audio, PDFs and archives in Git LFS"/></check></default-field></field>
+                        <field name="importUrl"><default-field title="Import from a URL (in the database only)"><text-line size="50"/></default-field></field>
+                        <field name="submitButton"><default-field title="Make repository"><submit/></default-field></field>
+                    </form-single>
+                </container-dialog>
+            </widgets></section>
+        </container>
+
+        <section name="NoCodeHosting" condition="!codeHosting"><widgets>
+            <container-box type="warning"><box-header title="Code hosting is not in this build"/><box-body>
+                <label type="p" text="This server was built without git hosting. Repositories, merge requests and git access need a build with the git feature." style="q-mb-none"/>
+            </box-body></container-box>
+        </widgets><fail-widgets>
+            <container style="row q-gutter-xs q-mb-sm m-task-chips">
+                <section-iterate name="ListChip" list="listChips" entry="chip"><widgets>
+                    <section name="ListChipOn" condition="chip.on"><widgets>
+                        <link url="." link-type="anchor-button" btn-type="primary" text="${chip.label}" icon="${chip.icon}" parameter-map="chip.params"/>
+                    </widgets><fail-widgets>
+                        <link url="." link-type="anchor-button" text="${chip.label}" icon="${chip.icon}" parameter-map="chip.params"/>
+                    </fail-widgets></section>
+                </widgets></section-iterate>
+            </container>
+
+            <container-box><box-header title="${listLabel} · ${repositoryRowsCount}"/><box-body-nopad>
+                <form-list name="RepositoryList" list="repositoryRows" skip-form="true" paginate="true" show-page-size="false" header-dialog="true">
+                    <field name="text"><header-field title="Text or ID"><text-line size="20"/></header-field></field>
+                    <field name="list"><header-field><hidden/></header-field></field>
+                    <field name="repositoryId"><header-field title="Repository"/><default-field>
+                        <link url="repositoryDetail" text="${repositoryId}" parameter-map="{repositoryId:repositoryId}" link-type="anchor" style="text-mono text-weight-medium"/>
+                        <label text="${description}" type="div" style="text-caption m-muted" condition="description"/>
+                    </default-field></field>
+                    <field name="projectsText"><default-field title="Projects">
+                        <section-iterate name="RepositoryProject" list="projectList" entry="project"><widgets>
+                            <link url="/qapps/Projects/Projects/ProjectDetail" url-type="plain" text="${project.workEffortId}" link-type="anchor" style="text-mono q-mr-sm"
+                                    parameter-map="{workEffortId:project.workEffortId}"/>
+                        </widgets></section-iterate></default-field></field>
+                    <field name="kindLabel"><default-field title="Storage">
+                        <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${repositoryKind == 'remote' ? 'info' : 'grey-8'}">${WebUtilities.encodeHtml(kindLabel ?? '')}</q-chip>${archived ? ' <q-chip dense square class="q-ma-none q-ml-xs m-tonal text-warning">' + WebUtilities.encodeHtml(ec.l10n.localize('Archived')) + '</q-chip>' : ''}]]></text>
+                            <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify((kindLabel ?? "") + (archived ? " · " + ec.l10n.localize("Archived") : ""))}}]]></text></render-mode>
+                    </default-field></field>
+                    <field name="branch"><default-field title="Default branch"><label text="${branch}" type="span" style="text-mono"/></default-field></field>
+                    <field name="lastText"><default-field title="Last change"><label text="${lastText}" type="span" style="text-no-wrap"/></default-field></field>
+                    <field name="openMergeRequestCount" align="right"><default-field title="Open merge requests"><display text="${openMergeRequestCount || ''}"/></default-field></field>
+                    <field name="httpsUrl"><default-field title="Clone">
+                        <label text="${httpsUrl}" type="div" style="text-caption text-mono" condition="httpsUrl"/>
+                        <label text="${sshUrl}" type="div" style="text-caption text-mono m-muted" condition="sshUrl"/>
+                    </default-field></field>
+                    <field name="findButton"><header-field title="Find"><submit/></header-field></field>
+
+                    <form-list-column><field-ref name="repositoryId"/></form-list-column>
+                    <form-list-column><field-ref name="projectsText"/></form-list-column>
+                    <form-list-column><field-ref name="kindLabel"/></form-list-column>
+                    <form-list-column><field-ref name="branch"/></form-list-column>
+                    <form-list-column><field-ref name="lastText"/></form-list-column>
+                    <form-list-column><field-ref name="openMergeRequestCount"/></form-list-column>
+                    <form-list-column><field-ref name="httpsUrl"/></form-list-column>
+                    <form-list-column><field-ref name="findButton"/></form-list-column>
+                </form-list>
+                <section name="NoRepositories" condition="!repositoryRows.length"><widgets>
+                    <container style="q-pa-sm">
+                        <label type="p" text="${emptyText}" style="m-muted q-mb-xs"/>
+                        <section name="NoRepositoriesClear" condition="text"><widgets>
+                            <link url="." link-type="anchor" text="Clear the text" parameter-map="{list:list}"/>
+                        </widgets></section>
+                    </container>
+                </widgets></section>
+            </box-body-nopad></container-box>
+        </fail-widgets></section>
     </widgets>
 </screen>

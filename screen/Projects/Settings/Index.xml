@@ -13,8 +13,7 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 <!-- The Projects settings index (design-projects.md §12 Settings; style-guide §3.9 Settings): a card per settings page with a
-    line about it and its link (the Time, Billing, Code and Intake pages are placeholders until impl-projects.md P6, P8, P3b and
-    P5), and links to Commons' notification settings and to Admin's user groups, where people are put in the three Projects
+    line about it and its link (the Time, Billing and Intake pages are placeholders until impl-projects.md P6, P8 and P5), and links to Commons' notification settings and to Admin's user groups, where people are put in the three Projects
     groups. Managers only (BOSS_PROJECTS_MANAGERS). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="All settings" default-menu-include="false" server-static="qvt">

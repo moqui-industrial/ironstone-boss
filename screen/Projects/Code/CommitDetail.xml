@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- CommitDetail (design-projects.md §7 CommitDetail; style-guide §3.3 Detail): one commit of a repository the user may view.
+    The title row: the summary, the short id, Browse files at this commit. The header box: the body, the author and committer
+    (avatars when they are users), the dates, the parents, the linked work items with Unlink and Link to work item (those who
+    work in the item's project), and the CI statuses by context. Then "n files changed" and every file's diff (the moqui-diff
+    table), up to 25 files, past that a file list opening each. Services: ironstone.CodeServices get#CommitDetail, link#CommitItem,
+    unlink#CommitItem (org.moqui.impl.GitServices get#GitCommit, get#GitCommitDiff, get#GitCommitStatuses). -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Commit" default-menu-include="false">
+
+    <parameter name="repositoryId" required="true"/>
+    <parameter name="commitId" required="true"/>
+    <parameter name="diffPath"/>
+
+    <transition name="repositoryDetail"><default-response url="../RepositoryDetail"/></transition>
+    <transition name="files"><default-response url="../RepositoryDetail/Files"/></transition>
+    <transition name="linkItem">
+        <actions>
+            <service-call name="ironstone.CodeServices.link#CommitItem" out-map="linkOut" in-map="{repositoryId:repositoryId, commitId:commitId, workEffortId:workEffortId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(linkOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="repositoryId"/><parameter name="commitId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="unlinkItem">
+        <actions>
+            <service-call name="ironstone.CodeServices.unlink#CommitItem" out-map="linkOut" in-map="{repositoryId:repositoryId, commitId:commitId, workEffortId:workEffortId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(linkOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="repositoryId"/><parameter name="commitId"/></default-response>
+        <error-response url="."/>
+    </transition>
+
+    <actions>
+        <script><![CDATA[
+            repoAccess = codeHosting ? (ec.service.sync().name('ironstone.CodeServices.get#RepositoryAccess').parameters({repositoryId: repositoryId || ''}).call() || {}) : {}
+            recordFound = !!repoAccess.canView
+            commitFound = false
+            if (!recordFound) return
+            const detail = ec.service.sync().name('ironstone.CodeServices.get#CommitDetail').parameters({repositoryId: repositoryId, commitId: commitId, diffPath: diffPath || null}).call() || {}
+            ec.message.clearErrors()
+            commitFound = !!detail.found
+            if (!commitFound) return
+            const L = (text) => ec.l10n.localize(text)
+            const enc = (text) => String(text == null ? '' : text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+            commit = detail.commit
+            fileList = Array.from(detail.fileList || [])
+            diffList = Array.from(detail.diffList || [])
+            allDiffs = detail.allDiffs !== false
+            itemList = Array.from(detail.itemList || [])
+            const checkColors = {success: 'positive', failure: 'negative', error: 'negative', pending: 'warning'}
+            const checkLabels = {success: 'Passed', failure: 'Failed', error: 'Error', pending: 'Pending'}
+            statusList = Array.from(detail.statusList || []).map((status) => Object.assign(status, {color: checkColors[status.state] || 'grey-7',
+                label: L(checkLabels[status.state] || status.state || '')}))
+            parentList = commit.parentIds.map((id) => ({commitId: id, shortId: String(id).substring(0, 10)}))
+            changedText = fileList.length + ' ' + (fileList.length == 1 ? L('file changed') : L('files changed')) + ' · +' + (detail.insertions || 0) + ' −' + (detail.deletions || 0)
+            const person = (name, email, userId) => '<span class="row inline no-wrap items-center q-mr-md"><m-avatar name="' + enc(name) + '"' + (userId ? ' user-id="' + enc(userId) + '"' : '')
+                    + ' size="24px" class="q-mr-xs"></m-avatar><span>' + enc(name) + (email ? ' <span class="m-muted text-caption">&lt;' + enc(email) + '&gt;</span>' : '') + '</span></span>'
+            peopleHtml = '<div class="column q-gutter-y-xs"><div>' + person(commit.authorName, commit.authorEmail, commit.moquiUserId)
+                    + '<span class="text-caption m-muted">' + enc(L('authored') + ' ' + commit.authorDateText) + '</span></div>'
+                    + (commit.sameCommitter ? '' : '<div>' + person(commit.committerName, commit.committerEmail, null) + '<span class="text-caption m-muted">'
+                        + enc(L('committed') + ' ' + commit.committerDateText) + '</span></div>') + '</div>'
+            peopleTui = {t: 'text', id: 'CommitPeople', text: commit.authorName + ' · ' + commit.authorDateText + (commit.sameCommitter ? '' : ' · ' + commit.committerName)}
+        ]]></script>
+    </actions>
+
+    <widgets>
+        <section name="NoCodeHosting" condition="!codeHosting"><widgets>
+            <container-box type="warning"><box-header title="Code hosting is not in this build"/><box-body>
+                <label type="p" text="This server was built without git hosting, so commit ${commitId} of ${repositoryId} cannot be shown." style="q-mb-none"/>
+            </box-body></container-box>
+        </widgets></section>
+        <section name="CommitNotFound" condition="codeHosting &amp;&amp; !commitFound"><widgets>
+            <container-box type="warning"><box-header title="Not available"/><box-body>
+                <label type="p" text="Commit ${commitId} is not available: it is not in ${repositoryId}, or you may not view the repository." style="q-mb-xs"/>
+                <link url="repositoryDetail" text="Back to the repository" link-type="anchor" parameter-map="{repositoryId:repositoryId}" condition="recordFound"/>
+            </box-body></container-box>
+        </widgets></section>
+
+        <section name="CommitFound" condition="codeHosting &amp;&amp; commitFound"><widgets>
+            <container style="row items-start q-col-gutter-sm q-mb-sm">
+                <container style="col-12 col-md">
+                    <label text="${commit.summary}" type="h5" style="q-my-none"/>
+                    <container style="row items-center q-gutter-x-sm q-mt-xs">
+                        <link url="repositoryDetail" text="${repositoryId}" link-type="anchor" parameter-map="{repositoryId:repositoryId}" style="text-mono"/>
+                        <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none text-mono m-tonal text-grey-8" title="${WebUtilities.encodeHtml(commit.commitId)}">${WebUtilities.encodeHtml(commit.shortId)}</q-chip>]]></text>
+                            <text type="tui"><![CDATA[${JSON.stringify({t: "text", id: "CommitId", style: "strong", text: commit.commitId})}]]></text></render-mode>
+                    </container>
+                </container>
+                <container style="col-12 col-md-auto row items-center">
+                    <link url="files" text="Browse files" icon="sym_o_folder_open" parameter-map="{repositoryId:repositoryId, ref:commit.commitId}"/>
+                </container>
+            </container>
+
+            <container-row>
+                <row-col lg="8">
+                    <container-box><box-header title="Commit"/><box-body>
+                        <label text="${commit.body}" type="pre" style="q-mb-sm" condition="commit.body"/>
+                        <render-mode><text type="qvt"><![CDATA[${peopleHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(peopleTui)}]]></text></render-mode>
+                        <container style="row items-center q-gutter-x-sm q-mt-sm text-caption">
+                            <label text="${parentList.length > 1 ? 'Parents' : parentList.length ? 'Parent' : 'No parent: the first commit'}" type="span" style="m-muted"/>
+                            <section-iterate name="CommitParent" list="parentList" entry="parent"><widgets>
+                                <link url="." text="${parent.shortId}" link-type="anchor" parameter-map="{repositoryId:repositoryId, commitId:parent.commitId}" style="text-mono"/>
+                            </widgets></section-iterate>
+                        </container>
+                        <label text="${commit.commitId}" type="div" style="text-caption text-mono m-muted q-mt-xs"/>
+                    </box-body></container-box>
+                </row-col>
+                <row-col lg="4">
+                    <container-box><box-header title="Work items"/>
+                        <box-toolbar>
+                            <container-dialog id="LinkItemDialog" button-text="Link" icon="sym_o_link" width="420" title="Link ${commit.shortId} to a work item">
+                                <form-single name="LinkItem" transition="linkItem">
+                                    <field name="repositoryId"><default-field><hidden/></default-field></field>
+                                    <field name="commitId" from="commit.commitId"><default-field><hidden/></default-field></field>
+                                    <field name="workEffortId"><default-field title="Work item key (IRON-12)"><text-line size="20"/></default-field></field>
+                                    <field name="submitButton"><default-field title="Link"><submit/></default-field></field>
+                                </form-single>
+                            </container-dialog>
+                        </box-toolbar>
+                        <box-body-nopad>
+                            <form-list name="CommitWorkItems" list="itemList" skip-form="true" skip-header="true" paginate="false">
+                                <field name="workEffortId"><default-field>
+                                    <link url="/qapps/Projects/WorkItems/WorkItemDetail" url-type="plain" text="${workEffortId}" link-type="anchor" parameter-map="{workEffortId:workEffortId}" style="text-mono"/>
+                                    <label text="${workEffortName}" type="div" style="text-caption"/>
+                                    <label text="${statusLabel} · ${linkLabel}" type="div" style="text-caption m-muted"/></default-field></field>
+                                <field name="unlink"><default-field>
+                                    <link url="unlinkItem" link-type="hidden-form-link" text="Unlink" icon="sym_o_link_off" confirmation="Unlink ${workEffortId} from this commit?"
+                                            parameter-map="{repositoryId:repositoryId, commitId:commit.commitId, workEffortId:workEffortId}"/></default-field></field>
+                            </form-list>
+                            <section name="NoCommitItems" condition="!itemList.length"><widgets>
+                                <label type="p" text="No work item. A key in the message (IRON-12) or a Task: trailer links one." style="m-muted q-pa-sm q-mb-none"/>
+                            </widgets></section>
+                        </box-body-nopad>
+                    </container-box>
+                    <container-box><box-header title="Checks"/><box-body-nopad>
+                        <form-list name="CommitStatuses" list="statusList" skip-form="true" skip-header="true" paginate="false">
+                            <field name="checkContext"><default-field>
+                                <label text="${checkContext}" type="div" style="text-mono"/>
+                                <label text="${description}" type="div" style="text-caption m-muted" condition="description"/></default-field></field>
+                            <field name="state"><default-field>
+                                <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${color}" data-check="${WebUtilities.encodeHtml(state ?? '')}">${WebUtilities.encodeHtml(label ?? '')}</q-chip>]]></text>
+                                    <text type="tui"><![CDATA[{"t": "text", "style": "strong", "text": ${JSON.stringify(label ?? "")}}]]></text></render-mode></default-field></field>
+                            <field name="targetUrl"><default-field>
+                                <link url="${targetUrl}" url-type="plain" text="Run" icon="sym_o_open_in_new" link-type="anchor" target-window="_blank" condition="targetUrl"/></default-field></field>
+                        </form-list>
+                        <section name="NoChecks" condition="!statusList.length"><widgets>
+                            <label type="p" text="No checks posted. Outside CI posts them over REST with an access token." style="m-muted q-pa-sm q-mb-none"/>
+                        </widgets></section>
+                    </box-body-nopad></container-box>
+                </row-col>
+            </container-row>
+
+            <label text="${changedText}" type="div" style="text-subtitle1 q-my-sm"/>
+            <section name="CommitFileList" condition="!allDiffs"><widgets>
+                <container-box><box-header title="Open a file to see its diff"/><box-body-nopad>
+                    <form-list name="CommitFiles" list="fileList" skip-form="true" skip-header="true" paginate="false">
+                        <field name="path"><default-field><link url="." text="${path}" link-type="anchor" style="text-mono"
+                                parameter-map="{repositoryId:repositoryId, commitId:commit.commitId, diffPath:path}"/></default-field></field>
+                        <field name="changeLabel"><default-field><label text="${changeLabel} · +${insertions} −${deletions}" type="span" style="text-caption m-muted"/></default-field></field>
+                    </form-list>
+                </box-body-nopad></container-box>
+            </widgets></section>
+            <section-iterate name="CommitDiff" list="diffList" entry="diff"><widgets>
+                <container-box><box-header title="${diff.path}"/><box-body>
+                    <label text="${diff.changeLabel} · +${diff.insertions} −${diff.deletions}${diff.binary ? ' · a binary file' : ''}${diff.tooLarge ? ' · too large to show' : ''}" type="div" style="text-caption m-muted q-mb-xs"/>
+                    <section name="CommitDiffTable" condition="diff.html"><widgets>
+                        <render-mode><text type="html,qvt"><![CDATA[<div class="overflow-auto"><div style="min-width: 720px">${diff.html}</div></div>]]></text>
+                            <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify(diff.path + " +" + diff.insertions + " -" + diff.deletions)}}]]></text></render-mode>
+                    </widgets></section>
+                </box-body></container-box>
+            </widgets></section-iterate>
+        </widgets></section>
+    </widgets>
+</screen>

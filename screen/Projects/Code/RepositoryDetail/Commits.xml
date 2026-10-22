@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- RepositoryCommits (design-projects.md §7 RepositoryCommits): the log of a ref, or of a path in it (History of a file), 30 a
+    page with Older (after the page's last commit) and Newest; each commit's author (an avatar), summary (to CommitDetail), short
+    id, date, linked work items (to WorkItemDetail) and combined CI state. Service: ironstone.CodeServices get#RepositoryCommits
+    (org.moqui.impl.GitServices.get#GitLog, get#GitCommitStatuses; WorkEffortGitCommit). -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Commits" default-menu-index="2">
+
+    <parameter name="ref"/>
+    <parameter name="path"/>
+    <parameter name="afterCommitId"/>
+
+    <transition name="commitDetail"><default-response url="../../CommitDetail"/></transition>
+    <transition name="pickRef"><default-response url="."><parameter name="repositoryId"/><parameter name="ref"/><parameter name="path"/></default-response></transition>
+
+    <actions>
+        <script><![CDATA[
+            if (!recordFound) return
+            const out = ec.service.sync().name('ironstone.CodeServices.get#RepositoryCommits').parameters({repositoryId: repositoryId, ref: ref || null,
+                path: path || null, afterCommitId: afterCommitId || null}).call() || {}
+            const L = (text) => ec.l10n.localize(text)
+            const checkColors = {success: 'positive', failure: 'negative', error: 'negative', pending: 'warning'}
+            const checkLabels = {success: 'Passed', failure: 'Failed', error: 'Error', pending: 'Pending'}
+            commitList = Array.from(out.commitList || []).map((commit) => Object.assign(commit, {checkColor: checkColors[commit.checkState] || '',
+                checkLabel: commit.checkState ? L(checkLabels[commit.checkState] || commit.checkState) : ''}))
+            hasMore = !!out.hasMore
+            lastCommitId = commitList.length ? commitList[commitList.length - 1].commitId : null
+            refOptions = ec.service.sync().name('ironstone.CodeServices.get#RefOptions').parameters({repositoryId: repositoryId}).call()?.optionList || []
+            shownRef = ref || repo.branch
+            if (shownRef && !refOptions.some((option) => option.key === shownRef)) refOptions = [{key: shownRef, text: L('Commit') + ' ' + String(shownRef).substring(0, 10)}].concat(refOptions)
+            refValue = {repositoryId: repositoryId, ref: shownRef, path: path || ''}
+        ]]></script>
+    </actions>
+
+    <widgets>
+        <section name="CommitsFound" condition="recordFound"><widgets>
+            <container style="row items-center q-col-gutter-sm q-mb-sm">
+                <container style="col-12 col-sm-auto">
+                    <form-single name="CommitsRefPicker" transition="pickRef" map="refValue">
+                        <field name="repositoryId"><default-field><hidden/></default-field></field>
+                        <field name="path"><default-field><hidden/></default-field></field>
+                        <field name="ref"><default-field title="Branch or tag"><drop-down><list-options list="refOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                        <field name="submitButton"><default-field title="Go"><submit/></default-field></field>
+                        <field-layout><field-row-big><field-ref name="ref"/><field-ref name="submitButton"/></field-row-big></field-layout>
+                    </form-single>
+                </container>
+                <section name="CommitsPath" condition="path"><widgets>
+                    <container style="col-12 col-sm-auto row items-center">
+                        <label text="History of" type="span" style="m-muted q-mr-xs"/>
+                        <label text="${path}" type="span" style="text-mono q-mr-sm"/>
+                        <link url="." text="All files" link-type="anchor" parameter-map="{repositoryId:repositoryId, ref:ref}"/>
+                    </container>
+                </widgets></section>
+            </container>
+
+            <container-box><box-body-nopad>
+                <form-list name="CommitList" list="commitList" skip-form="true" paginate="false">
+                    <field name="summary"><default-field title="Commit">
+                        <link url="commitDetail" text="${summary}" link-type="anchor" parameter-map="{repositoryId:repositoryId, commitId:commitId}" style="text-weight-medium"/>
+                        <render-mode><text type="qvt"><![CDATA[<div class="row items-center no-wrap q-mt-xs text-caption"><m-avatar name="${WebUtilities.encodeHtml(authorName ?? '')}"${moquiUserId ? ' user-id="' + WebUtilities.encodeHtml(moquiUserId) + '"' : ''} size="20px" class="q-mr-xs"></m-avatar><span class="m-muted">${WebUtilities.encodeHtml(authorName ?? '')} · ${WebUtilities.encodeHtml(dateText ?? '')}</span></div>]]></text>
+                            <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify((authorName ?? "") + " · " + (dateText ?? ""))}}]]></text></render-mode>
+                    </default-field></field>
+                    <field name="itemList"><default-field title="Work items">
+                        <section-iterate name="CommitItem" list="itemList" entry="item"><widgets>
+                            <link url="/qapps/Projects/WorkItems/WorkItemDetail" url-type="plain" text="${item.workEffortId}" link-type="anchor" parameter-map="{workEffortId:item.workEffortId}" style="text-mono q-mr-sm"
+                                    tooltip="${item.workEffortName}"/>
+                        </widgets></section-iterate></default-field></field>
+                    <field name="checkState"><default-field title="CI">
+                        <render-mode><text type="qvt"><![CDATA[${checkState ? '<q-chip dense square class="q-ma-none m-tonal text-' + checkColor + '" data-check="' + WebUtilities.encodeHtml(checkState) + '">' + WebUtilities.encodeHtml(checkLabel) + '</q-chip>' : ''}]]></text>
+                            <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify(checkLabel ?? "")}}]]></text></render-mode>
+                    </default-field></field>
+                    <field name="shortId"><default-field title="ID">
+                        <link url="commitDetail" text="${shortId}" link-type="anchor" parameter-map="{repositoryId:repositoryId, commitId:commitId}" style="text-mono"/>
+                    </default-field></field>
+                    <field name="browse"><default-field title="">
+                        <link url="../Files" text="Files" icon="sym_o_folder_open" link-type="anchor" parameter-map="{repositoryId:repositoryId, ref:commitId}"/>
+                    </default-field></field>
+                </form-list>
+                <section name="NoCommits" condition="!commitList.length"><widgets>
+                    <label type="p" text="${afterCommitId ? 'No older commits' : 'No commits yet'}" style="m-muted q-pa-sm q-mb-none"/>
+                </widgets></section>
+            </box-body-nopad></container-box>
+            <container style="row q-gutter-sm q-mt-sm">
+                <link url="." text="Newest" icon="sym_o_first_page" condition="afterCommitId" parameter-map="{repositoryId:repositoryId, ref:ref, path:path}"/>
+                <link url="." text="Older" icon="sym_o_chevron_right" condition="hasMore" parameter-map="{repositoryId:repositoryId, ref:ref, path:path, afterCommitId:lastCommitId}"/>
+            </container>
+        </widgets></section>
+    </widgets>
+</screen>

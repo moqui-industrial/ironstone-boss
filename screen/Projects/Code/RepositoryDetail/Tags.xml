@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- RepositoryTags (design-projects.md §7 RepositoryTags): the tags, newest first, with the commit, the date, the tagger and
+    message of an annotated tag, and the project, milestone, release or work item each is linked to (by name, a release's
+    version, or by hand); Link (to a key) and Remove a link for those who may push, Delete for those with the delete right, and
+    New tag (annotated when given a message). Services: ironstone.CodeServices get#RepositoryTags, link#RefWorkEffort,
+    unlink#RefWorkEffort; org.moqui.impl.GitServices create#GitRef, delete#GitRef. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Tags" default-menu-index="4">
+
+    <transition name="commitDetail"><default-response url="../../CommitDetail"/></transition>
+    <transition name="createTag">
+        <actions>
+            <service-call name="org.moqui.impl.GitServices.create#GitRef" out-map="refOut" in-map="{repositoryId:repositoryId, refName:refName, refType:'tag',
+                    revision:(revision || null), message:(message || null)}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(ec.resource.expand('Tag ${name} made', '', {name: refName}), 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="repositoryId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="deleteTag">
+        <actions>
+            <service-call name="org.moqui.impl.GitServices.delete#GitRef" in-map="{repositoryId:repositoryId, refName:refName, refType:'tag'}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(ec.resource.expand('Tag ${name} deleted', '', {name: refName}), 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="repositoryId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="linkTag">
+        <actions>
+            <service-call name="ironstone.CodeServices.link#RefWorkEffort" out-map="linkOut" in-map="{repositoryId:repositoryId, refName:refName, workEffortId:workEffortId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(linkOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="repositoryId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="unlinkTag">
+        <actions>
+            <service-call name="ironstone.CodeServices.unlink#RefWorkEffort" out-map="linkOut" in-map="{repositoryId:repositoryId, refName:refName, workEffortId:workEffortId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(linkOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="repositoryId"/></default-response>
+        <error-response url="."/>
+    </transition>
+
+    <actions>
+        <script><![CDATA[
+            if (!recordFound) return
+            tagList = Array.from(ec.service.sync().name('ironstone.CodeServices.get#RepositoryTags').parameters({repositoryId: repositoryId}).call()?.tagList || [])
+                    .map((tag) => Object.assign(tag, {mayDelete: canDelete && !isArchived}))
+            refOptions = ec.service.sync().name('ironstone.CodeServices.get#RefOptions').parameters({repositoryId: repositoryId}).call()?.optionList || []
+        ]]></script>
+    </actions>
+
+    <widgets>
+        <section name="TagsFound" condition="recordFound"><widgets>
+            <container style="row items-center q-mb-sm">
+                <label text="Tags · ${tagList.length}" type="div" style="text-subtitle1"/>
+                <container style="col"/>
+                <container-dialog id="NewTagDialog" button-text="New tag" icon="sym_o_sell" width="520" title="A new tag of ${repositoryId}" condition="canCreate &amp;&amp; !isArchived">
+                    <form-single name="NewTag" transition="createTag" focus-field="refName">
+                        <field name="repositoryId"><default-field><hidden/></default-field></field>
+                        <field name="refName"><default-field title="Name (a release's version, as v1.4.0, links the release)"><text-line size="30"/></default-field></field>
+                        <field name="revision" from="repo.branch"><default-field title="At"><drop-down><list-options list="refOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                        <field name="message"><default-field title="Message (makes it an annotated tag)"><text-area rows="3" cols="60"/></default-field></field>
+                        <field name="submitButton"><default-field title="Make tag"><submit/></default-field></field>
+                    </form-single>
+                </container-dialog>
+            </container>
+            <container-box><box-body-nopad>
+                <form-list name="TagList" list="tagList" skip-form="true" paginate="false">
+                    <field name="name"><default-field title="Tag">
+                        <link url="../Files" text="${name}" link-type="anchor" parameter-map="{repositoryId:repositoryId, ref:name}" style="text-mono text-weight-medium"/>
+                        <label text="${message}" type="div" style="text-caption m-muted ellipsis" condition="message"/>
+                    </default-field></field>
+                    <field name="shortId"><default-field title="Commit">
+                        <link url="commitDetail" text="${shortId}" link-type="anchor" parameter-map="{repositoryId:repositoryId, commitId:commitId}" style="text-mono" condition="commitId"/>
+                    </default-field></field>
+                    <field name="dateText"><default-field title="Date">
+                        <label text="${dateText}" type="div" style="text-no-wrap"/>
+                        <label text="${taggerName}" type="div" style="text-caption m-muted" condition="taggerName"/>
+                    </default-field></field>
+                    <field name="linkedText"><default-field title="Linked to">
+                        <section-iterate name="TagLinked" list="linkedList" entry="linked"><widgets>
+                            <container style="row items-center no-wrap">
+                                <label text="${linked.typeLabel}" type="span" style="text-caption m-muted q-mr-xs"/>
+                                <link url="${linked.url}" url-type="plain" text="${linked.workEffortId}" link-type="anchor" tooltip="${linked.workEffortName}" style="text-mono q-mr-xs"/>
+                                <link url="unlinkTag" link-type="hidden-form-link" text="" icon="sym_o_link_off" tooltip="Remove the link" condition="canPush"
+                                        confirmation="Remove the link of ${name} to ${linked.workEffortId}?" parameter-map="{repositoryId:repositoryId, refName:refName, workEffortId:linked.workEffortId}"/>
+                            </container>
+                        </widgets></section-iterate></default-field></field>
+                    <field name="actions"><default-field title="">
+                        <container-dialog id="LinkTagDialog" button-text="Link" icon="sym_o_link" width="440" title="Link ${name} to a project, milestone, release or work item"
+                                condition="canPush">
+                            <form-single name="LinkTag" transition="linkTag">
+                                <field name="repositoryId"><default-field><hidden/></default-field></field>
+                                <field name="refName"><default-field><hidden/></default-field></field>
+                                <field name="workEffortId"><default-field title="Key (IRON, IRON-REL-1, IRON-12)"><text-line size="20"/></default-field></field>
+                                <field name="submitButton"><default-field title="Link"><submit/></default-field></field>
+                            </form-single>
+                        </container-dialog>
+                        <link url="deleteTag" link-type="hidden-form-link" text="Delete" icon="sym_o_delete" btn-type="danger" condition="mayDelete"
+                                confirmation="Delete the tag ${name}?" parameter-map="{repositoryId:repositoryId, refName:name}"/>
+                    </default-field></field>
+                </form-list>
+                <section name="NoTags" condition="!tagList.length"><widgets>
+                    <label type="p" text="No tags yet. A tag named as a release's version (v1.4.0) or a key (IRON/v1.0) links itself." style="m-muted q-pa-sm q-mb-none"/>
+                </widgets></section>
+            </box-body-nopad></container-box>
+        </widgets></section>
+    </widgets>
+</screen>

@@ -15,9 +15,9 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- ProjectSettings (design-projects.md §4 ProjectSettings; style-guide §3.9 Settings): boxes of the project's own choices, for
     managers (BOSS_PROJECTS_MANAGERS) who manage the project: General (update#Project), Modules (the later tabs on or off,
     WstModules), Work items (the types offered, the work item flow, the estimate unit, several sprints, new items shared with the
-    client, Fixes keywords, a request completing with its work), Client access (client sign-in, repositories shared read only:
+    client, Fixes keywords, a request completing with its work), Code (the branch pattern, merge requests moving their items), Client access (client sign-in, repositories shared read only:
     the settings only, enforced with impl-projects.md P10), Template and Close or delete. A value the project has not set shows
-    the organization's (get#ProjectSettings). The Intake, Code and Billing boxes come with P5, P3b and P8; components with the
+    the organization's (get#ProjectSettings). The Intake and Billing boxes come with P5 and P8; components with the
     plan items of P4. Service: ironstone.ProjectServices get#ProjectSettingsInfo, save#ProjectGeneral, save#ProjectSettingValues,
     set#ProjectTemplateFlag, set#ProjectStatus, delete#EmptyProject. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
@@ -41,7 +41,8 @@ along with this software (see the LICENSE.md file). If not, see
                     statusFlowId:statusFlowId, estimateUnit:estimateUnit, severalSprints:(box == 'workItems' ? (severalSprints || 'N') : null),
                     shareNewItems:(box == 'workItems' ? (shareNewItems || 'N') : null), keywordComplete:(box == 'workItems' ? (keywordComplete || 'N') : null),
                     requestFromWork:(box == 'workItems' ? (requestFromWork || 'N') : null), clientSignIn:(box == 'clientAccess' ? (clientSignIn || 'N') : null),
-                    shareRepositories:(box == 'clientAccess' ? (shareRepositories || 'N') : null)}"/>
+                    shareRepositories:(box == 'clientAccess' ? (shareRepositories || 'N') : null), branchPattern:(box == 'code' ? (branchPattern ?? '') : null),
+                    mergeRequestMoves:(box == 'code' ? (mergeRequestMoves || 'N') : null)}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/></default-response>
@@ -93,6 +94,7 @@ along with this software (see the LICENSE.md file). If not, see
             modulesValue = {workEffortId: workEffortId, box: 'modules', modules: info.modules || []}
             workItemsValue = Object.assign({workEffortId: workEffortId, box: 'workItems'}, info.workItems || {})
             clientAccessValue = Object.assign({workEffortId: workEffortId, box: 'clientAccess'}, info.clientAccess || {})
+            codeValue = Object.assign({workEffortId: workEffortId, box: 'code'}, info.code || {})
             typeOptions = info.typeOptions || []
             programOptions = (ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').call()?.projectList || []).filter((option) => option.key !== workEffortId)
             canManageSettings = !!info.canManage
@@ -196,6 +198,16 @@ along with this software (see the LICENSE.md file). If not, see
                         <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
                     </form-single>
                     <label type="p" text="${orgDefaultsText}" style="text-caption m-muted q-mb-none" condition="orgDefaultsText"/>
+                </box-body></container-box>
+
+                <container-box><box-header title="Code"/><box-body>
+                    <form-single name="ProjectCodeSettings" transition="saveValues" map="codeValue">
+                        <field name="workEffortId"><default-field><hidden/></default-field></field>
+                        <field name="box"><default-field><hidden/></default-field></field>
+                        <field name="branchPattern"><default-field title="Branch name of a work item (&lt;id&gt;, &lt;KEY&gt;, &lt;n&gt;, &lt;words&gt;, &lt;type&gt;)"><text-line size="30"/></default-field></field>
+                        <field name="mergeRequestMoves"><default-field title=" "><check><option key="Y" text="Merge requests move their items: opened to In Review, merged to Complete"/></check></default-field></field>
+                        <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                    </form-single>
                 </box-body></container-box>
 
                 <container-box><box-header title="Client access"/><box-body>

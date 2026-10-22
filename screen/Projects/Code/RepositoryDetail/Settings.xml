@@ -1,0 +1,461 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- RepositorySettings (design-projects.md §7 RepositorySettings; style-guide §3.9 Settings): for the repository's maintainers
+    (its delete right: the leads of its projects, impl-projects.md P3b) and administrators; the others are told who changes it
+    (a tab cannot be left out by a condition, impl-projects.md F24). Boxes: General (description, default branch, default merge
+    method; update#GitRepository), Projects (link and unlink), Branch rules (store#, delete#GitBranchRule), Webhooks (store#,
+    delete#, test#GitWebhook and the last deliveries, find#GitWebhookDeliveries), Large files (setup#GitLfs), for administrators
+    Mirror (its source and Fetch now), Storage (gc#GitRepositories with a dry run first, fsck#GitRepository) and Export and
+    import, and Archive or Unarchive. An archived repository shows only Archive and, for administrators, Export. Deleting a
+    repository is the tools Git Repositories screen's, after an export. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Settings" default-menu-index="7">
+
+    <transition name="saveGeneral">
+        <actions>
+            <service-call name="org.moqui.impl.GitServices.update#GitRepository" in-map="{repositoryId:repositoryId, description:(description ?? ''),
+                    branch:(branch || null), defaultMergeMethodEnumId:(defaultMergeMethodEnumId || null)}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(ec.l10n.localize('Repository saved'), 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="repositoryId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="linkProject">
+        <actions>
+            <service-call name="ironstone.CodeServices.link#Repository" out-map="linkOut" in-map="{repositoryId:repositoryId, workEffortId:workEffortId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(linkOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="repositoryId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="unlinkProject">
+        <actions>
+            <service-call name="ironstone.CodeServices.unlink#Repository" out-map="linkOut" in-map="{repositoryId:repositoryId, workEffortId:workEffortId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(linkOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="repositoryId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="storeRule">
+        <actions>
+            <service-call name="org.moqui.impl.GitServices.store#GitBranchRule" in-map="{branchRuleId:(branchRuleId || null), repositoryId:repositoryId, refPattern:refPattern,
+                    allowForcePush:(allowForcePush || 'N'), allowDelete:(allowDelete || 'N'), requireMergeRequest:(requireMergeRequest || 'N'),
+                    requiredApprovals:(requiredApprovals || 0), dismissStaleApprovals:(dismissStaleApprovals || 'N'), requiredStatusContexts:(requiredStatusContexts || null),
+                    allowedMergeMethods:(allowedMergeMethods ? (allowedMergeMethods instanceof Array || (typeof allowedMergeMethods == 'object' &amp;&amp; allowedMergeMethods.length != null) ? Array.from(allowedMergeMethods).join(',') : allowedMergeMethods) : null),
+                    pushUserGroupId:(pushUserGroupId || null)}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(ec.l10n.localize('Branch rule saved'), 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="repositoryId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="deleteRule">
+        <actions>
+            <service-call name="org.moqui.impl.GitServices.delete#GitBranchRule" in-map="{branchRuleId:branchRuleId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(ec.l10n.localize('Branch rule deleted'), 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="repositoryId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="storeWebhook">
+        <actions>
+            <service-call name="org.moqui.impl.GitServices.store#GitWebhook" in-map="{webhookId:(webhookId || null), repositoryId:repositoryId, url:url,
+                    events:(events ? (typeof events == 'object' &amp;&amp; events.length != null ? Array.from(events).join(',') : events) : null),
+                    secret:(secret || null), active:(active || 'N'), description:(description || null)}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(ec.l10n.localize('Webhook saved'), 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="repositoryId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="deleteWebhook">
+        <actions>
+            <service-call name="org.moqui.impl.GitServices.delete#GitWebhook" in-map="{webhookId:webhookId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(ec.l10n.localize('Webhook deleted'), 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="repositoryId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="testWebhook">
+        <actions>
+            <service-call name="org.moqui.impl.GitServices.test#GitWebhook" out-map="testOut" in-map="{webhookId:webhookId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(testOut.delivered ? ec.resource.expand('Ping delivered (${status})', '', {status: testOut.statusCode || 'ok'})
+                : ec.resource.expand('Ping not delivered: ${error}', '', {error: testOut.errorText || testOut.statusCode || ''}), testOut.delivered ? 'success' : 'warning')</script></if>
+        </actions>
+        <default-response url="."><parameter name="repositoryId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="setupLfs">
+        <actions>
+            <service-call name="org.moqui.impl.GitServices.setup#GitLfs" out-map="lfsOut" in-map="{repositoryId:repositoryId,
+                    patterns:(patterns ? String(patterns).split(/[\s,]+/).filter((pattern) => pattern) : null)}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(lfsOut.commitId ? ec.l10n.localize('Large file patterns committed') : ec.l10n.localize('It keeps those in LFS already'), 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="repositoryId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="saveMirror">
+        <actions><script><![CDATA[
+            if (!ec.user.isInGroup('ADMIN')) { ec.message.addError(ec.l10n.localize('Only administrators change a mirror')); return }
+            const row = ec.entity.find('moqui.resource.GitRepository').condition('repositoryId', repositoryId).one()
+            if (row == null || row.repositoryKind !== 'remote') { ec.message.addError(ec.l10n.localize('Not a mirror')); return }
+            if (!/^(https?|ssh|file):\/\//.test(String(remoteUrl || '').trim())) { ec.message.addError(ec.l10n.localize('A mirror URL is https, ssh or file')); return }
+            const fields = {repositoryId: repositoryId, remoteUrl: String(remoteUrl).trim(), username: username || null,
+                fetchIntervalMinutes: fetchIntervalMinutes ? Number(fetchIntervalMinutes) : null}
+            if (accessToken) fields.accessToken = accessToken
+            ec.service.sync().name('update#moqui.resource.GitRepository').parameters(fields).call()
+            if (!ec.message.hasError()) ec.message.addMessage(ec.l10n.localize('Mirror saved'), 'success')
+        ]]></script></actions>
+        <default-response url="."><parameter name="repositoryId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="fetchNow">
+        <actions>
+            <script>if (!ec.user.isInGroup('ADMIN')) ec.message.addError(ec.l10n.localize('Only administrators fetch a mirror'))</script>
+            <if condition="!ec.message.hasError()">
+                <service-call name="org.moqui.impl.GitServices.fetch#GitRepository" in-map="{repositoryId:repositoryId}"/></if>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(ec.l10n.localize('Fetched'), 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="repositoryId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="collect">
+        <actions>
+            <script>if (!ec.user.isInGroup('ADMIN')) ec.message.addError(ec.l10n.localize('Only administrators collect a repository'))</script>
+            <if condition="!ec.message.hasError()">
+                <service-call name="org.moqui.impl.GitServices.gc#GitRepositories" out-map="gcOut" in-map="{repositoryId:repositoryId, dryRun:(dryRun == 'Y')}"/>
+                <script>const result = Array.from(gcOut?.results || [])[0] || {}
+                    if (!ec.message.hasError()) ec.message.addMessage(result.error ? result.error : (dryRun == 'Y' ? ec.l10n.localize('Dry run: ') : '') + (result.summary || ec.l10n.localize('Collected')),
+                        result.error ? 'warning' : 'success')</script>
+            </if>
+        </actions>
+        <default-response url="."><parameter name="repositoryId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="checkStorage">
+        <actions>
+            <script>if (!ec.user.isInGroup('ADMIN')) ec.message.addError(ec.l10n.localize('Only administrators check a repository'))</script>
+            <if condition="!ec.message.hasError()">
+                <service-call name="org.moqui.impl.GitServices.fsck#GitRepository" out-map="fsckOut" in-map="{repositoryId:repositoryId}"/>
+                <script>if (!ec.message.hasError()) ec.message.addMessage(Array.from(fsckOut?.errors || []).length ? Array.from(fsckOut.errors).join('; ')
+                    : ec.resource.expand('${count} objects checked, all sound', '', {count: fsckOut?.checkedCount || 0}), Array.from(fsckOut?.errors || []).length ? 'warning' : 'success')</script>
+            </if>
+        </actions>
+        <default-response url="."><parameter name="repositoryId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="exportRepository">
+        <actions>
+            <script>if (!ec.user.isInGroup('ADMIN')) ec.message.addError(ec.l10n.localize('Only administrators export a repository'))</script>
+            <if condition="!ec.message.hasError()">
+                <service-call name="org.moqui.impl.GitServices.export#GitRepository" out-map="exportOut" in-map="{repositoryId:repositoryId, targetPath:(targetPath || null)}"/>
+                <script>if (!ec.message.hasError()) ec.message.addMessage(ec.resource.expand('Exported to ${path} (${count} objects)', '', {path: exportOut.exportPath, count: exportOut.objectCount || 0}), 'success')</script>
+            </if>
+        </actions>
+        <default-response url="."><parameter name="repositoryId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="importRepository">
+        <actions>
+            <script>if (!ec.user.isInGroup('ADMIN')) ec.message.addError(ec.l10n.localize('Only administrators import into a repository'))</script>
+            <if condition="!ec.message.hasError()">
+                <service-call name="org.moqui.impl.GitServices.import#GitRepository" out-map="importOut" in-map="{repositoryId:repositoryId, source:(source || null)}"/>
+                <script>if (!ec.message.hasError()) ec.message.addMessage(ec.resource.expand('Imported: ${count} objects', '', {count: importOut.objectCount || 0}), 'success')</script>
+            </if>
+        </actions>
+        <default-response url="."><parameter name="repositoryId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="archive">
+        <actions>
+            <service-call name="org.moqui.impl.GitServices.archive#GitRepository" out-map="archiveOut" in-map="{repositoryId:repositoryId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(ec.resource.expand('${repositoryId} archived; ${count} open merge requests closed', '', {repositoryId, count: archiveOut.closedMergeRequestCount || 0}), 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="repositoryId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="unarchive">
+        <actions>
+            <service-call name="org.moqui.impl.GitServices.unarchive#GitRepository" in-map="{repositoryId:repositoryId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(ec.resource.expand('${repositoryId} is writable again', '', {repositoryId}), 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="repositoryId"/></default-response>
+        <error-response url="."/>
+    </transition>
+
+    <actions>
+        <script><![CDATA[
+            if (!recordFound) return
+            const info = ec.service.sync().name('ironstone.CodeServices.get#RepositorySettings').parameters({repositoryId: repositoryId}).call() || {}
+            canChange = !!info.canChange
+            ruleList = Array.from(info.ruleList || [])
+            const deliveries = (webhookId) => {
+                ec.message.pushErrors()
+                try {
+                    return Array.from(ec.service.sync().name('org.moqui.impl.GitServices.find#GitWebhookDeliveries').parameters({webhookId, pageSize: 10}).call()?.deliveryList || [])
+                            .map((delivery) => ({event: delivery.event || '', statusId: delivery.statusId, httpStatus: delivery.httpStatus || '', failCount: delivery.failCount || 0,
+                                whenText: delivery.initDate ? ec.l10n.format(delivery.initDate, 'MMM d, h:mm a') : '',
+                                errorText: Array.from(delivery.errorList || []).map((error) => error.errorText).filter((text) => text)[0] || ''}))
+                } catch (err) { ec.logger.warn(`Webhook ${webhookId}: deliveries not read: ${err}`); return [] }
+                finally { ec.message.clearErrors(); ec.message.popErrors() }
+            }
+            webhookList = Array.from(info.webhookList || []).map((hook) => Object.assign(hook, {deliveryList: deliveries(hook.webhookId),
+                eventList: String(hook.events || '').split(',').filter((event) => event)}))
+            branchOptions = Array.from(info.branchOptions || [])
+            generalValue = {repositoryId: repositoryId, description: repo.description, branch: repo.branch, defaultMergeMethodEnumId: repo.defaultMergeMethodEnumId}
+            mirrorValue = {repositoryId: repositoryId, remoteUrl: repo.remoteUrl, fetchIntervalMinutes: repo.fetchIntervalMinutes,
+                username: ec.entity.find('moqui.resource.GitRepository').condition('repositoryId', repositoryId).one()?.username || ''}
+            projectList = Array.from(repoAccess.projectList || []).map((project) => Object.assign({}, project, {sinceText: project.fromDate ? ec.l10n.format(project.fromDate, 'MMM d, yyyy') : ''}))
+            projectOptions = (ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').call()?.projectList || [])
+                    .filter((option) => !projectList.some((project) => project.workEffortId === option.key))
+            isRemote = repo.repositoryKind === 'remote'
+            isDb = repo.repositoryKind === 'db'
+            const fmt = (value) => value ? ec.l10n.format(value, 'MMM d, yyyy h:mm a') : ''
+            const bytes = (value) => value == null ? '' : value < 1048576 ? Math.round(value / 1024) + ' KB' : (Math.round(value / 104857.6) / 10) + ' MB'
+            storageText = [repo.objectCount != null ? repo.objectCount + ' ' + ec.l10n.localize('objects') : '', bytes(repo.storedBytes),
+                repo.lastGcDate ? ec.l10n.localize('collected') + ' ' + fmt(repo.lastGcDate) : ''].filter((part) => part).join(' · ')
+            lastFetchText = [repo.lastFetchDate ? ec.l10n.localize('Last fetch') + ' ' + fmt(repo.lastFetchDate) : ec.l10n.localize('Not fetched yet'), repo.lastFetchError || ''].filter((part) => part).join(' · ')
+        ]]></script>
+    </actions>
+
+    <widgets>
+        <section name="SettingsNotYours" condition="recordFound &amp;&amp; !canChange"><widgets>
+            <container-box type="info"><box-body>
+                <label type="p" text="The settings of ${repositoryId} are changed by its maintainers: the leads of its projects (project managers, managers, lead programmers and architects) and administrators." style="q-mb-none"/>
+            </box-body></container-box>
+        </widgets></section>
+
+        <section name="SettingsFound" condition="recordFound &amp;&amp; canChange"><widgets>
+        <container-row>
+            <row-col md="6">
+                <section name="LiveSettings" condition="!isArchived"><widgets>
+                <container-box><box-header title="General"/><box-body>
+                    <form-single name="RepositoryGeneral" transition="saveGeneral" map="generalValue">
+                        <field name="repositoryId"><default-field><hidden/></default-field></field>
+                        <field name="description"><default-field title="Description"><text-line size="50"/></default-field></field>
+                        <field name="branch"><default-field title="Default branch"><drop-down><list-options list="branchOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                        <field name="defaultMergeMethodEnumId"><default-field title="Default merge method"><radio>
+                            <option key="GmmMerge" text="Merge commit"/><option key="GmmSquash" text="Squash"/></radio></default-field></field>
+                        <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                    </form-single>
+                </box-body></container-box>
+
+                <container-box><box-header title="Projects"/>
+                    <box-toolbar>
+                        <container-dialog id="LinkProjectDialog" button-text="Add" icon="sym_o_add" width="480" title="Link ${repositoryId} to a project">
+                            <form-single name="LinkProject" transition="linkProject">
+                                <field name="repositoryId"><default-field><hidden/></default-field></field>
+                                <field name="workEffortId"><default-field title="Project"><drop-down><list-options list="projectOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                <field name="submitButton"><default-field title="Link"><submit/></default-field></field>
+                            </form-single>
+                        </container-dialog>
+                    </box-toolbar>
+                    <box-body-nopad>
+                        <form-list name="RepositoryProjects" list="projectList" skip-form="true" skip-header="true" paginate="false">
+                            <field name="workEffortId"><default-field>
+                                <link url="/qapps/Projects/Projects/ProjectDetail" url-type="plain" text="${workEffortId}" link-type="anchor" parameter-map="{workEffortId:workEffortId}" style="text-mono"/>
+                                <label text="${workEffortName}" type="span" style="q-ml-sm"/></default-field></field>
+                            <field name="sinceText"><default-field><label text="since ${sinceText}" type="span" style="text-caption m-muted"/></default-field></field>
+                            <field name="remove"><default-field>
+                                <link url="unlinkProject" link-type="hidden-form-link" text="Remove" icon="sym_o_link_off" confirmation="Unlink ${repositoryId} from ${workEffortId}? The links of its commits stay."
+                                        parameter-map="{repositoryId:repositoryId, workEffortId:workEffortId}"/></default-field></field>
+                        </form-list>
+                        <section name="NoProjects" condition="!projectList.length"><widgets>
+                            <label type="p" text="Linked to no project: only administrators reach it." style="m-muted q-pa-sm q-mb-none"/>
+                        </widgets></section>
+                    </box-body-nopad>
+                </container-box>
+
+                <container-box><box-header title="Large files"/><box-body>
+                    <label type="p" text="Files matching these patterns are kept in Git LFS: images, video, audio, PDFs and archives when left empty." style="text-caption m-muted"/>
+                    <form-single name="LargeFiles" transition="setupLfs">
+                        <field name="repositoryId"><default-field><hidden/></default-field></field>
+                        <field name="patterns"><default-field title="Patterns (*.psd, media/**)"><text-area rows="2" cols="50"/></default-field></field>
+                        <field name="submitButton"><default-field title="Keep in LFS"><submit/></default-field></field>
+                    </form-single>
+                </box-body></container-box>
+                </widgets></section>
+
+                <section name="MirrorBox" condition="isAdmin &amp;&amp; isRemote &amp;&amp; !isArchived"><widgets>
+                    <container-box><box-header title="Mirror"/><box-body>
+                        <label type="p" text="${lastFetchText}" style="text-caption m-muted"/>
+                        <form-single name="MirrorSource" transition="saveMirror" map="mirrorValue">
+                            <field name="repositoryId"><default-field><hidden/></default-field></field>
+                            <field name="remoteUrl"><default-field title="Remote URL"><text-line size="50"/></default-field></field>
+                            <field name="username"><default-field title="User name"><text-line size="30"/></default-field></field>
+                            <field name="accessToken"><default-field title="Access token (empty: kept)"><password size="30"/></default-field></field>
+                            <field name="fetchIntervalMinutes"><default-field title="Fetch every (minutes; empty: never)"><text-line size="6" input-type="number"/></default-field></field>
+                            <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                        </form-single>
+                        <link url="fetchNow" link-type="hidden-form-link" text="Fetch now" icon="sym_o_sync" parameter-map="{repositoryId:repositoryId}"/>
+                    </box-body></container-box>
+                </widgets></section>
+
+                <section name="StorageBox" condition="isAdmin &amp;&amp; isDb"><widgets>
+                    <container-box><box-header title="Storage"/><box-body>
+                        <label type="p" text="${storageText || 'Not collected yet'}" style="m-muted"/>
+                        <label type="p" text="${repo.lastGcResult}" style="text-caption m-muted" condition="repo.lastGcResult"/>
+                        <container style="row q-gutter-sm">
+                            <link url="collect" link-type="hidden-form-link" text="Collect: dry run" icon="sym_o_cleaning_services" parameter-map="{repositoryId:repositoryId, dryRun:'Y'}"/>
+                            <link url="collect" link-type="hidden-form-link" text="Collect" icon="sym_o_delete_sweep" confirmation="Delete the objects of ${repositoryId} that nothing reaches?"
+                                    parameter-map="{repositoryId:repositoryId, dryRun:'N'}"/>
+                            <link url="checkStorage" link-type="hidden-form-link" text="Check" icon="sym_o_fact_check" parameter-map="{repositoryId:repositoryId}"/>
+                        </container>
+                    </box-body></container-box>
+                </widgets></section>
+            </row-col>
+
+            <row-col md="6">
+                <section name="LiveRules" condition="!isArchived"><widgets>
+                <container-box><box-header title="Branch rules"/>
+                    <box-toolbar>
+                        <container-dialog id="NewRuleDialog" button-text="New rule" icon="sym_o_add" width="600" title="A branch rule of ${repositoryId}">
+                            <form-single name="NewRule" transition="storeRule">
+                                <field name="repositoryId"><default-field><hidden/></default-field></field>
+                                <field name="refPattern" from="repo.branch"><default-field title="Branch or pattern (release/*, refs/tags/v*)"><text-line size="30"/></default-field></field>
+                                <field name="allowForcePush"><default-field title=" "><check><option key="Y" text="Force pushes allowed"/></check></default-field></field>
+                                <field name="allowDelete"><default-field title=" "><check><option key="Y" text="Deleting allowed"/></check></default-field></field>
+                                <field name="requireMergeRequest"><default-field title=" "><check><option key="Y" text="Changes only through a merge request"/></check></default-field></field>
+                                <field name="requiredApprovals" from="1"><default-field title="Approvals required"><text-line size="4" input-type="number"/></default-field></field>
+                                <field name="dismissStaleApprovals"><default-field title=" "><check><option key="Y" text="A new push sets the approvals back"/></check></default-field></field>
+                                <field name="requiredStatusContexts"><default-field title="Checks required (ci/build, ci/test)"><text-line size="40"/></default-field></field>
+                                <field name="allowedMergeMethods"><default-field title="Merge methods allowed (none: any)"><check>
+                                    <option key="GmmMerge" text="Merge commit"/><option key="GmmFastForward" text="Fast-forward"/>
+                                    <option key="GmmSquash" text="Squash"/><option key="GmmRebase" text="Rebase"/></check></default-field></field>
+                                <field name="pushUserGroupId"><default-field title="Only this user group pushes directly (a user group id)"><text-line size="30"/></default-field></field>
+                                <field name="submitButton"><default-field title="Save rule"><submit/></default-field></field>
+                            </form-single>
+                        </container-dialog>
+                    </box-toolbar>
+                    <box-body-nopad>
+                        <form-list name="BranchRules" list="ruleList" skip-form="true" paginate="false">
+                            <field name="refPattern"><default-field title="Branch"><label text="${refPattern}" type="span" style="text-mono text-weight-medium"/></default-field></field>
+                            <field name="summary"><default-field title="Protection">
+                                <label text="${[allowForcePush == 'Y' ? 'force pushes allowed' : 'no force push', allowDelete == 'Y' ? 'may be deleted' : 'no delete', requireMergeRequest == 'Y' ? 'merge requests only' : '', requiredApprovals ? requiredApprovals + (requiredApprovals == 1 ? ' approval' : ' approvals') : '', dismissStaleApprovals == 'Y' ? 'stale approvals dismissed' : '', requiredStatusContexts ? 'checks: ' + requiredStatusContexts : '', allowedMergeMethods ? 'methods: ' + allowedMergeMethods : '', pushUserGroupId ? 'pushes: ' + pushUserGroupId : ''].filter((part) => part).join(' · ')}" type="span" style="text-caption"/>
+                            </default-field></field>
+                            <field name="actions"><default-field title="">
+                                <container-dialog id="EditRuleDialog" button-text="Edit" icon="sym_o_edit" width="600" title="The branch rule ${refPattern}">
+                                    <form-single name="EditRule" transition="storeRule">
+                                        <field name="repositoryId" from="repositoryId"><default-field><hidden/></default-field></field>
+                                        <field name="branchRuleId"><default-field><hidden/></default-field></field>
+                                        <field name="refPattern"><default-field title="Branch or pattern"><text-line size="30"/></default-field></field>
+                                        <field name="allowForcePush"><default-field title=" "><check><option key="Y" text="Force pushes allowed"/></check></default-field></field>
+                                        <field name="allowDelete"><default-field title=" "><check><option key="Y" text="Deleting allowed"/></check></default-field></field>
+                                        <field name="requireMergeRequest"><default-field title=" "><check><option key="Y" text="Changes only through a merge request"/></check></default-field></field>
+                                        <field name="requiredApprovals"><default-field title="Approvals required"><text-line size="4" input-type="number"/></default-field></field>
+                                        <field name="dismissStaleApprovals"><default-field title=" "><check><option key="Y" text="A new push sets the approvals back"/></check></default-field></field>
+                                        <field name="requiredStatusContexts"><default-field title="Checks required"><text-line size="40"/></default-field></field>
+                                        <field name="allowedMergeMethods"><default-field title="Merge methods allowed (none: any)"><text-line size="40"/></default-field></field>
+                                        <field name="pushUserGroupId"><default-field title="Only this user group pushes directly"><text-line size="30"/></default-field></field>
+                                        <field name="submitButton"><default-field title="Save rule"><submit/></default-field></field>
+                                    </form-single>
+                                </container-dialog>
+                                <link url="deleteRule" link-type="hidden-form-link" text="Delete" icon="sym_o_delete" btn-type="danger" confirmation="Delete the branch rule ${refPattern}?"
+                                        parameter-map="{repositoryId:repositoryId, branchRuleId:branchRuleId}"/>
+                            </default-field></field>
+                        </form-list>
+                        <section name="NoRules" condition="!ruleList.length"><widgets>
+                            <label type="p" text="No branch rules: anyone who may push changes any branch but the default, which is never deleted." style="m-muted q-pa-sm q-mb-none"/>
+                        </widgets></section>
+                    </box-body-nopad>
+                </container-box>
+
+                <container-box><box-header title="Webhooks"/>
+                    <box-toolbar>
+                        <container-dialog id="NewWebhookDialog" button-text="New webhook" icon="sym_o_add" width="600" title="A webhook of ${repositoryId}">
+                            <form-single name="NewWebhook" transition="storeWebhook">
+                                <field name="repositoryId"><default-field><hidden/></default-field></field>
+                                <field name="url"><default-field title="URL (https://ci.example.com/hook)"><text-line size="50"/></default-field></field>
+                                <field name="events"><default-field title="Events (none: all)"><check>
+                                    <option key="push" text="Pushes"/><option key="tag" text="Tags"/><option key="merge_request" text="Merge requests"/></check></default-field></field>
+                                <field name="secret"><default-field title="Secret (signs each delivery)"><password size="30"/></default-field></field>
+                                <field name="description"><default-field title="Description"><text-line size="40"/></default-field></field>
+                                <field name="active" from="'Y'"><default-field title=" "><check><option key="Y" text="Active"/></check></default-field></field>
+                                <field name="submitButton"><default-field title="Save webhook"><submit/></default-field></field>
+                            </form-single>
+                        </container-dialog>
+                    </box-toolbar>
+                    <box-body-nopad>
+                        <form-list name="Webhooks" list="webhookList" skip-form="true" paginate="false">
+                            <field name="url"><default-field title="URL">
+                                <label text="${url}" type="div" style="text-mono text-caption ellipsis"/>
+                                <label text="${[description, eventsText, active == 'Y' ? '' : 'inactive', hasSecret ? 'signed' : ''].filter((part) => part).join(' · ')}" type="div" style="text-caption m-muted"/>
+                            </default-field></field>
+                            <field name="lastText"><default-field title="Last delivery"><display/></default-field></field>
+                            <field name="actions"><default-field title="">
+                                <link url="testWebhook" link-type="hidden-form-link" text="Test" icon="sym_o_send" parameter-map="{repositoryId:repositoryId, webhookId:webhookId}"/>
+                                <container-dialog id="WebhookDeliveriesDialog" button-text="Deliveries" icon="sym_o_list" width="760" title="Deliveries to ${url}">
+                                    <form-list name="WebhookDeliveries" list="deliveryList" skip-form="true" paginate="false">
+                                        <field name="whenText"><default-field title="When"><display/></default-field></field>
+                                        <field name="event"><default-field title="Event"><display/></default-field></field>
+                                        <field name="statusId"><default-field title="State"><display text="${statusId == 'SmsgSent' ? 'Delivered' : statusId == 'SmsgError' ? 'Given up' : statusId == 'SmsgCancelled' ? 'Cancelled' : 'Retrying'} ${httpStatus}"/></default-field></field>
+                                        <field name="errorText"><default-field title="Error"><label text="${errorText}" type="span" style="text-caption text-negative"/></default-field></field>
+                                    </form-list>
+                                </container-dialog>
+                                <container-dialog id="EditWebhookDialog" button-text="Edit" icon="sym_o_edit" width="600" title="The webhook to ${url}">
+                                    <form-single name="EditWebhook" transition="storeWebhook">
+                                        <field name="repositoryId" from="repositoryId"><default-field><hidden/></default-field></field>
+                                        <field name="webhookId"><default-field><hidden/></default-field></field>
+                                        <field name="url"><default-field title="URL"><text-line size="50"/></default-field></field>
+                                        <field name="events" from="eventList"><default-field title="Events (none: all)"><check>
+                                            <option key="push" text="Pushes"/><option key="tag" text="Tags"/><option key="merge_request" text="Merge requests"/></check></default-field></field>
+                                        <field name="secret"><default-field title="Secret (empty: kept)"><password size="30"/></default-field></field>
+                                        <field name="description"><default-field title="Description"><text-line size="40"/></default-field></field>
+                                        <field name="active"><default-field title=" "><check><option key="Y" text="Active"/></check></default-field></field>
+                                        <field name="submitButton"><default-field title="Save webhook"><submit/></default-field></field>
+                                    </form-single>
+                                </container-dialog>
+                                <link url="deleteWebhook" link-type="hidden-form-link" text="Delete" icon="sym_o_delete" btn-type="danger" confirmation="Delete the webhook to ${url}?"
+                                        parameter-map="{repositoryId:repositoryId, webhookId:webhookId}"/>
+                            </default-field></field>
+                        </form-list>
+                        <section name="NoWebhooks" condition="!webhookList.length"><widgets>
+                            <label type="p" text="No webhooks. A webhook calls outside CI on pushes, tags and merge requests, signed as GitHub signs." style="m-muted q-pa-sm q-mb-none"/>
+                        </widgets></section>
+                    </box-body-nopad>
+                </container-box>
+                </widgets></section>
+
+                <section name="ExportBox" condition="isAdmin &amp;&amp; isDb"><widgets>
+                    <container-box><box-header title="Export and import"/><box-body>
+                        <form-single name="ExportRepository" transition="exportRepository">
+                            <field name="repositoryId"><default-field><hidden/></default-field></field>
+                            <field name="targetPath"><default-field title="Export to a bare repository at (empty: runtime/git/${repositoryId})"><text-line size="40"/></default-field></field>
+                            <field name="submitButton"><default-field title="Export"><submit/></default-field></field>
+                        </form-single>
+                        <section name="ImportLive" condition="!isArchived"><widgets>
+                        <form-single name="ImportRepository" transition="importRepository">
+                            <field name="repositoryId"><default-field><hidden/></default-field></field>
+                            <field name="source"><default-field title="Import a branch from a URL (replaces the branch ${repo.branch})"><text-line size="40"/></default-field></field>
+                            <field name="submitButton"><default-field title="Import"><submit confirmation="Replace the branch ${repo.branch} with the one imported?"/></default-field></field>
+                        </form-single>
+                        </widgets></section>
+                    </box-body></container-box>
+                </widgets></section>
+
+                <container-box><box-header title="Archive"/><box-body>
+                    <section name="ArchiveLive" condition="!isArchived"><widgets>
+                        <label type="p" text="An archived repository is read only: pushes, merges and changes are refused and its open merge requests closed. It is left out of the lists, under the Archived chip." style="text-caption m-muted"/>
+                        <link url="archive" link-type="hidden-form-link" text="Archive" icon="sym_o_archive" btn-type="danger" confirmation="Archive ${repositoryId}? It becomes read only."
+                                parameter-map="{repositoryId:repositoryId}"/>
+                    </widgets><fail-widgets>
+                        <label type="p" text="Archived: read only." style="m-muted"/>
+                        <link url="unarchive" link-type="hidden-form-link" text="Unarchive" icon="sym_o_unarchive" confirmation="Make ${repositoryId} writable again?"
+                                parameter-map="{repositoryId:repositoryId}"/>
+                    </fail-widgets></section>
+                </box-body></container-box>
+            </row-col>
+        </container-row>
+        </widgets></section>
+    </widgets>
+</screen>

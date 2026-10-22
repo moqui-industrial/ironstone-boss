@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- RepositoryFiles (design-projects.md §7 RepositoryFiles): the ref picker (branches and tags; a commit id in the URL), the
+    path as breadcrumbs, the directory's entries with each one's last commit (org.moqui.impl.GitServices.get#GitTree) and its
+    README rendered below; a file as code with line numbers and highlighting (code-view), an image, or a download for a binary,
+    a file over 1 MB or one kept in LFS (get#GitBlob), with History (Commits with the path), Raw, Download and Permalink (the
+    path at the commit). Raw and Download stream the file at its commit through the raw transition, after the view check
+    (git:// reads are not checked). Service: ironstone.CodeServices get#RepositoryFiles, get#RefOptions. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Files" default-menu-index="1">
+
+    <parameter name="ref"/>
+    <parameter name="path"/>
+
+    <transition name="commitDetail"><default-response url="../../CommitDetail"/></transition>
+    <transition name="pickRef"><default-response url="."><parameter name="repositoryId"/><parameter name="ref"/><parameter name="path"/></default-response></transition>
+    <transition name="commits"><default-response url="../Commits"/></transition>
+    <!-- the file at a commit: inline (Raw of an image or a PDF) or as an attachment (download=Y, and Raw of any other type), for those who may view the repository -->
+    <transition name="raw" read-only="true">
+        <actions><script><![CDATA[
+            const access = ec.service.sync().name('org.moqui.impl.GitServices.get#GitRepositoryAccess').parameters({repositoryId: repositoryId}).call() || {}
+            const clean = String(path || '').split('/').filter((part) => part && part !== '.' && part !== '..').join('/')
+            if (!access.canView || !clean) { ec.web.sendError(404, 'Not found', null); return }
+            const tree = ec.service.sync().name('org.moqui.impl.GitServices.get#GitTree').parameters({repositoryId: repositoryId, revision: ref || null, path: clean}).call() || {}
+            if (ec.message.hasError() || !tree.isFile || !tree.commitId) { ec.message.clearErrors(); ec.web.sendError(404, 'Not found', null); return }
+            const name = clean.substring(clean.lastIndexOf('/') + 1)
+            // a version of a git:// file is a commit that changed it: the last one up to the commit asked for
+            const last = Array.from(ec.service.sync().name('org.moqui.impl.GitServices.get#GitLog').parameters({repositoryId: repositoryId, revision: tree.commitId,
+                path: clean, limit: 1}).call()?.commitList || [])[0]
+            if (!last) { ec.web.sendError(404, 'Not found', null); return }
+            // shown inline only as a type that runs nothing in this origin (an image or a PDF, as the record files); a page,
+            // an SVG or any other file anyone may push downloads instead
+            const inline = download !== 'Y' && /\.(png|jpe?g|gif|webp|pdf)$/i.test(name)
+            ec.web.sendResourceResponse('git://' + repositoryId + '/' + clean + '#' + last.commitId, inline, inline ? null : name)
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+
+    <actions>
+        <script><![CDATA[
+            if (!recordFound) return
+            const files = ec.service.sync().name('ironstone.CodeServices.get#RepositoryFiles').parameters({repositoryId: repositoryId, ref: ref || null, path: path || null}).call() || {}
+            filesFound = !!files.found
+            isFile = !!files.isFile
+            commitId = files.commitId || ''
+            shownRef = ref || files.ref || repo.branch
+            entryList = Array.from(files.entryList || [])
+            file = files.file || null
+            readme = files.readme || null
+            crumbList = Array.from(files.crumbList || [])
+            refOptions = ec.service.sync().name('ironstone.CodeServices.get#RefOptions').parameters({repositoryId: repositoryId}).call()?.optionList || []
+            // a commit id named in the URL is a choice of its own
+            if (shownRef && !refOptions.some((option) => option.key === shownRef)) refOptions = [{key: shownRef, text: ec.l10n.localize('Commit') + ' ' + String(shownRef).substring(0, 10)}].concat(refOptions)
+            refValue = {repositoryId: repositoryId, ref: shownRef, path: path || ''}
+            parentPath = crumbList.length > 1 ? crumbList[crumbList.length - 2].path : ''
+            rawParams = {repositoryId: repositoryId, ref: commitId, path: file?.path || ''}
+            downloadParams = Object.assign({download: 'Y'}, rawParams)
+            rawUrl = file ? '/apps/Projects/Code/RepositoryDetail/Files/raw?repositoryId=' + encodeURIComponent(repositoryId) + '&ref=' + encodeURIComponent(commitId)
+                + '&path=' + encodeURIComponent(file.path) : ''
+            emptyRepository = !filesFound && !path
+        ]]></script>
+    </actions>
+
+    <widgets>
+        <section name="FilesFound" condition="recordFound"><widgets>
+            <container style="row items-center q-col-gutter-sm q-mb-sm">
+                <container style="col-12 col-sm-auto">
+                    <form-single name="RefPicker" transition="pickRef" map="refValue">
+                        <field name="repositoryId"><default-field><hidden/></default-field></field>
+                        <field name="path"><default-field><hidden/></default-field></field>
+                        <field name="ref"><default-field title="Branch or tag"><drop-down><list-options list="refOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                        <field name="submitButton"><default-field title="Go"><submit/></default-field></field>
+                        <field-layout><field-row-big><field-ref name="ref"/><field-ref name="submitButton"/></field-row-big></field-layout>
+                    </form-single>
+                </container>
+                <container style="col-12 col-sm row items-center text-body1">
+                    <link url="." text="${repositoryId}" link-type="anchor" parameter-map="{repositoryId:repositoryId, ref:ref}" style="text-mono text-weight-medium"/>
+                    <section-iterate name="PathCrumb" list="crumbList" entry="crumb"><widgets>
+                        <label text=" / " type="span" style="m-muted q-mx-xs"/>
+                        <section name="CrumbLast" condition="crumb.last"><widgets>
+                            <label text="${crumb.name}" type="span" style="text-mono text-weight-medium"/>
+                        </widgets><fail-widgets>
+                            <link url="." text="${crumb.name}" link-type="anchor" parameter-map="{repositoryId:repositoryId, ref:ref, path:crumb.path}" style="text-mono"/>
+                        </fail-widgets></section>
+                    </widgets></section-iterate>
+                </container>
+            </container>
+
+            <section name="NothingHere" condition="!filesFound"><widgets>
+                <container-box><box-body>
+                    <section name="EmptyRepository" condition="emptyRepository"><widgets>
+                        <label type="p" text="This repository is empty. Clone it and push a first branch, or commit files to it through Moqui." style="q-mb-xs"/>
+                        <label text="git push ${httpsUrl} main" type="div" style="text-mono" condition="httpsUrl"/>
+                    </widgets><fail-widgets>
+                        <label type="p" text="Nothing is at ${path} in ${shownRef}." style="m-muted q-mb-xs"/>
+                        <link url="." text="Back to the top" link-type="anchor" parameter-map="{repositoryId:repositoryId, ref:ref}"/>
+                    </fail-widgets></section>
+                </box-body></container-box>
+            </widgets></section>
+
+            <!-- a directory: its entries, then its README -->
+            <section name="DirectoryView" condition="filesFound &amp;&amp; !isFile"><widgets>
+                <container-box><box-header title="${path ? path + '/' : repositoryId} · ${shownRef}"/><box-body-nopad>
+                    <form-list name="TreeList" list="entryList" skip-form="true" skip-header="true" paginate="false">
+                        <field name="name"><default-field><container style="row no-wrap items-center">
+                            <render-mode><text type="qvt"><![CDATA[<q-icon name="${icon}" size="xs" class="q-mr-sm ${isDir ? 'text-primary' : 'm-muted'}"></q-icon>]]></text>
+                                <text type="tui" template="false">[]</text></render-mode>
+                            <link url="." text="${name}${isDir ? '/' : ''}" link-type="anchor" parameter-map="{repositoryId:repositoryId, ref:ref, path:path}" style="text-mono text-no-wrap"/>
+                            <label text="LFS" type="span" style="text-caption m-muted q-ml-xs" condition="lfs"/>
+                        </container></default-field></field>
+                        <field name="summary"><default-field>
+                            <link url="commitDetail" text="${summary}" link-type="anchor" parameter-map="{repositoryId:repositoryId, commitId:commitId}" condition="commitId" style="m-muted ellipsis"/>
+                        </default-field></field>
+                        <field name="dateText"><default-field><label text="${dateText}" type="span" style="text-caption m-muted text-no-wrap"/></default-field></field>
+                        <field name="sizeText" align="right"><default-field><label text="${sizeText}" type="span" style="text-caption m-muted text-no-wrap"/></default-field></field>
+                    </form-list>
+                </box-body-nopad></container-box>
+                <section name="ReadmeView" condition="readme"><widgets>
+                    <container-box><box-header title="${readme.name}"/><box-body>
+                        <section name="ReadmeMarkdown" condition="readme.isMarkdown"><widgets>
+                            <markdown-view text="${readme.text}"/>
+                        </widgets><fail-widgets>
+                            <code-view text="${readme.text}" line-numbers="false"/>
+                        </fail-widgets></section>
+                    </box-body></container-box>
+                </widgets></section>
+            </widgets></section>
+
+            <!-- a file: text, an image or a download -->
+            <section name="FileView" condition="filesFound &amp;&amp; isFile"><widgets>
+                <container-box><box-header title="${file.name}"/>
+                    <box-toolbar>
+                        <link url="commits" text="History" icon="sym_o_history" parameter-map="{repositoryId:repositoryId, ref:ref, path:file.path}"/>
+                        <link url="${rawUrl}" url-type="plain" text="Raw" icon="sym_o_open_in_new" target-window="_blank"/>
+                        <link url="raw" text="Download" icon="sym_o_download" parameter-map="downloadParams" target-window="_blank"/>
+                        <link url="." text="Permalink" icon="sym_o_link" parameter-map="{repositoryId:repositoryId, ref:commitId, path:file.path}"/>
+                    </box-toolbar>
+                    <box-body>
+                        <container style="row items-center q-gutter-x-sm text-caption m-muted q-mb-sm">
+                            <label text="${file.sizeText}" type="span"/>
+                            <section name="FileLastCommit" condition="file.lastCommit"><widgets>
+                                <link url="commitDetail" text="${file.lastCommit.shortId}" link-type="anchor" parameter-map="{repositoryId:repositoryId, commitId:file.lastCommit.commitId}" style="text-mono"/>
+                                <label text="${file.lastCommit.summary} · ${file.lastCommit.authorName} · ${file.lastCommit.dateText}" type="span"/>
+                            </widgets></section>
+                        </container>
+                        <section name="FileText" condition="file.isText"><widgets>
+                            <section name="FileMarkdown" condition="file.isMarkdown"><widgets>
+                                <markdown-view text="${file.text}"/>
+                                <container-dialog id="FileSourceDialog" button-text="Source" icon="sym_o_code" width="960" title="${file.path}">
+                                    <code-view text="${file.text}" file-name="${file.name}"/>
+                                </container-dialog>
+                            </widgets><fail-widgets>
+                                <code-view id="RepositoryFileCode" text="${file.text}" file-name="${file.name}"/>
+                            </fail-widgets></section>
+                        </widgets></section>
+                        <section name="FileImage" condition="file.isImage"><widgets>
+                            <image url="${rawUrl}" url-type="plain" alt="${file.name}"/>
+                        </widgets></section>
+                        <section name="FileBinary" condition="!file.isText &amp;&amp; !file.isImage"><widgets>
+                            <label type="p" text="${file.tooLarge ? 'Too large to show here' : 'A binary file'}: download it to open it." style="m-muted q-mb-xs"/>
+                            <link url="raw" text="Download ${file.name}" icon="sym_o_download" parameter-map="downloadParams" target-window="_blank"/>
+                        </widgets></section>
+                    </box-body>
+                </container-box>
+            </widgets></section>
+        </widgets></section>
+    </widgets>
+</screen>

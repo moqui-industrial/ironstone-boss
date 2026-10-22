@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- ProjectCode (design-projects.md §4 ProjectCode): the project's code, in boxes: Repositories (with their storage, default
+    branch, head and clone URLs; New repository and Link repository for those who manage the project, Unlink confirming that
+    the links of its commits stay), Open merge requests, Recent commits (the default branches' last, newest first) and Tags
+    linked to the project, its milestones and releases (Remove). A tab cannot be left out by a condition (impl-projects.md F24),
+    so with the Code module off it says so and, for managers, points to Settings. Without git hosting in the build it says so.
+    The client state (repositories and recent commits read only when the project shares its repositories) comes with client
+    access (impl-projects.md P10). Services: ironstone.CodeServices get#ProjectCode, create#Repository, link#Repository,
+    unlink#Repository, unlink#RefWorkEffort. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Code" default-menu-index="3">
+
+    <transition name="createRepository">
+        <actions>
+            <service-call name="ironstone.CodeServices.create#Repository" out-map="createOut" in-map="{workEffortId:workEffortId, repositoryId:repositoryId,
+                    description:description, repositoryKind:repositoryKind, contentRepository:(contentRepository || 'N'), importUrl:importUrl}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(createOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="linkRepository">
+        <actions>
+            <service-call name="ironstone.CodeServices.link#Repository" out-map="linkOut" in-map="{repositoryId:repositoryId, workEffortId:workEffortId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(linkOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="unlinkRepository">
+        <actions>
+            <service-call name="ironstone.CodeServices.unlink#Repository" out-map="linkOut" in-map="{repositoryId:repositoryId, workEffortId:workEffortId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(linkOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="unlinkTag">
+        <actions>
+            <service-call name="ironstone.CodeServices.unlink#RefWorkEffort" out-map="linkOut" in-map="{repositoryId:repositoryId, refName:refName, workEffortId:tagWorkEffortId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(linkOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+
+    <actions>
+        <script><![CDATA[
+            if (!recordFound) return
+            pageWorkEffortId = workEffortId
+            codeHosting = !!ec.service.sync().name('ironstone.CodeServices.get#CodeHosting').call()?.available
+            const settings = ec.service.sync().name('mantle.work.ProjectServices.get#ProjectSettings').parameters({workEffortId: workEffortId}).call()?.settings || {}
+            codeOn = String(settings.WstModules || '').split(',').includes('code')
+            repositoryList = []; mergeRequestList = []; commitList = []; tagList = []; linkOptions = []
+            if (!codeHosting) return
+            const code = ec.service.sync().name('ironstone.CodeServices.get#ProjectCode').parameters({workEffortId: workEffortId}).call()?.code || {}
+            repositoryList = Array.from(code.repositoryList || [])
+            mergeRequestList = Array.from(code.mergeRequestList || [])
+            commitList = Array.from(code.commitList || [])
+            tagList = Array.from(code.tagList || [])
+            // codeOn off but repositories linked: show them anyway, with the note
+            if (canManage) linkOptions = Array.from(ec.service.sync().name('org.moqui.impl.GitServices.find#GitRepositories').parameters({pageNoLimit: true}).call()?.repositoryList || [])
+                    .filter((repo) => !repositoryList.some((linked) => linked.repositoryId === repo.repositoryId))
+                    .map((repo) => ({key: repo.repositoryId, text: repo.repositoryId + (repo.description ? ' · ' + repo.description : '')}))
+            newRepositoryId = String(workEffortId).toLowerCase()
+            const checkColors = {success: 'positive', failure: 'negative', error: 'negative', pending: 'warning'}
+            const checkLabels = {success: 'Passed', failure: 'Failed', error: 'Error', pending: 'Pending'}
+            mergeRequestList = mergeRequestList.map((mr) => Object.assign(mr, {checkColor: checkColors[mr.checkState] || '',
+                checkLabel: mr.checkState ? ec.l10n.localize(checkLabels[mr.checkState] || mr.checkState) : ''}))
+        ]]></script>
+    </actions>
+
+    <widgets>
+        <section name="CodeFound" condition="recordFound"><widgets>
+        <section name="CodeNoHosting" condition="!codeHosting"><widgets>
+            <container-box type="warning"><box-header title="Code hosting is not in this build"/><box-body>
+                <label type="p" text="This server was built without git hosting, so the project's repositories cannot be shown." style="q-mb-none"/>
+            </box-body></container-box>
+        </widgets><fail-widgets>
+            <section name="CodeModuleOff" condition="!codeOn"><widgets>
+                <container-box type="info"><box-body>
+                    <container style="row items-center q-gutter-sm">
+                        <label type="span" text="The Code module is off for this project${repositoryList.length ? '; its linked repositories are below' : ''}."/>
+                        <link url="../Settings" text="Turn it on in Settings" link-type="anchor" parameter-map="{workEffortId:workEffortId}" condition="canManage"/>
+                    </container>
+                </box-body></container-box>
+            </widgets></section>
+            <section name="CodeBoxes" condition="codeOn || repositoryList.length"><widgets>
+            <container-row>
+                <row-col lg="7">
+                    <container-box><box-header title="Repositories · ${repositoryList.length}"/>
+                        <box-toolbar>
+                            <container-dialog id="ProjectNewRepositoryDialog" button-text="New repository" icon="sym_o_add" width="560" title="A new repository of ${workEffortId}"
+                                    condition="canManage">
+                                <form-single name="ProjectNewRepository" transition="createRepository" focus-field="repositoryId">
+                                    <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                    <field name="repositoryId" from="newRepositoryId"><default-field title="Repository ID"><text-line size="30"/></default-field></field>
+                                    <field name="description" from="project?.workEffortName"><default-field title="Description"><text-line size="50"/></default-field></field>
+                                    <field name="repositoryKind"><default-field title="Storage (empty: your organization's default)"><drop-down allow-empty="true">
+                                        <option key="local" text="On disk, for code"/><option key="db" text="In the database, with the backup"/></drop-down></default-field></field>
+                                    <field name="contentRepository"><default-field title=" "><check><option key="Y" text="Content: keep images, video, audio, PDFs and archives in Git LFS"/></check></default-field></field>
+                                    <field name="submitButton"><default-field title="Make repository"><submit/></default-field></field>
+                                </form-single>
+                            </container-dialog>
+                            <container-dialog id="ProjectLinkRepositoryDialog" button-text="Link" icon="sym_o_link" width="480" title="Link a repository to ${workEffortId}"
+                                    condition="canManage">
+                                <form-single name="ProjectLinkRepository" transition="linkRepository">
+                                    <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                    <field name="repositoryId"><default-field title="Repository"><drop-down><list-options list="linkOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                    <field name="submitButton"><default-field title="Link"><submit/></default-field></field>
+                                </form-single>
+                            </container-dialog>
+                        </box-toolbar>
+                        <box-body-nopad>
+                            <form-list name="ProjectRepositories" list="repositoryList" skip-form="true" skip-header="true" paginate="false">
+                                <field name="repositoryId"><default-field>
+                                    <link url="/qapps/Projects/Code/RepositoryDetail" url-type="plain" text="${repositoryId}" link-type="anchor" parameter-map="{repositoryId:repositoryId}"
+                                            style="text-mono text-weight-medium"/>
+                                    <label text="${[description, kindLabel, branch, archived ? 'archived' : ''].filter((part) => part).join(' · ')}" type="div" style="text-caption m-muted"/>
+                                </default-field></field>
+                                <field name="httpsUrl"><default-field>
+                                    <label text="${httpsUrl}" type="div" style="text-caption text-mono" condition="httpsUrl"/>
+                                    <label text="${sshUrl}" type="div" style="text-caption text-mono m-muted" condition="sshUrl"/>
+                                </default-field></field>
+                                <field name="lastText"><default-field>
+                                    <link url="/qapps/Projects/Code/CommitDetail" url-type="plain" text="${headShortId}" link-type="anchor" condition="headCommitId"
+                                            parameter-map="{repositoryId:repositoryId, commitId:headCommitId}" style="text-mono"/>
+                                    <label text="${lastText}" type="div" style="text-caption m-muted"/></default-field></field>
+                                <field name="unlink"><default-field>
+                                    <link url="unlinkRepository" link-type="hidden-form-link" text="Unlink" icon="sym_o_link_off" condition="canManage"
+                                            confirmation="Unlink ${repositoryId} from ${workEffortId}? The links of its commits stay." parameter-map="{workEffortId:workEffortId, repositoryId:repositoryId}"/>
+                                </default-field></field>
+                            </form-list>
+                            <section name="NoProjectRepositories" condition="!repositoryList.length"><widgets>
+                                <label type="p" text="No repository yet. Make one, or link one you maintain." style="m-muted q-pa-sm q-mb-none"/>
+                            </widgets></section>
+                        </box-body-nopad>
+                    </container-box>
+
+                    <container-box><box-header title="Recent commits"/><box-body-nopad>
+                        <form-list name="RecentCommits" list="commitList" skip-form="true" skip-header="true" paginate="false">
+                            <field name="summary"><default-field>
+                                <link url="/qapps/Projects/Code/CommitDetail" url-type="plain" text="${summary}" link-type="anchor" parameter-map="{repositoryId:repositoryId, commitId:commitId}"/>
+                                <label text="${[repositoryId, authorName, dateText, itemsText].filter((part) => part).join(' · ')}" type="div" style="text-caption m-muted"/>
+                            </default-field></field>
+                            <field name="shortId"><default-field><label text="${shortId}" type="span" style="text-mono text-caption"/></default-field></field>
+                        </form-list>
+                        <section name="NoRecentCommits" condition="!commitList.length"><widgets>
+                            <label type="p" text="No commits yet" style="m-muted q-pa-sm q-mb-none"/>
+                        </widgets></section>
+                    </box-body-nopad></container-box>
+                </row-col>
+                <row-col lg="5">
+                    <container-box><box-header title="Open merge requests · ${mergeRequestList.length}"/><box-body-nopad>
+                        <form-list name="OpenMergeRequests" list="mergeRequestList" skip-form="true" skip-header="true" paginate="false">
+                            <field name="title"><default-field>
+                                <link url="/qapps/Projects/Code/MergeRequestDetail" url-type="plain" text="${numText} ${title}" link-type="anchor" parameter-map="{mergeRequestId:mergeRequestId}"/>
+                                <label text="${[repositoryId, sourceRef + ' → ' + targetRef, authorName, isDraft ? 'draft' : '', reviewersText ? 'reviewers: ' + reviewersText : '', updatedText].filter((part) => part).join(' · ')}" type="div" style="text-caption m-muted"/>
+                            </default-field></field>
+                            <field name="checkState"><default-field>
+                                <render-mode><text type="qvt"><![CDATA[${checkState ? '<q-chip dense square class="q-ma-none m-tonal text-' + checkColor + '">' + WebUtilities.encodeHtml(checkLabel) + '</q-chip>' : ''}]]></text>
+                                    <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify(checkLabel ?? "")}}]]></text></render-mode></default-field></field>
+                        </form-list>
+                        <section name="NoOpenMergeRequests" condition="!mergeRequestList.length"><widgets>
+                            <label type="p" text="No open merge requests" style="m-muted q-pa-sm q-mb-none"/>
+                        </widgets></section>
+                    </box-body-nopad></container-box>
+
+                    <container-box><box-header title="Tags"/><box-body-nopad>
+                        <form-list name="ProjectTags" list="tagList" skip-form="true" skip-header="true" paginate="false">
+                            <field name="name"><default-field>
+                                <link url="/qapps/Projects/Code/RepositoryDetail/Files" url-type="plain" text="${name}" link-type="anchor" parameter-map="{repositoryId:repositoryId, ref:name}" style="text-mono"/>
+                                <label text="${[repositoryId, workEffortId, linkedBy, whenText].filter((part) => part).join(' · ')}" type="div" style="text-caption m-muted"/>
+                            </default-field></field>
+                            <field name="remove"><default-field>
+                                <link url="unlinkTag" link-type="hidden-form-link" text="Remove" icon="sym_o_link_off" confirmation="Remove the link of ${name} to ${workEffortId}?"
+                                        parameter-map="{workEffortId:pageWorkEffortId, repositoryId:repositoryId, refName:refName, tagWorkEffortId:workEffortId}"/></default-field></field>
+                        </form-list>
+                        <section name="NoProjectTags" condition="!tagList.length"><widgets>
+                            <label type="p" text="No tags linked. A tag named as a release's version (v1.0) or with the project's key (IRON/v1.0) links itself." style="m-muted q-pa-sm q-mb-none"/>
+                        </widgets></section>
+                    </box-body-nopad></container-box>
+                </row-col>
+            </container-row>
+            </widgets></section>
+        </fail-widgets></section>
+        </widgets></section>
+    </widgets>
+</screen>

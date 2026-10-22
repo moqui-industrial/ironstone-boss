@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- Compare (design-projects.md §7 Compare; style-guide §3.3 Detail): two refs of a repository the user may view, the base (the
+    target; the default branch unless chosen) and the compare (the source), with a swap; the summary (commits, files, insertions
+    and deletions, "Able to merge" or "Conflicts in n files" from a trial merge); the New merge request form (title from the
+    branch's work item or the first commit, a Closes line per work item named, the projects' leads as reviewers (any internal member of them may be chosen), draft,
+    complete the linked items on merge as the project says, delete the branch after); then the commits and every file's diff
+    (the moqui-diff table), up to 25 files, past that a file list opening each. Opening the merge request stays here with its
+    number until MergeRequestDetail (impl-projects.md P3b2) is there to open. Services: ironstone.CodeServices get#CompareInfo,
+    create#MergeRequestFromCompare (org.moqui.impl.GitServices.get#GitCompare, org.moqui.impl.GitReviewServices.create#MergeRequest,
+    mantle.work.GitServices.link#MergeRequestItems). -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Compare" default-menu-include="false">
+
+    <parameter name="repositoryId" required="true"/>
+    <parameter name="base"/>
+    <parameter name="head"/>
+    <parameter name="diffPath"/>
+
+    <transition name="repositoryDetail"><default-response url="../RepositoryDetail"/></transition>
+    <transition name="commitDetail"><default-response url="../CommitDetail"/></transition>
+    <transition name="pickRefs"><default-response url="."><parameter name="repositoryId"/><parameter name="base"/><parameter name="head"/></default-response></transition>
+    <transition name="openMergeRequest">
+        <actions>
+            <service-call name="ironstone.CodeServices.create#MergeRequestFromCompare" out-map="openOut" in-map="{repositoryId:repositoryId, sourceRef:sourceRef,
+                    targetRef:targetRef, title:title, description:description, reviewerUserIds:reviewerUserIds, draft:(draft || 'N'),
+                    completeItems:(completeItems || 'N'), deleteSourceBranch:(deleteSourceBranch || 'N')}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(openOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="repositoryId"/><parameter name="base" from="targetRef"/><parameter name="head" from="sourceRef"/></default-response>
+        <error-response url="."/>
+    </transition>
+
+    <actions>
+        <script><![CDATA[
+            repoAccess = codeHosting ? (ec.service.sync().name('ironstone.CodeServices.get#RepositoryAccess').parameters({repositoryId: repositoryId || ''}).call() || {}) : {}
+            recordFound = !!repoAccess.canView
+            if (!recordFound) return
+            const L = (text) => ec.l10n.localize(text)
+            repo = repoAccess.repository || {}
+            canPush = !!(repoAccess.canCreate || repoAccess.canUpdate)
+            isArchived = !!repoAccess.archived
+            const info = ec.service.sync().name('ironstone.CodeServices.get#CompareInfo').parameters({repositoryId: repositoryId, base: base || null, head: head || null,
+                diffPath: diffPath || null}).call() || {}
+            ec.message.clearErrors()
+            base = info.base || base || repo.branch
+            comparison = info.comparison || null
+            fileList = Array.from(info.fileList || [])
+            diffList = Array.from(info.diffList || [])
+            allDiffs = info.allDiffs !== false
+            commitList = Array.from(info.commitList || [])
+            defaults = info.defaults || {}
+            openMergeRequest = info.openMergeRequest || null
+            refOptions = ec.service.sync().name('ironstone.CodeServices.get#RefOptions').parameters({repositoryId: repositoryId}).call()?.optionList || []
+            refsValue = {repositoryId: repositoryId, base: base, head: head || ''}
+            swapParams = {repositoryId: repositoryId, base: head || '', head: base}
+            mayOpen = !!(comparison && head && defaults.isBranch && canPush && !isArchived && !openMergeRequest && comparison.aheadBy > 0 && !comparison.alreadyMerged)
+            mergeRequestValue = {repositoryId: repositoryId, sourceRef: defaults.sourceRef, targetRef: defaults.targetRef, title: defaults.title, description: defaults.description,
+                reviewerUserIds: defaults.reviewerUserIds || [], completeItems: defaults.completeItems || 'N'}
+            // the users who may be reviewers: the internal members of the repository's projects with a user account
+            const projectIds = Array.from(ec.service.sync().name('mantle.work.GitServices.get#RepositoryProjects').parameters({repositoryId: repositoryId}).call()?.projectIdList || [])
+            const clientRoles = ['Customer', 'CustomerBillTo', 'ClientManager', 'ClientBilling']
+            const memberIds = projectIds.length ? Array.from(new Set(Array.from(ec.entity.find('mantle.work.effort.WorkEffortParty').condition('workEffortId', 'in', projectIds)
+                    .conditionDate('fromDate', 'thruDate', null).list()).filter((row) => !clientRoles.includes(row.roleTypeId)).map((row) => row.partyId))) : []
+            reviewerOptions = memberIds.length ? Array.from(ec.entity.find('moqui.security.UserAccount').condition('partyId', 'in', memberIds).disableAuthz().list())
+                    .filter((account) => account.userId !== ec.user.userId && account.disabled !== 'Y')
+                    .map((account) => ({key: account.userId, text: account.userFullName || account.username})).sort((a, b) => String(a.text).localeCompare(String(b.text))) : []
+            summaryText = comparison ? [comparison.aheadBy + ' ' + (comparison.aheadBy == 1 ? L('commit') : L('commits')), comparison.fileCount + ' ' + (comparison.fileCount == 1 ? L('file') : L('files')),
+                '+' + comparison.insertions, '−' + comparison.deletions, comparison.behindBy ? comparison.behindBy + ' ' + L('behind') : ''].filter((part) => part).join(' · ') : ''
+            mergeText = !comparison ? '' : comparison.alreadyMerged ? L('Already merged') : comparison.mergeable ? (comparison.fastForward ? L('Able to merge (fast-forward)') : L('Able to merge'))
+                : ec.resource.expand('Conflicts in ${count} files: ${paths}', '', {count: comparison.conflictPaths.length, paths: comparison.conflictPaths.join(', ')})
+            mergeColor = !comparison ? '' : comparison.alreadyMerged ? 'grey-7' : comparison.mergeable ? 'positive' : 'negative'
+        ]]></script>
+    </actions>
+
+    <widgets>
+        <section name="NoCodeHosting" condition="!codeHosting"><widgets>
+            <container-box type="warning"><box-header title="Code hosting is not in this build"/><box-body>
+                <label type="p" text="This server was built without git hosting, so repository ${repositoryId} cannot be compared." style="q-mb-none"/>
+            </box-body></container-box>
+        </widgets></section>
+        <section name="CompareNotFound" condition="codeHosting &amp;&amp; !recordFound"><widgets>
+            <container-box type="warning"><box-header title="Not available"/><box-body>
+                <label type="p" text="Repository ${repositoryId} is not available: it does not exist, or you are not on a project it belongs to." style="q-mb-none"/>
+            </box-body></container-box>
+        </widgets></section>
+
+        <section name="CompareFound" condition="codeHosting &amp;&amp; recordFound"><widgets>
+            <container style="row items-center q-mb-sm q-gutter-y-xs">
+                <label text="Compare" type="h5" style="q-my-none q-mr-sm"/>
+                <link url="repositoryDetail" text="${repositoryId}" link-type="anchor" parameter-map="{repositoryId:repositoryId}" style="text-mono"/>
+            </container>
+
+            <container-box><box-header title="What to compare"/><box-body>
+                <form-single name="CompareRefs" transition="pickRefs" map="refsValue">
+                    <field name="repositoryId"><default-field><hidden/></default-field></field>
+                    <field name="base"><default-field title="Base (into)"><drop-down><list-options list="refOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                    <field name="head"><default-field title="Compare (from)"><drop-down allow-empty="true"><list-options list="refOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                    <field name="submitButton"><default-field title="Compare"><submit/></default-field></field>
+                    <field-layout><field-row-big><field-ref name="base"/><field-ref name="head"/><field-ref name="submitButton"/></field-row-big></field-layout>
+                </form-single>
+                <container style="row items-center q-gutter-sm">
+                    <link url="." text="Swap" icon="sym_o_swap_horiz" link-type="anchor" parameter-map="swapParams" condition="head"/>
+                    <section name="CompareSummary" condition="comparison"><widgets>
+                        <label text="${summaryText}" type="span"/>
+                        <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${mergeColor}" data-mergeable="${comparison.mergeable}">${WebUtilities.encodeHtml(mergeText)}</q-chip>]]></text>
+                            <text type="tui"><![CDATA[{"t": "text", "style": "strong", "text": ${JSON.stringify(mergeText)}}]]></text></render-mode>
+                    </widgets></section>
+                </container>
+                <section name="ChooseHead" condition="!head"><widgets>
+                    <label type="p" text="Choose the branch to compare with ${base}: its commits and changes show here, and a merge request can be opened from them." style="m-muted q-mt-sm q-mb-none"/>
+                </widgets></section>
+                <section name="NothingToCompare" condition="head &amp;&amp; comparison &amp;&amp; comparison.aheadBy == 0"><widgets>
+                    <label type="p" text="${head} has nothing that ${base} lacks." style="m-muted q-mt-sm q-mb-none"/>
+                </widgets></section>
+                <section name="CompareFailed" condition="head &amp;&amp; !comparison"><widgets>
+                    <label type="p" text="${head} or ${base} is not a branch, tag or commit of ${repositoryId}." style="text-warning q-mt-sm q-mb-none"/>
+                </widgets></section>
+            </box-body></container-box>
+
+            <section name="AlreadyOpen" condition="openMergeRequest"><widgets>
+                <container-box type="info"><box-header title="Already open"/><box-body>
+                    <container style="row items-center q-gutter-sm">
+                        <label text="Merge request" type="span"/>
+                        <link url="/qapps/Projects/Code/MergeRequestDetail" url-type="plain" text="!${openMergeRequest.mergeRequestNum} ${openMergeRequest.title}" link-type="anchor"
+                                parameter-map="{mergeRequestId:openMergeRequest.mergeRequestId}"/>
+                        <label text="is open for these branches." type="span"/>
+                    </container>
+                </box-body></container-box>
+            </widgets></section>
+
+            <section name="NewMergeRequestBox" condition="mayOpen"><widgets>
+                <container-box><box-header title="New merge request: ${defaults.sourceRef} into ${defaults.targetRef}"/><box-body>
+                    <form-single name="NewMergeRequest" transition="openMergeRequest" map="mergeRequestValue">
+                        <field name="repositoryId"><default-field><hidden/></default-field></field>
+                        <field name="sourceRef"><default-field><hidden/></default-field></field>
+                        <field name="targetRef"><default-field><hidden/></default-field></field>
+                        <field name="title"><default-field title="Title"><text-line size="70"/></default-field></field>
+                        <field name="description"><default-field title="Description (markdown; Closes PROJ-12 completes the item when it merges)">
+                            <text-area rows="5" cols="70" editor-type="md"/></default-field></field>
+                        <field name="reviewerUserIds"><default-field title="Reviewers">
+                            <drop-down allow-multiple="true" allow-empty="true"><list-options list="reviewerOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                        <field name="draft"><default-field title=" "><check><option key="Y" text="Draft: not merged until marked ready"/></check></default-field></field>
+                        <field name="completeItems"><default-field title=" "><check><option key="Y" text="Complete the linked work items when it merges"/></check></default-field></field>
+                        <field name="deleteSourceBranch"><default-field title=" "><check><option key="Y" text="Delete the branch after the merge"/></check></default-field></field>
+                        <field name="submitButton"><default-field title="Open merge request"><submit/></default-field></field>
+                    </form-single>
+                </box-body></container-box>
+            </widgets></section>
+
+            <section name="CompareCommitsBox" condition="commitList.length"><widgets>
+                <container-box><box-header title="Commits · ${commitList.length}"/><box-body-nopad>
+                    <form-list name="CompareCommits" list="commitList" skip-form="true" skip-header="true" paginate="false">
+                        <field name="summary"><default-field>
+                            <link url="commitDetail" text="${summary}" link-type="anchor" parameter-map="{repositoryId:repositoryId, commitId:commitId}"/>
+                            <label text="${authorName} · ${dateText}" type="div" style="text-caption m-muted"/></default-field></field>
+                        <field name="itemList"><default-field>
+                            <section-iterate name="CompareCommitItem" list="itemList" entry="item"><widgets>
+                                <link url="/qapps/Projects/WorkItems/WorkItemDetail" url-type="plain" text="${item.workEffortId}" link-type="anchor" parameter-map="{workEffortId:item.workEffortId}"
+                                        tooltip="${item.workEffortName}" style="text-mono q-mr-sm"/>
+                            </widgets></section-iterate></default-field></field>
+                        <field name="shortId"><default-field><link url="commitDetail" text="${shortId}" link-type="anchor" parameter-map="{repositoryId:repositoryId, commitId:commitId}" style="text-mono"/></default-field></field>
+                    </form-list>
+                </box-body-nopad></container-box>
+            </widgets></section>
+
+            <section name="CompareFileList" condition="!allDiffs"><widgets>
+                <container-box><box-header title="${fileList.length} files changed: open one to see its diff"/><box-body-nopad>
+                    <form-list name="CompareFiles" list="fileList" skip-form="true" skip-header="true" paginate="false">
+                        <field name="path"><default-field><link url="." text="${path}" link-type="anchor" style="text-mono"
+                                parameter-map="{repositoryId:repositoryId, base:base, head:head, diffPath:path}"/></default-field></field>
+                        <field name="changeLabel"><default-field><label text="${changeLabel} · +${insertions} −${deletions}" type="span" style="text-caption m-muted"/></default-field></field>
+                    </form-list>
+                </box-body-nopad></container-box>
+            </widgets></section>
+            <section-iterate name="CompareDiff" list="diffList" entry="diff"><widgets>
+                <container-box><box-header title="${diff.path}"/><box-body>
+                    <label text="${diff.changeLabel} · +${diff.insertions} −${diff.deletions}${diff.binary ? ' · a binary file' : ''}${diff.tooLarge ? ' · too large to show' : ''}" type="div" style="text-caption m-muted q-mb-xs"/>
+                    <section name="CompareDiffTable" condition="diff.html"><widgets>
+                        <render-mode><text type="html,qvt"><![CDATA[<div class="overflow-auto"><div style="min-width: 720px">${diff.html}</div></div>]]></text>
+                            <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify(diff.path + " +" + diff.insertions + " -" + diff.deletions)}}]]></text></render-mode>
+                    </widgets></section>
+                </box-body></container-box>
+            </widgets></section-iterate>
+        </widgets></section>
+    </widgets>
+</screen>

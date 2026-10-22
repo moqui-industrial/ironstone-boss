@@ -1,0 +1,1105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- Code in IronStone Projects (design-projects.md §7 Code, §4 ProjectCode, §12 CodeSettings; impl-projects.md P3b): the
+    repositories are mr-moqui's (moqui.resource.GitRepository and the rows of its hosting), read only through the framework's
+    services, which check the repository's rights (org.moqui.impl.GitServices, GitReviewServices; impl-projects.md §2), and
+    Mantle links them to projects and work items (mantle.work.GitServices). Git hosting is a build feature: without it
+    get#CodeHosting answers false and the screens say so. A service that reads several parts reads each on its own, so one
+    that fails is logged and left empty. -->
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
+
+    <!-- ========== Hosting and access ========== -->
+
+    <service verb="get" noun="CodeHosting" allow-remote="false">
+        <description>Whether git hosting is in this build (the framework's hosting services answer): the Code screens show
+            "Code hosting is not in this build" when not.</description>
+        <out-parameters><parameter name="available" type="Boolean"/></out-parameters>
+        <actions><script><![CDATA[
+            available = false
+            ec.message.pushErrors()
+            try {
+                ec.service.sync().name('org.moqui.impl.GitServices.get#GitRepositoryAccess').parameters({repositoryId: '_NA_'}).call()
+                available = !ec.message.hasError()
+            } catch (err) {
+                available = false
+            } finally { ec.message.clearErrors(); ec.message.popErrors() }
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="RepositoryAccess" allow-remote="false">
+        <description>A repository for its screens: what the user may do in it (org.moqui.impl.GitServices.get#GitRepositoryAccess:
+            view, create, update, delete; archived), its row's public fields (no credentials), the projects it is linked to
+            that the user sees, its clone URLs, and whether the user is an administrator (mirror, storage, export). Nothing but
+            canView false for a repository the user may not view or that is not there.</description>
+        <in-parameters><parameter name="repositoryId" required="true"/></in-parameters>
+        <out-parameters>
+            <parameter name="canView" type="Boolean"/>
+            <parameter name="canCreate" type="Boolean"/>
+            <parameter name="canUpdate" type="Boolean"/>
+            <parameter name="canDelete" type="Boolean"/>
+            <parameter name="archived" type="Boolean"/>
+            <parameter name="isAdmin" type="Boolean"/>
+            <parameter name="repository" type="Map"/>
+            <parameter name="projectList" type="List"/>
+            <parameter name="httpsUrl"/>
+            <parameter name="sshUrl"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            canView = false; canCreate = false; canUpdate = false; canDelete = false; archived = false; repository = null; projectList = []
+            isAdmin = ec.user.isInGroup('ADMIN')
+            if (!repositoryId) return
+            ec.message.pushErrors()
+            try {
+                const access = ec.service.sync().name('org.moqui.impl.GitServices.get#GitRepositoryAccess').parameters({repositoryId}).call() || {}
+                if (ec.message.hasError()) throw new Error(ec.message.getErrorsString())
+                const row = ec.entity.find('moqui.resource.GitRepository').condition('repositoryId', repositoryId).disableAuthz().one()
+                if (row == null || !access.canView) return
+                canView = true; canCreate = !!access.canCreate; canUpdate = !!access.canUpdate; canDelete = !!access.canDelete; archived = !!access.archived
+                const L = (text) => ec.l10n.localize(text)
+                repository = {repositoryId: row.repositoryId, description: row.description || '', repositoryKind: row.repositoryKind || 'local',
+                    branch: row.branch || 'main', headCommitId: row.headCommitId || null, lastUpdateDate: row.lastUpdateDate || null,
+                    archivedDate: row.archivedDate || null, defaultMergeMethodEnumId: row.defaultMergeMethodEnumId || 'GmmMerge',
+                    remoteUrl: row.repositoryKind === 'remote' ? (row.remoteUrl || '') : '', fetchIntervalMinutes: row.fetchIntervalMinutes ?? null,
+                    lastFetchDate: row.lastFetchDate || null, lastFetchError: row.lastFetchError || null, objectCount: row.objectCount ?? null,
+                    storedBytes: row.storedBytes ?? null, lastGcDate: row.lastGcDate || null, lastGcResult: row.lastGcResult || null,
+                    kindLabel: row.repositoryKind === 'db' ? L('In the database') : row.repositoryKind === 'remote' ? L('Mirror') : L('On disk')}
+                const linked = ec.service.sync().name('mantle.work.GitServices.get#RepositoryProjects').parameters({repositoryId}).call() || {}
+                const vis = ec.service.sync().name('mantle.work.ProjectServices.get#VisibleProjectInfo').call() || {}
+                const visible = Array.from(vis.visibleProjectIds || [])
+                for (const link of Array.from(linked.linkList || [])) {
+                    if (!vis.allProjects && !visible.includes(link.workEffortId)) continue
+                    const project = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', link.workEffortId).one()
+                    projectList.push({workEffortId: link.workEffortId, workEffortName: project?.workEffortName || link.workEffortId, fromDate: link.fromDate})
+                }
+                const urls = ec.service.sync().name('org.moqui.impl.GitServices.get#GitCloneUrls').parameters({repositoryId}).call() || {}
+                httpsUrl = urls.httpsUrl || null
+                sshUrl = urls.sshUrl || null
+            } catch (err) {
+                ec.logger.warn(`Repository ${repositoryId}: its access was not read: ${err && err.message ? err.message : err}`)
+                canView = false
+            } finally { ec.message.clearErrors(); ec.message.popErrors() }
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== Repositories ========== -->
+
+    <service verb="find" noun="Repositories">
+        <description>The Repositories list (design-projects.md §7 Repositories): the repositories the user may view
+            (find#GitRepositories), by chip: mine (linked to a project the user is on, the default), all (not archived),
+            mirrors (remote, not archived) and archived; text in the id or description; paged by 25. Each row with its
+            projects, storage, default branch, last change, open merge requests and clone URLs. counts by chip.</description>
+        <in-parameters>
+            <parameter name="list" default-value="mine"/>
+            <parameter name="text"/>
+            <parameter name="pageIndex" type="Integer" default="0"/>
+            <parameter name="pageSize" type="Integer" default="25"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="rowList" type="List"/>
+            <parameter name="rowCount" type="Integer"/>
+            <parameter name="counts" type="Map"/>
+            <parameter name="list"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            rowList = []; rowCount = 0; counts = {mine: 0, all: 0, mirrors: 0, archived: 0}
+            if (!['mine', 'all', 'mirrors', 'archived'].includes(list)) list = 'mine'
+            const L = (text) => ec.l10n.localize(text)
+            const found = Array.from(ec.service.sync().name('org.moqui.impl.GitServices.find#GitRepositories').parameters({text: text || null,
+                includeArchived: true, pageNoLimit: true}).call()?.repositoryList || [])
+            if (ec.message.hasError()) return
+            const vis = ec.service.sync().name('mantle.work.ProjectServices.get#VisibleProjectInfo').call() || {}
+            const mine = new Set(Array.from(vis.memberProjectIds || []))
+            const visible = new Set(Array.from(vis.visibleProjectIds || []))
+            const ids = found.map((repo) => repo.repositoryId)
+            const links = ids.length ? Array.from(ec.entity.find('mantle.work.effort.WorkEffortGitRepository').condition('repositoryId', 'in', ids)
+                    .conditionDate('fromDate', 'thruDate', null).list()) : []
+            const projectNames = {}
+            const projectIds = Array.from(new Set(links.map((link) => link.workEffortId)))
+            if (projectIds.length) for (const project of Array.from(ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', 'in', projectIds)
+                    .selectField('workEffortId,workEffortName').list())) projectNames[project.workEffortId] = project.workEffortName || project.workEffortId
+            const rows = found.map((repo) => {
+                const projects = links.filter((link) => link.repositoryId === repo.repositoryId).map((link) => link.workEffortId)
+                return Object.assign({}, repo, {archived: !!repo.archivedDate, isMine: projects.some((id) => mine.has(id)),
+                    projectList: projects.filter((id) => vis.allProjects || visible.has(id)).map((id) => ({workEffortId: id, workEffortName: projectNames[id] || id}))})
+            })
+            const inList = (row, key) => key === 'archived' ? row.archived : row.archived ? false : key === 'mine' ? row.isMine
+                : key === 'mirrors' ? row.repositoryKind === 'remote' : true
+            for (const key of Object.keys(counts)) counts[key] = rows.filter((row) => inList(row, key)).length
+            const chosen = rows.filter((row) => inList(row, list))
+            rowCount = chosen.length
+            const size = Math.max(1, Number(pageSize) || 25)
+            for (const row of chosen.slice(Number(pageIndex || 0) * size, (Number(pageIndex || 0) + 1) * size)) {
+                let urls = {}
+                ec.message.pushErrors()
+                try { urls = ec.service.sync().name('org.moqui.impl.GitServices.get#GitCloneUrls').parameters({repositoryId: row.repositoryId}).call() || {} }
+                catch (err) { ec.logger.warn(`Repositories: no clone URLs of ${row.repositoryId}: ${err}`) }
+                finally { ec.message.clearErrors(); ec.message.popErrors() }
+                rowList.push(Object.assign(row, {kindLabel: row.repositoryKind === 'db' ? L('Database') : row.repositoryKind === 'remote' ? L('Mirror') : L('Disk'),
+                    branch: row.branch || 'main', projectsText: row.projectList.map((project) => project.workEffortName).join(', '),
+                    lastText: row.lastUpdateDate ? ec.l10n.format(row.lastUpdateDate, 'MMM d, yyyy') : '',
+                    openMergeRequestCount: row.openMergeRequestCount || 0, httpsUrl: urls.httpsUrl || '', sshUrl: urls.sshUrl || ''}))
+            }
+        ]]></script></actions>
+    </service>
+
+    <service verb="create" noun="Repository">
+        <description>Repositories' and ProjectCode's NewRepository: a repository of a project (mantle.work.GitServices.create#ProjectRepository,
+            with the organization's repository defaults), for those who manage the project; without a project, for
+            administrators only (a GitRepository row and init#GitRepository). importUrl, for a database repository, copies a
+            branch with its history from a URL (import#GitRepository).</description>
+        <in-parameters>
+            <parameter name="workEffortId"/>
+            <parameter name="repositoryId"/>
+            <parameter name="description"/>
+            <parameter name="repositoryKind"/>
+            <parameter name="contentRepository" default-value="N"/>
+            <parameter name="importUrl"/>
+        </in-parameters>
+        <out-parameters><parameter name="repositoryId"/><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            const content = contentRepository === 'Y' || contentRepository === true
+            const isAdmin = ec.user.isInGroup('ADMIN')
+            if (workEffortId) {
+                ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId, need: 'manage'}).call()
+                if (ec.message.hasError()) return
+                const out = ec.service.sync().name('mantle.work.GitServices.create#ProjectRepository').parameters({workEffortId, repositoryId: repositoryId || null,
+                    description: description || null, repositoryKind: repositoryKind || null, contentRepository: content}).disableAuthz().call()
+                if (ec.message.hasError()) return
+                repositoryId = out.repositoryId
+            } else {
+                if (!isAdmin) { ec.message.addError(ec.l10n.localize('Choose the project the repository is for')); return }
+                if (!repositoryId || !/^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(repositoryId) || repositoryId.endsWith('.git')) {
+                    ec.message.addError(ec.l10n.localize("A repository ID has letters, digits, '_', '.' and '-', and does not end in .git")); return }
+                if (ec.entity.find('moqui.resource.GitRepository').condition('repositoryId', repositoryId).one() != null) {
+                    ec.message.addError(ec.resource.expand('Git repository ${repositoryId} already exists', '', {repositoryId})); return }
+                const kind = ['local', 'db'].includes(repositoryKind) ? repositoryKind : 'local'
+                ec.service.sync().name('create#moqui.resource.GitRepository').parameters({repositoryId, repositoryKind: kind, branch: 'main', description: description || null}).call()
+                ec.service.sync().name('org.moqui.impl.GitServices.init#GitRepository').parameters({repositoryId, contentRepository: content}).call()
+                if (ec.message.hasError()) return
+            }
+            if (importUrl) {
+                const kind = ec.entity.find('moqui.resource.GitRepository').condition('repositoryId', repositoryId).one()?.repositoryKind
+                if (kind !== 'db') { ec.message.addError(ec.l10n.localize('Only a repository in the database imports from a URL')); return }
+                ec.service.sync().name('org.moqui.impl.GitServices.import#GitRepository').parameters({repositoryId, source: String(importUrl).trim()}).disableAuthz().call()
+                if (ec.message.hasError()) return
+            }
+            message = ec.resource.expand('Repository ${repositoryId} made', '', {repositoryId})
+        ]]></script></actions>
+    </service>
+    <service verb="link" noun="Repository">
+        <description>Link a repository to a project (LinkRepository): for one who manages the project and may change the
+            repository's settings (its delete right), since the project's members get its rights.</description>
+        <in-parameters>
+            <parameter name="repositoryId" required="true"/>
+            <parameter name="workEffortId" required="true"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId, need: 'manage'}).call()
+            if (ec.message.hasError()) return
+            const access = ec.service.sync().name('org.moqui.impl.GitServices.get#GitRepositoryAccess').parameters({repositoryId}).call() || {}
+            if (!access.canView) { ec.message.addError(ec.resource.expand('Repository ${repositoryId} is not available', '', {repositoryId})); return }
+            if (!access.canDelete) { ec.message.addError(ec.resource.expand('Only the maintainers of ${repositoryId} link it to a project', '', {repositoryId})); return }
+            ec.service.sync().name('mantle.work.GitServices.add#ProjectRepository').parameters({workEffortId, repositoryId}).disableAuthz().call()
+            if (!ec.message.hasError()) message = ec.resource.expand('${repositoryId} linked to ${workEffortId}', '', {repositoryId, workEffortId})
+        ]]></script></actions>
+    </service>
+    <service verb="unlink" noun="Repository">
+        <description>Unlink a repository from a project, for one who manages the project; the links of its commits and refs
+            stay.</description>
+        <in-parameters>
+            <parameter name="repositoryId" required="true"/>
+            <parameter name="workEffortId" required="true"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId, need: 'manage'}).call()
+            if (ec.message.hasError()) return
+            ec.service.sync().name('mantle.work.GitServices.remove#ProjectRepository').parameters({workEffortId, repositoryId}).disableAuthz().call()
+            if (!ec.message.hasError()) message = ec.resource.expand('${repositoryId} unlinked from ${workEffortId}', '', {repositoryId, workEffortId})
+        ]]></script></actions>
+    </service>
+    <service verb="create" noun="Mirror">
+        <description>MirrorRepository (administrators): a read-only mirror of a repository hosted elsewhere (kind remote, the
+            access token kept encrypted), fetched once now (init#GitRepository) and every fetchIntervalMinutes after, and
+            linked to a project when one is given.</description>
+        <in-parameters>
+            <parameter name="repositoryId" required="true"/>
+            <parameter name="remoteUrl" required="true"/>
+            <parameter name="description"/>
+            <parameter name="username"/>
+            <parameter name="accessToken"/>
+            <parameter name="fetchIntervalMinutes" type="Integer"/>
+            <parameter name="workEffortId"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            if (!ec.user.isInGroup('ADMIN')) { ec.message.addError(ec.l10n.localize('Only administrators make mirrors')); return }
+            if (!/^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(repositoryId) || repositoryId.endsWith('.git')) {
+                ec.message.addError(ec.l10n.localize("A repository ID has letters, digits, '_', '.' and '-', and does not end in .git")); return }
+            if (ec.entity.find('moqui.resource.GitRepository').condition('repositoryId', repositoryId).one() != null) {
+                ec.message.addError(ec.resource.expand('Git repository ${repositoryId} already exists', '', {repositoryId})); return }
+            if (!/^(https?|ssh|file):\/\//.test(String(remoteUrl).trim())) { ec.message.addError(ec.l10n.localize('A mirror URL is https, ssh or file')); return }
+            ec.service.sync().name('create#moqui.resource.GitRepository').parameters({repositoryId, repositoryKind: 'remote', remoteUrl: String(remoteUrl).trim(),
+                description: description || null, username: username || null, accessToken: accessToken || null,
+                fetchIntervalMinutes: fetchIntervalMinutes ?? null}).call()
+            if (ec.message.hasError()) return
+            if (workEffortId) ec.service.sync().name('mantle.work.GitServices.add#ProjectRepository').parameters({workEffortId, repositoryId}).call()
+            // the first fetch: one that fails is recorded on the row (lastFetchError) and the mirror stays
+            ec.message.pushErrors()
+            try { ec.service.sync().name('org.moqui.impl.GitServices.init#GitRepository').parameters({repositoryId}).call() }
+            catch (err) { ec.logger.warn(`Mirror ${repositoryId}: the first fetch failed: ${err}`) }
+            finally {
+                if (ec.message.hasError()) ec.logger.warn(`Mirror ${repositoryId}: the first fetch failed: ${ec.message.getErrorsString()}`)
+                ec.message.clearErrors(); ec.message.popErrors()
+            }
+            message = ec.resource.expand('Mirror ${repositoryId} made', '', {repositoryId})
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== Inside a repository ========== -->
+
+    <service verb="get" noun="RefOptions" allow-remote="false">
+        <description>The ref picker's options: the branches (the default first) and the tags, each as {key, text, group}.</description>
+        <in-parameters><parameter name="repositoryId" required="true"/></in-parameters>
+        <out-parameters><parameter name="optionList" type="List"/><parameter name="defaultBranch"/></out-parameters>
+        <actions><script><![CDATA[
+            optionList = []
+            const refs = ec.service.sync().name('org.moqui.impl.GitServices.get#GitRefs').parameters({repositoryId}).call() || {}
+            defaultBranch = refs.defaultBranch || 'main'
+            const list = Array.from(refs.refList || [])
+            const branches = list.filter((ref) => ref.refType === 'branch').sort((a, b) => (b.isDefault ? 1 : 0) - (a.isDefault ? 1 : 0) || String(a.shortName).localeCompare(String(b.shortName)))
+            const tags = list.filter((ref) => ref.refType === 'tag').sort((a, b) => Number(b.commitDate || 0) - Number(a.commitDate || 0))
+            for (const ref of branches) optionList.push({key: ref.shortName, text: ref.shortName + (ref.isDefault ? ' (' + ec.l10n.localize('default') + ')' : '')})
+            for (const ref of tags) optionList.push({key: ref.shortName, text: ec.l10n.localize('Tag') + ' ' + ref.shortName})
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="RepositoryFiles">
+        <description>RepositoryFiles (design-projects.md §7): the directory at a path in a ref (get#GitTree, directories first,
+            each with its last commit) with its README (README.md, else README), or the file there (get#GitBlob): text with its
+            language from the name, an image, or a binary or a file kept in LFS to download. crumbs: the path's directories.
+            Nothing found: found false.</description>
+        <in-parameters>
+            <parameter name="repositoryId" required="true"/>
+            <parameter name="ref"/>
+            <parameter name="path"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="found" type="Boolean"/>
+            <parameter name="isFile" type="Boolean"/>
+            <parameter name="commitId"/>
+            <parameter name="ref"/>
+            <parameter name="entryList" type="List"/>
+            <parameter name="file" type="Map"/>
+            <parameter name="readme" type="Map"/>
+            <parameter name="crumbList" type="List"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            found = false; isFile = false; entryList = []; file = null; readme = null; crumbList = []
+            const clean = String(path || '').split('/').filter((part) => part && part !== '.' && part !== '..').join('/')
+            const tree = ec.service.sync().name('org.moqui.impl.GitServices.get#GitTree').parameters({repositoryId, revision: ref || null, path: clean || null}).call() || {}
+            if (ec.message.hasError() || !tree.commitId) return
+            found = true
+            commitId = tree.commitId
+            if (!ref) ref = tree.branch || null
+            const parts = clean ? clean.split('/') : []
+            crumbList = parts.map((name, index) => ({name, path: parts.slice(0, index + 1).join('/'), last: index === parts.length - 1}))
+            const fmt = (value) => value ? ec.l10n.format(value, 'MMM d, yyyy') : ''
+            const size = (bytes) => bytes == null ? '' : bytes < 1024 ? bytes + ' B' : bytes < 1048576 ? (Math.round(bytes / 102.4) / 10) + ' KB' : (Math.round(bytes / 104857.6) / 10) + ' MB'
+            if (tree.isFile) {
+                isFile = true
+                const name = parts[parts.length - 1] || clean
+                const blob = ec.service.sync().name('org.moqui.impl.GitServices.get#GitBlob').parameters({repositoryId, revision: commitId, path: clean}).call() || {}
+                const image = /\.(png|jpe?g|gif|webp|svg|ico|bmp)$/i.test(name)
+                const log = ec.service.sync().name('org.moqui.impl.GitServices.get#GitLog').parameters({repositoryId, revision: commitId, path: clean, limit: 1}).call() || {}
+                const last = Array.from(log.commitList || [])[0] || null
+                const tooLarge = (blob.size || 0) > 1048576
+                file = {path: clean, name, size: blob.size || 0, sizeText: size(blob.size || 0), isImage: image, isText: blob.text != null && !image && !tooLarge,
+                    text: blob.text != null && !image && !tooLarge ? blob.text : null, isMarkdown: /\.(md|markdown)$/i.test(name), tooLarge,
+                    lastCommit: last ? {commitId: last.commitId, shortId: last.shortId, summary: last.summary, authorName: last.authorName, dateText: fmt(last.committerDate)} : null}
+                return
+            }
+            for (const entry of Array.from(tree.entryList || [])) {
+                const last = entry.lastCommit || null
+                entryList.push({name: entry.name, path: entry.path, type: entry.type, isDir: entry.type === 'dir', lfs: !!entry.lfs,
+                    icon: entry.type === 'dir' ? 'sym_o_folder' : entry.type === 'submodule' ? 'sym_o_folder_special' : entry.type === 'link' ? 'sym_o_link' : 'sym_o_draft',
+                    sizeText: entry.type === 'dir' ? '' : size(entry.size), commitId: last?.commitId || null, shortId: last?.shortId || '',
+                    summary: last?.summary || '', authorName: last?.authorName || '', dateText: fmt(last?.committerDate)})
+            }
+            const readmeEntry = entryList.find((entry) => !entry.isDir && /^readme\.(md|markdown)$/i.test(entry.name)) || entryList.find((entry) => !entry.isDir && /^readme(\.txt)?$/i.test(entry.name))
+            if (readmeEntry) {
+                const blob = ec.service.sync().name('org.moqui.impl.GitServices.get#GitBlob').parameters({repositoryId, revision: commitId, path: readmeEntry.path}).call() || {}
+                if (blob.text != null && (blob.size || 0) <= 524288) readme = {name: readmeEntry.name, text: blob.text, isMarkdown: /\.(md|markdown)$/i.test(readmeEntry.name)}
+            }
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="RepositoryCommits">
+        <description>RepositoryCommits (design-projects.md §7): the log of a ref, or of a path in it (get#GitLog, 30 a page
+            after afterCommitId), each commit with its linked work items (WorkEffortGitCommit of the work items the user sees)
+            and its combined CI state (get#GitCommitStatuses).</description>
+        <in-parameters>
+            <parameter name="repositoryId" required="true"/>
+            <parameter name="ref"/>
+            <parameter name="path"/>
+            <parameter name="afterCommitId"/>
+            <parameter name="limit" type="Integer" default="30"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="commitList" type="List"/>
+            <parameter name="hasMore" type="Boolean"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            commitList = []; hasMore = false
+            const log = ec.service.sync().name('org.moqui.impl.GitServices.get#GitLog').parameters({repositoryId, revision: ref || null, path: path || null,
+                afterCommitId: afterCommitId || null, limit: limit}).call() || {}
+            if (ec.message.hasError()) return
+            hasMore = !!log.hasMore
+            const commits = Array.from(log.commitList || [])
+            if (!commits.length) return
+            const ids = commits.map((commit) => commit.commitId)
+            const items = ec.service.sync().name('ironstone.CodeServices.get#CommitItems').parameters({repositoryId, commitIdList: ids}).call()?.itemsByCommit || {}
+            let states = {}
+            ec.message.pushErrors()
+            try { states = ec.service.sync().name('org.moqui.impl.GitServices.get#GitCommitStatuses').parameters({repositoryId, commitIdList: ids}).call()?.stateByCommit || {} }
+            catch (err) { ec.logger.warn(`Commits of ${repositoryId}: the checks were not read: ${err}`) }
+            finally { ec.message.clearErrors(); ec.message.popErrors() }
+            for (const commit of commits) commitList.push({commitId: commit.commitId, shortId: commit.shortId, summary: commit.summary,
+                authorName: commit.authorName, authorEmail: commit.authorEmail, moquiUserId: commit.moquiUserId || null,
+                dateText: commit.committerDate ? ec.l10n.format(commit.committerDate, 'MMM d, yyyy h:mm a') : '',
+                itemList: items[commit.commitId] || [], checkState: states[commit.commitId] || null})
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="CommitItems" allow-remote="false">
+        <description>The work items linked to commits of a repository (WorkEffortGitCommit), the ones in projects the user sees:
+            itemsByCommit, a map of commitId to [{workEffortId, workEffortName, statusId, linkSourceEnumId}].</description>
+        <in-parameters>
+            <parameter name="repositoryId" required="true"/>
+            <parameter name="commitIdList" type="List"/>
+        </in-parameters>
+        <out-parameters><parameter name="itemsByCommit" type="Map"/></out-parameters>
+        <actions><script><![CDATA[
+            itemsByCommit = {}
+            const ids = Array.from(commitIdList || [])
+            if (!ids.length) return
+            const links = Array.from(ec.entity.find('mantle.work.effort.WorkEffortGitCommit').condition('repositoryId', repositoryId).condition('commitId', 'in', ids).list())
+            if (!links.length) return
+            const vis = ec.service.sync().name('mantle.work.ProjectServices.get#VisibleProjectInfo').call() || {}
+            const visible = new Set(Array.from(vis.visibleProjectIds || []))
+            const efforts = {}
+            for (const row of Array.from(ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', 'in', Array.from(new Set(links.map((link) => link.workEffortId))))
+                    .selectField('workEffortId,workEffortName,statusId,rootWorkEffortId,workEffortTypeEnumId').list())) efforts[row.workEffortId] = row
+            for (const link of links) {
+                const effort = efforts[link.workEffortId]
+                if (!effort) continue
+                const projectId = effort.workEffortTypeEnumId === 'WetProject' ? effort.workEffortId : effort.rootWorkEffortId
+                if (!vis.allProjects && !visible.has(projectId)) continue
+                ;(itemsByCommit[link.commitId] = itemsByCommit[link.commitId] || []).push({workEffortId: link.workEffortId, workEffortName: effort.workEffortName || '',
+                    statusId: effort.statusId, linkSourceEnumId: link.linkSourceEnumId})
+            }
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="RepositoryBranches">
+        <description>RepositoryBranches (design-projects.md §7): the branches, the default first and the others by their last
+            commit, newest first; for the 20 most recently changed ahead and behind the default (get#GitCompare); each with its
+            work item (WorkEffortGitRef), its open merge request and its CI state.</description>
+        <in-parameters><parameter name="repositoryId" required="true"/></in-parameters>
+        <out-parameters><parameter name="branchList" type="List"/><parameter name="defaultBranch"/></out-parameters>
+        <actions><script><![CDATA[
+            branchList = []
+            const refs = ec.service.sync().name('org.moqui.impl.GitServices.get#GitRefs').parameters({repositoryId, refType: 'branch'}).call() || {}
+            if (ec.message.hasError()) return
+            defaultBranch = refs.defaultBranch || 'main'
+            const branches = Array.from(refs.refList || []).sort((a, b) => (b.isDefault ? 1 : 0) - (a.isDefault ? 1 : 0) || Number(b.commitDate || 0) - Number(a.commitDate || 0))
+            const links = Array.from(ec.entity.find('mantle.work.effort.WorkEffortGitRef').condition('repositoryId', repositoryId).condition('refType', 'branch')
+                    .condition('thruDate', 'is-null', null).list())
+            const names = {}
+            const effortIds = Array.from(new Set(links.map((link) => link.workEffortId)))
+            if (effortIds.length) for (const row of Array.from(ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', 'in', effortIds)
+                    .selectField('workEffortId,workEffortName').list())) names[row.workEffortId] = row.workEffortName || ''
+            let open = []
+            ec.message.pushErrors()
+            try { open = Array.from(ec.service.sync().name('org.moqui.impl.GitReviewServices.find#MergeRequests').parameters({repositoryId,
+                statusIdList: ['GmrDraft', 'GmrOpen'], pageSize: 200}).call()?.mergeRequestList || []) }
+            catch (err) { ec.logger.warn(`Branches of ${repositoryId}: the merge requests were not read: ${err}`) }
+            finally { ec.message.clearErrors(); ec.message.popErrors() }
+            let states = {}
+            ec.message.pushErrors()
+            try { states = ec.service.sync().name('org.moqui.impl.GitServices.get#GitCommitStatuses').parameters({repositoryId,
+                commitIdList: branches.map((ref) => ref.commitId).filter((id) => id)}).call()?.stateByCommit || {} }
+            catch (err) { ec.logger.warn(`Branches of ${repositoryId}: the checks were not read: ${err}`) }
+            finally { ec.message.clearErrors(); ec.message.popErrors() }
+            let compared = 0
+            for (const ref of branches) {
+                const row = {name: ref.shortName, refName: ref.refName, commitId: ref.commitId, shortId: ref.commitId ? String(ref.commitId).substring(0, 10) : '',
+                    summary: ref.summary || '', authorName: ref.authorName || '', dateText: ref.commitDate ? ec.l10n.format(ref.commitDate, 'MMM d, yyyy') : '',
+                    isDefault: !!ref.isDefault, aheadBy: null, behindBy: null, checkState: states[ref.commitId] || null, mergeRequest: null, item: null}
+                const link = links.find((one) => one.refName === ref.refName)
+                if (link) row.item = {workEffortId: link.workEffortId, workEffortName: names[link.workEffortId] || ''}
+                const mr = open.find((one) => one.sourceRef === ref.shortName)
+                if (mr) row.mergeRequest = {mergeRequestId: mr.mergeRequestId, mergeRequestNum: mr.mergeRequestNum, title: mr.title}
+                if (!row.isDefault && compared < 20) {
+                    compared++
+                    ec.message.pushErrors()
+                    try {
+                        const cmp = ec.service.sync().name('org.moqui.impl.GitServices.get#GitCompare').parameters({repositoryId, base: 'refs/heads/' + defaultBranch,
+                            head: ref.refName}).call() || {}
+                        if (!ec.message.hasError()) { row.aheadBy = cmp.aheadBy ?? null; row.behindBy = cmp.behindBy ?? null }
+                    } catch (err) { ec.logger.warn(`Branch ${ref.shortName} of ${repositoryId}: not compared: ${err}`) }
+                    finally { ec.message.clearErrors(); ec.message.popErrors() }
+                }
+                row.aheadText = row.aheadBy == null ? '' : row.aheadBy + ' ↑ · ' + row.behindBy + ' ↓'
+                branchList.push(row)
+            }
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="RepositoryTags">
+        <description>RepositoryTags (design-projects.md §7): the tags, newest first, each with its commit, date, the tagger
+            and message of an annotated one, and the projects, milestones, releases or items it is linked to (WorkEffortGitRef)
+            that the user sees.</description>
+        <in-parameters><parameter name="repositoryId" required="true"/></in-parameters>
+        <out-parameters><parameter name="tagList" type="List"/></out-parameters>
+        <actions><script><![CDATA[
+            tagList = []
+            const refs = ec.service.sync().name('org.moqui.impl.GitServices.get#GitRefs').parameters({repositoryId, refType: 'tag'}).call() || {}
+            if (ec.message.hasError()) return
+            const tags = Array.from(refs.refList || []).sort((a, b) => Number(b.tag?.taggerDate || b.commitDate || 0) - Number(a.tag?.taggerDate || a.commitDate || 0))
+            const links = Array.from(ec.entity.find('mantle.work.effort.WorkEffortGitRef').condition('repositoryId', repositoryId).condition('refType', 'tag')
+                    .condition('thruDate', 'is-null', null).list())
+            const vis = ec.service.sync().name('mantle.work.ProjectServices.get#VisibleProjectInfo').call() || {}
+            const visible = new Set(Array.from(vis.visibleProjectIds || []))
+            const efforts = {}
+            const effortIds = Array.from(new Set(links.map((link) => link.workEffortId)))
+            if (effortIds.length) for (const row of Array.from(ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', 'in', effortIds)
+                    .selectField('workEffortId,workEffortName,workEffortTypeEnumId,rootWorkEffortId').list())) efforts[row.workEffortId] = row
+            const typeLabel = {WetProject: 'Project', WetMilestone: 'Milestone', WetRelease: 'Release', WetTask: 'Work item', WetSprint: 'Sprint'}
+            for (const ref of tags) {
+                const linked = links.filter((link) => link.refName === ref.refName).map((link) => efforts[link.workEffortId]).filter((effort) => effort
+                        && (vis.allProjects || visible.has(effort.workEffortTypeEnumId === 'WetProject' ? effort.workEffortId : effort.rootWorkEffortId)))
+                    .map((effort) => ({workEffortId: effort.workEffortId, workEffortName: effort.workEffortName || '', typeLabel: ec.l10n.localize(typeLabel[effort.workEffortTypeEnumId] || 'Work effort'),
+                        isTask: effort.workEffortTypeEnumId === 'WetTask', isProject: effort.workEffortTypeEnumId === 'WetProject',
+                        url: effort.workEffortTypeEnumId === 'WetTask' ? '/qapps/Projects/WorkItems/WorkItemDetail?workEffortId=' + encodeURIComponent(effort.workEffortId)
+                            : '/qapps/Projects/Projects/ProjectDetail?workEffortId=' + encodeURIComponent(effort.workEffortTypeEnumId === 'WetProject' ? effort.workEffortId : effort.rootWorkEffortId)}))
+                tagList.push({name: ref.shortName, refName: ref.refName, commitId: ref.commitId, shortId: ref.commitId ? String(ref.commitId).substring(0, 10) : '',
+                    annotated: !!ref.annotated, taggerName: ref.tag?.taggerName || '', message: ref.tag?.message ? String(ref.tag.message).trim() : '',
+                    dateText: (ref.tag?.taggerDate || ref.commitDate) ? ec.l10n.format(ref.tag?.taggerDate || ref.commitDate, 'MMM d, yyyy') : '',
+                    linkedList: linked, linkedText: linked.map((effort) => effort.typeLabel + ' ' + effort.workEffortId).join(', ')})
+            }
+        ]]></script></actions>
+    </service>
+
+    <service verb="link" noun="RefWorkEffort">
+        <description>RepositoryTags' Link: a tag (or branch) to a project, milestone, release or work item the user may work in
+            (its project's ironstone.ProjectServices.get#ProjectAccess update), in a repository the user may push to.</description>
+        <in-parameters>
+            <parameter name="repositoryId" required="true"/>
+            <parameter name="refName" required="true"/>
+            <parameter name="workEffortId" required="true"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            const access = ec.service.sync().name('org.moqui.impl.GitServices.get#GitRepositoryAccess').parameters({repositoryId}).call() || {}
+            if (!access.canCreate && !access.canUpdate) { ec.message.addError(ec.resource.expand('You may not push to ${repositoryId}', '', {repositoryId})); return }
+            const effort = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', String(workEffortId).trim()).one()
+            const projectId = effort ? (effort.workEffortTypeEnumId === 'WetProject' ? effort.workEffortId : effort.rootWorkEffortId) : null
+            if (!projectId) { ec.message.addError(ec.resource.expand('${workEffortId} is not a project or one of its plan items or work items', '', {workEffortId})); return }
+            ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: projectId, need: 'update'}).call()
+            if (ec.message.hasError()) return
+            ec.service.sync().name('mantle.work.GitServices.add#WorkEffortRef').parameters({workEffortId: effort.workEffortId, repositoryId, refName}).disableAuthz().call()
+            if (!ec.message.hasError()) message = ec.resource.expand('${refName} linked to ${workEffortId}', '', {refName: String(refName).replace(/^refs\/(heads|tags)\//, ''), workEffortId: effort.workEffortId})
+        ]]></script></actions>
+    </service>
+    <service verb="unlink" noun="RefWorkEffort">
+        <description>Remove a ref's link to a work effort, for one who may work in its project and push to the repository.</description>
+        <in-parameters>
+            <parameter name="repositoryId" required="true"/>
+            <parameter name="refName" required="true"/>
+            <parameter name="workEffortId" required="true"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            const access = ec.service.sync().name('org.moqui.impl.GitServices.get#GitRepositoryAccess').parameters({repositoryId}).call() || {}
+            if (!access.canCreate && !access.canUpdate) { ec.message.addError(ec.resource.expand('You may not push to ${repositoryId}', '', {repositoryId})); return }
+            const effort = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', workEffortId).one()
+            const projectId = effort ? (effort.workEffortTypeEnumId === 'WetProject' ? effort.workEffortId : effort.rootWorkEffortId) : null
+            if (projectId) ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: projectId, need: 'update'}).call()
+            if (ec.message.hasError()) return
+            ec.service.sync().name('mantle.work.GitServices.remove#WorkEffortRef').parameters({workEffortId, repositoryId, refName}).disableAuthz().call()
+            if (!ec.message.hasError()) message = ec.l10n.localize('Link removed')
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="RepositoryActivity">
+        <description>RepositoryActivity (design-projects.md §7): the push log (find#GitUpdates), 20 a page, each with its refs
+            changed and the state of its rules.</description>
+        <in-parameters>
+            <parameter name="repositoryId" required="true"/>
+            <parameter name="source"/>
+            <parameter name="pageIndex" type="Integer" default="0"/>
+        </in-parameters>
+        <out-parameters><parameter name="updateList" type="List"/><parameter name="updateListCount" type="Integer"/></out-parameters>
+        <actions><script><![CDATA[
+            updateList = []; updateListCount = 0
+            const out = ec.service.sync().name('org.moqui.impl.GitServices.find#GitUpdates').parameters({repositoryId, source: source || null,
+                pageIndex: Number(pageIndex || 0), pageSize: 20}).call() || {}
+            if (ec.message.hasError()) return
+            updateListCount = out.updateListCount || 0
+            const L = (text) => ec.l10n.localize(text)
+            const sources = {push: L('Push'), fetch: L('Mirror fetch'), import: L('Import'), write: L('Write')}
+            const states = {done: ['Done', 'positive'], none: ['No rules', 'grey-7'], failed: ['Failed', 'negative'], pending: ['Pending', 'warning'],
+                running: ['Running', 'info'], recording: ['Recording', 'info']}
+            for (const update of Array.from(out.updateList || [])) {
+                const state = states[update.ecaStatus] || [update.ecaStatus || '', 'grey-7']
+                updateList.push({updateId: update.updateId, sourceLabel: sources[update.source] || update.source, transport: update.transport || '',
+                    username: update.username || update.userId || '', whenText: update.updateDate ? ec.l10n.format(update.updateDate, 'MMM d, yyyy h:mm a') : '',
+                    stateLabel: L(state[0]), stateColor: state[1], ecaError: update.ecaError || '', failed: update.ecaStatus === 'failed',
+                    refsText: Array.from(update.refList || []).map((ref) => (ref.shortName || ref.refName) + ' ' + (ref.changeType || '')
+                        + (ref.newObjectId ? ' ' + String(ref.newObjectId).substring(0, 8) : '') + (ref.result && ref.result !== 'ok' ? ' (' + ref.result + ')' : '')).join(', ')})
+            }
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="RepositorySettings">
+        <description>RepositorySettings (design-projects.md §7) for its maintainers (the delete right) and administrators:
+            the branch rules (get#GitBranchRules), the webhooks (find#GitWebhooks, no secrets) with their last delivery, and
+            the branches to choose the default from. canChange false and nothing else for the others.</description>
+        <in-parameters><parameter name="repositoryId" required="true"/></in-parameters>
+        <out-parameters>
+            <parameter name="canChange" type="Boolean"/>
+            <parameter name="ruleList" type="List"/>
+            <parameter name="webhookList" type="List"/>
+            <parameter name="branchOptions" type="List"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            canChange = false; ruleList = []; webhookList = []; branchOptions = []
+            const access = ec.service.sync().name('org.moqui.impl.GitServices.get#GitRepositoryAccess').parameters({repositoryId}).call() || {}
+            if (!access.canDelete) return
+            canChange = true
+            const yes = (value) => value === 'Y' || value === true
+            const part = (name, run) => {
+                ec.message.pushErrors()
+                try { run(); if (ec.message.hasError()) throw new Error(ec.message.getErrorsString()) }
+                catch (err) { ec.logger.warn(`Settings of ${repositoryId}: ${name} not read: ${err && err.message ? err.message : err}`) }
+                finally { ec.message.clearErrors(); ec.message.popErrors() }
+            }
+            part('the branch rules', () => {
+                const rules = ec.service.sync().name('org.moqui.impl.GitServices.get#GitBranchRules').parameters({repositoryId}).call() || {}
+                for (const rule of Array.from(rules.ruleList || [])) ruleList.push({branchRuleId: rule.branchRuleId, refPattern: rule.refPattern,
+                    allowForcePush: yes(rule.allowForcePush) ? 'Y' : 'N', allowDelete: yes(rule.allowDelete) ? 'Y' : 'N',
+                    requireMergeRequest: yes(rule.requireMergeRequest) ? 'Y' : 'N', requiredApprovals: rule.requiredApprovals ?? 0,
+                    dismissStaleApprovals: yes(rule.dismissStaleApprovals) ? 'Y' : 'N', requiredStatusContexts: rule.requiredStatusContexts || '',
+                    allowedMergeMethods: Array.isArray(rule.allowedMergeMethods) ? rule.allowedMergeMethods.join(',') : (rule.allowedMergeMethods || ''),
+                    pushUserGroupId: rule.pushUserGroupId || ''})
+            })
+            part('the webhooks', () => {
+                const hooks = ec.service.sync().name('org.moqui.impl.GitServices.find#GitWebhooks').parameters({repositoryId}).call() || {}
+                for (const hook of Array.from(hooks.webhookList || [])) webhookList.push(Object.assign({}, hook, {eventsText: hook.events || ec.l10n.localize('All events'),
+                    lastText: hook.lastDeliveryDate ? ec.l10n.format(hook.lastDeliveryDate, 'MMM d, h:mm a') + (hook.lastDeliveryStatus ? ' · ' + hook.lastDeliveryStatus : '') : ''}))
+            })
+            part('the branches', () => {
+                const refs = ec.service.sync().name('org.moqui.impl.GitServices.get#GitRefs').parameters({repositoryId, refType: 'branch'}).call() || {}
+                branchOptions = Array.from(refs.refList || []).map((ref) => ({key: ref.shortName, text: ref.shortName}))
+            })
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== Compare and commits ========== -->
+
+    <service verb="get" noun="CompareInfo">
+        <description>Compare (design-projects.md §7): base (the default branch unless given) against head with their diffs and a
+            trial merge (get#GitCompare); every diff up to 25 files, past that the file list and the one asked for (diffPath).
+            In comparison: aheadBy, behindBy, insertions, deletions, fileCount, mergeable, alreadyMerged, fastForward,
+            conflictPaths. With the new merge request's defaults: the title (the source branch's work item's, else the first commit's
+            summary), the description (the work items named, each a Closes line), the reviewers (the leads of the repository's
+            projects who may view it, not the user), complete linked items on merge (the project's WstMergeRequestMoves), and an
+            open merge request of the same branches.</description>
+        <in-parameters>
+            <parameter name="repositoryId" required="true"/>
+            <parameter name="base"/>
+            <parameter name="head"/>
+            <parameter name="diffPath"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="comparison" type="Map"/>
+            <parameter name="fileList" type="List"/>
+            <parameter name="diffList" type="List"/>
+            <parameter name="allDiffs" type="Boolean"/>
+            <parameter name="commitList" type="List"/>
+            <parameter name="defaults" type="Map"/>
+            <parameter name="openMergeRequest" type="Map"/>
+            <parameter name="base"/>
+            <parameter name="head"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            comparison = null; fileList = []; diffList = []; allDiffs = true; commitList = []; defaults = {}; openMergeRequest = null
+            const refs = ec.service.sync().name('org.moqui.impl.GitServices.get#GitRefs').parameters({repositoryId, refType: 'branch'}).call() || {}
+            if (ec.message.hasError()) return
+            if (!base) base = refs.defaultBranch || 'main'
+            if (!head) return
+            const out = ec.service.sync().name('org.moqui.impl.GitServices.get#GitCompare').parameters({repositoryId, base, head, withDiffs: true, checkMergeable: true}).call() || {}
+            if (ec.message.hasError()) return
+            const files = Array.from(out.fileList || [])
+            allDiffs = files.length <= 25
+            comparison = {aheadBy: out.aheadBy || 0, behindBy: out.behindBy || 0, insertions: out.insertions || 0, deletions: out.deletions || 0,
+                fileCount: files.length, mergeable: !!out.mergeable, alreadyMerged: !!out.alreadyMerged, fastForward: !!out.fastForward,
+                conflictPaths: Array.from(out.conflictPaths || []), commitsTruncated: !!out.commitsTruncated, baseCommitId: out.baseCommitId, headCommitId: out.headCommitId}
+            const changeLabel = {added: 'Added', modified: 'Modified', deleted: 'Deleted', renamed: 'Renamed'}
+            for (const file of files) {
+                const row = {path: file.path, changeType: file.changeType, changeLabel: ec.l10n.localize(changeLabel[file.changeType] || file.changeType || ''),
+                    insertions: file.insertions || 0, deletions: file.deletions || 0, binary: !!file.binary, tooLarge: !!file.tooLarge}
+                fileList.push(row)
+                if (allDiffs || file.path === diffPath) diffList.push(Object.assign({}, row, {html: file.html || null}))
+            }
+            const ids = Array.from(out.commitList || []).map((commit) => commit.commitId)
+            const items = ids.length ? ec.service.sync().name('ironstone.CodeServices.get#CommitItems').parameters({repositoryId, commitIdList: ids}).call()?.itemsByCommit || {} : {}
+            for (const commit of Array.from(out.commitList || [])) commitList.push({commitId: commit.commitId, shortId: commit.shortId, summary: commit.summary,
+                authorName: commit.authorName, dateText: commit.committerDate ? ec.l10n.format(commit.committerDate, 'MMM d, yyyy') : '', itemList: items[commit.commitId] || []})
+            // the new merge request's defaults
+            const branch = String(head).replace(/^refs\/heads\//, '')
+            const isBranch = Array.from(refs.refList || []).some((ref) => ref.shortName === branch)
+            const linked = ec.service.sync().name('mantle.work.GitServices.get#RepositoryProjects').parameters({repositoryId}).call() || {}
+            const projectIds = Array.from(linked.projectIdList || [])
+            const segment = branch.split('/').pop()
+            const candidates = []
+            for (let end = segment.length; end > 0; end = segment.lastIndexOf('-', end - 1)) candidates.push(segment.substring(0, end))
+            const tasks = candidates.length && projectIds.length ? Array.from(ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', 'in', candidates)
+                    .condition('workEffortTypeEnumId', 'WetTask').condition('rootWorkEffortId', 'in', projectIds).list()) : []
+            const task = candidates.map((id) => tasks.find((row) => row.workEffortId === id)).find((row) => row) || null
+            const named = new Set(task ? [task.workEffortId] : [])
+            for (const commit of commitList) for (const item of commit.itemList) if (item.workEffortId) named.add(item.workEffortId)
+            const firstSummary = commitList.length ? commitList[0].summary : branch
+            const moves = task?.rootWorkEffortId ? ec.service.sync().name('mantle.work.ProjectServices.get#ProjectSettings').parameters({workEffortId: task.rootWorkEffortId})
+                    .call()?.settings?.WstMergeRequestMoves === 'Y' : (projectIds.length ? ec.service.sync().name('mantle.work.ProjectServices.get#ProjectSettings')
+                    .parameters({workEffortId: projectIds[0]}).call()?.settings?.WstMergeRequestMoves === 'Y' : false)
+            const leads = projectIds.length ? Array.from(new Set(Array.from(ec.entity.find('mantle.work.effort.WorkEffortParty').condition('workEffortId', 'in', projectIds)
+                    .condition('roleTypeId', 'in', ['ProjectManager', 'Manager', 'ProgrammerLead', 'SysArchitect']).conditionDate('fromDate', 'thruDate', null).list())
+                    .map((row) => row.partyId))) : []
+            const reviewerIds = leads.length ? Array.from(ec.entity.find('moqui.security.UserAccount').condition('partyId', 'in', leads).list())
+                    .map((account) => account.userId).filter((userId) => userId !== ec.user.userId) : []
+            defaults = {title: task ? task.workEffortName + ' (' + task.workEffortId + ')' : firstSummary,
+                description: Array.from(named).map((id) => 'Closes ' + id).join('\n'), reviewerUserIds: reviewerIds, completeItems: moves ? 'Y' : 'N',
+                isBranch, sourceRef: branch, targetRef: String(base).replace(/^refs\/heads\//, ''), workEffortId: task?.workEffortId || null}
+            ec.message.pushErrors()
+            try {
+                const open = ec.service.sync().name('org.moqui.impl.GitReviewServices.find#MergeRequests').parameters({repositoryId, statusIdList: ['GmrDraft', 'GmrOpen'],
+                    targetRef: defaults.targetRef, pageSize: 100}).call()?.mergeRequestList || []
+                const same = Array.from(open).find((mr) => mr.sourceRef === branch)
+                if (same) openMergeRequest = {mergeRequestId: same.mergeRequestId, mergeRequestNum: same.mergeRequestNum, title: same.title}
+            } catch (err) { ec.logger.warn(`Compare of ${repositoryId}: the open merge requests were not read: ${err}`) }
+            finally { ec.message.clearErrors(); ec.message.popErrors() }
+        ]]></script></actions>
+    </service>
+
+    <service verb="create" noun="MergeRequestFromCompare">
+        <description>Compare's NewMergeRequest: org.moqui.impl.GitReviewServices.create#MergeRequest (the user's push right, one
+            open request per source and target), then its work items linked (mantle.work.GitServices.link#MergeRequestItems)
+            with completeItems as chosen.</description>
+        <in-parameters>
+            <parameter name="repositoryId" required="true"/>
+            <parameter name="sourceRef" required="true"/>
+            <parameter name="targetRef"/>
+            <parameter name="title" required="true"/>
+            <parameter name="description" allow-html="any"/>
+            <parameter name="reviewerUserIds" type="Object"/>
+            <parameter name="draft" default-value="N"/>
+            <parameter name="completeItems" default-value="N"/>
+            <parameter name="deleteSourceBranch" default-value="N"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="mergeRequestId"/>
+            <parameter name="mergeRequestNum" type="Integer"/>
+            <parameter name="message"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const yes = (value) => value === 'Y' || value === true || value === 'true'
+            const reviewers = reviewerUserIds == null ? [] : (Array.isArray(reviewerUserIds) ? reviewerUserIds : (typeof reviewerUserIds === 'object' && reviewerUserIds.length != null
+                    ? Array.from(reviewerUserIds) : String(reviewerUserIds).split(','))).map((id) => String(id).trim()).filter((id) => id)
+            const out = ec.service.sync().name('org.moqui.impl.GitReviewServices.create#MergeRequest').parameters({repositoryId, sourceRef, targetRef: targetRef || null,
+                title, description: description || null, draft: yes(draft), reviewerUserIdList: reviewers, deleteSourceBranch: yes(deleteSourceBranch)}).call() || {}
+            if (ec.message.hasError()) return
+            mergeRequestId = out.mergeRequestId
+            mergeRequestNum = out.mergeRequestNum
+            ec.message.pushErrors()
+            try { ec.service.sync().name('mantle.work.GitServices.link#MergeRequestItems').parameters({mergeRequestId, completeItems: yes(completeItems)}).disableAuthz().call() }
+            catch (err) { ec.logger.error(`Merge request ${mergeRequestId}: its work items were not linked: ${err}`) }
+            finally { ec.message.clearErrors(); ec.message.popErrors() }
+            message = ec.resource.expand('Merge request !${num} opened', '', {num: mergeRequestNum})
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="CommitDetail">
+        <description>CommitDetail (design-projects.md §7): the commit (get#GitCommit) with its files, every diff up to 25 files
+            and past that the one asked for (get#GitCommitDiff), the linked work items the user sees, the CI statuses by
+            context (get#GitCommitStatuses). found false when the repository has no such commit.</description>
+        <in-parameters>
+            <parameter name="repositoryId" required="true"/>
+            <parameter name="commitId" required="true"/>
+            <parameter name="diffPath"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="found" type="Boolean"/>
+            <parameter name="commit" type="Map"/>
+            <parameter name="fileList" type="List"/>
+            <parameter name="diffList" type="List"/>
+            <parameter name="allDiffs" type="Boolean"/>
+            <parameter name="itemList" type="List"/>
+            <parameter name="statusList" type="List"/>
+            <parameter name="checkState"/>
+            <parameter name="insertions" type="Integer"/>
+            <parameter name="deletions" type="Integer"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            found = false; fileList = []; diffList = []; allDiffs = true; itemList = []; statusList = []; checkState = null
+            const got = ec.service.sync().name('org.moqui.impl.GitServices.get#GitCommit').parameters({repositoryId, commitId: String(commitId).trim()}).call() || {}
+            if (ec.message.hasError() || !got.commit) return
+            found = true
+            const raw = got.commit
+            const fmt = (value) => value ? ec.l10n.format(value, 'MMM d, yyyy h:mm a') : ''
+            // the body without the Moqui-User-Id trailer, which says who committed through Moqui (shown as the author's avatar)
+            const body = raw.body ? String(raw.body).split('\n').filter((line) => !/^Moqui-User-Id:/i.test(line.trim())).join('\n').trim() : ''
+            commit = {commitId: raw.commitId, shortId: raw.shortId, summary: raw.summary || '', body: body,
+                authorName: raw.authorName || '', authorEmail: raw.authorEmail || '', authorDateText: fmt(raw.authorDate), committerName: raw.committerName || '',
+                committerEmail: raw.committerEmail || '', committerDateText: fmt(raw.committerDate), moquiUserId: raw.moquiUserId || null,
+                parentIds: Array.from(raw.parentIds || []), sameCommitter: (raw.committerName || '') === (raw.authorName || '')}
+            insertions = got.insertions || 0
+            deletions = got.deletions || 0
+            const files = Array.from(got.fileList || [])
+            allDiffs = files.length <= 25
+            const changeLabel = {added: 'Added', modified: 'Modified', deleted: 'Deleted', renamed: 'Renamed'}
+            for (const file of files) fileList.push({path: file.path, changeType: file.changeType, changeLabel: ec.l10n.localize(changeLabel[file.changeType] || file.changeType || ''),
+                insertions: file.insertions || 0, deletions: file.deletions || 0, binary: !!file.binary, tooLarge: !!file.tooLarge})
+            if (allDiffs || diffPath) {
+                const diffs = ec.service.sync().name('org.moqui.impl.GitServices.get#GitCommitDiff').parameters({repositoryId, commitId: raw.commitId,
+                    path: allDiffs ? null : diffPath}).call() || {}
+                for (const diff of Array.from(diffs.fileDiffList || [])) diffList.push({path: diff.path, changeType: diff.changeType,
+                    changeLabel: ec.l10n.localize(changeLabel[diff.changeType] || diff.changeType || ''), insertions: diff.insertions || 0, deletions: diff.deletions || 0,
+                    binary: !!diff.binary, tooLarge: !!diff.tooLarge, html: diff.html || null})
+            }
+            itemList = (ec.service.sync().name('ironstone.CodeServices.get#CommitItems').parameters({repositoryId, commitIdList: [raw.commitId]}).call()?.itemsByCommit || {})[raw.commitId] || []
+            const labels = {WglsExplicit: 'Added', WglsMessage: 'Commit message', WglsTrailer: 'Task trailer'}
+            itemList = itemList.map((item) => Object.assign({}, item, {linkLabel: ec.l10n.localize(labels[item.linkSourceEnumId] || 'Linked'),
+                statusLabel: ec.entity.find('moqui.basic.StatusItem').condition('statusId', item.statusId).useCache(true).one()?.description || item.statusId || ''}))
+            ec.message.pushErrors()
+            try {
+                const checks = ec.service.sync().name('org.moqui.impl.GitServices.get#GitCommitStatuses').parameters({repositoryId, commitId: raw.commitId}).call() || {}
+                checkState = checks.state || null
+                statusList = Array.from(checks.statusList || []).map((status) => ({checkContext: status.context || 'default', state: status.state, description: status.description || '',
+                    targetUrl: status.targetUrl || '', dateText: status.createdDate ? fmt(status.createdDate) : ''}))
+            } catch (err) { ec.logger.warn(`Commit ${commitId} of ${repositoryId}: the checks were not read: ${err}`) }
+            finally { ec.message.clearErrors(); ec.message.popErrors() }
+        ]]></script></actions>
+    </service>
+
+    <service verb="link" noun="CommitItem">
+        <description>CommitDetail's Link to work item: a commit of a repository the user may view to a work item of a project
+            the user works in (mantle.work.GitServices.add#TaskCommit).</description>
+        <in-parameters>
+            <parameter name="repositoryId" required="true"/>
+            <parameter name="commitId" required="true"/>
+            <parameter name="workEffortId" required="true"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            const access = ec.service.sync().name('org.moqui.impl.GitServices.get#GitRepositoryAccess').parameters({repositoryId}).call() || {}
+            if (!access.canView) { ec.message.addError(ec.resource.expand('Repository ${repositoryId} is not available', '', {repositoryId})); return }
+            const task = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', String(workEffortId).trim()).one()
+            if (task == null || task.workEffortTypeEnumId !== 'WetTask' || !task.rootWorkEffortId) { ec.message.addError(ec.resource.expand('Work item ${workEffortId} not found', '', {workEffortId})); return }
+            ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: task.rootWorkEffortId, need: 'update'}).call()
+            if (ec.message.hasError()) return
+            ec.service.sync().name('mantle.work.GitServices.add#TaskCommit').parameters({workEffortId: task.workEffortId, repositoryId, commitId}).disableAuthz().call()
+            if (!ec.message.hasError()) message = ec.resource.expand('Linked to ${workEffortId}', '', {workEffortId: task.workEffortId})
+        ]]></script></actions>
+    </service>
+    <service verb="unlink" noun="CommitItem">
+        <description>CommitDetail's Unlink, for one who works in the item's project and may view the repository.</description>
+        <in-parameters>
+            <parameter name="repositoryId" required="true"/>
+            <parameter name="commitId" required="true"/>
+            <parameter name="workEffortId" required="true"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            const access = ec.service.sync().name('org.moqui.impl.GitServices.get#GitRepositoryAccess').parameters({repositoryId}).call() || {}
+            if (!access.canView) { ec.message.addError(ec.resource.expand('Repository ${repositoryId} is not available', '', {repositoryId})); return }
+            const task = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', workEffortId).one()
+            if (task?.rootWorkEffortId) ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: task.rootWorkEffortId, need: 'update'}).call()
+            if (ec.message.hasError()) return
+            ec.service.sync().name('mantle.work.GitServices.remove#TaskCommit').parameters({workEffortId, repositoryId, commitId}).disableAuthz().call()
+            if (!ec.message.hasError()) message = ec.l10n.localize('Link removed')
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== A project's code, git access, the settings and the palette ========== -->
+
+    <service verb="get" noun="ProjectCode">
+        <description>ProjectCode (design-projects.md §4): the project's repositories the user may view (with their clone URLs),
+            their open merge requests, the default branches' last commits (ten each, the newest 15 together) and the tags linked
+            to the project, its milestones and releases. Each part on its own.</description>
+        <in-parameters><parameter name="workEffortId" required="true"/></in-parameters>
+        <out-parameters><parameter name="code" type="Map"/></out-parameters>
+        <actions><script><![CDATA[
+            code = {repositoryList: [], mergeRequestList: [], commitList: [], tagList: [], failedParts: []}
+            const part = (name, run) => {
+                ec.message.pushErrors()
+                try { run(); if (ec.message.hasError()) throw new Error(ec.message.getErrorsString()) }
+                catch (err) { code.failedParts.push(name); ec.logger.warn(`Code of project ${workEffortId}: ${name} not read: ${err && err.message ? err.message : err}`) }
+                finally { ec.message.clearErrors(); ec.message.popErrors() }
+            }
+            const L = (text) => ec.l10n.localize(text)
+            const ids = Array.from(new Set(Array.from(ec.entity.find('mantle.work.effort.WorkEffortGitRepository').condition('workEffortId', workEffortId)
+                    .conditionDate('fromDate', 'thruDate', null).list()).map((row) => row.repositoryId)))
+            if (!ids.length) return
+            let repos = []
+            part('the repositories', () => {
+                repos = Array.from(ec.service.sync().name('org.moqui.impl.GitServices.find#GitRepositories').parameters({repositoryIdList: ids, includeArchived: true, pageNoLimit: true}).call()?.repositoryList || [])
+                for (const repo of repos) {
+                    let urls = {}
+                    try { urls = ec.service.sync().name('org.moqui.impl.GitServices.get#GitCloneUrls').parameters({repositoryId: repo.repositoryId}).call() || {} }
+                    catch (err) { ec.logger.warn(`Code of project ${workEffortId}: no clone URLs of ${repo.repositoryId}: ${err}`) }
+                    code.repositoryList.push({repositoryId: repo.repositoryId, description: repo.description || '', branch: repo.branch || 'main',
+                        kindLabel: repo.repositoryKind === 'db' ? L('Database') : repo.repositoryKind === 'remote' ? L('Mirror') : L('Disk'),
+                        headShortId: repo.headCommitId ? String(repo.headCommitId).substring(0, 10) : '', headCommitId: repo.headCommitId || null,
+                        lastText: repo.lastUpdateDate ? ec.l10n.format(repo.lastUpdateDate, 'MMM d, yyyy') : '', archived: !!repo.archivedDate,
+                        openMergeRequestCount: repo.openMergeRequestCount || 0, httpsUrl: urls.httpsUrl || '', sshUrl: urls.sshUrl || ''})
+                }
+            })
+            const viewable = repos.map((repo) => repo.repositoryId)
+            if (!viewable.length) return
+            part('the merge requests', () => {
+                const out = ec.service.sync().name('org.moqui.impl.GitReviewServices.find#MergeRequests').parameters({repositoryIdList: viewable,
+                    statusIdList: ['GmrDraft', 'GmrOpen'], pageSize: 20}).call() || {}
+                code.mergeRequestList = Array.from(out.mergeRequestList || []).map((mr) => Object.assign({}, mr, {numText: '!' + mr.mergeRequestNum,
+                    reviewersText: Array.from(mr.reviewerList || []).map((reviewer) => reviewer.name).join(', '), isDraft: mr.statusId === 'GmrDraft',
+                    updatedText: mr.lastUpdatedDate ? ec.l10n.format(mr.lastUpdatedDate, 'MMM d') : ''}))
+            })
+            part('the recent commits', () => {
+                const all = []
+                for (const repo of repos.filter((one) => one.headCommitId)) {
+                    const log = ec.service.sync().name('org.moqui.impl.GitServices.get#GitLog').parameters({repositoryId: repo.repositoryId, limit: 10}).call() || {}
+                    const commits = Array.from(log.commitList || [])
+                    // the default branch's head (the row's headCommitId is the head of the last branch written)
+                    const shown = code.repositoryList.find((one) => one.repositoryId === repo.repositoryId)
+                    if (shown && commits.length) { shown.headCommitId = commits[0].commitId; shown.headShortId = commits[0].shortId }
+                    const items = commits.length ? ec.service.sync().name('ironstone.CodeServices.get#CommitItems').parameters({repositoryId: repo.repositoryId,
+                        commitIdList: commits.map((commit) => commit.commitId)}).call()?.itemsByCommit || {} : {}
+                    for (const commit of commits) all.push({repositoryId: repo.repositoryId, commitId: commit.commitId, shortId: commit.shortId, summary: commit.summary,
+                        authorName: commit.authorName, date: Number(commit.committerDate || 0), dateText: commit.committerDate ? ec.l10n.format(commit.committerDate, 'MMM d, yyyy') : '',
+                        itemsText: (items[commit.commitId] || []).map((item) => item.workEffortId).join(', ')})
+                }
+                code.commitList = all.sort((a, b) => b.date - a.date).slice(0, 15)
+            })
+            part('the tags', () => {
+                const effortIds = [workEffortId].concat(Array.from(ec.entity.find('mantle.work.effort.WorkEffort').condition('rootWorkEffortId', workEffortId)
+                        .condition('workEffortTypeEnumId', 'in', ['WetMilestone', 'WetRelease']).selectField('workEffortId').list()).map((row) => row.workEffortId))
+                const links = Array.from(ec.entity.find('mantle.work.effort.WorkEffortGitRef').condition('workEffortId', 'in', effortIds).condition('refType', 'tag')
+                        .condition('repositoryId', 'in', viewable).condition('thruDate', 'is-null', null).orderBy('-linkedDate').limit(30).list())
+                const labels = {WglsExplicit: 'By hand', WglsTagName: 'Tag name', WglsTagMessage: 'Tag message', WglsReleaseVersion: 'Release version'}
+                code.tagList = links.map((link) => ({repositoryId: link.repositoryId, refName: link.refName, name: String(link.refName).replace(/^refs\/tags\//, ''),
+                    workEffortId: link.workEffortId, shortId: link.objectId ? String(link.objectId).substring(0, 10) : '', commitId: link.objectId || null,
+                    linkedBy: L(labels[link.linkSourceEnumId] || 'Linked'), whenText: link.linkedDate ? ec.l10n.format(link.linkedDate, 'MMM d, yyyy') : ''}))
+            })
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="GitAccess">
+        <description>GitAccess (design-projects.md §7): the user's SSH keys (UserSshKey) and access tokens (UserLoginKey with a
+            description), whether the user may use SSH (SSH_GIT), and how to clone: the HTTPS and SSH URLs of a repository the
+            user may view, else of a made-up one, and the account's email for git config.</description>
+        <out-parameters>
+            <parameter name="sshKeyList" type="List"/>
+            <parameter name="tokenList" type="List"/>
+            <parameter name="hasSsh" type="Boolean"/>
+            <parameter name="sampleHttpsUrl"/>
+            <parameter name="sampleSshUrl"/>
+            <parameter name="emailAddress"/>
+            <parameter name="username"/>
+            <parameter name="userFullName"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const fmt = (value) => value ? ec.l10n.format(value, 'MMM d, yyyy') : ''
+            const userId = ec.user.userId
+            sshKeyList = userId ? Array.from(ec.entity.find('moqui.security.UserSshKey').condition('userId', userId).conditionDate('fromDate', 'thruDate', null)
+                    .orderBy('-fromDate').disableAuthz().list()).map((row) => ({sshKeyId: row.sshKeyId, description: row.description || '', fingerprint: row.fingerprint || '',
+                addedText: fmt(row.fromDate)})) : []
+            tokenList = userId ? Array.from(ec.entity.find('moqui.security.UserLoginKey').condition('userId', userId).condition('description', 'is-not-null', null)
+                    .conditionDate('fromDate', 'thruDate', null).orderBy('-fromDate').disableAuthz().list()).map((row) => ({loginKey: row.loginKey, description: row.description || '',
+                createdText: fmt(row.fromDate), expiresText: row.thruDate ? fmt(row.thruDate) : ec.l10n.localize('Never')})) : []
+            hasSsh = ec.user.hasPermission('SSH_GIT')
+            username = ec.user.username || ''
+            userFullName = ec.user.userAccount?.userFullName || username
+            emailAddress = ec.user.userAccount?.emailAddress || ''
+            ec.message.pushErrors()
+            try {
+                const first = Array.from(ec.service.sync().name('org.moqui.impl.GitServices.find#GitRepositories').parameters({pageSize: 1}).call()?.repositoryList || [])[0]
+                if (first) {
+                    const urls = ec.service.sync().name('org.moqui.impl.GitServices.get#GitCloneUrls').parameters({repositoryId: first.repositoryId}).call() || {}
+                    sampleHttpsUrl = urls.httpsUrl || null
+                    sampleSshUrl = urls.sshUrl || null
+                }
+            } catch (err) { ec.logger.warn(`Git access of ${userId}: no clone URLs: ${err}`) }
+            finally { ec.message.clearErrors(); ec.message.popErrors() }
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="CodeSettings">
+        <description>CodeSettings (design-projects.md §12): the organization's repository defaults (mantle.work.GitServices
+            get#RepositoryDefaults, with the defaults filled in), its commit and branch conventions (the PartySetting
+            ProjConventions: keywordComplete, branchPattern, mergeRequestMoves), and the user groups with whether they hold
+            SSH_GIT.</description>
+        <out-parameters>
+            <parameter name="organizationPartyId"/>
+            <parameter name="organizationName"/>
+            <parameter name="defaults" type="Map"/>
+            <parameter name="conventions" type="Map"/>
+            <parameter name="groupList" type="List"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const org = ec.service.sync().name('ironstone.ProjectServices.get#SettingsOrganization').call() || {}
+            organizationPartyId = org.organizationPartyId || null
+            organizationName = org.organizationName || ''
+            const stored = organizationPartyId ? ec.service.sync().name('mantle.work.GitServices.get#RepositoryDefaults').parameters({organizationPartyId}).call()?.defaults || {} : {}
+            const yn = (value, fallback) => value == null || value === '' ? fallback : (value === true || value === 'Y' || value === 'true') ? 'Y' : 'N'
+            defaults = {storage: ['local', 'db'].includes(stored.storage) ? stored.storage : 'local', branch: stored.branch || 'main',
+                mergeMethod: ['GmmMerge', 'GmmSquash'].includes(stored.mergeMethod) ? stored.mergeMethod : 'GmmMerge', protectDefault: yn(stored.protectDefault, 'N'),
+                requireMergeRequest: yn(stored.requireMergeRequest, 'N'), approvals: stored.approvals ?? 1, dismissStale: yn(stored.dismissStale, 'N'), isSet: !!Object.keys(stored).length}
+            let conv = {}
+            if (organizationPartyId) {
+                const row = ec.entity.find('mantle.party.PartySetting').condition('partyId', organizationPartyId).condition('partySettingTypeId', 'ProjConventions').one()
+                if (row?.settingValue) { try { const parsed = JSON.parse(row.settingValue); if (parsed && typeof parsed === 'object') conv = parsed }
+                    catch (err) { ec.logger.error(`Code settings of ${organizationPartyId}: ProjConventions is not JSON, skipped: ${err}`) } }
+            }
+            conventions = {keywordComplete: yn(conv.keywordComplete, 'Y'), branchPattern: conv.branchPattern || '<id>-<words>', mergeRequestMoves: yn(conv.mergeRequestMoves, 'N')}
+            const holders = new Set(Array.from(ec.entity.find('moqui.security.UserGroupPermission').condition('userPermissionId', 'SSH_GIT')
+                    .conditionDate('fromDate', 'thruDate', null).disableAuthz().list()).map((row) => row.userGroupId))
+            groupList = Array.from(ec.entity.find('moqui.security.UserGroup').orderBy('description').disableAuthz().list())
+                    .filter((group) => group.userGroupId !== 'ALL_USERS' && group.userGroupId !== 'BOSS_PROJECT_CLIENT')
+                    .map((group) => ({userGroupId: group.userGroupId, description: group.description || group.userGroupId, holds: holders.has(group.userGroupId),
+                        isAdmin: group.userGroupId === 'ADMIN', isProjects: String(group.userGroupId).startsWith('BOSS_PROJECT')}))
+                    .sort((a, b) => (b.isProjects ? 1 : 0) - (a.isProjects ? 1 : 0) || (b.holds ? 1 : 0) - (a.holds ? 1 : 0) || a.description.localeCompare(b.description))
+        ]]></script></actions>
+    </service>
+    <service verb="store" noun="RepositoryDefaults">
+        <description>The organization's repository defaults (PartySetting ProjRepositoryDefaults, short keys to fit its 255
+            characters, impl-projects.md F9), for the Projects managers.</description>
+        <in-parameters>
+            <parameter name="storage"/>
+            <parameter name="branch"/>
+            <parameter name="mergeMethod"/>
+            <parameter name="protectDefault" default-value="N"/>
+            <parameter name="requireMergeRequest" default-value="N"/>
+            <parameter name="approvals" type="Integer" default="0"/>
+            <parameter name="dismissStale" default-value="N"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.ProjectServices.check#SettingsManager').call()
+            if (ec.message.hasError()) return
+            const orgId = ec.service.sync().name('ironstone.ProjectServices.get#SettingsOrganization').call()?.organizationPartyId
+            if (!orgId) { ec.message.addError(ec.l10n.localize('You belong to no organization, so there is nowhere to keep the setting')); return }
+            const name = String(branch || 'main').trim()
+            if (!/^[A-Za-z0-9][A-Za-z0-9._\/-]*$/.test(name) || name.length > 60) { ec.message.addError(ec.resource.expand('${name} is not a branch name', '', {name})); return }
+            const yn = (value) => value === 'Y' || value === true || value === 'true' ? 'Y' : 'N'
+            const value = {storage: storage === 'db' ? 'db' : 'local', branch: name, mergeMethod: mergeMethod === 'GmmSquash' ? 'GmmSquash' : 'GmmMerge',
+                protectDefault: yn(protectDefault), requireMergeRequest: yn(requireMergeRequest), approvals: Math.max(0, Math.min(Number(approvals) || 0, 20)), dismissStale: yn(dismissStale)}
+            ec.service.sync().name('store#mantle.party.PartySetting').parameters({partyId: orgId, partySettingTypeId: 'ProjRepositoryDefaults', settingValue: JSON.stringify(value)}).call()
+            if (!ec.message.hasError()) message = ec.l10n.localize('Repository defaults saved')
+        ]]></script></actions>
+    </service>
+    <service verb="store" noun="Conventions">
+        <description>The organization's commit and branch conventions (PartySetting ProjConventions, which the projects' own
+            WstKeywordComplete, WstBranchPattern and WstMergeRequestMoves fall back to), for the Projects managers.</description>
+        <in-parameters>
+            <parameter name="keywordComplete" default-value="N"/>
+            <parameter name="branchPattern" allow-html="any"><description>Names the item with &lt;id&gt; or &lt;KEY&gt;-&lt;n&gt;; kept as text, shown escaped</description></parameter>
+            <parameter name="mergeRequestMoves" default-value="N"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.ProjectServices.check#SettingsManager').call()
+            if (ec.message.hasError()) return
+            const orgId = ec.service.sync().name('ironstone.ProjectServices.get#SettingsOrganization').call()?.organizationPartyId
+            if (!orgId) { ec.message.addError(ec.l10n.localize('You belong to no organization, so there is nowhere to keep the setting')); return }
+            const pattern = String(branchPattern || '').trim() || '<id>-<words>'
+            if (pattern.length > 120 || !/<(id|n)>/.test(pattern)) { ec.message.addError(ec.l10n.localize('A branch pattern names the work item: <id>, or <KEY>-<n>')); return }
+            const yn = (value) => value === 'Y' || value === true || value === 'true' ? 'Y' : 'N'
+            let current = {}
+            const row = ec.entity.find('mantle.party.PartySetting').condition('partyId', orgId).condition('partySettingTypeId', 'ProjConventions').one()
+            if (row?.settingValue) { try { current = JSON.parse(row.settingValue) || {} } catch (err) { current = {} } }
+            const value = Object.assign({}, current, {keywordComplete: yn(keywordComplete), branchPattern: pattern, mergeRequestMoves: yn(mergeRequestMoves)})
+            const text = JSON.stringify(value)
+            if (text.length > 255) { ec.message.addError(ec.l10n.localize('The conventions are too long to keep; shorten the branch pattern')); return }
+            ec.service.sync().name('store#mantle.party.PartySetting').parameters({partyId: orgId, partySettingTypeId: 'ProjConventions', settingValue: text}).call()
+            if (!ec.message.hasError()) message = ec.l10n.localize('Conventions saved')
+        ]]></script></actions>
+    </service>
+    <service verb="set" noun="SshAccess">
+        <description>CodeSettings' SshAccess: grant SSH_GIT to a user group, or revoke it (its UserGroupPermission ended), for
+            the Projects managers; ADMIN's grant does not change here.</description>
+        <in-parameters>
+            <parameter name="userGroupId" required="true"/>
+            <parameter name="grant" default-value="Y"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.ProjectServices.check#SettingsManager').call()
+            if (ec.message.hasError()) return
+            if (userGroupId === 'ADMIN' || userGroupId === 'ALL_USERS') { ec.message.addError(ec.resource.expand('The SSH access of ${userGroupId} does not change here', '', {userGroupId})); return }
+            const group = ec.entity.find('moqui.security.UserGroup').condition('userGroupId', userGroupId).disableAuthz().one()
+            if (group == null) { ec.message.addError(ec.resource.expand('No user group ${userGroupId}', '', {userGroupId})); return }
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try {
+                const current = Array.from(ec.entity.find('moqui.security.UserGroupPermission').condition({userGroupId, userPermissionId: 'SSH_GIT'})
+                        .conditionDate('fromDate', 'thruDate', null).list())
+                if (grant === 'Y' || grant === true) {
+                    if (!current.length) ec.service.sync().name('create#moqui.security.UserGroupPermission').parameters({userGroupId, userPermissionId: 'SSH_GIT',
+                        fromDate: ec.user.nowTimestamp}).call()
+                    if (!ec.message.hasError()) message = ec.resource.expand('${group} may use git over SSH', '', {group: group.description || userGroupId})
+                } else {
+                    for (const row of current) { row.thruDate = ec.user.nowTimestamp; row.update() }
+                    message = ec.resource.expand('${group} may no longer use git over SSH', '', {group: group.description || userGroupId})
+                }
+            } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+        ]]></script></actions>
+    </service>
+
+    <service verb="search" noun="CodePalette">
+        <description>The palette's Code group (Projects.xml palette-source): mantle.work.GitServices.search#Code as rows with
+            title, subtitle, icon and the /qapps link of RepositoryDetail or MergeRequestDetail.</description>
+        <in-parameters>
+            <parameter name="text"/>
+            <parameter name="limit" type="Integer" default="5"/>
+            <parameter name="docTypes" type="List"/>
+            <parameter name="idMatch" type="Boolean"/>
+        </in-parameters>
+        <out-parameters><parameter name="rows" type="List"/></out-parameters>
+        <actions><script><![CDATA[
+            rows = []
+            const hosting = ec.service.sync().name('ironstone.CodeServices.get#CodeHosting').call()?.available
+            if (!hosting) return
+            const found = Array.from(ec.service.sync().name('mantle.work.GitServices.search#Code').parameters({text, limit}).call()?.resultList || [])
+            const q = (value) => encodeURIComponent(String(value))
+            for (const result of found) {
+                if (result.kind === 'repository') rows.push({title: result.repositoryId, subtitle: result.description || ec.l10n.localize('Repository'), icon: 'sym_o_folder_data',
+                    url: '/qapps/Projects/Code/RepositoryDetail?repositoryId=' + q(result.repositoryId)})
+                else rows.push({title: '!' + result.mergeRequestNum + ' ' + result.title, subtitle: result.repositoryId + ' · ' + result.sourceRef + ' → ' + result.targetRef,
+                    icon: 'sym_o_merge', url: '/qapps/Projects/Code/MergeRequestDetail?mergeRequestId=' + q(result.mergeRequestId)})
+            }
+        ]]></script></actions>
+    </service>
+</services>

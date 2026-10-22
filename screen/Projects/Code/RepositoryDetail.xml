@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- RepositoryDetail (design-projects.md §7 RepositoryDetail; style-guide §3.3 Detail): one repository the user may view
+    (ironstone.CodeServices.get#RepositoryAccess over org.moqui.impl.GitServices.get#GitRepositoryAccess, in always-actions so a
+    tab loaded on its own has it, impl-projects.md F18). The title row: the id, the description, the storage, the default branch
+    and the linked projects as chips; Clone (a dialog with the HTTPS and SSH URLs and the way to Git access) and New merge
+    request (primary, opening Compare). An archived repository shows its banner on every tab. The tabs: Files, Commits,
+    Branches, Tags, Merge requests (impl-projects.md P3b2), Activity and Settings (its maintainers change it). A repository the
+    user may not view is "not available", as one that is not there. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Repository" default-menu-include="false">
+
+    <parameter name="repositoryId"/>
+
+    <always-actions><script><![CDATA[
+        repoAccess = codeHosting ? (ec.service.sync().name('ironstone.CodeServices.get#RepositoryAccess').parameters({repositoryId: repositoryId || ''}).call() || {}) : {}
+        recordFound = !!repoAccess.canView
+        repo = repoAccess.repository || {}
+        canCreate = !!repoAccess.canCreate
+        canPush = !!(repoAccess.canCreate || repoAccess.canUpdate)
+        canDelete = !!repoAccess.canDelete
+        isArchived = !!repoAccess.archived
+        isAdmin = !!repoAccess.isAdmin
+    ]]></script></always-actions>
+
+    <subscreens default-item="Files"/>
+
+    <transition name="repositories"><default-response url="../Repositories"/></transition>
+    <transition name="compare"><default-response url="../Compare"/></transition>
+    <transition name="gitAccess"><default-response url="../GitAccess"/></transition>
+
+    <actions>
+        <script><![CDATA[
+            if (!recordFound) return
+            const enc = (text) => String(text == null ? '' : text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+            const L = (text) => ec.l10n.localize(text)
+            projectList = Array.from(repoAccess.projectList || [])
+            httpsUrl = repoAccess.httpsUrl || ''
+            sshUrl = repoAccess.sshUrl || ''
+            const chip = (text, cls, icon) => '<q-chip dense square class="q-my-none q-ml-none q-mr-sm ' + cls + '"' + (icon ? ' icon="' + icon + '"' : '') + '>' + enc(text) + '</q-chip>'
+            chipsHtml = '<div class="row items-center q-mt-xs">' + chip(repo.kindLabel, 'm-tonal text-grey-8', repo.repositoryKind === 'remote' ? 'sym_o_sync' : repo.repositoryKind === 'db' ? 'sym_o_database' : 'sym_o_hard_drive')
+                + chip(repo.branch, 'm-tonal text-grey-8 text-mono', 'sym_o_call_split') + (isArchived ? chip(L('Archived'), 'm-tonal text-warning', 'sym_o_archive') : '')
+                + projectList.map((project) => '<m-link href="/qapps/Projects/Projects/ProjectDetail?workEffortId=' + encodeURIComponent(project.workEffortId) + '">'
+                    + chip(project.workEffortId + ' · ' + project.workEffortName, 'm-tonal text-primary', 'sym_o_assignment') + '</m-link>').join('') + '</div>'
+            chipsTui = {t: 'text', id: 'RepositoryChips', text: [repo.kindLabel, L('Default branch') + ': ' + repo.branch, isArchived ? L('Archived') : '',
+                projectList.map((project) => project.workEffortId).join(', ')].filter((part) => part).join(' · ')}
+        ]]></script>
+    </actions>
+
+    <widgets>
+        <section name="NoCodeHosting" condition="!codeHosting"><widgets>
+            <container-box type="warning"><box-header title="Code hosting is not in this build"/><box-body>
+                <label type="p" text="This server was built without git hosting, so repository ${repositoryId} cannot be shown." style="q-mb-none"/>
+            </box-body></container-box>
+        </widgets></section>
+        <section name="RepositoryNotFound" condition="codeHosting &amp;&amp; !recordFound"><widgets>
+            <container-box type="warning"><box-header title="Not available"/><box-body>
+                <label type="p" text="Repository ${repositoryId} is not available: it does not exist, or you are not on a project it belongs to."/>
+                <link url="repositories" text="Back to Repositories" link-type="anchor"/>
+            </box-body></container-box>
+        </widgets></section>
+
+        <section name="RepositoryFound" condition="codeHosting &amp;&amp; recordFound"><widgets>
+            <context record-entity="moqui.resource.GitRepository" record-id="${repositoryId}" title="${repositoryId}"/>
+
+            <container style="row items-start q-col-gutter-sm q-mb-sm">
+                <container style="col-12 col-md">
+                    <container style="row items-center no-wrap">
+                        <render-mode><text type="qvt"><![CDATA[<q-icon name="sym_o_folder_data" size="sm" class="q-mr-sm text-primary"></q-icon>]]></text>
+                            <text type="tui" template="false">[]</text></render-mode>
+                        <label text="${repositoryId}" type="h5" style="q-my-none text-mono"/>
+                    </container>
+                    <label text="${repo.description}" type="div" style="m-muted" condition="repo.description"/>
+                    <render-mode><text type="qvt"><![CDATA[${chipsHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(chipsTui)}]]></text></render-mode>
+                </container>
+                <container style="col-12 col-md-auto row items-center q-gutter-xs">
+                    <container-dialog id="RepositoryCloneDialog" button-text="Clone" icon="sym_o_download" width="600" title="Clone ${repositoryId}">
+                        <label text="HTTPS, with your user name and an access token as the password" type="div" style="text-subtitle2"/>
+                        <label text="git clone ${httpsUrl}" type="div" style="text-mono q-mb-sm" condition="httpsUrl"/>
+                        <section name="CloneSsh" condition="sshUrl"><widgets>
+                            <label text="SSH, with a key you added" type="div" style="text-subtitle2"/>
+                            <label text="git clone ${sshUrl}" type="div" style="text-mono q-mb-sm"/>
+                        </widgets></section>
+                        <link url="gitAccess" text="Set up an SSH key or an access token" link-type="anchor" icon="sym_o_key"/>
+                    </container-dialog>
+                    <link url="compare" text="New merge request" icon="sym_o_merge" btn-type="primary" parameter-map="{repositoryId:repositoryId}"
+                            condition="canPush &amp;&amp; !isArchived"/>
+                </container>
+            </container>
+
+            <section name="ArchivedBanner" condition="isArchived"><widgets>
+                <container-box type="warning"><box-body>
+                    <label type="p" text="Archived: read only. Pushes, merges and changes are refused; its maintainers may unarchive it in Settings." style="q-mb-none"/>
+                </box-body></container-box>
+            </widgets></section>
+
+            <subscreens-panel id="RepositoryTabs" type="tab"/>
+        </widgets></section>
+    </widgets>
+</screen>

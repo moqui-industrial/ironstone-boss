@@ -17,7 +17,9 @@ along with this software (see the LICENSE.md file). If not, see
     mantle.party.ContactServices.store#PartyContactInfo), Change password (org.moqui.impl.UserServices.update#Password, with
     the code when a second factor is required), my second factors (UserServices: get#UserAuthcFactorInfo, the create
     services by type, invalidate#UserAuthcFactorEntry, the verify screens of the tools app) and where I am signed in
-    (moqui.server.Visit). Every form is the current user's own: the user and party come from ec.user, never the request. The
+    (moqui.server.Visit), and git and API access (design-projects.md §7 GitAccess: a link to Projects' Git access for a user
+    who has Projects, else the access tokens here, org.moqui.impl.UserServices create#UserAccessToken and revoke#UserAccessToken).
+    Every form is the current user's own: the user and party come from ec.user, never the request. The
     photo is the face image of the user's party (PartyContent PcntFaceImage, mantle.party.PartyServices.create#PartyContent
     through ironstone.CommonsServices.upload#MyPhoto; Remove takes it away), shown here and by m-avatar wherever BOSS passes a
     party's face image (Contacts, Chatter). -->
@@ -29,6 +31,16 @@ along with this software (see the LICENSE.md file). If not, see
         <set field="userId" from="ec.user.userId"/>
     </always-actions>
 
+    <transition name="createAccessToken">
+        <service-call name="org.moqui.impl.UserServices.create#UserAccessToken" out-map="tokenOut" in-map="{description:description, expireDays:expireDays}"/>
+        <actions><script>ec.web.sessionAttributes.newAccessToken = tokenOut.accessToken ?? ''</script></actions>
+        <default-response url="."/><error-response url="."/>
+    </transition>
+    <transition name="revokeAccessToken">
+        <service-call name="org.moqui.impl.UserServices.revoke#UserAccessToken" in-map="{loginKey:loginKey}"/>
+        <actions><message type="success">Access token revoked</message></actions>
+        <default-response url="."/><error-response url="."/>
+    </transition>
     <transition name="updateAccount">
         <service-call name="mantle.party.PartyServices.update#Account" in-map="{userId:ec.user.userId, partyId:ec.user.userAccount?.partyId,
                 firstName:firstName, lastName:lastName, emailAddress:emailAddress, locale:locale, timeZone:timeZone}"/>
@@ -180,6 +192,12 @@ along with this software (see the LICENSE.md file). If not, see
                 endedText: when(visit.thruDate), current: !!thisVisitId && visit.visitId === thisVisitId}))
             singleUseCodeText = singleUseCodes && singleUseCodes.length ? Array.from(singleUseCodes).join('   ') : null
             thruDefault = String(Number(String(ec.user.nowTimestamp)) + 365 * 86400000)
+            // git and API access: a user who has Projects keeps SSH keys and tokens in its Git access page, any other has the tokens here
+            hasProjects = !!ec.service.sync().name('ironstone.PaletteServices.get#RecordLink').parameters({recordEntityName: 'moqui.resource.GitRepository', id: '_NA_'}).call()?.url
+            newAccessToken = !hasProjects && ec.web?.sessionAttributes?.remove ? (ec.web.sessionAttributes.remove('newAccessToken') || null) : null
+            tokenList = hasProjects ? [] : Array.from(ec.entity.find('moqui.security.UserLoginKey').condition('userId', ec.user.userId).condition('description', 'is-not-null', null)
+                    .conditionDate('fromDate', 'thruDate', null).orderBy('-fromDate').disableAuthz().list()).map((row) => ({loginKey: row.loginKey, description: row.description || '',
+                createdText: row.fromDate ? ec.l10n.format(row.fromDate, 'MMM d, yyyy') : '', expiresText: row.thruDate ? ec.l10n.format(row.thruDate, 'MMM d, yyyy') : ec.l10n.localize('Never')}))
         ]]></script>
         <set field="localeStringList" from="[]"/>
         <iterate list="ec.l10n.getAvailableLocales()" entry="lcl"><script>localeStringList.push({locale: lcl.locale, name: lcl.name})</script></iterate>
@@ -336,6 +354,44 @@ along with this software (see the LICENSE.md file). If not, see
                         <label type="p" text="No second factor yet: add an authenticator app, an email or single use codes." style="m-muted q-pa-sm q-mb-none"/>
                     </widgets></section>
                 </box-body-nopad></container-box>
+
+                <container-box><box-header title="Git and API access"/>
+                    <box-toolbar>
+                        <container-dialog id="AccountAccessTokenDialog" button-text="New access token" icon="sym_o_key" width="480" title="A new access token" condition="!hasProjects">
+                            <form-single name="AccountAccessToken" transition="createAccessToken" focus-field="description">
+                                <field name="description"><default-field title="For (a script, an app)"><text-line size="40"/></default-field></field>
+                                <field name="expireDays" from="90"><default-field title="Expires in days"><text-line size="6" input-type="number"/></default-field></field>
+                                <field name="submitButton"><default-field title="Make token"><submit/></default-field></field>
+                            </form-single>
+                        </container-dialog>
+                    </box-toolbar>
+                    <box-body-nopad>
+                    <section name="GitAccessInProjects" condition="hasProjects"><widgets>
+                        <container style="q-pa-sm">
+                            <label type="p" text="Your SSH keys and access tokens, and how to clone the repositories, are in IronStone Projects." style="q-mb-xs"/>
+                            <link url="/qapps/Projects/Code/GitAccess" url-type="plain" text="Git access" icon="sym_o_key"/>
+                        </container>
+                    </widgets><fail-widgets>
+                        <section name="AccountNewToken" condition="newAccessToken"><widgets>
+                            <container style="q-pa-sm">
+                                <label type="p" text="Your new access token, shown only now: copy it somewhere safe." style="text-weight-medium q-mb-xs"/>
+                                <label text="${newAccessToken}" type="div" style="text-mono"/>
+                            </container>
+                        </widgets></section>
+                        <form-list name="AccountAccessTokens" list="tokenList" skip-form="true" paginate="false">
+                            <field name="description"><default-field title="For"><display/></default-field></field>
+                            <field name="createdText"><default-field title="Made"><display/></default-field></field>
+                            <field name="expiresText"><default-field title="Expires"><display/></default-field></field>
+                            <field name="revoke"><default-field title="">
+                                <link url="revokeAccessToken" link-type="hidden-form-link" text="Revoke" icon="sym_o_block" confirmation="Revoke the access token for ${description}?"
+                                        parameter-map="{loginKey:loginKey}"/></default-field></field>
+                        </form-list>
+                        <section name="AccountNoTokens" condition="!tokenList.length"><widgets>
+                            <label type="p" text="No access tokens. A token signs a script or an app in to the REST API." style="m-muted q-pa-sm q-mb-none"/>
+                        </widgets></section>
+                    </fail-widgets></section>
+                    </box-body-nopad>
+                </container-box>
 
                 <container-box><box-header title="Where you are signed in"/><box-body-nopad>
                     <form-list name="Sessions" list="sessionList" skip-form="true" paginate="false">

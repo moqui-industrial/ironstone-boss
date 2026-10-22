@@ -12,9 +12,15 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Code (design-projects.md §7): the repositories, merge requests and git access of the team, opening on Repositories. -->
+<!-- Code (design-projects.md §7): the repositories, merge requests and git access of the team, opening on Repositories, with
+    RepositoryDetail, Compare and CommitDetail out of the menu. Git hosting is a build feature: codeHosting (ironstone.CodeServices
+    get#CodeHosting, in always-actions so a screen loaded on its own has it, impl-projects.md F18) is false without it, and each
+    screen then says "Code hosting is not in this build" instead of reading repositories. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Code" default-menu-index="5">
+    <always-actions><script><![CDATA[
+        codeHosting = !!ec.service.sync().name('ironstone.CodeServices.get#CodeHosting').call()?.available
+    ]]></script></always-actions>
     <subscreens default-item="Repositories"/>
     <widgets>
         <subscreens-active/>

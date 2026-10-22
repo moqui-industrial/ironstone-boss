@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- RepositoryActivity (design-projects.md §7 RepositoryActivity): the push log, newest first, 20 a page: when, who, the source
+    (push, mirror fetch, import, a write through Moqui), the transport, the refs changed, and the state of its gitECA rules with
+    a failure's error; Run again (process#GitUpdate) for a failed one, for the repository's maintainers. Services:
+    ironstone.CodeServices.get#RepositoryActivity (org.moqui.impl.GitServices.find#GitUpdates). -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Activity" default-menu-index="6">
+
+    <parameter name="source"/>
+    <parameter name="pageIndex"/>
+
+    <transition name="runAgain">
+        <actions><script><![CDATA[
+            const access = ec.service.sync().name('org.moqui.impl.GitServices.get#GitRepositoryAccess').parameters({repositoryId: repositoryId}).call() || {}
+            const update = ec.entity.find('moqui.resource.GitUpdate').condition('updateId', updateId).disableAuthz().one()
+            if (!access.canDelete || update == null || update.repositoryId !== repositoryId) { ec.message.addError(ec.l10n.localize('Only the maintainers run the rules again')); return }
+            if (update.ecaStatus === 'failed') { update.ecaStatus = 'pending'; update.update() }
+            ec.service.sync().name('org.moqui.impl.GitServices.process#GitUpdate').parameters({updateId: updateId}).disableAuthz().call()
+            if (!ec.message.hasError()) ec.message.addMessage(ec.l10n.localize('The rules ran again'), 'success')
+        ]]></script></actions>
+        <default-response url="."><parameter name="repositoryId"/></default-response>
+        <error-response url="."/>
+    </transition>
+
+    <actions>
+        <script><![CDATA[
+            if (!recordFound) return
+            const page = Number(pageIndex || 0) || 0
+            const out = ec.service.sync().name('ironstone.CodeServices.get#RepositoryActivity').parameters({repositoryId: repositoryId, source: source || null, pageIndex: page}).call() || {}
+            updateList = Array.from(out.updateList || [])
+            updateCount = out.updateListCount || 0
+            currentPage = page
+            hasOlder = (page + 1) * 20 < updateCount
+            const L = (text) => ec.l10n.localize(text)
+            sourceChips = [['', 'All'], ['push', 'Pushes'], ['fetch', 'Mirror fetches'], ['import', 'Imports'], ['write', 'Writes']].map(([key, label]) => ({key, label: L(label),
+                on: (source || '') === key, params: key ? {repositoryId: repositoryId, source: key} : {repositoryId: repositoryId}}))
+        ]]></script>
+    </actions>
+
+    <widgets>
+        <section name="ActivityFound" condition="recordFound"><widgets>
+            <container style="row q-gutter-xs q-mb-sm">
+                <section-iterate name="SourceChip" list="sourceChips" entry="chip"><widgets>
+                    <section name="SourceChipOn" condition="chip.on"><widgets>
+                        <link url="." link-type="anchor-button" btn-type="primary" text="${chip.label}" parameter-map="chip.params"/>
+                    </widgets><fail-widgets>
+                        <link url="." link-type="anchor-button" text="${chip.label}" parameter-map="chip.params"/>
+                    </fail-widgets></section>
+                </widgets></section-iterate>
+            </container>
+            <container-box><box-header title="Push log · ${updateCount}"/><box-body-nopad>
+                <form-list name="PushLog" list="updateList" skip-form="true" paginate="false">
+                    <field name="whenText"><default-field title="When">
+                        <label text="${whenText}" type="div" style="text-no-wrap"/>
+                        <label text="${username}" type="div" style="text-caption m-muted" condition="username"/>
+                    </default-field></field>
+                    <field name="sourceLabel"><default-field title="Source">
+                        <label text="${sourceLabel}" type="div"/>
+                        <label text="${transport}" type="div" style="text-caption m-muted" condition="transport"/>
+                    </default-field></field>
+                    <field name="refsText"><default-field title="Refs"><label text="${refsText}" type="span" style="text-mono text-caption"/></default-field></field>
+                    <field name="stateLabel"><default-field title="Rules">
+                        <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${stateColor}">${WebUtilities.encodeHtml(stateLabel ?? '')}</q-chip>]]></text>
+                            <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify(stateLabel ?? "")}}]]></text></render-mode>
+                        <label text="${ecaError}" type="div" style="text-caption text-negative" condition="ecaError"/>
+                    </default-field></field>
+                    <field name="runAgain"><default-field title="">
+                        <link url="runAgain" link-type="hidden-form-link" text="Run again" icon="sym_o_replay" condition="failed &amp;&amp; canDelete"
+                                parameter-map="{repositoryId:repositoryId, updateId:updateId}"/></default-field></field>
+                </form-list>
+                <section name="NoActivity" condition="!updateList.length"><widgets>
+                    <label type="p" text="Nothing pushed, fetched or written yet" style="m-muted q-pa-sm q-mb-none"/>
+                </widgets></section>
+            </box-body-nopad></container-box>
+            <container style="row q-gutter-sm q-mt-sm">
+                <link url="." text="Newer" icon="sym_o_chevron_left" condition="currentPage &gt; 0" parameter-map="{repositoryId:repositoryId, source:source, pageIndex:currentPage - 1}"/>
+                <link url="." text="Older" icon="sym_o_chevron_right" condition="hasOlder" parameter-map="{repositoryId:repositoryId, source:source, pageIndex:currentPage + 1}"/>
+            </container>
+        </widgets></section>
+    </widgets>
+</screen>

@@ -560,7 +560,9 @@ the triage assignee, each edited in ProjectSettings.
 | `ProjectTags` | list | Tags linked to the project, its milestones and releases | repository, tag, commit, linked by, when; Remove | | `WorkEffortGitRef` (`entity`); `mantle.work.GitServices.remove#WorkEffortRef` | `EditRepositories` `ProjectRefList`; `ProjectSummary` `ViewGitTagList` |
 
 - **Navigation:** a repository opens RepositoryDetail; a merge request MergeRequestDetail; a commit CommitDetail.
-- **States:** when the project shares its repositories with the client, client users see Repositories (with the
+- **States:** a tab cannot be left out by a condition (impl-projects.md F24), so with the Code module off the tab says
+  so (Settings for managers) and still lists any linked repository; without git hosting in the build it says that.
+  When the project shares its repositories with the client, client users see Repositories (with the
   clone URLs, cloning with their own access token) and Recent commits, read only; the code browser and merge
   requests stay internal.
 - **Source:** research §16 and mr-moqui `docs/Git-Hosting.md` "Projects and tasks"; baseline `Project/EditRepositories`.
@@ -1176,7 +1178,8 @@ files are read here and changed in a clone.
 - **Layout:** detail tab. A ref picker (branches, tags, or a commit id), the path as breadcrumbs, the entries of
   the directory with each one's last commit, and the directory's README rendered below. A file shows as text with
   line numbers and highlighting, an image, or a download for a binary or a file kept in LFS; its actions are
-  History (Commits with the path), Raw, Download and Copy permalink (the path at the commit).
+  History (Commits with the path), Raw (inline for an image or a PDF only; any other type downloads, so a pushed
+  page or SVG never runs in the app's origin), Download and Copy permalink (the path at the commit).
 - **Forms:**
 
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
@@ -1234,7 +1237,8 @@ MergeRequests (below) with the repository fixed.
 
 ### RepositorySettings
 
-- **Layout:** settings page of boxes; maintainers and managers change it, others do not see it.
+- **Layout:** settings page of boxes; its maintainers (the delete right: the leads of its projects) and administrators
+  change it; others see who does, as the tab cannot be left out by a condition (impl-projects.md F24).
 - **Forms:**
 
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
@@ -1269,6 +1273,8 @@ MergeRequests (below) with the repository fixed.
 | `CompareCommits` | list | Commits in the source and not in the base | summary, author, date, linked items | | `get#GitCompare` (new) | GitHub compare |
 | `CompareDiffs` | display | Each file's diff | path, change, insertions, deletions, the diff | the `moqui-diff` table by `render-mode` | `get#GitCompare` (new) | `Project/GitCommit` diff boxes |
 
+- **States:** with a merge request of the same branches open, a note links it in place of the form; the form is for a
+  branch ahead of the base, for those who may push, in a repository not archived.
 - **Source:** GitHub compare and GitLab new merge request (familiar shapes, outside the research set).
 - **Needs:** Compare; Code review store.
 
@@ -1372,7 +1378,9 @@ MergeRequests (below) with the repository fixed.
 | `NewAccessToken` | dialog | Make one | for (description), expires in days (90) | the token shown once with Copy | `org.moqui.impl.UserServices.create#UserAccessToken` | `GitAccess` `CreateAccessTokenForm` |
 | `CloneHelp` | display | How to clone and commit | the SSH host and port, `git config user.email` set to the account's address so commits show as mine, whether I have SSH access | | `get#GitCloneUrls`; `ec.user.hasPermission('SSH_GIT')` | Git-Hosting "Clone URLs" and "Logging in" |
 
-- **States:** without `SSH_GIT` the SSH box says to ask an administrator and that HTTPS with a token works now.
+- **States:** without `SSH_GIT` the SSH box says to ask an administrator and that HTTPS with a token works now. Commons'
+  Account has a Git and API access box: the link here for a user who may open Projects, else the access tokens list
+  with New access token and Revoke. Keys and tokens need no git hosting; the clone addresses do.
 - **Source:** baseline `MyAccount/User/GitAccess`; Git-Hosting.
 - **Needs:** User groups and SSH access.
 
@@ -1797,9 +1805,9 @@ ProjectSettings. Global configuration defines and a project chooses among it, as
 
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
 | --- | --- | --- | --- | --- | --- | --- |
-| `RepositoryDefaults` | single | New repositories | storage for project repositories, default branch name, default merge method (merge commit), branch rules (default branch protected from force pushes and deletes; merge requests required off; approvals 1; approvals kept when the source moves), webhooks | | `PartySetting` (`entity`) | Git-Hosting; GitLab defaults |
-| `Conventions` | single | Commit and branch conventions | Fixes keywords on, require a work item key in commits to protected branches, branch name pattern, merge request moves (opened to In Review, merged to Complete) | | `PartySetting` (`entity`) | Git-Hosting "Projects and tasks" |
-| `SshAccess` | list | Who may use SSH | user group, holds `SSH_GIT`; Grant, Revoke | | `UserGroupPermission` (`entity`) | Git-Hosting "Logging in" |
+| `RepositoryDefaults` | single | New repositories | storage for project repositories, default branch name, default merge method (merge commit), branch rules (default branch protected from force pushes and deletes; merge requests required off; approvals 1; approvals kept when the source moves) | `create#ProjectRepository` applies them; no default webhook, as each needs its own secret, kept encrypted on the repository | `ironstone.CodeServices.store#RepositoryDefaults` (`PartySetting` `ProjRepositoryDefaults`, short keys within its 255 characters) | Git-Hosting; GitLab defaults |
+| `Conventions` | single | Commit and branch conventions | Fixes keywords on, branch name pattern, merge request moves (opened to In Review, merged to Complete) | requiring a work item key in commits to protected branches is later (a pre-receive rule) | `store#Conventions` (`PartySetting` `ProjConventions`) | Git-Hosting "Projects and tasks" |
+| `SshAccess` | list | Who may use SSH | user group, holds `SSH_GIT`; Grant, Revoke | ADMIN's grant does not change here | `set#SshAccess` (`UserGroupPermission`) | Git-Hosting "Logging in" |
 
 ### IntakeSettings
 
@@ -1969,11 +1977,11 @@ record is read through a service that checks the repository's rights (R21).
 | Need | Kind | Proposed as | Used by | Stub spec |
 | --- | --- | --- | --- | --- |
 | Code review store | data model + service type | Framework `moqui.resource.GitMergeRequest` {mergeRequestId, repositoryId, mergeRequestNum (per repository from 1), title, description, sourceRef, targetRef, statusId (`GmrDraft`, `GmrOpen`, `GmrMerged`, `GmrClosed`, with a flow), authorUserId, createdDate, lastUpdatedDate, headCommitId, baseCommitId, mergeableEnumId, conflictPaths, mergeMethodEnumId, deleteSourceBranch, mergedDate, mergedByUserId, mergeCommitId, closedDate} and `GitMergeRequestReviewer` {mergeRequestId, userId, statusId (`GmrrRequested`, `GmrrApproved`, `GmrrChangesRequested`, `GmrrCommented`), reviewedCommitId, reviewedDate}; `org.moqui.impl.GitReviewServices` `create#MergeRequest`, `update#MergeRequest`, `set#MergeRequestReviewers`, `submit#MergeRequestReview`, `close#MergeRequest`, `reopen#MergeRequest`, `merge#MergeRequest`, `find#MergeRequests`, `get#MergeRequestDiff`, and `refresh#MergeRequests` (a framework rule on ref-update: a source's new head, mergeability again, merged when the target holds the head) | MergeRequests, MergeRequestDetail, MergeRequestChanges, Compare, Home | Mantle-free, as `WikiPageReview` is |
-| Merge request links | data model + service type | Mantle `mantle.work.effort.WorkEffortGitMergeRequest` {workEffortId, mergeRequestId, linkSourceEnumId, linkedByUserId, linkedDate}; `mantle.work.GitServices.link#MergeRequestItems` (the source branch's item and the keys in the title and description, by `find#TaskReferences`) and `complete#MergeRequestItems` (on merge, the `Closes` items, as the project says) as gitECA-style rules beside `Work.gitecas.xml` | WorkItemDetail, ReleaseDetail, MergeRequestDetail | |
-| Review anchors | data model + service type | Mantle `mantle.party.communication.CommunicationEventGitAnchor` {communicationEventId, mergeRequestId, repositoryId, commitId, path, oldLine, newLine, outdated}, the comment a `Comment` linked to the merge request by `CommunicationEventRecord`; `mantle.work.GitServices.store#ReviewAnchor`, `resolve#ReviewThread`; `get#RecordLinkInfo` knows `moqui.resource.GitMergeRequest` (visible to whoever may view its repository) | MergeRequestChanges, Chatter on a merge request | |
-| Code in the palette | service type | `mantle.work.GitServices.search#Code(text, limit)`: repositories and merge requests the user may view | palette | |
-| Repository access by role | service type | `check#GitRepositoryAuthz` gives the delete right to the project's leads (`ProjectManager`, `Manager`, `ProgrammerLead`, `SysArchitect`) and view to its client contacts when it shares its repositories | §7 | today every active party gets view, create and update |
-| Task branches | service type | `mantle.work.GitServices.create#TaskBranch(workEffortId, repositoryId, from)`: the name from the project's pattern, `create#GitRef`, the link | WorkItemDetail | |
+| Merge request links | data model + service type | Mantle `mantle.work.effort.WorkEffortGitMergeRequest` {workEffortId, mergeRequestId, repositoryId, linkSourceEnumId (`WglsMergeRequestBranch`, `WglsMergeRequestText`, `WglsExplicit`), completeOnMerge, linkedByUserId, linkedDate}; `mantle.work.GitServices.link#MergeRequestItems` (the source branch's item and the keys in the title and description, by `find#TaskReferences`; completeOnMerge from a `Closes` keyword, the NewMergeRequest choice, else the project's `WstMergeRequestMoves`; a text key taken out drops its link), `move#MergeRequestItemsToReview` (opened or ready, with `WstMergeRequestMoves`), `complete#MergeRequestItems` (merged: the completeOnMerge items, where their flow allows), `add#`, `remove#MergeRequestItem` and `get#MergeRequestItems` (for MergeRequestDetail), dispatched by `handle#MergeRequestEvent` from the SECAs of `WorkGit.secas.xml` on the framework's `queue#MergeRequestEvent`, `merge#MergeRequest` and `set#MergeRequestReviewers` (merge request events are not git events, so not gitECA rules; impl-projects.md P3b) | WorkItemDetail, ReleaseDetail, MergeRequestDetail | |
+| Review anchors | data model + service type | Mantle `mantle.party.communication.CommunicationEventGitAnchor` {communicationEventId, mergeRequestId, repositoryId, commitId, path, oldLine, newLine, lineText, outdated}, the comment a `Comment` linked to the merge request by `CommunicationEventRecord`; `mantle.work.GitServices.create#ReviewComment` (a line comment or a reply, telling the author and reviewers), `store#ReviewAnchor`, `resolve#ReviewThread` (the first comment to `CeResolved` and back to `CeSent` by a direct change, as the Default flow has neither move from a sent comment), `get#ReviewThreads`, `refresh#ReviewAnchors` (outdated on a new head that changed the line); `get#RecordLinkInfo` knows `moqui.resource.GitMergeRequest` and `GitRepository` (visible to whoever may view the repository) | MergeRequestChanges, Chatter on a merge request | |
+| Code in the palette | service type | `mantle.work.GitServices.search#Code(text, limit)`: repositories and merge requests the user may view, as results (Mantle has no screen links); BOSS's `ironstone.CodeServices.search#CodePalette` makes them palette rows | palette | |
+| Repository access by role | service type | `check#GitRepositoryAuthz` gives the delete right to the project's leads (`ProjectManager`, `Manager`, `ProgrammerLead`, `SysArchitect`) and only view, when the project shares its repositories, to its client contacts (`Customer`, `CustomerBillTo`, `ClientManager`, `ClientBilling`); the framework decides `AT_GIT_REPOSITORY` by the repository's own records, not an app root's inheritable grant (impl-projects.md F23) | §7 | was: every active party got view, create and update |
+| Task branches | service type | `mantle.work.GitServices.create#TaskBranch(workEffortId, repositoryId, fromRef, branchName)`: the name from the project's pattern (`get#TaskBranchName`: `<id>`, `<KEY>`, `<key>`, `<n>`, `<words>`, `<type>`; `<id>-<words>` by default), `create#GitRef`, the link | WorkItemDetail | |
 | Release tags by version | service type | `link#RefByName` also links a tag named as a release's version, or `v` and the version, in the projects linked to the repository | ReleaseDetail | |
 
 ### Work model (Mantle and BOSS)

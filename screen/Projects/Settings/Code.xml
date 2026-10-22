@@ -12,10 +12,101 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for code settings (design-projects.md §12 CodeSettings; impl-projects.md P3b). -->
+<!-- CodeSettings (design-projects.md §12 CodeSettings; style-guide §3.9 Settings), for the Projects managers: the organization's
+    repository defaults for new project repositories (PartySetting ProjRepositoryDefaults: storage, default branch, merge method
+    and the default branch's rule, which mantle.work.GitServices.create#ProjectRepository applies), its commit and branch
+    conventions (ProjConventions: Fixes keywords, the branch pattern of a work item's branch, merge requests moving their items;
+    a project may choose its own in its settings), and who may use git over SSH (SSH_GIT by user group). Webhooks are not a
+    default: each needs its own secret, kept encrypted on the repository (impl-projects.md P3b). Services: ironstone.CodeServices
+    get#CodeSettings, store#RepositoryDefaults, store#Conventions, set#SshAccess. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Code" default-menu-index="7">
+
+    <transition name="saveDefaults">
+        <service-call name="ironstone.CodeServices.store#RepositoryDefaults" out-map="saveOut" in-map="{storage:storage, branch:branch, mergeMethod:mergeMethod,
+                protectDefault:(protectDefault || 'N'), requireMergeRequest:(requireMergeRequest || 'N'), approvals:(approvals || 0), dismissStale:(dismissStale || 'N')}"/>
+        <actions><if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if></actions>
+        <default-response url="."/>
+        <error-response url="."/>
+    </transition>
+    <transition name="saveConventions">
+        <service-call name="ironstone.CodeServices.store#Conventions" out-map="saveOut" in-map="{keywordComplete:(keywordComplete || 'N'), branchPattern:branchPattern,
+                mergeRequestMoves:(mergeRequestMoves || 'N')}"/>
+        <actions><if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if></actions>
+        <default-response url="."/>
+        <error-response url="."/>
+    </transition>
+    <transition name="setSsh">
+        <service-call name="ironstone.CodeServices.set#SshAccess" out-map="sshOut" in-map="{userGroupId:userGroupId, grant:grant}"/>
+        <actions><if condition="!ec.message.hasError()"><script>ec.message.addMessage(sshOut.message, 'success')</script></if></actions>
+        <default-response url="."/>
+        <error-response url="."/>
+    </transition>
+
+    <actions>
+        <script><![CDATA[
+            const info = ec.service.sync().name('ironstone.CodeServices.get#CodeSettings').call() || {}
+            hasOrganization = !!info.organizationPartyId
+            organizationName = info.organizationName || ''
+            defaultsValue = Object.assign({}, info.defaults || {})
+            conventionsValue = Object.assign({}, info.conventions || {})
+            groupList = Array.from(info.groupList || [])
+        ]]></script>
+    </actions>
+
     <widgets>
-        <label text="Placeholder: Code settings: repository defaults, commit conventions, branch rules, SSH access." type="p"/>
+        <container style="row items-center q-mb-sm">
+            <label type="h5" text="Code" style="q-my-none"/>
+        </container>
+        <label type="p" text="How new repositories start, how commits and branches tie to work items, and who uses git over SSH${organizationName ? ' at ' + organizationName : ''}." style="m-muted"/>
+        <section name="NoOrganization" condition="!hasOrganization"><widgets>
+            <label type="p" text="You belong to no organization, so there is nowhere to keep these settings." style="text-warning"/>
+        </widgets></section>
+        <container-row>
+            <row-col md="6">
+                <container-box><box-header title="Repository defaults"/><box-body>
+                    <form-single name="RepositoryDefaults" transition="saveDefaults" map="defaultsValue">
+                        <field name="storage"><default-field title="Storage of project repositories"><radio>
+                            <option key="local" text="On disk, for code"/><option key="db" text="In the database, with the backup"/></radio></default-field></field>
+                        <field name="branch"><default-field title="Default branch"><text-line size="20"/></default-field></field>
+                        <field name="mergeMethod"><default-field title="Default merge method"><radio>
+                            <option key="GmmMerge" text="Merge commit"/><option key="GmmSquash" text="Squash"/></radio></default-field></field>
+                        <field name="protectDefault"><default-field title="Default branch rule"><check><option key="Y" text="Protect the default branch from force pushes and deletes"/></check></default-field></field>
+                        <field name="requireMergeRequest"><default-field title=" "><check><option key="Y" text="Changes to it only through merge requests"/></check></default-field></field>
+                        <field name="approvals"><default-field title="Approvals a merge needs"><text-line size="4" input-type="number"/></default-field></field>
+                        <field name="dismissStale"><default-field title=" "><check><option key="Y" text="A new push sets the approvals back"/></check></default-field></field>
+                        <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                    </form-single>
+                    <label type="p" text="The branch rule applies when Protect is on, to repositories made from now on; each repository's own rules are in its Settings." style="text-caption m-muted q-mb-none"/>
+                </box-body></container-box>
+                <container-box><box-header title="Commit and branch conventions"/><box-body>
+                    <form-single name="Conventions" transition="saveConventions" map="conventionsValue">
+                        <field name="keywordComplete"><default-field title=" "><check><option key="Y" text="Fixes, Closes or Resolves PROJ-12 completes the item when the commit reaches the default branch"/></check></default-field></field>
+                        <field name="branchPattern"><default-field title="Branch name of a work item (&lt;id&gt;, &lt;KEY&gt;, &lt;n&gt;, &lt;words&gt;, &lt;type&gt;)"><text-line size="30"/></default-field></field>
+                        <field name="mergeRequestMoves"><default-field title=" "><check><option key="Y" text="Merge requests move their items: opened to In Review, merged to Complete"/></check></default-field></field>
+                        <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                    </form-single>
+                </box-body></container-box>
+            </row-col>
+            <row-col md="6">
+                <container-box><box-header title="SSH access"/><box-body-nopad>
+                    <label type="p" text="Members of a group that may use SSH clone and push with a key; everyone may use HTTPS with an access token." style="text-caption m-muted q-pa-sm q-mb-none"/>
+                    <form-list name="SshAccess" list="groupList" skip-form="true" paginate="false">
+                        <field name="description"><default-field title="User group">
+                            <label text="${description}" type="div"/>
+                            <label text="${userGroupId}" type="div" style="text-caption text-mono m-muted"/></default-field></field>
+                        <field name="holds"><default-field title="SSH">
+                            <render-mode><text type="qvt"><![CDATA[${holds ? '<q-chip dense square class="q-ma-none m-tonal text-positive">' + WebUtilities.encodeHtml(ec.l10n.localize('Allowed')) + '</q-chip>' : '<span class="m-muted">—</span>'}]]></text>
+                                <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify(holds ? ec.l10n.localize("Allowed") : "—")}}]]></text></render-mode></default-field></field>
+                        <field name="change"><default-field title="">
+                            <section name="SshChangeable" condition="!isAdmin"><widgets>
+                                <link url="setSsh" link-type="hidden-form-link" text="Revoke" icon="sym_o_block" condition="holds" confirmation="Revoke SSH access of ${description}?"
+                                        parameter-map="{userGroupId:userGroupId, grant:'N'}"/>
+                                <link url="setSsh" link-type="hidden-form-link" text="Grant" icon="sym_o_key" condition="!holds" parameter-map="{userGroupId:userGroupId, grant:'Y'}"/>
+                            </widgets></section></default-field></field>
+                    </form-list>
+                </box-body-nopad></container-box>
+            </row-col>
+        </container-row>
     </widgets>
 </screen>
