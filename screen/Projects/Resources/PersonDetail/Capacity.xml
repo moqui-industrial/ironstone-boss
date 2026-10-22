@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- PersonDetail's Capacity (design-projects.md §9 PersonDetail): twelve weeks from this one, each with the working hours, the
+    holidays and leave taken off, the capacity, the allocated (and requested) hours, the assigned work, the time logged, the load and
+    the utilization of the weeks past (ironstone.ResourceServices.get#PersonOverview over mantle.work.ResourceServices.get#TeamPlan). -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Capacity" default-menu-index="5">
+
+    <actions><script><![CDATA[
+        weekList = []
+        if (!personFound) return
+        const overview = ec.service.sync().name('ironstone.ResourceServices.get#PersonOverview').parameters({partyId: partyId, weeks: 12}).call()?.overview || null
+        ec.message.clearErrors()
+        weekList = Array.from(overview?.weekList || [])
+        sourceText = overview?.sourceText || ''
+    ]]></script></actions>
+
+    <widgets>
+        <container-box><box-header title="Capacity by week"/><box-body-nopad>
+            <form-list name="PersonCapacity" list="weekList" skip-form="true" paginate="false" show-csv-button="true">
+                <field name="weekText"><default-field title="Week of"><display/></default-field></field>
+                <field name="base" align="right"><default-field title="Working h"><display format="#,##0.#"/></default-field></field>
+                <field name="offText"><default-field title="Off"><display/></default-field></field>
+                <field name="capacityText" align="right"><default-field title="Capacity"><display/></default-field></field>
+                <field name="allocatedText" align="right"><default-field title="Allocated"><display/></default-field></field>
+                <field name="assignedText" align="right"><default-field title="Assigned"><display/></default-field></field>
+                <field name="loggedText" align="right"><default-field title="Logged"><display/></default-field></field>
+                <field name="loadText" align="right"><default-field title="Load">
+                    <render-mode><text type="qvt"><![CDATA[${loadText ? '<q-chip dense square class="q-ma-none m-tonal text-' + loadColor + '">' + WebUtilities.encodeHtml(loadText) + '</q-chip>' : ''}]]></text>
+                        <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify(loadText ?? "")}}]]></text></render-mode></default-field></field>
+                <field name="utilizationText" align="right"><default-field title="Utilization"><display/></default-field></field>
+                <columns type="mobile">
+                    <column><field-ref name="weekText"/><field-ref name="capacityText"/></column>
+                    <column><field-ref name="allocatedText"/><field-ref name="loadText"/></column>
+                </columns>
+            </form-list>
+        </box-body-nopad></container-box>
+        <label type="p" text="Working hours: ${sourceText}. Load: the larger of the allocated hours and the assigned work against the capacity; utilization: the time logged against it." style="text-caption m-muted"/>
+    </widgets>
+</screen>

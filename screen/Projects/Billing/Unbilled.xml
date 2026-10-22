@@ -12,10 +12,132 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for the billing queue (design-projects.md §10 Unbilled; impl-projects.md P8). -->
+<!-- Unbilled (design-projects.md §10 Unbilled; style-guide §3.2 List; impl-projects.md P8a): the billing queue of client billing, by
+    project, for those who manage money (service/ironstone/BillingServices.xml find#UnbilledRows over
+    mantle.work.ProjectServices.get#UnbilledSummary). The number cards: unbilled, ready to invoice (approved), projects. The chips: All
+    unbilled (the default) and Ready to invoice; the find: client, project. Each row: the project and its client, the billing basis,
+    the period, unbilled hours and amount, the approved part ready to invoice, what waits for approval, entries without a rate, the
+    expenses not billed, the last invoice and an open draft; Create invoice (Unbilled/CreateInvoice.xml, a dialog over the approved
+    entries) when it may be invoiced, else why not, and Review time (the project's Time tab on its unbilled time). Milestones due and
+    contractor time come with impl-projects.md P8b. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Unbilled" default-menu-index="1">
+
+    <parameter name="list"/>
+    <parameter name="clientPartyId"/>
+    <parameter name="rootWorkEffortId"/>
+
+    <subscreens>
+        <subscreens-item name="CreateInvoice" location="component://ironstone-boss/screen/Projects/Billing/Unbilled/CreateInvoice.xml" menu-include="false"/>
+    </subscreens>
+
+    <actions>
+        <script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            if (!['all', 'ready'].includes(list)) list = 'all'
+            const money = ec.service.sync().name('ironstone.BillingServices.check#Money').parameters({need: 'none'}).call()?.managesMoney
+            managesMoney = !!money
+            unbilledRows = []
+            if (!managesMoney) return
+            const out = ec.service.sync().name('ironstone.BillingServices.find#UnbilledRows').parameters({clientPartyId: clientPartyId || null,
+                rootWorkEffortId: rootWorkEffortId || null, readyOnly: list === 'ready'}).call() || {}
+            ec.message.clearErrors()
+            unbilledRows = Array.from(out.rowList || [])
+            unbilledRowsCount = unbilledRows.length
+            totals = out.totals || {}
+            clientOptions = Array.from(out.clientOptions || [])
+            projectOptions = Array.from(out.projectOptions || [])
+            const find = {clientPartyId: clientPartyId || null, rootWorkEffortId: rootWorkEffortId || null}
+            Object.keys(find).forEach((key) => { if (find[key] == null) delete find[key] })
+            filtered = Object.keys(find).length > 0
+            listChips = [['all', 'All unbilled', 'sym_o_request_quote'], ['ready', 'Ready to invoice', 'sym_o_task_alt']].map(([key, label, icon]) => ({key: key,
+                label: L(label), icon: icon, on: key === list, params: Object.assign({}, find, {list: key})}))
+            emptyText = filtered ? L('No unbilled time matches') : list === 'ready' ? L('No approved time waits to be invoiced') : L('All billable time is invoiced')
+        ]]></script>
+    </actions>
+
     <widgets>
-        <label text="Placeholder: Unbilled: unbilled time and expenses by project, milestones due for invoicing." type="p"/>
+        <section name="NoMoney" condition="!managesMoney"><widgets>
+            <container-box type="warning"><box-header title="Not available"/><box-body>
+                <label type="p" text="Billing is for those who manage money." style="q-mb-none"/>
+            </box-body></container-box>
+        </widgets></section>
+        <section name="Unbilled" condition="managesMoney"><widgets>
+            <container style="row items-center q-mb-sm q-gutter-y-xs">
+                <label text="Unbilled" type="h5" style="q-my-none q-mr-sm"/>
+                <container style="col"/>
+                <link url="../Invoices" text="Invoices" icon="sym_o_receipt_long" link-type="anchor-button" style="q-mr-sm"/>
+                <link url="../Rates" text="Rates" icon="sym_o_sell" link-type="anchor-button"/>
+            </container>
+
+            <dashboard min-width="170" style="q-mb-sm">
+                <number-card title="Unbilled" value="${totals.amountText}" icon="sym_o_request_quote" size="sm"/>
+                <number-card title="To invoice" value="${totals.readyAmountText}" icon="sym_o_task_alt" size="sm"/>
+                <number-card title="Hours" value="${totals.hoursText}" icon="sym_o_schedule" size="sm"/>
+                <number-card title="Projects" value="${totals.projectCount} (${totals.readyCount} ready)" icon="sym_o_assignment" size="sm"/>
+            </dashboard>
+
+            <container style="row q-gutter-xs q-mb-sm">
+                <section-iterate name="ListChip" list="listChips" entry="chip"><widgets>
+                    <section name="ListChipOn" condition="chip.on"><widgets>
+                        <link url="." link-type="anchor-button" btn-type="primary" text="${chip.label}" icon="${chip.icon}" parameter-map="chip.params"/>
+                    </widgets><fail-widgets>
+                        <link url="." link-type="anchor-button" text="${chip.label}" icon="${chip.icon}" parameter-map="chip.params"/>
+                    </fail-widgets></section>
+                </widgets></section-iterate>
+            </container>
+            <section name="ClearFilters" condition="filtered"><widgets>
+                <container style="q-mb-xs"><link url="." link-type="anchor" text="Clear filters" parameter-map="{list:list}"/></container>
+            </widgets></section>
+
+            <container-box><box-header title="Client billing · ${unbilledRowsCount}"/><box-body-nopad>
+                <form-list name="UnbilledList" list="unbilledRows" skip-form="true" paginate="false" header-dialog="true" select-columns="true" show-csv-button="true">
+                    <!-- the find (the list's dialog) -->
+                    <field name="list"><header-field><hidden/></header-field></field>
+                    <field name="rootWorkEffortId"><header-field title="Project">
+                        <drop-down allow-empty="true"><list-options list="projectOptions" key="${key}" text="${text}"/></drop-down></header-field></field>
+                    <field name="clientPartyId"><header-field title="Client">
+                        <drop-down allow-empty="true"><list-options list="clientOptions" key="${key}" text="${text}"/></drop-down></header-field></field>
+
+                    <!-- the columns -->
+                    <field name="projectName"><default-field title="Project">
+                        <link url="${projectUrl}" url-type="plain" text="${projectName}" link-type="anchor"/>
+                        <label text="${basisText}" type="div" style="text-caption m-muted"/></default-field></field>
+                    <field name="clientName"><default-field title="Client"><label text="${clientName}" type="span" style="${hasClient ? '' : 'text-warning'}"/></default-field></field>
+                    <field name="periodText"><default-field title="Time logged"><label text="${periodText}" type="span" style="text-no-wrap"/></default-field></field>
+                    <field name="amountText" align="right"><default-field title="Unbilled">
+                        <label text="${amountText}" type="div" style="text-weight-medium text-no-wrap"/>
+                        <label text="${hoursText} h" type="div" style="text-caption m-muted text-no-wrap"/></default-field></field>
+                    <field name="readyAmountText" align="right"><default-field title="Ready to invoice">
+                        <label text="${readyCount ? readyAmountText : '—'}" type="div" style="text-no-wrap ${readyCount ? 'text-positive' : 'm-muted'}"/>
+                        <label text="${readyCount ? readyHoursText + ' h' : ''}" type="div" style="text-caption m-muted text-no-wrap"/></default-field></field>
+                    <field name="waitingText"><default-field title="Waiting for approval"><label text="${waitingText}" type="span" style="text-caption"/>
+                        <label text="${missingRateText}" type="div" style="text-caption text-warning" condition="missingRateText"/></default-field></field>
+                    <field name="expenseText" align="right"><default-field title="Expenses"><display/></default-field></field>
+                    <field name="lastInvoiceText"><default-field title="Last invoiced">
+                        <link url="${lastInvoiceUrl}" url-type="plain" text="${lastInvoiceText}" link-type="anchor" condition="lastInvoiceUrl"/>
+                        <label text="${lastInvoiceText}" type="span" style="m-muted" condition="!lastInvoiceUrl"/>
+                        <section name="DraftLink" condition="draftUrl"><widgets><container style="text-caption"><link url="${draftUrl}" url-type="plain" text="Draft ${draftText}" link-type="anchor"/></container></widgets></section></default-field></field>
+                    <field name="actions" align="right"><default-field title="">
+                        <container style="row items-center justify-end no-wrap q-gutter-xs">
+                            <dynamic-dialog id="CreateInvoiceDialog" button-text="Create invoice" icon="sym_o_receipt_long" transition="CreateInvoice" width="720"
+                                    title="Invoice ${projectName}" parameter-map="{workEffortId:workEffortId}" condition="canInvoice"/>
+                            <label text="${cannotReason}" type="span" style="text-caption m-muted" condition="!canInvoice"/>
+                            <link url="${reviewUrl}" url-type="plain" text="" icon="sym_o_schedule" tooltip="Review the unbilled time" link-type="anchor"/>
+                        </container>
+                    </default-field></field>
+                    <field name="findButton"><header-field title="Find"><submit/></header-field></field>
+
+                    <columns type="mobile">
+                        <column><field-ref name="projectName"/><field-ref name="clientName"/></column>
+                        <column><field-ref name="amountText"/><field-ref name="actions"/></column>
+                    </columns>
+                </form-list>
+                <section name="NoUnbilled" condition="!unbilledRows.length"><widgets>
+                    <label type="p" text="${emptyText}" style="m-muted q-pa-sm q-mb-none"/>
+                </widgets></section>
+            </box-body-nopad></container-box>
+            <label type="p" text="Only approved time is invoiced: time waiting for approval stays unbilled until its week is approved. Amounts are at each entry's client rate, to the cent." style="text-caption m-muted q-mt-sm"/>
+        </widgets></section>
     </widgets>
 </screen>

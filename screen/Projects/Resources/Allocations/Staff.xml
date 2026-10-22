@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- StaffAllocation (design-projects.md §9): the dialog of a placeholder's Staff on Allocations. The placeholder (project, role and
+    skill, the period and hours), then its candidates ranked (mantle.work.ResourceServices.find#StaffingCandidates through
+    service/ironstone/ResourceServices.xml get#StaffCandidates): those with the hours free in every week first, then by the skill, the
+    role and the free hours; each with the free hours against the hours needed, the weeks short, the skill and role, their current
+    projects and, for those who manage money, their cost rate. Staff names the person (an approver allocates it too) and adds them to
+    the project in the role. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Staff" default-menu-include="false">
+
+    <parameter name="workEffortAllocationId" required="true"/>
+
+    <transition name="staff">
+        <actions>
+            <service-call name="ironstone.ResourceServices.decide#Allocation" out-map="staffOut" in-map="{workEffortAllocationId:workEffortAllocationId, action:'staff',
+                    partyId:staffPartyId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(staffOut.message, 'success')</script></if>
+        </actions>
+        <default-response url=".."><parameter name="list" value="unstaffed"/></default-response>
+        <error-response url=".."/>
+    </transition>
+
+    <actions>
+        <service-call name="ironstone.ResourceServices.get#StaffCandidates" out-map="staffInfo" in-map="{workEffortAllocationId:workEffortAllocationId}"/>
+        <script><![CDATA[
+            ec.message.clearErrors()
+            allocation = staffInfo.allocation || null
+            found = !!allocation
+            candidateList = Array.from(staffInfo.candidateList || [])
+            canStaff = !!staffInfo.canStaff
+            ratesShown = !!staffInfo.ratesShown
+            if (allocation) summaryText = [allocation.projectName, allocation.periodText, allocation.amountText].filter((one) => one).join(' · ')
+        ]]></script>
+    </actions>
+
+    <widgets>
+        <section name="StaffNotFound" condition="!found"><widgets>
+            <label type="p" text="Allocation ${workEffortAllocationId} is not available." style="text-warning"/>
+        </widgets></section>
+        <section name="StaffFound" condition="found"><widgets>
+            <label text="${allocation.whoText}" type="h6" style="q-my-none"/>
+            <label text="${summaryText}" type="p" style="text-caption m-muted"/>
+            <form-list name="StaffCandidates" list="candidateList" skip-form="true" paginate="false">
+                <field name="name"><default-field title="Candidate">
+                    <link url="${personUrl}" url-type="plain" text="${name}" link-type="anchor"/>
+                    <label text="${projectsText}" type="div" style="text-caption m-muted"/></default-field></field>
+                <field name="fitText"><default-field title="Fit">
+                    <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${fitColor}">${WebUtilities.encodeHtml(fitText ?? '')}</q-chip>]]></text>
+                        <text type="tui"><![CDATA[{"t": "text", "style": "strong", "text": ${JSON.stringify(fitText ?? "")}}]]></text></render-mode></default-field></field>
+                <field name="freeText"><default-field title="Free hours"><display/></default-field></field>
+                <field name="skillText"><default-field title="Skill and role"><display text="${[skillText, roleText].filter((one) => one).join(' · ')}"/></default-field></field>
+                <field name="rateText"><conditional-field condition="ratesShown" title="Cost"><display/></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <field name="staffLink" align="right"><conditional-field condition="canStaff" title="">
+                        <link url="staff" link-type="hidden-form-link" text="Staff" icon="sym_o_person_add" confirmation="Staff ${allocation.whoText} with ${name}?"
+                                parameter-map="{workEffortAllocationId:workEffortAllocationId, staffPartyId:partyId}"/></conditional-field>
+                    <default-field><ignored/></default-field></field>
+                <columns type="mobile">
+                    <column><field-ref name="name"/></column>
+                    <column><field-ref name="fitText"/><field-ref name="freeText"/></column>
+                    <column><field-ref name="staffLink"/></column>
+                </columns>
+            </form-list>
+            <section name="NoCandidates" condition="!candidateList.length"><widgets>
+                <label type="p" text="No one to propose: no one keeps time on a project, has the skill or holds the role." style="m-muted q-pa-sm q-mb-none"/>
+            </widgets></section>
+        </widgets></section>
+    </widgets>
+</screen>

@@ -12,10 +12,15 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Billing (design-projects.md §10): unbilled work, invoices and rates, opening on Unbilled. Managers only (BOSS_PROJECTS_MANAGERS in data/BossSetupData.xml); clients get Invoices with client access (impl-projects.md P10). -->
+<!-- Billing (design-projects.md §10): unbilled work, invoices and rates, opening on Unbilled, with the shared invoice detail
+    (screen/Shared/InvoiceDetail.xml, in the Projects context) and its printed form (Billing/InvoicePrint.xml, also the PDF and the
+    email's attachment). Managers only (BOSS_PROJECTS_MANAGERS in data/BossSetupData.xml), and in it only those who manage money
+    (ironstone.BillingServices.check#Money); clients get Invoices with client access (impl-projects.md P10). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Billing" default-menu-index="8">
-    <subscreens default-item="Unbilled"/>
+    <subscreens default-item="Unbilled">
+        <subscreens-item name="InvoiceDetail" location="component://ironstone-boss/screen/Shared/InvoiceDetail.xml" menu-include="false"/>
+    </subscreens>
     <widgets>
         <subscreens-active/>
     </widgets>

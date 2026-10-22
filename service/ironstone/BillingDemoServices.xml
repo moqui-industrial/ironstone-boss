@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The billing demo of IronStone Projects (impl-projects.md P8a): data/BossProjectsDemoDataTimeBilling.xml calls load#BillingDemo after
+    SUPP's client and rates. -->
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
+
+    <service verb="load" noun="BillingDemo" authenticate="anonymous-all" allow-remote="false">
+        <description>
+            SUPP's time finds its rates again (mantle.work.TimeServices.resetAndGet#ProjectTimeEntryRates: the time was logged before the
+            rates were loaded), then a draft client invoice to Brightwater Dental Group of the approved time (Joe Developer's week two weeks back), by the
+            real path (mantle.account.InvoiceServices.create#ProjectInvoiceItems with approvedOnly and billableOnly, a line per worker as
+            the organization's billing defaults say, Net 30). Each part on its own: one that fails is logged and the rest go on. Loading
+            again adds nothing when SUPP has an invoice already.
+        </description>
+        <actions><script><![CDATA[
+            const step = (name, run) => {
+                ec.message.pushErrors()
+                try { run(); if (ec.message.hasError()) throw new Error(ec.message.getErrorsString()) }
+                catch (err) { ec.logger.error(`Billing demo: ${name} not loaded: ${err && err.message ? err.message : err}`) }
+                finally { ec.message.clearErrors(); ec.message.popErrors() }
+            }
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try {
+                if (!ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', 'SUPP').one()) { ec.logger.warn('The billing demo needs the project SUPP; nothing loaded'); return }
+                if (ec.entity.find('mantle.work.effort.WorkEffortInvoice').condition('workEffortId', 'SUPP').count()) { ec.logger.info('The billing demo is already loaded'); return }
+                step('SUPP rates found again', () => ec.service.sync().name('mantle.work.TimeServices.resetAndGet#ProjectTimeEntryRates').parameters({rootWorkEffortId: 'SUPP'}).call())
+                step('the invoice of the approved week', () => ec.service.sync().name('mantle.account.InvoiceServices.create#ProjectInvoiceItems').parameters({workEffortId: 'SUPP',
+                    approvedOnly: true, billableOnly: true, entryGrouping: 'worker', settlementTermId: 'Net30'}).call())
+            } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+        ]]></script></actions>
+    </service>
+</services>

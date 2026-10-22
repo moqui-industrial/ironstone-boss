@@ -28,9 +28,14 @@ along with this software (see the LICENSE.md file). If not, see
     managers Approve time (the timesheets to approve) and the Approvals block (the submitted weeks waiting, five, oldest first, each opening
     TimesheetDetail; left out when none waits).
 
-    Seams for the later phases, each an addition here: Allocation requests and their approvals (P7), Unbilled and the two charts
-    (P8, P9), and the clients' Home (P10). Each counter comes from mantle.work.ProjectServices.get#ProjectHomeCounts, which
-    already answers null for those. -->
+    Resources (impl-projects.md P7): for managers Allocation requests (the requested allocations they decide, into Allocations'
+    Requested), and those requests in the Approvals block after the weeks.
+
+    Billing (impl-projects.md P8a): for managers who manage money, Unbilled (the billable time not invoiced in the projects they see,
+    its amount; into Billing's Unbilled).
+
+    Seams for the later phases, each an addition here: the two charts (P9) and the clients' Home (P10). Each counter comes from
+    mantle.work.ProjectServices.get#ProjectHomeCounts, which answers null for one the user does not get. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Home" default-menu-index="1">
 
@@ -75,6 +80,10 @@ along with this software (see the LICENSE.md file). If not, see
             const sheetLabels = {TmshCompleted: L('submitted'), TmshApproved: L('approved')}
             hoursTitle = L('My hours') + (sheetLabels[counts.timesheetStatusId] ? ' · ' + sheetLabels[counts.timesheetStatusId] : '')
             toApproveText = n(counts.timesheetsToApprove)
+            allocationsShown = isManager && counts.allocationRequests != null
+            allocationsText = n(counts.allocationRequests)
+            unbilledShown = isManager && counts.unbilledAmount != null
+            unbilledText = unbilledShown ? ec.l10n.formatCurrency(toDecimal(counts.unbilledAmount), counts.unbilledCurrencyUomId || 'USD') : ''
             // the timer strip
             timer = home.timer || null
             timerShown = !!timer
@@ -148,6 +157,8 @@ along with this software (see the LICENSE.md file). If not, see
             <number-card title="Reviews waiting" value="${reviewsText}" icon="sym_o_rate_review" link="../Code/MergeRequests?list=waiting" condition="reviewsShown"/>
             <number-card title="${hoursTitle}" value="${hoursWeekText}" icon="sym_o_schedule" link="../Time/MyTime"/>
             <number-card title="Approve time" value="${toApproveText}" icon="sym_o_approval" link="../Time/Timesheets?list=toApprove" condition="isManager"/>
+            <number-card title="Allocation requests" value="${allocationsText}" icon="sym_o_event_available" link="../Resources/Allocations?list=requested" condition="allocationsShown"/>
+            <number-card title="Unbilled" value="${unbilledText}" icon="sym_o_request_quote" link="../Billing/Unbilled" condition="unbilledShown"/>
             <number-card title="At risk" value="${atRiskText}" icon="sym_o_warning" link="../Projects?list=atRisk" condition="isManager"/>
             <number-card title="Milestones" value="${milestonesText}" icon="sym_o_flag_circle" link="../Projects/Roadmap" condition="isManager"/>
         </dashboard>
@@ -209,11 +220,12 @@ along with this software (see the LICENSE.md file). If not, see
                 <section name="Approvals" condition="approvalsShown"><widgets>
                     <container-box><box-header title="Approvals"/><box-toolbar>
                         <link url="../Time/Timesheets" link-type="anchor" text="All timesheets to approve" parameter-map="{list:'toApprove'}"/>
+                        <link url="../Resources/Allocations" link-type="anchor" text="Allocations" parameter-map="{list:'requested'}" condition="allocationsShown"/>
                     </box-toolbar><box-body-nopad>
                         <form-list name="HomeApprovals" list="approvalList" skip-form="true" skip-header="true" paginate="false">
                             <field name="personName"><default-field>
                                 <link url="${url}" url-type="plain" text="${personName}" link-type="anchor"/>
-                                <label text="${ec.l10n.localize('Timesheet')} · ${weekText}" type="div" style="text-caption m-muted"/></default-field></field>
+                                <label text="${whatText}" type="div" style="text-caption m-muted"/></default-field></field>
                             <field name="hoursText" align="right"><default-field><display/></default-field></field>
                             <field name="sinceText" align="right"><default-field><label text="${sinceText}" type="span" style="text-no-wrap m-muted"/></default-field></field>
                             <columns type="mobile">

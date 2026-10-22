@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- InvoiceDetail (design-projects.md §10 InvoiceDetail, the Invoice detail of research-crosscut §3; style-guide §3.3 Detail;
+    impl-projects.md P8a): one invoice, mounted by Projects at Projects/Billing/InvoiceDetail. Built for the Projects context now
+    (impl-projects.md §4: expanded when design-crosscut and Accounting need more); appRoot will choose the context then, as
+    Shared/RequestDetail does, and every other app root reads it as Projects until it has its own.
+
+    Projects (service/ironstone/BillingServices.xml get#InvoiceDetail): for one who manages money and sees one of the invoice's projects;
+    anyone else gets "not available". The title row: the invoice, its kind, the client, the status-bar (read only: In-Process,
+    Finalized, Sent, Payment Received; the moves are the actions), overdue; the actions on a client invoice: Approve (a draft; primary),
+    Send (approves a draft first; email to the client's billing address with the PDF and the time detail; primary once approved), Print
+    and PDF (Billing/InvoicePrint.xml), Edit (a draft: date, payment terms, reference, description, message), Resume changes (approved),
+    Cancel (a draft or approved: its time is unbilled again). The number cards: Total, Unpaid, Due, Hours. The boxes: Details, Lines
+    (each with the time behind it; Remove on a draft frees its time), Time (every entry billed: day, who, work item, hours, rate,
+    amount, comment), Payments; Chatter as the right column from 1440 px. Worker and expense invoices are read only here.
+
+    Clients (impl-projects.md P10) will see their own invoices read only: the details, the lines, the time detail when the project
+    shares hours, the payments and the PDF; never Chatter, the workers' rates or the internal actions. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Invoice" default-menu-include="false">
+
+    <parameter name="invoiceId" required="true"/>
+
+    <transition name="changeStatus">
+        <actions>
+            <service-call name="ironstone.BillingServices.update#InvoiceStatus" out-map="statusOut" in-map="{invoiceId:invoiceId, action:action}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(statusOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="invoiceId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="updateHeader">
+        <actions>
+            <service-call name="ironstone.BillingServices.update#InvoiceHeader" out-map="headerOut" in-map="{invoiceId:invoiceId, invoiceDate:(invoiceDate || null),
+                    settlementTermId:(settlementTermId || null), referenceNumber:(referenceNumber ?? null), description:(description ?? null), invoiceMessage:(invoiceMessage ?? null)}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(headerOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="invoiceId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="removeLine">
+        <actions>
+            <service-call name="ironstone.BillingServices.remove#InvoiceLine" out-map="removeOut" in-map="{invoiceId:invoiceId, invoiceItemSeqId:invoiceItemSeqId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(removeOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="invoiceId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="sendInvoice">
+        <actions>
+            <service-call name="ironstone.BillingServices.send#Invoice" out-map="sendOut" in-map="{invoiceId:invoiceId, toAddresses:(toAddresses || ''), note:(note || null)}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(sendOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="invoiceId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="invoices"><default-response url="//Projects/Billing/Invoices"/></transition>
+
+    <actions><script><![CDATA[
+        const out = ec.service.sync().name('ironstone.BillingServices.get#InvoiceDetail').parameters({invoiceId: invoiceId || ''}).call() || {}
+        ec.message.clearErrors()
+        recordFound = !!out.detail
+        if (!recordFound) return
+        const L = (text) => ec.l10n.localize(text)
+        inv = out.detail
+        itemRows = inv.itemRows
+        entryRows = inv.entryRows
+        paymentRows = inv.payments
+        projectRows = inv.projects
+        termOptions = Array.from(ec.service.sync().name('ironstone.BillingServices.get#BillingSettings').call()?.termOptions || [])
+        headerValue = {invoiceId: invoiceId, invoiceDate: inv.invoiceDateValue, settlementTermId: inv.settlementTermId, referenceNumber: inv.referenceNumber,
+            description: inv.description, invoiceMessage: inv.invoiceMessage}
+        sendValue = {invoiceId: invoiceId, toAddresses: inv.sendTo, note: ''}
+        stateText = inv.overdue ? L('Overdue') + ' · ' + L('due') + ' ' + inv.dueDateText : inv.statusId === 'InvoiceInProcess' ? L('Draft: approve it, then send it to the client')
+                : inv.statusId === 'InvoiceFinalized' ? L('Approved, not sent yet') : inv.statusId === 'InvoiceCancelled' ? L('Cancelled: its time is unbilled again') : ''
+        stateStyle = inv.overdue ? 'text-negative' : 'm-muted'
+        detailRows = [['From', inv.fromName], ['To', inv.toName], ['Invoice date', inv.invoiceDateText], ['Due', inv.dueDateText], ['Payment terms', inv.termText],
+            ['Reference', inv.referenceNumber], ['Description', inv.description], ['Message to the client', inv.invoiceMessage]]
+                .filter((pair) => pair[1]).map((pair) => ({label: L(pair[0]), value: pair[1]}))
+    ]]></script></actions>
+
+    <widgets>
+        <section name="InvoiceNotFound" condition="!recordFound"><widgets>
+            <container-box type="warning"><box-header title="Not available"/><box-body>
+                <label type="p" text="Invoice ${invoiceId} is not available: it does not exist, it is not of a project you see, or you do not manage money."/>
+                <link url="invoices" link-type="anchor" text="Back to the invoices"/>
+            </box-body></container-box>
+        </widgets></section>
+
+        <section name="InvoiceFound" condition="recordFound"><widgets>
+            <context record-entity="mantle.account.invoice.Invoice" record-id="${invoiceId}" title="${inv.kindText} ${invoiceId} · ${inv.toName}"/>
+            <container style="row items-start q-col-gutter-sm q-mb-sm">
+                <container style="col-12 col-md">
+                    <container style="row items-center q-gutter-x-sm">
+                        <label text="${inv.kindText} ${invoiceId}" type="h5" style="q-my-none"/>
+                        <label text="${inv.toName}" type="span" style="text-subtitle1 m-muted"/>
+                    </container>
+                    <status-bar id="InvoiceStatusBar" status-id="${inv.statusId}" status-flow-id="InvoiceReceivable" stages="${inv.stageStatusIds}" read-only="true"/>
+                    <label text="${stateText}" type="div" style="text-body2 ${stateStyle}" condition="stateText"/>
+                </container>
+                <container style="col-12 col-md-auto row items-center q-gutter-x-xs q-gutter-y-xs">
+                    <link url="changeStatus" link-type="hidden-form" btn-type="primary" text="Approve" icon="sym_o_task_alt" parameter-map="{invoiceId:invoiceId, action:'approve'}"
+                            condition="inv.canApprove" confirmation="Approve invoice ${invoiceId} for ${inv.totalText}? It is posted and no longer changed."/>
+                    <container-dialog id="InvoiceSendDialog" button-text="${inv.sendAgain ? 'Send again' : 'Send'}" icon="sym_o_send" width="560" title="Send invoice ${invoiceId}" condition="inv.canSend">
+                        <form-single name="SendInvoice" transition="sendInvoice" map="sendValue" focus-field="toAddresses">
+                            <field name="invoiceId"><default-field><hidden/></default-field></field>
+                            <field name="toAddresses"><default-field title="To (commas between addresses)"><text-line size="50"/></default-field></field>
+                            <field name="note"><default-field title="Message"><text-area rows="4" cols="50"/></default-field></field>
+                            <field name="sendHelp"><default-field title=""><label text="${inv.isDraft ? 'The draft is approved first. ' : ''}The invoice goes as a PDF with its time detail, and its lines are in the message." type="p" style="text-caption m-muted"/></default-field></field>
+                            <field name="submitButton"><default-field title="Send"><submit/></default-field></field>
+                        </form-single>
+                    </container-dialog>
+                    <link url="${inv.printUrl}" url-type="plain" text="Print" icon="sym_o_print" link-type="anchor-button" target-window="_blank"/>
+                    <button-menu text="More" icon="more_horiz" style="q-ml-xs">
+                        <link url="${inv.pdfUrl}" url-type="plain" text="Download PDF" icon="sym_o_picture_as_pdf" target-window="_blank"/>
+                        <container-dialog id="InvoiceEditDialog" button-text="Edit" icon="sym_o_edit" width="560" title="Edit invoice ${invoiceId}" condition="inv.canEdit">
+                            <form-single name="EditInvoiceHeader" transition="updateHeader" map="headerValue">
+                                <field name="invoiceId"><default-field><hidden/></default-field></field>
+                                <field name="invoiceDate"><default-field title="Invoice date"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                                <field name="settlementTermId"><default-field title="Payment terms">
+                                    <drop-down allow-empty="true"><list-options list="termOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                <field name="referenceNumber"><default-field title="Reference (the client's PO)"><text-line size="30"/></default-field></field>
+                                <field name="description"><default-field title="Description"><text-line size="50"/></default-field></field>
+                                <field name="invoiceMessage"><default-field title="Message to the client"><text-area rows="3" cols="50"/></default-field></field>
+                                <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                                <field-layout>
+                                    <field-ref name="invoiceId"/>
+                                    <field-row><field-ref name="invoiceDate"/><field-ref name="settlementTermId"/></field-row>
+                                    <field-ref name="referenceNumber"/><field-ref name="description"/><field-ref name="invoiceMessage"/>
+                                    <field-ref name="submitButton"/>
+                                </field-layout>
+                            </form-single>
+                        </container-dialog>
+                        <link url="changeStatus" link-type="hidden-form-link" text="Resume changes" icon="sym_o_lock_open" parameter-map="{invoiceId:invoiceId, action:'resume'}"
+                                condition="inv.canResume" confirmation="Open invoice ${invoiceId} to changes again? Its posting is reversed."/>
+                        <link url="changeStatus" link-type="hidden-form-link" text="Cancel the invoice" icon="sym_o_cancel" parameter-map="{invoiceId:invoiceId, action:'cancel'}"
+                                condition="inv.canCancel" confirmation="Cancel invoice ${invoiceId}? Its time is unbilled again."/>
+                    </button-menu>
+                </container>
+            </container>
+
+            <dashboard min-width="150" style="q-mb-sm">
+                <number-card title="Total" value="${inv.totalText}" icon="sym_o_receipt_long" size="sm"/>
+                <number-card title="Unpaid" value="${inv.unpaidText}" icon="sym_o_account_balance_wallet" size="sm"/>
+                <number-card title="Due" value="${inv.dueDateText || '—'}" icon="sym_o_event" size="sm"/>
+                <number-card title="Hours billed" value="${inv.hoursText}" icon="sym_o_schedule" size="sm"/>
+            </dashboard>
+
+            <container style="row q-col-gutter-sm">
+                <container style="col-12 col-lg-8">
+                    <container-row>
+                        <row-col md="6">
+                            <container-box><box-header title="Details"/><box-body-nopad>
+                                <form-list name="InvoiceDetails" list="detailRows" skip-form="true" skip-header="true" paginate="false">
+                                    <field name="label"><default-field><label text="${label}" type="span" style="m-muted text-no-wrap"/></default-field></field>
+                                    <field name="value"><default-field><display/></default-field></field>
+                                </form-list>
+                            </box-body-nopad></container-box>
+                        </row-col>
+                        <row-col md="6">
+                            <container-box><box-header title="Projects"/><box-body-nopad>
+                                <form-list name="InvoiceProjects" list="projectRows" skip-form="true" skip-header="true" paginate="false">
+                                    <field name="name"><default-field><link url="${url}" url-type="plain" text="${name}" link-type="anchor"/></default-field></field>
+                                </form-list>
+                            </box-body-nopad></container-box>
+                            <container-box><box-header title="Payments"/><box-body-nopad>
+                                <form-list name="InvoicePayments" list="paymentRows" skip-form="true" paginate="false">
+                                    <field name="paymentId"><default-field title="Payment"><display/></default-field></field>
+                                    <field name="dateText"><default-field title="Applied"><display/></default-field></field>
+                                    <field name="amountText" align="right"><default-field title="Amount"><display/></default-field></field>
+                                </form-list>
+                                <label type="p" text="No payments yet." style="m-muted q-pa-sm q-mb-none" condition="!paymentRows.length"/>
+                            </box-body-nopad></container-box>
+                        </row-col>
+                    </container-row>
+
+                    <container-box><box-header title="Lines · ${itemRows.length}"/><box-body-nopad>
+                        <form-list name="InvoiceLines" list="itemRows" skip-form="true" paginate="false">
+                            <field name="invoiceItemSeqId"><default-field title="#"><display/></default-field></field>
+                            <field name="description"><default-field title="Description">
+                                <label text="${description || typeText}" type="span"/>
+                                <label text="${timeText}" type="div" style="text-caption m-muted" condition="timeText"/></default-field></field>
+                            <field name="itemDateText"><default-field title="Date"><label text="${itemDateText}" type="span" style="text-no-wrap"/></default-field></field>
+                            <field name="quantityText" align="right"><default-field title="Quantity"><display/></default-field></field>
+                            <field name="amountText" align="right"><default-field title="Price"><label text="${amountText}" type="span" style="text-no-wrap"/></default-field></field>
+                            <field name="totalText" align="right"><default-field title="Amount"><label text="${totalText}" type="span" style="text-no-wrap text-weight-medium"/></default-field></field>
+                            <field name="remove" align="right"><default-field title="">
+                                <link url="removeLine" link-type="hidden-form-link" text="" icon="sym_o_remove_circle" tooltip="Remove the line; its time is unbilled again" style="m-btn-flat"
+                                        parameter-map="{invoiceId:invoiceId, invoiceItemSeqId:invoiceItemSeqId}" condition="canRemove"
+                                        confirmation="Remove line ${invoiceItemSeqId}? Its time is unbilled again."/></default-field></field>
+                            <columns type="mobile">
+                                <column><field-ref name="description"/></column>
+                                <column><field-ref name="totalText"/><field-ref name="remove"/></column>
+                            </columns>
+                        </form-list>
+                        <label type="p" text="No lines." style="m-muted q-pa-sm q-mb-none" condition="!itemRows.length"/>
+                        <container style="row justify-end q-pa-sm">
+                            <label text="Total ${inv.totalText}" type="span" style="text-subtitle1 text-weight-medium"/>
+                        </container>
+                    </box-body-nopad></container-box>
+
+                    <container-box><box-header title="Time · ${entryRows.length} entries, ${inv.hoursText} h"/><box-body-nopad>
+                        <form-list name="InvoiceTime" list="entryRows" skip-form="true" paginate="false" show-csv-button="true">
+                            <field name="invoiceItemSeqId"><default-field title="Line"><display/></default-field></field>
+                            <field name="dayText"><default-field title="Day"><label text="${dayText}" type="span" style="text-no-wrap"/></default-field></field>
+                            <field name="personName"><default-field title="Who"><display/></default-field></field>
+                            <field name="itemText"><default-field title="Work item">
+                                <link url="${itemUrl}" url-type="plain" text="${itemText}" link-type="anchor" condition="itemUrl"/>
+                                <label text="${itemText}" type="span" condition="!itemUrl"/></default-field></field>
+                            <field name="hoursText" align="right"><default-field title="Hours"><display/></default-field></field>
+                            <field name="rateText" align="right"><default-field title="Rate"><label text="${rateText}" type="span" style="text-no-wrap"/></default-field></field>
+                            <field name="amountText" align="right"><default-field title="Amount"><label text="${amountText}" type="span" style="text-no-wrap"/></default-field></field>
+                            <field name="comments"><default-field title="Comment"><display/></default-field></field>
+                            <columns type="mobile">
+                                <column><field-ref name="dayText"/><field-ref name="itemText"/></column>
+                                <column><field-ref name="hoursText"/><field-ref name="amountText"/></column>
+                            </columns>
+                        </form-list>
+                        <label type="p" text="No time is billed on this invoice." style="m-muted q-pa-sm q-mb-none" condition="!entryRows.length"/>
+                    </box-body-nopad></container-box>
+                </container>
+                <!-- Chatter, the notes on the invoice, beside the boxes from 1440 px -->
+                <container style="col-12 col-lg-4">
+                    <chatter id="InvoiceChatter" record-entity="mantle.account.invoice.Invoice" record-id="${invoiceId}" default-tab="log"/>
+                </container>
+            </container>
+        </widgets></section>
+    </widgets>
+</screen>

@@ -12,10 +12,257 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for the rates (design-projects.md §10 Rates; impl-projects.md P8). -->
+<!-- Rates (design-projects.md §10 Rates; style-guide §3.2 List; impl-projects.md P8a): the versioned hour rates (RateAmount) of client
+    billing and worker pay, for those who manage money (service/ironstone/BillingServices.xml find#RateRows, store#Rate, end#Rate,
+    get#WhichRate). The chips: Client billing (the default) and Worker pay, with their counts. The find (the list's dialog): project,
+    person, work type, rate type, effective on a day, and the ended ones. Each row: the rate type, project (or any), person (or anyone),
+    work type, position class, from, thru, the amount an hour, current, coming or ended; Edit (from, thru and the amount: a rate's scope
+    never changes, so a change of scope is End and New rate), End. New rate (purpose, rate type, project, person, position class, work
+    type, from, thru, amount). Which rate: the client and worker rates a person's time on a project or work item, of a work type, on a
+    day finds (mantle.work.TimeServices.find#RateAmount), and why. A rate applies to time logged in its dates; the rates already found for
+    time not invoiced are found again by the project's Update rates (ProjectTime). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Rates" default-menu-index="3">
+
+    <parameter name="purpose"/>
+    <parameter name="rootWorkEffortId"/>
+    <parameter name="partyId"/>
+    <parameter name="workTypeEnumId"/>
+    <parameter name="rateTypeEnumId"/>
+    <parameter name="effectiveOn"/>
+    <parameter name="showEnded"/>
+    <parameter name="whichPartyId"/>
+    <parameter name="whichWorkEffortId"/>
+    <parameter name="whichWorkTypeEnumId"/>
+    <parameter name="whichDate"/>
+
+    <transition name="saveRate">
+        <actions>
+            <service-call name="ironstone.BillingServices.store#Rate" out-map="saveOut" in-map="{rateAmountId:(rateAmountId || null), ratePurposeEnumId:(ratePurposeEnumId || null),
+                    rateTypeEnumId:(newRateTypeEnumId || null), workEffortId:(rateWorkEffortId || null), partyId:(ratePartyId || null), emplPositionClassId:(emplPositionClassId || null),
+                    workTypeEnumId:(rateWorkTypeEnumId || null), fromDate:(fromDate || null), thruDate:(thruDate || null), rateAmount:(rateAmount ?? ''), rateCurrencyUomId:(rateCurrencyUomId || null)}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="purpose"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="endRate">
+        <actions>
+            <service-call name="ironstone.BillingServices.end#Rate" out-map="endOut" in-map="{rateAmountId:rateAmountId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(endOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="purpose"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="whichRate">
+        <default-response url=".">
+            <parameter name="purpose"/><parameter name="whichPartyId"/><parameter name="whichWorkEffortId"/><parameter name="whichWorkTypeEnumId"/><parameter name="whichDate"/>
+        </default-response>
+    </transition>
+    <transition name="people" read-only="true">
+        <actions>
+            <service-call name="ironstone.ResourceServices.search#AllocationPeople" in-map="{term:term}" out-map="found"/>
+            <script>ec.web.sendJsonResponse(found.optionList || [])</script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+
+    <actions>
+        <script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            if (!['RaprClient', 'RaprVendor'].includes(purpose)) purpose = 'RaprClient'
+            managesMoney = !!ec.service.sync().name('ironstone.BillingServices.check#Money').parameters({need: 'none'}).call()?.managesMoney
+            rateRows = []
+            if (!managesMoney) return
+            const out = ec.service.sync().name('ironstone.BillingServices.find#RateRows').parameters({ratePurposeEnumId: purpose, rootWorkEffortId: rootWorkEffortId || null,
+                partyId: partyId || null, workTypeEnumId: workTypeEnumId || null, rateTypeEnumId: rateTypeEnumId || null, effectiveOn: effectiveOn || null,
+                showEnded: showEnded === 'Y'}).call() || {}
+            ec.message.clearErrors()
+            rateRows = Array.from(out.rowList || [])
+            rateRowsCount = rateRows.length
+            const counts = out.counts || {}
+            const options = ec.service.sync().name('ironstone.BillingServices.get#RateOptions').call() || {}
+            projectOptions = Array.from(options.projectOptions || [])
+            workTypeOptions = Array.from(options.workTypeOptions || [])
+            positionOptions = Array.from(options.positionOptions || [])
+            rateTypeOptions = Array.from(options.rateTypeOptions || [])
+            const find = {rootWorkEffortId: rootWorkEffortId || null, partyId: partyId || null, workTypeEnumId: workTypeEnumId || null, rateTypeEnumId: rateTypeEnumId || null,
+                effectiveOn: effectiveOn || null, showEnded: showEnded === 'Y' ? 'Y' : null}
+            Object.keys(find).forEach((key) => { if (find[key] == null) delete find[key] })
+            filtered = Object.keys(find).length > 0
+            purposeChips = [['RaprClient', 'Client billing', 'sym_o_request_quote'], ['RaprVendor', 'Worker pay', 'sym_o_badge']].map(([key, label, icon]) => ({key: key,
+                label: L(label) + ' · ' + (counts[key] ?? 0), icon: icon, on: key === purpose, params: Object.assign({}, find, {purpose: key})}))
+            purposeLabel = purpose === 'RaprVendor' ? L('Worker pay') : L('Client billing')
+            newRateValue = {ratePurposeEnumId: purpose, newRateTypeEnumId: 'RatpStandard', rateWorkEffortId: rootWorkEffortId || '', ratePartyId: partyId || '',
+                fromDate: ec.l10n.format(ec.user.nowTimestamp, 'yyyy-MM-dd'), rateCurrencyUomId: ec.user.getPreference('CurrencyDefault') || 'USD'}
+            emptyText = filtered ? L('No rates match') : purpose === 'RaprVendor' ? L('No worker pay rates: time is paid at none') : L('No client rates: time is billed at none')
+            // Which rate
+            whichAsked = !!(whichPartyId || whichWorkEffortId || whichWorkTypeEnumId || whichDate)
+            whichValue = {purpose: purpose, whichPartyId: whichPartyId || '', whichWorkEffortId: whichWorkEffortId || '', whichWorkTypeEnumId: whichWorkTypeEnumId || '',
+                whichDate: whichDate || ec.l10n.format(ec.user.nowTimestamp, 'yyyy-MM-dd')}
+            whichAnswer = null
+            if (whichAsked) {
+                whichAnswer = ec.service.sync().name('ironstone.BillingServices.get#WhichRate').parameters({partyId: whichPartyId || null, workEffortId: whichWorkEffortId || null,
+                    workTypeEnumId: whichWorkTypeEnumId || null, onDate: whichDate || null}).call()?.answer || null
+                whichError = ec.message.hasError() ? ec.message.getErrorsString() : ''
+                ec.message.clearErrors()
+                const party = whichPartyId ? ec.entity.find('mantle.party.PartyDetail').condition('partyId', whichPartyId).disableAuthz().one() : null
+                whichQuestion = [party ? [party.firstName, party.lastName].filter((part) => part).join(' ') || party.organizationName : L('Anyone'),
+                    whichWorkEffortId || L('any project'), whichWorkTypeEnumId ? (workTypeOptions.find((type) => type.key === whichWorkTypeEnumId)?.text || whichWorkTypeEnumId) : L('any work'),
+                    whichDate || L('today')].join(' · ')
+            }
+        ]]></script>
+    </actions>
+
     <widgets>
-        <label text="Placeholder: Rates: client billing and worker pay rates by project, person, position and work type." type="p"/>
+        <section name="NoMoney" condition="!managesMoney"><widgets>
+            <container-box type="warning"><box-header title="Not available"/><box-body>
+                <label type="p" text="Rates are for those who manage money." style="q-mb-none"/>
+            </box-body></container-box>
+        </widgets></section>
+        <section name="Rates" condition="managesMoney"><widgets>
+            <container style="row items-center q-mb-sm q-gutter-y-xs">
+                <label text="Rates" type="h5" style="q-my-none q-mr-sm"/>
+                <container style="col"/>
+                <container-dialog id="WhichRateDialog" button-text="Which rate" icon="sym_o_help" width="560" title="Which rate applies">
+                    <form-single name="WhichRate" transition="whichRate" map="whichValue">
+                        <field name="purpose"><default-field><hidden/></default-field></field>
+                        <field name="whichPartyId"><default-field title="Person">
+                            <drop-down allow-empty="true"><dynamic-options transition="people" server-search="true" min-length="0"/></drop-down></default-field></field>
+                        <field name="whichWorkEffortId"><default-field title="Project or work item (its id, such as IRON or IRON-3)"><text-line size="20"/></default-field></field>
+                        <field name="whichWorkTypeEnumId"><default-field title="Work type">
+                            <drop-down allow-empty="true"><list-options list="workTypeOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                        <field name="whichDate"><default-field title="On"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                        <field name="submitButton"><default-field title="Find the rates"><submit/></default-field></field>
+                    </form-single>
+                </container-dialog>
+                <container-dialog id="NewRateDialog" button-text="New rate" icon="sym_o_add" width="600" title="New rate">
+                    <form-single name="NewRate" transition="saveRate" map="newRateValue">
+                        <field name="ratePurposeEnumId"><default-field title="For"><radio>
+                            <option key="RaprClient" text="Client billing"/><option key="RaprVendor" text="Worker pay"/></radio></default-field></field>
+                        <field name="newRateTypeEnumId"><default-field title="Rate type">
+                            <drop-down><list-options list="rateTypeOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                        <field name="rateWorkEffortId"><default-field title="Project (empty: any)">
+                            <drop-down allow-empty="true"><list-options list="projectOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                        <field name="ratePartyId"><default-field title="Person (empty: anyone)">
+                            <drop-down allow-empty="true"><dynamic-options transition="people" server-search="true" min-length="0"/></drop-down></default-field></field>
+                        <field name="rateWorkTypeEnumId"><default-field title="Work type (empty: any)">
+                            <drop-down allow-empty="true"><list-options list="workTypeOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                        <field name="emplPositionClassId"><default-field title="Position (empty: any)">
+                            <drop-down allow-empty="true"><list-options list="positionOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                        <field name="fromDate"><default-field title="From"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                        <field name="thruDate"><default-field title="Thru (empty: open)"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                        <field name="rateAmount"><default-field title="Amount an hour"><text-line size="10" input-type="number"/></default-field></field>
+                        <field name="rateCurrencyUomId"><default-field title="Currency"><text-line size="5"/></default-field></field>
+                        <field name="submitButton"><default-field title="Add"><submit/></default-field></field>
+                        <field-layout>
+                            <field-ref name="ratePurposeEnumId"/>
+                            <field-row><field-ref name="newRateTypeEnumId"/><field-ref name="rateWorkEffortId"/></field-row>
+                            <field-row><field-ref name="ratePartyId"/><field-ref name="rateWorkTypeEnumId"/></field-row>
+                            <field-ref name="emplPositionClassId"/>
+                            <field-row><field-ref name="fromDate"/><field-ref name="thruDate"/></field-row>
+                            <field-row><field-ref name="rateAmount"/><field-ref name="rateCurrencyUomId"/></field-row>
+                            <field-ref name="submitButton"/>
+                        </field-layout>
+                    </form-single>
+                </container-dialog>
+            </container>
+
+            <section name="WhichAnswer" condition="whichAsked"><widgets>
+                <container-box><box-header title="Which rate · ${whichQuestion}"/><box-body>
+                    <label type="p" text="${whichError}" style="text-warning" condition="whichError"/>
+                    <section name="WhichFound" condition="whichAnswer"><widgets>
+                        <container-row>
+                            <row-col md="6">
+                                <label text="Client billing" type="div" style="text-caption m-muted"/>
+                                <label text="${whichAnswer.client.text}" type="div" style="text-h6"/>
+                                <label text="${whichAnswer.client.why}" type="div" style="text-caption"/>
+                            </row-col>
+                            <row-col md="6">
+                                <label text="Worker pay" type="div" style="text-caption m-muted"/>
+                                <label text="${whichAnswer.worker.text}" type="div" style="text-h6"/>
+                                <label text="${whichAnswer.worker.why}" type="div" style="text-caption"/>
+                            </row-col>
+                        </container-row>
+                        <label type="p" text="${whichAnswer.note}" style="text-caption m-muted q-mt-sm q-mb-none"/>
+                    </widgets></section>
+                    <link url="." link-type="anchor" text="Close" parameter-map="{purpose:purpose}"/>
+                </box-body></container-box>
+            </widgets></section>
+
+            <container style="row q-gutter-xs q-mb-sm">
+                <section-iterate name="PurposeChip" list="purposeChips" entry="chip"><widgets>
+                    <section name="PurposeChipOn" condition="chip.on"><widgets>
+                        <link url="." link-type="anchor-button" btn-type="primary" text="${chip.label}" icon="${chip.icon}" parameter-map="chip.params"/>
+                    </widgets><fail-widgets>
+                        <link url="." link-type="anchor-button" text="${chip.label}" icon="${chip.icon}" parameter-map="chip.params"/>
+                    </fail-widgets></section>
+                </widgets></section-iterate>
+            </container>
+            <section name="ClearFilters" condition="filtered"><widgets>
+                <container style="q-mb-xs"><link url="." link-type="anchor" text="Clear filters" parameter-map="{purpose:purpose}"/></container>
+            </widgets></section>
+
+            <container-box><box-header title="${purposeLabel} · ${rateRowsCount}"/><box-body-nopad>
+                <form-list name="RateList" list="rateRows" skip-form="true" paginate="false" header-dialog="true" select-columns="true" show-csv-button="true">
+                    <!-- the find (the list's dialog) -->
+                    <field name="purpose"><header-field><hidden/></header-field></field>
+                    <field name="rootWorkEffortId"><header-field title="Project">
+                        <drop-down allow-empty="true"><list-options list="projectOptions" key="${key}" text="${text}"/></drop-down></header-field></field>
+                    <field name="partyId"><header-field title="Person">
+                        <drop-down allow-empty="true"><dynamic-options transition="people" server-search="true" min-length="0"/></drop-down></header-field></field>
+                    <field name="workTypeEnumId"><header-field title="Work type">
+                        <drop-down allow-empty="true"><list-options list="workTypeOptions" key="${key}" text="${text}"/></drop-down></header-field></field>
+                    <field name="rateTypeEnumId"><header-field title="Rate type">
+                        <drop-down allow-empty="true"><list-options list="rateTypeOptions" key="${key}" text="${text}"/></drop-down></header-field></field>
+                    <field name="effectiveOn"><header-field title="Effective on"><date-time type="date" format="yyyy-MM-dd"/></header-field></field>
+                    <field name="showEnded"><header-field title=""><check><option key="Y" text="Show ended rates"/></check></header-field></field>
+
+                    <!-- the columns -->
+                    <field name="rateTypeText"><default-field title="Rate type"><display/></default-field></field>
+                    <field name="projectName"><default-field title="Project">
+                        <link url="${projectUrl}" url-type="plain" text="${projectName}" link-type="anchor" condition="projectUrl"/>
+                        <label text="${projectName}" type="span" style="m-muted" condition="!projectUrl"/></default-field></field>
+                    <field name="personName"><default-field title="Person"><label text="${personName}" type="span" style="${partyId ? '' : 'm-muted'}"/></default-field></field>
+                    <field name="workTypeText"><default-field title="Work type"><label text="${workTypeText}" type="span" style="${workTypeEnumId ? '' : 'm-muted'}"/>
+                        <label text="${positionText}" type="div" style="text-caption m-muted" condition="positionText"/></default-field></field>
+                    <field name="fromText"><default-field title="From"><label text="${fromText}" type="span" style="text-no-wrap"/></default-field></field>
+                    <field name="thruText"><default-field title="Thru"><label text="${thruText}" type="span" style="text-no-wrap"/></default-field></field>
+                    <field name="amountText" align="right"><default-field title="Rate">
+                        <label text="${amountText}" type="span" style="text-no-wrap text-weight-medium ${ended ? 'm-muted' : ''}"/></default-field></field>
+                    <field name="stateText"><default-field title="">
+                        <label text="${stateText}" type="span" style="text-caption ${ended ? 'm-muted' : coming ? 'text-info' : 'text-positive'}"/></default-field></field>
+                    <field name="actions" align="right"><default-field title="">
+                        <container style="row items-center justify-end no-wrap q-gutter-xs">
+                            <container-dialog id="EditRateDialog" button-text="" icon="sym_o_edit" width="480" title="Edit the rate" condition="canChange">
+                                <form-single name="EditRate" transition="saveRate">
+                                    <field name="rateAmountId"><default-field><hidden/></default-field></field>
+                                    <field name="purpose" from="ratePurposeEnumId"><default-field><hidden/></default-field></field>
+                                    <field name="scopeText"><default-field title="Applies to">
+                                        <label text="${projectName} · ${personName} · ${workTypeText}" type="span"/></default-field></field>
+                                    <field name="fromDate" from="fromValue"><default-field title="From"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                                    <field name="thruDate" from="thruValue"><default-field title="Thru (empty: open)"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                                    <field name="rateAmount" from="amountValue"><default-field title="Amount an hour"><text-line size="10" input-type="number"/></default-field></field>
+                                    <field name="scopeNote"><default-field title=""><label text="To change what the rate applies to, end it and add a new rate." type="p" style="text-caption m-muted"/></default-field></field>
+                                    <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                                </form-single>
+                            </container-dialog>
+                            <link url="endRate" link-type="hidden-form-link" text="" icon="sym_o_event_busy" tooltip="End the rate now" style="m-btn-flat"
+                                    confirmation="End this rate now? Time logged from now on finds another rate." parameter-map="{rateAmountId:rateAmountId, purpose:ratePurposeEnumId}" condition="canChange"/>
+                        </container>
+                    </default-field></field>
+                    <field name="findButton"><header-field title="Find"><submit/></header-field></field>
+
+                    <columns type="mobile">
+                        <column><field-ref name="projectName"/><field-ref name="personName"/><field-ref name="workTypeText"/></column>
+                        <column><field-ref name="amountText"/><field-ref name="stateText"/><field-ref name="actions"/></column>
+                    </columns>
+                </form-list>
+                <section name="NoRates" condition="!rateRows.length"><widgets>
+                    <label type="p" text="${emptyText}" style="m-muted q-pa-sm q-mb-none"/>
+                </widgets></section>
+            </box-body-nopad></container-box>
+            <label type="p" text="A time entry finds its rate when it is logged: a rate on its work item, else on its project, else on no project; a person's own rate when it is the greater; the closest work type and position. Rates change only the time logged in their dates." style="text-caption m-muted q-mt-sm"/>
+        </widgets></section>
     </widgets>
 </screen>

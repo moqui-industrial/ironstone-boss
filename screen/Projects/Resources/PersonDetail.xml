@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- PersonDetail (design-projects.md §9 PersonDetail; style-guide §3.4 360): a person as Projects sees them, until the Employee 360 of
+    design-crosscut exists (design §16). Seen by the person, ADMIN and those who see a project the person is on or allocated to
+    (service/ironstone/ResourceServices.xml get#PersonAccess); else "not available". The title row: the avatar, the name, their
+    organizations, New allocation (for those who may request one; the dialog is Allocations/EditAllocation.xml, mounted here) and the
+    team planner on the person. The tabs, each with the person as its context: Overview (the directory card, position, line managers,
+    skills, working hours, the next weeks' load), Allocations, Work items (assigned, open), Time (entries and timesheets, as the viewer
+    may see them) and Capacity (twelve weeks). -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Person" default-menu-include="false">
+
+    <parameter name="partyId"/>
+
+    <!-- the person for the tabs, which the client loads on their own (impl-projects.md F18) -->
+    <always-actions><script><![CDATA[
+        const personAccess = ec.service.sync().name('ironstone.ResourceServices.get#PersonAccess').parameters({partyId: partyId || ''}).call() || {}
+        ec.message.clearErrors()
+        personFound = !!personAccess.canView
+        person = personAccess.person || null
+    ]]></script></always-actions>
+
+    <subscreens default-item="Overview">
+        <subscreens-item name="EditAllocation" location="component://ironstone-boss/screen/Projects/Resources/Allocations/EditAllocation.xml" menu-include="false"/>
+    </subscreens>
+
+    <transition name="planner"><default-response url="../TeamPlanner"/></transition>
+
+    <actions><script><![CDATA[
+        if (!personFound) return
+        const L = (text) => ec.l10n.localize(text)
+        const orgs = []
+        for (const row of ec.entity.find('mantle.party.PartyRelationship').condition('fromPartyId', partyId).condition('relationshipTypeEnumId', 'in', ['PrtEmployee', 'PrtContractor'])
+                .conditionDate('fromDate', 'thruDate', null).disableAuthz().list()) {
+            const org = ec.entity.find('mantle.party.Organization').condition('partyId', row.toPartyId).disableAuthz().one()
+            if (org?.organizationName) orgs.push(org.organizationName)
+        }
+        captionText = Array.from(new Set(orgs)).join(', ')
+        const vis = ec.service.sync().name('mantle.work.ProjectServices.get#VisibleProjectInfo').call() || {}
+        canRequest = !!ec.user.userId && (ec.user.isInGroup('ADMIN') || ec.user.hasPermission('ALLOCATION_APPROVE') || Array.from(vis.managedProjectIds || []).length > 0)
+        const enc = (value) => String(value == null ? '' : value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\u0022/g, '&quot;')
+        avatarHtml = '<m-avatar name="' + enc(person.name) + '"' + (person.userId ? ' user-id="' + enc(person.userId) + '"' : '')
+                + ' size="40px" class="q-mr-md"></m-avatar>'
+    ]]></script></actions>
+
+    <widgets>
+        <section name="PersonNotFound" condition="!personFound"><widgets>
+            <container-box type="warning"><box-body>
+                <label type="p" text="This person is not available: they are on no project you see." style="q-mb-xs"/>
+                <link url="planner" link-type="anchor" text="Team planner"/>
+            </box-body></container-box>
+        </widgets></section>
+        <section name="PersonFound" condition="personFound"><widgets>
+            <container style="row items-center q-col-gutter-sm q-mb-sm">
+                <container style="col-12 col-md row items-center no-wrap">
+                    <render-mode><text type="qvt"><![CDATA[${avatarHtml}]]></text><text type="tui" template="false">[]</text></render-mode>
+                    <container>
+                        <label text="${person.name}" type="h5" style="q-my-none"/>
+                        <label text="${captionText}" type="div" style="text-caption m-muted" condition="captionText"/>
+                    </container>
+                </container>
+                <container style="col-12 col-md-auto row items-center q-gutter-sm">
+                    <link url="planner" text="Team planner" icon="sym_o_group_work" link-type="anchor-button"/>
+                    <dynamic-dialog id="PersonNewAllocation" button-text="New allocation" icon="sym_o_add" transition="EditAllocation" width="600" title="New allocation for ${person.name}"
+                            parameter-map="{partyId:partyId}" condition="canRequest"/>
+                </container>
+            </container>
+            <subscreens-panel id="PersonTabs" type="tab"/>
+        </widgets></section>
+    </widgets>
+</screen>

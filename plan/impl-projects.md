@@ -58,9 +58,9 @@ Sections: [1 scope](#1-scope-and-order) · [2 rules](#2-ground-rules) · [3 phas
 | P3b Code: Mantle and BOSS | Mantle, BOSS | every §7 screen, ProjectCode, CodeSettings | done Oct 22 |
 | P4 Planning | Mantle, BOSS (mr-moqui) | Backlog, SprintDetail, Timeline, WorkItemImport, Roadmap, MilestoneDetail, ReleaseDetail, ProjectBacklog, ProjectTimeline, ProjectCalendar, ProjectRoadmap, ProjectDocs | done Oct 22 |
 | P5 Requests | Mantle, BOSS | Requests, RequestDetail, RequestIntake, ProjectRequests, IntakeSettings | done Oct 22 |
-| P6 Time | Mantle, BOSS | MyTime, Timesheets, TimesheetDetail, TimeEntries, ProjectTime, TimeSettings | in progress (P6a built Oct 22; P6b TimeEntries, ProjectTime, import, TimeSettings, Today, Chatter) |
-| P7 Resources | Mantle, BOSS | TeamPlanner, Allocations, PersonDetail | planned |
-| P8 Billing and money | Mantle, BOSS | Unbilled, Invoices, InvoiceDetail, OrderDetail, Rates, ProjectMoney, BillingSettings | planned |
+| P6 Time | Mantle, BOSS | MyTime, Timesheets, TimesheetDetail, TimeEntries, ProjectTime, TimeSettings | done Oct 22 |
+| P7 Resources | Mantle, BOSS | TeamPlanner, Allocations, PersonDetail | done Oct 22 |
+| P8 Billing and money | Mantle, BOSS | Unbilled, Invoices, InvoiceDetail, OrderDetail, Rates, ProjectMoney, BillingSettings | in progress (P8a built Oct 22; P8b ProjectMoney, OrderDetail, milestones, estimate) |
 | P9 Reports and outputs | Mantle, BOSS | Reports and its seven reports | planned |
 | P10 Client access | mr-moqui, Mantle, BOSS | the client states of §1.1's screens | planned |
 | P11 Finish | BOSS | — | planned |
@@ -338,6 +338,17 @@ tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
   `test/TimeWalk.spec.js` (the walk with authorization on).
 - Runs (Debug): ironstone-boss 527/527, mantle-usl 638/640 (ContactListSend), lint clean.
 
+**Built, P6b** (Oct 22, 2026):
+- Mantle udm: setting type `ProjWorkTypes`. Mantle usl: `get#`/`store#WorkTypes`; `TimeServices` `find#TimeEntries`
+  (who sees time; rates for money managers; unbilled and invoiced filters with totals), `import#TimeEntryCsv`,
+  `get#TimeEntryTimeline` (a RecordTimelineSource, kind time, no rates); `get#ProjectTodayItems`;
+  `test/WorkTimeEntries.spec.js`.
+- BOSS: Time/TimeEntries (find, edit dialog, bulk within the lock, each entry on its own), ProjectDetail's Time tab,
+  WorkItemDetail's all-time box, the time import wizard (Source, Preview, Result; generic CSV; re-import adds nothing;
+  over 200 rows as a job), Settings/Time (the policy and work types offered), the Today source (timer with Stop, reviews,
+  weeks to submit, requests to triage), time in Chatter; TIME_ENTRY_RATE for managers; `test/TimeEntries.spec.js`.
+- Runs (Debug): ironstone-boss 533/533, mantle-usl 643/645 (ContactListSend), lint clean.
+
 ### P7 — Resources
 
 - Design §9: capacity, allocations, TeamPlanner (`.qvue`), Allocations, PersonDetail; allocations in ProjectTeam and
@@ -345,11 +356,44 @@ tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
 - Usable when: a manager requests a placeholder, staffs it from the candidates, and the planner shows capacity against
   the allocations.
 
+**Built** (Oct 22, 2026):
+- Mantle udm: `WorkEffortAllocation` (a person or a placeholder role with a skill on a project for days at hours or
+  percent; Requested, Allocated, Rejected, Cancelled). Mantle usl: new `ResourceServices` (capacity from WetAvailable
+  hours else the policy week, less holidays and WetTimeOff leave; allocation access, create, update, staff, approve,
+  reject, cancel with notices and tray decisions; `find#Allocations`, `get#TeamPlan` per person and week,
+  `find#StaffingCandidates` ranked by fit, skill, role and free hours); `get#WeekDays(partyId)` now gives capacity;
+  Home's allocation requests; permission ALLOCATION_APPROVE; topics AllocationRequest and AllocationDecision;
+  `test/WorkResources.spec.js`.
+- BOSS: `ironstone.ResourceServices`, `ResourceDemoServices`; Resources/TeamPlanner (`.qvue`, people by week with
+  capacity against allocations, overbooked weeks marked, bars dragged by days, requests hatched; `TeamPlannerTui` read
+  only), Allocations (with Edit and Staff), PersonDetail (Overview, Allocations, Work items, Time, Capacity);
+  ProjectDetail Team's Allocations box; NewProject Team's hours a week; Home's counter and approvals; demo people,
+  skills, leave, allocations (Joe over-allocated, a placeholder request); specs `Resources`, `ResourceWalk` (the
+  usable-when walk with authorization on).
+- Runs (Debug, with the F77 fix): ironstone-boss 541/541, mantle-usl 648/650 (ContactListSend), moqui-core lib 1754,
+  tui_screens ok, lint clean. TimeEntries.spec now asserts authorization is on after the Today panel (F77).
+
 ### P8 — Billing and money
 
 - Design §10: Rates, Unbilled, Invoices, InvoiceDetail, OrderDetail, BillingSettings; §4 ProjectMoney; the milestone
   billing share, milestone approval and the estimate sent for approval; Home's unbilled.
 - Usable when: approved time and a completed milestone become a client invoice with its time detail.
+- Built in two parts (Oct 22): P8a rates, Unbilled, Invoices, InvoiceDetail, BillingSettings and Home's Unbilled; P8b
+  ProjectMoney, OrderDetail, the milestone billing share, gate and approval, and the estimate sent for approval.
+
+**Built, P8a** (Oct 22, 2026):
+- Mantle udm: setting type `WstTimeDetail`. Mantle usl `InvoiceServices`: `create#TimeEntryInvoiceItems` takes
+  `timeEntryIdList`, `approvedOnly` and `billableOnly` (defaults keep Mantle's behaviour) and locks its entries for
+  update; `create#ProjectInvoiceItems` passes them, takes expenses and settlement terms and writes `WorkEffortInvoice`;
+  `delete#InvoiceItem` frees its time; `get#InvoiceTimeDetail`; `ProjectServices.get#UnbilledSummary` (money holders
+  only; exact amounts per entry, totals by client) and Home's unbilled amount; `test/WorkProjectBilling.spec.js`.
+- BOSS: `ironstone.BillingServices` (`check#Money`: TIME_ENTRY_RATE or ADMIN) and `BillingDemoServices`; Billing/Unbilled
+  with the invoice dialog (approved entries only, each ticked), Invoices (with To send), `Shared/InvoiceDetail`
+  (approve and post, send by email with the PDF, cancel, edit, remove a line; payments read only), InvoicePrint
+  (html-print and PDF), Rates (with Which rate), Settings/Billing; Home's Unbilled counter and ProjectDetail's Unbilled
+  card; email template `BOSS_PROJECT_INVOICE`; demo client Brightwater Dental Group for SUPP, rates, a draft invoice of
+  Joe's approved week; specs `Billing` and `BillingWalk` (the walk with authorization on).
+- Runs (Debug): ironstone-boss 552/552, mantle-usl 655/657 (ContactListSend), lint clean.
 
 ### P9 — Reports and outputs
 
@@ -424,6 +468,12 @@ Made during the build; each one that changes the design is also written into des
 | Oct 22, 2026 | F9: `ProjTimesheetPolicy` uses short keys (ws, ap, lk, ri, rc, mh, fu, dh, wd, rd, rh) under 255 characters; dh and wd give working hours until P7's capacity | P6a |
 | Oct 22, 2026 | Only the person submits their week; nobody approves their own; approvers are the week's project managers (default), line managers, or TIMESHEET_APPROVE holders by policy; the lock leaves rates changeable for P8 | P6a |
 | Oct 22, 2026 | One timer per person (starting another stops the first; under a minute is discarded); a running timer blocks submitting its week | P6a |
+| Oct 22, 2026 | Time is seen by the person, the managers of its projects, their line managers, ADMIN and (policy any) TIMESHEET_APPROVE holders; rates and amounts only by TIME_ENTRY_RATE holders (managers) and ADMIN; a submitted or approved week's entries change only in money, by them; nothing changes an invoiced or running entry | P6b |
+| Oct 22, 2026 | The offered work types are the organization's `ProjWorkTypes` setting, read by MyTime, QuickTime, the entry dialog and bulk | P6b |
+| Oct 22, 2026 | Placeholders name a project role and a skill (few EmplPositionClass records exist); a project's managers request allocations; ALLOCATION_APPROVE holders (Projects managers, ADMIN) approve, change and staff; the team sees the planner read only | P7 |
+| Oct 22, 2026 | An allocation's hours spread over the person's working days by each day's hours; leave and holidays do not lower it; a week is overbooked when the larger of allocated and assigned exceeds capacity | P7 |
+| Oct 22, 2026 | Only approved time is invoiced: Unbilled shows all billable uninvoiced time, marks the approved part ready, and the dialog invoices only ticked approved entries; an entry without a client rate cannot be invoiced | P8a |
+| Oct 22, 2026 | InvoiceDetail in Projects is one page: Approve finalizes and posts when the organization keeps a ledger; Send approves a draft and emails the client's billing address; Cancel and Remove a line free their time; worker and expense invoices read only; payments are Accounting's | P8a |
 | Oct 22, 2026 | A recurring item counted from completion takes the completion day at the due date's time of day (UTC days) and the rule without its COUNT, which counts the items made | P2 |
 
 ## 5. Open questions
@@ -511,6 +561,31 @@ Design assumptions found wrong in the code, with the resolution (written into th
 | F69 | P6a: `find#Timesheets` checks each candidate's access one by one; Home calls it twice | A join by managed projects at scale (with F17) |
 | F70 | P6a: any project with time but no estimate, or past its estimate, reads At risk | Demo time on SUPP; revisit the rule with P9's reports |
 | F71 | P6a: Chatter labels a timesheet by id (as F35) | With F35 |
+| F72 | P6b: demo bob is joe's line manager, so bob sees joe's time read only | Specs follow it |
+| F73 | P6b: a screen-test result has errors but no info messages | Bulk counts checked by calling the service |
+| F74 | P6b: a `hide` column's title stays in the static qvt output | Specs check row data |
+| F75 | P6b: the lint's quote tracking again (F37) | Worked around |
+| F76 | P6b: the lint calls a property ending in `Items` a collection (F60) | Renamed |
+| F77 | P6b (security): after a spec renders a Commons screen (root authz ALWAYS), authorization stays disabled in that execution context | Not ALWAYS: `ExecutionContext::script_disable_authz` held a guard even when authorization was already off, so a script's `wasDisabled = disableAuthz() ... if (!wasDisabled) enableAuthz()` under framework code that had disabled it (the shell counts service behind `getShellData` on Commons Home and Today) left the rest of that execution context without authorization or entity filters. Within one request only (each request, TUI send and job gets a fresh context), but exploitable there (the Today panel's sources ran unchecked). Fixed in mr-moqui e29d336f with tests; TimeEntries.spec's re-enable loop to be removed |
+| F78 | P6b: `find#TimeEntries` and the timesheet status filter use IN lists up to 20000 ids (F17, F69) | A subquery or view at scale |
+| F79 | P7 (bug): a `date` field reaches a script as epoch millis of its UTC midnight, so `String(d).substring(0,10)` gave digits; since P6a `get#WeekDays` never marked a holiday and since P4c the Timeline never shaded one | Fixed in both with a UTC conversion; the same pattern remains in CalendarDavServices.xml 88-89, Mantle EventServices.xml 1150, BOSS EventServices.xml 398 and CalendarServices.xml 911, to check |
+| F80 | P7: ProjectsShell's record-link feature passed only because of the F77 leak | It calls the palette service as its screens' app root grants it (as F36) |
+| F81 | P7: AppStructure renders a tab with `lastStandalone -2`, showing the parent's header (with F52) | Resources.spec renders PersonDetail's tabs |
+| F82 | P7: `EmplPositionClass` has almost no seed records | Placeholders use project roles |
+| F83 | P7: Mantle seeds no SkillType enumerations | The BOSS demo seeds `BossSk*`; a skills settings page, later |
+| F84 | P7: `get#TeamPlan` makes two calendar reads per person and caps at 300 people | Batch at scale (F17, F69) |
+| F85 | P7: allocation request notices go to every ALLOCATION_APPROVE holder without checking they see the project | Filter by project visibility, with P10 |
+| F86 | P8a: new time entries get only `rateAmountId`, never `clientHourRate`, so `find#TimeEntries` amounts read empty | Billing reads the RateAmount, as `get#TimeEntryAmount` does; `find#TimeEntries` should too |
+| F87 | P8a: `create#TimeEntryInvoiceItems` billed every uninvoiced entry, unapproved, no-charge and running ones | Flags added; Mantle's default kept |
+| F88 | P8a: `create#ProjectInvoiceItems` never wrote `WorkEffortInvoice` | Fixed |
+| F89 | P8a: `delete#InvoiceItem` left time entries pointing at the deleted line | Fixed |
+| F90 | P8a: the invoice description lost the project name | Fixed |
+| F91 | P8a: a rate's currency is never checked against the invoice's; mixed currencies give a null total and hide Home's counter | Later, with multi-currency billing |
+| F92 | P8a: changing a rate's amount reprices uninvoiced time using it | Documented on Rates |
+| F93 | P8a: `get#InvoiceProjects` reads up to 20000 rows per call | A view or subquery at scale (F17, F78) |
+| F94 | P8a: `lastStandalone=true` renders without ProjectDetail's header (F81) | Specs check `get#ProjectHeader` |
+| F95 | P8a: a `header-field` title becomes the column title | Header-only find fields |
+| F96 | P8a: Mantle's per-worker line text includes the party's pseudo-id | Left as Mantle's |
 | F7 | P0: a wiki space under an existing repository is documented for a repository root (`rootPageDirectory: "git://docs"`, or `rootPageLocation` `git://<repositoryId>/<SPACE>.md`), not for a subdirectory such as `git://<repositoryId>/docs` | Checked in P4 as the design's §15 row says, before ProjectDocs is built |
 
 ## 7. Later
@@ -562,6 +637,17 @@ Designed, not in this build:
 - Time (P6a): Start timer on the last item from Home; MyTime's global pins; leave and capacity in working hours (P7); a
   TimesheetDetail print view; clock-in for another and InvoiceMyTime; time in the terminal (P11); reminders in each
   person's time zone.
+
+- Time (P6b): TeamTime; import presets for Toggl, Harvest and Clockify (§16); item search in the entry dialog; chip
+  counts on TimeEntries; clock-in for another; time edits in the terminal (P11); ProjectTime's client states (P10);
+  imported rows stacked after a day's existing entries.
+
+- Resources (P7): planner changes in the terminal (P11); request again after a rejection; allocations on one work item
+  in the screens; a leave marker in MyTime; a skills settings page; the planner grouped by team; sprint capacity from
+  availability; people's own leave records; a screen test of the tray's decisions.
+
+- Billing (P8a): Unbilled's Contractor time and Milestones due (P8b); the project's Billing box in settings; payments and
+  adjustments (Accounting); the invoice email in Chatter; client states (P10); TUI checks.
 
 ## 8. Verification
 

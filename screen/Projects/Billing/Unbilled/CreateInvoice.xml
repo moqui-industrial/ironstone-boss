@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- CreateProjectInvoice (design-projects.md §10 Unbilled): Unbilled's dialog for one project (service/ironstone/BillingServices.xml
+    get#InvoiceDraft, create#ProjectInvoice): the approved billable time not invoiced, each entry ticked (those without a rate are not
+    and may not be invoiced), a new invoice or one of the client's open drafts of the project to add to, the grouping of the lines
+    (per entry, per worker, one line; the project's own setting by default), the payment terms and the invoice date. The invoice made,
+    InvoiceDetail opens on it. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Create invoice" default-menu-include="false">
+
+    <parameter name="workEffortId" required="true"/>
+
+    <transition name="createInvoice">
+        <actions>
+            <service-call name="ironstone.BillingServices.create#ProjectInvoice" out-map="createOut" in-map="{workEffortId:workEffortId, invoiceId:(addToInvoiceId || null),
+                    timeEntryIds:(timeEntryIds ?? null), selection:true, entryGrouping:(entryGrouping || 'entry'), settlementTermId:(settlementTermId || null),
+                    invoiceDate:(invoiceDate ? ec.l10n.parseTimestamp(String(invoiceDate).substring(0, 10) + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS') : null)}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(createOut.message, 'success')</script></if>
+        </actions>
+        <conditional-response url="//Projects/Billing/InvoiceDetail" condition="createOut?.invoiceId"><parameter name="invoiceId" from="createOut.invoiceId"/></conditional-response>
+        <default-response url=".."/>
+        <error-response url=".."/>
+    </transition>
+
+    <actions>
+        <service-call name="ironstone.BillingServices.get#InvoiceDraft" out-map="draftOut" in-map="{workEffortId:workEffortId}"/>
+        <script><![CDATA[
+            notAvailable = ec.message.hasError() ? ec.message.getErrorsString() : ''
+            ec.message.clearErrors()
+            draft = draftOut.draft || null
+            found = !!draft
+            if (!draft) return
+            entryOptions = draft.entryOptions
+            draftOptions = draft.draftOptions
+            termOptions = Array.from(ec.service.sync().name('ironstone.BillingServices.get#BillingSettings').call()?.termOptions || [])
+            invoiceValue = {workEffortId: workEffortId, timeEntryIds: draft.selectedIds, entryGrouping: draft.entryGrouping, settlementTermId: draft.settlementTermId,
+                addToInvoiceId: '', invoiceDate: ec.l10n.format(ec.user.nowTimestamp, 'yyyy-MM-dd')}
+            hasDrafts = draftOptions.length > 0
+            missingRates = entryOptions.filter((option) => option.missingRate).length
+        ]]></script>
+    </actions>
+
+    <widgets>
+        <section name="DraftNotFound" condition="!found"><widgets>
+            <label type="p" text="${notAvailable || 'This project is not available.'}" style="text-warning"/>
+        </widgets></section>
+        <section name="DraftFound" condition="found"><widgets>
+            <label type="p" text="${draft.clientName}: ${draft.readyHoursText} h approved, ${draft.readyAmountText}." style="text-body2 q-mb-xs"/>
+            <label type="p" text="${draft.waitingHoursText} h more wait for approval and are not invoiced yet." style="text-caption m-muted q-mb-xs"
+                    condition="draft.waitingHoursText &amp;&amp; draft.waitingHoursText != '0'"/>
+            <label type="p" text="${missingRates} entries have no client rate and cannot be invoiced: add a rate (Billing, Rates), then Update rates on the project's Time tab."
+                    style="text-caption text-warning q-mb-xs" condition="missingRates"/>
+            <label type="p" text="${draft.cannotReason}" style="text-warning" condition="!entryOptions.length"/>
+            <form-single name="CreateProjectInvoice" transition="createInvoice" map="invoiceValue">
+                <field name="workEffortId"><default-field><hidden/></default-field></field>
+                <field name="timeEntryIds"><default-field title="Approved time to invoice">
+                    <check><list-options list="entryOptions" key="${key}" text="${text}"/></check></default-field></field>
+                <field name="addToInvoiceId"><conditional-field condition="hasDrafts" title="Add to an open draft (empty: a new invoice)">
+                        <drop-down allow-empty="true"><list-options list="draftOptions" key="${key}" text="${text}"/></drop-down></conditional-field>
+                    <default-field><hidden/></default-field></field>
+                <field name="entryGrouping"><default-field title="Lines">
+                    <radio><option key="entry" text="A line per entry"/><option key="worker" text="A line per worker"/><option key="all" text="One line"/></radio></default-field></field>
+                <field name="settlementTermId"><default-field title="Payment terms">
+                    <drop-down allow-empty="true"><list-options list="termOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                <field name="invoiceDate"><default-field title="Invoice date"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                <field name="submitButton"><default-field title="Create invoice"><submit/></default-field></field>
+                <field-layout>
+                    <field-ref name="workEffortId"/>
+                    <field-ref name="timeEntryIds"/>
+                    <field-ref name="addToInvoiceId"/>
+                    <field-ref name="entryGrouping"/>
+                    <field-row><field-ref name="settlementTermId"/><field-ref name="invoiceDate"/></field-row>
+                    <field-ref name="submitButton"/>
+                </field-layout>
+            </form-single>
+        </widgets></section>
+    </widgets>
+</screen>

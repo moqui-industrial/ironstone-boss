@@ -33,8 +33,8 @@ along with this software (see the LICENSE.md file). If not, see
     Convert to request and Delete (the owner or the project's manager, with no time or sub-items). The tabs: Overview
     (description, details, labels, requests, linked records, people; Chatter beside it from 1440 px), Sub-items (the subtree
     as a view-tree, one level per open, with roll-ups, drag and Tab to move within it, and a quick-add row), Links (relations
-    by kind, a dependency with its lag), Time (the user's own entries, as Commons; everyone's time and rates are impl-projects.md
-    P6b), Development (when the item's project has the Code module on or a repository linked: its branches with
+    by kind, a dependency with its lag), Time (the user's own entries, as Commons; in Projects also everyone's time on the item, with
+    the amounts for the Projects managers, ironstone.TimeServices.get#ItemTime, impl-projects.md P6b), Development (when the item's project has the Code module on or a repository linked: its branches with
     ahead and behind, merge request and checks, Create branch and New merge request; its merge requests, commits and tags;
     ironstone.CodeServices get#WorkItemDevelopment, read only when the tab is open), Files and Chatter.
     The team of the item's project, its owner and assignees may change it (ironstone.TaskServices.get#TaskAccess app
@@ -441,6 +441,15 @@ along with this software (see the LICENSE.md file). If not, see
             linkedRecordList = detail.linkedRecordList || []
             partyList = detail.partyList || []
             myHoursText = detail.myHoursText
+            // in Projects the Time tab also shows the time of everyone on the item (impl-projects.md P6b)
+            itemTime = null
+            if (projects && tab == 'time') {
+                ec.message.pushErrors()
+                try { itemTime = ec.service.sync().name('ironstone.TimeServices.get#ItemTime').parameters({workEffortId: workEffortId}).call()?.itemTime || null }
+                finally { ec.message.clearErrors(); ec.message.popErrors() }
+            }
+            itemTimeRows = Array.from(itemTime?.rowList || [])
+            itemTimeShown = !!itemTime
             captionText = [L('Task') + ' ' + workEffortId, task.purposeLabel, task.projectName ? L('Project') + ': ' + task.projectName : null].filter((part) => part).join(' · ')
             // the key facts: due, priority, assignees (and in Projects the estimate, plan items and labels)
             const fact = (label, value, cls) => '<div class="col-auto"><div class="text-caption m-muted">' + enc(L(label)) + '</div><div class="text-body2' + (cls ? ' ' + cls : '') + '">' + value + '</div></div>'
@@ -1239,6 +1248,28 @@ along with this software (see the LICENSE.md file). If not, see
                         <label type="p" text="Your time: ${myHoursText} h · the task's time: ${task.actualText || '0'} h" style="text-caption m-muted q-px-sm q-pb-sm q-mb-none"/>
                     </box-body-nopad>
                 </container-box>
+                <!-- in Projects: everyone's time on the item, the amounts for those who manage money -->
+                <section name="ItemTimeBox" condition="itemTimeShown"><widgets>
+                    <container-box><box-header title="All time · ${itemTime.totalText} h"/>
+                        <box-toolbar><link url="${itemTime.listUrl}" url-type="plain" link-type="anchor" text="In Time entries" icon="sym_o_list_alt"/></box-toolbar>
+                        <box-body-nopad>
+                            <label type="p" text="${itemTime.peopleText}" style="text-caption m-muted q-px-sm q-pt-sm q-mb-none" condition="itemTime.peopleText"/>
+                            <form-list name="ItemTime" list="itemTimeRows" skip-form="true" paginate="false">
+                                <field name="dateText"><default-field title="Day"><display style="text-no-wrap"/></default-field></field>
+                                <field name="personName"><default-field title="Person"><display/></default-field></field>
+                                <field name="hoursText" align="right"><default-field title="Hours"><display/></default-field></field>
+                                <field name="workTypeLabel"><default-field title="Work type"><display/></default-field></field>
+                                <field name="billableText"><default-field title="Billable"><display/></default-field></field>
+                                <field name="clientAmountText" align="right" hide="!itemTime.ratesShown"><default-field title="Client amount"><display/></default-field></field>
+                                <field name="vendorAmountText" align="right" hide="!itemTime.ratesShown"><default-field title="Worker amount"><display/></default-field></field>
+                                <field name="statusLabel"><default-field title="Week"><display/></default-field></field>
+                                <field name="comments"><default-field title="Comment"><display/></default-field></field>
+                            </form-list>
+                            <label type="p" text="No time on this item yet" style="m-muted q-pa-sm q-mb-none" condition="!itemTimeRows.length"/>
+                            <label type="p" text="The latest ${itemTimeRows.length} entries are shown" style="text-caption m-muted q-pa-sm q-mb-none" condition="itemTime.more"/>
+                        </box-body-nopad>
+                    </container-box>
+                </widgets></section>
             </widgets></section>
 
             <!-- ===== Files ===== -->

@@ -192,7 +192,10 @@ New records and fields are marked (new) and specified in §15.
 - **Today source:** `mantle.work.ProjectServices.get#ProjectTodayItems` (new): the running timer with Stop,
   merge requests waiting for my review, my timesheet to submit (from the last working day of the week, and any
   older one not submitted), and new requests in the projects I triage. Work items due reach Today already
-  through `WorkEffortParty`.
+  through `WorkEffortParty`. As built (impl-projects.md P6b): the items' kinds are `timer` (Stop in the Today panel,
+  `mantle.work.TimesheetServices.stop#Timer`), `review`, `timesheet` (an older week overdue; it opens the week in My time) and
+  `triage` (Submitted with no assignee, in the projects whose triage assignee is the user, or that name none and the user
+  manages); the older weeks are those of the last eight with time and still In-Process.
 - **Palette actions:** New work item, New project, Log time, Start timer (on the work item in context), New
   merge request (opens Compare), My time.
 - **Palette types and links:** `MantleProject`, `MantleTask` and `MantleRequest` results open ProjectDetail,
@@ -355,7 +358,8 @@ Profitability report), and a separate project expenses screen (ProjectMoney's Ex
     working hours, with the timesheet's status in the card's title; it opens My time). Managers add: Projects at risk (health At risk or Off
     track, or a budget or schedule warning from `mantle.work.ProjectServices.get#ProjectStats`), Milestones in 14
     days, Timesheets to approve,
-    Allocation requests, Unbilled (amount). Clients get instead: Open requests, Waiting for your reply, Milestones in
+    Allocation requests, Unbilled (amount; built in impl-projects.md P8a for managers who manage money, the billable time not
+    invoiced in the projects they see, opening Billing's Unbilled; hidden when the projects bill in more than one currency). Clients get instead: Open requests, Waiting for your reply, Milestones in
     30 days, Invoices due.
   - My work (internal): My work items (ten, by due date then priority, each with its project, status chip and the
     Start timer action), Reviews waiting on me (merge requests), Recently changed in my projects.
@@ -639,6 +643,13 @@ billable against not billable) and the managers' Update rates action
 (`mantle.work.TimeServices.resetAndGet#ProjectTimeEntryRates`), which covers `Project/ProjectTimeEntries`.
 Clients see it only when the project shares hours with the client, as hours by week and work item with no rates,
 amounts or people's names beyond the team's.
+
+As built (impl-projects.md P6b): `Time/TimeEntries.xml` mounted as tab 10, the project fixed by `projectTabId` (F43's fallback in
+its transitions), the list opening on All. The box "Time on the project" (`ironstone.TimeServices.get#ProjectTime`) sums every
+entry of the find, not only the page: hours against the project's estimate (`estimatedWorkTime`, rolled up), billable against
+not, the client amount and worker cost for those who manage money, and the hours by person, by work item against each item's
+estimate (the 15 with the most) and by work type. Update rates is for a manager of the project who manages money. The tab is
+always there (F24).
 
 ### ProjectMoney
 
@@ -933,7 +944,7 @@ actions.
 | `Branches` | list | Linked branches | repository, branch, head, ahead and behind the default, merge request, CI; Unlink | Create branch dialog: repository, from (the default branch), name (`<KEY>-<n>-<words of the title>`), and the checkout command to copy | `mantle.work.GitServices.create#TaskBranch` (new); `add#WorkEffortRef`, `remove#WorkEffortRef`; `org.moqui.impl.GitServices.get#GitCompare` (new) for ahead and behind | `Task/EditSource` `TaskRefList`, `AddRefForm`; GitLab "Create branch" on an issue |
 | `Commits` | list | Linked commits | repository, commit (link), summary, author, date, on (branch), linked by; Unlink | Add commit dialog: repository, commit id or prefix | `mantle.work.GitServices.add#TaskCommit`, `remove#TaskCommit` | `Task/EditSource` `TaskCommitList`, `AddCommitForm`; `TaskSummary` Commits |
 | `WorkItemMergeRequests` | list | Its merge requests | `!num`, title, status, approvals, CI, merged | | `WorkEffortGitMergeRequest` (new, `entity`) | GitLab issue's related merge requests |
-| `WorkItemTime` | list | Time on it | date, person, hours, work type, billable, comment, client and vendor rate and amount (managers), invoice; Edit, Delete (own uninvoiced; managers any uninvoiced) | totals estimated, actual and remaining above | `store#TimeEntry`, `mantle.work.TimeServices.delete#TimeEntry` | `Task/EditTimeEntries` `TimeEntryList`; `MyAccount/User/TimeEntries` `TimeEntryList` |
+| `WorkItemTime` | list | Time on it | date, person, hours, work type, billable, comment, client and vendor rate and amount (managers), invoice; Edit, Delete (own uninvoiced; managers any uninvoiced). As built (impl-projects.md P6b): the user's own entries (P2) and below them, in Projects, All time (`ironstone.TimeServices.get#ItemTime`: everyone's on the item, the latest 100, the week's status, the amounts for those who manage money, a link to Time entries for the edits) | totals estimated, actual and remaining above | `store#TimeEntry`, `mantle.work.TimeServices.delete#TimeEntry` | `Task/EditTimeEntries` `TimeEntryList`; `MyAccount/User/TimeEntries` `TimeEntryList` |
 | `LogTime` | dialog | Add time, or stop the timer with its details | person (managers), date, from and to or hours, break, billable, work type, position class, comment, remaining work | from and to `date-time`; remaining defaults to remaining less these hours | `mantle.work.TaskServices.add#TaskTime` | `EditTimeEntries` `AddTaskTime`; `PartyTimeEntries/EditTimeEntry` `AddTimeForm` |
 | `Timer` | single | Start or stop | started, elapsed, comment | `m-elapsed` (new) | `mantle.work.TimeServices.create#TimeEntryClockIn`; `store#TimeEntry` | `TaskSummary` `ClockInForm`; `EditTimeEntries` `ClockInForm` |
 | `Chatter`, `RecordFiles` | component | Timeline and files | | `chatter`, `record-files` | Shared/Chatter, Shared/RecordFiles | `TaskSummary` `AddCommentForm`, `NewContentForm`, `UpdateContentForm`; `TaskCommentReply` and `TaskCommentUpdate` `ReplyCommentForm` |
@@ -1615,8 +1626,29 @@ is the same decision.
   or user name), work item key or project key, hours or start and end times, work type, billable (yes or no) and
   comment; the shape the detailed exports of Toggl, Harvest and Clockify reduce to with a column rename. Rows go in
   each on its own, the failures named by row; an entry that would land on a submitted timesheet is refused. Presets
-  for those three tools' own columns come after the first release, as the work item import has.
+  for those three tools' own columns come after the first release, as the work item import has. As built (P6b): the headers
+  are matched by their words (date, day, start date; email, person, user name, user; work item, key, task, issue, then project;
+  hours, duration; start, end; work type, activity, type; billable; comment, description, notes), the delimiter the header
+  line's commonest of comma, semicolon and tab; a person by user name or email, else a full name with one match; hours as a
+  decimal or h:mm[:ss], rounded to the policy's smallest entry with a warning; rows with hours only stack from 9:00 on the
+  person's day; a row whose person already has an entry on the item starting at that moment is skipped, so a file imported
+  again adds nothing; a row fails for a date not yyyy-MM-dd, a person or item not found or not visible, a week the user may
+  not change or one submitted, a future day the policy refuses, or a work item the policy requires. More than 200 rows run as
+  a job with progress on the topic `timeImportProgress`.
 - **States:** an invoiced entry shows its invoice and no edit; an entry on a submitted timesheet says so.
+- **As built (impl-projects.md P6b):** `Time/TimeEntries.xml` over `mantle.work.TimeServices.find#TimeEntries` (through
+  `ironstone.TimeServices.find#TimeEntryRows`). Who sees a person's time: the person, the managers of the projects it is on (its
+  entries on the project and its items), the person's line managers (`PrtManager`), ADMIN, and under an `any` policy the holders
+  of `TIMESHEET_APPROVE`; one who sees an entry changes it only as its week allows (the person or an approver while it is open).
+  Who manages money: the holders of `TIME_ENTRY_RATE`, granted to `BOSS_PROJECT_MANAGER` (and ADMIN): only for them do the rates
+  and amounts reach the rows. The chips have no counts (each is a period find); the week's status per row is Open, Returned,
+  Submitted, Approved, Invoiced or Running. EditTimeEntry is `TimeEntries/EditEntry.xml` (a dynamic dialog; its work item is
+  chosen from the user's assigned and recent items, a move to another is the bulk Move, which searches); its rates are a box of
+  their own, set by hand (`hasModifiedRates`) or found again, also on a submitted week's entry. The bulk changes take each entry
+  on its own: nothing changes an invoiced or running entry; a submitted or approved week's entries change only in their money
+  (billable and rates), and only by those who manage money; the rest needs an entry the user may change. ImportTime is a wizard,
+  `Time/Import.xml` (Source, Preview, Import), not a dialog, the shape of WorkItemImport; the Mantle time detail format is not
+  offered there (Mantle's own screens keep it). Log team time (`TeamTime`) is not built yet (impl-projects.md §7).
 - **Source:** research §8 (Redmine time entries list and bulk edit, Odoo timesheet list); baseline
   `Project/ProjectTimeEntries`, `Party/PartyTimeEntries`, `MyAccount/User/TimeEntries`.
 - **Needs:** Timesheet services (the lock); Time import.
@@ -1633,11 +1665,22 @@ work items assigned to the person, spread over the working days up to each one's
 when allocations or assigned work pass capacity. People's working-schedule record, when it exists, replaces the
 `WetAvailable` source behind `mantle.work.ResourceServices.get#PartyCapacity` and nothing else changes.
 
+As built (impl-projects.md P7): a person with no `WetAvailable` hours has the timesheet policy's week (`dh` on `wd`), and
+`TimesheetServices.get#WeekDays` takes the person, so MyTime's and Timesheets' working hours are their capacity. Leave is
+`WetTimeOff` events the person is on (an all-day one the whole day). An allocation's hours fall on the person's working days in
+proportion to each day's hours (a placeholder on the policy's week); leave and holidays do not lower an allocation, which is how
+a week becomes overbooked. Assigned work with no due date is not spread (PersonDetail says how many hours). A placeholder names a
+project role (`roleTypeId`, `RgpProject`) and a skill rather than a position class (few `EmplPositionClass` records exist); the
+person who staffs it joins the project in that role. A project's managers request allocations; the holders of the new
+permission `ALLOCATION_APPROVE` (the Projects managers and ADMIN) approve, reject, change and staff them, and allocate at once
+unless they ask for approval.
+
 ### TeamPlanner
 
 - **Layout:** calendar archetype as `.qvue`, people by weeks. A toolbar: the range (8, 12 or 26 weeks from a
-  date), filters (team, role, skill, project), By person or By project. Rows: people grouped by team or role, with
-  the unstaffed placeholder requests on top. Each week cell: the capacity as a frame, the allocations stacked by
+  date), filters (team, role, skill, project), By person or By project. Rows: people grouped by role (as built: by
+  their most held project role; the team is a filter), with the unstaffed placeholder requests on top; under each
+  person their allocations as bars (as built: the bars are what a drag moves, by days). Each week cell: the capacity as a frame, the allocations stacked by
   project in the chart series colors, the assigned work as a line, leave and holidays marked, an overbooked week in
   warning (negative past 120%). A drag moves or stretches an allocation; a click on an empty week opens New
   allocation; a click on an allocation shows it with Edit, Staff, Approve and Reject; a person's name opens
@@ -1649,14 +1692,15 @@ when allocations or assigned work pass capacity. People's working-schedule recor
 | --- | --- | --- | --- | --- | --- | --- |
 | `PlannerFind` | find | What is shown | range, team, role, skill, project | | | OpenProject team planner view select |
 | `PlannerGrid` | component | People by week | capacity, allocations, assigned work, leave | drag and resize | `mantle.work.ResourceServices.get#TeamPlan` (new), `update#Allocation` (new) | OpenProject team planner; Ever Teams weekly limit |
-| `AllocationForm` | dialog | An allocation | project or work item, person or role (position class) and skill, from, thru, hours per week, note | person `server-search` showing their free hours in the range | `create#Allocation`, `update#Allocation` (new) | OpenProject resource allocation |
+| `AllocationForm` | dialog | An allocation | project or work item, person or role (as built: a project role) and skill, from, thru, hours per week or a percent of capacity, note | person `server-search` showing their free hours in the range | `create#Allocation`, `update#Allocation` (new) | OpenProject resource allocation |
 
 - **Source:** research §9 (OpenProject team planner and resource management); research-people §7.
 - **Needs:** Allocations; Capacity; `.qvue` TUI texts.
 
 ### Allocations
 
-- **Layout:** list. Chips: Requested (to review, default for managers), Unstaffed, Mine, Allocated, All.
+- **Layout:** list. Chips: Requested (to review, default for managers), Unstaffed, Mine, Allocated, All. As built:
+  Mine is the user's allocations and those the user requested, and the default for those who do not approve.
 - **Forms:**
 
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
@@ -1706,6 +1750,17 @@ drawn down by billable time) are not designed here; they are left to People, wit
 
 - **Actions:** per row Create invoice and Review time (TimeEntries with the project and Unbilled); after an invoice
   is made a notification links to it.
+- **As built (impl-projects.md P8a):** `Billing/Unbilled.xml` over `ironstone.BillingServices.find#UnbilledRows` and
+  `mantle.work.ProjectServices.get#UnbilledSummary`, for those who manage money (TIME_ENTRY_RATE or ADMIN). Unbilled time is a
+  billable entry (rate type not No Charge) on no client invoice that has ended; only the approved part (its timesheet Approved)
+  is ready to invoice, so the number cards are Unbilled, Ready to invoice, Hours and Projects, and the chips All unbilled and
+  Ready to invoice (Milestones due and Contractor time come with P8b). A row adds what waits for approval (submitted, open),
+  entries without a rate, and why a project may not be invoiced (no client, no vendor, nothing approved, an approved entry
+  without a rate). `CreateProjectInvoice` is `Unbilled/CreateInvoice.xml`: each approved entry ticked (one without a rate is
+  not and is refused), an open draft of the project to the same client or a new invoice, the lines (per entry, per worker, one
+  line; the project's WstInvoiceGrouping), the payment terms (the organization's default) and the date; none ticked is an
+  error, never "all"; the invoice made, InvoiceDetail opens. The invoice is `create#ProjectInvoiceItems` with `approvedOnly`,
+  `billableOnly` and the selection, in one transaction. No notification is sent: the screen opens the invoice.
 - **Source:** research §10 (Odoo `sale_timesheet` policies, ERPNext timesheet billing, Dolibarr billable time);
   baseline project invoice dialogs of `FindInvoice` and `ProjectTimeEntries`.
 - **Needs:** Billing services; Milestone billing share.
@@ -1722,6 +1777,12 @@ drawn down by billable time) are not designed here; they are left to People, wit
 | `ProjectInvoiceFind` | find | Narrow | project, client, type, status, date and due periods | | | `FindInvoice` `MainOptions` |
 | `ProjectInvoiceList` | list | Invoices | invoice (link), type, project, from, to, date, due, total, unpaid, status chip | CSV | `Invoice` with `WorkEffortInvoice` and the billed time entries (`entity`) | `FindInvoice` `InvoiceList`; `FindExpenseInvoice` `InvoiceList` |
 
+As built (impl-projects.md P8a): `Billing/Invoices.xml` over `ironstone.BillingServices.find#InvoiceRows`: the invoices of the
+projects the user sees, by `WorkEffortInvoice` (which `create#ProjectInvoiceItems` now writes for a client invoice) and the billed
+time (`TimeEntry.invoiceId`, a client invoice; `vendorInvoiceId`, a worker's); an invoice linked to the project to someone other
+than its client is an expense invoice. The chips add **To send** (Finalized: approved and not sent) between Drafts and Sent, so an
+approved invoice is in one chip; All is the default and includes cancelled invoices.
+
 ### InvoiceDetail (Context passed)
 
 The Invoice detail, a research-crosscut §3 reused screen added at this file's review (Accounting, Projects, Sales,
@@ -1732,6 +1793,18 @@ Purchasing, Customer Service), designed in design-crosscut with Accounting's ver
 | --- | --- | --- | --- | --- |
 | Projects | Overview (header and lines), Time (the entries behind each line, `TimeEntry.invoiceId`, and the milestones), Payments, Chatter | invoices of projects the user manages | approve, send (email with the PDF and the time detail), print, cancel a draft (`mantle.account.InvoiceServices.cancel#Invoice`, which frees its time entries) | the work behind each line |
 | Projects, client users | Overview, Payments, the time detail when the project shares hours | invoices to their organization | download the PDF | what they owe and for what |
+
+As built (impl-projects.md P8a): `screen/Shared/InvoiceDetail.xml` mounted at `Projects/Billing/InvoiceDetail`, the Projects context
+only until design-crosscut (an Accounting root will choose its own by `appRoot`). One page, not tabs: the title row (kind, client,
+the read-only status-bar of the receivable flow, overdue), Approve (In-Process to Finalized, posted when the organization keeps a
+ledger), Send (a dialog: the client's EmailBilling address, else its billing contact's or its own primary; approves a draft first,
+then Sent; the email carries the printed invoice and the lines, the PDF attached when the server makes one), Print, and More with
+the PDF, Edit (a draft: date, payment terms with the due date following, the client's reference, description, message), Resume
+changes (Finalized) and Cancel (In-Process or Finalized: its time is unbilled again); the boxes Details, Projects, Payments (read
+only), Lines (each with the count and hours of its time; Remove on a draft frees that time) and Time (every entry billed: line, day,
+who, work item, hours, rate, amount, comment; CSV); Chatter. The print is `Billing/InvoicePrint.xml` (html-print, PDF under `/fop`),
+with the time detail when the project's WstTimeDetail is not N. Worker and expense invoices are read only here; Accounting's
+version adds payments, adjustments and the ledger.
 
 ### OrderDetail (Context passed)
 
@@ -1756,6 +1829,12 @@ The Order detail (research-crosscut §3.6), designed in design-crosscut; Project
 
 - **States:** `update#RateAmount` changes only dates and amount, so a change of scope ends the rate (thru) and adds
   a new one; the list says so on such an edit.
+- **As built (impl-projects.md P8a):** `Billing/Rates.xml` over `ironstone.BillingServices` `find#RateRows`, `store#Rate`, `end#Rate`,
+  `get#WhichRate`: the rates on the projects the user sees or on none; current and coming by default, ended ones on asking or on an
+  effective day. The edit is a row dialog (from, thru, amount), not in-place cells. Which rate is a dialog whose answer shows above
+  the list (the client and worker rate found by `mantle.work.TimeServices.find#RateAmount` and what each is scoped to). The seeded
+  no-charge client rate (no project, no person) is listed but not changed or ended. A rate changes only time logged in its dates;
+  the rates already found for time not invoiced are found again by ProjectTime's Update rates.
 - **Source:** research §10 (versioned rate cards), research open question on rate cards; baseline
   `HumanRes/EditRateAmounts`.
 
@@ -1914,6 +1993,12 @@ ProjectSettings. Global configuration defines and a project chooses among it, as
 | `WorkTypes` | list, editable rows | Work types | work type, description, sequence | | `Enumeration` of `WorkType` (`entity`) | Redmine time entry activities; OpenProject activities |
 | `TimesheetPolicy` | single | How time is kept | the week's first day, approvers (line manager, the projects' managers, any manager), lock on submit, required work item and comment, smallest entry (0.25 h), future entries allowed, the hours of a working day and the working days (the working hours until Capacity), the missing-time reminder's day and hour | | `PartySetting` `ProjTimesheetPolicy` with short keys to fit its 255 characters (`ws`, `ap`, `lk`, `ri`, `rc`, `mh`, `fu`, `dh`, `wd`, `rd`, `rh`; impl-projects.md F9), through `mantle.work.TimesheetServices.get#` and `store#TimesheetPolicy` | Redmine required time entry fields; Odoo timesheet reminders |
 
+As built (impl-projects.md P6b): `Settings/Time.xml`. The work types offered are the organization's PartySetting `ProjWorkTypes`
+(new type; a JSON object whose `offered` is the WorkType enumIds in order, through `mantle.work.TimesheetServices.get#` and
+`store#WorkTypes`; with no setting the eight services types), not the Enumeration's sequence, so the WorkTypes list is Offer or
+Stop offering, Up and Down, and Rename for the organization's own (NewWorkType makes `WktpOrg<n>`); MyTime, QuickTime,
+TimeEntries' dialog and bulk change read it. The smallest entry is a choice of 0.1, 0.25, 0.5 and 1 hour.
+
 ### BillingSettings
 
 - **Forms:**
@@ -1921,6 +2006,12 @@ ProjectSettings. Global configuration defines and a project chooses among it, as
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
 | --- | --- | --- | --- | --- | --- | --- |
 | `BillingDefaults` | single | Defaults for new projects | billing basis, invoice grouping, time detail on invoices, worker invoicing (monthly, by project), hours shared with clients | | `PartySetting` (`entity`) | Dolibarr project admin; ERPNext projects settings |
+
+As built (impl-projects.md P8a): `Settings/Billing.xml`, the organization's `ProjBillingDefaults` JSON (`billingBasis`,
+`invoiceGrouping` PerEntry, PerWorker or OneLine, `timeDetail`, `shareHours`, `settlementTermId`, `workerInvoicing` Monthly or
+ByProject) through `ironstone.BillingServices` `get#` and `store#BillingSettings`, for the Projects managers who manage money. Added
+the payment terms of a new invoice (a SettlementTerm; empty uses the organization's accounting terms). The time detail is the new
+project setting type `WstTimeDetail` (its organization default `timeDetail`), as the billing basis, grouping and shared hours are.
 
 ### CodeSettings
 
@@ -2062,7 +2153,7 @@ record is read through a service that checks the repository's rights (R21).
 | Need | Kind | Proposed as | Used by | Stub spec |
 | --- | --- | --- | --- | --- |
 | Shell providers (Projects) | XML Screen element (exists) + service type | `<shell-providers>` in `Projects.xml` as §1.4: the quick-create kinds, `<today-source>` `get#ProjectTodayItems`, the palette actions, `<palette-source>` `search#Code` with the `!` prefix, the notification topics, the `projects` key scope | Home, QuickCreate, every screen | design-drawers-commons §1.5 |
-| Project home and Today services | service type | `mantle.work.ProjectServices.get#ProjectHomeCounts` (the counters of the user's group) and `get#ProjectTodayItems` (the running timer, reviews waiting, a timesheet to submit, requests to triage); each part failure-tolerant | Home, the Today tab | as `get#UserTodayItems` sources |
+| Project home and Today services | service type | `mantle.work.ProjectServices.get#ProjectHomeCounts` (the counters of the user's group) and `get#ProjectTodayItems` (the running timer, reviews waiting, a timesheet to submit, requests to triage); each part failure-tolerant. As built: the counts in P2 to P6a, the Today source in P6b (§1.4) | Home, the Today tab | as `get#UserTodayItems` sources |
 | Palette and notification links | BOSS service | Commons' palette type mapping (`PaletteServices`, where `MantleProject` has no detail link today) and the notification record links (`CommonsServices`) open a project, work item or request under Projects for a user who has the app, else under Commons | palette, tray, notification center | |
 | `m-elapsed` | Vue component | `<m-elapsed :from="…" />`: the time since a timestamp as `h:mm`, ticking each minute | Home's timer strip, WorkItemDetail's timer, the Today panel's timer item | used through `render-mode` in XML screens |
 | Git access in Commons | BOSS screen | Commons/Settings/Account gains a Git access link to `Projects/Code/GitAccess` for a user who may open it, and else the `AccessTokens` and `NewAccessToken` forms of GitAccess, included from one form file | GitAccess, Commons Account | design-drawers-commons Account |
@@ -2137,7 +2228,7 @@ record is read through a service that checks the repository's rights (R21).
 | Recurring work items | data model + service type | `WorkEffortRecurrence` (built for Calendar) gains `recurFromCompletion` (text-indicator: count the next dates from the completion day rather than the due date); `mantle.work.TaskServices.set#TaskRecurrence(workEffortId, rrule, recurFromCompletion)` (an empty rule stops it) and `make#NextRecurringTask`, a SECA on the task's move to Complete, or to Cancelled when skipped: the copy of §5, start and due from the rule through the ICalendar tool's expansion, linked from the series by `WeatRecurrenceInstance` with its date; nothing is made past the rule's end | WorkItemDetail, WorkItems, Commons TaskDetail | Odoo recurring tasks |
 | Release notes | service type | `generate#ReleaseNotes` (markdown of the release's items by type with their keys, and its merged merge requests) and `publish#ReleaseNotes` (a page of the project's docs space, a `CHANGELOG.md` commit through `commit#GitFiles`, an email to its followers). As built (P4b): the draft has the release's description, its done items as Features, Fixes and Other, and its merged merge requests of repositories the user may view (the open items are counted, not listed); `store#` and `get#ReleaseNotes` keep them as a `WorkEffortContent` `WectReleaseNotes`; `publish#ReleaseNotes` goes each way on its own (a failure is a warning naming it): the page `Releases/<version>` (Releases made when missing), the version's section at the top of `CHANGELOG.md` (replaced when there), and the topic `ReleasePublished` to the followers of the release and the project; `release#Release` completes it (unfinished items to the next open release or none, a tag, the notes) | ReleaseDetail | |
 | Project activity | service type | `mantle.work.ProjectServices.get#ProjectActivity`: the status changes (audit log), comments, commits and merges of the project's items, newest first, paged | ProjectOverview, Home | |
-| Time in Chatter | service type | `get#RecordTimeline` gains a time-entry source for a work item (who logged how long, with the comment) | WorkItemDetail | design-drawers-commons §15, Projects' row |
+| Time in Chatter | service type | `get#RecordTimeline` gains a time-entry source for a work item (who logged how long, with the comment). As built (P6b): `mantle.work.TimeServices.get#TimeEntryTimeline`, registered as a `RecordTimelineSource` `ServiceRegister` (`TimeEntryTimeline`, Mantle seed): entries of kind `time` (the hours and work type as the title, the comment as the body, no rates, a running timer left out), shown in every list but a filtered one; Chatter labels them Time logged | WorkItemDetail | design-drawers-commons §15, Projects' row |
 | Calendar project filter | service type | `mantle.work.EventServices.get#FullCalendarData` takes `rootWorkEffortId`: the project's events (by `WorkEffortRecord`), milestones, releases and sprints. As built (P4c): only the linked events, all of them for a current party of the project (or ADMIN), else those the user owns or is on; the milestones, releases, sprints and work items are read by the caller (`ironstone.PlanningServices.get#ProjectCalendarEvents`) | ProjectCalendar | |
 | Timeline data | service type | `mantle.work.ProjectServices.get#TimelineData`: the find's items with start, due, progress, plan items and dependencies, and for each parent its subtree's span and roll-up progress; business days through `get#FutureBusinessDay`. As built (P4c): `workEffortIds` with their ancestors (`get#WorkItemTree`, so only items the user sees), `spanStartDay` and `spanDueDay` (cancelled items aside), progress 100 when done, else the roll-up's estimate less remaining, else the done of the sub-items; the dependencies between them with `violated`; the projects' milestones, releases and sprints with their progress (`get#PlanItemSummary`) | Timeline | |
 | Work item import services | service type | `mantle.work.WorkItemImportServices` `parse#WorkItemFile`, `preview#WorkItems`, `import#WorkItems` (a job with progress on a topic; the original key in `sourceReferenceId`; Jira, Redmine and GitHub CSV presets). As built (P4c): also `read#WorkItemRows` (the CSV and the mapping, a script) and `plan#WorkItemRows` (what each row does in the project); `import#WorkItems` makes the missing plan items and labels, then each row in its own transaction (`import#WorkItemRow`), then the parents (`move#Task`), then completes the past sprints it made; the BOSS step runs it as a job past 100 rows | WorkItemImport | as `ContactImportServices` |
@@ -2148,12 +2239,12 @@ record is read through a service that checks the repository's rights (R21).
 | Need | Kind | Proposed as | Used by | Stub spec |
 | --- | --- | --- | --- | --- |
 | Timesheet services | service type + seed data | `mantle.work.TimesheetServices` (built in impl-projects.md P6a): `get#TimesheetPolicy` and `store#TimesheetPolicy`, `get#WeekRange`, `get#WeekDays` (the policy's working hours less the organization's holidays), `get#PartyWeek` (the week's rows by item and day, totals, working hours, timesheet and access), `get#PartyTimesheet` (find or make a person's timesheet for a week; `store#TimeEntry` and `create#TimeEntryClockIn` set `timesheetId` through `TimeServices.check#TimeEntryTimesheet`), `get#TimesheetApprovers`, `get#TimesheetAccess`, `submit#Timesheet` (the person only), `approve#Timesheet`, `return#Timesheet`, `reopen#Timesheet`, `get#TimesheetSummary` (totals and flags), `find#Timesheets` (the lists and their counts), `get#TimeKeepers`, `send#MissingTimeReminders` (the hourly job `send_MissingTimeReminders` sends on each policy's day and hour, once a week each), and the timer `get#`, `start#`, `stop#` (under a minute discarded), `update#Timer`; transitions `TmshCompleted` to `TmshInProcess` (Return) and `TmshApproved` to `TmshInProcess` (Reopen); `store#TimeEntry` and `delete#TimeEntry` refuse an entry on a submitted or approved timesheet; permission `TIMESHEET_APPROVE`; topics `TimesheetApproval` (with the approve and return services), `TimesheetReturned`, `TimesheetApproved`, `TimesheetMissing`; `get#RecordLinkInfo` shows a timesheet to its person and approvers | MyTime, Timesheets, TimesheetDetail, TimeEntries | People uses the same |
-| Time import | service type | `mantle.work.TimeServices.import#TimeEntryCsv(file, preview)`: the Time entries CSV of §8 (date, person, work item or project key, hours or start and end, work type, billable, comment), people by email or user name, each row through `store#TimeEntry` on its own with the failures by row; a preview returns the first rows and their problems | TimeEntries | Toggl, Harvest and Clockify presets after the first release |
-| Work types | seed data | `Enumeration`s of `WorkType` for services work: `WktpDevelopment`, `WktpDesign`, `WktpTesting`, `WktpMeeting`, `WktpSupport`, `WktpProjectMgmt`, `WktpConsulting`, `WktpTravel` | the time forms, rates | the seeded types are labor and office |
-| Capacity | service type | `mantle.work.ResourceServices.get#PartyCapacity(partyId, fromDate, thruDate)`: weekly working hours from `WetAvailable` (else the organization's default week) less `WetTimeOff` and `WepHoliday`, by week | TeamPlanner, PersonDetail, MyTime, UtilizationReport | People's schedule record replaces the source later |
-| Allocations | data model + service type + seed data | `mantle.work.effort.WorkEffortAllocation` {workEffortAllocationId, workEffortId, partyId (empty for a placeholder), emplPositionClassId, skillTypeEnumId, fromDate, thruDate, hoursPerWeek, statusId (`WealRequested`, `WealAllocated`, `WealRejected`, `WealCancelled`, with a flow), requestedByUserId, reviewedByUserId, comments}; `create#Allocation`, `update#Allocation`, `staff#Allocation`, `approve#Allocation`, `reject#Allocation`, `find#StaffingCandidates`, `get#TeamPlan`; topics `AllocationRequest` (approval) and `AllocationDecision` | TeamPlanner, Allocations, ProjectTeam, NewProject | answers the research's question (§16) |
+| Time import | service type | `mantle.work.TimeServices.import#TimeEntryCsv(file, preview)`: the Time entries CSV of §8 (date, person, work item or project key, hours or start and end, work type, billable, comment), people by email or user name, each row through `store#TimeEntry` on its own with the failures by row; a preview returns the first rows and their problems. As built (P6b): the file as an upload, text or a location; `partyId` the person of rows with none; counts of create, skip and fail; `progressUserId` for a job's progress; see §8 ImportTime | TimeEntries | Toggl, Harvest and Clockify presets after the first release |
+| Work types | seed data | `Enumeration`s of `WorkType` for services work: `WktpDevelopment`, `WktpDesign`, `WktpTesting`, `WktpMeeting`, `WktpSupport`, `WktpProjectMgmt`, `WktpConsulting`, `WktpTravel`. As built (P6b): the organization's choice in PartySetting `ProjWorkTypes` (§12 TimeSettings) | the time forms, rates | the seeded types are labor and office |
+| Capacity | service type | `mantle.work.ResourceServices.get#PartyCapacity(partyId, fromDate, thruDate)`: weekly working hours from `WetAvailable` (else the organization's default week) less `WetTimeOff` and `WepHoliday`, by week. As built (P7): `partyIdList`, days with their base, holiday, leave and capacity and the weeks' sums; the default week is the timesheet policy's `dh` and `wd`; `TimesheetServices.get#WeekDays(partyId)` reads it; `get#AllocationWeeks` spreads an allocation over a capacity's days | TeamPlanner, PersonDetail, MyTime, UtilizationReport | People's schedule record replaces the source later |
+| Allocations | data model + service type + seed data | `mantle.work.effort.WorkEffortAllocation` {workEffortAllocationId, workEffortId, partyId (empty for a placeholder), emplPositionClassId, skillTypeEnumId, fromDate, thruDate, hoursPerWeek, statusId (`WealRequested`, `WealAllocated`, `WealRejected`, `WealCancelled`, with a flow), requestedByUserId, reviewedByUserId, comments}; `create#Allocation`, `update#Allocation`, `staff#Allocation`, `approve#Allocation`, `reject#Allocation`, `find#StaffingCandidates`, `get#TeamPlan`; topics `AllocationRequest` (approval) and `AllocationDecision`. As built (P7): also `rootWorkEffortId` (the project), `roleTypeId` (the project role a placeholder fills), `allocationPercent`, `requestedDate`, `reviewedDate` and `reviewComments` (a rejection's reason); `fromDate` and `thruDate` are days; `cancel#Allocation`, `find#Allocations` (the lists and counts), `get#AllocationAccess`; permission `ALLOCATION_APPROVE`; `get#TeamPlan` gives each week's capacity, allocated, requested, assigned and logged hours, the load and the utilization, which `get#Utilization` (P9) can build on | TeamPlanner, Allocations, ProjectTeam, NewProject | answers the research's question (§16) |
 | Milestone billing share | data model + service type | `OrderItemWorkEffort.invoicePercent` (number-decimal); `mantle.account.InvoiceServices.create#MilestoneInvoiceItems(workEffortId, invoiceId)`: an item per linked order line for its share once the milestone is complete, recorded in `WorkEffortBilling` with the percentage | MilestoneDetail, ProjectMoney, Unbilled | |
-| Billing services | service type | `mantle.work.ProjectServices.get#UnbilledSummary` (by project, and with `RaprVendor` by worker: unbilled hours and amounts, expenses, reached milestones, open drafts); the time detail appended to a client invoice's print | Unbilled, ProjectMoney, Home | |
+| Billing services | service type | `mantle.work.ProjectServices.get#UnbilledSummary` (by project, and with `RaprVendor` by worker: unbilled hours and amounts, expenses, reached milestones, open drafts); the time detail appended to a client invoice's print. As built (P8a): `get#UnbilledSummary` by project for those who manage money (billable time not invoiced, the approved part ready, what waits, entries without a rate, expenses not billed through, the last invoice and the drafts; BigDecimal amounts rounded per entry as an invoice of a line per entry totals them; by client for the chart); `mantle.account.InvoiceServices` `create#ProjectInvoiceItems` and `create#TimeEntryInvoiceItems` take `timeEntryIdList`, `approvedOnly` and `billableOnly` (and the first `includeExpenses`, `settlementTermId`), lock the entries for update and link the project by `WorkEffortInvoice`; `get#InvoiceTimeDetail` (the time behind an invoice's lines); `delete#InvoiceItem` frees the line's time as `cancel#Invoice` frees an invoice's; `get#ProjectHomeCounts` fills `unbilledAmount`. The worker (`RaprVendor`) summary and the milestones are P8b | Unbilled, ProjectMoney, Home | |
 | Reports services | service type | `mantle.work.ProjectReportServices`: `get#TimeReport`, `get#WorkItemSummary`, `get#SprintBurndown` (from the `WeatSprint` dates and the audit log of `remainingWorkTime`, `estimatedWorkTime`, `estimatedPoints` and `statusId`; built in P4a with the committed, added, removed, completed, carried-over and remaining sizes, days left, the scope changes and each item's outcome; an hours project sizes items by their estimate and burns down their remaining hours), `get#SprintVelocity` (P4a), `get#PortfolioStatus`, `get#ProjectProfitability`, `get#Utilization`, with the measures of §11 | Reports, SprintDetail, Home | |
 
 ### Requests and intake (Mantle and BOSS)

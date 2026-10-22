@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- PersonDetail's Allocations (design-projects.md §9 PersonDetail): the person's allocations on the projects the viewer sees, still
+    requested or allocated, then the past and the decided ones (mantle.work.ResourceServices.find#Allocations by partyId through
+    ironstone.ResourceServices find#AllocationRows); Edit opens EditAllocation for one the viewer may change, the list opens
+    Allocations on the person. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Allocations" default-menu-index="2">
+
+    <actions><script><![CDATA[
+        allocationRows = []
+        if (!personFound) return
+        const out = ec.service.sync().name('ironstone.ResourceServices.find#AllocationRows').parameters({list: 'all', partyId: partyId}).call() || {}
+        ec.message.clearErrors()
+        const rows = Array.from(out.rowList || [])
+        const rank = (row) => row.isOpen ? 0 : 1
+        rows.sort((a, b) => rank(a) - rank(b) || String(b.fromDay).localeCompare(String(a.fromDay)))
+        allocationRows = rows
+        allocationsUrl = '/qapps/Projects/Resources/Allocations?list=all&partyId=' + encodeURIComponent(partyId)
+    ]]></script></actions>
+
+    <widgets>
+        <container-box><box-header title="Allocations · ${allocationRows.length}"/><box-toolbar>
+            <link url="${allocationsUrl}" url-type="plain" link-type="anchor" text="In Allocations"/>
+        </box-toolbar><box-body-nopad>
+            <form-list name="PersonAllocations" list="allocationRows" skip-form="true" paginate="false">
+                <field name="projectName"><default-field title="Project"><link url="${projectUrl}" url-type="plain" text="${projectName}" link-type="anchor"/>
+                    <label text="${roleSkillText}" type="div" style="text-caption m-muted"/></default-field></field>
+                <field name="periodText"><default-field title="When"><display/></default-field></field>
+                <field name="amountText" align="right"><default-field title="Hours"><display/></default-field></field>
+                <field name="statusLabel"><default-field title="Status">
+                    <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${statusColor}">${WebUtilities.encodeHtml(statusLabel ?? '')}</q-chip>]]></text>
+                        <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify(statusLabel ?? "")}}]]></text></render-mode></default-field></field>
+                <field name="comments"><default-field title="Note"><display/></default-field></field>
+                <field name="edit" align="right"><default-field title="">
+                    <dynamic-dialog id="PersonEditAllocation" button-text="" icon="sym_o_edit" transition="../EditAllocation" width="600" title="Edit allocation"
+                            parameter-map="{workEffortAllocationId:workEffortAllocationId}" condition="canChange"/></default-field></field>
+                <columns type="mobile">
+                    <column><field-ref name="projectName"/><field-ref name="periodText"/></column>
+                    <column><field-ref name="statusLabel"/><field-ref name="amountText"/></column>
+                </columns>
+            </form-list>
+            <section name="NoAllocations" condition="!allocationRows.length"><widgets>
+                <label type="p" text="No allocations on the projects you see" style="m-muted q-pa-sm q-mb-none"/>
+            </widgets></section>
+        </box-body-nopad></container-box>
+    </widgets>
+</screen>

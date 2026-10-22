@@ -400,7 +400,8 @@ along with this software (see the LICENSE.md file). If not, see
         <description>ProjectDetail's title row and numbers (design-projects.md §4 ProjectDetail): the project, its status
             stages, the health with the date of the latest update, the client and the manager, the number cards (open items,
             overdue, the next milestone, the hours of the budget or estimate; for managers the client budget used), the
-            primary action by status (Approve, Begin, Post update, Resume, Close, Re-open) and the other moves of the flow for
+            primary action by status (Approve, Begin, Post update, Resume, Close, Re-open), the unbilled amount for a manager who
+            manages money (impl-projects.md P8a), and the other moves of the flow for
             the secondary menu, the modules on (WstModules), and whether it is a template or closed. visible false for a
             project the user does not see.</description>
         <in-parameters><parameter name="workEffortId" required="true"/></in-parameters>
@@ -424,6 +425,16 @@ along with this software (see the LICENSE.md file). If not, see
             const primaryTo = primaries[project.statusId] || null
             const primaryMove = primaryTo ? moves.find((move) => move.toStatusId === primaryTo) : null
             const ended = ['WeClosed', 'WeCancelled'].includes(project.statusId)
+            // impl-projects.md P8a: the billable time not invoiced, for a manager of the project who manages money
+            let unbilledText = ''
+            if (access.canManage && (ec.user.isInGroup('ADMIN') || ec.user.hasPermission('TIME_ENTRY_RATE'))) {
+                ec.message.pushErrors()
+                try {
+                    const unbilled = Array.from(ec.service.sync().name('mantle.work.ProjectServices.get#UnbilledSummary').parameters({workEffortId: workEffortId}).call()?.projectList || [])[0]
+                    if (unbilled && !ec.message.hasError()) unbilledText = ec.l10n.formatCurrency(toDecimal(unbilled.amount), unbilled.currencyUomId || 'USD')
+                } catch (err) { ec.logger.error(`Project header of ${workEffortId}: the unbilled amount is left out: ${err && err.message ? err.message : err}`) }
+                finally { ec.message.clearErrors(); ec.message.popErrors() }
+            }
             header = Object.assign({}, row, {
                 canManage: !!access.canManage, canUpdate: !!access.canUpdate, isMember: !!access.isMember,
                 isTemplate: project.isTemplate === 'Y', isEnded: ended,
@@ -435,7 +446,7 @@ along with this software (see the LICENSE.md file). If not, see
                 otherMoves: moves.filter((move) => move.toStatusId !== (project.statusId === 'WeInProgress' ? null : primaryTo))
                         .map((move) => ({statusId: move.toStatusId, label: L(move.transitionName || move.toStatusId)})),
                 modules: String(settings.WstModules || '').split(',').map((key) => key.trim()).filter((key) => key),
-                unbilledText: '',
+                unbilledText: unbilledText,
                 description: project.description || '', visibilityEnumId: project.visibilityEnumId || null,
                 startText: project.estimatedStartDate != null ? ec.l10n.format(project.estimatedStartDate, 'MMM d, yyyy') : ''})
         ]]></script></actions>
@@ -1207,7 +1218,8 @@ along with this software (see the LICENSE.md file). If not, see
             updated first; org.moqui.impl.GitReviewServices.find#MergeRequests waitingForUserId, decorated by
             ironstone.CodeServices.decorate#MergeRequestRows), with hosting false when the build has no git hosting. timer: the
             user's running timer, and approvalList: the submitted weeks the user approves (ironstone.TimeServices.get#HomeTime;
-            impl-projects.md P6a). Allocation approvals (P7) and the charts (P9) come with their phases.</description>
+            impl-projects.md P6a), then the requested allocations the user decides (ironstone.ResourceServices.get#HomeAllocations;
+            impl-projects.md P7). The charts (P9) come with their phase.</description>
         <out-parameters><parameter name="home" type="Map"/></out-parameters>
         <actions><script><![CDATA[
             const managers = ec.user.isInGroup('BOSS_PROJECT_MANAGER') || ec.user.isInGroup('ADMIN')
@@ -1234,6 +1246,12 @@ along with this software (see the LICENSE.md file). If not, see
                 const out = ec.service.sync().name('ironstone.TimeServices.get#HomeTime').parameters({managers: managers}).call() || {}
                 home.timer = out.timer || null
                 home.approvalList = Array.from(out.approvalList || [])
+            })
+            // impl-projects.md P7: the requested allocations the user decides, after the weeks
+            part('allocations', () => {
+                if (!managers) return
+                const rows = Array.from(ec.service.sync().name('ironstone.ResourceServices.get#HomeAllocations').call()?.approvalList || [])
+                home.approvalList = home.approvalList.concat(rows)
             })
             part('reviews', () => {
                 home.hosting = !!ec.service.sync().name('ironstone.CodeServices.get#CodeHosting').call()?.available

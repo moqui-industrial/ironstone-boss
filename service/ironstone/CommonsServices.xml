@@ -68,8 +68,10 @@ along with this software (see the LICENSE.md file). If not, see
             // a day of the last week by its name, an older one by its date
             const dayOf = (millis) => nowMillis - millis < 6 * 86400000 ? fmt(millis, 'EEE') : fmt(millis, 'MMM d')
             const icons = {task: 'sym_o_task_alt', call: 'sym_o_call', email: 'sym_o_mail', todo: 'sym_o_checklist', meeting: 'sym_o_groups',
-                event: 'sym_o_event', request: 'sym_o_support', approval: 'sym_o_how_to_reg'}
-            const kindLabels = {task: 'Task', call: 'Call', email: 'Email', todo: 'To-do', meeting: 'Meeting', event: 'Event', request: 'Request'}
+                event: 'sym_o_event', request: 'sym_o_support', approval: 'sym_o_how_to_reg', timer: 'sym_o_timer', timesheet: 'sym_o_schedule_send',
+                review: 'sym_o_rate_review', triage: 'sym_o_inbox'}
+            const kindLabels = {task: 'Task', call: 'Call', email: 'Email', todo: 'To-do', meeting: 'Meeting', event: 'Event', request: 'Request',
+                timer: 'Timer', timesheet: 'Timesheet', review: 'Review', triage: 'To triage'}
             // a link as attribute text of the panel's markup
             const attr = (text) => text == null ? null : String(text).replace(/[&<>"]/g, (ch) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'})[ch])
             const link = (parameters) => {
@@ -95,6 +97,13 @@ along with this software (see the LICENSE.md file). If not, see
                 let timeText = ''
                 if (kind === 'request') {
                     timeText = item.overdue && due != null ? L('Overdue since') + ' ' + dayOf(due) : (due != null ? L('Response due') + ' ' + timeOf(due) : '')
+                } else if (kind === 'timer') {
+                    // Projects' running timer (mantle.work.ProjectServices.get#ProjectTodayItems)
+                    timeText = start != null ? L('Running since') + ' ' + (nowMillis - start < 20 * 3600000 ? timeOf(start) : dayOf(start) + ' ' + timeOf(start)) : L('Running')
+                } else if (kind === 'timesheet') {
+                    timeText = item.overdue ? L('Not submitted') : L('Week ends')
+                } else if (kind === 'review' || kind === 'triage') {
+                    timeText = ''
                 } else if (isEvent) {
                     if (item.allDay) timeText = L('All day')
                     else if (start != null && start <= nowMillis) timeText = end != null ? L('Now, until') + ' ' + timeOf(end) : L('Now')
@@ -109,6 +118,8 @@ along with this software (see the LICENSE.md file). If not, see
                     workEffortTypeEnumId: isEvent ? 'WetEvent' : 'WetTask'}).url
                 else if (item.requestId) url = link({docType: 'MantleRequest', id: item.requestId}).url
                 else if (item.url) url = String(item.url)
+                // Projects' timesheet to submit opens its week in My time
+                if (kind === 'timesheet' && item.weekStart) url = '/qapps/Projects/Time/MyTime?weekDate=' + encodeURIComponent(item.weekStart)
                 const record = item.record || null
                 let recordCaption = null
                 let recordUrl = null
@@ -126,7 +137,8 @@ along with this software (see the LICENSE.md file). If not, see
                     assigneeText: assignees.length ? L('with') + ' ' + assignees.join(', ') : null,
                     priority: item.priority ?? null, statusId: item.statusId ?? null, allDay: !!item.allDay, isEvent: isEvent,
                     overdue: group === 'overdue' || !!item.overdue, canComplete: canComplete, canReschedule: canComplete,
-                    canSnooze: !!item.workEffortId, dueDateText: due != null ? fmt(due, 'yyyy-MM-dd') : today, source: item.source || null}
+                    canSnooze: !!item.workEffortId, dueDateText: due != null ? fmt(due, 'yyyy-MM-dd') : today, source: item.source || null,
+                    canStopTimer: kind === 'timer' && !!item.timeEntryId, timeEntryId: item.timeEntryId || null}
             }
             const builtIn = [['overdue', 'Overdue', true], ['dueToday', 'Due today', false], ['laterToday', 'Later today', false]]
             for (const [key, label, warning] of builtIn) {

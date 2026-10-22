@@ -1,0 +1,1081 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The billing of IronStone Projects (design-projects.md §10 Unbilled, Invoices, InvoiceDetail, Rates, §12 BillingSettings, §14 the
+    client invoice with its time detail; impl-projects.md P8a). Money is seen and changed only by those who manage money: holders of
+    TIME_ENTRY_RATE (the Projects managers) and ADMIN (check#Money); the projects are those the user sees
+    (mantle.work.ProjectServices.get#VisibleProjectInfo, impl-projects.md F1). Amounts are BigDecimal end to end: the texts are
+    formatted from them, never summed as numbers. An invoice is made by Mantle (mantle.account.InvoiceServices.create#ProjectInvoiceItems
+    with approvedOnly and billableOnly: only the approved, billable time), in one transaction: it is made whole or not at all. Clients
+    (impl-projects.md P10) will see their own invoices read only: the services keep the money check apart from the visibility. -->
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
+
+    <!-- ========== Access ========== -->
+
+    <service verb="check" noun="Money" allow-remote="false">
+        <description>Money is for ADMIN and the holders of TIME_ENTRY_RATE (design-projects.md §1.1: the Projects managers); anyone else
+            gets an error, or with need none only the answer.</description>
+        <in-parameters><parameter name="need" default-value="error"/></in-parameters>
+        <out-parameters><parameter name="managesMoney" type="Boolean"/></out-parameters>
+        <actions><script><![CDATA[
+            managesMoney = !!ec.user.userId && (ec.user.isInGroup('ADMIN') || ec.user.hasPermission('TIME_ENTRY_RATE'))
+            if (!managesMoney && need !== 'none') ec.message.addError(ec.l10n.localize('Only those who manage money see billing'))
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="InvoiceProjects" allow-remote="false">
+        <description>The invoices of projects among the projects the user sees (every project for ADMIN), by kind: client (to a project's
+            client: linked by WorkEffortInvoice or billing its time, TimeEntry.invoiceId), worker (a worker's time, TimeEntry.vendorInvoiceId)
+            or expense (linked by WorkEffortInvoice, from someone else). invoiceIds narrows to those; rootWorkEffortId to one project.
+            invoiceMap: invoiceId to {kind, projectIds}. No money check: the callers make it.</description>
+        <in-parameters>
+            <parameter name="invoiceIds" type="List"/>
+            <parameter name="rootWorkEffortId"/>
+        </in-parameters>
+        <out-parameters><parameter name="invoiceMap" type="Map"/></out-parameters>
+        <actions><script><![CDATA[
+            invoiceMap = {}
+            const cf = ec.entity.conditionFactory
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try {
+                const vis = ec.service.sync().name('mantle.work.ProjectServices.get#VisibleProjectInfo').call() || {}
+                const all = !!vis.allProjects
+                let scope = all ? null : Array.from(vis.visibleProjectIds || [])
+                if (rootWorkEffortId) { if (scope && !scope.includes(rootWorkEffortId)) return; scope = [rootWorkEffortId] }
+                if (scope && !scope.length) return
+                const ids = invoiceIds != null ? Array.from(invoiceIds).map(String).filter((id) => id) : null
+                if (ids != null && !ids.length) return
+                const add = (invoiceId, projectId, kind) => {
+                    if (!invoiceId || !projectId) return
+                    if (scope && !scope.includes(projectId)) return
+                    const entry = invoiceMap[invoiceId] || (invoiceMap[invoiceId] = {kind: kind, projectIds: []})
+                    if (kind === 'worker' || (kind === 'client' && entry.kind === 'expense')) entry.kind = kind
+                    if (!entry.projectIds.includes(projectId)) entry.projectIds.push(projectId)
+                }
+                const rootOf = (row) => row.workEffortTypeEnumId === 'WetProject' ? row.workEffortId : (row.rootWorkEffortId || null)
+                const scoped = (field) => {
+                    const conds = [cf.makeCondition(field, 'is-not-null', null)]
+                    if (ids) conds.push(cf.makeCondition(field, 'in', ids))
+                    if (scope) conds.push(cf.makeCondition([cf.makeCondition('rootWorkEffortId', 'in', scope), cf.makeCondition('workEffortId', 'in', scope)], 'or'))
+                    return cf.makeCondition(conds, 'and')
+                }
+                // the time billed: client invoices by invoiceId, worker invoices by vendorInvoiceId
+                for (const [field, kind] of [['invoiceId', 'client'], ['vendorInvoiceId', 'worker']]) {
+                    const seen = new Set()
+                    for (const row of ec.entity.find('mantle.work.time.TimeEntryAndWorkEffort').condition(scoped(field)).selectField(field).selectField('workEffortId')
+                            .selectField('rootWorkEffortId').selectField('workEffortTypeEnumId').limit(50000).list()) {
+                        const key = row[field] + ' ' + rootOf(row)
+                        if (seen.has(key)) continue
+                        seen.add(key)
+                        add(row[field], rootOf(row), kind)
+                    }
+                }
+                // the invoices linked to a project or its items
+                let links = ec.entity.find('mantle.work.effort.WorkEffortInvoice')
+                if (ids) links = links.condition('invoiceId', 'in', ids)
+                const linkRows = Array.from(links.limit(20000).list())
+                const efforts = {}
+                const effortIds = Array.from(new Set(linkRows.map((row) => row.workEffortId)))
+                for (let i = 0; i < effortIds.length; i += 1000) for (const row of ec.entity.find('mantle.work.effort.WorkEffort')
+                        .condition('workEffortId', 'in', effortIds.slice(i, i + 1000)).selectField('workEffortId').selectField('rootWorkEffortId')
+                        .selectField('workEffortTypeEnumId').list()) efforts[row.workEffortId] = row
+                const clients = {}
+                const clientOf = (projectId) => {
+                    if (!(projectId in clients)) clients[projectId] = Array.from(ec.entity.find('mantle.work.effort.WorkEffortParty').condition('workEffortId', projectId)
+                            .condition('roleTypeId', 'in', ['Customer', 'CustomerBillTo']).list()).map((row) => row.partyId)
+                    return clients[projectId]
+                }
+                const linkInvoiceIds = Array.from(new Set(linkRows.map((row) => row.invoiceId)))
+                const toParty = {}
+                for (let i = 0; i < linkInvoiceIds.length; i += 1000) for (const row of ec.entity.find('mantle.account.invoice.Invoice')
+                        .condition('invoiceId', 'in', linkInvoiceIds.slice(i, i + 1000)).selectField('invoiceId').selectField('toPartyId').list()) toParty[row.invoiceId] = row.toPartyId
+                for (const link of linkRows) {
+                    const effort = efforts[link.workEffortId]
+                    if (!effort) continue
+                    const projectId = rootOf(effort)
+                    if (!projectId) continue
+                    add(link.invoiceId, projectId, clientOf(projectId).includes(toParty[link.invoiceId]) ? 'client' : 'expense')
+                }
+            } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="InvoiceAccess" allow-remote="false">
+        <description>Whether the user may see an invoice in Projects: one who manages money (check#Money) and sees one of its projects
+            (get#InvoiceProjects); else "not available" as an error, or with need none only the answer. kind: client, worker or
+            expense.</description>
+        <in-parameters>
+            <parameter name="invoiceId" required="true"/>
+            <parameter name="need" default-value="view"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="canView" type="Boolean"/>
+            <parameter name="invoice" type="Map"/>
+            <parameter name="kind"/>
+            <parameter name="projectIds" type="List"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            canView = false; invoice = null; kind = null; projectIds = []
+            const money = ec.service.sync().name('ironstone.BillingServices.check#Money').parameters({need: 'none'}).call()?.managesMoney
+            if (money) {
+                const row = ec.entity.find('mantle.account.invoice.Invoice').condition('invoiceId', invoiceId).disableAuthz().one()
+                const found = row ? (ec.service.sync().name('ironstone.BillingServices.get#InvoiceProjects').parameters({invoiceIds: [invoiceId]}).call()?.invoiceMap || {})[invoiceId] : null
+                if (row && found) { canView = true; invoice = row.getMap(); kind = found.kind; projectIds = found.projectIds }
+            }
+            if (!canView && need !== 'none') ec.message.addError(ec.resource.expand('Invoice ${invoiceId} is not available', '', {invoiceId}))
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== Unbilled ========== -->
+
+    <service verb="find" noun="UnbilledRows">
+        <description>Unbilled's Client billing list (design-projects.md §10 UnbilledList): by project, the billable time not invoiced
+            (mantle.work.ProjectServices.get#UnbilledSummary) with its texts: the client, the billing basis, hours and amount, the
+            approved part ready to invoice, what waits for approval, entries without a rate, the period, the last invoice, the drafts,
+            and whether it may be invoiced now (and why not); the totals and the clients for the find. Those who do not manage money
+            get an error.</description>
+        <in-parameters>
+            <parameter name="clientPartyId"/>
+            <parameter name="rootWorkEffortId"/>
+            <parameter name="readyOnly" type="Boolean" default="false"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="rowList" type="List"/>
+            <parameter name="totals" type="Map"/>
+            <parameter name="clientOptions" type="List"/>
+            <parameter name="projectOptions" type="List"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            rowList = []; totals = {}; clientOptions = []; projectOptions = []
+            ec.service.sync().name('ironstone.BillingServices.check#Money').call()
+            if (ec.message.hasError()) return
+            const L = (text) => ec.l10n.localize(text)
+            const out = ec.service.sync().name('mantle.work.ProjectServices.get#UnbilledSummary').parameters({workEffortId: rootWorkEffortId || null}).call() || {}
+            if (ec.message.hasError()) return
+            const hoursText = (value) => value == null ? '' : ec.l10n.format(value, '#,##0.##')
+            const money = (value, uom) => value == null ? '' : ec.l10n.formatCurrency(value, uom || 'USD')
+            const day = (millis) => millis == null ? '' : ec.l10n.format(new Date(millis), 'MMM d, yyyy')
+            const bases = {TimeAndMaterials: 'Time and materials', FixedPrice: 'Fixed price', Milestones: 'Milestones', NotBilled: 'Not billed'}
+            const clients = {}, projects = {}
+            for (const row of Array.from(out.projectList || [])) {
+                if (row.clientPartyId) clients[row.clientPartyId] = row.clientName
+                projects[row.workEffortId] = row.workEffortName
+                if (clientPartyId && row.clientPartyId !== clientPartyId) continue
+                if (readyOnly && !row.readyCount) continue
+                const settings = ec.service.sync().name('mantle.work.ProjectServices.get#ProjectSettings').parameters({workEffortId: row.workEffortId}).call()?.settings || {}
+                const uom = row.currencyUomId
+                const draft = Array.from(row.draftInvoiceList || [])[0]
+                rowList.push({workEffortId: row.workEffortId, projectName: row.workEffortName, projectUrl: '/qapps/Projects/Projects/ProjectDetail?workEffortId=' + encodeURIComponent(row.workEffortId),
+                    clientPartyId: row.clientPartyId, clientName: row.clientName || L('No client'), hasClient: !!row.clientPartyId,
+                    basisText: L(bases[settings.WstBillingBasis] || 'Time and materials'),
+                    hours: row.hours, hoursText: hoursText(row.hours), amount: row.amount, amountText: money(row.amount, uom), currencyUomId: uom,
+                    readyCount: row.readyCount, readyHoursText: hoursText(row.readyHours), readyAmountText: money(row.readyAmount, uom),
+                    readyAmount: row.readyAmount,
+                    waitingText: [toDecimal(row.waitingHours).isZero() ? '' : hoursText(row.waitingHours) + ' h ' + L('submitted'), toDecimal(row.openHours).isZero() ? '' : hoursText(row.openHours) + ' h ' + L('open')]
+                        .filter((part) => part).join(', '),
+                    missingRateCount: row.missingRateCount, missingRateText: row.missingRateCount ? ec.resource.expand('${count} without a rate', '', {count: row.missingRateCount}) : '',
+                    periodText: row.firstDate == null ? '' : (day(row.firstDate) + (row.lastDate != null && row.lastDate !== row.firstDate ? ' – ' + day(row.lastDate) : '')),
+                    expenseText: row.expenseCount ? money(row.expenseAmount, uom) + ' (' + row.expenseCount + ')' : '',
+                    lastInvoiceId: row.lastInvoiceId, lastInvoiceText: row.lastInvoiceId ? day(row.lastInvoiceDate) : L('Never'),
+                    lastInvoiceUrl: row.lastInvoiceId ? '/qapps/Projects/Billing/InvoiceDetail?invoiceId=' + encodeURIComponent(row.lastInvoiceId) : null,
+                    draftInvoiceId: draft?.invoiceId || null, draftText: draft ? draft.invoiceId + ' · ' + money(draft.invoiceTotal, uom) : '',
+                    draftUrl: draft ? '/qapps/Projects/Billing/InvoiceDetail?invoiceId=' + encodeURIComponent(draft.invoiceId) : null,
+                    canInvoice: !!row.canInvoice, cannotReason: row.cannotReason || '',
+                    reviewUrl: '/qapps/Projects/Projects/ProjectDetail/Time?workEffortId=' + encodeURIComponent(row.workEffortId) + '&list=unbilled'})
+            }
+            const sum = (field) => rowList.reduce((total, row) => total.add(row[field]), toDecimal(0))
+            const uoms = Array.from(new Set(rowList.map((row) => row.currencyUomId)))
+            const uom = uoms.length === 1 ? uoms[0] : null
+            totals = {projectCount: rowList.length, readyCount: rowList.filter((row) => row.canInvoice).length, hoursText: hoursText(sum('hours')),
+                amountText: uom ? money(sum('amount'), uom) : (uoms.length ? L('More than one currency') : money(toDecimal(0), 'USD')),
+                readyAmountText: uom ? money(sum('readyAmount'), uom) : ''}
+            clientOptions = Object.keys(clients).map((id) => ({key: id, text: clients[id]})).sort((a, b) => a.text.localeCompare(b.text))
+            projectOptions = Object.keys(projects).map((id) => ({key: id, text: projects[id]})).sort((a, b) => a.text.localeCompare(b.text))
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="InvoiceDraft">
+        <description>CreateProjectInvoice's dialog (design-projects.md §10): a project's approved billable time not invoiced, entry by entry
+            with its rate and amount (those without a rate flagged), and what waits for approval; the client's open drafts of the project
+            to add to; the grouping (the project's WstInvoiceGrouping: per entry, per worker, one line) and the payment terms (the
+            organization's ProjBillingDefaults settlementTermId) to default to. For one who manages money and manages the project.</description>
+        <in-parameters><parameter name="workEffortId" required="true"/></in-parameters>
+        <out-parameters><parameter name="draft" type="Map"/></out-parameters>
+        <actions><script><![CDATA[
+            draft = null
+            ec.service.sync().name('ironstone.BillingServices.check#Money').call()
+            if (ec.message.hasError()) return
+            ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: workEffortId, need: 'manage'}).call()
+            if (ec.message.hasError()) return
+            const L = (text) => ec.l10n.localize(text)
+            const out = ec.service.sync().name('mantle.work.ProjectServices.get#UnbilledSummary').parameters({workEffortId: workEffortId, withEntries: true}).call() || {}
+            if (ec.message.hasError()) return
+            const row = Array.from(out.projectList || [])[0]
+            const project = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', workEffortId).disableAuthz().one()
+            const settingsOut = ec.service.sync().name('mantle.work.ProjectServices.get#ProjectSettings').parameters({workEffortId: workEffortId}).call() || {}
+            const settings = settingsOut.settings || {}
+            const defaults = ec.service.sync().name('ironstone.BillingServices.get#BillingSettings').parameters({organizationPartyId: settingsOut.organizationPartyId || null}).call()?.defaults || {}
+            const groupings = {PerEntry: 'entry', PerWorker: 'worker', OneLine: 'all'}
+            const uom = row?.currencyUomId || 'USD'
+            const money = (value) => value == null ? '' : ec.l10n.formatCurrency(value, uom)
+            const hoursText = (value) => value == null ? '' : ec.l10n.format(value, '#,##0.##')
+            const entries = Array.from(row?.entryList || [])
+            const ready = entries.filter((entry) => entry.ready)
+            draft = {workEffortId: workEffortId, projectName: project?.workEffortName || workEffortId, clientPartyId: row?.clientPartyId || null, clientName: row?.clientName || '',
+                canInvoice: !!row?.canInvoice, cannotReason: row ? (row.cannotReason || '') : L('Nothing to invoice'),
+                entryGrouping: groupings[settings.WstInvoiceGrouping] || 'entry', settlementTermId: defaults.settlementTermId || '',
+                readyHoursText: row ? hoursText(row.readyHours) : '0', readyAmountText: row ? money(row.readyAmount) : money(toDecimal(0)),
+                waitingHoursText: row ? hoursText(toDecimal(row.waitingHours).add(row.openHours)) : '0', currencyUomId: uom,
+                entryOptions: ready.map((entry) => ({key: entry.timeEntryId, missingRate: entry.missingRate,
+                    text: [ec.l10n.format(new Date(entry.fromDate), 'MMM d'), entry.personName, (entry.workEffortId === workEffortId ? '' : entry.workEffortId + ' ') + entry.workEffortName,
+                        hoursText(entry.hours) + ' h', entry.missingRate ? L('no rate') : money(entry.amount)].filter((part) => part).join(' · ')
+                        + (entry.comments ? ' — ' + entry.comments.substring(0, 60) : '')})),
+                selectedIds: ready.filter((entry) => !entry.missingRate).map((entry) => entry.timeEntryId),
+                draftOptions: Array.from(row?.draftInvoiceList || []).map((inv) => ({key: inv.invoiceId,
+                    text: inv.invoiceId + ' · ' + (inv.invoiceDate != null ? ec.l10n.format(new Date(inv.invoiceDate), 'MMM d, yyyy') + ' · ' : '') + money(inv.invoiceTotal)}))}
+        ]]></script></actions>
+    </service>
+
+    <service verb="create" noun="ProjectInvoice">
+        <description>Unbilled's Create invoice (design-projects.md §10 CreateProjectInvoice): a client invoice of a project's approved
+            billable time (mantle.account.InvoiceServices.create#ProjectInvoiceItems with approvedOnly and billableOnly), the selected
+            entries only when timeEntryIds is given, added to an open draft of the project to the same client (invoiceId) or a new
+            one dated invoiceDate with the payment terms; the grouping per entry, per worker or one line (entryGrouping). The project's
+            expenses not billed through go with it. For one who manages money and manages the project; refused when the project has no
+            client or vendor, a selected entry is not approved, invoiced already or has no rate. All or nothing, in one transaction.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="invoiceId"/>
+            <parameter name="timeEntryIds" type="Object"><description>The selected entries: a list or a comma list.</description></parameter>
+            <parameter name="selection" type="Boolean" default="false"><description>The dialog's selection: none selected is an error
+                rather than all.</description></parameter>
+            <parameter name="entryGrouping" default-value="entry"/>
+            <parameter name="settlementTermId"/>
+            <parameter name="invoiceDate" type="Timestamp"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="invoiceId"/>
+            <parameter name="itemCount" type="Integer"/>
+            <parameter name="message"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            itemCount = 0
+            ec.service.sync().name('ironstone.BillingServices.check#Money').call()
+            if (ec.message.hasError()) return
+            ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: workEffortId, need: 'manage'}).call()
+            if (ec.message.hasError()) return
+            if (!['entry', 'worker', 'all'].includes(entryGrouping)) { ec.message.addError(L('Group by entry, by worker or in one line')); return }
+            const out = ec.service.sync().name('mantle.work.ProjectServices.get#UnbilledSummary').parameters({workEffortId: workEffortId, withEntries: true}).call() || {}
+            if (ec.message.hasError()) return
+            const row = Array.from(out.projectList || [])[0]
+            if (!row) { ec.message.addError(L('The project has no billable time to invoice')); return }
+            if (!row.clientPartyId) { ec.message.addError(L('The project has no client')); return }
+            if (!row.vendorPartyId) { ec.message.addError(L('The project has no vendor to bill from')); return }
+            const ready = {}
+            for (const entry of Array.from(row.entryList || [])) if (entry.ready) ready[entry.timeEntryId] = entry
+            let selected = null
+            const given = timeEntryIds == null ? [] : (typeof timeEntryIds === 'string' ? timeEntryIds.split(',') : Array.from(timeEntryIds).map(String))
+            if (selection && !given.some((id) => id.trim())) { ec.message.addError(L('Select the time to invoice')); return }
+            if (given.some((id) => id.trim())) {
+                selected = Array.from(new Set(given.map((id) => id.trim()).filter((id) => id)))
+                const notReady = selected.filter((id) => !ready[id])
+                if (notReady.length) { ec.message.addError(ec.resource.expand('Not approved time to invoice: ${ids}', '', {ids: notReady.join(', ')})); return }
+            }
+            const chosen = selected ? selected.map((id) => ready[id]) : Object.values(ready)
+            if (!chosen.length) { ec.message.addError(L('No approved time to invoice')); return }
+            const noRate = chosen.filter((entry) => entry.missingRate)
+            if (noRate.length) { ec.message.addError(ec.resource.expand('${count} entries have no client rate: set the rates first (${ids})', '', {count: noRate.length,
+                ids: noRate.slice(0, 5).map((entry) => entry.timeEntryId).join(', ')})); return }
+            if (invoiceId) {
+                const target = ec.entity.find('mantle.account.invoice.Invoice').condition('invoiceId', invoiceId).disableAuthz().one()
+                if (!target || !Array.from(row.draftInvoiceList || []).some((inv) => inv.invoiceId === invoiceId)) {
+                    ec.message.addError(ec.resource.expand('Invoice ${invoiceId} is not an open draft of this project to its client', '', {invoiceId})); return }
+            }
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try {
+                const made = ec.service.sync().name('mantle.account.InvoiceServices.create#ProjectInvoiceItems').parameters({workEffortId: workEffortId, invoiceId: invoiceId || null,
+                    approvedOnly: true, billableOnly: true, timeEntryIdList: chosen.map((entry) => entry.timeEntryId), entryGrouping: entryGrouping,
+                    settlementTermId: settlementTermId || null, invoiceDate: invoiceDate || ec.user.nowTimestamp}).call() || {}
+                if (ec.message.hasError()) return
+                invoiceId = made.invoiceId
+                itemCount = Number(made.invoiceItemCreatedCount || 0)
+            } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+            message = ec.resource.expand('Invoice ${invoiceId}: ${count} lines added', '', {invoiceId: invoiceId, count: itemCount})
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== Invoices ========== -->
+
+    <service verb="find" noun="InvoiceRows">
+        <description>Invoices (design-projects.md §10 Invoices): the invoices of the projects the user sees (get#InvoiceProjects), for one
+            who manages money. Chips with counts: Drafts (In-Process, or a worker's Incoming and Received), To send (approved, Finalized),
+            Sent (Sent, Acknowledged), Overdue (approved or sent, unpaid, past due), Paid, Worker invoices, All (cancelled ones too). The
+            find: project, client, kind, status, and an invoice date period. Each row: the invoice, its kind, projects, from, to, date,
+            due, total, unpaid and the status chip, newest first.</description>
+        <in-parameters>
+            <parameter name="list" default-value="all"/>
+            <parameter name="rootWorkEffortId"/>
+            <parameter name="clientPartyId"/>
+            <parameter name="kind"/>
+            <parameter name="fromDate" type="Timestamp"/>
+            <parameter name="thruDate" type="Timestamp"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="rowList" type="List"/>
+            <parameter name="counts" type="Map"/>
+            <parameter name="list"/>
+            <parameter name="projectOptions" type="List"/>
+            <parameter name="clientOptions" type="List"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            rowList = []; counts = {}; projectOptions = []; clientOptions = []
+            const lists = ['drafts', 'toSend', 'sent', 'overdue', 'paid', 'worker', 'all']
+            if (!lists.includes(list)) list = 'all'
+            ec.service.sync().name('ironstone.BillingServices.check#Money').call()
+            if (ec.message.hasError()) return
+            const L = (text) => ec.l10n.localize(text)
+            const map = ec.service.sync().name('ironstone.BillingServices.get#InvoiceProjects').parameters({rootWorkEffortId: rootWorkEffortId || null}).call()?.invoiceMap || {}
+            const ids = Object.keys(map)
+            if (!ids.length) { for (const key of lists) counts[key] = 0; return }
+            const invoices = []
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try {
+                for (let i = 0; i < ids.length; i += 1000) for (const row of ec.entity.find('mantle.account.invoice.Invoice').condition('invoiceId', 'in', ids.slice(i, i + 1000)).list()) invoices.push(row)
+            } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+            const nowMillis = Number(String(ec.user.nowTimestamp))
+            const millis = (value) => value == null ? null : Number(String(value))
+            const unpaidOf = (inv) => toDecimal(inv.unpaidTotal ?? inv.invoiceTotal ?? 0)
+            const listOf = (inv, kind) => {
+                const status = inv.statusId
+                const keys = ['all']
+                if (kind === 'worker') keys.push('worker')
+                if (['InvoiceInProcess', 'InvoiceIncoming', 'InvoiceReceived'].includes(status)) keys.push('drafts')
+                if (status === 'InvoiceFinalized') keys.push('toSend')
+                if (['InvoiceSent', 'InvoiceAcked'].includes(status)) keys.push('sent')
+                if (['InvoicePmtRecvd', 'InvoicePmtSent'].includes(status)) keys.push('paid')
+                if (['InvoiceFinalized', 'InvoiceSent', 'InvoiceAcked', 'InvoiceApproved'].includes(status) && millis(inv.dueDate) != null
+                        && millis(inv.dueDate) < nowMillis && unpaidOf(inv).compare(0) > 0) keys.push('overdue')
+                return keys
+            }
+            const names = {}
+            const nameOf = (id) => {
+                if (!id) return ''
+                if (!(id in names)) {
+                    const party = ec.entity.find('mantle.party.PartyDetail').condition('partyId', id).disableAuthz().one()
+                    names[id] = party ? (party.organizationName || [party.firstName, party.lastName].filter((part) => part).join(' ') || party.pseudoId || id) : id
+                }
+                return names[id]
+            }
+            const projectNames = {}
+            const projectName = (id) => {
+                if (!(id in projectNames)) projectNames[id] = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', id).disableAuthz().one()?.workEffortName || id
+                return projectNames[id]
+            }
+            const statusText = {}
+            const statusOf = (id) => {
+                if (!id) return ''
+                if (!(id in statusText)) statusText[id] = ec.entity.find('moqui.basic.StatusItem').condition('statusId', id).useCache(true).one()?.description || id
+                return statusText[id]
+            }
+            const colors = {InvoiceInProcess: 'blue-grey-6', InvoiceIncoming: 'blue-grey-6', InvoiceReceived: 'blue-grey-6', InvoiceFinalized: 'primary', InvoiceApproved: 'primary',
+                InvoiceSent: 'info', InvoiceAcked: 'info', InvoicePmtRecvd: 'positive', InvoicePmtSent: 'positive', InvoiceCancelled: 'grey-6', InvoiceWriteOff: 'warning'}
+            const kindLabels = {client: 'Client', worker: 'Worker', expense: 'Expense'}
+            for (const key of lists) counts[key] = 0
+            const from = fromDate != null ? millis(fromDate) : null
+            const thru = thruDate != null ? millis(thruDate) : null
+            const clients = {}, projects = {}
+            for (const inv of invoices) {
+                const entry = map[inv.invoiceId]
+                const keys = listOf(inv, entry.kind)
+                if (entry.kind === 'client') clients[inv.toPartyId] = nameOf(inv.toPartyId)
+                for (const id of entry.projectIds) projects[id] = projectName(id)
+                // the find narrows the chips' counts as it does the list
+                if (clientPartyId && inv.toPartyId !== clientPartyId) continue
+                if (kind && entry.kind !== kind) continue
+                const invoiceMillis = millis(inv.invoiceDate)
+                if (from != null && (invoiceMillis == null || invoiceMillis < from)) continue
+                if (thru != null && (invoiceMillis == null || invoiceMillis >= thru)) continue
+                for (const key of keys) counts[key]++
+                if (!keys.includes(list)) continue
+                const uom = inv.currencyUomId || 'USD'
+                const overdue = keys.includes('overdue')
+                rowList.push({invoiceId: inv.invoiceId, url: '/qapps/Projects/Billing/InvoiceDetail?invoiceId=' + encodeURIComponent(inv.invoiceId), kind: entry.kind,
+                    kindText: L(kindLabels[entry.kind]), projectText: entry.projectIds.map(projectName).join(', '), projectIds: entry.projectIds,
+                    fromName: nameOf(inv.fromPartyId), toName: nameOf(inv.toPartyId), invoiceDate: invoiceMillis,
+                    dateText: invoiceMillis == null ? '' : ec.l10n.format(new Date(invoiceMillis), 'MMM d, yyyy'),
+                    dueText: inv.dueDate == null ? '' : ec.l10n.format(inv.dueDate, 'MMM d, yyyy'), overdue: overdue,
+                    totalText: ec.l10n.formatCurrency(toDecimal(inv.invoiceTotal ?? 0), uom), unpaidText: ['InvoiceCancelled'].includes(inv.statusId) ? '' : ec.l10n.formatCurrency(unpaidOf(inv), uom),
+                    statusId: inv.statusId, statusLabel: overdue ? statusOf(inv.statusId) + ' · ' + L('Overdue') : statusOf(inv.statusId),
+                    statusColor: overdue ? 'negative' : (colors[inv.statusId] || 'grey-8'), description: inv.description || ''})
+            }
+            rowList.sort((a, b) => (b.invoiceDate ?? 0) - (a.invoiceDate ?? 0) || String(b.invoiceId).localeCompare(String(a.invoiceId)))
+            clientOptions = Object.keys(clients).filter((id) => id).map((id) => ({key: id, text: clients[id]})).sort((a, b) => a.text.localeCompare(b.text))
+            projectOptions = Object.keys(projects).map((id) => ({key: id, text: projects[id]})).sort((a, b) => a.text.localeCompare(b.text))
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== InvoiceDetail ========== -->
+
+    <service verb="get" noun="InvoiceDetail">
+        <description>InvoiceDetail in the Projects context (design-projects.md §10 InvoiceDetail): for one who manages money and sees one of
+            its projects (get#InvoiceAccess), else detail is null. The header (from, to, dates, terms, status, reference, description,
+            message, totals), the lines with the time behind each (mantle.account.InvoiceServices.get#InvoiceTimeDetail: who, when, work
+            item, hours, rate, amount, comment), the projects, the payments applied, the email address to send it to (the client's
+            billing email, else its billing contact's or its own primary one) and the moves the user may make: approve (In-Process to
+            Finalized), send (approves first), resume changes (Finalized to In-Process), cancel (In-Process or Finalized: frees its time),
+            edit and remove a line (In-Process). Worker and expense invoices are read only here.</description>
+        <in-parameters><parameter name="invoiceId" required="true"/></in-parameters>
+        <out-parameters><parameter name="detail" type="Map"/></out-parameters>
+        <actions><script><![CDATA[
+            detail = null
+            const access = ec.service.sync().name('ironstone.BillingServices.get#InvoiceAccess').parameters({invoiceId: invoiceId, need: 'none'}).call() || {}
+            if (!access.canView) return
+            const L = (text) => ec.l10n.localize(text)
+            const inv = access.invoice
+            const uom = inv.currencyUomId || 'USD'
+            const money = (value) => value == null ? '' : ec.l10n.formatCurrency(value, uom)
+            const hoursText = (value) => value == null ? '' : ec.l10n.format(value, '#,##0.##')
+            const day = (value) => value == null ? '' : ec.l10n.format(value instanceof Date ? value : new Date(Number(String(value))), 'MMM d, yyyy')
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try {
+                const nameOf = (id) => {
+                    if (!id) return ''
+                    const party = ec.entity.find('mantle.party.PartyDetail').condition('partyId', id).one()
+                    return party ? (party.organizationName || [party.firstName, party.lastName].filter((part) => part).join(' ') || party.pseudoId || id) : id
+                }
+                const statusOf = (id) => id ? (ec.entity.find('moqui.basic.StatusItem').condition('statusId', id).useCache(true).one()?.description || id) : ''
+                const enumOf = (id) => id ? (ec.entity.find('moqui.basic.Enumeration').condition('enumId', id).useCache(true).one()?.description || id) : ''
+                const time = ec.service.sync().name('mantle.account.InvoiceServices.get#InvoiceTimeDetail').parameters({invoiceId: invoiceId}).call() || {}
+                const entries = Array.from(time.entryList || [])
+                const items = Array.from(ec.entity.find('mantle.account.invoice.InvoiceItem').condition('invoiceId', invoiceId).orderBy('invoiceItemSeqId').list())
+                const totalOf = (item) => toDecimal(item.quantity ?? 1).multiply(toDecimal(item.amount ?? 0)).setScale(2, 'HALF_UP')
+                const status = inv.statusId
+                const isClient = access.kind === 'client'
+                const isDraft = status === 'InvoiceInProcess'
+                const itemRows = items.map((item) => {
+                    const itemEntries = entries.filter((entry) => (entry.invoiceItemSeqId || '') === item.invoiceItemSeqId)
+                    const hours = itemEntries.reduce((total, entry) => total.add(entry.hours), toDecimal(0))
+                    return {invoiceItemSeqId: item.invoiceItemSeqId, typeText: enumOf(item.itemTypeEnumId), description: item.description || '',
+                        itemDateText: item.itemDate != null ? day(item.itemDate) : '', quantityText: item.quantity == null ? '1' : ec.l10n.format(item.quantity, '#,##0.##'),
+                        amountText: money(toDecimal(item.amount ?? 0)), totalText: money(totalOf(item)), entryCount: itemEntries.length,
+                        timeText: itemEntries.length ? ec.resource.expand('${count} entries, ${hours} h', '', {count: itemEntries.length, hours: hoursText(hours)}) : '',
+                        canRemove: isClient && isDraft}
+                })
+                const entryRows = entries.map((entry) => ({timeEntryId: entry.timeEntryId, invoiceItemSeqId: entry.invoiceItemSeqId || '', personName: entry.personName,
+                    dayText: entry.fromDate == null ? '' : ec.l10n.format(new Date(entry.fromDate), 'EEE MMM d'),
+                    itemText: entry.workEffortId ? (entry.workEffortId === entry.rootWorkEffortId ? entry.workEffortName : entry.workEffortId + ' ' + entry.workEffortName) : '',
+                    itemUrl: entry.workEffortId && entry.workEffortId !== entry.rootWorkEffortId ? '/qapps/Projects/WorkItems/WorkItemDetail?workEffortId=' + encodeURIComponent(entry.workEffortId) : null,
+                    hoursText: hoursText(entry.hours), rateText: entry.rate == null ? '' : money(entry.rate), amountText: entry.amount == null ? '' : money(entry.amount),
+                    comments: entry.comments || ''}))
+                const payments = Array.from(ec.entity.find('mantle.account.payment.PaymentApplication').condition('invoiceId', invoiceId).list()).map((pa) => ({
+                    paymentId: pa.paymentId || pa.toInvoiceId || '', amountText: money(toDecimal(pa.amountApplied ?? 0)), dateText: pa.appliedDate != null ? day(pa.appliedDate) : ''}))
+                const projects = Array.from(access.projectIds || []).map((id) => ({workEffortId: id, name: ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', id).one()?.workEffortName || id,
+                    url: '/qapps/Projects/Projects/ProjectDetail?workEffortId=' + encodeURIComponent(id)}))
+                // the address to send to: the client's billing email, its billing contact's on the project, else its primary
+                let sendTo = ''
+                if (isClient && inv.toPartyId) {
+                    const billing = Array.from(ec.entity.find('mantle.party.contact.PartyContactMechInfo').condition('partyId', inv.toPartyId)
+                            .condition('contactMechPurposeId', 'EmailBilling').conditionDate('fromDate', 'thruDate', null).list())[0]
+                    sendTo = billing?.infoString || ''
+                    if (!sendTo && projects.length) {
+                        const contact = Array.from(ec.entity.find('mantle.work.effort.WorkEffortParty').condition('workEffortId', projects[0].workEffortId)
+                                .condition('roleTypeId', 'ClientBilling').conditionDate('fromDate', 'thruDate', null).list())[0]
+                        if (contact) sendTo = ec.service.sync().name('mantle.party.ContactServices.get#PrimaryEmailAddress').parameters({partyId: contact.partyId}).call()?.emailAddress || ''
+                    }
+                    if (!sendTo) sendTo = ec.service.sync().name('mantle.party.ContactServices.get#PrimaryEmailAddress').parameters({partyId: inv.toPartyId}).call()?.emailAddress || ''
+                }
+                const total = toDecimal(inv.invoiceTotal ?? 0)
+                const unpaid = toDecimal(inv.unpaidTotal ?? inv.invoiceTotal ?? 0)
+                const overdue = ['InvoiceFinalized', 'InvoiceSent', 'InvoiceAcked'].includes(status) && inv.dueDate != null
+                        && Number(String(inv.dueDate)) < Number(String(ec.user.nowTimestamp)) && unpaid.compare(0) > 0
+                const term = inv.settlementTermId ? ec.entity.find('mantle.account.invoice.SettlementTerm').condition('settlementTermId', inv.settlementTermId).useCache(true).one() : null
+                const firstProject = projects[0]?.workEffortId
+                const timeDetail = firstProject ? (ec.service.sync().name('mantle.work.ProjectServices.get#ProjectSettings').parameters({workEffortId: firstProject}).call()?.settings?.WstTimeDetail !== 'N') : true
+                detail = {invoiceId: invoiceId, kind: access.kind, kindText: L({client: 'Client invoice', worker: 'Worker invoice', expense: 'Expense invoice'}[access.kind] || 'Invoice'),
+                    statusId: status, statusLabel: statusOf(status), isDraft: isDraft, isClient: isClient, overdue: overdue,
+                    fromPartyId: inv.fromPartyId, fromName: nameOf(inv.fromPartyId), toPartyId: inv.toPartyId, toName: nameOf(inv.toPartyId),
+                    invoiceDateText: day(inv.invoiceDate), invoiceDateValue: inv.invoiceDate == null ? '' : ec.l10n.format(inv.invoiceDate, 'yyyy-MM-dd'),
+                    dueDateText: day(inv.dueDate), termText: term ? (term.description || term.settlementTermId) : '', settlementTermId: inv.settlementTermId || '',
+                    referenceNumber: inv.referenceNumber || '', description: inv.description || '', invoiceMessage: inv.invoiceMessage || '',
+                    currencyUomId: uom, totalText: money(total), unpaidText: money(unpaid), paidText: money(total.subtract(unpaid)), hoursText: hoursText(time.hours ?? toDecimal(0)),
+                    timeAmountText: money(time.amount ?? toDecimal(0)), itemRows: itemRows, entryRows: entryRows, payments: payments, projects: projects,
+                    projectText: projects.map((project) => project.name).join(', '), sendTo: sendTo, timeDetail: timeDetail,
+                    printUrl: '/apps/Projects/Billing/InvoicePrint?renderMode=html-print&invoiceId=' + encodeURIComponent(invoiceId),
+                    pdfUrl: '/fop/apps/Projects/Billing/InvoicePrint?invoiceId=' + encodeURIComponent(invoiceId) + '&filename=Invoice-' + encodeURIComponent(invoiceId) + '.pdf',
+                    canApprove: isClient && isDraft && items.length > 0, canSend: isClient && ['InvoiceInProcess', 'InvoiceFinalized', 'InvoiceSent', 'InvoiceAcked'].includes(status) && items.length > 0,
+                    sendAgain: ['InvoiceSent', 'InvoiceAcked'].includes(status), canResume: isClient && status === 'InvoiceFinalized',
+                    canCancel: isClient && ['InvoiceInProcess', 'InvoiceFinalized'].includes(status), canEdit: isClient && isDraft,
+                    stageStatusIds: ['InvoiceInProcess', 'InvoiceFinalized', 'InvoiceSent', 'InvoicePmtRecvd']}
+            } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+        ]]></script></actions>
+    </service>
+
+    <service verb="update" noun="InvoiceStatus">
+        <description>InvoiceDetail's moves on a client invoice of a project (get#InvoiceAccess): approve (In-Process to Finalized: posted
+            to the ledger when the organization keeps one), resume (Finalized back to In-Process), cancel (In-Process or Finalized: its time
+            is unbilled again, mantle.account.InvoiceServices.cancel#Invoice through its rule). In one transaction.</description>
+        <in-parameters>
+            <parameter name="invoiceId" required="true"/>
+            <parameter name="action" required="true"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const access = ec.service.sync().name('ironstone.BillingServices.get#InvoiceAccess').parameters({invoiceId: invoiceId}).call() || {}
+            if (ec.message.hasError()) return
+            if (access.kind !== 'client') { ec.message.addError(L('Only a client invoice is changed here')); return }
+            const status = access.invoice.statusId
+            const moves = {approve: [['InvoiceInProcess'], 'InvoiceFinalized', 'Invoice approved'], resume: [['InvoiceFinalized'], 'InvoiceInProcess', 'Invoice open to changes again'],
+                cancel: [['InvoiceInProcess', 'InvoiceFinalized'], 'InvoiceCancelled', 'Invoice cancelled; its time is unbilled again']}
+            const move = moves[action]
+            if (!move) { ec.message.addError(L('Unknown action')); return }
+            if (!move[0].includes(status)) { ec.message.addError(ec.resource.expand('Invoice ${invoiceId} cannot be changed that way now', '', {invoiceId})); return }
+            if (action === 'approve' && !ec.entity.find('mantle.account.invoice.InvoiceItem').condition('invoiceId', invoiceId).disableAuthz().count()) {
+                ec.message.addError(L('The invoice has no lines')); return }
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try { ec.service.sync().name('update#mantle.account.invoice.Invoice').parameters({invoiceId: invoiceId, statusId: move[1]}).call() }
+            finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+            if (!ec.message.hasError()) message = L(move[2])
+        ]]></script></actions>
+    </service>
+
+    <service verb="update" noun="InvoiceHeader">
+        <description>InvoiceDetail's Edit on a draft client invoice: the invoice date, payment terms (the due date follows), reference,
+            description and the message to the client (mantle.account.InvoiceServices.update#Invoice).</description>
+        <in-parameters>
+            <parameter name="invoiceId" required="true"/>
+            <parameter name="invoiceDate"/>
+            <parameter name="settlementTermId"/>
+            <parameter name="referenceNumber"/>
+            <parameter name="description"/>
+            <parameter name="invoiceMessage"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const access = ec.service.sync().name('ironstone.BillingServices.get#InvoiceAccess').parameters({invoiceId: invoiceId}).call() || {}
+            if (ec.message.hasError()) return
+            if (access.kind !== 'client' || access.invoice.statusId !== 'InvoiceInProcess') { ec.message.addError(L('Only a draft client invoice is edited')); return }
+            let date = null
+            if (invoiceDate) {
+                date = ec.l10n.parseTimestamp(String(invoiceDate).substring(0, 10) + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS')
+                if (date == null) { ec.message.addError(L('The invoice date is yyyy-MM-dd')); return }
+            }
+            if (settlementTermId && !ec.entity.find('mantle.account.invoice.SettlementTerm').condition('settlementTermId', settlementTermId).useCache(true).one()) {
+                ec.message.addError(L('Not a payment term')); return }
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try {
+                const fields = {invoiceId: invoiceId, settlementTermId: settlementTermId || null, referenceNumber: referenceNumber || null, description: description || null,
+                    invoiceMessage: invoiceMessage || null}
+                if (date != null) fields.invoiceDate = date
+                ec.service.sync().name('mantle.account.InvoiceServices.update#Invoice').parameters(fields).call()
+                // the due date follows the terms and the date (Mantle's InvoiceSetDueDate keeps one already set)
+                if (!ec.message.hasError()) ec.service.sync().name('mantle.account.InvoiceServices.checkSet#InvoiceDueDate').parameters({invoiceId: invoiceId, overrideExisting: true}).call()
+            } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+            if (!ec.message.hasError()) message = L('Invoice saved')
+        ]]></script></actions>
+    </service>
+
+    <service verb="remove" noun="InvoiceLine">
+        <description>InvoiceDetail's Remove on a line of a draft client invoice (mantle.account.InvoiceServices.delete#InvoiceItem): its time
+            is unbilled again.</description>
+        <in-parameters>
+            <parameter name="invoiceId" required="true"/>
+            <parameter name="invoiceItemSeqId" required="true"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const access = ec.service.sync().name('ironstone.BillingServices.get#InvoiceAccess').parameters({invoiceId: invoiceId}).call() || {}
+            if (ec.message.hasError()) return
+            if (access.kind !== 'client' || access.invoice.statusId !== 'InvoiceInProcess') { ec.message.addError(L('Only a draft client invoice is changed')); return }
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try { ec.service.sync().name('mantle.account.InvoiceServices.delete#InvoiceItem').parameters({invoiceId: invoiceId, invoiceItemSeqId: invoiceItemSeqId}).call() }
+            finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+            if (!ec.message.hasError()) message = L('Line removed; its time is unbilled again')
+        ]]></script></actions>
+    </service>
+
+    <service verb="send" noun="Invoice">
+        <description>InvoiceDetail's Send (design-projects.md §10, §14): a client invoice by email to toAddresses (the client's billing
+            address by default) from the vendor's billing address, with the printed invoice and its time detail as a PDF (the PDF is left
+            out, logged, when the server cannot make one) and the lines in the message; a draft is approved first, and an approved invoice
+            becomes Sent. The approval and the status change are one transaction; the email itself waits in the Outbox when the mail
+            server does not take it, which is said.</description>
+        <in-parameters>
+            <parameter name="invoiceId" required="true"/>
+            <parameter name="toAddresses" required="true"/>
+            <parameter name="note"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/><parameter name="emailMessageId"/></out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const access = ec.service.sync().name('ironstone.BillingServices.get#InvoiceAccess').parameters({invoiceId: invoiceId}).call() || {}
+            if (ec.message.hasError()) return
+            if (access.kind !== 'client') { ec.message.addError(L('Only a client invoice is sent here')); return }
+            const addresses = String(toAddresses || '').split(/[,;]/).map((address) => address.trim()).filter((address) => address)
+            if (!addresses.length) { ec.message.addError(L('Give the address to send to')); return }
+            const bad = addresses.filter((address) => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(address))
+            if (bad.length) { ec.message.addError(ec.resource.expand('Not an email address: ${addresses}', '', {addresses: bad.join(', ')})); return }
+            const status = access.invoice.statusId
+            if (!['InvoiceInProcess', 'InvoiceFinalized', 'InvoiceSent', 'InvoiceAcked'].includes(status)) { ec.message.addError(L('This invoice is not sent now')); return }
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try {
+                if (!ec.entity.find('mantle.account.invoice.InvoiceItem').condition('invoiceId', invoiceId).count()) { ec.message.addError(L('The invoice has no lines')); return }
+                if (status === 'InvoiceInProcess') {
+                    ec.service.sync().name('update#mantle.account.invoice.Invoice').parameters({invoiceId: invoiceId, statusId: 'InvoiceFinalized'}).call()
+                    if (ec.message.hasError()) return
+                }
+                const inv = ec.entity.find('mantle.account.invoice.Invoice').condition('invoiceId', invoiceId).one()
+                const print = ec.service.sync().name('ironstone.BillingServices.get#InvoicePrint').parameters({invoiceId: invoiceId, forEmail: true}).call() || {}
+                const fromName = print.fromName || ''
+                const fromAddress = Array.from(ec.entity.find('mantle.party.contact.PartyContactMechInfo').condition('partyId', inv.fromPartyId)
+                        .condition('contactMechPurposeId', 'EmailBilling').conditionDate('fromDate', 'thruDate', null).list())[0]?.infoString || ''
+                const enc = (text) => String(text == null ? '' : text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+                const subject = ec.resource.expand('Invoice ${invoiceId} from ${fromName}', '', {invoiceId: invoiceId, fromName: fromName})
+                const body = '<html><body>' + (note ? '<p>' + enc(note).replace(/\n/g, '<br>') + '</p>' : '') + (print.printHtml || '') + '</body></html>'
+                const bodyText = [note || '', subject, print.summaryText || ''].filter((part) => part).join('\n\n')
+                const sent = ec.service.sync().name('org.moqui.impl.EmailServices.send#EmailTemplate').parameters({emailTemplateId: 'BOSS_PROJECT_INVOICE',
+                    toAddresses: addresses.join(','), bodyParameters: {subject: subject, fromAddress: fromAddress, fromName: fromName, invoiceId: invoiceId},
+                    body: body, bodyText: bodyText,
+                    attachments: [{fileName: 'Invoice-' + invoiceId + '.pdf', screenRenderMode: 'xsl-fo',
+                        attachmentLocation: 'component://ironstone-boss/screen/Projects/Billing/InvoicePrint.xml'}]}).call() || {}
+                if (ec.message.hasError()) return
+                emailMessageId = sent.emailMessageId || null
+                if (['InvoiceFinalized'].includes(inv.statusId)) ec.service.sync().name('update#mantle.account.invoice.Invoice').parameters({invoiceId: invoiceId, statusId: 'InvoiceSent'}).call()
+                if (ec.message.hasError()) return
+                const email = emailMessageId ? ec.entity.find('moqui.basic.email.EmailMessage').condition('emailMessageId', emailMessageId).one() : null
+                message = email && email.statusId !== 'ES_SENT' && email.statusId !== 'ES_READY'
+                    ? ec.resource.expand('Invoice ${invoiceId} sent to ${to}; the email waits in the Outbox', '', {invoiceId: invoiceId, to: addresses.join(', ')})
+                    : ec.resource.expand('Invoice ${invoiceId} sent to ${to}', '', {invoiceId: invoiceId, to: addresses.join(', ')})
+            } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="InvoicePrint">
+        <description>The printed client invoice (design-projects.md §14; style-guide §8 Print documents): the vendor and its address, the
+            client and its billing address, the invoice number, dates, terms and reference, the lines and the total, the message, and when
+            the project keeps time detail on its invoices (WstTimeDetail, Y unless set N) the time behind each line (day, who, work item,
+            hours, rate, amount, comment); every value escaped. For one who may see the invoice (get#InvoiceAccess); printHtml says it is
+            not available otherwise. summaryText: the lines as text, for an email's plain part.</description>
+        <in-parameters>
+            <parameter name="invoiceId" required="true"/>
+            <parameter name="forEmail" type="Boolean" default="false"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="printHtml"/>
+            <parameter name="summaryText"/>
+            <parameter name="fromName"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const enc = (text) => String(text == null ? '' : text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+            const detail = ec.service.sync().name('ironstone.BillingServices.get#InvoiceDetail').parameters({invoiceId: invoiceId}).call()?.detail
+            if (!detail) { printHtml = '<p>' + enc(ec.resource.expand('Invoice ${invoiceId} is not available', '', {invoiceId})) + '</p>'; summaryText = ''; fromName = ''; return }
+            fromName = detail.fromName
+            const addressOf = (partyId, purpose) => {
+                const info = ec.service.sync().name('mantle.party.ContactServices.get#PartyContactInfo').parameters({partyId: partyId, postalContactMechPurposeId: purpose}).call() || {}
+                const pa = info.postalAddress
+                if (!pa) return ''
+                return [pa.toName, pa.attnName, [pa.address1, pa.address2].filter((part) => part).join(' '), [pa.city, pa.stateProvinceGeoId ? String(pa.stateProvinceGeoId).replace(/^[A-Z]+_/, '') : '', pa.postalCode]
+                    .filter((part) => part).join(' ')].filter((part) => part).map(enc).join('<br>')
+            }
+            let fromAddress = '', toAddress = ''
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try { fromAddress = addressOf(detail.fromPartyId, 'PostalBilling'); toAddress = addressOf(detail.toPartyId, 'PostalBilling') }
+            finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+            const row = (label, value) => value ? '<tr><td class="field-title">' + enc(L(label)) + '</td><td class="field-value">' + enc(value) + '</td></tr>' : ''
+            const table = (heads, rows, right) => '<table class="list"><tr>' + heads.map((head, i) => '<th' + (right.includes(i) ? ' style="text-align:right"' : '') + '>' + enc(L(head)) + '</th>').join('') + '</tr>'
+                    + rows.map((cells) => '<tr>' + cells.map((cell, i) => '<td' + (right.includes(i) ? ' style="text-align:right;white-space:nowrap"' : '') + '>' + enc(cell) + '</td>').join('') + '</tr>').join('') + '</table>'
+            let html = '<table style="width:100%"><tr><td style="vertical-align:top"><div class="box-header">' + enc(detail.fromName) + '</div>'
+                + (fromAddress ? '<p>' + fromAddress + '</p>' : '') + '</td><td style="vertical-align:top;text-align:right"><div class="box-header">' + enc(L('Invoice')) + ' ' + enc(invoiceId) + '</div>'
+                + '<table class="field" style="margin-left:auto">' + row('Date', detail.invoiceDateText) + row('Due', detail.dueDateText) + row('Terms', detail.termText)
+                + row('Reference', detail.referenceNumber) + row('Project', detail.projectText) + '</table></td></tr></table>'
+                + '<div class="group-title" style="margin-top:8pt">' + enc(L('Bill to')) + '</div><p>' + enc(detail.toName) + (toAddress ? '<br>' + toAddress : '') + '</p>'
+                + (detail.description ? '<p>' + enc(detail.description) + '</p>' : '')
+                + table(['Line', 'Description', 'Date', 'Quantity', 'Price', 'Amount'], detail.itemRows.map((item) => [item.invoiceItemSeqId, item.description || item.typeText,
+                    item.itemDateText, item.quantityText, item.amountText, item.totalText]), [3, 4, 5])
+                + '<table class="field" style="margin-left:auto;margin-top:6pt">' + row('Total', detail.totalText) + (detail.paidText && detail.unpaidText !== detail.totalText ? row('Paid', detail.paidText)
+                    + row('Due now', detail.unpaidText) : '') + '</table>'
+                + (detail.invoiceMessage ? '<p>' + enc(detail.invoiceMessage).replace(/\n/g, '<br>') + '</p>' : '')
+            if (detail.timeDetail && detail.entryRows.length) {
+                html += '<div class="group-title" style="margin-top:12pt' + (forEmail ? '' : ';page-break-before:auto') + '">' + enc(L('Time detail')) + ' · ' + enc(detail.hoursText) + ' h</div>'
+                    + table(['Line', 'Day', 'Who', 'Work item', 'Hours', 'Rate', 'Amount', 'Comment'], detail.entryRows.map((entry) => [entry.invoiceItemSeqId, entry.dayText,
+                        entry.personName, entry.itemText, entry.hoursText, entry.rateText, entry.amountText, entry.comments]), [4, 5, 6])
+            }
+            printHtml = html
+            summaryText = detail.itemRows.map((item) => [item.description || item.typeText, item.quantityText + ' × ' + item.amountText, item.totalText].join('  ')).join('\n')
+                + '\n' + L('Total') + ': ' + detail.totalText + (detail.dueDateText ? '\n' + L('Due') + ': ' + detail.dueDateText : '')
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== Rates ========== -->
+
+    <service verb="find" noun="RateRows">
+        <description>Rates (design-projects.md §10 Rates): the RateAmount rows of client billing (RaprClient) or worker pay (RaprVendor) on
+            the projects the user sees or on none (a person's, a work type's or everyone's), for one who manages money. The find: project,
+            person, work type, position class, rate type, and effective on a day (else the current and coming rates; ended ones with
+            showEnded). Each row: the rate type, project, person, position class, work type, from, thru, amount and currency, whether it
+            is current, coming or ended.</description>
+        <in-parameters>
+            <parameter name="ratePurposeEnumId" default-value="RaprClient"/>
+            <parameter name="rootWorkEffortId"/>
+            <parameter name="partyId"/>
+            <parameter name="workTypeEnumId"/>
+            <parameter name="emplPositionClassId"/>
+            <parameter name="rateTypeEnumId"/>
+            <parameter name="effectiveOn"/>
+            <parameter name="showEnded" type="Boolean" default="false"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="rowList" type="List"/>
+            <parameter name="counts" type="Map"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            rowList = []; counts = {RaprClient: 0, RaprVendor: 0}
+            ec.service.sync().name('ironstone.BillingServices.check#Money').call()
+            if (ec.message.hasError()) return
+            const L = (text) => ec.l10n.localize(text)
+            const cf = ec.entity.conditionFactory
+            const vis = ec.service.sync().name('mantle.work.ProjectServices.get#VisibleProjectInfo').call() || {}
+            const all = !!vis.allProjects
+            const visible = Array.from(vis.visibleProjectIds || [])
+            const nowMillis = Number(String(ec.user.nowTimestamp))
+            let on = null
+            if (effectiveOn) {
+                const parsed = ec.l10n.parseTimestamp(String(effectiveOn).substring(0, 10) + ' 12:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS')
+                if (parsed != null) on = Number(String(parsed))
+            }
+            const conds = [cf.makeCondition('ratePurposeEnumId', 'in', ['RaprClient', 'RaprVendor'])]
+            if (!all) conds.push(cf.makeCondition([cf.makeCondition('workEffortId', 'is-null', null), cf.makeCondition('workEffortId', 'in', visible.length ? visible : ['_NA_'])], 'or'))
+            if (rootWorkEffortId) conds.push(cf.makeCondition('workEffortId', 'equals', rootWorkEffortId))
+            if (partyId) conds.push(cf.makeCondition('partyId', 'equals', partyId))
+            if (workTypeEnumId) conds.push(cf.makeCondition('workTypeEnumId', 'equals', workTypeEnumId))
+            if (emplPositionClassId) conds.push(cf.makeCondition('emplPositionClassId', 'equals', emplPositionClassId))
+            if (rateTypeEnumId) conds.push(cf.makeCondition('rateTypeEnumId', 'equals', rateTypeEnumId))
+            const rows = []
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try {
+                for (const rate of ec.entity.find('mantle.humanres.rate.RateAmount').condition(cf.makeCondition(conds, 'and')).orderBy('workEffortId').orderBy('partyId')
+                        .orderBy('workTypeEnumId').orderBy('-fromDate').limit(5000).list()) rows.push(rate)
+            } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+            const enumText = (id) => id ? (ec.entity.find('moqui.basic.Enumeration').condition('enumId', id).useCache(true).one()?.description || id) : ''
+            const names = {}
+            const nameOf = (id) => {
+                if (!id) return ''
+                if (!(id in names)) {
+                    const party = ec.entity.find('mantle.party.PartyDetail').condition('partyId', id).disableAuthz().one()
+                    names[id] = party ? (party.organizationName || [party.firstName, party.lastName].filter((part) => part).join(' ') || party.pseudoId || id) : id
+                }
+                return names[id]
+            }
+            const projects = {}
+            const projectName = (id) => {
+                if (!id) return ''
+                if (!(id in projects)) projects[id] = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', id).disableAuthz().one()?.workEffortName || id
+                return projects[id]
+            }
+            const positions = {}
+            const positionOf = (id) => {
+                if (!id) return ''
+                if (!(id in positions)) positions[id] = ec.entity.find('mantle.humanres.position.EmplPositionClass').condition('emplPositionClassId', id).useCache(true).one()?.title || id
+                return positions[id]
+            }
+            const millis = (value) => value == null ? null : Number(String(value))
+            for (const rate of rows) {
+                const from = millis(rate.fromDate), thru = millis(rate.thruDate)
+                const ended = thru != null && thru <= nowMillis
+                const coming = from != null && from > nowMillis
+                if (on != null) { if ((from != null && from > on) || (thru != null && thru <= on)) continue }
+                else if (ended && !showEnded) continue
+                counts[rate.ratePurposeEnumId] = (counts[rate.ratePurposeEnumId] || 0) + 1
+                if (rate.ratePurposeEnumId !== ratePurposeEnumId) continue
+                const uom = rate.rateCurrencyUomId || 'USD'
+                rowList.push({rateAmountId: rate.rateAmountId, ratePurposeEnumId: rate.ratePurposeEnumId, rateTypeEnumId: rate.rateTypeEnumId, rateTypeText: enumText(rate.rateTypeEnumId),
+                    workEffortId: rate.workEffortId || null, projectName: rate.workEffortId ? projectName(rate.workEffortId) : L('Any project'),
+                    projectUrl: rate.workEffortId ? '/qapps/Projects/Projects/ProjectDetail?workEffortId=' + encodeURIComponent(rate.workEffortId) : null,
+                    partyId: rate.partyId || null, personName: rate.partyId ? nameOf(rate.partyId) : L('Anyone'), workTypeEnumId: rate.workTypeEnumId || null,
+                    workTypeText: rate.workTypeEnumId ? enumText(rate.workTypeEnumId) : L('Any work'), emplPositionClassId: rate.emplPositionClassId || null,
+                    positionText: positionOf(rate.emplPositionClassId), fromText: from == null ? '' : ec.l10n.format(new Date(from), 'MMM d, yyyy'),
+                    thruText: thru == null ? '' : ec.l10n.format(new Date(thru), 'MMM d, yyyy'),
+                    fromValue: from == null ? '' : ec.l10n.format(new Date(from), 'yyyy-MM-dd'), thruValue: thru == null ? '' : ec.l10n.format(new Date(thru), 'yyyy-MM-dd'),
+                    rateAmount: rate.rateAmount, amountValue: rate.rateAmount == null ? '' : String(toDecimal(rate.rateAmount).setScale(2, 'HALF_UP')),
+                    amountText: ec.l10n.formatCurrency(toDecimal(rate.rateAmount ?? 0), uom) + (rate.timePeriodUomId === 'OTH_ea' ? ' / ' + L('piece') : ' / h'), currencyUomId: uom,
+                    stateText: ended ? L('Ended') : coming ? L('From') + ' ' + ec.l10n.format(new Date(from), 'MMM d') : L('Current'), ended: ended, coming: coming,
+                    // a no-charge rate on no project and no person is the seed that bills no-charge time at nothing: kept as it is
+                    canChange: !ended && !(rate.rateTypeEnumId === 'RatpNoCharge' && !rate.workEffortId && !rate.partyId)})
+            }
+        ]]></script></actions>
+    </service>
+
+    <service verb="store" noun="Rate">
+        <description>Rates' New rate and Edit (design-projects.md §10 NewRate, RateList), for one who manages money. A new rate
+            (mantle.humanres.RateServices.create#RateAmount): its purpose, rate type, project (one the user sees, or none), person, position
+            class, work type, from (today by default), thru, amount and currency, per hour. An edit (rateAmountId;
+            mantle.humanres.RateServices.update#RateAmount) changes only the dates and the amount: to change what a rate applies to, end it
+            and add another. A rate of a project the user does not see is refused. Rates found for time entries already are kept on them
+            (TimeEntry.rateAmountId): an amount changed here changes what their time not yet invoiced bills at (ProjectTime's Update rates
+            finds the rates again).</description>
+        <in-parameters>
+            <parameter name="rateAmountId"/>
+            <parameter name="ratePurposeEnumId"/>
+            <parameter name="rateTypeEnumId"/>
+            <parameter name="workEffortId"/>
+            <parameter name="partyId"/>
+            <parameter name="emplPositionClassId"/>
+            <parameter name="workTypeEnumId"/>
+            <parameter name="fromDate"/>
+            <parameter name="thruDate"/>
+            <parameter name="rateAmount" required="true"/>
+            <parameter name="rateCurrencyUomId"/>
+        </in-parameters>
+        <out-parameters><parameter name="rateAmountId"/><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            ec.service.sync().name('ironstone.BillingServices.check#Money').call()
+            if (ec.message.hasError()) return
+            const text = String(rateAmount ?? '').trim().replace(/,/g, '')
+            if (!/^\d+(\.\d{1,4})?$/.test(text)) { ec.message.addError(L('The rate is an amount, 0 or more')); return }
+            const day = (value, label) => {
+                if (value == null || String(value).trim() === '') return null
+                const parsed = ec.l10n.parseTimestamp(String(value).trim().substring(0, 10) + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS')
+                if (parsed == null) ec.message.addError(ec.resource.expand('${label} is a day, yyyy-MM-dd', '', {label: L(label)}))
+                return parsed
+            }
+            const from = day(fromDate, 'From'), thru = day(thruDate, 'Thru')
+            if (ec.message.hasError()) return
+            if (from != null && thru != null && Number(String(thru)) <= Number(String(from))) { ec.message.addError(L('Thru is after from')); return }
+            const vis = ec.service.sync().name('mantle.work.ProjectServices.get#VisibleProjectInfo').call() || {}
+            const sees = (id) => !id || vis.allProjects || Array.from(vis.visibleProjectIds || []).includes(id)
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try {
+                if (rateAmountId) {
+                    const rate = ec.entity.find('mantle.humanres.rate.RateAmount').condition('rateAmountId', rateAmountId).one()
+                    if (!rate || !['RaprClient', 'RaprVendor'].includes(rate.ratePurposeEnumId) || !sees(rate.workEffortId)) {
+                        ec.message.addError(ec.resource.expand('Rate ${rateAmountId} is not available', '', {rateAmountId})); return }
+                    ec.service.sync().name('mantle.humanres.RateServices.update#RateAmount').parameters({rateAmountId: rateAmountId, rateAmount: toDecimal(text),
+                        fromDate: from ?? rate.fromDate, thruDate: thru}).call()
+                    if (!ec.message.hasError()) message = L('Rate saved')
+                    return
+                }
+                if (!['RaprClient', 'RaprVendor'].includes(ratePurposeEnumId)) { ec.message.addError(L('A rate is for client billing or worker pay')); return }
+                if (workEffortId) {
+                    const project = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', workEffortId).one()
+                    if (!project || project.workEffortTypeEnumId !== 'WetProject' || !sees(workEffortId)) {
+                        ec.message.addError(ec.resource.expand('Project ${workEffortId} is not available', '', {workEffortId})); return }
+                }
+                const type = rateTypeEnumId || 'RatpStandard'
+                if (ec.entity.find('moqui.basic.Enumeration').condition('enumId', type).useCache(true).one()?.enumTypeId !== 'RateType') { ec.message.addError(L('Not a rate type')); return }
+                if (workTypeEnumId && ec.entity.find('moqui.basic.Enumeration').condition('enumId', workTypeEnumId).useCache(true).one()?.enumTypeId !== 'WorkType') {
+                    ec.message.addError(L('Not a work type')); return }
+                if (partyId && !ec.entity.find('mantle.party.Party').condition('partyId', partyId).one()) { ec.message.addError(ec.resource.expand('No party ${partyId}', '', {partyId})); return }
+                rateAmountId = ec.service.sync().name('mantle.humanres.RateServices.create#RateAmount').parameters({ratePurposeEnumId: ratePurposeEnumId, rateTypeEnumId: type,
+                    workEffortId: workEffortId || null, partyId: partyId || null, emplPositionClassId: emplPositionClassId || null, workTypeEnumId: workTypeEnumId || null,
+                    fromDate: from ?? ec.user.nowTimestamp, thruDate: thru, rateAmount: toDecimal(text), timePeriodUomId: 'TF_hr',
+                    rateCurrencyUomId: rateCurrencyUomId || ec.user.getPreference('CurrencyDefault') || 'USD'}).call()?.rateAmountId
+                if (!ec.message.hasError()) message = L('Rate added')
+            } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+        ]]></script></actions>
+    </service>
+
+    <service verb="end" noun="Rate">
+        <description>Rates' End: a rate ends now (thruDate), for one who manages money; the time already logged keeps it.</description>
+        <in-parameters><parameter name="rateAmountId" required="true"/></in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            ec.service.sync().name('ironstone.BillingServices.check#Money').call()
+            if (ec.message.hasError()) return
+            const vis = ec.service.sync().name('mantle.work.ProjectServices.get#VisibleProjectInfo').call() || {}
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try {
+                const rate = ec.entity.find('mantle.humanres.rate.RateAmount').condition('rateAmountId', rateAmountId).one()
+                if (!rate || !['RaprClient', 'RaprVendor'].includes(rate.ratePurposeEnumId)
+                        || (rate.workEffortId && !vis.allProjects && !Array.from(vis.visibleProjectIds || []).includes(rate.workEffortId))) {
+                    ec.message.addError(ec.resource.expand('Rate ${rateAmountId} is not available', '', {rateAmountId})); return }
+                if (rate.thruDate != null && Number(String(rate.thruDate)) <= Number(String(ec.user.nowTimestamp))) { ec.message.addError(L('The rate has ended already')); return }
+                const now = ec.user.nowTimestamp
+                const from = rate.fromDate == null ? null : Number(String(rate.fromDate))
+                ec.service.sync().name('update#mantle.humanres.rate.RateAmount').parameters({rateAmountId: rateAmountId,
+                    thruDate: from != null && from > Number(String(now)) ? rate.fromDate : now}).call()
+            } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+            if (!ec.message.hasError()) message = L('Rate ended')
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="RateOptions">
+        <description>The choices of Rates' forms: the open projects the user sees (not templates), the work types offered (WorkType), the
+            position classes and the rate types (RateType, Standard first).</description>
+        <out-parameters>
+            <parameter name="projectOptions" type="List"/>
+            <parameter name="workTypeOptions" type="List"/>
+            <parameter name="positionOptions" type="List"/>
+            <parameter name="rateTypeOptions" type="List"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const vis = ec.service.sync().name('mantle.work.ProjectServices.get#VisibleProjectInfo').call() || {}
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try {
+                let find = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortTypeEnumId', 'WetProject')
+                        .condition(ec.entity.conditionFactory.makeCondition('statusId', 'not-in', ['WeClosed', 'WeCancelled'], true))
+                if (!vis.allProjects) find = find.condition('workEffortId', 'in', Array.from(vis.visibleProjectIds || []).concat(['_NA_']))
+                projectOptions = Array.from(find.orderBy('workEffortName').limit(500).list()).filter((row) => row.isTemplate !== 'Y')
+                        .map((row) => ({key: row.workEffortId, text: (row.workEffortName || row.workEffortId) + ' (' + row.workEffortId + ')'}))
+                const offered = Array.from(ec.service.sync().name('mantle.work.TimesheetServices.get#WorkTypes').call()?.offeredList || [])
+                workTypeOptions = offered.map((type) => ({key: type.enumId, text: type.label || type.description || type.enumId}))
+                positionOptions = Array.from(ec.entity.find('mantle.humanres.position.EmplPositionClass').orderBy('title').useCache(true).list())
+                        .map((row) => ({key: row.emplPositionClassId, text: row.title || row.emplPositionClassId}))
+                rateTypeOptions = Array.from(ec.entity.find('moqui.basic.Enumeration').condition('enumTypeId', 'RateType').orderBy('sequenceNum').orderBy('description').useCache(true).list())
+                        .map((row) => ({key: row.enumId, text: row.description || row.enumId})).sort((a, b) => (a.key === 'RatpStandard' ? -1 : b.key === 'RatpStandard' ? 1 : 0))
+            } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="WhichRate">
+        <description>Rates' Which rate (design-projects.md §10 WhichRate): the client and the worker rate that apply to a person's time on a
+            project or work item, of a work type, on a day (mantle.work.TimeServices.find#RateAmount, as a time entry finds its rates), and
+            why: what the rate found is scoped to. For one who manages money.</description>
+        <in-parameters>
+            <parameter name="partyId"/>
+            <parameter name="workEffortId"/>
+            <parameter name="workTypeEnumId"/>
+            <parameter name="onDate"/>
+            <parameter name="rateTypeEnumId" default-value="RatpStandard"/>
+        </in-parameters>
+        <out-parameters><parameter name="answer" type="Map"/></out-parameters>
+        <actions><script><![CDATA[
+            answer = null
+            ec.service.sync().name('ironstone.BillingServices.check#Money').call()
+            if (ec.message.hasError()) return
+            const L = (text) => ec.l10n.localize(text)
+            if (workEffortId) {
+                const effort = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', workEffortId).disableAuthz().one()
+                const project = effort ? (effort.workEffortTypeEnumId === 'WetProject' ? effort.workEffortId : effort.rootWorkEffortId) : null
+                const vis = ec.service.sync().name('mantle.work.ProjectServices.get#VisibleProjectInfo').call() || {}
+                if (!effort || (!vis.allProjects && !Array.from(vis.visibleProjectIds || []).includes(project))) {
+                    ec.message.addError(ec.resource.expand('${workEffortId} is not available', '', {workEffortId})); return }
+            }
+            let on = ec.user.nowTimestamp
+            if (onDate) { const parsed = ec.l10n.parseTimestamp(String(onDate).substring(0, 10) + ' 12:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS'); if (parsed != null) on = parsed }
+            const describe = (rateAmountId, purpose) => {
+                if (!rateAmountId) return {found: false, text: L('No rate applies'), why: ''}
+                const rate = ec.entity.find('mantle.humanres.rate.RateAmount').condition('rateAmountId', rateAmountId).disableAuthz().one()
+                const list = ec.service.sync().name('ironstone.BillingServices.find#RateRows').parameters({ratePurposeEnumId: purpose, showEnded: true}).call()?.rowList || []
+                const row = Array.from(list).find((one) => one.rateAmountId === rateAmountId)
+                return {found: true, rateAmountId: rateAmountId, text: ec.l10n.formatCurrency(toDecimal(rate.rateAmount ?? 0), rate.rateCurrencyUomId || 'USD') + ' / h',
+                    why: row ? [row.projectName, row.personName, row.workTypeText, row.positionText].filter((part) => part).join(' · ') + (row.fromText ? ' · ' + L('from') + ' ' + row.fromText : '') : ''}
+            }
+            const find = (purpose) => {
+                const wasDisabled = ec.artifactExecution.disableAuthz()
+                try {
+                    return ec.service.sync().name('mantle.work.TimeServices.find#RateAmount').parameters({ratePurposeEnumId: purpose, rateTypeEnumId: rateTypeEnumId || 'RatpStandard',
+                        rateCurrencyUomId: ec.user.getPreference('CurrencyDefault') || 'USD', workEffortId: workEffortId || null, partyId: partyId || null,
+                        workTypeEnumId: workTypeEnumId || null, fromDate: on, thruDate: on}).call() || {}
+                } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+            }
+            answer = {client: describe(find('RaprClient').rateAmountId, 'RaprClient'), worker: describe(find('RaprVendor').rateAmountId, 'RaprVendor'),
+                note: L('A person\'s rate on the project is used when it is the greater; a work item\'s rates, else its project\'s, come before rates on no project.')}
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== BillingSettings ========== -->
+
+    <service verb="get" noun="BillingSettings">
+        <description>BillingSettings (design-projects.md §12): the organization's billing defaults for its projects (PartySetting
+            ProjBillingDefaults, a JSON object; mantle.work.ProjectServices.get#ProjectSettings reads the keys of the project settings
+            WstBillingBasis billingBasis, WstInvoiceGrouping invoiceGrouping, WstTimeDetail timeDetail and WstShareHours shareHours):
+            billingBasis (TimeAndMaterials, FixedPrice, Milestones, NotBilled), invoiceGrouping (PerEntry, PerWorker, OneLine),
+            timeDetail (time detail on invoices), shareHours (hours shared with clients), settlementTermId (the payment terms of a new
+            invoice) and workerInvoicing (Monthly or ByProject: how contractors bill their time). The organization is the settings one
+            (ironstone.ProjectServices.get#SettingsOrganization) unless organizationPartyId is given.</description>
+        <in-parameters><parameter name="organizationPartyId"/></in-parameters>
+        <out-parameters>
+            <parameter name="organizationPartyId"/>
+            <parameter name="organizationName"/>
+            <parameter name="defaults" type="Map"/>
+            <parameter name="termOptions" type="List"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            if (!organizationPartyId) {
+                const org = ec.service.sync().name('ironstone.ProjectServices.get#SettingsOrganization').call() || {}
+                organizationPartyId = org.organizationPartyId || null
+                organizationName = org.organizationName || ''
+            } else organizationName = ec.entity.find('mantle.party.PartyDetail').condition('partyId', organizationPartyId).disableAuthz().one()?.organizationName || organizationPartyId
+            let stored = {}
+            const row = organizationPartyId ? ec.entity.find('mantle.party.PartySetting').condition('partyId', organizationPartyId)
+                    .condition('partySettingTypeId', 'ProjBillingDefaults').disableAuthz().one() : null
+            if (row?.settingValue) {
+                try { const parsed = JSON.parse(row.settingValue); if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) stored = parsed }
+                catch (err) { ec.logger.error(`Billing settings of ${organizationPartyId} are not JSON, the defaults are shown: ${err}`) }
+            }
+            const yn = (value, dflt) => value == null ? (dflt ? 'Y' : 'N') : (value === true || value === 'Y' ? 'Y' : 'N')
+            defaults = {billingBasis: stored.billingBasis || 'TimeAndMaterials', invoiceGrouping: stored.invoiceGrouping || 'PerEntry', timeDetail: yn(stored.timeDetail, true),
+                shareHours: yn(stored.shareHours, false), settlementTermId: stored.settlementTermId || '', workerInvoicing: stored.workerInvoicing || 'Monthly'}
+            termOptions = Array.from(ec.entity.find('mantle.account.invoice.SettlementTerm').orderBy('settlementTermId').useCache(true).list())
+                    .map((term) => ({key: term.settlementTermId, text: term.description || term.settlementTermId}))
+        ]]></script></actions>
+    </service>
+
+    <service verb="store" noun="BillingSettings">
+        <description>BillingSettings' form, for the Projects managers who manage money: the organization's ProjBillingDefaults (a JSON
+            object under the 255 characters of a PartySetting, impl-projects.md F9). Each project may set its own billing basis,
+            grouping, time detail and shared hours (its Settings, WorkEffortSetting rows), which win over these.</description>
+        <in-parameters>
+            <parameter name="billingBasis"/>
+            <parameter name="invoiceGrouping"/>
+            <parameter name="timeDetail"/>
+            <parameter name="shareHours"/>
+            <parameter name="settlementTermId"/>
+            <parameter name="workerInvoicing"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            ec.service.sync().name('ironstone.ProjectServices.check#SettingsManager').call()
+            if (ec.message.hasError()) return
+            ec.service.sync().name('ironstone.BillingServices.check#Money').call()
+            if (ec.message.hasError()) return
+            const org = ec.service.sync().name('ironstone.ProjectServices.get#SettingsOrganization').call()?.organizationPartyId
+            if (!org) { ec.message.addError(L('You belong to no organization, so there is nowhere to keep the setting')); return }
+            if (!['TimeAndMaterials', 'FixedPrice', 'Milestones', 'NotBilled'].includes(billingBasis)) { ec.message.addError(L('Choose the billing basis')); return }
+            if (!['PerEntry', 'PerWorker', 'OneLine'].includes(invoiceGrouping)) { ec.message.addError(L('Choose how invoice lines are grouped')); return }
+            if (!['Monthly', 'ByProject'].includes(workerInvoicing || 'Monthly')) { ec.message.addError(L('Choose how contractors bill their time')); return }
+            if (settlementTermId && !ec.entity.find('mantle.account.invoice.SettlementTerm').condition('settlementTermId', settlementTermId).useCache(true).one()) {
+                ec.message.addError(L('Not a payment term')); return }
+            const value = JSON.stringify({billingBasis: billingBasis, invoiceGrouping: invoiceGrouping, timeDetail: timeDetail === 'Y', shareHours: shareHours === 'Y',
+                settlementTermId: settlementTermId || undefined, workerInvoicing: workerInvoicing || 'Monthly'})
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try {
+                ec.service.sync().name('store#mantle.party.PartySetting').parameters({partyId: org, partySettingTypeId: 'ProjBillingDefaults', settingValue: value}).call()
+            } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+            if (!ec.message.hasError()) message = L('Billing defaults saved')
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== Home ========== -->
+
+    <service verb="get" noun="HomeUnbilled" allow-remote="false">
+        <description>Home's Unbilled counter text (design-projects.md §3): get#ProjectHomeCounts unbilledAmount formatted in its currency;
+            empty when it is null (not one who manages money).</description>
+        <in-parameters>
+            <parameter name="amount"/>
+            <parameter name="currencyUomId"/>
+        </in-parameters>
+        <out-parameters><parameter name="text"/></out-parameters>
+        <actions><script><![CDATA[
+            text = amount == null ? '' : ec.l10n.formatCurrency(toDecimal(amount), currencyUomId || 'USD')
+        ]]></script></actions>
+    </service>
+</services>

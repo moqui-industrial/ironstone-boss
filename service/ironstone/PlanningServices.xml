@@ -1252,7 +1252,8 @@ along with this software (see the LICENSE.md file). If not, see
                 const thru = ec.l10n.parseDate(String(Number(todayText.substring(0, 4)) + 2) + todayText.substring(4), 'yyyy-MM-dd')
                 return Array.from(ec.entity.find('mantle.work.effort.WorkEffort').condition('purposeEnumId', 'WepHoliday').condition('ownerPartyId', 'in', owners)
                         .condition('allDayStart', 'greater-equals', from).condition('allDayStart', 'less-equals', thru).selectField('allDayStart,workEffortName').list())
-                        .map((row) => ({day: String(row.allDayStart).substring(0, 10), name: row.workEffortName || L('Holiday')}))
+                        // a date field reaches a script as the epoch millis of its UTC midnight (impl-projects.md F79)
+                        .map((row) => ({day: new Date(toMillis(row.allDayStart)).toISOString().slice(0, 10), name: row.workEffortName || L('Holiday')}))
             }
 
             if (theMode === 'plan') {

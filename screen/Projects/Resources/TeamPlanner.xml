@@ -12,10 +12,94 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for the team planner (design-projects.md §9 TeamPlanner; impl-projects.md P7). -->
+<!-- TeamPlanner (design-projects.md §9 TeamPlanner; style-guide §3.7 Calendar, §4.8 .qvue): people by week, the component
+    TeamPlanner.qvue next to this file. Each person's weeks show their capacity against the allocations stacked by project, the
+    assigned work and their leave and holidays, an overbooked week in warning; under each person their allocations as bars a
+    manager drags and stretches; the placeholders to staff on top; By project turns the rows into projects with their people. Every
+    read and change is a JSON transition below over service/ironstone/ResourceServices.xml (get#Planner over
+    mantle.work.ResourceServices.get#TeamPlan, save#, move#, decide#Allocation, get#StaffCandidates, search#AllocationPeople): every
+    internal user sees the plan of the projects they see; the Projects managers (ALLOCATION_APPROVE) change, approve, reject and
+    staff, a project's own managers request. The find: fromDate (a day of the first week), weeks (8, 12 or 26), rootWorkEffortId,
+    roleTypeId, skillTypeEnumId, teamPartyId. The terminal: TeamPlannerTui beside this file, read only (impl-projects.md P11 adds
+    the terminal's changes). It is the default subscreen of Resources, whose level the shell loads in qvt, so it answers qvt and
+    html too (a line that it opens in the browser app), as Timeline does. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Team planner" default-menu-index="1">
+        default-menu-title="Team planner" default-menu-index="1" render-modes="vue,qvue,qvt,html,tui" server-static="vue,qvue">
+
+    <parameter name="fromDate"/>
+    <parameter name="weeks"/>
+    <parameter name="rootWorkEffortId"/>
+    <parameter name="roleTypeId"/>
+    <parameter name="skillTypeEnumId"/>
+    <parameter name="teamPartyId"/>
+
+    <!-- the plan -->
+    <transition name="plan" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.ResourceServices.get#Planner').parameters({fromDate: fromDate || null, weeks: Number(weeks) || 12,
+                rootWorkEffortId: rootWorkEffortId || null, roleTypeId: roleTypeId || null, skillTypeEnumId: skillTypeEnumId || null,
+                teamPartyId: teamPartyId || null}).call() || {}
+            if (ec.message.hasError() || !out.planner) { ec.message.clearErrors(); ec.web.sendJsonResponse({notAvailable: true}); return }
+            ec.web.sendJsonResponse({planner: out.planner})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- AllocationForm: a new allocation, or the changes to one -->
+    <transition name="saveAllocation">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.ResourceServices.save#Allocation').parameters({workEffortAllocationId: workEffortAllocationId || null,
+                workEffortId: allocWorkEffortId || null, partyId: partyId || null, roleTypeId: allocRoleTypeId ?? null, skillTypeEnumId: allocSkillTypeEnumId ?? null,
+                fromDate: allocFromDate || null, thruDate: allocThruDate || null, amount: amount ?? null, unit: unit || 'h', comments: comments ?? null,
+                request: request || null}).call() || {}
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {workEffortAllocationId: out.workEffortAllocationId, messageInfos: [{type: 'success', message: out.message}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- a drag: an allocation moved (shiftDays) or an end stretched (allocFromDate, allocThruDate) -->
+    <transition name="moveAllocation">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.ResourceServices.move#Allocation').parameters({workEffortAllocationId: workEffortAllocationId || '',
+                shiftDays: shiftDays ? Number(shiftDays) : null, fromDate: allocFromDate || null, thruDate: allocThruDate || null}).call() || {}
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {moved: true, messageInfos: [{type: 'success', message: out.message}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- approve, reject (reason), cancel, staff (partyId) -->
+    <transition name="decideAllocation">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.ResourceServices.decide#Allocation').parameters({workEffortAllocationId: workEffortAllocationId || '',
+                action: action || '', reason: reason || null, partyId: partyId || null}).call() || {}
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {decided: true, messageInfos: [{type: 'success', message: out.message}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- StaffAllocation: the candidates of a placeholder -->
+    <transition name="candidates" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.ResourceServices.get#StaffCandidates').parameters({workEffortAllocationId: workEffortAllocationId || ''}).call() || {}
+            if (ec.message.hasError()) { ec.message.clearErrors(); ec.web.sendJsonResponse({notAvailable: true}); return }
+            ec.web.sendJsonResponse({allocation: out.allocation, candidateList: out.candidateList || [], canStaff: !!out.canStaff, ratesShown: !!out.ratesShown})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- AllocationForm's person, with their hours free in the period -->
+    <transition name="people" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.ResourceServices.search#AllocationPeople').parameters({term: term || null, fromDate: allocFromDate || null,
+                thruDate: allocThruDate || null, amount: amount || null, unit: unit || null}).call() || {}
+            ec.message.clearErrors()
+            ec.web.sendJsonResponse(out.optionList || [])
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+
     <widgets>
-        <label text="Placeholder: Team planner: people by week, their capacity, allocations, work and leave." type="p"/>
+        <render-mode><text type="qvue" location="component://ironstone-boss/screen/Projects/Resources/TeamPlanner.qvue" template="false"/>
+            <!-- the terminal: TeamPlannerTui, the plain screen beside this one, on the same find -->
+            <text type="tui"><![CDATA[${JSON.stringify([{t: "dynamicContainer", id: "TeamPlannerTui",
+                url: sri.buildUrl("//Projects/Resources/TeamPlannerTui").addParameters({fromDate: fromDate || null, weeks: weeks || null,
+                    rootWorkEffortId: rootWorkEffortId || null, roleTypeId: roleTypeId || null, skillTypeEnumId: skillTypeEnumId || null,
+                    teamPartyId: teamPartyId || null}).getUrlWithParams()}])}]]></text>
+            <text type="html,qvt"><![CDATA[<p>${ec.l10n.localize('The team planner opens in the browser app (the qvue render mode).')}</p>]]></text></render-mode>
     </widgets>
 </screen>

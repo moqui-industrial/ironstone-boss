@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- EditTimeEntry (design-projects.md §8 TimeEntries): the dialog of TimeEntries' Log time (no timeEntryId: a new entry of the user,
+    or for a manager of a person they approve) and of a row's Edit: the work item, the day, from and to or the hours, a break,
+    billable, the work type and the comment (ironstone.TimeServices.save#TimeEntry, which checks the week and the item), Delete;
+    an entry the user may not change (invoiced, running, its week submitted, not theirs) is shown read only with why. For those
+    who manage money (the Projects managers and ADMIN) the Rates box: the client and worker hour rates set by hand, or found again
+    from the rates (store#TimeEntryRates), also on a submitted week's entry, never an invoiced one. Each change answers the list
+    again (in ProjectDetail's Time tab, with its project). -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Time entry" default-menu-include="false">
+
+    <parameter name="timeEntryId"/>
+    <parameter name="itemId"/>
+    <parameter name="partyId"/>
+
+    <transition name="saveEntry">
+        <actions>
+            <service-call name="ironstone.TimeServices.save#TimeEntry" out-map="saveOut" in-map="{timeEntryId:(timeEntryId || null), partyId:(partyId || null),
+                    workEffortId:(entryItemId || null), day:(day || null), fromTime:(fromTime || null), thruTime:(thruTime || null), hours:(hours || null),
+                    breakHours:(breakHours || null), billable:(billable || 'Y'), workTypeEnumId:(workTypeEnumId || null), comments:(comments || null)}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if>
+        </actions>
+        <default-response url=".."><parameter name="workEffortId"/></default-response>
+        <error-response url=".."><parameter name="workEffortId"/></error-response>
+    </transition>
+    <transition name="saveRates">
+        <actions>
+            <service-call name="ironstone.TimeServices.store#TimeEntryRates" out-map="ratesOut" in-map="{timeEntryId:timeEntryId, clientHourRate:clientHourRate,
+                    vendorHourRate:vendorHourRate, reset:(reset == 'Y')}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(ratesOut.message, 'success')</script></if>
+        </actions>
+        <default-response url=".."><parameter name="workEffortId"/></default-response>
+        <error-response url=".."><parameter name="workEffortId"/></error-response>
+    </transition>
+    <transition name="deleteEntry">
+        <actions>
+            <service-call name="ironstone.TimeServices.delete#WeekEntry" out-map="deleteOut" in-map="{timeEntryId:timeEntryId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(deleteOut.message, 'success')</script></if>
+        </actions>
+        <default-response url=".."><parameter name="workEffortId"/></default-response>
+        <error-response url=".."><parameter name="workEffortId"/></error-response>
+    </transition>
+
+    <actions>
+        <service-call name="ironstone.TimeServices.get#TimeEntryEdit" out-map="editOut"
+                in-map="{timeEntryId:(timeEntryId || null), workEffortId:(itemId || null), partyId:(partyId || null)}"/>
+        <script><![CDATA[
+            ec.message.clearErrors()
+            edit = editOut.edit || null
+            found = !!edit
+            if (!edit) return
+            entryValue = {timeEntryId: edit.timeEntryId, partyId: edit.partyId, entryItemId: edit.workEffortId, day: edit.day, fromTime: edit.fromTime,
+                thruTime: edit.thruTime, hours: edit.hours, breakHours: edit.breakHours, billable: edit.billable, workTypeEnumId: edit.workTypeEnumId,
+                comments: edit.comments, workEffortId: ec.context.get('projectTabId') || null}
+            ratesValue = {timeEntryId: edit.timeEntryId, clientHourRate: edit.clientHourRate, vendorHourRate: edit.vendorHourRate,
+                workEffortId: ec.context.get('projectTabId') || null}
+            personOptions = edit.personOptions
+            workTypeOptions = edit.workTypeOptions
+            itemOptionsInitial = edit.itemOptions
+            projectParam = ec.context.get('projectTabId') || null
+        ]]></script>
+    </actions>
+
+    <widgets>
+        <section name="EntryNotFound" condition="!found"><widgets>
+            <label type="p" text="Time entry ${timeEntryId || ''} is not available." style="text-warning"/>
+        </widgets></section>
+        <section name="EntryFound" condition="found"><widgets>
+            <section name="EntryLocked" condition="!edit.canEdit"><widgets>
+                <container-box type="info"><box-body>
+                    <label type="p" text="${edit.lockText}" style="q-mb-xs"/>
+                    <label type="p" text="${edit.personName} · ${edit.dateText} · ${edit.hoursText} h · ${edit.itemText}" style="text-body2 q-mb-none"/>
+                </box-body></container-box>
+            </widgets></section>
+            <section name="EntryEditable" condition="edit.canEdit"><widgets>
+                <form-single name="EntryForm" transition="saveEntry" map="entryValue" focus-field="hours">
+                    <field name="timeEntryId"><default-field><hidden/></default-field></field>
+                    <field name="workEffortId"><default-field><hidden/></default-field></field>
+                    <field name="partyId"><conditional-field condition="edit.showPerson" title="Person">
+                            <drop-down><list-options list="personOptions" key="${key}" text="${text}"/></drop-down></conditional-field>
+                        <default-field><hidden/></default-field></field>
+                    <field name="entryItemId"><default-field title="Work item">
+                        <drop-down allow-empty="true"><list-options list="itemOptionsInitial" key="${value}" text="${label}"/></drop-down></default-field></field>
+                    <field name="day"><default-field title="Day"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                    <field name="fromTime"><default-field title="From (HH:mm)"><text-line size="6"/></default-field></field>
+                    <field name="thruTime"><default-field title="To (HH:mm)"><text-line size="6"/></default-field></field>
+                    <field name="hours"><default-field title="Hours (without from and to)"><text-line size="6" input-type="number"/></default-field></field>
+                    <field name="breakHours"><default-field title="Break (hours)"><text-line size="6" input-type="number"/></default-field></field>
+                    <field name="billable"><default-field title="Billable"><radio><option key="Y" text="Billable"/><option key="N" text="Not billable"/></radio></default-field></field>
+                    <field name="workTypeEnumId"><default-field title="Work type">
+                        <drop-down allow-empty="true"><list-options list="workTypeOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                    <field name="comments"><default-field title="What was done"><text-area rows="3" cols="50"/></default-field></field>
+                    <field name="submitButton"><default-field title="${edit.isNew ? 'Log time' : 'Save'}"><submit/></default-field></field>
+                    <field-layout>
+                        <field-ref name="partyId"/>
+                        <field-ref name="entryItemId"/>
+                        <field-row><field-ref name="day"/><field-ref name="hours"/></field-row>
+                        <field-row><field-ref name="fromTime"/><field-ref name="thruTime"/><field-ref name="breakHours"/></field-row>
+                        <field-row><field-ref name="billable"/><field-ref name="workTypeEnumId"/></field-row>
+                        <field-ref name="comments"/>
+                        <field-ref name="submitButton"/>
+                    </field-layout>
+                </form-single>
+                <section name="EntryDelete" condition="!edit.isNew"><widgets>
+                    <link url="deleteEntry" link-type="hidden-form-link" text="Delete this entry" icon="sym_o_delete" confirmation="Remove this time entry?"
+                            parameter-map="{timeEntryId:edit.timeEntryId, workEffortId:projectParam}"/>
+                </widgets></section>
+            </widgets></section>
+            <section name="EntryRates" condition="edit.canRates"><widgets>
+                <container-box><box-header title="Rates"/><box-body>
+                    <label type="p" text="Set by hand, the rates stay as given; Find again takes them from the rates of the project, person and work type." style="text-caption m-muted"/>
+                    <form-single name="RatesForm" transition="saveRates" map="ratesValue">
+                        <field name="timeEntryId"><default-field><hidden/></default-field></field>
+                        <field name="workEffortId"><default-field><hidden/></default-field></field>
+                        <field name="clientHourRate"><default-field title="Client rate (an hour)"><text-line size="8" input-type="number"/></default-field></field>
+                        <field name="vendorHourRate"><default-field title="Worker rate (an hour)"><text-line size="8" input-type="number"/></default-field></field>
+                        <field name="submitButton"><default-field title="Save rates"><submit/></default-field></field>
+                        <field-layout><field-row><field-ref name="clientHourRate"/><field-ref name="vendorHourRate"/></field-row><field-ref name="submitButton"/></field-layout>
+                    </form-single>
+                    <link url="saveRates" link-type="hidden-form-link" text="Find again" icon="sym_o_currency_exchange"
+                            parameter-map="{timeEntryId:edit.timeEntryId, reset:'Y', workEffortId:projectParam}"/>
+                </box-body></container-box>
+            </widgets></section>
+        </widgets></section>
+    </widgets>
+</screen>
