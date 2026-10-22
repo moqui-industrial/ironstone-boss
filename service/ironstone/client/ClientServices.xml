@@ -1,0 +1,661 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The client contact's own writes in Projects (design-projects.md §1.1, §15 Client access and Chatter for client users;
+    impl-projects.md P10b). A client (the Mantle permission PROJECT_CLIENT) is denied every other IronStone write service
+    (BOSS_PROJECTS_INTERNAL's service pattern, which names ironstone.<Class>.<verb>#..., one package level, so this file's
+    ironstone.client.ClientServices is not in it) and every create, update and delete of a Mantle entity
+    (BOSS_PROJECTS_CLIENT_WRITES). These services are the only ways through, each the narrowest that works:
+    - send#ChatterMessage and reply#ChatterMessage: a Message from the client to the record's internal people, on a record the
+      client sees (a client project, a work item shared with it, a milestone or release of one, a request of its);
+    - raise#ClientRequest, upload#ClientRequestFile and cancel#ClientRequest: a request in one of its client projects, files on
+      a request it sees while the request is open, and the cancel of an open request it raised;
+    - decide#ClientGate: approve or refuse the waiting approval of a milestone gate whose approver is the client's own party
+      (the estimate's approval is the gate of the project's Estimate milestone).
+    Each one is for a client only (an internal user is refused: its own services are elsewhere), allow-remote false, and checks
+    the client's access itself with mantle.party.CommunicationServices get#ClientRecordVisibility and
+    mantle.work.ProjectServices get#ClientProjectInfo (which read with authorization disabled, so the answer does not depend on
+    the caller's filters) before it writes; only then does it write, with authorization disabled for the Mantle services it
+    calls. A check that cannot be made refuses. -->
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
+
+    <!-- ========== Who and what ========== -->
+
+    <service verb="get" noun="ClientWriteContext" allow-remote="false">
+        <description>For a write of the current client contact on a record: whether the user is a client (else an error), whether
+            it sees the record (get#ClientRecordVisibility; else "not available"), the record's project, and the record's internal
+            people to write to (recipientPartyIds): for a work item its current assignees and managers, for a request its current
+            assignee, each one only when internal, and always the project's internal managers (ProjectManager, Manager); when none of
+            those, every internal person on the project. Internal: a person with a current role on the project that is not a client
+            role (Customer, CustomerBillTo, ClientManager, ClientBilling), who is not on the client's side (its own or its
+            organization's contacts) and has no user with PROJECT_CLIENT. internalPartyIds is every internal person of the project.
+            Strict: anything that fails is an error.</description>
+        <in-parameters>
+            <parameter name="recordEntityName" required="true"/>
+            <parameter name="recordId" required="true"/>
+            <parameter name="checkOnly" type="Boolean" default="false"><description>Answer without an error (record null when the client
+                may not write here), so a read's transaction is not marked rollback-only</description></parameter>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="client" type="Map"/>
+            <parameter name="record" type="Map"/>
+            <parameter name="projectId"/>
+            <parameter name="internalPartyIds" type="List"/>
+            <parameter name="recipientPartyIds" type="List"/>
+            <parameter name="recordLabel"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            client = null; record = null; projectId = null; internalPartyIds = []; recipientPartyIds = []; recordLabel = null
+            const fail = (text) => { record = null; if (!checkOnly) ec.message.addError(text) }
+            if (!ec.user.userId || !ec.user.hasPermission('PROJECT_CLIENT')) { fail(L('Only a client contact writes here')); return }
+            const notAvailable = () => fail(ec.resource.expand('${id} is not available', '', {id: recordId}))
+            const WORK_EFFORT = 'mantle.work.effort.WorkEffort', REQUEST = 'mantle.request.Request'
+            if (recordEntityName !== WORK_EFFORT && recordEntityName !== REQUEST) { notAvailable(); return }
+            const info = ec.service.sync().name('mantle.work.ProjectServices.get#ClientProjectInfo').call() || {}
+            if (ec.message.hasError()) return
+            if (!info.isClient || !info.userPartyId) { notAvailable(); return }
+            client = {userPartyId: info.userPartyId, clientProjectIds: Array.from(info.clientProjectIds || []), clientOrgIds: Array.from(info.clientOrgIds || []),
+                clientContactPartyIds: Array.from(info.clientContactPartyIds || [])}
+            const seen = ec.service.sync().name('mantle.party.CommunicationServices.get#ClientRecordVisibility').parameters(recordEntityName === WORK_EFFORT
+                    ? {workEffortIds: [recordId]} : {requestIds: [recordId]}).call() || {}
+            if (ec.message.hasError()) return
+            const visible = Array.from((recordEntityName === WORK_EFFORT ? seen.visibleWorkEffortIds : seen.visibleRequestIds) || []).includes(recordId)
+            if (!visible) { notAvailable(); return }
+            const clientRoles = ['Customer', 'CustomerBillTo', 'ClientManager', 'ClientBilling']
+            const clientSide = new Set(client.clientContactPartyIds.concat(client.clientOrgIds, [client.userPartyId]))
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try {
+                const row = ec.entity.find(recordEntityName).condition(recordEntityName === WORK_EFFORT ? 'workEffortId' : 'requestId', recordId).one()
+                if (row == null) { notAvailable(); return }
+                record = row.getMap()
+                projectId = recordEntityName === WORK_EFFORT ? (row.workEffortTypeEnumId === 'WetProject' ? row.workEffortId : row.rootWorkEffortId) : row.rootWorkEffortId
+                recordLabel = recordEntityName === WORK_EFFORT ? (row.workEffortName || recordId) : (row.requestName || recordId)
+                // a request with no project, or a record outside the client's projects, has no team to write to
+                if (!projectId || !client.clientProjectIds.includes(projectId)) {
+                    fail(L('There is no one on the team to write to here')); return }
+                const cf = ec.entity.conditionFactory
+                const current = () => cf.makeConditionDate('fromDate', 'thruDate', null)
+                // the users with PROJECT_CLIENT among the given parties: never internal
+                const clientUserParties = (partyIds) => {
+                    if (!partyIds.length) return new Set()
+                    const accounts = Array.from(ec.entity.find('moqui.security.UserAccount').condition('partyId', 'in', partyIds).selectField('userId').selectField('partyId').list())
+                    if (!accounts.length) return new Set()
+                    const byUser = new Map(accounts.map((account) => [account.userId, account.partyId]))
+                    const found = new Set()
+                    for (const check of ec.entity.find('moqui.security.UserPermissionCheck').condition('userId', 'in', Array.from(byUser.keys()))
+                            .condition('userPermissionId', 'PROJECT_CLIENT').condition(cf.makeConditionDate('groupFromDate', 'groupThruDate', null))
+                            .condition(cf.makeConditionDate('permissionFromDate', 'permissionThruDate', null)).selectField('userId').list())
+                        found.add(byUser.get(check.userId))
+                    return found
+                }
+                const projectRows = Array.from(ec.entity.find('mantle.work.effort.WorkEffortParty').condition('workEffortId', projectId).condition(current()).list())
+                const clientRolePartyIds = new Set(projectRows.filter((one) => clientRoles.includes(one.roleTypeId)).map((one) => one.partyId))
+                const candidates = Array.from(new Set(projectRows.filter((one) => !clientRoles.includes(one.roleTypeId)).map((one) => one.partyId)))
+                const persons = candidates.length ? new Set(Array.from(ec.entity.find('mantle.party.Party').condition('partyId', 'in', candidates)
+                        .condition('partyTypeEnumId', 'PtyPerson').selectField('partyId').list()).map((one) => one.partyId)) : new Set()
+                const clientUsers = clientUserParties(candidates)
+                internalPartyIds = candidates.filter((id) => persons.has(id) && !clientSide.has(id) && !clientRolePartyIds.has(id) && !clientUsers.has(id)).sort()
+                const internal = new Set(internalPartyIds)
+                const wanted = []
+                const add = (id) => { if (id && internal.has(id) && !wanted.includes(id)) wanted.push(id) }
+                if (recordEntityName === WORK_EFFORT && row.workEffortTypeEnumId === 'WetTask') {
+                    for (const one of ec.entity.find('mantle.work.effort.WorkEffortParty').condition('workEffortId', recordId)
+                            .condition('roleTypeId', 'in', ['Assignee', 'Manager']).condition(current()).list()) add(one.partyId)
+                } else if (recordEntityName === REQUEST) {
+                    for (const one of ec.entity.find('mantle.request.RequestParty').condition('requestId', recordId).condition('roleTypeId', 'Assignee')
+                            .condition(current()).list()) add(one.partyId)
+                }
+                for (const one of projectRows) if (one.roleTypeId === 'ProjectManager' || one.roleTypeId === 'Manager') add(one.partyId)
+                if (!wanted.length) for (const id of internalPartyIds) add(id)
+                recipientPartyIds = wanted
+                if (!recipientPartyIds.length) { fail(L('There is no one on the team to write to here')); return }
+            } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="ClientRecordWrites" allow-remote="false">
+        <description>What the current client contact may write on a record it sees, for the screens to show only those controls:
+            canMessage (Send message and Reply in Chatter: a work effort or request of its client projects with someone on the team to
+            write to), canUpload (files on a request it sees that is open), canCancel (an open request it raised). All false for a
+            user who is not a client, or for a record it does not see. Never an error.</description>
+        <in-parameters>
+            <parameter name="recordEntityName" required="true"/>
+            <parameter name="recordId" required="true"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="canMessage" type="Boolean"/>
+            <parameter name="canUpload" type="Boolean"/>
+            <parameter name="canCancel" type="Boolean"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            canMessage = false; canUpload = false; canCancel = false
+            if (!ec.user.userId || !ec.user.hasPermission('PROJECT_CLIENT')) return
+            if (!['mantle.work.effort.WorkEffort', 'mantle.request.Request'].includes(recordEntityName)) return
+            ec.message.pushErrors()
+            try {
+                const out = ec.service.sync().name('ironstone.client.ClientServices.get#ClientWriteContext')
+                        .parameters({recordEntityName: recordEntityName, recordId: recordId, checkOnly: true}).call() || {}
+                if (!ec.message.hasError() && out.record) {
+                    canMessage = true
+                    if (recordEntityName === 'mantle.request.Request') {
+                        const open = !['ReqCompleted', 'ReqCancelled'].includes(out.record.statusId)
+                        canUpload = open
+                        canCancel = open && out.record.filedByPartyId === out.client.userPartyId
+                    }
+                }
+            } catch (err) {
+                ec.logger.warn(`Client writes of ${recordEntityName} ${recordId} for user ${ec.user.userId} not checked, none offered: ${err && err.message ? err.message : err}`)
+                canMessage = false; canUpload = false; canCancel = false
+            } finally {
+                ec.message.clearErrors()
+                ec.message.popErrors()
+            }
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== Home ========== -->
+
+    <service verb="get" noun="ClientHome" allow-remote="false">
+        <description>A client contact's Home (design-projects.md §3: Clients get Open requests, Waiting for your reply, Milestones in 30
+            days and Invoices due; their projects with the latest update posted for them; Recent replies on my requests; Waiting for
+            your approval): every read under the client's own entity filters (BOSS_PROJECT_CLIENT, which the Projects root sets up), and
+            the records named checked again by get#ClientRecordVisibility. Each part stands alone: one that fails is logged, left empty
+            and named in failedParts. Empty for a user who is not a client.</description>
+        <out-parameters><parameter name="home" type="Map"/></out-parameters>
+        <actions><script><![CDATA[
+            home = {counts: {}, projectList: [], requestList: [], replyList: [], approvalList: [], milestoneList: [], invoiceList: [], failedParts: []}
+            if (!ec.user.userId || !ec.user.hasPermission('PROJECT_CLIENT')) return
+            const L = (text) => ec.l10n.localize(text)
+            const info = ec.service.sync().name('mantle.work.ProjectServices.get#ClientProjectInfo').call() || {}
+            if (ec.message.hasError() || !info.isClient || !info.userPartyId) { ec.message.clearErrors(); home.failedParts.push('client'); return }
+            const projects = Array.from(info.clientProjectIds || [])
+            const me = info.userPartyId
+            const clientSide = new Set(Array.from(info.clientContactPartyIds || []).concat(Array.from(info.clientOrgIds || []), [me]))
+            const cf = ec.entity.conditionFactory
+            const nowMillis = Number(String(ec.user.nowTimestamp))
+            const fmt = (value, pattern) => value == null ? '' : ec.l10n.format(value, pattern || 'MMM d, yyyy')
+            const statusText = (id) => id ? (ec.entity.find('moqui.basic.StatusItem').condition('statusId', id).useCache(true).one()?.description || id) : ''
+            const names = {}
+            const nameOf = (partyId) => {
+                if (!partyId) return ''
+                if (names[partyId] === undefined) {
+                    const party = ec.entity.find('mantle.party.PartyDetail').condition('partyId', partyId).disableAuthz().one()
+                    names[partyId] = party ? (party.organizationName || [party.firstName, party.lastName].filter((part) => part).join(' ') || partyId) : ''
+                }
+                return names[partyId]
+            }
+            const seen = (ids) => {
+                const out = ec.service.sync().name('mantle.party.CommunicationServices.get#ClientRecordVisibility').parameters(ids).call() || {}
+                if (ec.message.hasError()) throw new Error(ec.message.getErrorsString())
+                return out
+            }
+            const part = (name, run) => {
+                ec.message.pushErrors()
+                try {
+                    run()
+                    if (ec.message.hasError()) throw new Error(ec.message.getErrorsString())
+                } catch (err) {
+                    ec.logger.error(`Client Home of user ${ec.user.userId}: the ${name} part failed and is left out: ${err && err.message ? err.message : err}`)
+                    home.failedParts.push(name)
+                } finally { ec.message.clearErrors(); ec.message.popErrors() }
+            }
+            const healthColors = {WehOnTrack: 'positive', WehAtRisk: 'warning', WehOffTrack: 'negative'}
+            part('projects', () => {
+                if (!projects.length) return
+                for (const row of ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', 'in', projects).orderBy('workEffortName').list()) {
+                    // the latest update posted for the client (the WorkEffortUpdate filter: clientVisible Y)
+                    const update = Array.from(ec.entity.find('mantle.work.effort.WorkEffortUpdate').condition('workEffortId', row.workEffortId)
+                            .condition('clientVisible', 'Y').orderBy('-updateDate').limit(1).list())[0] || null
+                    const event = update ? ec.entity.find('mantle.party.communication.CommunicationEvent').condition('communicationEventId', update.communicationEventId).one() : null
+                    home.projectList.push({workEffortId: row.workEffortId, workEffortName: row.workEffortName || row.workEffortId, statusLabel: statusText(row.statusId),
+                        healthLabel: update?.healthEnumId ? (ec.entity.find('moqui.basic.Enumeration').condition('enumId', update.healthEnumId).useCache(true).one()?.description || '') : '',
+                        healthColor: healthColors[update?.healthEnumId] || 'grey-7', updateText: event ? [fmt(update.updateDate), event.subject || ''].filter((one) => one).join(' · ') : L('No update yet'),
+                        url: '/qapps/Projects/Projects/ProjectDetail?workEffortId=' + encodeURIComponent(row.workEffortId)})
+                }
+            })
+            part('requests', () => {
+                const find = ec.entity.find('mantle.request.Request').condition('statusId', 'not-in', ['ReqCompleted', 'ReqCancelled', 'ReqDraft'])
+                const rows = Array.from(find.orderBy('-lastUpdatedStamp').limit(200).list())
+                const visible = new Set(rows.length ? Array.from(seen({requestIds: rows.map((row) => row.requestId)}).visibleRequestIds || []) : [])
+                const open = rows.filter((row) => visible.has(row.requestId))
+                home.counts.openRequests = open.length
+                home.requestList = open.slice(0, 8).map((row) => ({requestId: row.requestId, requestName: row.requestName || row.requestId, statusLabel: statusText(row.statusId),
+                    updatedText: fmt(row.lastUpdatedStamp), url: '/qapps/Projects/Requests/RequestDetail?requestId=' + encodeURIComponent(row.requestId)}))
+            })
+            part('replies', () => {
+                // the team's messages to the client (the CommunicationEvent filter: from or to its parties, never a note), newest first
+                const rows = Array.from(ec.entity.find('mantle.party.communication.CommunicationEvent').condition('communicationEventTypeId', 'Message')
+                        .condition('fromPartyId', 'not-in', Array.from(clientSide)).condition(cf.makeCondition('statusId', 'not-equals', 'CeCancelled', true))
+                        .orderBy('-entryDate').limit(50).list())
+                const visible = new Set(rows.length ? Array.from(seen({communicationEventIds: rows.map((row) => row.communicationEventId)}).visibleCommunicationEventIds || []) : [])
+                let waiting = 0
+                for (const row of rows) {
+                    if (!visible.has(row.communicationEventId)) continue
+                    // answered: a later message of the client's side in the same thread
+                    const root = row.rootCommEventId || row.communicationEventId
+                    const answered = ec.entity.find('mantle.party.communication.CommunicationEvent').condition(cf.makeCondition([
+                            cf.makeCondition('rootCommEventId', 'equals', root), cf.makeCondition('communicationEventId', 'equals', root)], 'or'))
+                            .condition('fromPartyId', 'in', Array.from(clientSide)).condition('entryDate', 'greater', row.entryDate).disableAuthz().count() > 0
+                    if (!answered) waiting++
+                    if (home.replyList.length >= 6) continue
+                    // the record it is on: a request or a work effort the client sees
+                    let url = null, recordText = ''
+                    const ids = [row.communicationEventId].concat(row.rootCommEventId && row.rootCommEventId !== row.communicationEventId ? [row.rootCommEventId] : [])
+                    const requestId = Array.from(ec.entity.find('mantle.request.RequestCommEvent').condition('communicationEventId', 'in', ids).disableAuthz().list())[0]?.requestId
+                            || Array.from(ec.entity.find('mantle.party.communication.CommunicationEventRecord').condition('communicationEventId', 'in', ids)
+                                .condition('recordEntityName', 'mantle.request.Request').disableAuthz().list())[0]?.recordId
+                    const workEffortId = requestId ? null : (Array.from(ec.entity.find('mantle.work.effort.WorkEffortCommEvent').condition('communicationEventId', 'in', ids).disableAuthz().list())[0]?.workEffortId
+                            || Array.from(ec.entity.find('mantle.party.communication.CommunicationEventRecord').condition('communicationEventId', 'in', ids)
+                                .condition('recordEntityName', 'mantle.work.effort.WorkEffort').disableAuthz().list())[0]?.recordId)
+                    if (requestId && Array.from(seen({requestIds: [requestId]}).visibleRequestIds || []).includes(requestId)) {
+                        url = '/qapps/Projects/Requests/RequestDetail?requestId=' + encodeURIComponent(requestId) + '&tab=conversation'
+                        recordText = L('Request') + ' ' + requestId
+                    } else if (workEffortId && Array.from(seen({workEffortIds: [workEffortId]}).visibleWorkEffortIds || []).includes(workEffortId)) {
+                        url = '/qapps/Projects/WorkItems/WorkItemDetail?workEffortId=' + encodeURIComponent(workEffortId) + '&tab=chatter'
+                        recordText = workEffortId
+                    }
+                    const text = String(row.body || '').replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<')
+                            .replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim()
+                    home.replyList.push({communicationEventId: row.communicationEventId, fromName: nameOf(row.fromPartyId), subject: row.subject || '',
+                        snippet: text.length > 140 ? text.substring(0, 140) + '…' : text, whenText: fmt(row.entryDate, 'MMM d, h:mm a'), url: url, recordText: recordText,
+                        waiting: !answered})
+                }
+                home.counts.waitingReply = waiting
+            })
+            part('approvals', () => {
+                const rows = Array.from(ec.entity.find('mantle.work.effort.WorkEffortApproval').condition('approverPartyId', me).condition('statusId', 'WeaRequested')
+                        .orderBy('-requestedDate').limit(50).disableAuthz().list())
+                const visible = new Set(rows.length ? Array.from(seen({workEffortIds: rows.map((row) => row.workEffortId)}).visibleWorkEffortIds || []) : [])
+                for (const row of rows) {
+                    if (!visible.has(row.workEffortId)) continue
+                    const milestone = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', row.workEffortId).one()
+                    if (!milestone) continue
+                    home.approvalList.push({workEffortId: row.workEffortId, workEffortName: milestone.workEffortName || row.workEffortId,
+                        requestedText: fmt(row.requestedDate), comments: row.requestComments || '', isEstimate: !!row.workEffortContentId,
+                        url: '/qapps/Projects/Projects/MilestoneDetail?workEffortId=' + encodeURIComponent(row.workEffortId)})
+                }
+                home.counts.approvals = home.approvalList.length
+            })
+            part('milestones', () => {
+                if (!projects.length) return
+                const until = new Date(nowMillis + 30 * 86400000)
+                for (const row of ec.entity.find('mantle.work.effort.WorkEffort').condition('rootWorkEffortId', 'in', projects).condition('workEffortTypeEnumId', 'WetMilestone')
+                        .condition('statusId', 'not-in', ['WeComplete', 'WeClosed', 'WeCancelled']).condition('estimatedCompletionDate', 'less-equals', until)
+                        .orderBy('estimatedCompletionDate').limit(20).list()) {
+                    home.milestoneList.push({workEffortId: row.workEffortId, workEffortName: row.workEffortName || row.workEffortId, dueText: fmt(row.estimatedCompletionDate),
+                        overdue: Number(String(row.estimatedCompletionDate)) < nowMillis,
+                        url: '/qapps/Projects/Projects/MilestoneDetail?workEffortId=' + encodeURIComponent(row.workEffortId)})
+                }
+                home.counts.milestones30 = home.milestoneList.length
+            })
+            part('invoices', () => {
+                // the client's invoices (ironstone.BillingServices.get#ClientInvoices: to its parties on its sign-in projects, sent, never a
+                // draft or an approved one not sent), the unpaid ones
+                let due = 0
+                const ids = Object.keys(ec.service.sync().name('ironstone.BillingServices.get#ClientInvoices').call()?.invoiceMap || {})
+                if (ec.message.hasError()) return
+                if (ids.length) for (const row of ec.entity.find('mantle.account.invoice.Invoice').condition('invoiceId', 'in', ids)
+                        .condition('statusId', 'in', ['InvoiceSent', 'InvoiceAcked']).orderBy('dueDate').limit(50).list()) {
+                    const unpaid = Number(String(row.unpaidTotal ?? row.invoiceTotal ?? 0))
+                    if (!(unpaid > 0)) continue
+                    due++
+                    if (home.invoiceList.length < 6) home.invoiceList.push({invoiceId: row.invoiceId, description: row.description || '',
+                        dueText: row.dueDate ? fmt(row.dueDate) : '', overdue: row.dueDate != null && Number(String(row.dueDate)) < nowMillis,
+                        unpaidText: ec.l10n.formatCurrency(unpaid, row.currencyUomId || 'USD'),
+                        url: '/qapps/Projects/Billing/InvoiceDetail?invoiceId=' + encodeURIComponent(row.invoiceId)})
+                }
+                home.counts.invoicesDue = due
+            })
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== Chatter ========== -->
+
+    <service verb="send" noun="ChatterMessage" allow-remote="false">
+        <description>Send message from a client contact in Chatter: a Message from the client's party to the record's internal people
+            (get#ClientWriteContext recipientPartyIds; the client picks no one, so no other client and no outside party is reached),
+            filed on the record (link#CommunicationEventRecord, which tells the record's followers of messages; a follower who is a
+            client is told only of a message for it, filter#ClientAudience). No @ mentions: the body's mention marks are not
+            notified.</description>
+        <in-parameters>
+            <parameter name="recordEntityName" required="true"/>
+            <parameter name="recordId" required="true"/>
+            <parameter name="subject"/>
+            <parameter name="body" required="true" allow-html="safe"/>
+            <parameter name="recordUrl"/>
+        </in-parameters>
+        <out-parameters><parameter name="communicationEventId"/><parameter name="message"/></out-parameters>
+        <actions>
+            <service-call name="ironstone.client.ClientServices.get#ClientWriteContext" out-map="writeOut"
+                    in-map="{recordEntityName:recordEntityName, recordId:recordId}"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <if condition="!String(body).replace(/&lt;[^&gt;]*&gt;/g, '').replace(/&amp;nbsp;/g, ' ').trim()">
+                <return error="true" message="Write the message first"/></if>
+            <service-call name="ironstone.client.ClientServices.check#ClientRecordUrl" in-map="{recordUrl:recordUrl}" out-map="urlOut"/>
+            <script><![CDATA[
+                const label = writeOut.recordLabel || recordId
+                const messageSubject = String(subject || '').trim().substring(0, 255) || (label + ' (' + recordId + ')')
+                const wasDisabled = ec.artifactExecution.disableAuthz()
+                try {
+                    const out = ec.service.sync().name('mantle.party.CommunicationServices.create#Message').parameters({communicationEventTypeId: 'Message',
+                        contactMechTypeEnumId: 'CmtWebForm', fromPartyId: writeOut.client.userPartyId, subject: messageSubject, body: body, contentType: 'text/html',
+                        toPartyIdList: writeOut.recipientPartyIds}).call()
+                    if (ec.message.hasError()) return
+                    communicationEventId = out.communicationEventId
+                    ec.service.sync().name('mantle.party.CommunicationServices.link#CommunicationEventRecord').parameters({communicationEventId: communicationEventId,
+                        recordEntityName: recordEntityName, recordId: recordId, notifyFollowers: true, recordUrl: urlOut.recordUrl}).call()
+                } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+                if (!ec.message.hasError()) message = ec.l10n.localize('Message sent to the team')
+            ]]></script>
+        </actions>
+    </service>
+
+    <service verb="reply" noun="ChatterMessage" allow-remote="false">
+        <description>Reply from a client contact in Chatter to a message on the record that is for it (a Message, or a status update
+            posted for the client: get#ClientRecordVisibility), in the message's thread: a Message to the parent's people who are the
+            record's internal people (its sender, its to and cc), else the record's internal people (get#ClientWriteContext), filed
+            on the record. Never to another client or an outside party.</description>
+        <in-parameters>
+            <parameter name="recordEntityName" required="true"/>
+            <parameter name="recordId" required="true"/>
+            <parameter name="parentCommEventId" required="true"/>
+            <parameter name="body" required="true" allow-html="safe"/>
+            <parameter name="recordUrl"/>
+        </in-parameters>
+        <out-parameters><parameter name="communicationEventId"/><parameter name="message"/></out-parameters>
+        <actions>
+            <service-call name="ironstone.client.ClientServices.get#ClientWriteContext" out-map="writeOut"
+                    in-map="{recordEntityName:recordEntityName, recordId:recordId}"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <if condition="!String(body).replace(/&lt;[^&gt;]*&gt;/g, '').replace(/&amp;nbsp;/g, ' ').trim()">
+                <return error="true" message="Write the reply first"/></if>
+            <!-- the parent is on this record (its own join or a record link, or its thread's first message) and is for the client -->
+            <service-call name="mantle.party.CommunicationServices.get#ClientRecordVisibility" out-map="parentSeen"
+                    in-map="{communicationEventIds:[parentCommEventId]}"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <if condition="!Array.from(parentSeen.visibleCommunicationEventIds || []).includes(parentCommEventId)">
+                <return error="true" message="Message ${parentCommEventId} is not on this record"/></if>
+            <service-call name="mantle.party.CommunicationServices.get#RecordLinkInfo" out-map="linkInfo"
+                    in-map="{recordEntityName:recordEntityName, recordId:recordId, checkRecord:false}"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <service-call name="ironstone.ChatterServices.check#CommEventOnRecord" out-map="parentOut"
+                    in-map="{info:linkInfo, recordId:recordId, communicationEventId:parentCommEventId}"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <service-call name="ironstone.client.ClientServices.check#ClientRecordUrl" in-map="{recordUrl:recordUrl}" out-map="urlOut"/>
+            <script><![CDATA[
+                const parent = parentOut.commEvent
+                if (!['Message', 'StatusUpdate'].includes(parent.communicationEventTypeId)) {
+                    ec.message.addError(ec.resource.expand('Message ${id} is not on this record', '', {id: parentCommEventId})); return }
+                const internal = new Set(Array.from(writeOut.internalPartyIds || []))
+                const wasDisabled = ec.artifactExecution.disableAuthz()
+                try {
+                    // the parent's people who are the team's: its sender, to and cc
+                    const people = [parent.fromPartyId, parent.toPartyId]
+                    for (const one of ec.entity.find('mantle.party.communication.CommunicationEventParty').condition('communicationEventId', parentCommEventId)
+                            .condition('roleTypeId', 'in', ['MessageTo', 'MessageCc']).list()) people.push(one.partyId)
+                    let toIds = Array.from(new Set(people.filter((id) => id && internal.has(id))))
+                    if (!toIds.length) toIds = Array.from(writeOut.recipientPartyIds || [])
+                    const parentSubject = parent.subject || writeOut.recordLabel || ''
+                    const out = ec.service.sync().name('mantle.party.CommunicationServices.create#Message').parameters({communicationEventTypeId: 'Message',
+                        contactMechTypeEnumId: 'CmtWebForm', fromPartyId: writeOut.client.userPartyId, parentCommEventId: parentCommEventId,
+                        subject: parentSubject ? (String(parentSubject).startsWith('Re: ') ? parentSubject : 'Re: ' + parentSubject).substring(0, 255) : null,
+                        body: body, contentType: 'text/html', toPartyIdList: toIds}).call()
+                    if (ec.message.hasError()) return
+                    communicationEventId = out.communicationEventId
+                    ec.service.sync().name('mantle.party.CommunicationServices.link#CommunicationEventRecord').parameters({communicationEventId: communicationEventId,
+                        recordEntityName: recordEntityName, recordId: recordId, notifyFollowers: true, recordUrl: urlOut.recordUrl}).call()
+                } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+                if (!ec.message.hasError()) message = ec.l10n.localize('Reply sent')
+            ]]></script>
+        </actions>
+    </service>
+
+    <service verb="check" noun="ClientRecordUrl" allow-remote="false">
+        <description>The link a client's message notices carry: a page of Projects (/qapps/Projects/...), else none.</description>
+        <in-parameters><parameter name="recordUrl"/></in-parameters>
+        <out-parameters><parameter name="recordUrl"/></out-parameters>
+        <actions><script><![CDATA[
+            const text = String(recordUrl || '').trim()
+            recordUrl = /^\/q?apps\/Projects\/[A-Za-z0-9_\/]+(\?[A-Za-z0-9_=&%.\-]*)?$/.test(text) ? text : null
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== Requests ========== -->
+
+    <service verb="check" noun="ClientFiles" allow-remote="false">
+        <description>The files a client contact may add to a request (as the public request form takes them): at most 5, each at
+            most 10 MB, of the kinds a request holds (pictures, PDF, text, office documents and archives; never html, svg or
+            scripts), their names cleaned. An error names the first file refused.</description>
+        <in-parameters><parameter name="contentFile" type="Object"/></in-parameters>
+        <out-parameters><parameter name="fileList" type="List"/><parameter name="fileNames" type="List"/></out-parameters>
+        <actions><script><![CDATA[
+            fileList = []; fileNames = []
+            const files = (contentFile == null ? [] : Array.isArray(contentFile) ? contentFile : (typeof contentFile === 'object' && typeof contentFile.getName !== 'function'
+                    && typeof contentFile.length === 'number' ? Array.from(contentFile) : [contentFile])).filter((file) => file != null && typeof file === 'object'
+                    && Number(file.size || (file.getSize ? file.getSize() : 0) || 0) > 0)
+            if (files.length > 5) { ec.message.addError(ec.l10n.localize('At most 5 files at a time, please')); return }
+            const allowed = /\.(png|jpe?g|gif|webp|bmp|pdf|txt|log|csv|md|json|xml|docx?|xlsx?|pptx?|odt|ods|odp|rtf|zip|gz|eml)$/i
+            for (const file of files) {
+                const name = String(file.getName ? file.getName() : (file.name || 'file')).split(/[\\/]/).pop()
+                        .replace(/[^A-Za-z0-9._ -]/g, '_').replace(/^\.+/, '').substring(0, 120) || 'file'
+                if (!allowed.test(name)) { ec.message.addError(ec.resource.expand('${name}: this kind of file is not taken', '', {name})); return }
+                const size = Number(file.size || (file.getSize ? file.getSize() : 0) || 0)
+                if (size > 10 * 1048576) { ec.message.addError(ec.resource.expand('${name} is larger than 10 MB', '', {name})); return }
+                fileList.push(file)
+                fileNames.push(name)
+            }
+        ]]></script></actions>
+    </service>
+
+    <service verb="store" noun="ClientRequestFiles" allow-remote="false">
+        <description>Internal to this file, after the checks: the files as RequestContent of the request (each on its own: one that
+            cannot be kept is logged and named in failedList). Called with authorization disabled.</description>
+        <in-parameters>
+            <parameter name="requestId" required="true"/>
+            <parameter name="fileList" type="List"/>
+            <parameter name="fileNames" type="List"/>
+            <parameter name="description"/>
+        </in-parameters>
+        <out-parameters><parameter name="createdList" type="List"/><parameter name="failedList" type="List"/></out-parameters>
+        <actions><script><![CDATA[
+            createdList = []; failedList = []
+            const files = Array.from(fileList || []), names = Array.from(fileNames || [])
+            files.forEach((file, index) => {
+                const name = names[index] || 'file'
+                ec.message.pushErrors()
+                try {
+                    const content = ec.service.sync().name('create#mantle.request.RequestContent').parameters({requestId: requestId,
+                        contentTypeEnumId: 'RqCntUserDefined', description: description ? String(description).substring(0, 255) : name,
+                        contentDate: ec.user.nowTimestamp, userId: ec.user.userId}).call()
+                    if (ec.message.hasError()) throw new Error(ec.message.getErrorsString())
+                    const location = `dbresource://mantle/content/request/${requestId}/content_${content.requestContentId}/${name}`
+                    const stream = file.getInputStream()
+                    try { ec.resource.getLocationReference(location).putStream(stream) } finally { if (stream && stream.close) stream.close() }
+                    ec.service.sync().name('update#mantle.request.RequestContent').parameters({requestContentId: content.requestContentId,
+                        contentLocation: location}).call()
+                    if (ec.message.hasError()) throw new Error(ec.message.getErrorsString())
+                    createdList.push({fileName: name, contentId: content.requestContentId})
+                } catch (err) {
+                    const why = err && err.message ? err.message : String(err)
+                    ec.logger.error(`Client file ${name} of request ${requestId} not kept: ${why}`)
+                    failedList.push({fileName: name, error: why})
+                } finally {
+                    ec.message.clearErrors()
+                    ec.message.popErrors()
+                }
+            })
+        ]]></script></actions>
+    </service>
+
+    <service verb="raise" noun="ClientRequest" allow-remote="false">
+        <description>New request by a client contact (design-projects.md §6: clients raise requests in their projects): a Submitted
+            request in one of its client projects (get#ClientProjectInfo clientProjectIds), filed by the client (Reporter), its
+            organization the Customer, of a type the project offers (get#IntakeSettings; its default when not given), with the
+            project's triage assignee; the files as the public form takes them (check#ClientFiles). The triage notice is Mantle's
+            (the Request rule on a Submitted request).</description>
+        <in-parameters>
+            <parameter name="rootWorkEffortId" required="true"/>
+            <parameter name="requestName" required="true"/>
+            <parameter name="description"/>
+            <parameter name="requestTypeEnumId"/>
+            <parameter name="priority"/>
+            <parameter name="contentFile" type="Object"/>
+        </in-parameters>
+        <out-parameters><parameter name="requestId"/><parameter name="message"/><parameter name="failedList" type="List"/></out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            failedList = []
+            if (!ec.user.userId || !ec.user.hasPermission('PROJECT_CLIENT')) { ec.message.addError(L('Only a client contact raises a request here')); return }
+            const info = ec.service.sync().name('mantle.work.ProjectServices.get#ClientProjectInfo').call() || {}
+            if (ec.message.hasError()) return
+            if (!info.isClient || !info.userPartyId || !Array.from(info.clientProjectIds || []).includes(rootWorkEffortId)) {
+                ec.message.addError(ec.resource.expand('Project ${id} is not available', '', {id: rootWorkEffortId})); return }
+            const clean = (value, max) => String(value == null ? '' : value).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').trim().substring(0, max)
+            const name = clean(requestName, 255).replace(/\s+/g, ' ')
+            const text = clean(description, 20000)
+            if (!name) { ec.message.addError(L('A request needs a name')); return }
+            const files = ec.service.sync().name('ironstone.client.ClientServices.check#ClientFiles').parameter('contentFile', contentFile).call() || {}
+            if (ec.message.hasError()) return
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try {
+                const settings = ec.service.sync().name('mantle.request.RequestServices.get#IntakeSettings').parameters({workEffortId: rootWorkEffortId}).call()?.settings || {}
+                if (ec.message.hasError()) return
+                const offered = Array.from(settings.offeredTypes || [])
+                let typeId = requestTypeEnumId ? String(requestTypeEnumId) : (settings.defaultType || offered[0] || 'RqtSupport')
+                if (offered.length && !offered.includes(typeId)) { ec.message.addError(L('Choose one of the request types offered')); return }
+                if (!offered.length && ec.entity.find('moqui.basic.Enumeration').condition('enumId', typeId).useCache(true).one()?.enumTypeId !== 'RequestType') {
+                    ec.message.addError(ec.resource.expand('${id} is not a request type', '', {id: typeId})); return }
+                // the client's organization that is a client of this project, else the client's own party
+                const roles = ['Customer', 'CustomerBillTo', 'ClientManager', 'ClientBilling']
+                const onProject = Array.from(ec.entity.find('mantle.work.effort.WorkEffortParty').condition('workEffortId', rootWorkEffortId)
+                        .condition('roleTypeId', 'in', roles).conditionDate('fromDate', 'thruDate', null).list()).map((one) => one.partyId)
+                const customerPartyId = Array.from(info.clientOrgIds || []).find((id) => onProject.includes(id)) || info.userPartyId
+                const out = ec.service.sync().name('mantle.request.RequestServices.create#Request').parameters({requestName: name, description: text || null,
+                    requestTypeEnumId: typeId, rootWorkEffortId: rootWorkEffortId, statusId: 'ReqSubmitted', filedByPartyId: info.userPartyId,
+                    customerPartyId: customerPartyId, assignToPartyId: settings.triagePartyId || null,
+                    priority: priority && /^[1-9]$/.test(String(priority)) ? Number(priority) : 5}).call()
+                if (ec.message.hasError()) return
+                requestId = out.requestId
+                if (files.fileList?.length) {
+                    const stored = ec.service.sync().name('ironstone.client.ClientServices.store#ClientRequestFiles').parameters({requestId: requestId,
+                        fileList: files.fileList, fileNames: files.fileNames}).call() || {}
+                    failedList = Array.from(stored.failedList || [])
+                }
+            } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+            if (ec.message.hasError()) return
+            message = ec.resource.expand('Request ${id} sent: ${name}', '', {id: requestId, name: name})
+            if (failedList.length) message += '; ' + ec.resource.expand('not added: ${names}', '', {names: failedList.map((one) => one.fileName).join(', ')})
+        ]]></script></actions>
+    </service>
+
+    <service verb="upload" noun="ClientRequestFile" allow-remote="false">
+        <description>Files a client contact adds to a request it sees (get#ClientRecordVisibility) while the request is open, as the
+            public form takes them (check#ClientFiles); each file on its own. The answer is RecordFiles' upload's.</description>
+        <in-parameters>
+            <parameter name="requestId" required="true"/>
+            <parameter name="contentFile" type="Object" required="true"/>
+            <parameter name="description"/>
+        </in-parameters>
+        <out-parameters><parameter name="createdList" type="List"/><parameter name="failedList" type="List"/><parameter name="message"/></out-parameters>
+        <actions>
+            <service-call name="ironstone.client.ClientServices.get#ClientWriteContext" out-map="writeOut"
+                    in-map="{recordEntityName:'mantle.request.Request', recordId:requestId}"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <if condition="['ReqCompleted', 'ReqCancelled'].includes(writeOut.record.statusId)"><return error="true" message="This request is closed"/></if>
+            <service-call name="ironstone.client.ClientServices.check#ClientFiles" in-map="{contentFile:contentFile}" out-map="files"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <if condition="!files.fileList?.length"><return error="true" message="Choose one or more files to add"/></if>
+            <script><![CDATA[
+                const wasDisabled = ec.artifactExecution.disableAuthz()
+                let stored = {}
+                try {
+                    stored = ec.service.sync().name('ironstone.client.ClientServices.store#ClientRequestFiles').parameters({requestId: requestId,
+                        fileList: files.fileList, fileNames: files.fileNames, description: description || null}).call() || {}
+                } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+                createdList = Array.from(stored.createdList || [])
+                failedList = Array.from(stored.failedList || [])
+                if (!createdList.length) {
+                    ec.message.addError(ec.resource.expand('No file was added: ${why}', '', {why: failedList.map((one) => one.fileName + ': ' + one.error).join('; ')}))
+                    return
+                }
+                message = createdList.length === 1 ? ec.resource.expand('Added ${fileName}', '', {fileName: createdList[0].fileName})
+                        : ec.resource.expand('Added ${count} files', '', {count: createdList.length})
+            ]]></script>
+        </actions>
+    </service>
+
+    <service verb="cancel" noun="ClientRequest" allow-remote="false">
+        <description>A client contact cancels a request it raised (filed by its party) while the request is open; the team is told
+            by the request's status notices.</description>
+        <in-parameters><parameter name="requestId" required="true"/></in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions>
+            <service-call name="ironstone.client.ClientServices.get#ClientWriteContext" out-map="writeOut"
+                    in-map="{recordEntityName:'mantle.request.Request', recordId:requestId}"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <if condition="writeOut.record.filedByPartyId != writeOut.client.userPartyId"><return error="true" message="Only a request you raised can be cancelled here"/></if>
+            <if condition="['ReqCompleted', 'ReqCancelled'].includes(writeOut.record.statusId)"><return error="true" message="This request is closed"/></if>
+            <script><![CDATA[
+                const wasDisabled = ec.artifactExecution.disableAuthz()
+                try {
+                    ec.service.sync().name('mantle.request.RequestServices.update#Request').parameters({requestId: requestId, statusId: 'ReqCancelled',
+                        requestResolutionEnumId: 'RrRejected'}).call()
+                } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+                if (!ec.message.hasError()) message = ec.resource.expand('Cancelled: ${name}', '', {name: writeOut.recordLabel})
+            ]]></script>
+        </actions>
+    </service>
+
+    <!-- ========== Approvals ========== -->
+
+    <service verb="decide" noun="ClientGate" allow-remote="false">
+        <description>A client contact's decision on a milestone gate (design-projects.md §4 MilestoneGate: "a client contact always
+            here"): approve, or refuse with the reason, the waiting approval of a milestone of its client project whose approver is
+            the client's own party (mantle.work.ProjectServices get#MilestoneApprovalAccess isApprover, canView; then
+            approve#MilestoneApproval or refuse#MilestoneApproval, which check it again and record it as the approver's own). The
+            project's Estimate milestone is the estimate's approval: approving it moves the project and its orders on.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="decision" required="true"/>
+            <parameter name="comments"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/><parameter name="projectMoved" type="Boolean"/></out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            projectMoved = false
+            if (!ec.user.userId || !ec.user.hasPermission('PROJECT_CLIENT')) { ec.message.addError(L('Only a client contact decides here')); return }
+            if (!['approve', 'refuse'].includes(String(decision))) { ec.message.addError(L('Unknown action')); return }
+            const seen = ec.service.sync().name('mantle.party.CommunicationServices.get#ClientRecordVisibility').parameters({workEffortIds: [workEffortId]}).call() || {}
+            if (ec.message.hasError()) return
+            if (!Array.from(seen.visibleWorkEffortIds || []).includes(workEffortId)) {
+                ec.message.addError(ec.resource.expand('Milestone ${workEffortId} is not available', '', {workEffortId})); return }
+            const access = ec.service.sync().name('mantle.work.ProjectServices.get#MilestoneApprovalAccess').parameters({workEffortId: workEffortId, need: 'view'}).call() || {}
+            if (ec.message.hasError()) return
+            if (!access.canView || !access.isApprover) { ec.message.addError(L('Only the approver decides')); return }
+            if (!access.gate?.awaiting) { ec.message.addError(L('No approval waits on this milestone')); return }
+            if (decision === 'refuse' && !String(comments || '').trim()) { ec.message.addError(L('Give the reason')); return }
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try {
+                const out = decision === 'approve'
+                    ? ec.service.sync().name('mantle.work.ProjectServices.approve#MilestoneApproval').parameters({workEffortId: workEffortId, comments: comments || null}).call()
+                    : ec.service.sync().name('mantle.work.ProjectServices.refuse#MilestoneApproval').parameters({workEffortId: workEffortId, reason: String(comments).trim()}).call()
+                projectMoved = !!out?.projectMoved
+            } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+            if (ec.message.hasError()) return
+            message = decision === 'refuse' ? L('Refused: the team is told why') : projectMoved ? L('Approved: the estimate is accepted and the project goes ahead')
+                : L('Approved: the milestone is reached')
+        ]]></script></actions>
+    </service>
+</services>

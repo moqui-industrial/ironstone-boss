@@ -17,8 +17,9 @@ along with this software (see the LICENSE.md file). If not, see
     the links of its commits stay), Open merge requests, Recent commits (the default branches' last, newest first) and Tags
     linked to the project, its milestones and releases (Remove). A tab cannot be left out by a condition (impl-projects.md F24),
     so with the Code module off it says so and, for managers, points to Settings. Without git hosting in the build it says so.
-    The client state (repositories and recent commits read only when the project shares its repositories) comes with client
-    access (impl-projects.md P10). Services: ironstone.CodeServices get#ProjectCode, create#Repository, link#Repository,
+    A client contact (clientUser; impl-projects.md P10b) sees the repositories the project shares with it (WstShareRepositories:
+    check#GitRepositoryAuthz gives it the view right), their HTTPS clone URLs, recent commits, open merge requests and tags, read
+    only, and when the project shares none, that its code is not shared. Services: ironstone.CodeServices get#ProjectCode, create#Repository, link#Repository,
     unlink#Repository, unlink#RefWorkEffort. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Code" default-menu-index="7">
@@ -90,7 +91,12 @@ along with this software (see the LICENSE.md file). If not, see
                 <label type="p" text="This server was built without git hosting, so the project's repositories cannot be shown." style="q-mb-none"/>
             </box-body></container-box>
         </widgets><fail-widgets>
-            <section name="CodeModuleOff" condition="!codeOn"><widgets>
+            <section name="CodeNotShared" condition="clientUser &amp;&amp; !repositoryList.length"><widgets>
+                <container-box type="info"><box-body>
+                    <label type="p" text="The code of this project is not shared with you." style="q-mb-none"/>
+                </box-body></container-box>
+            </widgets></section>
+            <section name="CodeModuleOff" condition="!codeOn &amp;&amp; !clientUser"><widgets>
                 <container-box type="info"><box-body>
                     <container style="row items-center q-gutter-sm">
                         <label type="span" text="The Code module is off for this project${repositoryList.length ? '; its linked repositories are below' : ''}."/>
@@ -98,13 +104,13 @@ along with this software (see the LICENSE.md file). If not, see
                     </container>
                 </box-body></container-box>
             </widgets></section>
-            <section name="CodeBoxes" condition="codeOn || repositoryList.length"><widgets>
+            <section name="CodeBoxes" condition="clientUser ? repositoryList.length : (codeOn || repositoryList.length)"><widgets>
             <container-row>
                 <row-col lg="7">
                     <container-box><box-header title="Repositories · ${repositoryList.length}"/>
                         <box-toolbar>
                             <container-dialog id="ProjectNewRepositoryDialog" button-text="New repository" icon="sym_o_add" width="560" title="A new repository of ${workEffortId}"
-                                    condition="canManage">
+                                    condition="canManage &amp;&amp; !clientUser">
                                 <form-single name="ProjectNewRepository" transition="createRepository" focus-field="repositoryId">
                                     <field name="workEffortId"><default-field><hidden/></default-field></field>
                                     <field name="repositoryId" from="newRepositoryId"><default-field title="Repository ID"><text-line size="30"/></default-field></field>
@@ -116,7 +122,7 @@ along with this software (see the LICENSE.md file). If not, see
                                 </form-single>
                             </container-dialog>
                             <container-dialog id="ProjectLinkRepositoryDialog" button-text="Link" icon="sym_o_link" width="480" title="Link a repository to ${workEffortId}"
-                                    condition="canManage">
+                                    condition="canManage &amp;&amp; !clientUser">
                                 <form-single name="ProjectLinkRepository" transition="linkRepository">
                                     <field name="workEffortId"><default-field><hidden/></default-field></field>
                                     <field name="repositoryId"><default-field title="Repository"><drop-down><list-options list="linkOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
@@ -140,7 +146,7 @@ along with this software (see the LICENSE.md file). If not, see
                                             parameter-map="{repositoryId:repositoryId, commitId:headCommitId}" style="text-mono"/>
                                     <label text="${lastText}" type="div" style="text-caption m-muted"/></default-field></field>
                                 <field name="unlink"><default-field>
-                                    <link url="unlinkRepository" link-type="hidden-form-link" text="Unlink" icon="sym_o_link_off" condition="canManage"
+                                    <link url="unlinkRepository" link-type="hidden-form-link" text="Unlink" icon="sym_o_link_off" condition="canManage &amp;&amp; !clientUser"
                                             confirmation="Unlink ${repositoryId} from ${workEffortId}? The links of its commits stay." parameter-map="{workEffortId:workEffortId, repositoryId:repositoryId}"/>
                                 </default-field></field>
                             </form-list>
@@ -186,7 +192,7 @@ along with this software (see the LICENSE.md file). If not, see
                                 <label text="${[repositoryId, workEffortId, linkedBy, whenText].filter((part) => part).join(' · ')}" type="div" style="text-caption m-muted"/>
                             </default-field></field>
                             <field name="remove"><default-field>
-                                <link url="unlinkTag" link-type="hidden-form-link" text="Remove" icon="sym_o_link_off" confirmation="Remove the link of ${name} to ${workEffortId}?"
+                                <link url="unlinkTag" link-type="hidden-form-link" text="Remove" icon="sym_o_link_off" condition="!clientUser" confirmation="Remove the link of ${name} to ${workEffortId}?"
                                         parameter-map="{workEffortId:pageWorkEffortId, repositoryId:repositoryId, refName:refName, tagWorkEffortId:workEffortId}"/></default-field></field>
                         </form-list>
                         <section name="NoProjectTags" condition="!tagList.length"><widgets>

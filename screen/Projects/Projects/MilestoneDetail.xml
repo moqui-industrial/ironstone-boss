@@ -79,10 +79,17 @@ along with this software (see the LICENSE.md file). If not, see
         <default-response url="."><parameter name="workEffortId"/></default-response>
         <error-response url="."/>
     </transition>
+    <!-- a client contact approves or refuses the gate it is the approver of (ironstone.client.ClientServices.decide#ClientGate,
+        impl-projects.md P10b); the team's gate actions are PlanningServices' -->
     <transition name="decideGate">
         <actions>
+            <if condition="ec.user.userId &amp;&amp; ec.user.hasPermission('PROJECT_CLIENT')"><then>
+                <service-call name="ironstone.client.ClientServices.decide#ClientGate" out-map="gateOut" in-map="{workEffortId:workEffortId, decision:action,
+                        comments:comments}"/>
+            </then><else>
             <service-call name="ironstone.PlanningServices.decide#MilestoneGate" out-map="gateOut" in-map="{workEffortId:workEffortId, action:action,
                     approvalRequired:approvalRequired, approverPartyId:approverPartyId, comments:comments}"/>
+            </else></if>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(gateOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/></default-response>
@@ -194,6 +201,13 @@ along with this software (see the LICENSE.md file). If not, see
             if (primaryMove?.statusId === 'WeComplete') primaryMove = null
             otherMoves = otherMoves.filter((move) => move.statusId !== 'WeComplete' && move.statusId !== 'WeClosed')
             moveIds = otherMoves.map((move) => move.statusId)
+        }
+        // a client contact (impl-projects.md P10b): decides the gate it is the approver of, opens the estimate only then, accepts no
+        // deliverable here and sees nothing to change
+        if (clientUser) {
+            extras = Object.assign({}, extras, {canRequest: false, canSetGate: false, canCancel: false, canAccept: false, canEditDeliverables: false,
+                canEditShares: false, canInvoice: false, managesMoney: false, canDecide: !!extras.canDecide && !!extras.isApprover})
+            if (!extras.isApprover) extras.requestRows = Array.from(extras.requestRows || []).map((row) => Object.assign({}, row, {fileUrl: null}))
         }
         requestRows = extras.requestRows
         shareRows = extras.shareRows
@@ -351,7 +365,7 @@ along with this software (see the LICENSE.md file). If not, see
                             <field name="assigneePartyId"><default-field title="Assignees"><display text="${assigneeText || ''}"/></default-field></field>
                             <field name="dueText"><default-field title="Due"><label text="${dueText || ''}" type="span" style="text-no-wrap ${overdue ? 'text-warning' : ''}"/></default-field></field>
                             <field name="estimatedWorkTime" align="right"><default-field title="Est. (h)"><display format="#,##0.##"/></default-field></field>
-                            <field name="actualWorkTime" align="right"><default-field title="Actual (h)"><display format="#,##0.##"/></default-field></field>
+                            <field name="actualWorkTime" align="right" hide="clientUser"><default-field title="${clientUser ? '' : 'Actual (h)'}"><display format="#,##0.##"/></default-field></field>
                             <field name="removeItem"><conditional-field condition="canUpdate" title="">
                                 <link url="removeItem" link-type="hidden-form-link" text="Remove" icon="sym_o_remove_circle_outline"
                                         confirmation="Take ${workEffortId} out of ${milestone.workEffortName}?" parameter-map="{workEffortId:milestone.workEffortId, itemWorkEffortId:workEffortId}"/>

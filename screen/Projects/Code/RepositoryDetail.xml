@@ -18,7 +18,9 @@ along with this software (see the LICENSE.md file). If not, see
     and the linked projects as chips; Clone (a dialog with the HTTPS and SSH URLs and the way to Git access) and New merge
     request (primary, opening Compare). An archived repository shows its banner on every tab. The tabs: Files, Commits,
     Branches, Tags, Merge requests (Code/MergeRequests mounted with the repository fixed), Activity and Settings (its maintainers change it). A repository the
-    user may not view is "not available", as one that is not there. -->
+    user may not view is "not available", as one that is not there. A client contact (impl-projects.md P10b) views a repository
+    its project shares with it, read only: Clone over HTTPS with its user name and password (no SSH, no Git access), no New merge
+    request, and no Activity or Settings tab (refused it, so left out of the tabs). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Repository" default-menu-include="false">
 
@@ -90,22 +92,22 @@ along with this software (see the LICENSE.md file). If not, see
                 </container>
                 <container style="col-12 col-md-auto row items-center q-gutter-xs">
                     <container-dialog id="RepositoryCloneDialog" button-text="Clone" icon="sym_o_download" width="600" title="Clone ${repositoryId}">
-                        <label text="HTTPS, with your user name and an access token as the password" type="div" style="text-subtitle2"/>
+                        <label text="${clientUser ? 'HTTPS, with your user name and password (read only)' : 'HTTPS, with your user name and an access token as the password'}" type="div" style="text-subtitle2"/>
                         <label text="git clone ${httpsUrl}" type="div" style="text-mono q-mb-sm" condition="httpsUrl"/>
-                        <section name="CloneSsh" condition="sshUrl"><widgets>
+                        <section name="CloneSsh" condition="sshUrl &amp;&amp; !clientUser"><widgets>
                             <label text="SSH, with a key you added" type="div" style="text-subtitle2"/>
                             <label text="git clone ${sshUrl}" type="div" style="text-mono q-mb-sm"/>
                         </widgets></section>
-                        <link url="gitAccess" text="Set up an SSH key or an access token" link-type="anchor" icon="sym_o_key"/>
+                        <link url="gitAccess" text="Set up an SSH key or an access token" link-type="anchor" icon="sym_o_key" condition="!clientUser"/>
                     </container-dialog>
                     <link url="compare" text="New merge request" icon="sym_o_merge" btn-type="primary" parameter-map="{repositoryId:repositoryId}"
-                            condition="canPush &amp;&amp; !isArchived"/>
+                            condition="canPush &amp;&amp; !isArchived &amp;&amp; !clientUser"/>
                 </container>
             </container>
 
             <section name="ArchivedBanner" condition="isArchived"><widgets>
                 <container-box type="warning"><box-body>
-                    <label type="p" text="Archived: read only. Pushes, merges and changes are refused; its maintainers may unarchive it in Settings." style="q-mb-none"/>
+                    <label type="p" text="${clientUser ? 'Archived: read only.' : 'Archived: read only. Pushes, merges and changes are refused; its maintainers may unarchive it in Settings.'}" style="q-mb-none"/>
                 </box-body></container-box>
             </widgets></section>
 

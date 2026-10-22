@@ -30,7 +30,7 @@ along with this software (see the LICENSE.md file). If not, see
         <template v-slot:toolbar>
             <span v-if="state === 'ready' && record" class="text-caption m-muted q-mr-xs ellipsis gt-xs">{{record.typeLabel}} {{record.id}}</span>
             <!-- the record's chat room (Comms Chat makes it on first use, design §13 and §15) -->
-            <q-btn v-if="state === 'ready' && record" flat dense no-caps size="sm" color="primary" icon="sym_o_forum" :label="narrow ? undefined : t('Discuss')"
+            <q-btn v-if="state === 'ready' && record && !forClient" flat dense no-caps size="sm" color="primary" icon="sym_o_forum" :label="narrow ? undefined : t('Discuss')"
                     :aria-label="t('Discuss in the record chat room')" @click="discuss"><q-tooltip>{{t('Discuss in the record chat room')}}</q-tooltip></q-btn>
         </template>
 
@@ -58,17 +58,20 @@ along with this software (see the LICENSE.md file). If not, see
                 <q-separator v-if="!phone"></q-separator>
 
                 <div v-if="!phone || composeOpen" class="q-pt-sm">
-                    <!-- Send message: internal, to users; Email… opens Comms Compose with the record's parties -->
+                    <!-- Send message: internal, to users; Email… opens Comms Compose with the record's parties. A client contact's
+                        goes to the team on the record (impl-projects.md P10b): no one to pick, no mentions, no email -->
                     <chatter-done v-if="tab === 'message'" :key="'message' + formKeys.message" :done="afterMessage">
                         <m-form :action="action('sendMessage')" :fields-initial="messageInitial" v-slot="formProps">
-                            <m-drop-down v-model="formProps.fields.toUserIds" name="toUserIds" multiple server-search :options-url="url('searchUsers')"
+                            <m-drop-down v-if="!forClient" v-model="formProps.fields.toUserIds" name="toUserIds" multiple server-search :options-url="url('searchUsers')"
                                     value-field="id" :label="t('To (people here)')"></m-drop-down>
+                            <div v-else class="text-caption m-muted">{{t('To the team working on this')}}</div>
                             <m-text-line v-model="formProps.fields.subject" name="subject" :label="t('Subject')" class="q-mt-xs"></m-text-line>
-                            <m-rich-text v-model="formProps.fields.body" name="body" light rows="2" class="q-mt-xs" :placeholder="t('Write a message… @ to mention, # for a record')"
+                            <m-rich-text v-if="!forClient" v-model="formProps.fields.body" name="body" light rows="2" class="q-mt-xs" :placeholder="t('Write a message… @ to mention, # for a record')"
                                     :mention-url="url('searchUsers')" :record-url="url('searchRecords')"></m-rich-text>
+                            <m-rich-text v-else v-model="formProps.fields.body" name="body" light rows="2" class="q-mt-xs" :placeholder="t('Write a message to the team…')"></m-rich-text>
                             <div class="row items-center q-gutter-sm q-mt-xs">
                                 <q-btn type="submit" dense unelevated no-caps color="primary" icon="sym_o_send" :label="t('Send')"></q-btn>
-                                <q-btn dense flat no-caps color="primary" icon="sym_o_mail" :label="t('Email…')" @click="openEmail">
+                                <q-btn v-if="!forClient" dense flat no-caps color="primary" icon="sym_o_mail" :label="t('Email…')" @click="openEmail">
                                     <q-tooltip>{{emailTooltip}}</q-tooltip></q-btn>
                                 <q-space></q-space>
                                 <q-btn v-if="phone" flat round dense size="sm" icon="sym_o_close" :aria-label="t('Close')" @click="composeOpen = false"></q-btn>
@@ -115,8 +118,8 @@ along with this software (see the LICENSE.md file). If not, see
                 </div>
             </div>
 
-            <!-- followers -->
-            <div class="row items-center no-wrap q-mb-sm">
+            <!-- followers (not for a client contact: it follows nothing here, impl-projects.md P10b) -->
+            <div v-if="!forClient" class="row items-center no-wrap q-mb-sm">
                 <q-icon name="sym_o_group" size="xs" class="m-muted q-mr-xs"></q-icon>
                 <div class="row no-wrap q-gutter-x-xs">
                     <m-avatar v-for="follower in followers.slice(0, 5)" :key="follower.userId" :name="follower.name" :image="faceUrl(follower.partyId, follower.hasImage)"
@@ -217,14 +220,15 @@ along with this software (see the LICENSE.md file). If not, see
             </div>
 
             <!-- attachments strip -->
-            <div v-if="record.hasContent" class="row items-center q-gutter-xs q-mb-sm">
+            <!-- a client contact: a request's files only, added on its Files tab (impl-projects.md P10b) -->
+            <div v-if="record.hasContent && !(forClient && record.entity !== 'mantle.request.Request')" class="row items-center q-gutter-xs q-mb-sm">
                 <q-icon name="sym_o_attach_file" size="xs" class="m-muted"></q-icon>
                 <span class="text-caption m-muted">{{t('Files')}} {{fileCount}}</span>
                 <q-chip v-for="file in files" :key="file.contentKey" dense clickable :icon="file.icon" class="m-chatter-file" @click="openFile(file)">
                     <span class="ellipsis" style="max-width:160px">{{file.fileName}}</span><q-tooltip>{{file.fileName}} {{file.sizeText}}</q-tooltip>
                 </q-chip>
                 <span v-if="fileCount > files.length" class="text-caption m-muted">+{{fileCount - files.length}}</span>
-                <q-btn flat dense no-caps size="sm" color="primary" icon="sym_o_add" :label="t('Add')" @click="addFiles"></q-btn>
+                <q-btn v-if="!forClient" flat dense no-caps size="sm" color="primary" icon="sym_o_add" :label="t('Add')" @click="addFiles"></q-btn>
             </div>
 
             <q-separator class="q-mb-sm"></q-separator>
@@ -407,7 +411,7 @@ module.exports = {
     data() {
         chatterCount += 1;
         return {
-            uid: chatterCount, state: 'loading', record: null, me: {}, canMessage: false, canSchedule: false, mayUpdate: false,
+            uid: chatterCount, state: 'loading', record: null, me: {}, forClient: false, canMessage: false, canSchedule: false, mayUpdate: false,
             followers: [], isFollowing: false, myKinds: [], planned: [], files: [], fileCount: 0, parties: [], dataFailed: [],
             entries: [], hasMore: false, nextBeforeDate: null, nextSeenKeys: [], timelineFailed: [], loadingTimeline: false, filter: 'all', search: '',
             tab: null, composeOpen: false, formKeys: { message: 0, log: 0, activity: 0, kinds: 0, followers: 0, edit: 0, reply: 0, done: 0, editEntry: 0 },
@@ -433,7 +437,7 @@ module.exports = {
         composeTabs() {
             const tabs = [];
             if (this.canMessage && !this.hidden.includes('message')) tabs.push({ name: 'message', icon: 'sym_o_send', label: this.t('Send message'), short: this.t('Message') });
-            if (this.canMessage && !this.hidden.includes('log')) tabs.push({ name: 'log', icon: 'sym_o_edit_note', label: this.t('Log note'), short: this.t('Note') });
+            if (this.canMessage && !this.forClient && !this.hidden.includes('log')) tabs.push({ name: 'log', icon: 'sym_o_edit_note', label: this.t('Log note'), short: this.t('Note') });
             if (this.canSchedule && !this.hidden.includes('activity')) tabs.push({ name: 'activity', icon: 'sym_o_event_available', label: this.t('Schedule activity'), short: this.t('Activity') });
             return tabs;
         },
@@ -459,6 +463,8 @@ module.exports = {
                 { value: 'activities', label: this.t('Activities') }, { value: 'changes', label: this.t('Changes') }];
         },
         filters() {
+            // a client contact gets messages and changes only (no notes, activities or files of the record; impl-projects.md P10b)
+            if (this.forClient) return [{ value: 'all', label: this.t('All') }, { value: 'messages', label: this.t('Messages') }, { value: 'changes', label: this.t('Changes') }];
             return [{ value: 'all', label: this.t('All') }, { value: 'messages', label: this.t('Messages') }, { value: 'notes', label: this.t('Notes') },
                 { value: 'activities', label: this.t('Activities') }, { value: 'changes', label: this.t('Changes') }, { value: 'files', label: this.t('Files') }];
         },
@@ -539,8 +545,9 @@ module.exports = {
         applyData(json) {
             this.record = json.record || {};
             this.me = json.me || {};
+            this.forClient = !!json.forClient;
             this.canMessage = !!json.canMessage;
-            this.canSchedule = !!json.canSchedule;
+            this.canSchedule = !!json.canSchedule && !this.forClient;
             this.mayUpdate = !!json.mayUpdate;
             this.followers = json.followerList || [];
             this.isFollowing = !!json.isFollowing;

@@ -48,6 +48,13 @@ along with this software (see the LICENSE.md file). If not, see
         else the requester's Submit and Cancel (Commons' set#RequestStatus) -->
     <transition name="changeStatus">
         <actions><script><![CDATA[
+            // a client contact cancels a request it raised, and makes no other move (ironstone.client.ClientServices, impl-projects.md P10b)
+            if (!!ec.user.userId && ec.user.hasPermission('PROJECT_CLIENT')) {
+                if (toStatusId !== 'ReqCancelled') { ec.message.addError(ec.l10n.localize('Only the team moves a request on')); return }
+                const out = ec.service.sync().name('ironstone.client.ClientServices.cancel#ClientRequest').parameters({requestId: requestId}).call()
+                if (!ec.message.hasError()) ec.message.addMessage(out.message, 'success')
+                return
+            }
             let triager = false
             if (appRoot === 'Projects') {
                 const access = ec.service.sync().name('ironstone.ProjectRequestServices.get#ProjectRequestAccess').parameters({requestId: requestId, need: 'check'}).call() || {}
@@ -225,6 +232,8 @@ along with this software (see the LICENSE.md file). If not, see
     <actions>
         <script><![CDATA[
             projects = appRoot === 'Projects'
+            // a client contact (the PROJECT_CLIENT permission; impl-projects.md P10b): its part of the request only
+            clientView = !!ec.user.userId && ec.user.hasPermission('PROJECT_CLIENT')
             detailPath = projects ? '/qapps/Projects/Requests/RequestDetail' : '/qapps/Commons/Requests/RequestDetail'
             let pd = {}
             if (projects) {
@@ -254,7 +263,8 @@ along with this software (see the LICENSE.md file). If not, see
             // the status-bar: the stages and the moves the user may make
             stageStatusIds = projects ? (pd.stageStatusIds || []) : (detail.stageStatusIds || [])
             allowedStatusIds = projects ? (pd.allowedStatusIds || []) : (detail.allowedStatusIds || [])
-            partyList = detail.partyList || []
+            // a client contact opens no contact (Commons is not its): the people without links
+            partyList = (detail.partyList || []).map((one) => clientView ? Object.assign({}, one, {url: null}) : one)
             taskList = detail.taskList || []
             captionText = [L('Request') + ' ' + requestId, request.typeLabel, request.filedByName ? L('raised by') + ' ' + request.filedByName : null,
                 request.requestDateText].filter((part) => part).join(' · ')
@@ -426,7 +436,9 @@ along with this software (see the LICENSE.md file). If not, see
                         </container>
                     </container>
                     <container style="col-12 col-md-auto row items-center q-gutter-y-xs m-request-actions">
-                        <container-dialog id="RequestCommentDialog" button-text="Comment" icon="sym_o_add_comment" width="560" title="Comment on ${request.requestName || requestId}">
+                        <!-- a client contact writes in the Conversation (to the team), never a note (impl-projects.md P10b) -->
+                        <container-dialog id="RequestCommentDialog" button-text="Comment" icon="sym_o_add_comment" width="560" title="Comment on ${request.requestName || requestId}"
+                                condition="!clientView">
                             <form-single name="RequestComment" transition="addComment" focus-field="body">
                                 <field name="requestId"><default-field><hidden/></default-field></field>
                                 <field name="tab"><default-field><hidden/></default-field></field>

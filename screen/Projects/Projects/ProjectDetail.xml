@@ -127,6 +127,9 @@ along with this software (see the LICENSE.md file). If not, see
             const L = (text) => ec.l10n.localize(text)
             const enc = (text) => String(text == null ? '' : text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
             header = headerOut.header
+            // a client contact (impl-projects.md P10b): no moves, follow, clone or print, and the hours only when the project shares them
+            clientView = !!clientUser
+            hoursShown = !clientView || Array.from(ec.user.context.clientShareHoursProjectIds || []).includes(workEffortId)
             isProjectsManager = ec.user.isInGroup('BOSS_PROJECT_MANAGER') || ec.user.isInGroup('ADMIN')
             primaryAction = canManage ? header.primaryAction : null
             // the other moves of the flow, in the More menu
@@ -202,7 +205,7 @@ along with this software (see the LICENSE.md file). If not, see
                                 <field-ref name="body"/><field-ref name="clientVisible"/><field-ref name="submitButton"/></field-layout>
                         </form-single>
                     </container-dialog>
-                    <button-menu text="More" icon="more_horiz" style="q-ml-xs">
+                    <button-menu text="More" icon="more_horiz" style="q-ml-xs" condition="!clientView">
                         <link url="changeStatus" link-type="hidden-form-link" text="Approve" icon="sym_o_thumb_up" condition="moveIds.includes('WeApproved')"
                                 confirmation="Approve: ${header.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:'WeApproved'}"/>
                         <link url="changeStatus" link-type="hidden-form-link" text="${header.statusId == 'WeInPlanning' || header.statusId == 'WeApproved' ? 'Begin' : 'Resume'}" icon="sym_o_play_arrow" condition="moveIds.includes('WeInProgress')"
@@ -248,7 +251,7 @@ along with this software (see the LICENSE.md file). If not, see
                 <number-card title="Open items" value="${ec.l10n.format(header.openItems || 0, '#,##0')}" icon="sym_o_checklist" size="sm" link="${openItemsLink}"/>
                 <number-card title="Overdue" value="${ec.l10n.format(header.overdueItems || 0, '#,##0')}" icon="sym_o_assignment_late" size="sm" link="${overdueLink}"/>
                 <number-card title="Next milestone" value="${header.nextMilestoneText || '—'}" icon="sym_o_flag_circle" size="sm" link="${nextMilestoneLink}"/>
-                <number-card title="Hours" value="${header.hoursText}" icon="sym_o_schedule" size="sm"/>
+                <number-card title="Hours" value="${header.hoursText}" icon="sym_o_schedule" size="sm" condition="hoursShown"/>
                 <number-card title="Budget used" value="${header.budgetUsedText}" icon="sym_o_account_balance_wallet" size="sm" condition="canManage &amp;&amp; header.budgetUsedText"/>
                 <number-card title="Unbilled" value="${header.unbilledText}" icon="sym_o_request_quote" size="sm" link="/qapps/Projects/Billing/Unbilled?rootWorkEffortId=${workEffortId}"
                         condition="canManage &amp;&amp; header.unbilledText"/>

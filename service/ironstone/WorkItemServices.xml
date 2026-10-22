@@ -406,6 +406,15 @@ along with this software (see the LICENSE.md file). If not, see
                     milestoneId_display: row.milestoneName, releaseId_display: row.releaseName, sprintId_display: row.sprintName, estimatedCompletionDate_display: row.dueText,
                     estimatedWorkTime_display: row.estimatedText, remainingWorkTime_display: row.remainingText, actualWorkTime_display: row.actualText})
             }
+            // a client contact (impl-projects.md P10b): the hours logged only on a project that shares its hours with it
+            if (vis.isClient) {
+                let shareHours = []
+                ec.message.pushErrors()
+                try { shareHours = Array.from(ec.service.sync().name('mantle.work.ProjectServices.get#ClientProjectInfo').call()?.shareHoursProjectIds || []) }
+                catch (err) { shareHours = [] } finally { ec.message.clearErrors(); ec.message.popErrors() }
+                for (const row of rowList) if (!shareHours.includes(row.rootWorkEffortId)) Object.assign(row, {actualWorkTime: null, actualText: '',
+                    actualWorkTime_display: '', totalActualWorkTime: null, totalActualText: ''})
+            }
         ]]></script></actions>
     </service>
 
@@ -870,6 +879,14 @@ along with this software (see the LICENSE.md file). If not, see
                     actualText: hours(item.actualWorkTime), pointsText: hours(item.estimatedPoints), budgetText: hours(item.totalTimeAllowed),
                     totalEstimatedText: hours(own.totalEstimatedWorkTime), totalRemainingText: hours(own.totalRemainingWorkTime), totalActualText: hours(own.totalActualWorkTime),
                     totalBudgetText: hours(own.totalBudget), itemCount: own.itemCount || 0, doneCount: own.doneCount || 0, percentDone: own.percentDone}
+                // a client contact (impl-projects.md P10b): the hours logged only when the project shares its hours with it
+                if (ec.user.userId && ec.user.hasPermission('PROJECT_CLIENT')) {
+                    let shareHours = []
+                    ec.message.pushErrors()
+                    try { shareHours = Array.from(ec.service.sync().name('mantle.work.ProjectServices.get#ClientProjectInfo').call()?.shareHoursProjectIds || []) }
+                    catch (err) { shareHours = [] } finally { ec.message.clearErrors(); ec.message.popErrors() }
+                    if (!shareHours.includes(item.rootWorkEffortId)) Object.assign(rollup, {actualText: '', totalActualText: '', budgetText: '', totalBudgetText: ''})
+                }
                 const level = tree({parentWorkEffortId: workEffortId})
                 const decorated = {}
                 const rows = Array.from(level.workItemList || [])

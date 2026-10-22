@@ -19,7 +19,9 @@ along with this software (see the LICENSE.md file). If not, see
     merged, by whom, when and the commit; once closed, when); the linked work items (Link and Unlink for those who work in
     their project, each that completes on merge marked); the reviewers with their state, the commit they reviewed and when
     (Add reviewers and Remove for its author or a maintainer); and Chatter on the merge request, a column from 1440 px, below the
-    boxes narrower, where the line comments of Changes appear with their file and line. Services: ironstone.CodeServices
+    boxes narrower, where the line comments of Changes appear with their file and line. A client contact (clientUser;
+    impl-projects.md P10b) reads the description, the state, the work items shared with it and the merge's commit: no merge box,
+    reviewers, Chatter, Link or Unlink. Services: ironstone.CodeServices
     get#MergeRequestDetail, merge#MergeRequestBoss, set#MergeRequestReviewersBoss, link#MergeRequestItem, unlink#MergeRequestItem. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Overview" default-menu-index="1">
@@ -126,7 +128,10 @@ along with this software (see the LICENSE.md file). If not, see
                         <section name="ClosedInfo" condition="mr.statusId == 'GmrClosed'"><widgets>
                             <label text="Closed without merging ${mr.closedText}. Its author or a maintainer may reopen it from the More menu." type="p" style="q-mb-none"/>
                         </widgets></section>
-                        <section name="OpenMergeBox" condition="mr.isOpen"><widgets>
+                        <section name="OpenClient" condition="mr.isOpen &amp;&amp; clientUser"><widgets>
+                            <label text="${mr.isDraft ? 'A draft: the team is still working on it.' : 'Open: the team reviews it before it merges.'}" type="p" style="q-mb-none"/>
+                        </widgets></section>
+                        <section name="OpenMergeBox" condition="mr.isOpen &amp;&amp; !clientUser"><widgets>
                             <!-- checks -->
                             <label text="Checks" type="div" style="text-subtitle2"/>
                             <form-list name="MergeChecks" list="checkList" skip-form="true" skip-header="true" paginate="false">
@@ -174,7 +179,7 @@ along with this software (see the LICENSE.md file). If not, see
                             <container-box><box-header title="Work items"/>
                                 <box-toolbar>
                                     <container-dialog id="LinkItemDialog" button-text="Link" icon="sym_o_link" width="440" title="Link a work item to ${mr.numText}"
-                                            condition="mr.isOpen">
+                                            condition="mr.isOpen &amp;&amp; !clientUser">
                                         <form-single name="LinkMergeRequestItem" transition="linkItem">
                                             <field name="mergeRequestId"><default-field><hidden/></default-field></field>
                                             <field name="workEffortId"><default-field title="Work item key (IRON-12)"><text-line size="20"/></default-field></field>
@@ -190,16 +195,17 @@ along with this software (see the LICENSE.md file). If not, see
                                             <label text="${workEffortName}" type="div" style="text-caption ${isDone ? 'm-muted' : ''}"/>
                                             <label text="${[status, assigneeName, completeText].filter((part) => part).join(' · ')}" type="div" style="text-caption m-muted"/></default-field></field>
                                         <field name="unlink" align="right"><default-field>
-                                            <link url="unlinkItem" link-type="hidden-form-link" text="" icon="sym_o_link_off" tooltip="Unlink" style="m-btn-flat" condition="mr.isOpen"
+                                            <link url="unlinkItem" link-type="hidden-form-link" text="" icon="sym_o_link_off" tooltip="Unlink" style="m-btn-flat" condition="mr.isOpen &amp;&amp; !clientUser"
                                                     confirmation="Unlink ${workEffortId} from ${mr.numText}?" parameter-map="{mergeRequestId:mergeRequestId, workEffortId:workEffortId}"/></default-field></field>
                                     </form-list>
                                     <section name="NoMergeRequestItems" condition="!itemList.length"><widgets>
-                                        <label type="p" text="No work item. A key in the branch name, the title or the description links one; Closes IRON-12 completes it on merge." style="m-muted q-pa-sm q-mb-none"/>
+                                        <label type="p" text="${clientUser ? 'No work item' : 'No work item. A key in the branch name, the title or the description links one; Closes IRON-12 completes it on merge.'}" style="m-muted q-pa-sm q-mb-none"/>
                                     </widgets></section>
                                 </box-body-nopad>
                             </container-box>
                         </container>
                         <container style="col-12 col-md-6">
+                            <section name="ReviewersBox" condition="!clientUser"><widgets>
                             <container-box><box-header title="Reviewers · ${detail.approvalsText}"/>
                                 <box-toolbar>
                                     <container-dialog id="OverviewAddReviewersDialog" button-text="Add" icon="sym_o_person_add" width="480" title="Ask for a review of ${mr.numText}"
@@ -231,12 +237,15 @@ along with this software (see the LICENSE.md file). If not, see
                                     </widgets></section>
                                 </box-body-nopad>
                             </container-box>
+                            </widgets></section>
                         </container>
                     </container>
                 </container>
                 <!-- Chatter beside the boxes from 1440 px; the line comments appear in it with their file and line -->
                 <container style="col-12 col-lg-4">
+                    <section name="MergeRequestChatterSection" condition="!clientUser"><widgets>
                     <chatter id="MergeRequestChatter" record-entity="moqui.resource.GitMergeRequest" record-id="${mergeRequestId}" default-tab="message"/>
+                    </widgets></section>
                 </container>
             </container>
         </widgets></section>

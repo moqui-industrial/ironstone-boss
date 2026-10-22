@@ -99,6 +99,30 @@ const ALLOWED = {
     "Shared/ChatterTui": { tui: true },
     "Shared/RecordFiles": { path: "RecordFiles", recordEntity: "mantle.request.Request", recordId: "BOSS_DEMO_PREQ_ACME1" },
     "Shared/RecordFilesTui": { tui: true },
+    // Code (P10b): the repositories a client's projects share, read only (ACME shares none here: each says not available;
+    // test/ClientCode.spec.js opens them on a shared repository)
+    "Code": {},
+    "Code/Repositories": {},
+    "Code/MergeRequests": {},
+    "Code/RepositoryDetail": { repositoryId: "acme-portal" },
+    "Code/RepositoryDetail/Files": { repositoryId: "acme-portal" },
+    "Code/RepositoryDetail/Commits": { repositoryId: "acme-portal" },
+    "Code/RepositoryDetail/Branches": { repositoryId: "acme-portal" },
+    "Code/RepositoryDetail/Tags": { repositoryId: "acme-portal" },
+    "Code/CommitDetail": { repositoryId: "acme-portal", commitId: "main" },
+    "Code/MergeRequestDetail": { mergeRequestId: "_NA_" },
+    "Code/MergeRequestDetail/Overview": { mergeRequestId: "_NA_" },
+    "Code/MergeRequestDetail/Commits": { mergeRequestId: "_NA_" },
+    "Code/MergeRequestDetail/Changes": { mergeRequestId: "_NA_" },
+    "Code/MergeRequestDetail/ChangesTui": { mergeRequestId: "_NA_" },
+    "Projects/ProjectDetail/Code": { workEffortId: "ACME" },
+    // Billing (P10b): the client's own sent invoices, read only (none of Acme's in the demo: the detail says not available;
+    // test/ClientBilling.spec.js opens them), and the Hours tab (ACME shares no hours in the demo)
+    "Billing": {},
+    "Billing/Invoices": {},
+    "Billing/InvoicePrint": { invoiceId: "_NA_" },
+    "Shared/InvoiceDetail": { path: "Billing/InvoiceDetail", invoiceId: "_NA_" },
+    "Projects/ProjectDetail/ClientHours": { workEffortId: "ACME" },
 }
 // the screens mounted under another path that a client opens, and those it is refused there
 const MOUNTED_ALLOWED = {
@@ -106,17 +130,18 @@ const MOUNTED_ALLOWED = {
     "Projects/ProjectDetail/Roadmap": { workEffortId: "ACME" },
     "Projects/ProjectDetail/Requests": { workEffortId: "ACME" },
     "Projects/ProjectDetail/Plan/Timeline": { workEffortId: "ACME" },
+    "Code/RepositoryDetail/MergeRequests": { repositoryId: "acme-portal" },
 }
-const MOUNTED_REFUSED = ["Projects/ProjectDetail/Backlog", "Projects/ProjectDetail/Docs", "Projects/ProjectDetail/Time", "Projects/ProjectDetail/Code",
+const MOUNTED_REFUSED = ["Projects/ProjectDetail/Backlog", "Projects/ProjectDetail/Docs", "Projects/ProjectDetail/Time",
     "Projects/ProjectDetail/Team", "Projects/ProjectDetail/Money", "Projects/ProjectDetail/Files", "Projects/ProjectDetail/Settings",
-    "Projects/ProjectDetail/Plan/Calendar", "Billing/InvoiceDetail", "Billing/OrderDetail", "Projects/ProjectDetail/Money/CreateInvoice",
-    "Code/RepositoryDetail/MergeRequests", "Resources/PersonDetail/EditAllocation", "Time/TimeEntries/EditEntry"]
+    "Projects/ProjectDetail/Plan/Calendar", "Billing/OrderDetail", "Projects/ProjectDetail/Money/CreateInvoice",
+    "Resources/PersonDetail/EditAllocation", "Time/TimeEntries/EditEntry"]
 // the screens a client is refused, by path under the Projects root (a path prefix covers its subscreens)
-const REFUSED = ["Code", "Time", "Resources", "Reports", "Settings", "Billing", "QuickCreate", "QuickProject", "Projects/NewProject",
-    "Projects/EstimatePrint", "Projects/StatusReport", "Projects/ProjectDetail/Code", "Projects/ProjectDetail/Files", "Projects/ProjectDetail/Money",
+const REFUSED = ["Code/Compare", "Code/GitAccess", "Code/RepositoryDetail/Activity", "Code/RepositoryDetail/Settings", "Time", "Resources", "Reports", "Settings", "Billing/Unbilled", "Billing/Rates", "QuickCreate", "QuickProject", "Projects/NewProject",
+    "Projects/EstimatePrint", "Projects/StatusReport", "Projects/ProjectDetail/Files", "Projects/ProjectDetail/Money",
     "Projects/ProjectDetail/Settings", "Projects/ProjectDetail/Team", "Projects/ProjectDetail/Plan/Calendar", "Projects/ProjectDetail/Plan/CalendarTui",
     "WorkItems/Backlog", "WorkItems/BacklogTui", "WorkItems/Import", "WorkItems/ImportProgress", "WorkItems/SprintDetail", "WorkItems/SprintReport",
-    "Shared/InvoiceDetail", "Shared/OrderDetail"]
+    "Shared/OrderDetail"]
 const refusedPath = (path) => REFUSED.some((prefix) => path === prefix || path.startsWith(prefix + "/"))
 
 spec({
@@ -218,7 +243,11 @@ feature("the Projects menu of a client: Home, Projects, Work items and Requests 
         })
     },
     then({ levels }) {
-        levels.Projects == ["Home", "Projects", "WorkItems", "Requests"]
+        levels.Projects.filter((name) => name !== "Billing" && name !== "Code") == ["Home", "Projects", "WorkItems", "Requests"]
+        // P10b: Code, the repositories the client's projects share (none shared: an empty list)
+        levels.Projects.includes("Code")
+        // P10b: Billing, for the client's own invoices
+        levels.Projects.includes("Billing")
         levels.WorkItems == ["Timeline"]
     },
 })
@@ -393,7 +422,8 @@ feature("Chatter of a client: the message to it, never the note; no note attachm
         project.output.includes("Sign-in is late by a week")
         leaksOf(request.output, ACME_SECRETS) == []
         data.json?.visible == true
-        data.json?.canMessage == false
+        data.json?.forClient == true
+        data.json?.canMessage == true
         data.json?.followerList == null || data.json.followerList.length == 0
         leaksOf(data.output, ACME_SECRETS) == []
         !attachment.output.includes("ZQX")
@@ -477,7 +507,7 @@ feature("REST: a client reads no project, work item, request or party through th
     },
 })
 
-feature("a client changes nothing: status, fields, quick add, bulk, roadmap, gate and release moves are refused", {
+feature("a client changes nothing but its own: status, fields, quick add, bulk, roadmap, gate and release moves are refused", {
     when() {
         const before = sys(() => ec.entity.find("mantle.work.effort.WorkEffort").condition("workEffortId", "ACME-1").one().getMap())
         const tries = as(SHELDON, () => ({
@@ -488,17 +518,20 @@ feature("a client changes nothing: status, fields, quick add, bulk, roadmap, gat
             projectStatus: hit("Projects/Projects/ProjectDetail/changeStatus", { workEffortId: "ACME", statusId: "WeOnHold" }, "post"),
             postUpdate: hit("Projects/Projects/ProjectDetail/postUpdate", { workEffortId: "ACME", healthEnumId: "WehOnTrack", body: "client" }, "post"),
             plan: hit("Projects/Projects/Roadmap/savePlanItem", { rootWorkEffortId: "ACME", workEffortTypeEnumId: "WetMilestone", workEffortName: "Client milestone" }, "post"),
-            gate: hit("Projects/Projects/MilestoneDetail/decideGate", { workEffortId: "ACME-MS-1", decision: "approve" }, "post"),
+            // P10b: a client decides only a gate it is the approver of, sends a message only on a record it sees (test/ClientWrites.spec.js)
+            gate: hit("Projects/Projects/MilestoneDetail/decideGate", { workEffortId: "IRON-MS-2", action: "approve" }, "post"),
+            gateSet: hit("Projects/Projects/MilestoneDetail/decideGate", { workEffortId: "ACME-MS-1", action: "gate", approvalRequired: "N" }, "post"),
             release: hit("Projects/Projects/ReleaseDetail/releaseRelease", { workEffortId: "ACME-MS-1" }, "post"),
             request: hit("Projects/Requests/RequestDetail/triage", { requestId: "BOSS_DEMO_PREQ_ACME2", statusId: "ReqReviewed" }, "post"),
             timer: hit("Projects/WorkItems/WorkItemDetail/startTimer", { workEffortId: "ACME-1" }, "post"),
-            sendMessage: hit("Projects/Chatter/sendMessage", { recordEntity: "mantle.work.effort.WorkEffort", recordId: "ACME-1", body: "<p>Hi</p>" }, "post"),
+            sendMessage: hit("Projects/Chatter/sendMessage", { recordEntity: "mantle.work.effort.WorkEffort", recordId: "ACME-3", body: "<p>Hi</p>" }, "post"),
         }))
         const after = sys(() => ({ item: ec.entity.find("mantle.work.effort.WorkEffort").condition("workEffortId", "ACME-1").one().getMap(),
             project: ec.entity.find("mantle.work.effort.WorkEffort").condition("workEffortId", "ACME").one().statusId,
             added: ec.entity.find("mantle.work.effort.WorkEffort").condition("workEffortName", "Added by a client").count(),
             milestone: ec.entity.find("mantle.work.effort.WorkEffort").condition("workEffortName", "Client milestone").count(),
             gate: ec.entity.find("mantle.work.effort.WorkEffortApproval").condition("workEffortId", "ACME-MS-1").condition("statusId", "WeaApproved").count(),
+            gateRequired: ec.entity.find("mantle.work.effort.WorkEffortSetting").condition({ workEffortId: "ACME-MS-1", settingTypeEnumId: "WstApprovalRequired" }).one()?.settingValue,
             request: ec.entity.find("mantle.request.Request").condition("requestId", "BOSS_DEMO_PREQ_ACME2").one().statusId,
             messages: ec.entity.find("mantle.party.communication.CommunicationEvent").condition("fromPartyId", "ORG_ACME_SA").condition("body", "<p>Hi</p>").count() }))
         return { before, tries, after }
@@ -511,6 +544,7 @@ feature("a client changes nothing: status, fields, quick add, bulk, roadmap, gat
         after.added == 0
         after.milestone == 0
         after.gate == 0
+        after.gateRequired == "Y"
         after.request == "ReqSubmitted"
         after.messages == 0
     },

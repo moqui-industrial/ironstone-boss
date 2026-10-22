@@ -1017,7 +1017,11 @@ along with this software (see the LICENSE.md file). If not, see
             part('the merge requests', () => {
                 const itemIds = Array.from(ec.entity.find('mantle.work.effort.WorkEffortAssoc').condition('workEffortId', workEffortId).condition('workEffortAssocTypeEnumId', 'WeatRelease')
                         .conditionDate('fromDate', 'thruDate', null).list()).map((row) => row.toWorkEffortId)
-                const links = itemIds.length ? Array.from(ec.entity.find('mantle.work.effort.WorkEffortGitMergeRequest').condition('workEffortId', 'in', itemIds).disableAuthz().list()) : []
+                // only the items the user sees are named (a client: those shared with it; ironstone.CodeServices.get#VisibleWorkEfforts)
+                const seenItems = itemIds.length ? (ec.service.sync().name('ironstone.CodeServices.get#VisibleWorkEfforts').parameters({workEffortIdList: itemIds})
+                        .call()?.effortMap || {}) : {}
+                const links = itemIds.length ? Array.from(ec.entity.find('mantle.work.effort.WorkEffortGitMergeRequest').condition('workEffortId', 'in', itemIds).disableAuthz().list())
+                        .filter((link) => seenItems[link.workEffortId]) : []
                 const mrIds = Array.from(new Set(links.map((link) => link.mergeRequestId)))
                 const mrs = mrIds.length ? Array.from(ec.entity.find('moqui.resource.GitMergeRequest').condition('mergeRequestId', 'in', mrIds).disableAuthz().list()) : []
                 const order = {GmrMerged: 0, GmrOpen: 1, GmrDraft: 2, GmrClosed: 3}
@@ -1097,7 +1101,7 @@ along with this software (see the LICENSE.md file). If not, see
     <service verb="get" noun="ReleaseNotesInfo" allow-remote="false">
         <description>ReleaseNotes' data: the notes as kept (mantle get#ReleaseNotes), else a generated draft (generate#ReleaseNotes,
             draft true), when they were saved, the page they are published as (with its link, when the user may view it), and
-            whether the project has a documentation space.</description>
+            whether the project has a documentation space. A client contact gets the published notes only.</description>
         <in-parameters><parameter name="workEffortId" required="true"/></in-parameters>
         <out-parameters><parameter name="notes" type="Map"/></out-parameters>
         <actions><script><![CDATA[
@@ -1105,6 +1109,14 @@ along with this software (see the LICENSE.md file). If not, see
             const access = ec.service.sync().name('ironstone.PlanningServices.get#PlanItemAccess').parameters({workEffortId: workEffortId, need: 'view', kind: 'release'}).call() || {}
             if (ec.message.hasError()) return
             const kept = ec.service.sync().name('mantle.work.ProjectServices.get#ReleaseNotes').parameters({workEffortId: workEffortId}).call() || {}
+            // a client contact (impl-projects.md P10b) reads the notes once published, never a draft or a generated one (which names
+            // every item of the release, the team's own too), and no page link (the docs space is not its)
+            if (ec.user.userId && ec.user.hasPermission('PROJECT_CLIENT')) {
+                const published = !!kept.wikiPageId && !!String(kept.notesText || '').trim()
+                notes = {notesText: published ? kept.notesText : '', draft: false, savedText: '', published: published, pagePath: '', pageUrl: '',
+                    docsSpaceId: null, openCount: 0, clientHidden: !published}
+                return
+            }
             const draft = !String(kept.notesText || '').trim()
             const generated = draft ? ec.service.sync().name('mantle.work.ProjectServices.generate#ReleaseNotes').parameters({workEffortId: workEffortId}).call() || {} : {}
             const settings = ec.service.sync().name('mantle.work.ProjectServices.get#ProjectSettings').parameters({workEffortId: access.plan.rootWorkEffortId}).call()?.settings || {}

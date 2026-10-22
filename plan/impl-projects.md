@@ -62,7 +62,7 @@ Sections: [1 scope](#1-scope-and-order) · [2 rules](#2-ground-rules) · [3 phas
 | P7 Resources | Mantle, BOSS | TeamPlanner, Allocations, PersonDetail | done Oct 22 |
 | P8 Billing and money | Mantle, BOSS | Unbilled, Invoices, InvoiceDetail, OrderDetail, Rates, ProjectMoney, BillingSettings | done Oct 22 |
 | P9 Reports and outputs | Mantle, BOSS | Reports and its seven reports | done Oct 22 |
-| P10 Client access | mr-moqui, Mantle, BOSS | the client states of §1.1's screens | in progress (P10a access foundation built Oct 22; P10b client states, writes, billing) |
+| P10 Client access | mr-moqui, Mantle, BOSS | the client states of §1.1's screens | done Oct 22 |
 | P11 Finish | BOSS | — | planned |
 
 ### P0 — Checks
@@ -459,6 +459,28 @@ tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
 - Runs (Debug): ironstone-boss 582/582, mantle-usl 682/684 (ContactListSend), moqui-core lib 1772 (an LLM members test
   failed once under load and passes alone), tui_screens ok, gate3 the known two, lint clean.
 
+**Built, P10b** (Oct 22, 2026):
+- Framework: permission `EXTERNAL_USER` (an app grants it to its outside users): no record-bound rooms, no public room
+  but as a member, no records drive folder (screens, DAV, SFTP), no other user's presence, never the agent permissions
+  (Assist, chat agents, AI tasks, A2A, MCP, the LLM gateway; `ec.llm` refused); a read failure counts as external. Lists:
+  `row-selection` `condition` and `view-board`/`view-tree` `move-condition` (XSD, qvt, static, tui, goldens).
+- Mantle usl: the client rule of `get#RecordLinkInfo` applies with authorization off too (F128); the review services
+  refuse clients (F126); `get#ProjectClientContacts`, `send#ProjectUpdateEmail`, `send#EstimateEmail` (templates
+  MANTLE_PROJECT_UPDATE, MANTLE_PROJECT_ESTIMATE); spec features added.
+- BOSS: `ironstone.client.ClientServices` (the client's only writes, not remote, each re-checking access: Chatter send
+  and reply to internal people only, raise a request with files, files on an open request, cancel their own request, the
+  gate decision as its approver, which is how an estimate is approved); client states of Home (counters, gates, projects,
+  requests, replies, milestones, invoices due), ProjectDetail, Overview, WorkItems, WorkItemDetail, Requests,
+  RequestDetail, MilestoneDetail, ReleaseDetail (refused controls hidden; hours only when shared); the ClientHours tab;
+  Billing/Invoices and InvoiceDetail read only for sent invoices to the client; shared repositories read only (no
+  Compare, GitAccess, Activity or Settings; no review threads or CI statuses); `BOSS_PROJECTS_INTERNAL`'s write verbs
+  completed (F124) with a spec that checks every service file; specs `ClientWalk`, `ClientWrites`, `ClientBilling`,
+  `ClientCode`, `ClientChatDrive`, `ClientIsolation` extended.
+- Runs (Debug): ironstone-boss 620/620, mantle-usl 685/687 (ContactListSend), example 86/86, moqui-core lib 1777/1778 (a
+  chat preview test while a server ran; passes alone; the LLM members tests pass alone), tui_screens ok, gate3 the known
+  two, node 262/262, lint clean. Host `collab::dav_routes_and_coediting_over_the_socket` fails at HEAD before P10b too
+  (F136).
+
 ### P11 — Finish
 
 - The `tui` texts of the `.qvue` screens (MyTime first), the server-static pass, the inventories' **Implemented in**
@@ -532,6 +554,7 @@ Made during the build; each one that changes the design is also written into des
 | Oct 22, 2026 | A client is any user with PROJECT_CLIENT (held by BOSS_PROJECT_CLIENT); client sign-in is per project (`WstClientSignIn`, no organization default); P10a clients are read only; a user should be in either the client group or an internal one (a manager's ALWAYS still wins on screens) | P10a |
 | Oct 22, 2026 | A message is for the client when it is not a Comment and the client's party or organization (or a contact of it) is its from, to or CC, on a record the client sees | P10a |
 | Oct 22, 2026 | F100: a manager's recorded decision stays, marked `recordedFor`; the client approver's own decision is the normal path once they sign in | P10a |
+| Oct 22, 2026 | A client's writes are only `ironstone.client.ClientServices` (a package the deny pattern does not reach, each service re-checking access), not ALLOW rows (a DENY beats an ALLOW); clients do not accept deliverables; a client sees an invoice only once sent and release notes only once published | P10b |
 | Oct 22, 2026 | A recurring item counted from completion takes the completion day at the due date's time of day (UTC days) and the rule without its COUNT, which counts the items made | P2 |
 
 ## 5. Open questions
@@ -671,6 +694,20 @@ Design assumptions found wrong in the code, with the resolution (written into th
 | F121 | P10a (security, open): record-bound chat rooms and the records drive (DAV/SFTP through DriveDeviceServices, ALL_USERS ALWAYS) decide by `get#RecordLinkInfo`, which shows a client its shared items; mitigated (no app password, no Comms Chat); webroot chat store shows presence; Assist reachability unchecked | P10b closes it |
 | F122 | P10a: a qvue screen tested in qvt answers "render mode not supported" before authorization | Specs render qvue screens in qvue to see the refusal |
 | F123 | P10a: client screens still show refused controls and internal members and hours | P10b's client states |
+| F124 | P10b (security): the client deny pattern missed write verbs | Completed; a spec checks every service file |
+| F125 | P10b (security): `get#ItemTime` gave a client everyone's entries on a shared item | Fixed |
+| F126 | P10b (security): `create#ReviewComment`/`store#ReviewAnchor` write with authz off, so a viewer client could comment; `get#ReviewThreads` gave review notes to any viewer | Review services refuse clients |
+| F127 | P10b (security): Code services named Restricted and unshared items on branches, commits and release merge requests | `get#VisibleWorkEfforts` |
+| F128 | P10b (security): `get#RecordLinkInfo` skipped the client rule with authorization off (webroot chat transitions) | Fixed; F121 closed |
+| F129 | P10b (security): public rooms joinable and mentionable for clients, `userStatuses` gave any presence, agents acted in rooms with clients and any poster decided their cards, `ec.llm` and AI tasks had no per-user check | Fixed for EXTERNAL_USER |
+| F130 | P10b (security): the release-notes draft showed to anyone who could see the release | Published notes only for clients |
+| F131 | P10b (security): InvoiceDetail's writes relied on the access default view | They ask for change |
+| F132 | P10b (security, open, framework): `submit#MergeRequestReview` lets any viewer review and a viewer's approval counts toward branch-rule approvals | Count approvals only from users with the push right |
+| F133 | P10b (security, open, framework): a SubscreensItem's `userGroupId` is not checked for the first screen of a lastStandalone render | Framework, later (ClientHours shows an internal user nothing) |
+| F134 | P10b: client email needs EXTERNAL_USER and PROJECT_CLIENT granted together | §1.1 to say both |
+| F135 | P10b: reloading seed into an old DB keeps the P10a rows, so clients stay refused Billing there (fails closed) | Fresh load |
+| F136 | P10b: host `collab::dav_routes_and_coediting_over_the_socket` fails at HEAD (WikiServices update#WikiPage not authorized), before P10b | Not Projects; to look at |
+| F137 | P10b: a spec `then` line starting with `(` joins the previous line (ASI) | Compute in `when` |
 | F7 | P0: a wiki space under an existing repository is documented for a repository root (`rootPageDirectory: "git://docs"`, or `rootPageLocation` `git://<repositoryId>/<SPACE>.md`), not for a subdirectory such as `git://<repositoryId>/docs` | Checked in P4 as the design's §15 row says, before ProjectDocs is built |
 
 ## 7. Later
@@ -740,6 +777,10 @@ Designed, not in this build:
 
 - Reports (P9): saved reports on the index; Home's schedule warning; phone columns for secondary tables; indented tree
   exports (with the tree items above); TUI checks beyond rendering.
+
+- Client access (P10b): `view-calendar` move-condition; clients accepting deliverables; hiding the Code and Hours tabs
+  when nothing is shared; cloning for a client with a second factor; an HTTP-level DAV/SFTP test as a client; a link in
+  the estimate email; clients' presence to internal users.
 
 ## 8. Verification
 

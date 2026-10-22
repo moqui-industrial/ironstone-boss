@@ -126,7 +126,15 @@ written down here and extended for work items, requests and clients:
   message's from, to or a party to it and the message (or its thread's root) is filed on a record the client sees; a
   Comment (a note) never is. P10a makes clients read only in Projects (every IronStone write service and every Mantle
   record write denied), denies Billing until P10b opens Invoices and InvoiceDetail, and shows no time (no hours shared)
-  until P10b's client states.
+  until P10b's client states. As built in P10b: a client's own writes are `ironstone.client.ClientServices` only (a package
+  below the IronStone service deny pattern, which now names every write verb and is checked against every service file by
+  test/ClientWrites.spec.js), each allow-remote false and checking the client's access itself before it writes with
+  authorization off: Send message and Reply in Chatter (a Message to the record's internal people only: the record's
+  assignees or request assignee and the project's managers, never another client, the client's own side or an outside
+  party; a reply only to a message or a status update for it), raise a request in a client project with files (the public
+  form's kinds and limits), add files to a request it sees while open, cancel a request it raised, and decide a milestone
+  gate it is the approver of (approve, or refuse with a reason; the estimate's approval is its Estimate milestone's gate).
+  Every refused control is hidden in the client states (row-selection `condition`, board and tree `move-condition`).
 
 ### 1.2 Menu
 
@@ -379,7 +387,12 @@ Profitability report), and a separate project expenses screen (ProjectMoney's Ex
     open items; clients: their projects with the latest update posted for them.
   - Managers: Approvals (timesheets, allocation requests, milestone gates, each linking to its list); charts Hours by
     project over the last four weeks and Unbilled by client.
-  - Clients: Recent replies on my requests; Waiting for your approval (milestone gates addressed to them).
+  - Clients: Recent replies on my requests; Waiting for your approval (milestone gates addressed to them). As built
+    (impl-projects.md P10b, `ironstone.client.ClientServices.get#ClientHome`, each part on its own): the counters Open
+    requests, Waiting for your reply (the team's messages to the client with no later message from the client's side in the
+    thread), Waiting for your approval, Milestones in 30 days and Invoices due (sent, unpaid, `get#ClientInvoices`); the
+    gates it approves, its projects with the latest update posted for it, its open requests, the team's recent messages
+    (on any record it sees, not only requests), milestones soon and invoices due; New request.
   - Shortcuts: New work item, Log time, Start timer (on the last work item I logged), My time, New project
     (managers), New request (clients and team).
 - **Forms:**
@@ -526,8 +539,12 @@ project with sub-projects (`parentWorkEffortId`); there is no separate portfolio
 | `Chatter` | component | The project's timeline | | `chatter` | Shared/Chatter (design-drawers-commons §15) | Odoo chatter |
 
 - **States:** clients see Status (the updates posted for them), Next milestones, Work counts of the items shared
-  with them, Description and Members' names; no Time and budget, Repositories or Recent activity, and Chatter
-  shows them messages only (§15 "Chatter for client users").
+  with them, Description; no Time and budget, Repositories or Recent activity, and Chatter
+  shows them messages only (§15 "Chatter for client users"). As built (impl-projects.md P10b, on the safe side): no Members
+  box (the team's people are internal), the Breakdown's hours only when the project shares its hours, Recent activity as
+  `get#ProjectActivity` answers a client (status changes and updates for it), Repositories only those shared with it; the
+  title row has no More menu (Follow, Clone, Save as template, Print status report) and the Hours card shows only when the
+  project shares hours.
 - **Source:** research §3 BOSS implications (header facts, health, timeline, next milestone, budget against actual,
   overdue, activity); baseline `ProjectSummary`.
 - **Needs:** Project health; Project activity; `chatter` (exists); Chatter for client users.
@@ -602,8 +619,10 @@ helper), with Open beside Rotate and Turn off.
 - **States:** a tab cannot be left out by a condition (impl-projects.md F24), so with the Code module off the tab says
   so (Settings for managers) and still lists any linked repository; without git hosting in the build it says that.
   When the project shares its repositories with the client, client users see Repositories (with the
-  clone URLs, cloning with their own access token) and Recent commits, read only; the code browser and merge
-  requests stay internal.
+  HTTPS clone URL, cloning read only with their user name and password: no SSH and no Git access, so no access token),
+  Recent commits, Open merge requests and Tags, read only; when it shares none, the tab says the project's code is not
+  shared with them. As built (impl-projects.md P10b) they also open the read-only Code screens of those repositories
+  (§7, "Clients").
 - **Source:** research §16 and mr-moqui `docs/Git-Hosting.md` "Projects and tasks"; baseline `Project/EditRepositories`.
 - **Needs:** Code review store; Repository list with access.
 
@@ -792,7 +811,9 @@ The `record-files` element over the project (design-drawers-commons §9 RecordFi
   requested and decided by, when, the note). A gated milestone not approved has no Reach: its primary is Ask for approval (the team),
   and while a request waits, Approve (which reaches it) and Refuse (a reason required) for the approver's own user or, recording it
   for them, one who manages the project (`MILESTONE_APPROVE`, the Projects managers); until client users sign in (P10) the manager
-  records the client's decision, marked so. `update#Milestone` refuses Complete or Closed before the approval. Withdraw the request is
+  records the client's decision, marked so. As built (impl-projects.md P10b): a client contact who is the approver approves or
+  refuses here (`ironstone.client.ClientServices.decide#ClientGate`, recorded as its own), opens the estimate file only as the
+  approver, and has no other control (no gate settings, deliverable acceptance, billing or moves). `update#Milestone` refuses Complete or Closed before the approval. Withdraw the request is
   in More. A Gate chip in the title row. The Billing box (money holders) lists the shares with Add share (percent of a line or a fixed
   amount; the lines are the project's, from its Money tab) and Invoice milestone when due. The Deliverables box: added by the team,
   accepted by those who decide the gate (`WorkEffortDeliverableProd` gained `sequenceNum`, `acceptedDate`, `acceptedByUserId`; seed
@@ -817,7 +838,9 @@ The `record-files` element over the project (design-drawers-commons §9 RecordFi
 
 - **Actions:** Release (primary when In Progress: confirms; completes the release with its date, creates the tag
   when asked, moves unfinished items to the next release or to none, and publishes the notes); Generate draft.
-- **States:** clients see the version, dates, the shared items and the published notes.
+- **States:** clients see the version, dates, the shared items and the published notes. As built (impl-projects.md P10b):
+  `get#ReleaseNotesInfo` answers a client the notes only once published (never the generated draft, which names every item);
+  a merge request names only the items the user sees (`ironstone.CodeServices.get#VisibleWorkEfforts`).
 - **As built (P4b):** the work items in one list with a Kind column (Features, Fixes, Other) rather than grouped (list grouping
   is later); the merge requests and tags only of repositories the user may view (`get#ReleaseCode`); Create tag (an annotated
   tag, by default `v` and the version, at a ref given or the default branch) and Link a tag; the notes are kept as the
@@ -1013,7 +1036,7 @@ actions.
 | App | Tabs or panes shown | Filters fixed | Action set | Emphasis |
 | --- | --- | --- | --- | --- |
 | Projects | Overview with every field, Sub-items, Links, Development, Time (everyone's, rates for managers), Files, Chatter | items of the projects the user sees | all of the above | planning and delivery |
-| Projects, client users | Overview (type, status, priority, due, assignee's name, description), Chatter as messages | items shared with the client in their projects | comment (Send message) | progress of what they asked for |
+| Projects, client users | Overview (type, status, priority, due, assignee's name, description), Sub-items (the shared ones), Chatter as messages (the Messages tab); as built (impl-projects.md P10b) no Links, Development, Time or Files tab and no More menu | items shared with the client in their projects | comment (Send message to the team, Reply) | progress of what they asked for |
 | Commons | Overview without the planning fields, Sub-tasks (the same tree), Time (mine, clock in), Files, Chatter | tasks I am on, own or watch | complete, reassign, set due, repeat, clone, convert to request, add to Today, delete own | my next step (design-drawers-commons §8) |
 | Customer Service | Overview, Chatter, Files | follow-ups of cases, and work items linked to a case (design-customer-service) | complete, reassign, set due; open in Projects | the case it serves |
 | Sales | Overview, Chatter | follow-ups on opportunities, quotes and orders (design-sales) | complete, reassign, set due | the deal |
@@ -1171,7 +1194,9 @@ keeps the user's own slice.
 - **Views:** list; board by status (the request flow's columns: Submitted, Reviewed, In Progress, Completed), a drag
   moving the request through its flow.
 - **States:** clients see their organization's requests in their projects and the ones they filed, can raise one
-  (project, type, name, description, files) and have no bulk actions.
+  (project, type, name, description, files) and have no bulk actions. As built (impl-projects.md P10b): the chips All, Mine,
+  In progress and Closed; New request takes the project, what is needed, the type (the project's offered types), priority,
+  details and one file (more on the request's Files tab); no row selection and no board moves.
 - **Devices:** phone.
 - **Source:** research §11 (intake mechanisms, request to work); baseline `Request/FindRequest`; MarbleERP's request
   counts by status.
@@ -1226,7 +1251,10 @@ chooses the tabs and actions.
   users are told on the new topic `RequestUpdate`. Resolve's message is a note on the conversation; the requester hears through
   Chatter's Send message (Conversation opens on it for an outside customer).
 - **States:** a draft is edited only by its requester; clients see Overview read-only after submit, the
-  Conversation as messages, and Work as the status of the shared items.
+  Conversation as messages, and Work as the status of the shared items. As built (impl-projects.md P10b): a client writes in
+  the Conversation (Send message to the team, Reply) and never a note (no Comment button), adds files on the Files tab
+  while the request is open (no remove, versions or records drive), cancels a request it raised (the status-bar's only
+  move for it), and sees the people without contact links.
 - **Devices:** phone.
 - **Source:** research §11 (OpenProject and Redmine intake, Odoo alias, ERPNext issue and project, Dolibarr
   project tickets); research-customer-service §3 (the case detail, for the parts Customer Service adds); baseline
@@ -1301,6 +1329,18 @@ review"); Mantle links it to the work, and the screens are here.
 **Merge methods.** A merge commit and fast-forward come first; squash, rebase and dismissing approvals when the
 source moves follow as the second step of the merge work. Each repository has a default method (merge commit or
 squash, RepositorySettings), and the person merging may choose another the branch rules allow.
+
+**Clients** (impl-projects.md P10b). A client contact views a repository only when one of its client projects shares its
+repositories (`WstShareRepositories`): `check#GitRepositoryAuthz` gives it the view right and nothing more, decided by the
+repository's own records (impl-projects.md F23, F119), so the git server and the screens agree. It opens Repositories (those
+repositories only, one chip, no action), RepositoryDetail with Files (with Raw and Download), Commits, Branches, Tags and Merge
+requests, CommitDetail, and MergeRequests and MergeRequestDetail with its Commits and Changes, all read only: of the work
+items only those shared with it; no reviewers, review notes or line comments (the team's review, Comments as a note), no
+checks' descriptions or links, no Chatter on a merge request, no Link, Unlink, New branch, New tag, New merge request, merge,
+review or comment. Compare (it opens a merge request), Git access, a repository's Activity (the push log names the team's
+accounts) and Settings are refused it; Clone shows HTTPS with its user name and password. The palette's Code group finds
+nothing for a client. Code is in a client's menu even when nothing is shared with it (a menu entry cannot be left out by a
+condition), with an empty list.
 
 **Not in Projects.** Searching code and editing repository files in the browser belong to the coming developer
 tools, a separate app for development work; Projects' palette finds repositories and merge requests only, and
@@ -1687,6 +1727,12 @@ is the same decision.
   (billable and rates), and only by those who manage money; the rest needs an entry the user may change. ImportTime is a wizard,
   `Time/Import.xml` (Source, Preview, Import), not a dialog, the shape of WorkItemImport; the Mantle time detail format is not
   offered there (Mantle's own screens keep it). Log team time (`TeamTime`) is not built yet (impl-projects.md §7).
+  Clients (impl-projects.md P10b): TimeEntries and the whole Time section stay refused, and ProjectDetail's Time tab with them; a client
+  of a project that shares its hours (`WstShareHours`) gets its own tab, Hours (`ProjectDetail/ClientHours.xml`, mounted by a
+  `SubscreensItem` row for the client group only, over `ironstone.TimeServices.get#ClientHours`): the hours by week and work item, with the
+  totals by item, of the entries the team stands behind (ended, billable, on an approved week or a client invoice) on the items shared with
+  the client; never who, a rate, an amount, a comment or the timesheet. A project that does not share its hours says so and reads nothing.
+  The `TimeEntry` filter stays `_NA_`: no generic find reads time for a client; WorkItemDetail's All time answers a client nothing.
 - **Source:** research §8 (Redmine time entries list and bulk edit, Odoo timesheet list); baseline
   `Project/ProjectTimeEntries`, `Party/PartyTimeEntries`, `MyAccount/User/TimeEntries`.
 - **Needs:** Timesheet services (the lock); Time import.
@@ -1824,6 +1870,11 @@ projects the user sees, by `WorkEffortInvoice` (which `create#ProjectInvoiceItem
 time (`TimeEntry.invoiceId`, a client invoice; `vendorInvoiceId`, a worker's); an invoice linked to the project to someone other
 than its client is an expense invoice. The chips add **To send** (Finalized: approved and not sent) between Drafts and Sent, so an
 approved invoice is in one chip; All is the default and includes cancelled invoices.
+Clients (impl-projects.md P10b): Billing opens on Invoices for a client (Unbilled, Rates and OrderDetail stay refused it), which lists
+only the client invoices of its client projects addressed to its organization or itself and sent to it (Sent, Acknowledged, Payment
+Received: never a draft, an approved invoice not sent yet or a cancelled one), with the chips Sent, Overdue, Paid and All
+(`ironstone.BillingServices.get#ClientInvoices`); never a worker's or an expense invoice, another client's, or one of a project of its
+organization without client sign-in.
 
 ### InvoiceDetail (Context passed)
 
@@ -1848,6 +1899,11 @@ who, work item, hours, rate, amount, comment; CSV); Chatter. The print is `Billi
 with the time detail when the project's WstTimeDetail is not N. Worker and expense invoices are read only here; Accounting's
 version adds payments, adjustments and the ledger. P8b: a milestone line says which milestone it bills, when it was reached and its
 share of which order line, and a Milestones box lists them; removing it makes the share due again.
+Clients (impl-projects.md P10b): the same page read only for a client's own invoice (`get#InvoiceAccess` clientView; any change asks
+need change, which a client never passes, and the write services are denied it): the details, projects, lines, the milestones (no order
+link), the payments, Print and the PDF (`InvoicePrint`, its time detail as the client's); no Chatter, no move, no address to send to. The
+time of a line is shown only for a project that shares its hours, as day, work item (a shared item by name, any other as "Other work")
+and hours: never who, a rate, an amount or a comment, though the invoice's own line amounts are the client's.
 
 ### OrderDetail (Context passed)
 
@@ -2226,7 +2282,7 @@ record is read through a service that checks the repository's rights (R21).
 | `m-elapsed` | Vue component | `<m-elapsed :from="…" />`: the time since a timestamp as `h:mm`, ticking each minute | Home's timer strip, WorkItemDetail's timer, the Today panel's timer item | used through `render-mode` in XML screens |
 | Git access in Commons | BOSS screen | Commons/Settings/Account gains a Git access link to `Projects/Code/GitAccess` for a user who may open it, and else the `AccessTokens` and `NewAccessToken` forms of GitAccess, included from one form file | GitAccess, Commons Account | design-drawers-commons Account |
 | Client access | data model + seed data + shell item | The `BOSS_PROJECT_CLIENT` group and an entity filter set of that name on `WorkEffort` (projects where the user's party or organization holds a client role and client sign-in is on, and their work items with General or All users visibility), `Request` (their organization's in those projects, or filed by them), `Invoice` (to their organization), `TimeEntry` (only on projects that share hours) and `WorkEffortParty` (of those records), reading the client's project and organization ids that `mantle.work.ProjectServices.setup#ClientProjectInfo` puts in the user context from the Projects root's `always-actions` (a filter cannot express a role on the record; impl-projects F2); `get#RecordLinkInfo` gains the same client rule for Chatter, record files and chat; Commons' and Comms' `ALL_USERS` authz becomes `AUTHZT_ALLOW` with an `AUTHZT_DENY` for the client group (check that mr-moqui keeps Java's order, ALWAYS over DENY over ALLOW); the shell leaves out a tray tab, quick-create kind or palette group whose screen the user may not open. As built (impl-projects.md P10a): the Mantle permission `PROJECT_CLIENT` marks a client for the services; `get#ClientProjectInfo` (projects, organizations, contacts, sharing, status updates posted for the client, the parties a client may know of) and `setup#ClientProjectInfo`; `get#VisibleProjectInfo` answers a client its client projects with `itemVisibilityIds`; `CommunicationServices.get#ClientRecordVisibility` is the one client rule of `get#RecordLinkInfo` (work efforts, requests and messages only, no other record type), `get#RecordTimeline` (messages for the client and status changes only), `filter#ClientAudience` (the follower and mention notices) and Chatter's attachments; record files only of a request; the filter set also covers `Party` (the parties a client may know of), `CommunicationEvent` (no Comment; from or to the client's parties, or a status update posted for it), `WorkEffortUpdate`, `WorkEffortSetting` (the settings that decide a client's view only), `Payment`, `OrderPart`, and denies `RateAmount`, `TimeEntry`, `Timesheet`, `WorkEffortAllocation`, `OrderItemWorkEffort`, `WorkEffortBilling`, `WorkEffortInvoice`, `WorkEffortNote`, `RequestNote` and `WorkEffortContent`; the group `BOSS_PROJECTS_INTERNAL` denies the client the internal screens by location (wherever they are mounted), every IronStone write service and the edit forms' searches, and `BOSS_PROJECTS_CLIENT_WRITES` every Mantle record write; `ClientIsolation.spec.js` walks every screen file | the client-visible screens (§1.1) | a spec proves a client user never reads another client's project, an internal note, a rate or a cost through a screen, Chatter, record files, search or the palette |
-| Chatter for client users | service type + Vue component | `Shared/Chatter` takes the audience from the app context: for a client user `mantle.party.CommunicationServices.get#RecordTimeline` returns messages and status changes only (no notes, activities, files of notes or other audit rows), and the compose bar offers only Send message, to the record's internal parties. As built (P10a): the timeline and Chatter's data answer a client the messages for it (§1.1) and status changes, no followers, parties or files of a work effort, and no note's attachment; composing is P10b's (a client writes nothing in P10a) | ProjectOverview, WorkItemDetail, RequestDetail | design-drawers-commons §15 |
+| Chatter for client users | service type + Vue component | `Shared/Chatter` takes the audience from the app context: for a client user `mantle.party.CommunicationServices.get#RecordTimeline` returns messages and status changes only (no notes, activities, files of notes or other audit rows), and the compose bar offers only Send message, to the record's internal parties. As built (P10a): the timeline and Chatter's data answer a client the messages for it (§1.1) and status changes, no followers, parties or files of a work effort, and no note's attachment; composing is P10b's (a client writes nothing in P10a). As built (P10b): Send message to the record's internal people and Reply to a message or status update for it (`ironstone.client.ClientServices` send# and reply#ChatterMessage); no followers, notes, activities, Email…, unlink, Inbox thread or chat room links; the terminal twin offers Message to the team | ProjectOverview, WorkItemDetail, RequestDetail | design-drawers-commons §15 |
 | Project visibility in finds | service type | `mantle.work.ProjectServices.get#VisibleProjectInfo`: the projects the user holds a current role on and the organizations whose All users and General projects they see, as a condition every Projects find and list service applies (no entity filter covers `WorkEffort`, `Request` or `TimeEntry`; impl-projects F1); a Restricted or Confidential item only for its parties and the project's managers | every list of work efforts, requests and time | a spec proves a Work group project stays out of a non-member's lists, counts, search and palette |
 | User groups and SSH access | seed data | `BOSS_PROJECT_TEAM`, `BOSS_PROJECT_MANAGER`, `BOSS_PROJECT_CLIENT` with their `BOSS_PROJECTS` authz; `UserGroupPermission` `SSH_GIT` for the team and manager groups | §1.1, GitAccess | `SSH_GIT` cannot be granted to `ALL_USERS` |
 

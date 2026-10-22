@@ -46,6 +46,7 @@ along with this software (see the LICENSE.md file). If not, see
                     <field name="threadCount"><default-field title="Threads"><display/></default-field></field>
                 </form-list>
             </box-body-nopad></container-box>
+            <section name="ChangesTuiThreadsBox" condition="!clientUser"><widgets>
             <container-box><box-header title="Review threads"/><box-body-nopad>
                 <form-list name="ChangesTuiThreads" list="threadList" skip-form="true" paginate="false">
                     <field name="where"><default-field title="Line"><display/></default-field></field>
@@ -55,6 +56,7 @@ along with this software (see the LICENSE.md file). If not, see
                 </form-list>
                 <label type="p" text="No review threads" style="m-muted q-pa-sm q-mb-none" condition="!threadList.length"/>
             </box-body-nopad></container-box>
+            </widgets></section>
         </widgets><fail-widgets>
             <label type="p" text="Merge request ${mergeRequestId} is not available." style="m-muted"/>
         </fail-widgets></section>

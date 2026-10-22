@@ -52,6 +52,10 @@ along with this software (see the LICENSE.md file). If not, see
             repositoryList = Array.from(overview.repositoryList || [])
             activityList = Array.from(overview.activityList || [])
             descriptionText = project.description || ''
+            // a client contact (impl-projects.md P10b; the service leaves the rest out too): no members box, and the breakdown's hours only
+            // when the project shares them
+            clientView = !!overview.clientView
+            breakdownHours = !clientView || !!overview.sharesHours
             // the status chips with their counts, and the donut over them (the brand colors, grey for the waiting ones)
             statusChipsHtml = statusCountList.map((row) => '<m-link href="' + enc(row.url) + '"><q-chip dense square clickable class="q-ml-none m-tonal text-' + enc(row.color)
                     + '" data-status="' + enc(row.statusId) + '">' + enc(row.label) + ' · ' + row.count + '</q-chip></m-link>').join('')
@@ -61,7 +65,7 @@ along with this software (see the LICENSE.md file). If not, see
             latestUpdateHtml = latestUpdate ? '<div class="row items-center q-gutter-x-sm q-mb-xs"><q-chip dense square class="q-ma-none m-tonal text-' + enc(latestUpdate.healthColor) + '">'
                     + enc(latestUpdate.healthLabel) + '</q-chip><span class="text-weight-medium">' + enc(latestUpdate.subject) + '</span></div><div class="text-caption m-muted q-mb-xs">'
                     + enc([latestUpdate.dateText, latestUpdate.authorName, latestUpdate.percentText ? L('Progress') + ' ' + latestUpdate.percentText : '',
-                        latestUpdate.clientVisible ? L('Shown to the client') : ''].filter((part) => part).join(' · ')) + '</div>'
+                        latestUpdate.clientVisible && !overview.clientView ? L('Shown to the client') : ''].filter((part) => part).join(' · ')) + '</div>'
                     + (latestUpdate.percentComplete != null ? '<q-linear-progress rounded size="6px" :value="' + (Number(latestUpdate.percentComplete) / 100) + '" color="primary" track-color="grey-3" class="q-mb-sm"></q-linear-progress>' : '') : ''
         ]]></script>
     </actions>
@@ -128,8 +132,8 @@ along with this software (see the LICENSE.md file). If not, see
                                 <field name="statusLabel"><default-field title="Status">
                                     <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${statusColor}">${WebUtilities.encodeHtml(statusLabel ?? '')}</q-chip>]]></text>
                                         <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify(statusLabel ?? "")}}]]></text></render-mode></default-field></field>
-                                <field name="estimateText" align="right"><default-field title="Estimate"><display/></default-field></field>
-                                <field name="usedPercent"><default-field title="Actual + remaining">
+                                <field name="estimateText" align="right" hide="!breakdownHours"><default-field title="${breakdownHours ? 'Estimate' : ''}"><display/></default-field></field>
+                                <field name="usedPercent" hide="!breakdownHours"><default-field title="${breakdownHours ? 'Actual + remaining' : ''}">
                                     <render-mode><text type="qvt"><![CDATA[<div style="min-width: 110px"><span class="text-caption">${WebUtilities.encodeHtml(usedText ?? '')}</span><q-linear-progress rounded size="6px" :value="${Number(usedPercent || 0) / 100}" color="${barColor}" track-color="grey-3"></q-linear-progress></div>]]></text>
                                         <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify(usedText ?? "")}}]]></text></render-mode></default-field></field>
                                 <field name="doneText" align="right"><default-field title="Done"><display/></default-field></field>
@@ -174,6 +178,7 @@ along with this software (see the LICENSE.md file). If not, see
                                 <label text="No description" type="p" style="m-muted q-mb-none" condition="!descriptionText"/>
                             </box-body></container-box>
 
+                        <section name="MembersBox" condition="!clientView"><widgets>
                         <container-box><box-header title="Members · ${memberList.length}"/><box-toolbar>
                             <link url="../Team" link-type="anchor" text="Team" parameter-map="{workEffortId:workEffortId}"/>
                         </box-toolbar><box-body-nopad>
@@ -187,7 +192,9 @@ along with this software (see the LICENSE.md file). If not, see
                                 <label type="p" text="No members yet" style="m-muted q-pa-sm q-mb-none"/>
                             </widgets></section>
                         </box-body-nopad></container-box>
+                        </widgets></section>
 
+                        <section name="RepositoriesBoxShown" condition="!clientView || repositoryList.length"><widgets>
                         <container-box><box-header title="Repositories"/><box-body-nopad>
                             <form-list name="RepositoriesBox" list="repositoryList" skip-form="true" skip-header="true" paginate="false">
                                 <field name="repositoryId"><default-field>
@@ -202,6 +209,7 @@ along with this software (see the LICENSE.md file). If not, see
                                 <label type="p" text="No repository linked. Make or link one in the Code tab." style="m-muted q-pa-sm q-mb-none"/>
                             </widgets></section>
                         </box-body-nopad></container-box>
+                        </widgets></section>
 
                         <container-box><box-header title="Recent activity"/><box-body-nopad>
                             <form-list name="RecentActivity" list="activityList" skip-form="true" skip-header="true" paginate="false">

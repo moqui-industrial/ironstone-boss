@@ -37,7 +37,7 @@ along with this software (see the LICENSE.md file). If not, see
                 recordId: recordId || ''}).call()
             if (ec.message.hasError()) ec.web.sendJsonResponse({})
             else if (!out.visible) ec.web.sendJsonResponse({visible: false})
-            else ec.web.sendJsonResponse({visible: true, record: out.record, me: out.me, canMessage: out.canMessage, canSchedule: out.canSchedule,
+            else ec.web.sendJsonResponse({visible: true, record: out.record, me: out.me, forClient: out.forClient, canMessage: out.canMessage, canSchedule: out.canSchedule,
                 mayUpdate: out.mayUpdate, followerList: out.followerList, isFollowing: out.isFollowing, myKinds: out.myKinds,
                 plannedActivities: out.plannedActivities, fileList: out.fileList, fileCount: out.fileCount, hasContent: out.hasContent,
                 partyList: out.partyList, failedSources: out.failedSources})
@@ -125,9 +125,14 @@ along with this software (see the LICENSE.md file). If not, see
         ]]></script></actions>
         <default-response type="none"/>
     </transition>
+    <!-- a client contact's message and reply go to the record's internal people only (ironstone.client.ClientServices,
+        impl-projects.md P10b); everyone else's through ChatterServices -->
     <transition name="sendMessage">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ChatterServices.send#Message').parameters({recordEntityName: recordEntity, recordId: recordId,
+            const forClient = !!ec.user.userId && ec.user.hasPermission('PROJECT_CLIENT')
+            const out = forClient ? ec.service.sync().name('ironstone.client.ClientServices.send#ChatterMessage').parameters({recordEntityName: recordEntity,
+                    recordId: recordId, subject: subject || null, body: body, recordUrl: recordUrl || null}).call()
+                : ec.service.sync().name('ironstone.ChatterServices.send#Message').parameters({recordEntityName: recordEntity, recordId: recordId,
                 toUserIds: toUserIds || null, subject: subject || null, body: body, recordUrl: recordUrl || null}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {communicationEventId: out.communicationEventId,
                 messageInfos: [{type: 'success', message: out.message}]})
@@ -136,8 +141,9 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="reply">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ChatterServices.reply#Entry').parameters({recordEntityName: recordEntity, recordId: recordId,
-                parentCommEventId: parentCommEventId, body: body, recordUrl: recordUrl || null}).call()
+            const forClient = !!ec.user.userId && ec.user.hasPermission('PROJECT_CLIENT')
+            const out = ec.service.sync().name(forClient ? 'ironstone.client.ClientServices.reply#ChatterMessage' : 'ironstone.ChatterServices.reply#Entry')
+                .parameters({recordEntityName: recordEntity, recordId: recordId, parentCommEventId: parentCommEventId, body: body, recordUrl: recordUrl || null}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {communicationEventId: out.communicationEventId,
                 messageInfos: [{type: 'success', message: out.message}]})
         ]]></script></actions>

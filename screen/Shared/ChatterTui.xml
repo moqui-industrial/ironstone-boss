@@ -41,6 +41,21 @@ along with this software (see the LICENSE.md file). If not, see
         <default-response url=".."><parameter name="recordEntity"/><parameter name="recordId"/><parameter name="appRoot"/></default-response>
         <error-response url=".."><parameter name="recordEntity"/><parameter name="recordId"/><parameter name="appRoot"/></error-response>
     </transition>
+    <!-- a client contact's message to the team on the record (ironstone.client.ClientServices.send#ChatterMessage, impl-projects.md
+        P10b): a client logs no note -->
+    <transition name="sendClientMessage">
+        <actions><script><![CDATA[
+            const escape = (text) => String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            const text = String(body || '').trim()
+            if (!text) { ec.message.addError(ec.l10n.localize('Write the message first')); return }
+            const html = text.split(/\n{2,}/).map((part) => '<p>' + escape(part).replace(/\n/g, '<br>') + '</p>').join('')
+            const out = ec.service.sync().name('ironstone.client.ClientServices.send#ChatterMessage').parameters({recordEntityName: recordEntity || '',
+                recordId: recordId || '', body: html}).call()
+            if (!ec.message.hasError() && out?.message) ec.message.addMessage(out.message, 'success')
+        ]]></script></actions>
+        <default-response url=".."><parameter name="recordEntity"/><parameter name="recordId"/><parameter name="appRoot"/></default-response>
+        <error-response url=".."><parameter name="recordEntity"/><parameter name="recordId"/><parameter name="appRoot"/></error-response>
+    </transition>
 
     <actions><script><![CDATA[
         const L = (text) => ec.l10n.localize(text)
@@ -52,6 +67,7 @@ along with this software (see the LICENSE.md file). If not, see
         visible = false
         recordTitle = ''
         canMessage = false
+        forClient = false
         entryList = []
         hasMore = false
         if (asked) {
@@ -60,6 +76,7 @@ along with this software (see the LICENSE.md file). If not, see
             if (visible) {
                 recordTitle = [data.record?.typeLabel, data.record?.title].filter((part) => part).join(': ')
                 canMessage = data.canMessage === true
+                forClient = data.forClient === true
                 const out = ec.service.sync().name('ironstone.ChatterServices.get#Timeline').parameters({recordEntityName: recordEntity,
                     recordId: recordId, kinds: 'all'}).call()
                 if (!ec.message.hasError()) {
@@ -75,7 +92,16 @@ along with this software (see the LICENSE.md file). If not, see
     <widgets>
         <section name="ChatterTuiRecord" condition="visible"><widgets>
             <label type="h6" text="${recordTitle}" style="q-my-none" condition="recordTitle"/>
-            <section name="ChatterTuiLog" condition="canMessage"><widgets><container-box><box-header title="Log note"/><box-body>
+            <section name="ChatterTuiClientMessage" condition="canMessage &amp;&amp; forClient"><widgets><container-box><box-header title="Message to the team"/><box-body>
+                <form-single name="ChatterTuiClientMessage" transition="sendClientMessage">
+                    <field name="recordEntity"><default-field><hidden/></default-field></field>
+                    <field name="recordId"><default-field><hidden/></default-field></field>
+                    <field name="appRoot"><default-field><hidden/></default-field></field>
+                    <field name="body"><default-field title="Message"><text-area rows="4" cols="60"/></default-field></field>
+                    <field name="submitButton"><default-field title="Send"><submit/></default-field></field>
+                </form-single>
+            </box-body></container-box></widgets></section>
+            <section name="ChatterTuiLog" condition="canMessage &amp;&amp; !forClient"><widgets><container-box><box-header title="Log note"/><box-body>
                 <form-single name="ChatterTuiNote" transition="logNote">
                     <field name="recordEntity"><default-field><hidden/></default-field></field>
                     <field name="recordId"><default-field><hidden/></default-field></field>

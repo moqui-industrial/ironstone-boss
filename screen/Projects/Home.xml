@@ -37,8 +37,10 @@ along with this software (see the LICENSE.md file). If not, see
     Reports (impl-projects.md P9): for managers the charts Hours by project over the last four weeks (stacked by week, the time they
     may see) and, for those who manage money, Unbilled by client, each with its table in a dialog and a link to its report or list.
 
-    Clients (impl-projects.md P10a): a client contact gets the greeting and its projects only (ClientHome); the clients' Home of
-    design-projects.md §3 is P10b's. Each counter comes from
+    Clients (impl-projects.md P10b): a client contact gets the clients' Home of design-projects.md §3 (ClientHome, from
+    ironstone.client.ClientServices.get#ClientHome): Open requests, Waiting for your reply, Waiting for your approval, Milestones in
+    30 days and Invoices due; the gates it approves, its projects with the latest update posted for it, its open requests, the
+    team's recent messages to it, milestones soon and invoices due. Each counter comes from
     mantle.work.ProjectServices.get#ProjectHomeCounts, which answers null for one the user does not get. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Home" default-menu-index="1">
@@ -64,8 +66,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
 
     <actions>
-        <!-- a client contact (impl-projects.md P10): the greeting and its projects only; the clients' Home of design-projects.md §3
-            (requests, replies, approvals, invoices) is P10b's -->
+        <!-- a client contact (impl-projects.md P10b): the clients' Home of design-projects.md §3 -->
         <if condition="clientUser"><then>
             <script><![CDATA[
                 const L = (text) => ec.l10n.localize(text)
@@ -74,8 +75,20 @@ along with this software (see the LICENSE.md file). If not, see
                 const name = String(ec.user.userAccount?.userFullName || ec.user.username || '').split(' ')[0]
                 greeting = (hour < 12 ? L('Good morning') : hour < 18 ? L('Good afternoon') : L('Good evening')) + (name ? ', ' + name : '')
                 todayText = ec.l10n.format(new Date(nowMillis), 'EEEE, MMMM d')
-                const found = ec.service.sync().name('ironstone.ProjectServices.find#Projects').parameters({list: 'all', pageSize: 50, withCounts: false}).call() || {}
-                clientProjectList = Array.from(found.rowList || []).filter((row) => !row.isSubRow)
+                // the clients' Home of design-projects.md §3 (impl-projects.md P10b): ironstone.client.ClientServices.get#ClientHome
+                const clientHome = ec.service.sync().name('ironstone.client.ClientServices.get#ClientHome').call()?.home || {}
+                ec.message.clearErrors()
+                const counts = clientHome.counts || {}
+                const n = (value) => value == null ? '—' : ec.l10n.format(value, '#,##0')
+                openRequestsText = n(counts.openRequests); waitingReplyText = n(counts.waitingReply); approvalsText = n(counts.approvals)
+                milestones30Text = n(counts.milestones30); invoicesDueText = n(counts.invoicesDue)
+                clientProjectList = Array.from(clientHome.projectList || [])
+                clientRequestList = Array.from(clientHome.requestList || [])
+                clientReplyList = Array.from(clientHome.replyList || [])
+                clientApprovalList = Array.from(clientHome.approvalList || [])
+                clientMilestoneList = Array.from(clientHome.milestoneList || [])
+                clientInvoiceList = Array.from(clientHome.invoiceList || [])
+                clientFailedText = (clientHome.failedParts || []).length ? L('Some parts could not be read') + ': ' + clientHome.failedParts.join(', ') : ''
             ]]></script>
         </then><else>
         <service-call name="ironstone.ProjectServices.get#ProjectsHome" out-map="homeOut"/>
@@ -184,27 +197,103 @@ along with this software (see the LICENSE.md file). If not, see
             <label type="div" text="${todayText}" style="text-caption m-muted"/>
         </container>
 
-        <!-- a client contact's Home: its projects (impl-projects.md P10) -->
+        <!-- a client contact's Home (design-projects.md §3; impl-projects.md P10b): the counters, what waits on it (approvals, replies),
+            its projects with the latest update posted for it, its open requests, milestones soon and invoices due -->
         <section name="ClientHome" condition="clientUser"><widgets>
-            <container-box><box-header title="Your projects"/><box-toolbar>
-                <link url="../Projects" link-type="anchor" text="All projects"/>
-            </box-toolbar><box-body-nopad>
-                <form-list name="ClientProjects" list="clientProjectList" skip-form="true" skip-header="true" paginate="false">
-                    <field name="workEffortName"><default-field>
-                        <link url="projectDetail" text="${workEffortName}" parameter-map="{workEffortId:workEffortId}"/>
-                        <label text="${workEffortId}" type="div" style="text-caption m-muted"/></default-field></field>
-                    <field name="statusLabel"><default-field>
-                        <render-mode><text type="qvt"><![CDATA[<div class="row no-wrap">${healthLabel ? '<q-chip dense square class="q-my-none q-ml-none q-mr-xs m-tonal text-' + healthColor + '">' + WebUtilities.encodeHtml(healthLabel) + '</q-chip>' : ''}<q-chip dense square class="q-ma-none m-tonal text-${statusColor}">${WebUtilities.encodeHtml(statusLabel ?? '')}</q-chip></div>]]></text>
-                            <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify([healthLabel, statusLabel].filter((part) => part).join(" · "))}}]]></text></render-mode></default-field></field>
-                    <columns type="mobile">
-                        <column><field-ref name="workEffortName"/></column>
-                        <column><field-ref name="statusLabel"/></column>
-                    </columns>
-                </form-list>
-                <section name="NoClientProjects" condition="!clientProjectList.length"><widgets>
-                    <label type="p" text="No project is shared with you yet" style="m-muted q-pa-sm q-mb-none"/>
-                </widgets></section>
-            </box-body-nopad></container-box>
+            <container style="row items-center q-mb-sm">
+                <container style="col"/>
+                <link url="../Requests/List" link-type="anchor-button" btn-type="primary" text="New request" icon="sym_o_support"/>
+            </container>
+            <label text="${clientFailedText}" type="p" style="text-warning text-caption" condition="clientFailedText"/>
+            <dashboard min-width="150" style="q-mb-sm">
+                <number-card title="Open requests" value="${openRequestsText}" icon="sym_o_support" size="sm" link="/qapps/Projects/Requests/List?list=all"/>
+                <number-card title="Waiting for your reply" value="${waitingReplyText}" icon="sym_o_mark_chat_unread" size="sm"/>
+                <number-card title="Waiting for your approval" value="${approvalsText}" icon="sym_o_approval" size="sm"/>
+                <number-card title="Milestones in 30 days" value="${milestones30Text}" icon="sym_o_flag" size="sm" link="/qapps/Projects/Projects/Roadmap"/>
+                <number-card title="Invoices due" value="${invoicesDueText}" icon="sym_o_receipt_long" size="sm" link="/qapps/Projects/Billing/Invoices?list=sent"/>
+            </dashboard>
+            <container style="row q-col-gutter-sm">
+                <container style="col-12 col-md-6">
+                    <section name="ClientApprovals" condition="clientApprovalList.length"><widgets>
+                        <container-box type="info"><box-header title="Waiting for your approval"/><box-body-nopad>
+                            <form-list name="ClientApprovalList" list="clientApprovalList" skip-form="true" skip-header="true" paginate="false">
+                                <field name="workEffortName"><default-field>
+                                    <link url="${url}" url-type="plain" text="${workEffortName}" link-type="anchor"/>
+                                    <label text="${(isEstimate ? ec.l10n.localize('The estimate') + ' · ' : '') + ec.l10n.localize('asked') + ' ' + requestedText}" type="div" style="text-caption m-muted"/>
+                                    <label text="${comments}" type="div" style="text-caption" condition="comments"/></default-field></field>
+                            </form-list>
+                        </box-body-nopad></container-box>
+                    </widgets></section>
+                    <container-box><box-header title="Your projects"/><box-toolbar>
+                        <link url="../Projects" link-type="anchor" text="All projects"/>
+                    </box-toolbar><box-body-nopad>
+                        <form-list name="ClientProjects" list="clientProjectList" skip-form="true" skip-header="true" paginate="false">
+                            <field name="workEffortName"><default-field>
+                                <link url="projectDetail" text="${workEffortName}" parameter-map="{workEffortId:workEffortId}"/>
+                                <label text="${updateText}" type="div" style="text-caption m-muted"/></default-field></field>
+                            <field name="statusLabel"><default-field>
+                                <render-mode><text type="qvt"><![CDATA[<div class="row no-wrap">${healthLabel ? '<q-chip dense square class="q-my-none q-ml-none q-mr-xs m-tonal text-' + healthColor + '">' + WebUtilities.encodeHtml(healthLabel) + '</q-chip>' : ''}<q-chip dense square class="q-ma-none m-tonal text-grey-8">${WebUtilities.encodeHtml(statusLabel ?? '')}</q-chip></div>]]></text>
+                                    <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify([healthLabel, statusLabel].filter((part) => part).join(" · "))}}]]></text></render-mode></default-field></field>
+                            <columns type="mobile">
+                                <column><field-ref name="workEffortName"/></column>
+                                <column><field-ref name="statusLabel"/></column>
+                            </columns>
+                        </form-list>
+                        <section name="NoClientProjects" condition="!clientProjectList.length"><widgets>
+                            <label type="p" text="No project is shared with you yet" style="m-muted q-pa-sm q-mb-none"/>
+                        </widgets></section>
+                    </box-body-nopad></container-box>
+                    <container-box><box-header title="Your open requests"/><box-toolbar>
+                        <link url="../Requests/List" link-type="anchor" text="All requests"/>
+                    </box-toolbar><box-body-nopad>
+                        <form-list name="ClientRequestList" list="clientRequestList" skip-form="true" skip-header="true" paginate="false">
+                            <field name="requestName"><default-field>
+                                <link url="${url}" url-type="plain" text="${requestName}" link-type="anchor"/>
+                                <label text="${requestId} · ${updatedText}" type="div" style="text-caption m-muted"/></default-field></field>
+                            <field name="statusLabel"><default-field><label text="${statusLabel}" type="span" style="text-caption"/></default-field></field>
+                        </form-list>
+                        <section name="NoClientRequests" condition="!clientRequestList.length"><widgets>
+                            <label type="p" text="No open requests" style="m-muted q-pa-sm q-mb-none"/>
+                        </widgets></section>
+                    </box-body-nopad></container-box>
+                </container>
+                <container style="col-12 col-md-6">
+                    <container-box><box-header title="Recent replies"/><box-body-nopad>
+                        <form-list name="ClientReplyList" list="clientReplyList" skip-form="true" skip-header="true" paginate="false">
+                            <field name="subject"><default-field>
+                                <link url="${url}" url-type="plain" text="${subject || recordText}" link-type="anchor" condition="url"/>
+                                <label text="${subject}" type="span" condition="!url"/>
+                                <label text="${fromName} · ${whenText}${waiting ? ' · ' + ec.l10n.localize('waiting for your reply') : ''}" type="div" style="text-caption m-muted"/>
+                                <label text="${snippet}" type="div" style="text-caption ellipsis-2-lines"/></default-field></field>
+                        </form-list>
+                        <section name="NoClientReplies" condition="!clientReplyList.length"><widgets>
+                            <label type="p" text="No messages from the team yet" style="m-muted q-pa-sm q-mb-none"/>
+                        </widgets></section>
+                    </box-body-nopad></container-box>
+                    <section name="ClientMilestones" condition="clientMilestoneList.length"><widgets>
+                        <container-box><box-header title="Milestones in the next 30 days"/><box-body-nopad>
+                            <form-list name="ClientMilestoneList" list="clientMilestoneList" skip-form="true" skip-header="true" paginate="false">
+                                <field name="workEffortName"><default-field><link url="${url}" url-type="plain" text="${workEffortName}" link-type="anchor"/></default-field></field>
+                                <field name="dueText"><default-field><label text="${dueText}" type="span" style="text-caption ${overdue ? 'text-warning' : 'm-muted'}"/></default-field></field>
+                            </form-list>
+                        </box-body-nopad></container-box>
+                    </widgets></section>
+                    <section name="ClientInvoices" condition="clientInvoiceList.length"><widgets>
+                        <container-box><box-header title="Invoices due"/><box-toolbar>
+                            <link url="/qapps/Projects/Billing/Invoices" url-type="plain" link-type="anchor" text="All invoices"/>
+                        </box-toolbar><box-body-nopad>
+                            <form-list name="ClientInvoiceList" list="clientInvoiceList" skip-form="true" skip-header="true" paginate="false">
+                                <field name="invoiceId"><default-field>
+                                    <link url="${url}" url-type="plain" text="${ec.l10n.localize('Invoice')} ${invoiceId}" link-type="anchor"/>
+                                    <label text="${description}" type="div" style="text-caption m-muted" condition="description"/></default-field></field>
+                                <field name="unpaidText" align="right"><default-field>
+                                    <label text="${unpaidText}" type="div" style="text-weight-medium text-no-wrap"/>
+                                    <label text="${dueText ? ec.l10n.localize('due') + ' ' + dueText : ''}" type="div" style="text-caption ${overdue ? 'text-warning' : 'm-muted'}"/></default-field></field>
+                            </form-list>
+                        </box-body-nopad></container-box>
+                    </widgets></section>
+                </container>
+            </container>
         </widgets></section>
 
         <section name="TeamHome" condition="!clientUser"><widgets>

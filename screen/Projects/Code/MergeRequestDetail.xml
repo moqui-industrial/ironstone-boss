@@ -23,7 +23,8 @@ along with this software (see the LICENSE.md file). If not, see
     Close or Reopen, and the checkout commands. Merged and closed merge requests are read only. The tabs: Overview (the
     description, the merge box, the work items, the reviewers; Chatter beside them from 1440 px), Commits and Changes (the diff
     with its review threads, a .qvue). A merge request the user may not view is "not available". Without git hosting in the
-    build it says so. -->
+    build it says so. A client contact (clientUser; impl-projects.md P10b) reads a merge request of a repository its project
+    shares: no primary action and only the checkout commands in More (the services give it no right to change it). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Merge request" default-menu-include="false">
 
@@ -223,7 +224,7 @@ along with this software (see the LICENSE.md file). If not, see
                         <link url="closeMergeRequest" link-type="hidden-form-link" text="Close" icon="sym_o_cancel" btn-type="danger" condition="detail.canEdit"
                                 confirmation="Close ${mr.numText} without merging it?" parameter-map="{mergeRequestId:mergeRequestId, reopen:'N'}"/>
                         <link url="closeMergeRequest" link-type="hidden-form-link" text="Reopen" icon="sym_o_undo"
-                                condition="mr.statusId == 'GmrClosed' &amp;&amp; (canPush || mr.authorUserId == ec.user.userId) &amp;&amp; !detail.archived"
+                                condition="mr.statusId == 'GmrClosed' &amp;&amp; (canPush || mr.authorUserId == ec.user.userId) &amp;&amp; !detail.archived &amp;&amp; !clientUser"
                                 confirmation="Reopen ${mr.numText}?" parameter-map="{mergeRequestId:mergeRequestId, reopen:'Y'}"/>
                         <container-dialog id="CheckoutDialog" button-text="Checkout commands" icon="sym_o_terminal" width="520" title="Check out ${mr.sourceRef}">
                             <label text="${detail.checkoutText}" type="pre" style="text-mono q-mb-none"/>

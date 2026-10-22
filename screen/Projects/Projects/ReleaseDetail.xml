@@ -321,7 +321,8 @@ along with this software (see the LICENSE.md file). If not, see
                             </container-dialog>
                         </box-toolbar>
                         <box-body>
-                            <label type="p" text="${notesCaption}" style="text-caption m-muted q-mb-xs"/>
+                            <label type="p" text="${notesCaption}" style="text-caption m-muted q-mb-xs" condition="!notes.clientHidden"/>
+                            <label type="p" text="The release notes are shown here once they are published." style="m-muted q-mb-xs" condition="notes.clientHidden"/>
                             <section name="ReleaseNotesPublished" condition="notes.published"><widgets>
                                 <container style="row items-center q-gutter-x-sm q-mb-sm">
                                     <label text="${publishedText}" type="span" style="text-caption"/>
@@ -393,7 +394,8 @@ along with this software (see the LICENSE.md file). If not, see
                                             parameter-map="{workEffortId:release.workEffortId, repositoryId:repositoryId, refName:refName}"/>
                                 </conditional-field><default-field title=""><label text="" type="span"/></default-field></field>
                             </form-list>
-                            <label type="p" text="No tag yet: make one, or push a tag named as the version (${code.defaultTagName})." style="m-muted q-pa-sm q-mb-none" condition="!tagRows.length"/>
+                            <label type="p" text="No tag yet: make one, or push a tag named as the version (${code.defaultTagName})." style="m-muted q-pa-sm q-mb-none" condition="!tagRows.length &amp;&amp; !clientUser"/>
+                            <label type="p" text="No tag yet." style="m-muted q-pa-sm q-mb-none" condition="!tagRows.length &amp;&amp; clientUser"/>
                         </widgets><fail-widgets>
                             <label type="p" text="Code hosting is not in this build." style="m-muted q-pa-sm q-mb-none"/>
                         </fail-widgets></section>

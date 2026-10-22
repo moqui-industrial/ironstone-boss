@@ -179,7 +179,7 @@ along with this software (see the LICENSE.md file). If not, see
         <container-box><box-header title="${listLabel} · ${projectRowsCount}"/><box-body-nopad>
             <form-list name="ProjectList" list="projectRows" skip-form="true" paginate="true" show-page-size="false" views="list,board"
                     header-dialog="true" saved-finds="true" select-columns="true" show-csv-button="true" show-xlsx-button="true">
-                <row-selection id-field="workEffortId" parameter="selectedIds" list-mode="true">
+                <row-selection id-field="workEffortId" parameter="selectedIds" list-mode="true" condition="!clientUser">
                     <action><dialog button-text="Set manager" button-icon="sym_o_manage_accounts" title="The project manager of the selected projects"/>
                         <form-single name="BulkManager" transition="bulkAction">
                             <field name="bulk" from="'manager'"><default-field><hidden/></default-field></field>
@@ -276,7 +276,7 @@ along with this software (see the LICENSE.md file). If not, see
 
                 <!-- the board by status along the Default flow: a card is the project's name with its key, client and health -->
                 <view-board group-field="statusId" card-title-field="workEffortName" card-fields="workEffortId,clientPartyId,healthLabel"
-                        badge-field="openItems" key-fields="workEffortId" transition="moveCard" status-type-id="WorkEffort" status-flow-id="Default"
+                        badge-field="openItems" key-fields="workEffortId" transition="moveCard" move-condition="!clientUser" status-type-id="WorkEffort" status-flow-id="Default"
                         column-order="WeInPlanning,WeApproved,WeInProgress,WeOnHold,WeComplete" all-rows="true"/>
             </form-list>
             <section name="NoProjects" condition="!projectRows.length"><widgets>

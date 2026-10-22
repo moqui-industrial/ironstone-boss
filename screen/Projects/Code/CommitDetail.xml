@@ -16,7 +16,9 @@ along with this software (see the LICENSE.md file). If not, see
     The title row: the summary, the short id, Browse files at this commit. The header box: the body, the author and committer
     (avatars when they are users), the dates, the parents, the linked work items with Unlink and Link to work item (those who
     work in the item's project), and the CI statuses by context. Then "n files changed" and every file's diff (the moqui-diff
-    table), up to 25 files, past that a file list opening each. Services: ironstone.CodeServices get#CommitDetail, link#CommitItem,
+    table), up to 25 files, past that a file list opening each. A client contact (impl-projects.md P10b) reads a commit of a
+    repository its project shares: the work items shared with it, no Link or Unlink, and no checks (the team's CI). Services:
+    ironstone.CodeServices get#CommitDetail, link#CommitItem,
     unlink#CommitItem (org.moqui.impl.GitServices get#GitCommit, get#GitCommitDiff, get#GitCommitStatuses). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Commit" default-menu-include="false">
@@ -122,7 +124,7 @@ along with this software (see the LICENSE.md file). If not, see
                 <row-col lg="4">
                     <container-box><box-header title="Work items"/>
                         <box-toolbar>
-                            <container-dialog id="LinkItemDialog" button-text="Link" icon="sym_o_link" width="420" title="Link ${commit.shortId} to a work item">
+                            <container-dialog id="LinkItemDialog" button-text="Link" icon="sym_o_link" width="420" title="Link ${commit.shortId} to a work item" condition="!clientUser">
                                 <form-single name="LinkItem" transition="linkItem">
                                     <field name="repositoryId"><default-field><hidden/></default-field></field>
                                     <field name="commitId" from="commit.commitId"><default-field><hidden/></default-field></field>
@@ -138,14 +140,15 @@ along with this software (see the LICENSE.md file). If not, see
                                     <label text="${workEffortName}" type="div" style="text-caption"/>
                                     <label text="${statusLabel} · ${linkLabel}" type="div" style="text-caption m-muted"/></default-field></field>
                                 <field name="unlink"><default-field>
-                                    <link url="unlinkItem" link-type="hidden-form-link" text="Unlink" icon="sym_o_link_off" confirmation="Unlink ${workEffortId} from this commit?"
+                                    <link url="unlinkItem" link-type="hidden-form-link" text="Unlink" icon="sym_o_link_off" condition="!clientUser" confirmation="Unlink ${workEffortId} from this commit?"
                                             parameter-map="{repositoryId:repositoryId, commitId:commit.commitId, workEffortId:workEffortId}"/></default-field></field>
                             </form-list>
                             <section name="NoCommitItems" condition="!itemList.length"><widgets>
-                                <label type="p" text="No work item. A key in the message (IRON-12) or a Task: trailer links one." style="m-muted q-pa-sm q-mb-none"/>
+                                <label type="p" text="${clientUser ? 'No work item' : 'No work item. A key in the message (IRON-12) or a Task: trailer links one.'}" style="m-muted q-pa-sm q-mb-none"/>
                             </widgets></section>
                         </box-body-nopad>
                     </container-box>
+                    <section name="CommitChecks" condition="!clientUser"><widgets>
                     <container-box><box-header title="Checks"/><box-body-nopad>
                         <form-list name="CommitStatuses" list="statusList" skip-form="true" skip-header="true" paginate="false">
                             <field name="checkContext"><default-field>
@@ -161,6 +164,7 @@ along with this software (see the LICENSE.md file). If not, see
                             <label type="p" text="No checks posted. Outside CI posts them over REST with an access token." style="m-muted q-pa-sm q-mb-none"/>
                         </widgets></section>
                     </box-body-nopad></container-box>
+                    </widgets></section>
                 </row-col>
             </container-row>
 

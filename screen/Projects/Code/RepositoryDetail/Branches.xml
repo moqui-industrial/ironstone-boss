@@ -15,7 +15,8 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- RepositoryBranches (design-projects.md §7 RepositoryBranches): the branches, the default first; each with its last commit,
     ahead and behind the default (the 20 most recently changed), its work item, its open merge request and its CI state;
     Compare and New merge request (Compare with the branch as the source), Delete for those with the delete right (not the
-    default branch; its branch rules still apply), and New branch for those who may push. Services: ironstone.CodeServices
+    default branch; its branch rules still apply), and New branch for those who may push. A client contact (impl-projects.md P10b)
+    reads the list only: no Compare or New merge request (Compare is refused it). Services: ironstone.CodeServices
     get#RepositoryBranches; org.moqui.impl.GitServices create#GitRef, delete#GitRef. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Branches" default-menu-index="3">
@@ -92,7 +93,7 @@ along with this software (see the LICENSE.md file). If not, see
                             <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify(checkLabel ?? "")}}]]></text></render-mode>
                     </default-field></field>
                     <field name="actions"><default-field title="">
-                        <link url="compare" text="${mergeRequest ? 'Compare' : 'New merge request'}" icon="${mergeRequest ? 'sym_o_compare_arrows' : 'sym_o_merge'}" condition="!isDefault"
+                        <link url="compare" text="${mergeRequest ? 'Compare' : 'New merge request'}" icon="${mergeRequest ? 'sym_o_compare_arrows' : 'sym_o_merge'}" condition="!isDefault &amp;&amp; !clientUser"
                                 parameter-map="{repositoryId:repositoryId, head:name}"/>
                         <link url="deleteBranch" link-type="hidden-form-link" text="Delete" icon="sym_o_delete" btn-type="danger" condition="mayDelete"
                                 confirmation="Delete the branch ${name}?" parameter-map="{repositoryId:repositoryId, refName:name}"/>

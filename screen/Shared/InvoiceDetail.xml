@@ -27,8 +27,11 @@ along with this software (see the LICENSE.md file). If not, see
     (the milestone billing shares billed, each with its order line: impl-projects.md P8b), Time (every entry billed: day, who, work item,
     hours, rate, amount, comment), Payments; Chatter as the right column from 1440 px. Worker and expense invoices are read only here.
 
-    Clients (impl-projects.md P10) will see their own invoices read only: the details, the lines, the time detail when the project
-    shares hours, the payments and the PDF; never Chatter, the workers' rates or the internal actions. -->
+    A client (impl-projects.md P10b; get#InvoiceDetail clientView) sees its own sent invoices read only: the details, the projects, the
+    lines, the milestones billed (without the order link), the payments, Print and the PDF, and the time of the lines only when the
+    project shares its hours (day, work item and hours); never Chatter, who worked, a rate, an amount of time, an address to send to
+    or a move. Its transitions are refused a client twice: the write services are denied it (BOSS_PROJECTS_INTERNAL) and each
+    asks get#InvoiceAccess with need change, which a client never passes. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Invoice" default-menu-include="false">
 
@@ -81,7 +84,8 @@ along with this software (see the LICENSE.md file). If not, see
         paymentRows = inv.payments
         projectRows = inv.projects
         milestoneRows = inv.milestoneRows || []
-        termOptions = Array.from(ec.service.sync().name('ironstone.BillingServices.get#BillingSettings').call()?.termOptions || [])
+        clientView = !!inv.clientView
+        termOptions = clientView ? [] : Array.from(ec.service.sync().name('ironstone.BillingServices.get#BillingSettings').call()?.termOptions || [])
         headerValue = {invoiceId: invoiceId, invoiceDate: inv.invoiceDateValue, settlementTermId: inv.settlementTermId, referenceNumber: inv.referenceNumber,
             description: inv.description, invoiceMessage: inv.invoiceMessage}
         sendValue = {invoiceId: invoiceId, toAddresses: inv.sendTo, note: ''}
@@ -157,7 +161,7 @@ along with this software (see the LICENSE.md file). If not, see
                 <number-card title="Total" value="${inv.totalText}" icon="sym_o_receipt_long" size="sm"/>
                 <number-card title="Unpaid" value="${inv.unpaidText}" icon="sym_o_account_balance_wallet" size="sm"/>
                 <number-card title="Due" value="${inv.dueDateText || '—'}" icon="sym_o_event" size="sm"/>
-                <number-card title="Hours billed" value="${inv.hoursText}" icon="sym_o_schedule" size="sm"/>
+                <number-card title="Hours billed" value="${inv.hoursText}" icon="sym_o_schedule" size="sm" condition="!clientView || entryRows.length"/>
             </dashboard>
 
             <container style="row q-col-gutter-sm">
@@ -231,7 +235,24 @@ along with this software (see the LICENSE.md file). If not, see
                             </form-list>
                         </box-body-nopad></container-box>
                     </widgets></section>
-                    <section name="InvoiceTimeBox" condition="entryRows.length || !milestoneRows.length"><widgets>
+                    <!-- a client's time: the lines' hours when the project shares them, no one's name, rate or amount -->
+                    <section name="ClientTimeBox" condition="clientView &amp;&amp; entryRows.length"><widgets>
+                    <container-box><box-header title="Time · ${inv.hoursText} h"/><box-body-nopad>
+                        <form-list name="InvoiceClientTime" list="entryRows" skip-form="true" paginate="false" show-csv-button="true">
+                            <field name="invoiceItemSeqId"><default-field title="Line"><display/></default-field></field>
+                            <field name="dayText"><default-field title="Day"><label text="${dayText}" type="span" style="text-no-wrap"/></default-field></field>
+                            <field name="itemText"><default-field title="Work item">
+                                <link url="${itemUrl}" url-type="plain" text="${itemText}" link-type="anchor" condition="itemUrl"/>
+                                <label text="${itemText}" type="span" condition="!itemUrl"/></default-field></field>
+                            <field name="hoursText" align="right"><default-field title="Hours"><display/></default-field></field>
+                            <columns type="mobile">
+                                <column><field-ref name="dayText"/><field-ref name="itemText"/></column>
+                                <column><field-ref name="hoursText"/></column>
+                            </columns>
+                        </form-list>
+                    </box-body-nopad></container-box>
+                    </widgets></section>
+                    <section name="InvoiceTimeBox" condition="!clientView &amp;&amp; (entryRows.length || !milestoneRows.length)"><widgets>
                     <container-box><box-header title="Time · ${entryRows.length} entries, ${inv.hoursText} h"/><box-body-nopad>
                         <form-list name="InvoiceTime" list="entryRows" skip-form="true" paginate="false" show-csv-button="true">
                             <field name="invoiceItemSeqId"><default-field title="Line"><display/></default-field></field>
@@ -254,9 +275,11 @@ along with this software (see the LICENSE.md file). If not, see
                     </widgets></section>
                 </container>
                 <!-- Chatter, the notes on the invoice, beside the boxes from 1440 px -->
+                <section name="InvoiceChatterColumn" condition="!clientView"><widgets>
                 <container style="col-12 col-lg-4">
                     <chatter id="InvoiceChatter" record-entity="mantle.account.invoice.Invoice" record-id="${invoiceId}" default-tab="log"/>
                 </container>
+                </widgets></section>
             </container>
         </widgets></section>
     </widgets>

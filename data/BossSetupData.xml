@@ -179,7 +179,6 @@ along with this software (see the LICENSE.md file). If not, see
     </artifactGroups>
     <artifactGroups artifactGroupId="BOSS_PROJECTS_MANAGERS" description="IronStone Projects screens for managers only">
         <artifacts artifactName="component://ironstone-boss/screen/Projects/WorkItems/Import.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
-        <artifacts artifactName="component://ironstone-boss/screen/Projects/Billing.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
         <artifacts artifactName="component://ironstone-boss/screen/Projects/Settings.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
         <!-- the + menu's Project kind (impl-projects.md F8: the shell offers a kind by its screen's authorization) -->
         <artifacts artifactName="component://ironstone-boss/screen/Projects/QuickProject.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
@@ -192,31 +191,49 @@ along with this software (see the LICENSE.md file). If not, see
         <authz artifactAuthzId="BOSS_PROJECTS_MANAGERS_TEAM" userGroupId="BOSS_PROJECT_TEAM" authzTypeEnumId="AUTHZT_DENY" authzActionEnumId="AUTHZA_ALL"/>
         <authz artifactAuthzId="BOSS_PROJECTS_MANAGERS_CLIENT" userGroupId="BOSS_PROJECT_CLIENT" authzTypeEnumId="AUTHZT_DENY" authzActionEnumId="AUTHZA_ALL"/>
     </artifactGroups>
+    <!-- Billing: the managers' (the team is refused all of it); a client opens its Invoices, InvoiceDetail and InvoicePrint read only for
+        its own sent invoices (impl-projects.md P10b; BOSS_PROJECTS_INTERNAL refuses it Unbilled, Rates and OrderDetail) -->
+    <artifactGroups artifactGroupId="BOSS_PROJECTS_BILLING" description="IronStone Projects Billing: managers, and a client's own invoices">
+        <artifacts artifactName="component://ironstone-boss/screen/Projects/Billing.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
+        <authz artifactAuthzId="BOSS_PROJECTS_BILLING_TEAM" userGroupId="BOSS_PROJECT_TEAM" authzTypeEnumId="AUTHZT_DENY" authzActionEnumId="AUTHZA_ALL"/>
+    </artifactGroups>
     <!-- What the client contacts never reach (impl-projects.md P10; design-projects.md §1.1, §2 Roles): by location, so a screen
         mounted under another path (a ProjectDetail tab from Time, Backlog or Commons) is denied wherever it is mounted. The
-        sections Code, Time, Resources, Reports (P9: no reports for clients), Settings and Billing (P10b opens Invoices and
-        InvoiceDetail read only), quick create, the wizard and prints, the internal ProjectDetail tabs (Code, Docs, Team, Time,
-        Money, Files, Settings, Plan's Calendar), the Backlog, sprints and import, and every Commons and Comms screen. What a
-        client may open: the root, Home, Projects (List, ProjectDetail with Overview, Work items, Plan's Timeline, Roadmap and
-        Requests), Roadmap, MilestoneDetail, ReleaseDetail, WorkItems (List, WorkItemDetail, Timeline), Requests (List,
-        RequestDetail), Chatter and RecordFiles; test/ClientIsolation.spec.js fails when a screen file is neither. -->
+        sections Code, Time, Resources, Reports (P9: no reports for clients) and Settings, Billing's Unbilled, Rates and OrderDetail
+        (P10b opens Billing's Invoices, InvoiceDetail and InvoicePrint read only, for the client's own invoices), quick create, the
+        wizard and prints, the internal ProjectDetail tabs (Code, Docs, Team, Time, Money, Files, Settings, Plan's Calendar), the
+        Backlog, sprints and import, and every Commons and Comms screen. What a client may open: the root, Home, Projects (List, ProjectDetail with Overview, Work items, Plan's Timeline, Roadmap and
+        Requests, and P10b's Hours: ProjectDetail/ClientHours), Roadmap, MilestoneDetail, ReleaseDetail, WorkItems (List,
+        WorkItemDetail, Timeline), Requests (List, RequestDetail), Billing (Invoices, InvoiceDetail, InvoicePrint), Chatter and
+        RecordFiles; test/ClientIsolation.spec.js fails when a screen file is neither. -->
     <artifactGroups artifactGroupId="BOSS_PROJECTS_INTERNAL" description="IronStone Projects screens and writes the client contacts never reach">
-        <artifacts artifactName="component://ironstone-boss/screen/Projects/(Code|Time|Resources|Reports|Settings|Billing)(\.xml|/.*)"
+        <artifacts artifactName="component://ironstone-boss/screen/Projects/(Time|Resources|Reports|Settings)(\.xml|/.*)"
+                artifactTypeEnumId="AT_XML_SCREEN" nameIsPattern="Y" inheritAuthz="Y"/>
+        <!-- Code (P10b): a client reads the repositories its projects share (check#GitRepositoryAuthz, decided by the repository's own
+            records, impl-projects.md F23 and F119): Repositories, RepositoryDetail with Files, Commits, Branches, Tags and Merge
+            requests, CommitDetail, MergeRequests and MergeRequestDetail (Overview, Commits, Changes), read only; never Compare (it
+            opens a merge request), Git access, a repository's Activity (the push log) or Settings -->
+        <artifacts artifactName="component://ironstone-boss/screen/Projects/Code/(Compare|GitAccess|RepositoryDetail/Activity|RepositoryDetail/Settings)(\.xml|/.*)"
+                artifactTypeEnumId="AT_XML_SCREEN" nameIsPattern="Y" inheritAuthz="Y"/>
+        <artifacts artifactName="component://ironstone-boss/screen/Projects/Billing/(Unbilled|Rates)(\.xml|/.*)"
                 artifactTypeEnumId="AT_XML_SCREEN" nameIsPattern="Y" inheritAuthz="Y"/>
         <artifacts artifactName="component://ironstone-boss/screen/Projects/(QuickCreate|QuickProject)\.xml"
                 artifactTypeEnumId="AT_XML_SCREEN" nameIsPattern="Y" inheritAuthz="Y"/>
         <artifacts artifactName="component://ironstone-boss/screen/Projects/Projects/(NewProject|EstimatePrint|StatusReport)(\.xml|/.*)"
                 artifactTypeEnumId="AT_XML_SCREEN" nameIsPattern="Y" inheritAuthz="Y"/>
-        <artifacts artifactName="component://ironstone-boss/screen/Projects/Projects/ProjectDetail/(Code|Files|Money|Settings|Team|Plan/Calendar|Plan/CalendarTui)\.xml"
+        <artifacts artifactName="component://ironstone-boss/screen/Projects/Projects/ProjectDetail/(Files|Money|Settings|Team|Plan/Calendar|Plan/CalendarTui)\.xml"
                 artifactTypeEnumId="AT_XML_SCREEN" nameIsPattern="Y" inheritAuthz="Y"/>
         <artifacts artifactName="component://ironstone-boss/screen/Projects/WorkItems/(Backlog|BacklogTui|Import|ImportProgress|SprintDetail|SprintReport)(\.xml|/.*)"
                 artifactTypeEnumId="AT_XML_SCREEN" nameIsPattern="Y" inheritAuthz="Y"/>
-        <artifacts artifactName="component://ironstone-boss/screen/Shared/(InvoiceDetail|OrderDetail)\.xml"
+        <artifacts artifactName="component://ironstone-boss/screen/Shared/OrderDetail\.xml"
                 artifactTypeEnumId="AT_XML_SCREEN" nameIsPattern="Y" inheritAuthz="Y"/>
         <artifacts artifactName="component://ironstone-boss/screen/(Commons|Comms)(\.xml|/.*)"
                 artifactTypeEnumId="AT_XML_SCREEN" nameIsPattern="Y" inheritAuthz="Y"/>
-        <!-- every write of an IronStone app service (P10b opens the client's own: a message, a request, a gate decision) -->
-        <artifacts artifactName="ironstone\.[A-Za-z]+\.(add|apply|approve|archive|bulk|cancel|change|clockIn|clockOut|clone|close|complete|convert|copy|create|decide|delete|edit|follow|generate|import|invoice|link|log|make|mark|merge|move|post|publish|quickAdd|reassign|refuse|release|remove|rename|reopen|reply|request|return|save|schedule|send|set|share|staff|start|stop|store|submit|toggle|trash|triage|unfollow|unlink|update|upload)#.*"
+        <!-- every write of an IronStone app service, by its verb: every verb but the reads (get, find, search, check, clean, decorate,
+            describe, list, lookup, match, parse, suggest), which test/ClientIsolation.spec.js checks against every service file. The
+            client's own writes are ironstone.client.ClientServices (impl-projects.md P10b), a package level below, so not in this
+            pattern: each checks the client's access itself -->
+        <artifacts artifactName="ironstone\.[A-Za-z]+\.(add|apply|approve|archive|attach|book|bulk|cancel|change|clockIn|clockOut|clone|close|comment|complete|convert|copy|create|decide|delete|discard|drop|duplicate|edit|end|export|fetch|file|finish|follow|generate|import|invoice|join|link|load|log|make|mark|merge|migrate|move|open|place|post|prepare|publish|quickAdd|raise|rank|reassign|record|refuse|release|remove|rename|reopen|reply|request|reschedule|resolve|respond|restore|return|run|save|schedule|send|set|setup|share|staff|start|stop|store|submit|sync|test|toggle|trash|triage|turnOn|unfollow|unlink|unsubscribe|update|upload|use)#.*"
                 artifactTypeEnumId="AT_SERVICE" nameIsPattern="Y" inheritAuthz="Y"/>
         <!-- and the searches of the edit forms (people, records, work items and plan items to pick), which list beyond the client's part -->
         <artifacts artifactName="ironstone\.(InboxServices\.search#LinkRecords|ChatterServices\.search#Users|TaskServices\.search#Assignees|ProjectRequestServices\.search#WorkItemOptions|WorkItemServices\.search#ParentOptions|PlanningServices\.search#PlanItemCandidates)"
@@ -239,6 +256,17 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the Mantle permission that makes the project services see a client's part only (mantle.work.ProjectServices
         get#ClientProjectInfo, get#VisibleProjectInfo; CommunicationServices get#RecordLinkInfo, get#RecordTimeline) -->
     <moqui.security.UserGroupPermission userGroupId="BOSS_PROJECT_CLIENT" userPermissionId="PROJECT_CLIENT" fromDate="0"/>
+    <!-- a client's Hours tab of ProjectDetail (impl-projects.md P10b; design-projects.md §4 ProjectTime): for the client group only,
+        replacing the file's own item, so no internal user lists or opens it; the project's hours by week and work item when it
+        shares them, without rates (ironstone.TimeServices.get#ClientHours) -->
+    <moqui.screen.SubscreensItem screenLocation="component://ironstone-boss/screen/Projects/Projects/ProjectDetail.xml" subscreenName="ClientHours"
+            userGroupId="BOSS_PROJECT_CLIENT" subscreenLocation="component://ironstone-boss/screen/Projects/Projects/ProjectDetail/ClientHours.xml"
+            menuTitle="Hours" menuIndex="10" menuInclude="Y"/>
+    <!-- F121 (impl-projects.md P10b): the framework's outside-user permission keeps the client contacts out of record-bound chat
+        rooms (members too), public rooms they are not in, others' presence, the records drive over the screens, WebDAV and SFTP
+        (FileServices.get#DriveAccess), and every agent feature (Assist, chat agents, AI tasks, A2A: the Agent* permissions are
+        withheld from them and the model calls refused), whatever get#RecordLinkInfo says of a record -->
+    <moqui.security.UserGroupPermission userGroupId="BOSS_PROJECT_CLIENT" userPermissionId="EXTERNAL_USER" fromDate="0"/>
     <!-- Projects' link of the WorkItemAssigned topic that Mantle seeds and sends (mantle.work.TaskServices.notify#TaskAssigned): the
         work item in Projects, for the email; the tray opens the record's screen (ironstone.PaletteServices.get#RecordLink) -->
     <moqui.security.user.NotificationTopic topic="WorkItemAssigned" linkTemplate="/qapps/Projects/WorkItems/WorkItemDetail?workEffortId=${workEffortId}"/>
