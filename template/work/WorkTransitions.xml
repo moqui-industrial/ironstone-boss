@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The work effort, project and task search transitions, copied from SimpleScreens template/work/WorkTransitions.xml. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd">
+
+    <transition name="getProjectList">
+        <parameter name="term"/>
+        <parameter name="statusId"/>
+        <actions>
+            <set field="outList" from="[]"/>
+
+            <entity-find-one entity-name="mantle.work.effort.WorkEffort" value-field="workEffort">
+                <field-map field-name="workEffortId" from="term"/></entity-find-one>
+            <if condition="workEffort != null">
+                <script>outList.push({value:workEffort.workEffortId, label:ec.resource.expand("WorkEffortNameTemplate", "", workEffort)})</script>
+            </if>
+
+            <entity-find entity-name="mantle.work.effort.WorkEffortAndParty" list="projectList" limit="50">
+                <econdition field-name="workEffortTypeEnumId" value="WetProject"/>
+                <econdition field-name="statusId" operator="in" ignore-if-empty="true"/>
+                <econditions combine="or">
+                    <econdition field-name="workEffortId" operator="like" value="%${term}%" ignore-case="true" ignore-if-empty="true"/>
+                    <econdition field-name="workEffortName" operator="like" value="%${term}%" ignore-case="true" ignore-if-empty="true"/>
+                    <econdition field-name="description" operator="like" value="%${term}%" ignore-case="true" ignore-if-empty="true"/>
+                </econditions>
+                <select-field field-name="workEffortId,workEffortName"/>
+                <order-by field-name="workEffortId"/>
+            </entity-find>
+
+            <script>
+                for (const project of projectList)
+                    outList.push({value:project.workEffortId, label:ec.resource.expand("WorkEffortNameTemplate", "", project)})
+                ec.web.sendJsonResponse(outList)
+            </script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="getUserProjectList">
+        <parameter name="term"/>
+        <parameter name="statusId"/>
+        <actions>
+            <set field="outList" from="[]"/>
+
+            <entity-find-one entity-name="mantle.work.effort.WorkEffort" value-field="workEffort">
+                <field-map field-name="workEffortId" from="term"/></entity-find-one>
+            <if condition="workEffort != null">
+                <script>outList.push({value:workEffort.workEffortId, label:ec.resource.expand("WorkEffortNameTemplate", "", workEffort)})</script>
+            </if>
+
+            <entity-find entity-name="mantle.work.effort.WorkEffortAndParty" list="projectList" limit="50">
+                <econdition field-name="workEffortTypeEnumId" value="WetProject"/>
+                <econdition field-name="statusId" operator="in" ignore-if-empty="true"/>
+                <econditions combine="or">
+                    <econdition field-name="workEffortId" operator="like" value="%${term}%" ignore-case="true" ignore-if-empty="true"/>
+                    <econdition field-name="workEffortName" operator="like" value="%${term}%" ignore-case="true" ignore-if-empty="true"/>
+                    <econdition field-name="description" operator="like" value="%${term}%" ignore-case="true" ignore-if-empty="true"/>
+                </econditions>
+                <econditions combine="or">
+                    <econdition field-name="visibilityEnumId" operator="in" value="WevGeneral,WevAllUsers"/>
+                    <econditions><date-filter/><econdition field-name="partyId" from="ec.user.userAccount.partyId"/></econditions>
+                </econditions>
+                <select-field field-name="workEffortId,workEffortName"/>
+                <order-by field-name="workEffortId"/>
+            </entity-find>
+
+            <script>
+                for (const project of projectList)
+                    outList.push({value:project.workEffortId, label:ec.resource.expand("WorkEffortNameTemplate", "", project)})
+                ec.web.sendJsonResponse(outList)
+            </script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="getProjectParties">
+        <service-call name="mantle.work.ProjectServices.get#ProjectParties" out-map="context"
+                in-map="{rootWorkEffortId:workEffortId, addOptional:'false'}" web-send-json-response="resultList"/>
+        <default-response type="none"/>
+    </transition>
+    <transition name="getProjectMilestones">
+        <service-call name="mantle.work.ProjectServices.get#ProjectMilestones" web-send-json-response="resultList"/>
+        <default-response type="none"/>
+    </transition>
+
+    <transition name="getTaskList">
+        <parameter name="term"/>
+        <parameter name="rootWorkEffortId"/>
+        <parameter name="assignedPartyId"/>
+        <parameter name="indexName"/>
+        <parameter name="documentType"/>
+        <actions>
+            <set field="indexName" from="searchIndexName || 'mantle'"/>
+            <set field="documentType" from="searchTaskDocType || 'MantleTask'"/>
+            <!-- <log message="====== getTaskList indexName=${indexName}, documentType=${documentType}, term=${term}, rootWorkEffortId=${rootWorkEffortId}"/> -->
+
+            <entity-find-one entity-name="mantle.work.effort.WorkEffort" value-field="workEffort">
+                <field-map field-name="workEffortId" from="term"/></entity-find-one>
+
+            <if condition="workEffort"><then>
+                <script>
+                    ec.web.sendJsonResponse([{value:workEffort.workEffortId, label:ec.resource.expand("WorkEffortNameTemplate", "", workEffort)}])
+                </script>
+            </then><else>
+                <script><![CDATA[
+                    termText = term + '*'
+                    if (rootWorkEffortId) termText += ' AND project:' + rootWorkEffortId
+                    if (assignedPartyId) termText += ' AND parties.partyId:' + assignedPartyId
+                    ]]></script>
+                <service-call name="org.moqui.search.SearchServices.search#DataDocuments" out-map="context"
+                        in-map="{queryString:termText, indexName:indexName, documentType:documentType}"/>
+                <script>
+                    ec.web.sendJsonResponse((documentList ?? []).map(document => ({value:document._id,
+                        label:ec.resource.expand("WorkEffortNameTemplate", "", {workEffortName:document.name, workEffortId:document._id})})))
+                </script>
+            </else></if>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+
+    <transition name="getOpenClientInvoicesByProject">
+        <parameter name="workEffortId"/>
+        <actions>
+            <entity-find entity-name="mantle.work.effort.WorkEffortParty" list="billToList">
+                <date-filter/><econdition field-name="workEffortId"/>
+                <econdition field-name="roleTypeId" operator="in" value="Customer,CustomerBillTo"/>
+            </entity-find>
+            <set field="billToWep" from="billToList?.length ? billToList[0] : null"/>
+            <entity-find entity-name="mantle.work.effort.WorkEffortParty" list="billFromList">
+                <date-filter/><econdition field-name="workEffortId"/>
+                <econdition field-name="roleTypeId" operator="in" value="Vendor,VendorBillFrom"/>
+            </entity-find>
+            <set field="billFromWep" from="billFromList?.length ? billFromList[0] : null"/>
+
+            <entity-find entity-name="mantle.account.invoice.Invoice" list="invoiceList">
+                <econdition field-name="invoiceTypeEnumId" value="InvoiceSales"/>
+                <econdition field-name="statusId" value="InvoiceInProcess"/>
+                <econdition field-name="toPartyId" from="billToWep?.partyId" ignore-if-empty="true"/>
+                <econdition field-name="fromPartyId" from="billFromWep?.partyId" ignore-if-empty="true"/>
+            </entity-find>
+            <set field="resultList" from="[{invoiceId:'', label:'New'}]"/>
+            <iterate list="invoiceList" entry="invoice">
+                <script>resultList.push({invoiceId:invoice.invoiceId, label:`#${invoice.invoiceId}: ${ec.l10n.format(invoice.invoiceDate, 'yyyy-MM-dd HH:mm:ss')}`})</script>
+            </iterate>
+            <script>ec.web.sendJsonResponse(resultList)</script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="getOpenVendorInvoicesByFromParty">
+        <parameter name="workerPartyId"/>
+        <actions>
+            <entity-find entity-name="mantle.account.invoice.Invoice" list="invoiceList">
+                <econdition field-name="invoiceTypeEnumId" value="InvoiceSales"/>
+                <econdition field-name="statusId" operator="in" value="InvoiceIncoming,InvoiceReceived"/>
+                <econdition field-name="fromPartyId" from="workerPartyId"/>
+            </entity-find>
+            <set field="resultList" from="[]"/>
+            <iterate list="invoiceList" entry="invoice">
+                <script>resultList.push({invoiceId:invoice.invoiceId, label:`#${invoice.invoiceId}: ${ec.l10n.format(invoice.invoiceDate, 'yyyy-MM-dd HH:mm:ss')}`})</script>
+            </iterate>
+            <script>ec.web.sendJsonResponse(resultList)</script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+
+    <widgets>
+    </widgets>
+</screen>
