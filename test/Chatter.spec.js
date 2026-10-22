@@ -587,8 +587,9 @@ feature("every BOSS app root mounts its Chatter and RecordFiles panels, which an
     when() {
         const str = ec.screen.makeTest().rootScreen(webroot).render("shellData", {}, null)
         const json = JSON.parse(str.output)
-        const boss = (json.apps || []).filter((app) => /^\/qapps\/(Commons|Comms|Sales|Insights|Admin)$/.test(app.path))
-        return { shell: json.shell || {}, boss, chatter: render("apps/Commons/Chatter", {}, "qvue"), files: render("apps/Sales/RecordFiles", {}, "qvue") }
+        // Sales, Insights and Admin have no grant until they are implemented
+        const boss = (json.apps || []).filter((app) => /^\/qapps\/(Commons|Comms)$/.test(app.path))
+        return { shell: json.shell || {}, boss, chatter: render("apps/Commons/Chatter", {}, "qvue"), files: render("apps/Commons/RecordFiles", {}, "qvue") }
     },
     then({ shell, boss, chatter, files }) {
         shell.chatterScreen == "Chatter"

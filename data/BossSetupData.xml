@@ -33,6 +33,7 @@ along with this software (see the LICENSE.md file). If not, see
             <filters entityFilterSetId="MANTLE_PRIVATE_CONTACT"/></authz>
     </artifactGroups>
 
+    <!-- Not yet implemented:
     <artifactGroups artifactGroupId="BOSS_SALES" description="IronStone Sales App (via root screen)">
         <artifacts artifactName="component://ironstone-boss/screen/Sales.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
         <authz artifactAuthzId="BOSS_SALES_ADMIN" userGroupId="ADMIN" authzTypeEnumId="AUTHZT_ALWAYS" authzActionEnumId="AUTHZA_ALL">
@@ -99,6 +100,20 @@ along with this software (see the LICENSE.md file). If not, see
             <filters entityFilterSetId="MANTLE_ACTIVE_ORG"/>
             <filters entityFilterSetId="MANTLE_PRIVATE_CONTACT"/></authz>
     </artifactGroups>
+
+    <artifactGroups artifactGroupId="BOSS_INSIGHTS" description="IronStone Insights App (via root screen)">
+        <artifacts artifactName="component://ironstone-boss/screen/Insights.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
+        <authz artifactAuthzId="BOSS_INSIGHTS_ADMIN" userGroupId="ADMIN" authzTypeEnumId="AUTHZT_ALWAYS" authzActionEnumId="AUTHZA_ALL">
+            <filters entityFilterSetId="MANTLE_ACTIVE_ORG"/>
+            <filters entityFilterSetId="MANTLE_PRIVATE_CONTACT"/></authz>
+    </artifactGroups>
+    <artifactGroups artifactGroupId="BOSS_ADMIN" description="IronStone Admin App (via root screen)">
+        <artifacts artifactName="component://ironstone-boss/screen/Admin.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
+        <authz artifactAuthzId="BOSS_ADMIN_ADMIN" userGroupId="ADMIN" authzTypeEnumId="AUTHZT_ALWAYS" authzActionEnumId="AUTHZA_ALL">
+            <filters entityFilterSetId="MANTLE_ACTIVE_ORG"/>
+            <filters entityFilterSetId="MANTLE_PRIVATE_CONTACT"/></authz>
+    </artifactGroups>
+    -->
     <!-- The client filter set (design-projects.md §15 Client access; impl-projects.md F2, P10): what a client contact's finds see,
         from the user context mantle.work.ProjectServices.setup#ClientProjectInfo fills in the Projects root's always-actions (each
         list _NA_ when empty, and _NA_ when it was not set: a filter then matches nothing). A view without an alias a filter needs
@@ -339,18 +354,6 @@ along with this software (see the LICENSE.md file). If not, see
         subject, the body and the PDF passed by the service (subject, fromAddress, fromName in bodyParameters) -->
     <moqui.basic.email.EmailTemplate emailTemplateId="BOSS_PROJECT_INVOICE" description="Project Client Invoice" emailServerId="SYSTEM"
             fromAddress="${fromAddress}" fromName="${fromName}" ccAddresses="" bccAddresses="" subject="${subject}" sendPartial="Y"/>
-    <artifactGroups artifactGroupId="BOSS_INSIGHTS" description="IronStone Insights App (via root screen)">
-        <artifacts artifactName="component://ironstone-boss/screen/Insights.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
-        <authz artifactAuthzId="BOSS_INSIGHTS_ADMIN" userGroupId="ADMIN" authzTypeEnumId="AUTHZT_ALWAYS" authzActionEnumId="AUTHZA_ALL">
-            <filters entityFilterSetId="MANTLE_ACTIVE_ORG"/>
-            <filters entityFilterSetId="MANTLE_PRIVATE_CONTACT"/></authz>
-    </artifactGroups>
-    <artifactGroups artifactGroupId="BOSS_ADMIN" description="IronStone Admin App (via root screen)">
-        <artifacts artifactName="component://ironstone-boss/screen/Admin.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
-        <authz artifactAuthzId="BOSS_ADMIN_ADMIN" userGroupId="ADMIN" authzTypeEnumId="AUTHZT_ALWAYS" authzActionEnumId="AUTHZA_ALL">
-            <filters entityFilterSetId="MANTLE_ACTIVE_ORG"/>
-            <filters entityFilterSetId="MANTLE_PRIVATE_CONTACT"/></authz>
-    </artifactGroups>
 
     <!-- The suite shell's IronStone screens (design-drawers-commons.md §1.2, impl R14), on the Quasar theme BOSS ships with:
         the tray panel's three tabs, the quick-create screen of the + menu kinds that name no screen, and the screen the

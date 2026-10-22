@@ -13,8 +13,8 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 <!-- IronStone Accounting: root of the app for finance and bookkeepers (initial-design.md app table); its sections
-    follow design-accounting.md when that file is written. Authorized for ADMIN by BOSS_ACCOUNTING in
-    data/BossSetupData.xml. -->
+    follow design-accounting.md when that file is written. Not yet implemented: its BOSS_ACCOUNTING
+    grant in data/BossSetupData.xml is commented out, so no one may open it and it is in no menu. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="IronStone Accounting" menu-image="sym_o_account_balance" menu-image-type="icon">
 
