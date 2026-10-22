@@ -198,7 +198,8 @@ const demoRecords = {
     "Projects/Code/MergeRequestDetail": { mergeRequest: true, codeText: "Expand and collapse rows (IRON-3)" },
     "Projects/Code/MergeRequestDetail/Overview": { mergeRequest: true, codeText: "Expand and collapse rows (IRON-3)" },
     "Projects/Code/MergeRequestDetail/Commits": { mergeRequest: true, codeText: "Expand and collapse rows (IRON-3)" },
-    "Projects/Code/MergeRequestDetail/Changes": { mergeRequest: true },
+    // a .qvue tab: its component with git hosting; without it (lite) MergeRequestDetail says so and the tab answers nothing
+    "Projects/Code/MergeRequestDetail/Changes": { mergeRequest: true, codeOnlyQvue: true },
     "Projects/Code/MergeRequestDetail/ChangesTui": { mergeRequest: true, codeText: "Expand and collapse rows (IRON-3)" },
     "Projects/Settings/Code": { text: "Repository defaults" },
     "Projects/Projects/ProjectDetail/Code": { parameters: { workEffortId: "IRON" }, text: "ProjectStatusBar" },
@@ -263,7 +264,8 @@ const demoRecords = {
     // Projects P8b: the Money tab on ACME (by the header of ProjectDetail, as the shell loads the tab after it: test/MilestoneBillingWalk.spec.js
     // renders the tab itself), the estimate print, the shared order detail on Acme's order (data/BossProjectsDemoDataTimeBilling.xml)
     "Projects/Projects/ProjectDetail/Money": { parameters: { workEffortId: "ACME" }, text: "ProjectStatusBar" },
-    // the client's Hours tab (impl-projects.md P10b): nothing for an internal user, the header still renders
+    // the client's Hours tab (impl-projects.md P10b): the header still renders here (the shell's -2 level); the tab itself is
+    // refused to an internal user (P11, F133: test/ClientBilling.spec.js and test/ProjectsTui.spec.js)
     "Projects/Projects/ProjectDetail/ClientHours": { parameters: { workEffortId: "ACME" }, text: "ProjectStatusBar" },
     "Projects/Projects/EstimatePrint": { parameters: { workEffortId: "ACME" }, text: "Open the printable estimate" },
     "Shared/OrderDetail/": { parameters: { orderId: "BOSS_DEMO_ACME_SO" }, text: "Customer portal, fixed fee" },
@@ -289,6 +291,8 @@ spec({
         let codeHosting
         try { codeHosting = !!call("ironstone.CodeServices.get#CodeHosting", {}).available } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
         for (const demo of Object.values(demoRecords)) if (demo.codeText) demo.text = codeHosting ? demo.codeText : "Code hosting is not in this build"
+        // without git hosting such a tab answers nothing (its MergeRequestDetail says hosting is not in this build): no error is enough
+        for (const demo of Object.values(demoRecords)) if (demo.codeOnlyQvue && !codeHosting) demo.noComponent = true
         // the demo's merge request !1 of iron (a sequenced id)
         const mergeRequest = ec.entity.find("moqui.resource.GitMergeRequest").condition({ repositoryId: "iron", mergeRequestNum: 1 }).disableAuthz().one()
         for (const demo of Object.values(demoRecords)) if (demo.mergeRequest) demo.parameters = { mergeRequestId: mergeRequest ? mergeRequest.mergeRequestId : "_NA_" }
@@ -362,8 +366,8 @@ feature("every other Commons, Comms, Insights, Projects and Shared screen render
             const output = str.output || ""
             if (str.status != 200 || str.errorMessages.length > 0 || /Error rendering|Exception in render/.test(output))
                 failures.push(`${where}: status ${str.status}, ${str.errorMessages.join(" | ") || output.substring(0, 200)}`)
-            else if (qvue && !output.includes("module.exports")) failures.push(`${where}: no component in qvue`)
-            else if (demo.text && !output.includes(demo.text)) failures.push(`${where}: no "${demo.text}"`)
+            else if (qvue && !demo.noComponent && !output.includes("module.exports")) failures.push(`${where}: no component in qvue`)
+            else if (demo.text && !output.includes(demo.text)) failures.push(`${where}: no "${demo.text}": ${output.substring(0, 300)}`)
             ec.message.clearErrors()
             const menu = apps.includes(app) ? menuError(`${app}/${path}`) : null
             if (menu) failures.push(menu)

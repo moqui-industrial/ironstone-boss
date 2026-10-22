@@ -8,8 +8,8 @@
 const webroot = "component://webroot/screen/webroot.xml"
 const projectsRoot = "component://ironstone-boss/screen/Projects.xml"
 
-function render(path, parameters) {
-    const str = ec.screen.makeTest().rootScreen(webroot).renderMode("qvt").withStaticData().render(path, Object.assign({ lastStandalone: "true" }, parameters || {}), null)
+function render(path, parameters, mode) {
+    const str = ec.screen.makeTest().rootScreen(webroot).renderMode(mode || "qvt").withStaticData().render(path, Object.assign({ lastStandalone: "true" }, parameters || {}), null)
     const output = String(str.output || "")
     ec.message.clearErrors()
     return { status: str.status, errors: str.errorMessages.join(" | "), output, broken: /Error rendering|Exception in render/.test(output) }
@@ -89,7 +89,9 @@ feature("the work item types: stop offering one, move one up, set an icon and ad
         const icon = post("Settings/WorkItemTypes/changeType", { enumId: "WepTask", change: "icon", icon: "sym_o_check_circle" })
         const made = post("Settings/WorkItemTypes/createType", { label: "BOSS_TEST Spike", icon: "sym_o_science" })
         const after = types()
-        const quick = render("apps/Projects/QuickCreate", { kind: "workItem", rootWorkEffortId: "IRON" })
+        // QuickCreate is server-static (impl-projects.md P11): its qvt template holds every kind's form, so the offered types are
+        // read from the server's merge (html)
+        const quick = render("apps/Projects/QuickCreate", { kind: "workItem", rootWorkEffortId: "IRON" }, "html")
         const byJoe = as("joe.developer", () => sys(() => { try { call("ironstone.ProjectServices.store#WorkItemTypes", { offered: ["WepTask"] }); return null }
             catch (e) { ec.message.clearErrors(); return String(e.message) } }))
         // back: the organization's setting as the demo had it (none)

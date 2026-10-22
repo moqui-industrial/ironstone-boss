@@ -20,8 +20,8 @@ along with this software (see the LICENSE.md file). If not, see
     ProjectTimeline) with the project fixed (its always-actions put it in projectTabId); here the project is rootWorkEffortId, else
     the first the user is on. Every read and change is a JSON transition below over service/ironstone/PlanningServices.xml
     (get#Timeline, move#TimelineItem, save# and remove#TimelineDependency): who sees a project sees its timeline, its team moves
-    bars and makes dependencies. The terminal: TimelineTui beside this file, read only. It is the default subscreen of the Plan tab, whose
-    level the shell loads in qvt, so it answers qvt and html too (a line that it opens in the browser app), as Comms/Inbox/Mail does. -->
+    bars and makes dependencies. The terminal: TimelineTui beside this file, with Move dates and the dependency dialogs
+    (impl-projects.md P11). It is the default subscreen of the Plan tab, whose level the shell loads in qvt, so it answers qvt and html too (a line that it opens in the browser app), as Comms/Inbox/Mail does. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Timeline" default-menu-index="2" render-modes="vue,qvue,qvt,html,tui" server-static="vue,qvue">
 
@@ -81,9 +81,11 @@ along with this software (see the LICENSE.md file). If not, see
 
     <widgets>
         <render-mode><text type="qvue" location="component://ironstone-boss/screen/Projects/WorkItems/Timeline.qvue" template="false"/>
-            <!-- the terminal: TimelineTui, the plain screen beside this one, on the same project and mode -->
+            <!-- the terminal: TimelineTui, the plain screen beside this one, on the same project and mode (in ProjectDetail's Plan
+                tab its project even when the user may not see it) -->
             <text type="tui"><![CDATA[${JSON.stringify([{t: "dynamicContainer", id: "TimelineTui",
-                url: sri.buildUrl("//Projects/WorkItems/TimelineTui").addParameters({rootWorkEffortId: ec.context.get("projectTabId") || rootWorkEffortId || null,
+                url: sri.buildUrl("//Projects/WorkItems/TimelineTui").addParameters({rootWorkEffortId: ec.context.get("projectTabId")
+                    || (ec.context.get("inProjectDetail") ? ec.context.get("workEffortId") : null) || rootWorkEffortId || null,
                     mode: mode || null}).getUrlWithParams()}])}]]></text>
             <text type="html,qvt"><![CDATA[<p>${ec.l10n.localize('The Timeline opens in the browser app (the qvue render mode).')}</p>]]></text></render-mode>
     </widgets>

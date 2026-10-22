@@ -15,8 +15,12 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- The terminal twin of Timeline (style-guide §4.8): Timeline.xml's tui text is a dynamic container of this screen. The project's
     milestones, releases and sprints with their dates, then the rows in the timeline's order (the tree indented), each with its
     start, due, progress and what it waits for (a broken dependency marked), from the same service as Timeline.qvue
-    (ironstone.PlanningServices.get#Timeline), read only; plan and portfolio modes list their rows the same way. Moving bars and
-    making dependencies are the browser's (impl-projects.md P11 for the terminal); an item opens its detail. -->
+    (ironstone.PlanningServices.get#Timeline); plan and portfolio modes list their rows the same way. The terminal's changes
+    (impl-projects.md P11), in the items mode for the project's team, over the services of Timeline.qvue's transitions: Move dates
+    (a work item's, milestone's or release's start and due, or a shift by days, with its sub-items and its dependents scheduled
+    after it when asked: move#TimelineItem), Add dependency (waits for, with a lag) and Remove dependency. Each dialog reloads this
+    container (background-reload-id), so it works in WorkItems' Timeline and in ProjectDetail's Plan tab alike. Dragging bars stays
+    the browser's; an item opens its detail. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Timeline" default-menu-include="false">
 
@@ -24,6 +28,38 @@ along with this software (see the LICENSE.md file). If not, see
     <parameter name="mode"/>
 
     <transition name="workItemDetail"><default-response url="../WorkItemDetail"/></transition>
+    <!-- Move dates, Add dependency and Remove dependency (as Timeline.xml's moveItem, saveDependency and removeDependency) -->
+    <transition name="moveItem">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.PlanningServices.move#TimelineItem').parameters({workEffortId: itemWorkEffortId || '',
+                startDay: shiftDays ? null : (startDay ?? null), dueDay: shiftDays ? null : (dueDay ?? null), shiftDays: shiftDays ? Number(shiftDays) : null,
+                moveSubtree: moveSubtree === 'Y', autoSchedule: autoSchedule === 'Y'}).call() || {}
+            if (!ec.message.hasError() && out.message) ec.message.addMessage(out.message, 'success')
+        ]]></script></actions>
+        <default-response url="../Timeline"><parameter name="rootWorkEffortId"/></default-response>
+        <error-response url="../Timeline"><parameter name="rootWorkEffortId"/></error-response>
+    </transition>
+    <transition name="saveDependency">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.PlanningServices.save#TimelineDependency').parameters({workEffortId: dependentId || '',
+                toWorkEffortId: predecessorId || '', lagDays: lagDays || null}).call() || {}
+            if (!ec.message.hasError() && out.message) ec.message.addMessage(out.message, 'success')
+        ]]></script></actions>
+        <default-response url="../Timeline"><parameter name="rootWorkEffortId"/></default-response>
+        <error-response url="../Timeline"><parameter name="rootWorkEffortId"/></error-response>
+    </transition>
+    <transition name="removeDependency">
+        <actions><script><![CDATA[
+            // the key is dependent and predecessor joined by a bar (indexOf: the screen lint reads a split's argument as a regex, F49)
+            const key = String(dependencyKey || ''), bar = key.indexOf('|')
+            const dependent = bar < 0 ? key : key.substring(0, bar), predecessor = bar < 0 ? '' : key.substring(bar + 1)
+            const out = ec.service.sync().name('ironstone.PlanningServices.remove#TimelineDependency').parameters({workEffortId: dependent || '',
+                toWorkEffortId: predecessor || ''}).call() || {}
+            if (!ec.message.hasError() && out.message) ec.message.addMessage(out.message, 'success')
+        ]]></script></actions>
+        <default-response url="../Timeline"><parameter name="rootWorkEffortId"/></default-response>
+        <error-response url="../Timeline"><parameter name="rootWorkEffortId"/></error-response>
+    </transition>
 
     <actions><script><![CDATA[
         timelineFound = false; rowList = []; planRows = []
@@ -52,10 +88,68 @@ along with this software (see the LICENSE.md file). If not, see
         planRows = Array.from(theMode === 'items' ? (timeline.planItemList || []) : []).map((plan) => ({name: plan.workEffortName, kind: plan.kindLabel,
             whenText: span(plan.startDay, plan.dueDay), statusLabel: plan.statusLabel, progressText: (plan.percentDone || 0) + '%'}))
         dependencyCount = (timeline.dependencyList || []).length
+        // what the team may change here (items mode): the rows and plan items it may move, the dependencies
+        const label = (id, name) => id + (name && name !== id ? ' ' + name : '')
+        moveOptions = []
+        if (theMode === 'items') {
+            for (const plan of Array.from(timeline.planItemList || [])) if (plan.canMove) moveOptions.push({key: plan.workEffortId, text: label(plan.workEffortId, plan.workEffortName)
+                    + ' · ' + plan.kindLabel})
+            for (const row of Array.from(timeline.rowList || [])) if (row.canMove) moveOptions.push({key: row.workEffortId, text: label(row.workEffortId, row.workEffortName)})
+        }
+        itemOptions = Array.from(timeline.rowList || []).map((row) => ({key: row.workEffortId, text: label(row.workEffortId, row.workEffortName)}))
+        dependentOptions = Array.from(timeline.rowList || []).filter((row) => row.canMove).map((row) => ({key: row.workEffortId, text: label(row.workEffortId, row.workEffortName)}))
+        dependencyOptions = Array.from(timeline.dependencyList || []).map((link) => ({key: link.workEffortId + '|' + link.toWorkEffortId,
+            text: link.workEffortId + ' ' + L('waits for') + ' ' + link.toWorkEffortId + (link.lagDays ? ' +' + link.lagDays + 'd' : '')}))
+        canChange = theMode === 'items' && !!(timeline.project && timeline.project.canUpdate)
+        projectParam = {rootWorkEffortId: timeline.project ? timeline.project.workEffortId : (project || null), moveSubtree: 'N', autoSchedule: 'N'}
     ]]></script></actions>
     <widgets>
         <section name="TimelineTuiFound" condition="timelineFound"><widgets>
             <label text="${title}" type="h5"/>
+            <section name="TimelineTuiChange" condition="canChange"><widgets>
+                <container style="row q-gutter-sm">
+                    <container-dialog id="TimelineTuiMoveDialog" button-text="Move dates" icon="sym_o_date_range" width="600" title="Move dates"
+                            condition="moveOptions.length">
+                        <form-single name="TimelineTuiMove" transition="moveItem" map="projectParam" background-reload-id="TimelineTui"
+                                background-hide-id="TimelineTuiMoveDialog">
+                            <field name="rootWorkEffortId"><default-field><hidden/></default-field></field>
+                            <field name="itemWorkEffortId"><default-field title="Item">
+                                <drop-down><list-options list="moveOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                            <field name="startDay"><default-field title="Start"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                            <field name="dueDay"><default-field title="Due"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                            <field name="shiftDays"><default-field title="Or shift by days (+ or -)"><text-line size="5"/></default-field></field>
+                            <field name="moveSubtree"><default-field title="Its sub-items too">
+                                <drop-down><option key="N" text="No"/><option key="Y" text="Yes"/></drop-down></default-field></field>
+                            <field name="autoSchedule"><default-field title="Schedule what waits for it after it">
+                                <drop-down><option key="N" text="No"/><option key="Y" text="Yes"/></drop-down></default-field></field>
+                            <field name="submitButton"><default-field title="Move"><submit/></default-field></field>
+                        </form-single>
+                    </container-dialog>
+                    <container-dialog id="TimelineTuiDependencyDialog" button-text="Add dependency" icon="sym_o_link" width="600" title="Add a dependency"
+                            condition="dependentOptions.length">
+                        <form-single name="TimelineTuiDependency" transition="saveDependency" map="projectParam" background-reload-id="TimelineTui"
+                                background-hide-id="TimelineTuiDependencyDialog">
+                            <field name="rootWorkEffortId"><default-field><hidden/></default-field></field>
+                            <field name="dependentId"><default-field title="This item">
+                                <drop-down><list-options list="dependentOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                            <field name="predecessorId"><default-field title="Waits for">
+                                <drop-down><list-options list="itemOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                            <field name="lagDays"><default-field title="Lag (days)"><text-line size="5"/></default-field></field>
+                            <field name="submitButton"><default-field title="Add"><submit/></default-field></field>
+                        </form-single>
+                    </container-dialog>
+                    <container-dialog id="TimelineTuiRemoveDialog" button-text="Remove dependency" icon="sym_o_link_off" width="600" title="Remove a dependency"
+                            condition="dependencyOptions.length">
+                        <form-single name="TimelineTuiRemove" transition="removeDependency" map="projectParam" background-reload-id="TimelineTui"
+                                background-hide-id="TimelineTuiRemoveDialog">
+                            <field name="rootWorkEffortId"><default-field><hidden/></default-field></field>
+                            <field name="dependencyKey"><default-field title="Dependency">
+                                <drop-down><list-options list="dependencyOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                            <field name="submitButton"><default-field title="Remove"><submit/></default-field></field>
+                        </form-single>
+                    </container-dialog>
+                </container>
+            </widgets></section>
             <section name="TimelineTuiPlan" condition="planRows.length"><widgets>
                 <container-box><box-header title="Milestones, releases and sprints"/><box-body-nopad>
                     <form-list name="TimelineTuiPlanItems" list="planRows" skip-form="true" paginate="false">
@@ -78,7 +172,7 @@ along with this software (see the LICENSE.md file). If not, see
                 </form-list>
                 <label type="p" text="Nothing to draw" style="m-muted q-pa-sm q-mb-none" condition="!rowList.length"/>
             </box-body-nopad></container-box>
-            <label type="p" text="Moving bars and dependencies are in the browser's Timeline." style="m-muted"/>
+            <label type="p" text="Dragging bars is in the browser's Timeline; Move dates and the dependency dialogs do the same here." style="m-muted"/>
         </widgets><fail-widgets>
             <label type="p" text="No timeline to show: no project you see." style="m-muted"/>
         </fail-widgets></section>

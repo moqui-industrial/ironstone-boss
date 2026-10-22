@@ -229,7 +229,7 @@ module.exports = {
         storeKey() { return this.changes ? 'boss.mr.viewed.' + this.changes.mergeRequestId + '.' + (this.changes.headCommitId || '') : null; },
         decisionOptions() {
             const options = [{ label: this.t('Comment: feedback without a decision'), value: 'comment' }];
-            if (this.changes && !this.changes.isAuthor) options.push({ label: this.t('Approve: ready to merge'), value: 'approve' });
+            if (this.changes && this.changes.canApprove) options.push({ label: this.t('Approve: ready to merge'), value: 'approve' });
             options.push({ label: this.t('Request changes: to be fixed before it merges'), value: 'request_changes' });
             return options;
         },

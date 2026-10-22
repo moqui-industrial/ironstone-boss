@@ -20,9 +20,9 @@ along with this software (see the LICENSE.md file). If not, see
     mantle.work.ResourceServices.get#TeamPlan, save#, move#, decide#Allocation, get#StaffCandidates, search#AllocationPeople): every
     internal user sees the plan of the projects they see; the Projects managers (ALLOCATION_APPROVE) change, approve, reject and
     staff, a project's own managers request. The find: fromDate (a day of the first week), weeks (8, 12 or 26), rootWorkEffortId,
-    roleTypeId, skillTypeEnumId, teamPartyId. The terminal: TeamPlannerTui beside this file, read only (impl-projects.md P11 adds
-    the terminal's changes). It is the default subscreen of Resources, whose level the shell loads in qvt, so it answers qvt and
-    html too (a line that it opens in the browser app), as Timeline does. -->
+    roleTypeId, skillTypeEnumId, teamPartyId. The terminal: TeamPlannerTui beside this file, with Move and the allocation decisions
+    (impl-projects.md P11). It is the default subscreen of Resources, whose level the shell loads in qvt, so it answers qvt and html
+    too (a line that it opens in the browser app), as Timeline does. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Team planner" default-menu-index="1" render-modes="vue,qvue,qvt,html,tui" server-static="vue,qvue">
 

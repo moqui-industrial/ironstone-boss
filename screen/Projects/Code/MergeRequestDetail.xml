@@ -211,8 +211,11 @@ along with this software (see the LICENSE.md file). If not, see
                         <container-dialog id="ReviewDialog" button-text="Review" icon="sym_o_rate_review" width="560" title="Review ${mr.numText}" condition="detail.canReview">
                             <form-single name="SubmitReview" transition="submitReview">
                                 <field name="mergeRequestId"><default-field><hidden/></default-field></field>
-                                <field name="decision" from="'comment'"><default-field title="Your review">
+                                <field name="decision" from="'comment'"><conditional-field condition="detail.canApprove" title="Your review">
                                     <radio><option key="comment" text="Comment: feedback without a decision"/><option key="approve" text="Approve: ready to merge"/>
+                                        <option key="request_changes" text="Request changes: to be fixed before it merges"/></radio></conditional-field>
+                                    <default-field title="Your review">
+                                    <radio><option key="comment" text="Comment: feedback without a decision"/>
                                         <option key="request_changes" text="Request changes: to be fixed before it merges"/></radio></default-field></field>
                                 <field name="note"><default-field title="Summary (markdown)"><text-area rows="5" cols="60" editor-type="md"/></default-field></field>
                                 <field name="submitButton"><default-field title="Submit review"><submit/></default-field></field>

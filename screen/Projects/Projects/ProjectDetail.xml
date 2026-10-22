@@ -61,6 +61,9 @@ along with this software (see the LICENSE.md file). If not, see
         <!-- the project's documentation space in Commons Knowledge with the space fixed, and its linked pages (design-projects.md §4
             ProjectDocs); always there (impl-projects.md F24): without a space it offers Set up documentation -->
         <subscreens-item name="Docs" location="component://ironstone-boss/screen/Commons/Knowledge.xml" menu-title="Docs" menu-index="8"/>
+        <!-- the Docs tab's terminal twin (Knowledge.xml's tui text names ../KnowledgeTui): Commons' KnowledgeTui in its project mode
+            (impl-projects.md P11) -->
+        <subscreens-item name="KnowledgeTui" location="component://ironstone-boss/screen/Commons/KnowledgeTui.xml" menu-include="false"/>
         <!-- the project's time (design-projects.md §4 ProjectTime): Time/TimeEntries with the project fixed and its totals box; always
             there (impl-projects.md F24): without the Time module the project's time is still logged and found here -->
         <subscreens-item name="Time" location="component://ironstone-boss/screen/Projects/Time/TimeEntries.xml" menu-title="Time" menu-index="10"/>

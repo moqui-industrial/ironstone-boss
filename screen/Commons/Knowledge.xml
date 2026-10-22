@@ -351,8 +351,10 @@ along with this software (see the LICENSE.md file). If not, see
 
     <widgets>
         <render-mode><text type="qvue" location="component://ironstone-boss/screen/Commons/Knowledge.qvue" template="false"/>
-            <!-- the terminal: KnowledgeTui, the plain screen beside this one, on the same space and page -->
+            <!-- the terminal: KnowledgeTui, the plain screen beside this one, on the same space and page (in ProjectDetail's Docs tab the
+                hidden KnowledgeTui ProjectDetail mounts beside it, on the project) -->
             <text type="tui"><![CDATA[${JSON.stringify([{t: "dynamicContainer", id: "KnowledgeTui", url: sri.buildUrl("../KnowledgeTui")
-                .addParameters({wikiSpaceId: wikiSpaceId || null, pagePath: pagePath || null, wikiPageId: wikiPageId || null}).getUrlWithParams()}])}]]></text></render-mode>
+                .addParameters({wikiSpaceId: wikiSpaceId || null, pagePath: pagePath || null, wikiPageId: wikiPageId || null,
+                    workEffortId: ec.context.get("inProjectDetail") ? (ec.context.get("projectTabId") || workEffortId || null) : null}).getUrlWithParams()}])}]]></text></render-mode>
     </widgets>
 </screen>

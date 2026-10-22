@@ -1,13 +1,13 @@
 # IronStone BOSS — Projects implementation
 
-Oct 22, 2026 — plan; P0 and P1 done; P2 in progress (the work items half built)
+Oct 22, 2026 — built: P0 through P11 done; what remains is §7 Later and the open findings of §6
 
 How [design-projects.md](design-projects.md) gets built, in phases from the foundation to client access, each ending
 tested and usable. This file is kept at a high level: each phase names its scope by the design's sections and §15 rows
 rather than restating them, and the design stays the place for screen and record detail. During the build this file is
 the log: phase status and what each built, the decisions made, open questions, findings against the code, and what is
 deferred. Today `screen/Projects/` holds placeholders only (Home, Projects, WorkItems, Intake, Timesheets, Resources,
-Billing, Settings).
+Billing, Settings). (That was the start; every phase below is now built.)
 
 **Inputs.** [design-projects.md](design-projects.md), [design-doc-guide.md](design-doc-guide.md),
 [style-guide.md](style-guide.md) §8, [impl-drawers-commons.md](impl-drawers-commons.md) §4 (the shared rules),
@@ -63,7 +63,7 @@ Sections: [1 scope](#1-scope-and-order) · [2 rules](#2-ground-rules) · [3 phas
 | P8 Billing and money | Mantle, BOSS | Unbilled, Invoices, InvoiceDetail, OrderDetail, Rates, ProjectMoney, BillingSettings | done Oct 22 |
 | P9 Reports and outputs | Mantle, BOSS | Reports and its seven reports | done Oct 22 |
 | P10 Client access | mr-moqui, Mantle, BOSS | the client states of §1.1's screens | done Oct 22 |
-| P11 Finish | BOSS | — | planned |
+| P11 Finish | BOSS | — | done Oct 22 |
 
 ### P0 — Checks
 
@@ -486,6 +486,25 @@ tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
 - The `tui` texts of the `.qvue` screens (MyTime first), the server-static pass, the inventories' **Implemented in**
   columns, the design's Impl column, and Remaining-Work.
 
+**Built** (Oct 22, 2026):
+- Terminal twins with their changes as dialogs over the same services: MyTimeTui (timer, log, edit, delete, submit,
+  approve, return, reopen), BacklogTui (move, sprints), TimelineTui (move dates, dependencies), TeamPlannerTui (move,
+  decide), ChangesTui (a file's diff, line comments, replies, resolve), the Docs tab's KnowledgeTui project mode; the
+  tab twins say not available for a project the user cannot see (F151); `test/ProjectsTui.spec.js`; a live check with
+  `moqui tui --agent`.
+- Server-static: seven more screens `qvt` (QuickCreate, QuickProject, Reports, Reports/Index, Settings,
+  Settings/Billing, Settings/Time); ServerStatic.spec covers Projects.
+- Framework: F132 (only a user who may push approves; approvals counted by each approver's push right at counting time;
+  `get#MergeRequestApprovals`; `as_user` in `crate::user`), F133 (a SubscreensItem's group checked for the first screen of
+  a lastStandalone render and on a transition's path); the example GitHosting spec's reviewer granted push (F139).
+- Lite: git availability checks and Mantle review lookups in their own transaction (F140), so Home, Today, GitAccess and
+  the Code screens hold without git.
+- Docs: design-projects.md's Impl column and §1.1 (F134); ss-inventory and usl-inventory Implemented in; mr-moqui
+  Remaining-Work's IronStone and Git hosting rows; docs/Git-Hosting.md.
+- Final runs, Debug: ironstone-boss 627/627, mantle-usl 685/687 (ContactListSend), example 86/86, moqui-core lib 1778,
+  tui_screens ok, gate3 8/10 (the known two), node 230/230 (P10b reported 262; no JS changed since, F149), lint clean.
+  Lite: ironstone-boss 575 passed, 1 failed (NewProject Money after a git-only step, also at HEAD, F141), 18 skipped.
+
 ## 4. Decisions
 
 Made during the build; each one that changes the design is also written into design-projects.md.
@@ -555,6 +574,8 @@ Made during the build; each one that changes the design is also written into des
 | Oct 22, 2026 | A message is for the client when it is not a Comment and the client's party or organization (or a contact of it) is its from, to or CC, on a record the client sees | P10a |
 | Oct 22, 2026 | F100: a manager's recorded decision stays, marked `recordedFor`; the client approver's own decision is the normal path once they sign in | P10a |
 | Oct 22, 2026 | A client's writes are only `ironstone.client.ClientServices` (a package the deny pattern does not reach, each service re-checking access), not ALLOW rows (a DENY beats an ALLOW); clients do not accept deliverables; a client sees an invoice only once sent and release notes only once published | P10b |
+| Oct 22, 2026 | Terminal twins change through dialogs (Backlog and Timeline reload their container, the others return to their screen); a terminal Move takes one item | P11 |
+| Oct 22, 2026 | F132: an approval counts only while its reviewer may push, checked as that user when counted; F133 also refuses transitions under a group-limited screen (past Java) | P11 |
 | Oct 22, 2026 | A recurring item counted from completion takes the completion day at the due date's time of day (UTC days) and the rule without its COUNT, which counts the items made | P2 |
 
 ## 5. Open questions
@@ -708,6 +729,20 @@ Design assumptions found wrong in the code, with the resolution (written into th
 | F135 | P10b: reloading seed into an old DB keeps the P10a rows, so clients stay refused Billing there (fails closed) | Fresh load |
 | F136 | P10b: host `collab::dav_routes_and_coediting_over_the_socket` fails at HEAD (WikiServices update#WikiPage not authorized), before P10b | Not Projects; to look at |
 | F137 | P10b: a spec `then` line starting with `(` joins the previous line (ASI) | Compute in `when` |
+| F138 | P11: F133's check covers transitions, which Java checks for neither | Deliberate |
+| F139 | P11: the example GitHosting spec's reviewer counted only through the F132 hole | Reviewer granted push |
+| F140 | P11 (lite): a service not built in marks the caller's transaction rollback-only | Callers check in their own transaction; a framework "not built" error that does not poison, or an availability check, later |
+| F141 | P11 (lite, open): NewProject.spec's Money feature depends on a git-only step | Split the feature |
+| F142 | P11: the terminal agent's `set` leaves a multi-select empty | Framework, later |
+| F143 | P11: `hidden-form-link` has no `background-reload-id` | Framework, later |
+| F144 | P11: a cell's `hidden-form-link` is not in the terminal's row-actions menu | Framework, later |
+| F145 | P11: a server-static index template holds every user's conditional parts behind client conditions (names only, no data) | Specs read html for what a user is offered |
+| F146 | P11: the static check of Projects Home and Overview reports an unclosed element; Billing's fails in the wrapped `ec` | Stay server merges; look later |
+| F147 | P11: most Projects XML screens read their list in conditions, so only seven are server-static clean (as Commons) | As is |
+| F148 | P11: an allocation date via `ec.l10n.format` reads a day early in the spec's zone (F79) | Spec compares millis |
+| F149 | P11: node runs 230 tests; P10b reported 262 | Check the count |
+| F150 | P11: an empty terminal list shows its own empty text beside MyTime's | Cosmetic |
+| F151 | P11 (fixed): the terminal Docs tab pointed at a missing screen; the tab twins showed another project for an unseen one | Fixed |
 | F7 | P0: a wiki space under an existing repository is documented for a repository root (`rootPageDirectory: "git://docs"`, or `rootPageLocation` `git://<repositoryId>/<SPACE>.md`), not for a subdirectory such as `git://<repositoryId>/docs` | Checked in P4 as the design's §15 row says, before ProjectDocs is built |
 
 ## 7. Later
@@ -781,6 +816,11 @@ Designed, not in this build:
 - Client access (P10b): `view-calendar` move-condition; clients accepting deliverables; hiding the Code and Hours tabs
   when nothing is shared; cloning for a client with a second factor; an HTTP-level DAV/SFTP test as a client; a link in
   the estimate email; clients' presence to internal users.
+
+- Finish (P11): terminal drags, MyTime cell typing, Add row and Copy last week; Backlog quick add, filters and multi-move;
+  the Timeline's plan and portfolio modes and the Calendar twin read only; TeamPlanner request, staff and By project in
+  the terminal; Changes side by side, viewed marks and review in the terminal; Docs editing and repository setup in the
+  terminal; framework F140, F142, F143, F144, F146; F141.
 
 ## 8. Verification
 

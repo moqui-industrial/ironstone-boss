@@ -15,8 +15,11 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- The terminal twin of TeamPlanner (style-guide §4.8): TeamPlanner.xml's tui text is a dynamic container of this screen. The
     placeholders to staff, then each person with their allocated hours against their capacity in each of the first weeks (an
     overbooked week marked with !), then the allocations, from the same service as TeamPlanner.qvue (ironstone.ResourceServices
-    get#Planner), read only; requesting, moving, approving and staffing allocations are the browser's, and Allocations' (impl-projects.md
-    P11 for the terminal). A person opens PersonDetail. -->
+    get#Planner). The terminal's changes (impl-projects.md P11), over the services of TeamPlanner.qvue's transitions, for the
+    allocations the user may change (an approver, or the requester of a requested one on a project they manage): Move (shift its
+    days, or new first and last days: move#Allocation), and for an approver Decide (approve, reject with a reason, or cancel:
+    decide#Allocation). Each dialog answers the planner again on the same find. Requesting a new allocation and staffing a
+    placeholder are Allocations' (plain screens the terminal renders); a person opens PersonDetail. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Team planner" default-menu-include="false">
 
@@ -26,6 +29,31 @@ along with this software (see the LICENSE.md file). If not, see
     <parameter name="roleTypeId"/>
     <parameter name="skillTypeEnumId"/>
     <parameter name="teamPartyId"/>
+
+    <transition name="allocations"><default-response url="../Allocations"/></transition>
+    <!-- Move and Decide (as TeamPlanner.xml's moveAllocation and decideAllocation); the planner again on the same find -->
+    <transition name="moveAllocation">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.ResourceServices.move#Allocation').parameters({workEffortAllocationId: workEffortAllocationId || '',
+                shiftDays: shiftDays ? Number(shiftDays) : null, fromDate: shiftDays ? null : (allocFromDate || null), thruDate: shiftDays ? null : (allocThruDate || null)}).call() || {}
+            if (!ec.message.hasError() && out.message) ec.message.addMessage(out.message, 'success')
+        ]]></script></actions>
+        <default-response url="../TeamPlanner"><parameter name="fromDate"/><parameter name="weeks"/><parameter name="rootWorkEffortId"/>
+            <parameter name="roleTypeId"/><parameter name="skillTypeEnumId"/><parameter name="teamPartyId"/></default-response>
+        <error-response url="../TeamPlanner"><parameter name="fromDate"/><parameter name="weeks"/><parameter name="rootWorkEffortId"/>
+            <parameter name="roleTypeId"/><parameter name="skillTypeEnumId"/><parameter name="teamPartyId"/></error-response>
+    </transition>
+    <transition name="decideAllocation">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.ResourceServices.decide#Allocation').parameters({workEffortAllocationId: workEffortAllocationId || '',
+                action: action || '', reason: reason || null}).call() || {}
+            if (!ec.message.hasError() && out.message) ec.message.addMessage(out.message, 'success')
+        ]]></script></actions>
+        <default-response url="../TeamPlanner"><parameter name="fromDate"/><parameter name="weeks"/><parameter name="rootWorkEffortId"/>
+            <parameter name="roleTypeId"/><parameter name="skillTypeEnumId"/><parameter name="teamPartyId"/></default-response>
+        <error-response url="../TeamPlanner"><parameter name="fromDate"/><parameter name="weeks"/><parameter name="rootWorkEffortId"/>
+            <parameter name="roleTypeId"/><parameter name="skillTypeEnumId"/><parameter name="teamPartyId"/></error-response>
+    </transition>
 
     <actions><script><![CDATA[
         const L = (text) => ec.l10n.localize(text)
@@ -56,10 +84,60 @@ along with this software (see the LICENSE.md file). If not, see
                 statusText: alloc.statusId === 'WealRequested' ? L('Requested') : L('Allocated')})
         }
         weekCount = weekTitles.length
+        // the allocations the user may change (each one's canChange), and whether the user approves
+        const who = (alloc, name) => name || [alloc.roleText, alloc.skillText ? '(' + alloc.skillText + ')' : ''].filter((one) => one).join(' ') || L('A person')
+        const changeable = []
+        for (const person of Array.from(planner.personList || [])) for (const alloc of Array.from(person.allocationList || []))
+            if (!alloc.hidden && alloc.canChange) changeable.push([alloc, person.name])
+        for (const alloc of Array.from(planner.placeholderList || [])) if (alloc.canChange) changeable.push([alloc, null])
+        const optionOf = ([alloc, name]) => ({key: alloc.workEffortAllocationId, text: who(alloc, name) + ' · ' + alloc.projectName + ' · ' + day(alloc.fromDay)
+            + ' – ' + day(alloc.thruDay) + ' · ' + amount(alloc) + (alloc.statusId === 'WealRequested' ? ' · ' + L('Requested') : '')})
+        changeOptions = changeable.map(optionOf)
+        isApprover = !!planner.isApprover
+        decideOptions = isApprover ? changeable.filter(([alloc]) => ['WealRequested', 'WealAllocated'].includes(alloc.statusId)).map(optionOf) : []
+        findValue = {fromDate: fromDate || null, weeks: weeks || null, rootWorkEffortId: rootWorkEffortId || null, roleTypeId: roleTypeId || null,
+            skillTypeEnumId: skillTypeEnumId || null, teamPartyId: teamPartyId || null}
     ]]></script></actions>
     <widgets>
         <label text="${rangeText}" type="h5"/>
-        <label text="Each week: allocated / capacity hours; ! overbooked, ~ leave or a holiday. Planning is in the browser app." type="p" style="text-caption m-muted"/>
+        <label text="Each week: allocated / capacity hours; ! overbooked, ~ leave or a holiday. Dragging bars is in the browser app." type="p" style="text-caption m-muted"/>
+        <container style="row q-gutter-sm">
+            <container-dialog id="TeamPlannerTuiMoveDialog" button-text="Move" icon="sym_o_date_range" width="640" title="Move an allocation"
+                    condition="changeOptions.length">
+                <form-single name="TeamPlannerTuiMove" transition="moveAllocation" map="findValue">
+                    <field name="fromDate"><default-field><hidden/></default-field></field>
+                    <field name="weeks"><default-field><hidden/></default-field></field>
+                    <field name="rootWorkEffortId"><default-field><hidden/></default-field></field>
+                    <field name="roleTypeId"><default-field><hidden/></default-field></field>
+                    <field name="skillTypeEnumId"><default-field><hidden/></default-field></field>
+                    <field name="teamPartyId"><default-field><hidden/></default-field></field>
+                    <field name="workEffortAllocationId"><default-field title="Allocation">
+                        <drop-down><list-options list="changeOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                    <field name="shiftDays"><default-field title="Shift by days (+ or -)"><text-line size="5"/></default-field></field>
+                    <field name="allocFromDate"><default-field title="Or from"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                    <field name="allocThruDate"><default-field title="To"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                    <field name="submitButton"><default-field title="Move"><submit/></default-field></field>
+                </form-single>
+            </container-dialog>
+            <container-dialog id="TeamPlannerTuiDecideDialog" button-text="Decide" icon="sym_o_rule" width="640" title="Approve, reject or cancel an allocation"
+                    condition="decideOptions.length">
+                <form-single name="TeamPlannerTuiDecide" transition="decideAllocation" map="findValue">
+                    <field name="fromDate"><default-field><hidden/></default-field></field>
+                    <field name="weeks"><default-field><hidden/></default-field></field>
+                    <field name="rootWorkEffortId"><default-field><hidden/></default-field></field>
+                    <field name="roleTypeId"><default-field><hidden/></default-field></field>
+                    <field name="skillTypeEnumId"><default-field><hidden/></default-field></field>
+                    <field name="teamPartyId"><default-field><hidden/></default-field></field>
+                    <field name="workEffortAllocationId"><default-field title="Allocation">
+                        <drop-down><list-options list="decideOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                    <field name="action"><default-field title="Decision">
+                        <drop-down><option key="approve" text="Approve"/><option key="reject" text="Reject"/><option key="cancel" text="Cancel"/></drop-down></default-field></field>
+                    <field name="reason"><default-field title="Reason (to reject)"><text-line size="50"/></default-field></field>
+                    <field name="submitButton"><default-field title="Decide"><submit/></default-field></field>
+                </form-single>
+            </container-dialog>
+            <link url="allocations" text="Allocations" icon="sym_o_list" link-type="anchor" parameter-map="{list:'all'}"/>
+        </container>
         <section name="TeamPlannerTuiStaff" condition="placeholderRows.length"><widgets>
             <container-box><box-header title="To staff"/><box-body-nopad>
                 <form-list name="TeamPlannerTuiPlaceholders" list="placeholderRows" skip-form="true" paginate="false">

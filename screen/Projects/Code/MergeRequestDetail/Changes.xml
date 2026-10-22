@@ -18,13 +18,14 @@ along with this software (see the LICENSE.md file). If not, see
     org.moqui.impl.GitReviewServices.get#MergeRequestDiff and mantle.work.GitServices.get#ReviewThreads; comment#MergeRequest over
     create#ReviewComment; submit#Review; mantle.work.GitServices.resolve#ReviewThread). The diff's lines are data the component
     shows as text, never html, so nothing pushed to the repository runs in the app's origin (impl-projects.md F32). review=true
-    opens the review dialog (MergeRequestDetail's Review). The terminal: ChangesTui beside this file, the files and threads
-    read only. A client contact (impl-projects.md P10b) gets the diff alone: no threads (the team's review notes), and the
+    opens the review dialog (MergeRequestDetail's Review). The terminal: ChangesTui beside this file, the files, one
+    file's diff (path), the threads, line comments, replies and resolve (impl-projects.md P11). A client contact (impl-projects.md P10b) gets the diff alone: no threads (the team's review notes), and the
     services refuse it a comment, a resolve and a review (canComment and canReview false hide their controls). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Changes" default-menu-index="3" render-modes="vue,qvue,tui" server-static="vue,qvue">
 
     <parameter name="review"/>
+    <parameter name="path"/>
 
     <!-- the files, their hunks and the threads -->
     <transition name="changes" method="get" read-only="true">
@@ -70,6 +71,6 @@ along with this software (see the LICENSE.md file). If not, see
         <render-mode><text type="qvue" location="component://ironstone-boss/screen/Projects/Code/MergeRequestDetail/Changes.qvue" template="false"/>
             <!-- the terminal: ChangesTui, the plain screen beside this one, on the same merge request -->
             <text type="tui"><![CDATA[${JSON.stringify([{t: "dynamicContainer", id: "ChangesTui",
-                url: sri.buildUrl("../ChangesTui").addParameters({mergeRequestId: mergeRequestId || null}).getUrlWithParams()}])}]]></text></render-mode>
+                url: sri.buildUrl("../ChangesTui").addParameters({mergeRequestId: mergeRequestId || null, path: path || null}).getUrlWithParams()}])}]]></text></render-mode>
     </widgets>
 </screen>

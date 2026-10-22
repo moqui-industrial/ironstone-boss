@@ -17,8 +17,8 @@ along with this software (see the LICENSE.md file). If not, see
     and change is a JSON transition below over service/ironstone/TimeServices.xml and mantle.work.TimesheetServices: the week (rows by
     work item and day, totals against the working hours, the timesheet's status, the running timer), a cell's hours, one entry in
     full, a row added or removed, last week's rows copied, the timer started, stopped or commented, and the week submitted, approved,
-    returned or reopened. The terminal: MyTimeTui beside this file, a read-only agenda of the week (impl-projects.md P11 adds the
-    terminal's changes). -->
+    returned or reopened. The terminal: MyTimeTui beside this file, the week by day with the timer, Log time, an entry's Edit and
+    Delete, and Submit, Approve, Return and Reopen (impl-projects.md P11). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="My time" default-menu-index="1" render-modes="vue,qvue,qvt,html,tui" server-static="vue,qvue">
 

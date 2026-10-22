@@ -613,6 +613,8 @@ along with this software (see the LICENSE.md file). If not, see
                 const ids = Array.from(new Set(Array.from(ec.entity.find('mantle.work.effort.WorkEffortGitRepository').condition('workEffortId', workEffortId)
                         .condition(cf.makeConditionDate('fromDate', 'thruDate', null)).list()).map((row) => row.repositoryId)))
                 if (!ids.length) return
+                // git hosting is a build feature: without it no repositories, and no failed call to leave the request rollback-only
+                if (!ec.service.sync().name('ironstone.CodeServices.get#CodeHosting').call()?.available) return
                 const found = ec.service.sync().name('org.moqui.impl.GitServices.find#GitRepositories').parameters({repositoryIdList: ids, pageNoLimit: true}).call() || {}
                 for (const repo of Array.from(found.repositoryList || [])) {
                     let urls = {}

@@ -135,6 +135,11 @@ written down here and extended for work items, requests and clients:
   form's kinds and limits), add files to a request it sees while open, cancel a request it raised, and decide a milestone
   gate it is the approver of (approve, or refuse with a reason; the estimate's approval is its Estimate milestone's gate).
   Every refused control is hidden in the client states (row-selection `condition`, board and tree `move-condition`).
+  A client user needs both grants (impl-projects.md F134): the `BOSS_PROJECT_CLIENT` group, which holds `PROJECT_CLIENT`
+  (the project services' client cases), and the framework's `EXTERNAL_USER` permission (no record-bound chat rooms, public
+  rooms only as a member, no records drive folder over the screens, DAV or SFTP, no other user's presence, never the agent
+  permissions; mr-moqui P10b). Granting one without the other is a setup mistake: the demo's sheldon.acme and gob.bluth
+  hold both, and a client added by hand is given both.
 
 ### 1.2 Menu
 
@@ -232,7 +237,9 @@ New records and fields are marked (new) and specified in §15.
 
 ## 2. Screens
 
-One row per screen, grouped by area in the order of the menu. **Impl** is `xml` or `qvue`. **Scope**: `parity`
+One row per screen, grouped by area in the order of the menu. **Impl** is `xml` or `qvue`, with the phase of
+impl-projects.md that built it (every row is built as of P11; "terminal P11" marks a `.qvue` screen whose terminal twin
+gained its changes in P11, "terminal read only" one whose twin shows its data only). **Scope**: `parity`
 replaces a SimpleScreens, My Account or MarbleERP screen or form; `new` is in the first release without a
 baseline; `later` is designed and built after it. Context `inherits` means the screen sits in a detail's tab and
 its record is the detail's.
@@ -241,126 +248,126 @@ its record is the detail's.
 
 | Screen | Path | Archetype | Impl | Purpose | Main record | Reused | Roles | Scope | Context |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Home | `Projects/Home` | landing | xml | The group's view: my work, reviews and hours; projects at risk, approvals and unbilled work for managers; status, requests and invoices for clients | — | own; Dashboard widgets, crosscut §3.16 | app | new | none |
-| QuickCreate | `Projects/QuickCreate` | dialog | xml | Quick-create forms for a work item, a time entry and a project, prefilled from the screen context | `WorkEffort`, `TimeEntry` | own | internal | new | none |
+| Home | `Projects/Home` | landing | xml (built P2; clients P10b) | The group's view: my work, reviews and hours; projects at risk, approvals and unbilled work for managers; status, requests and invoices for clients | — | own; Dashboard widgets, crosscut §3.16 | app | new | none |
+| QuickCreate | `Projects/QuickCreate` | dialog | xml (built P2; QuickTime P6a) | Quick-create forms for a work item, a time entry and a project, prefilled from the screen context | `WorkEffort`, `TimeEntry` | own | internal | new | none |
 
 ### Projects and the roadmap
 
 | Screen | Path | Archetype | Impl | Purpose | Main record | Reused | Roles | Scope | Context |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Projects | `Projects/Projects` | list | xml | Find projects: saved finds, health, progress and budget, sub-projects; list, board and timeline views | `WorkEffort` (`WetProject`) | own | app | parity | `WorkEffort rows`; list find parameters |
-| NewProject | `Projects/Projects/NewProject` | wizard | xml | A project from a blank start or a template: basics, team, modules and code, money, review | `WorkEffort` | own | managers | parity | none |
-| ProjectDetail | `Projects/Projects/ProjectDetail` | detail | xml | The project hub: header with status, health and key numbers; a tab per module | `WorkEffort` (`WetProject`) | own | app | parity | `WorkEffort workEffortId` |
-| ProjectOverview | `Projects/Projects/ProjectDetail/Overview` | detail | xml | Status updates, next milestones, work summary, hours and budget, members, repositories, description; Chatter | `WorkEffort` | own | app | parity | inherits |
-| ProjectWorkItems | `Projects/Projects/ProjectDetail/WorkItems` | list | xml | The project's work items | `WorkEffort` (`WetTask`) | WorkItems (§5) with the project fixed | app | parity | inherits; `WorkEffort rows` |
-| ProjectBacklog | `Projects/Projects/ProjectDetail/Backlog` | board | qvue | The project's backlog and sprints | `WorkEffort` | Backlog (§5) with the project fixed | internal | new | inherits |
-| ProjectTimeline | `Projects/Projects/ProjectDetail/Plan/Timeline` | calendar | qvue | The project's work on a timeline with dependencies | `WorkEffort` | Timeline (§5) with the project fixed | app | new | inherits |
-| ProjectCalendar | `Projects/Projects/ProjectDetail/Plan/Calendar` | calendar | qvue | The project's meetings, milestones, releases, sprints and due work on the calendar | `WorkEffort` | Calendar & schedules, design-drawers-commons §7 | internal | new | inherits; range |
-| ProjectRoadmap | `Projects/Projects/ProjectDetail/Roadmap` | list | xml | The project's milestones, releases and sprints | `WorkEffort` | Roadmap (§4) with the project fixed | app | parity | inherits |
-| ProjectRequests | `Projects/Projects/ProjectDetail/Requests` | list | xml | The project's requests and its intake addresses | `Request` | Requests (§6) with the project fixed | app | parity | inherits; `Request rows` |
-| ProjectCode | `Projects/Projects/ProjectDetail/Code` | detail | xml | The project's repositories, tags, open merge requests and recent commits | `WorkEffortGitRepository` | own | internal; clients when shared | parity | inherits |
-| ProjectDocs | `Projects/Projects/ProjectDetail/Docs` | editor | qvue | The project's documentation space, and pages linked from other spaces | `WikiPage` | Knowledge, design-drawers-commons §10, with the space fixed (Commons/Knowledge.xml mounted as the tab, P4b) | internal | new | inherits; `WikiPage` `wikiSpaceId` and `pagePath` |
-| ProjectTeam | `Projects/Projects/ProjectDetail/Team` | detail | xml | Members and roles, teams, client contacts, allocations | `WorkEffortParty` | own | internal | parity | inherits |
-| ProjectTime | `Projects/Projects/ProjectDetail/Time` | list | xml | The project's time with totals by person and work type | `TimeEntry` | TimeEntries (§8) with the project fixed | internal | parity | inherits; `TimeEntry rows` |
-| ProjectMoney | `Projects/Projects/ProjectDetail/Money` | detail | xml | Budget and actuals, rates, unbilled work, milestone billing, invoices, expenses, the order and agreement behind it | `WorkEffort`, `TimeEntry`, `Invoice` | own | managers | parity | inherits |
-| ProjectFiles | `Projects/Projects/ProjectDetail/Files` | panel | xml | The project's files | `WorkEffortContent` | RecordFiles, design-drawers-commons §9 | internal | parity | inherits |
-| ProjectSettings | `Projects/Projects/ProjectDetail/Settings` | settings | xml | General, modules, work items, intake, code, billing, client access, template, close | `WorkEffort`, `WorkEffortSetting` (new) | own | managers | parity | inherits |
-| Roadmap | `Projects/Projects/Roadmap` | list | xml | Milestones and releases across projects with progress; list and calendar views | `WorkEffort` (`WetMilestone`, `WetRelease`) | own | app | parity | `WorkEffort rows`; list find parameters |
-| MilestoneDetail | `Projects/Projects/MilestoneDetail` | detail | xml | A milestone: dates, gate approval, work items by state, progress, billing share, deliverables | `WorkEffort` (`WetMilestone`) | own | app | parity | `WorkEffort workEffortId` |
-| ReleaseDetail | `Projects/Projects/ReleaseDetail` | detail | xml | A release: version, tag, work items, merge requests, release notes and publishing | `WorkEffort` (`WetRelease`) | own | app | new | `WorkEffort workEffortId` |
+| Projects | `Projects/Projects` | list | xml (built P2) | Find projects: saved finds, health, progress and budget, sub-projects; list, board and timeline views | `WorkEffort` (`WetProject`) | own | app | parity | `WorkEffort rows`; list find parameters |
+| NewProject | `Projects/Projects/NewProject` | wizard | xml (built P2) | A project from a blank start or a template: basics, team, modules and code, money, review | `WorkEffort` | own | managers | parity | none |
+| ProjectDetail | `Projects/Projects/ProjectDetail` | detail | xml (built P2) | The project hub: header with status, health and key numbers; a tab per module | `WorkEffort` (`WetProject`) | own | app | parity | `WorkEffort workEffortId` |
+| ProjectOverview | `Projects/Projects/ProjectDetail/Overview` | detail | xml (built P2) | Status updates, next milestones, work summary, hours and budget, members, repositories, description; Chatter | `WorkEffort` | own | app | parity | inherits |
+| ProjectWorkItems | `Projects/Projects/ProjectDetail/WorkItems` | list | xml (built P2) | The project's work items | `WorkEffort` (`WetTask`) | WorkItems (§5) with the project fixed | app | parity | inherits; `WorkEffort rows` |
+| ProjectBacklog | `Projects/Projects/ProjectDetail/Backlog` | board | qvue (built P4a; terminal P11) | The project's backlog and sprints | `WorkEffort` | Backlog (§5) with the project fixed | internal | new | inherits |
+| ProjectTimeline | `Projects/Projects/ProjectDetail/Plan/Timeline` | calendar | qvue (built P4c; terminal P11) | The project's work on a timeline with dependencies | `WorkEffort` | Timeline (§5) with the project fixed | app | new | inherits |
+| ProjectCalendar | `Projects/Projects/ProjectDetail/Plan/Calendar` | calendar | qvue (built P4c; terminal read only) | The project's meetings, milestones, releases, sprints and due work on the calendar | `WorkEffort` | Calendar & schedules, design-drawers-commons §7 | internal | new | inherits; range |
+| ProjectRoadmap | `Projects/Projects/ProjectDetail/Roadmap` | list | xml (built P4b) | The project's milestones, releases and sprints | `WorkEffort` | Roadmap (§4) with the project fixed | app | parity | inherits |
+| ProjectRequests | `Projects/Projects/ProjectDetail/Requests` | list | xml (built P5) | The project's requests and its intake addresses | `Request` | Requests (§6) with the project fixed | app | parity | inherits; `Request rows` |
+| ProjectCode | `Projects/Projects/ProjectDetail/Code` | detail | xml (built P3b1) | The project's repositories, tags, open merge requests and recent commits | `WorkEffortGitRepository` | own | internal; clients when shared | parity | inherits |
+| ProjectDocs | `Projects/Projects/ProjectDetail/Docs` | editor | qvue (built P4b; terminal P11) | The project's documentation space, and pages linked from other spaces | `WikiPage` | Knowledge, design-drawers-commons §10, with the space fixed (Commons/Knowledge.xml mounted as the tab, P4b) | internal | new | inherits; `WikiPage` `wikiSpaceId` and `pagePath` |
+| ProjectTeam | `Projects/Projects/ProjectDetail/Team` | detail | xml (built P2; allocations P7) | Members and roles, teams, client contacts, allocations | `WorkEffortParty` | own | internal | parity | inherits |
+| ProjectTime | `Projects/Projects/ProjectDetail/Time` | list | xml (built P6b; clients Hours P10b) | The project's time with totals by person and work type | `TimeEntry` | TimeEntries (§8) with the project fixed | internal | parity | inherits; `TimeEntry rows` |
+| ProjectMoney | `Projects/Projects/ProjectDetail/Money` | detail | xml (built P8b) | Budget and actuals, rates, unbilled work, milestone billing, invoices, expenses, the order and agreement behind it | `WorkEffort`, `TimeEntry`, `Invoice` | own | managers | parity | inherits |
+| ProjectFiles | `Projects/Projects/ProjectDetail/Files` | panel | xml (built P2) | The project's files | `WorkEffortContent` | RecordFiles, design-drawers-commons §9 | internal | parity | inherits |
+| ProjectSettings | `Projects/Projects/ProjectDetail/Settings` | settings | xml (built P2) | General, modules, work items, intake, code, billing, client access, template, close | `WorkEffort`, `WorkEffortSetting` (new) | own | managers | parity | inherits |
+| Roadmap | `Projects/Projects/Roadmap` | list | xml (built P4b) | Milestones and releases across projects with progress; list and calendar views | `WorkEffort` (`WetMilestone`, `WetRelease`) | own | app | parity | `WorkEffort rows`; list find parameters |
+| MilestoneDetail | `Projects/Projects/MilestoneDetail` | detail | xml (built P4b; gate and billing P8b) | A milestone: dates, gate approval, work items by state, progress, billing share, deliverables | `WorkEffort` (`WetMilestone`) | own | app | parity | `WorkEffort workEffortId` |
+| ReleaseDetail | `Projects/Projects/ReleaseDetail` | detail | xml (built P4b) | A release: version, tag, work items, merge requests, release notes and publishing | `WorkEffort` (`WetRelease`) | own | app | new | `WorkEffort workEffortId` |
 
 ### Work items
 
 | Screen | Path | Archetype | Impl | Purpose | Main record | Reused | Roles | Scope | Context |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| WorkItems | `Projects/WorkItems` | list | xml | Work items across projects or in one: smart lists and saved finds, quick add, bulk changes; list, board, calendar and tree views; a peek pane | `WorkEffort` (`WetTask`) | own | app | parity | `WorkEffort rows`; list find parameters |
-| WorkItemDetail | `Projects/WorkItems/WorkItemDetail` | detail | xml | One work item: its place in the tree, fields, sub-item tree, links, development, time, files, Chatter | `WorkEffort` (`WetTask`) | Task / work item, crosscut §3.12, designed here (`Shared/WorkItemDetail`) | app | parity | `WorkEffort workEffortId` |
-| Backlog | `Projects/WorkItems/Backlog` | board | qvue | Rank the backlog, plan sprints, start and complete them | `WorkEffort` (`WetTask`, `WetSprint`) | own | internal | new | `WorkEffort workEffortId` (the project); `WorkEffort rows` |
-| SprintDetail | `Projects/WorkItems/SprintDetail` | detail | xml | A sprint: goal and dates, its items, burndown, scope changes | `WorkEffort` (`WetSprint`) | own | internal | new | `WorkEffort workEffortId` |
-| Timeline | `Projects/WorkItems/Timeline` | calendar | qvue | Work items as bars with dependencies, milestones and sprints, over the work item find; projects in portfolio mode | `WorkEffort` | own | app | new | list find parameters |
-| WorkItemImport | `Projects/WorkItems/Import` | wizard | xml | Import work items from CSV with Jira, Redmine and GitHub presets | `WorkEffort` | own | managers | new | none |
+| WorkItems | `Projects/WorkItems` | list | xml (built P2) | Work items across projects or in one: smart lists and saved finds, quick add, bulk changes; list, board, calendar and tree views; a peek pane | `WorkEffort` (`WetTask`) | own | app | parity | `WorkEffort rows`; list find parameters |
+| WorkItemDetail | `Projects/WorkItems/WorkItemDetail` | detail | xml (built P2) | One work item: its place in the tree, fields, sub-item tree, links, development, time, files, Chatter | `WorkEffort` (`WetTask`) | Task / work item, crosscut §3.12, designed here (`Shared/WorkItemDetail`) | app | parity | `WorkEffort workEffortId` |
+| Backlog | `Projects/WorkItems/Backlog` | board | qvue (built P4a; terminal P11) | Rank the backlog, plan sprints, start and complete them | `WorkEffort` (`WetTask`, `WetSprint`) | own | internal | new | `WorkEffort workEffortId` (the project); `WorkEffort rows` |
+| SprintDetail | `Projects/WorkItems/SprintDetail` | detail | xml (built P4a) | A sprint: goal and dates, its items, burndown, scope changes | `WorkEffort` (`WetSprint`) | own | internal | new | `WorkEffort workEffortId` |
+| Timeline | `Projects/WorkItems/Timeline` | calendar | qvue (built P4c; terminal P11) | Work items as bars with dependencies, milestones and sprints, over the work item find; projects in portfolio mode | `WorkEffort` | own | app | new | list find parameters |
+| WorkItemImport | `Projects/WorkItems/Import` | wizard | xml (built P4c) | Import work items from CSV with Jira, Redmine and GitHub presets | `WorkEffort` | own | managers | new | none |
 
 ### Requests
 
 | Screen | Path | Archetype | Impl | Purpose | Main record | Reused | Roles | Scope | Context |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Requests | `Projects/Requests` | list | xml | Triage and track requests: new, assigned, accepted, in progress; convert to work | `Request` | own | app | parity | `Request rows`; list find parameters |
-| RequestDetail | `Projects/Requests/RequestDetail` | detail | xml | One request: header, conversation, its work, items, people, files | `Request` | Request / case, crosscut §3.11, designed here (`Shared/RequestDetail`) | app | parity | `Request requestId` |
-| RequestIntake | `screen/RequestIntake.xml` (served at `/r/<token>`; as built in P5 a screen of its own beside PublicShare and Unsubscribe, not under the Projects root, whose authorization a visitor has not) | task | qvue | The public request form of a project | `Request` | own | anonymous by token | new | none |
+| Requests | `Projects/Requests` | list | xml (built P5) | Triage and track requests: new, assigned, accepted, in progress; convert to work | `Request` | own | app | parity | `Request rows`; list find parameters |
+| RequestDetail | `Projects/Requests/RequestDetail` | detail | xml (built P5) | One request: header, conversation, its work, items, people, files | `Request` | Request / case, crosscut §3.11, designed here (`Shared/RequestDetail`) | app | parity | `Request requestId` |
+| RequestIntake | `screen/RequestIntake.xml` (served at `/r/<token>`; as built in P5 a screen of its own beside PublicShare and Unsubscribe, not under the Projects root, whose authorization a visitor has not) | task | qvue (built P5) | The public request form of a project | `Request` | own | anonymous by token | new | none |
 
 ### Code
 
 | Screen | Path | Archetype | Impl | Purpose | Main record | Reused | Roles | Scope | Context |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Repositories | `Projects/Code/Repositories` | list | xml | The repositories I may view: create, link, mirror, import, clone URLs; the archived ones apart | `GitRepository` | own | internal | parity | `GitRepository rows` |
-| RepositoryDetail | `Projects/Code/RepositoryDetail` | detail | xml | One repository: header with clone and New merge request; tabs | `GitRepository` | own | internal | new | `GitRepository repositoryId` |
-| RepositoryFiles | `Projects/Code/RepositoryDetail/Files` | detail | xml | Browse files at a branch, tag or commit; read a file; the README | `GitRepository` | own | internal | new | inherits; ref, path |
-| RepositoryCommits | `Projects/Code/RepositoryDetail/Commits` | list | xml | The log of a ref or a path with linked work items and CI state | `GitRepository` | own | internal | new | inherits; ref, path |
-| RepositoryBranches | `Projects/Code/RepositoryDetail/Branches` | list | xml | Branches with ahead and behind, their work item and merge request; new and delete | `GitRepository` | own | internal | new | inherits |
-| RepositoryTags | `Projects/Code/RepositoryDetail/Tags` | list | xml | Tags with their release, milestone or project; new and delete | `GitRepository` | own | internal | parity | inherits |
-| RepositoryMergeRequests | `Projects/Code/RepositoryDetail/MergeRequests` | list | xml | The repository's merge requests | `GitMergeRequest` (new) | MergeRequests (§7) with the repository fixed | internal | new | inherits |
-| RepositoryActivity | `Projects/Code/RepositoryDetail/Activity` | list | xml | The push log: who changed which refs, and the rules that ran | `GitUpdate` | own | internal | new | inherits |
-| RepositorySettings | `Projects/Code/RepositoryDetail/Settings` | settings | xml | Description, default branch and merge method, projects, branch rules, webhooks, large files, storage, mirror, export and import, archive | `GitRepository` | own | managers and the repository's maintainers | new | inherits |
-| Compare | `Projects/Code/Compare` | detail | xml | Compare two refs and open a merge request from them | `GitRepository` | own | internal | new | `GitRepository repositoryId`; refs |
-| CommitDetail | `Projects/Code/CommitDetail` | detail | xml | One commit: message, people, parents, linked work items, CI, the files and their diffs | `GitRepository` (a commit) | own | internal | parity | `GitRepository repositoryId`; commit |
-| MergeRequests | `Projects/Code/MergeRequests` | list | xml | Merge requests across repositories: waiting for my review, mine, open, merged | `GitMergeRequest` (new) | own | internal | new | `GitMergeRequest rows`; list find parameters |
-| MergeRequestDetail | `Projects/Code/MergeRequestDetail` | detail | xml | One merge request: description, work items, reviewers, checks, merge; commits; discussion | `GitMergeRequest` | own | internal | new | `GitMergeRequest mergeRequestId` |
-| MergeRequestChanges | `Projects/Code/MergeRequestDetail/Changes` | split | qvue | The diff with line comments, threads and the review | `GitMergeRequest` | own | internal | new | inherits; file path |
-| GitAccess | `Projects/Code/GitAccess` | settings | xml | My SSH keys and access tokens, and how to clone | `UserSshKey`, `UserLoginKey` | own | internal | parity | none |
+| Repositories | `Projects/Code/Repositories` | list | xml (built P3b1) | The repositories I may view: create, link, mirror, import, clone URLs; the archived ones apart | `GitRepository` | own | internal | parity | `GitRepository rows` |
+| RepositoryDetail | `Projects/Code/RepositoryDetail` | detail | xml (built P3b1) | One repository: header with clone and New merge request; tabs | `GitRepository` | own | internal | new | `GitRepository repositoryId` |
+| RepositoryFiles | `Projects/Code/RepositoryDetail/Files` | detail | xml (built P3b1) | Browse files at a branch, tag or commit; read a file; the README | `GitRepository` | own | internal | new | inherits; ref, path |
+| RepositoryCommits | `Projects/Code/RepositoryDetail/Commits` | list | xml (built P3b1) | The log of a ref or a path with linked work items and CI state | `GitRepository` | own | internal | new | inherits; ref, path |
+| RepositoryBranches | `Projects/Code/RepositoryDetail/Branches` | list | xml (built P3b1) | Branches with ahead and behind, their work item and merge request; new and delete | `GitRepository` | own | internal | new | inherits |
+| RepositoryTags | `Projects/Code/RepositoryDetail/Tags` | list | xml (built P3b1) | Tags with their release, milestone or project; new and delete | `GitRepository` | own | internal | parity | inherits |
+| RepositoryMergeRequests | `Projects/Code/RepositoryDetail/MergeRequests` | list | xml (built P3b2) | The repository's merge requests | `GitMergeRequest` (new) | MergeRequests (§7) with the repository fixed | internal | new | inherits |
+| RepositoryActivity | `Projects/Code/RepositoryDetail/Activity` | list | xml (built P3b1) | The push log: who changed which refs, and the rules that ran | `GitUpdate` | own | internal | new | inherits |
+| RepositorySettings | `Projects/Code/RepositoryDetail/Settings` | settings | xml (built P3b1) | Description, default branch and merge method, projects, branch rules, webhooks, large files, storage, mirror, export and import, archive | `GitRepository` | own | managers and the repository's maintainers | new | inherits |
+| Compare | `Projects/Code/Compare` | detail | xml (built P3b1) | Compare two refs and open a merge request from them | `GitRepository` | own | internal | new | `GitRepository repositoryId`; refs |
+| CommitDetail | `Projects/Code/CommitDetail` | detail | xml (built P3b1) | One commit: message, people, parents, linked work items, CI, the files and their diffs | `GitRepository` (a commit) | own | internal | parity | `GitRepository repositoryId`; commit |
+| MergeRequests | `Projects/Code/MergeRequests` | list | xml (built P3b2) | Merge requests across repositories: waiting for my review, mine, open, merged | `GitMergeRequest` (new) | own | internal | new | `GitMergeRequest rows`; list find parameters |
+| MergeRequestDetail | `Projects/Code/MergeRequestDetail` | detail | xml (built P3b2) | One merge request: description, work items, reviewers, checks, merge; commits; discussion | `GitMergeRequest` | own | internal | new | `GitMergeRequest mergeRequestId` |
+| MergeRequestChanges | `Projects/Code/MergeRequestDetail/Changes` | split | qvue (built P3b2; terminal P11) | The diff with line comments, threads and the review | `GitMergeRequest` | own | internal | new | inherits; file path |
+| GitAccess | `Projects/Code/GitAccess` | settings | xml (built P3b1) | My SSH keys and access tokens, and how to clone | `UserSshKey`, `UserLoginKey` | own | internal | parity | none |
 
 ### Time
 
 | Screen | Path | Archetype | Impl | Purpose | Main record | Reused | Roles | Scope | Context |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| MyTime | `Projects/Time/MyTime` | list | qvue | My week: a grid of work items by day, the timer, submit; a day view on a phone | `TimeEntry`, `Timesheet` | own | internal | new | `Timesheet timesheetId` |
-| Timesheets | `Projects/Time/Timesheets` | list | xml | Weekly timesheets to submit, approve or return; missing time | `Timesheet` | own; Approvals waiting, design-drawers-commons §4 (Projects' own list) | internal | new | `Timesheet rows`; list find parameters |
-| TimesheetDetail | `Projects/Time/TimesheetDetail` | detail | xml | One person's week: entries by day and project, flags, approve or return | `Timesheet` | own | internal | new | `Timesheet timesheetId` |
-| TimeEntries | `Projects/Time/TimeEntries` | list | xml | All time I may see, with rates and invoice state; edit, bulk changes, team time, import | `TimeEntry` | own | internal | parity | `TimeEntry rows`; list find parameters |
+| MyTime | `Projects/Time/MyTime` | list | qvue (built P6a; terminal P11) | My week: a grid of work items by day, the timer, submit; a day view on a phone | `TimeEntry`, `Timesheet` | own | internal | new | `Timesheet timesheetId` |
+| Timesheets | `Projects/Time/Timesheets` | list | xml (built P6a) | Weekly timesheets to submit, approve or return; missing time | `Timesheet` | own; Approvals waiting, design-drawers-commons §4 (Projects' own list) | internal | new | `Timesheet rows`; list find parameters |
+| TimesheetDetail | `Projects/Time/TimesheetDetail` | detail | xml (built P6a) | One person's week: entries by day and project, flags, approve or return | `Timesheet` | own | internal | new | `Timesheet timesheetId` |
+| TimeEntries | `Projects/Time/TimeEntries` | list | xml (built P6b) | All time I may see, with rates and invoice state; edit, bulk changes, team time, import | `TimeEntry` | own | internal | parity | `TimeEntry rows`; list find parameters |
 
 ### Resources
 
 | Screen | Path | Archetype | Impl | Purpose | Main record | Reused | Roles | Scope | Context |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| TeamPlanner | `Projects/Resources/TeamPlanner` | calendar | qvue | People by week: capacity, allocations by project, assigned work, leave; drag to plan | `WorkEffortAllocation` (new) | own | internal (changes: managers) | new | list find parameters |
-| Allocations | `Projects/Resources/Allocations` | list | xml | Allocation requests and placeholders: staff, approve, reject | `WorkEffortAllocation` (new) | own | internal | new | `WorkEffortAllocation rows` |
-| PersonDetail | `Projects/Resources/PersonDetail` | 360 | xml | A person as Projects sees them: allocations, work, time, capacity, skills | `Party` (`Person`) | Employee 360, crosscut §3.4 | internal | new | `Party partyId` |
+| TeamPlanner | `Projects/Resources/TeamPlanner` | calendar | qvue (built P7; terminal P11) | People by week: capacity, allocations by project, assigned work, leave; drag to plan | `WorkEffortAllocation` (new) | own | internal (changes: managers) | new | list find parameters |
+| Allocations | `Projects/Resources/Allocations` | list | xml (built P7) | Allocation requests and placeholders: staff, approve, reject | `WorkEffortAllocation` (new) | own | internal | new | `WorkEffortAllocation rows` |
+| PersonDetail | `Projects/Resources/PersonDetail` | 360 | xml (built P7) | A person as Projects sees them: allocations, work, time, capacity, skills | `Party` (`Person`) | Employee 360, crosscut §3.4 | internal | new | `Party partyId` |
 
 ### Billing
 
 | Screen | Path | Archetype | Impl | Purpose | Main record | Reused | Roles | Scope | Context |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Unbilled | `Projects/Billing/Unbilled` | list | xml | The billing queue: unbilled time and expenses by project, milestones due for invoicing, contractor time to bill | `TimeEntry`, `WorkEffort` | own | managers | parity | list find parameters |
-| Invoices | `Projects/Billing/Invoices` | list | xml | Client, contractor and expense invoices of projects | `Invoice` | own | managers; clients (theirs) | new | `Invoice rows` |
-| InvoiceDetail | `Projects/Billing/InvoiceDetail` | detail | xml | One invoice with the time and milestones behind its lines | `Invoice` | Invoice detail, crosscut §3 | managers; clients (read) | new | `Invoice invoiceId` |
-| OrderDetail | `Projects/Billing/OrderDetail` | detail | xml | The sales order a project fulfils, with its lines' work and milestone shares | `OrderHeader` | Order detail, crosscut §3.6 | managers | new | `OrderHeader orderId` |
-| Rates | `Projects/Billing/Rates` | list | xml | Client billing and worker pay rates by project, person, position and work type | `RateAmount` | own | managers | parity | `RateAmount rows` |
+| Unbilled | `Projects/Billing/Unbilled` | list | xml (built P8a) | The billing queue: unbilled time and expenses by project, milestones due for invoicing, contractor time to bill | `TimeEntry`, `WorkEffort` | own | managers | parity | list find parameters |
+| Invoices | `Projects/Billing/Invoices` | list | xml (built P8a; clients P10b) | Client, contractor and expense invoices of projects | `Invoice` | own | managers; clients (theirs) | new | `Invoice rows` |
+| InvoiceDetail | `Projects/Billing/InvoiceDetail` | detail | xml (built P8a; clients P10b) | One invoice with the time and milestones behind its lines | `Invoice` | Invoice detail, crosscut §3 | managers; clients (read) | new | `Invoice invoiceId` |
+| OrderDetail | `Projects/Billing/OrderDetail` | detail | xml (built P8b) | The sales order a project fulfils, with its lines' work and milestone shares | `OrderHeader` | Order detail, crosscut §3.6 | managers | new | `OrderHeader orderId` |
+| Rates | `Projects/Billing/Rates` | list | xml (built P8a) | Client billing and worker pay rates by project, person, position and work type | `RateAmount` | own | managers | parity | `RateAmount rows` |
 
 ### Reports
 
 | Screen | Path | Archetype | Impl | Purpose | Main record | Reused | Roles | Scope | Context |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Reports | `Projects/Reports` | settings | xml | The report index | — | own | internal | new | none |
-| TimeReport | `Projects/Reports/Time` | report | xml | Hours and amounts by up to three criteria and a period | `mantle.work.ProjectReportServices.get#TimeReport` (new) | own | internal | new | report parameters |
-| WorkItemReport | `Projects/Reports/WorkItems` | report | xml | Counts by status and type, created against resolved, overdue, cycle time | `mantle.work.ProjectReportServices.get#WorkItemSummary` (new) | own | internal | new | report parameters |
-| SprintReport | `Projects/Reports/Sprints` | report | xml | Burndown and velocity | `mantle.work.ProjectReportServices.get#SprintBurndown`, `get#SprintVelocity` (new) | own | internal | new | report parameters |
-| PortfolioReport | `Projects/Reports/Portfolio` | report | xml | Every project's status, health, progress, schedule and budget | `mantle.work.ProjectReportServices.get#PortfolioStatus` (new) | own | internal | new | report parameters |
-| ProfitabilityReport | `Projects/Reports/Profitability` | report | xml | Budget, cost, billable, billed and margin by project | `mantle.work.ProjectReportServices.get#ProjectProfitability` (new) | own | managers | new | report parameters |
-| UtilizationReport | `Projects/Reports/Utilization` | report | xml | Capacity, logged and billable hours by person and week | `mantle.work.ProjectReportServices.get#Utilization` (new) | own | managers | new | report parameters |
-| ProgressReport | `Projects/Reports/Progress` | report | xml | Estimated, actual and remaining work by milestone, and by top-level item down the work item tree | `mantle.work.ProjectServices.get#ProjectMilestoneSummary`, `get#WorkEffortChildStats`; as built (P9) through `mantle.work.ProjectReportServices.get#ProgressBreakdown` | own | internal | parity | report parameters |
+| Reports | `Projects/Reports` | settings | xml (built P9) | The report index | — | own | internal | new | none |
+| TimeReport | `Projects/Reports/Time` | report | xml (built P9) | Hours and amounts by up to three criteria and a period | `mantle.work.ProjectReportServices.get#TimeReport` (new) | own | internal | new | report parameters |
+| WorkItemReport | `Projects/Reports/WorkItems` | report | xml (built P9) | Counts by status and type, created against resolved, overdue, cycle time | `mantle.work.ProjectReportServices.get#WorkItemSummary` (new) | own | internal | new | report parameters |
+| SprintReport | `Projects/Reports/Sprints` | report | xml (built P9) | Burndown and velocity | `mantle.work.ProjectReportServices.get#SprintBurndown`, `get#SprintVelocity` (new) | own | internal | new | report parameters |
+| PortfolioReport | `Projects/Reports/Portfolio` | report | xml (built P9) | Every project's status, health, progress, schedule and budget | `mantle.work.ProjectReportServices.get#PortfolioStatus` (new) | own | internal | new | report parameters |
+| ProfitabilityReport | `Projects/Reports/Profitability` | report | xml (built P9) | Budget, cost, billable, billed and margin by project | `mantle.work.ProjectReportServices.get#ProjectProfitability` (new) | own | managers | new | report parameters |
+| UtilizationReport | `Projects/Reports/Utilization` | report | xml (built P9) | Capacity, logged and billable hours by person and week | `mantle.work.ProjectReportServices.get#Utilization` (new) | own | managers | new | report parameters |
+| ProgressReport | `Projects/Reports/Progress` | report | xml (built P9) | Estimated, actual and remaining work by milestone, and by top-level item down the work item tree | `mantle.work.ProjectServices.get#ProjectMilestoneSummary`, `get#WorkEffortChildStats`; as built (P9) through `mantle.work.ProjectReportServices.get#ProgressBreakdown` | own | internal | parity | report parameters |
 
 ### Settings
 
 | Screen | Path | Archetype | Impl | Purpose | Main record | Reused | Roles | Scope | Context |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Settings | `Projects/Settings` | settings | xml | The settings index | — | own | managers | new | none |
-| WorkItemTypes | `Projects/Settings/WorkItemTypes` | settings | xml | Which work item types are offered, their order and icons | `Enumeration` (`WorkEffortPurpose`), `PartySetting` | own | managers | new | none |
-| Workflows | `Projects/Settings/Workflows` | settings | xml | Status flows for projects and work items, their transitions and statuses | `StatusFlow`, `StatusFlowTransition`, `StatusItem` | own | managers | new | none |
-| Labels | `Projects/Settings/Labels` | settings | xml | Work item labels | `WorkEffortCategory` | own | managers | new | none |
-| Templates | `Projects/Settings/Templates` | settings | xml | Project templates: list, new, save a project as a template | `WorkEffort` (`isTemplate`, new) | own | managers | new | none |
-| TimeSettings | `Projects/Settings/Time` | settings | xml | Work types, the timesheet week, approvers, required fields, reminders | `Enumeration` (`WorkType`), `PartySetting` | own | managers | new | none |
-| BillingSettings | `Projects/Settings/Billing` | settings | xml | Billing defaults, invoice grouping and time detail, contractor billing | `PartySetting` | own | managers | new | none |
-| CodeSettings | `Projects/Settings/Code` | settings | xml | Repository defaults, commit conventions, default branch rules, merge request automation, SSH access | `PartySetting`, `UserGroupPermission` | own | managers | new | none |
-| IntakeSettings | `Projects/Settings/Intake` | settings | xml | Request types and categories, triage, email intake addresses, the public form | `PartySetting`, `RequestCategory` | own | managers | new | none |
+| Settings | `Projects/Settings` | settings | xml (built P2) | The settings index | — | own | managers | new | none |
+| WorkItemTypes | `Projects/Settings/WorkItemTypes` | settings | xml (built P2) | Which work item types are offered, their order and icons | `Enumeration` (`WorkEffortPurpose`), `PartySetting` | own | managers | new | none |
+| Workflows | `Projects/Settings/Workflows` | settings | xml (built P2) | Status flows for projects and work items, their transitions and statuses | `StatusFlow`, `StatusFlowTransition`, `StatusItem` | own | managers | new | none |
+| Labels | `Projects/Settings/Labels` | settings | xml (built P2) | Work item labels | `WorkEffortCategory` | own | managers | new | none |
+| Templates | `Projects/Settings/Templates` | settings | xml (built P2) | Project templates: list, new, save a project as a template | `WorkEffort` (`isTemplate`, new) | own | managers | new | none |
+| TimeSettings | `Projects/Settings/Time` | settings | xml (built P6b) | Work types, the timesheet week, approvers, required fields, reminders | `Enumeration` (`WorkType`), `PartySetting` | own | managers | new | none |
+| BillingSettings | `Projects/Settings/Billing` | settings | xml (built P8a) | Billing defaults, invoice grouping and time detail, contractor billing | `PartySetting` | own | managers | new | none |
+| CodeSettings | `Projects/Settings/Code` | settings | xml (built P3b1) | Repository defaults, commit conventions, default branch rules, merge request automation, SSH access | `PartySetting`, `UserGroupPermission` | own | managers | new | none |
+| IntakeSettings | `Projects/Settings/Intake` | settings | xml (built P5) | Request types and categories, triage, email intake addresses, the public form | `PartySetting`, `RequestCategory` | own | managers | new | none |
 
 Dropped from the research's candidate inventory, with the reason in §16: a separate portfolio or program screen
 (a view of the Projects list and the Timeline's portfolio mode), a separate board screen (a view of WorkItems),
@@ -653,6 +660,9 @@ impl-projects.md F7), each save a commit on the default branch that a branch rul
 (`restrictView`) unless the project is All users or General, changed by members only (`restrictUpdate`), and its
 `WikiSpaceUser` rows follow the project's internal members (`sync#ProjectDocsSpaceUsers`, by a rule on `WorkEffortParty`;
 ProjectManager and Manager administer it), so a repository's docs are never readable by those the project hides them from.
+The terminal (impl-projects.md P11): ProjectDetail mounts Commons' `KnowledgeTui` beside the tab in a project mode: the
+project's space only, its linked pages, the page with the pages under it, links that stay in the tab, and Set up
+documentation on database files for a manager of a project without a space; editing is the browser's.
 
 ### ProjectTeam
 
@@ -1055,7 +1065,9 @@ actions.
   estimate is its children's, and it is completed from the tree), while a sprint holds items at any depth; a row's menu does the same moves as a drag (top, bottom, to a
   sprint, back to the backlog) for phones and the keyboard; quick add puts the new item at the top of the backlog; the
   filters narrow the rows of both panes but not a sprint's total. The project's team ranks, plans, makes, starts and
-  completes sprints; Plan in sprints is its managers'. The terminal has `BacklogTui`, read only.
+  completes sprints; Plan in sprints is its managers'. The terminal has `BacklogTui` (impl-projects.md P11): the lists, Move
+  (items to the backlog or a sprint, at the top, the bottom or after an item), New, Start and Complete sprint, and Plan in
+  sprints; dragging is the browser's.
 - **Forms:**
 
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
@@ -1128,7 +1140,8 @@ actions.
   the toolbar's Dependency opens DependencyForm for phones and the keyboard; a click on an arrow opens it with the lag and Remove.
   A dependency that closes a loop, joins an item to its own ancestor or descendant, or has a negative lag is refused; one whose
   item starts before the next weekday after the other's due plus the lag is drawn in the warning color. Holidays are the
-  `WepHoliday` days of the projects' organizations. The terminal has `TimelineTui`, read only (the moves wait for P11).
+  `WepHoliday` days of the projects' organizations. The terminal has `TimelineTui` (impl-projects.md P11): the rows, Move
+  dates (dates or a shift, sub-items and dependents when asked), Add and Remove dependency; dragging bars is the browser's.
   Services: `ironstone.PlanningServices` `get#Timeline`, `move#TimelineItem`, `save#` and `remove#TimelineDependency`; Mantle
   `TaskServices` `add#`, `remove#TaskDependency` and `set#TaskDates`, `ProjectServices.get#TimelineData` (§15). WorkItemDetail's
   Links make dependencies through `add#TaskDependency` too.
@@ -1553,8 +1566,8 @@ find stays in it.
   file. Submit review opens the review dialog. Comments are markdown (`m-text-area` with `editor-type="md"`, shown by
   `m-markdown`), as `create#ReviewComment` stores them (`text/markdown`); with `m-avatar` and `m-dialog`. The diff's
   lines are text, never html, so nothing pushed runs in the app's origin (impl-projects.md F32). Keys: j and k the next
-  and previous file, v viewed. The terminal (`ChangesTui`) lists the files and the threads read only; the full terminal
-  diff is P11's.
+  and previous file, v viewed. The terminal (`ChangesTui`, impl-projects.md P11) lists the files, one file's diff (numbered old and new
+  lines as text), the threads, and Comment on a line, Reply and Resolve or Reopen; the review is MergeRequestDetail's dialog.
 - **Forms:**
 
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
@@ -1634,7 +1647,9 @@ its pay context (research-projects open question, §16).
 
 - **States:** an approved week is read-only with "Approved by … on …"; a returned week shows the reason in a
   `q-banner`; a week of someone else is read-only unless the viewer is their approver.
-- **Devices:** phone (Day mode).
+- **Devices:** phone (Day mode). The terminal (`MyTimeTui`, impl-projects.md P11): the week by day with its entries, the
+  timer (Start on an item, Stop), Log time (an entry in full), an entry's Edit (TimeEntries' dialog) and Delete, and Submit,
+  Approve, Return and Reopen; typing in the grid's cells, Add row and Copy last week's rows are the browser's.
 - **Source:** research §8 (OpenProject time entries and timer, Ever Gauzy weekly and daily grids, Dolibarr per-week
   input, ERPNext timer, Redmine required fields); the first port's `Projects/Timesheets` and My Account's time
   list.
@@ -1778,6 +1793,9 @@ unless they ask for approval.
 | `PlannerGrid` | component | People by week | capacity, allocations, assigned work, leave | drag and resize | `mantle.work.ResourceServices.get#TeamPlan` (new), `update#Allocation` (new) | OpenProject team planner; Ever Teams weekly limit |
 | `AllocationForm` | dialog | An allocation | project or work item, person or role (as built: a project role) and skill, from, thru, hours per week or a percent of capacity, note | person `server-search` showing their free hours in the range | `create#Allocation`, `update#Allocation` (new) | OpenProject resource allocation |
 
+- **Terminal:** `TeamPlannerTui` (impl-projects.md P11): the placeholders, people by week with capacity, the allocations,
+  Move (a shift by days or new days) and, for an approver, Decide (approve, reject, cancel); requesting and staffing are
+  Allocations', which the terminal renders as plain screens.
 - **Source:** research §9 (OpenProject team planner and resource management); research-people §7.
 - **Needs:** Allocations; Capacity; `.qvue` TUI texts.
 
@@ -2294,7 +2312,7 @@ record is read through a service that checks the repository's rights (R21).
 | `view-board` all rows | XML Form element | `view-board` `all-rows="true"`: while the board shows, it asks the form request for the find without paging, up to `max-rows` (500 by default), as `view-calendar`'s `range-find` does | WorkItems (a sprint's board), Requests | impl-drawers-commons §8 "Decided" on range-find |
 | `view-timeline` | XML Form element | later: `view-timeline` with start, end, title, group and dependency fields; until then the Timeline `.qvue` | Timeline | style-guide §8 "List views" |
 | `code-view` | XML Screen element + Vue component | `<code-view text language line-numbers highlight-lines/>` rendering `m-code`: highlight.js (BSD-3-Clause) through `libs/refresh.mjs` with its manifest and License-Review rows, for Java, Groovy, XML, JavaScript, TypeScript, Rust, Kotlin, Python, SQL, YAML, JSON, Markdown, CSS, HTML and shell; `pre` in the html and tui modes | RepositoryFiles | style-guide §8.1 checklist |
-| `.qvue` TUI texts | render mode | Backlog, Timeline, MyTime, TeamPlanner, MergeRequestChanges and RequestIntake are browser-only first; each gets its `tui` text later (style-guide §4.8), MyTime first, since people log time from a terminal | those screens | the lint's TUI worklist |
+| `.qvue` TUI texts | render mode | Backlog, Timeline, MyTime, TeamPlanner, MergeRequestChanges and RequestIntake are browser-only first; each gets its `tui` text later (style-guide §4.8), MyTime first, since people log time from a terminal. As built: each `.qvue` screen's twin is a hidden plain-XML screen in a dynamic container (P4a to P7 read only); P11 gave MyTime's (the timer, Log time, an entry's Edit and Delete, Submit, Approve, Return, Reopen), Backlog's, Timeline's, TeamPlanner's (Move and Decide) and MergeRequestChanges' (the diff, line comments) their changes, and the Docs tab its project mode; the project Calendar's stays read only, RequestIntake is a public page with a short text | those screens | the lint's TUI worklist |
 | Print documents | render mode | `html-print` templates for the project status report, the project estimate, the sprint report, a timesheet, the team timesheet and release notes | §14 | style-guide §8 "Print documents" |
 | `view-tree` | XML Form element | A form-list view beside `view-board` and `view-calendar`: `<view-tree parent-field="parentWorkEffortId" children-transition="…" rollup-fields="…" ancestor-transition="…"/>`: rows indented under their parents with expand and collapse, children fetched on open through the transition (with the list's find), the ancestors a find leaves out fetched and shown muted, expand to level n and all, the `rollup-fields` shown for a parent row beside its own, drag to reorder (posting the new previous sibling) or re-parent (posting the new parent), Tab and Shift+Tab to indent and outdent, editable fields as the list's; in the html mode a nested table and in the tui mode an indented outline with `+` and `-` markers | WorkItems (`WorkItemTree`), WorkItemDetail (`SubItems`), ProgressReport (`TopLevelStats`), Timeline's grid | style-guide §3.15 (look and behavior) and §8 "List views"; the `tree` element (`m-tree-top`) is a single-column tree, not a list |
 | List grouping | XML Form element | later: `form-list` `group-by` with group header rows, counts and sums | WorkItems, TimeEntries | Redmine and OpenProject grouping |
@@ -2321,7 +2339,7 @@ record is read through a service that checks the repository's rights (R21).
 
 | Need | Kind | Proposed as | Used by | Stub spec |
 | --- | --- | --- | --- | --- |
-| Code review store | data model + service type | Framework `moqui.resource.GitMergeRequest` {mergeRequestId, repositoryId, mergeRequestNum (per repository from 1), title, description, sourceRef, targetRef, statusId (`GmrDraft`, `GmrOpen`, `GmrMerged`, `GmrClosed`, with a flow), authorUserId, createdDate, lastUpdatedDate, headCommitId, baseCommitId, mergeableEnumId, conflictPaths, mergeMethodEnumId, deleteSourceBranch, mergedDate, mergedByUserId, mergeCommitId, closedDate} and `GitMergeRequestReviewer` {mergeRequestId, userId, statusId (`GmrrRequested`, `GmrrApproved`, `GmrrChangesRequested`, `GmrrCommented`), reviewedCommitId, reviewedDate}; `org.moqui.impl.GitReviewServices` `create#MergeRequest`, `update#MergeRequest`, `set#MergeRequestReviewers`, `submit#MergeRequestReview`, `close#MergeRequest`, `reopen#MergeRequest`, `merge#MergeRequest`, `find#MergeRequests`, `get#MergeRequestDiff`, and `refresh#MergeRequests` (a framework rule on ref-update: a source's new head, mergeability again, merged when the target holds the head) | MergeRequests, MergeRequestDetail, MergeRequestChanges, Compare, Home | Mantle-free, as `WikiPageReview` is |
+| Code review store | data model + service type | Framework `moqui.resource.GitMergeRequest` {mergeRequestId, repositoryId, mergeRequestNum (per repository from 1), title, description, sourceRef, targetRef, statusId (`GmrDraft`, `GmrOpen`, `GmrMerged`, `GmrClosed`, with a flow), authorUserId, createdDate, lastUpdatedDate, headCommitId, baseCommitId, mergeableEnumId, conflictPaths, mergeMethodEnumId, deleteSourceBranch, mergedDate, mergedByUserId, mergeCommitId, closedDate} and `GitMergeRequestReviewer` {mergeRequestId, userId, statusId (`GmrrRequested`, `GmrrApproved`, `GmrrChangesRequested`, `GmrrCommented`), reviewedCommitId, reviewedDate}; `org.moqui.impl.GitReviewServices` `create#MergeRequest`, `update#MergeRequest`, `set#MergeRequestReviewers`, `submit#MergeRequestReview`, `close#MergeRequest`, `reopen#MergeRequest`, `merge#MergeRequest`, `find#MergeRequests`, `get#MergeRequestDiff`, and `refresh#MergeRequests` (a framework rule on ref-update: a source's new head, mergeability again, merged when the target holds the head). As built (impl-projects.md P11, F132): only a user who may push (update on the repository) approves, a viewer comments or requests changes, and the approvals counted toward a branch rule are those of users who may push now, each decided as its reviewer (`get#MergeRequestApprovals`, the same count `merge#MergeRequest` makes) | MergeRequests, MergeRequestDetail, MergeRequestChanges, Compare, Home | Mantle-free, as `WikiPageReview` is |
 | Merge request links | data model + service type | Mantle `mantle.work.effort.WorkEffortGitMergeRequest` {workEffortId, mergeRequestId, repositoryId, linkSourceEnumId (`WglsMergeRequestBranch`, `WglsMergeRequestText`, `WglsExplicit`), completeOnMerge, linkedByUserId, linkedDate}; `mantle.work.GitServices.link#MergeRequestItems` (the source branch's item and the keys in the title and description, by `find#TaskReferences`; completeOnMerge from a `Closes` keyword, the NewMergeRequest choice, else the project's `WstMergeRequestMoves`; a text key taken out drops its link), `move#MergeRequestItemsToReview` (opened or ready, with `WstMergeRequestMoves`), `complete#MergeRequestItems` (merged: the completeOnMerge items, where their flow allows), `add#`, `remove#MergeRequestItem` and `get#MergeRequestItems` (for MergeRequestDetail), dispatched by `handle#MergeRequestEvent` from the SECAs of `WorkGit.secas.xml` on the framework's `queue#MergeRequestEvent`, `merge#MergeRequest` and `set#MergeRequestReviewers` (merge request events are not git events, so not gitECA rules; impl-projects.md P3b) | WorkItemDetail, ReleaseDetail, MergeRequestDetail | |
 | Review anchors | data model + service type | Mantle `mantle.party.communication.CommunicationEventGitAnchor` {communicationEventId, mergeRequestId, repositoryId, commitId, path, oldLine, newLine, lineText, outdated}, the comment a `Comment` linked to the merge request by `CommunicationEventRecord`; `mantle.work.GitServices.create#ReviewComment` (a line comment or a reply, telling the author and reviewers), `store#ReviewAnchor`, `resolve#ReviewThread` (the first comment to `CeResolved` and back to `CeSent` by a direct change, as the Default flow has neither move from a sent comment), `get#ReviewThreads`, `refresh#ReviewAnchors` (outdated on a new head that changed the line); `get#RecordLinkInfo` knows `moqui.resource.GitMergeRequest` and `GitRepository` (visible to whoever may view the repository) | MergeRequestChanges, Chatter on a merge request | |
 | Code in the palette | service type | `mantle.work.GitServices.search#Code(text, limit)`: repositories and merge requests the user may view, as results (Mantle has no screen links); BOSS's `ironstone.CodeServices.search#CodePalette` makes them palette rows | palette | |

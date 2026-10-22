@@ -12,11 +12,15 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- The terminal twin of MyTime (style-guide §4.8): MyTime.xml's tui text is a dynamic container of this screen. A read-only agenda
-    of the week from the same service as MyTime.qvue (ironstone.TimeServices.get#MyWeek): the week with the previous and next, the
-    timesheet's status and reason, the total against the working hours, the running timer, then each day with its entries (from,
-    to, work item, hours, comment) and its total. Logging time, the timer and submit from the terminal wait for impl-projects.md
-    P11; a work item opens WorkItemDetail. -->
+<!-- The terminal twin of MyTime (style-guide §4.8): MyTime.xml's tui text is a dynamic container of this screen. The week from the
+    same service as MyTime.qvue (ironstone.TimeServices.get#MyWeek): the week with the previous and next, the timesheet's status and
+    reason, the total against the working hours, the running timer, then each day with its entries (from, to, work item, hours,
+    comment) and its total. The terminal's changes (impl-projects.md P11), over the services of MyTime.qvue's transitions: the timer
+    started on a work item or stopped (own week), Log time (an entry in full: item, day, hours, billable, work type, comment;
+    ironstone.TimeServices.save#TimeEntry), an entry's Edit (TimeEntries' EditEntry dialog, which goes on to Time entries) and
+    Delete, and the week's Submit, Approve, Return and Reopen (decide#Week, which checks who may). Each change answers My time again
+    on the same week. The grid's typing in cells, Add row and Copy last week's rows stay the browser's: Log time covers them; a work
+    item opens WorkItemDetail. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="My time" default-menu-include="false">
 
@@ -24,6 +28,59 @@ along with this software (see the LICENSE.md file). If not, see
     <parameter name="weekDate"/>
 
     <transition name="workItemDetail"><default-response url="../../WorkItems/WorkItemDetail"/></transition>
+    <!-- an entry's Edit: TimeEntries' dialog (it answers Time entries after a save) -->
+    <transition name="editEntry"><default-response url="../TimeEntries/EditEntry"/></transition>
+    <!-- the work items to log on: mine and recent, or by key or name (as MyTime's itemOptions) -->
+    <transition name="itemOptions" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.TimeServices.search#TimeItems').parameters({term: term || null}).call() || {}
+            ec.web.sendJsonResponse(Array.from(out.optionList || []))
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="logTime">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.TimeServices.save#TimeEntry').parameters({partyId: partyId || null, workEffortId: entryItemId || null,
+                day: day || null, hours: hours || null, billable: billable || 'Y', workTypeEnumId: workTypeEnumId || null, comments: comments || null}).call() || {}
+            if (!ec.message.hasError() && out.message) ec.message.addMessage(out.message, 'success')
+        ]]></script></actions>
+        <default-response url="../MyTime"><parameter name="partyId"/><parameter name="weekDate"/></default-response>
+        <error-response url="../MyTime"><parameter name="partyId"/><parameter name="weekDate"/></error-response>
+    </transition>
+    <transition name="deleteEntry">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.TimeServices.delete#WeekEntry').parameters({timeEntryId: timeEntryId || ''}).call() || {}
+            if (!ec.message.hasError() && out.message) ec.message.addMessage(out.message, 'success')
+        ]]></script></actions>
+        <default-response url="../MyTime"><parameter name="partyId"/><parameter name="weekDate"/></default-response>
+        <error-response url="../MyTime"><parameter name="partyId"/><parameter name="weekDate"/></error-response>
+    </transition>
+    <transition name="startTimer">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.TimeServices.start#Timer').parameters({workEffortId: timerItemId || '', comments: comments || null}).call() || {}
+            if (!ec.message.hasError() && out.message) ec.message.addMessage(out.message, 'success')
+        ]]></script></actions>
+        <default-response url="../MyTime"><parameter name="weekDate"/></default-response>
+        <error-response url="../MyTime"><parameter name="weekDate"/></error-response>
+    </transition>
+    <transition name="stopTimer">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('mantle.work.TimesheetServices.stop#Timer').parameters({timeEntryId: timeEntryId || null}).call() || {}
+            if (!ec.message.hasError()) ec.message.addMessage(out.message || ec.l10n.localize('Timer stopped'), 'success')
+        ]]></script></actions>
+        <default-response url="../MyTime"><parameter name="weekDate"/></default-response>
+        <error-response url="../MyTime"><parameter name="weekDate"/></error-response>
+    </transition>
+    <!-- submit, approve, return (a reason), reopen -->
+    <transition name="decide">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.TimeServices.decide#Week').parameters({action: action || '', timesheetId: timesheetId || null,
+                weekDate: weekDate || null, reason: reason || null}).call() || {}
+            if (!ec.message.hasError() && out.message) ec.message.addMessage(out.message, 'success')
+        ]]></script></actions>
+        <default-response url="../MyTime"><parameter name="partyId"/><parameter name="weekDate"/></default-response>
+        <error-response url="../MyTime"><parameter name="partyId"/><parameter name="weekDate"/></error-response>
+    </transition>
 
     <actions><script><![CDATA[
         weekFound = false; dayList = []
@@ -43,23 +100,109 @@ along with this software (see the LICENSE.md file). If not, see
         timerText = week.timer ? L('Timer running since') + ' ' + time(week.timer.fromDate) + ': ' + (week.timer.workEffortId ? week.timer.workEffortId + ' ' : '')
                 + (week.timer.workEffortName || '') + (week.timer.comments ? ' · ' + week.timer.comments : '') : ''
         prevWeek = week.prevWeek; nextWeek = week.nextWeek; personParam = week.isMine ? null : week.partyId
+        // what the user may do here (as MyTime.qvue's buttons)
+        isMine = !!week.isMine
+        const access = week.access || {}
+        canEdit = !!access.canEdit
+        canSubmit = !!access.canSubmit; canApprove = !!access.canApprove; canReturn = !!access.canReturn; canReopen = !!access.canReopen
+        timerEntryId = week.timer ? week.timer.timeEntryId : null
+        decideValue = {partyId: personParam, weekDate: week.weekStart, timesheetId: week.timesheet.timesheetId || null}
+        const today = Array.from(week.dayList).find((day) => day.isToday) || week.dayList[0]
+        logValue = {partyId: personParam, weekDate: week.weekStart, day: today ? today.day : null, billable: 'Y'}
+        timerValue = {weekDate: week.weekStart}
+        dayOptions = Array.from(week.dayList).map((day) => ({key: day.day, text: day.label + ' ' + day.dateLabel}))
+        workTypeOptions = Array.from(week.workTypeOptions || []).map((type) => ({key: type.value, text: type.label}))
+        // the items to start the timer on or log time on: the week's rows first, then the user's open and recent items
+        const itemOptions = Array.from(week.rowList || []).filter((row) => row.workEffortId).map((row) => ({key: row.workEffortId, text: row.workEffortId + ' ' + (row.workEffortName || '')}))
+        if (isMine) for (const option of Array.from(ec.service.sync().name('ironstone.TimeServices.search#TimeItems').call()?.optionList || []))
+            if (!itemOptions.some((one) => one.key === option.value)) itemOptions.push({key: option.value, text: option.label})
+        ec.message.clearErrors()
+        itemOptionList = itemOptions
         const names = {}
         for (const row of week.rowList) names[row.workEffortId || ''] = row.workEffortName
         dayList = week.dayList.map((day) => ({title: day.label + ' ' + day.dateLabel + ' · ' + n(day.total) + (day.isWorkday ? ' / ' + n(day.expected) : '') + ' h'
                 + (day.holiday ? ' · ' + day.holiday : '') + (day.below ? ' · ' + L('below its hours') : ''),
-            entries: week.entryList.filter((entry) => entry.day === day.day).map((entry) => ({span: time(entry.fromDate) + '–' + (entry.running ? L('now') : time(entry.thruDate)),
-                workEffortId: entry.workEffortId || '', workEffortName: names[entry.workEffortId || ''] || '', hoursText: n(entry.hours), comments: entry.comments || ''}))}))
+            entries: week.entryList.filter((entry) => entry.day === day.day).map((entry) => ({timeEntryId: entry.timeEntryId,
+                span: time(entry.fromDate) + '–' + (entry.running ? L('now') : time(entry.thruDate)),
+                workEffortId: entry.workEffortId || '', workEffortName: names[entry.workEffortId || ''] || '', hoursText: n(entry.hours), comments: entry.comments || '',
+                changeable: canEdit && !entry.running && !entry.invoiced, partyId: personParam, weekDate: week.weekStart}))}))
     ]]></script></actions>
     <widgets>
         <section name="MyTimeTuiFound" condition="weekFound"><widgets>
             <label text="${title}" type="h5"/>
             <container style="row q-gutter-sm">
-                <link url="." text="Previous week" parameter-map="{partyId:personParam, weekDate:prevWeek}" link-type="anchor"/>
-                <link url="." text="Next week" parameter-map="{partyId:personParam, weekDate:nextWeek}" link-type="anchor"/>
+                <link url="../MyTime" text="Previous week" parameter-map="{partyId:personParam, weekDate:prevWeek}" link-type="anchor"/>
+                <link url="../MyTime" text="Next week" parameter-map="{partyId:personParam, weekDate:nextWeek}" link-type="anchor"/>
             </container>
             <label text="${summaryText}" type="p"/>
             <label text="${reasonText}" type="p" style="text-warning" condition="reasonText"/>
-            <label text="${timerText}" type="p" style="text-primary" condition="timerText"/>
+            <!-- the timer (own week): Stop, or Start on an item -->
+            <section name="MyTimeTuiTimer" condition="isMine"><widgets>
+                <section name="MyTimeTuiRunning" condition="timerEntryId"><widgets>
+                    <container style="row items-center q-gutter-sm">
+                        <label text="${timerText}" type="p" style="text-primary q-mb-none"/>
+                        <link url="stopTimer" link-type="hidden-form-link" text="Stop timer" icon="sym_o_stop_circle"
+                                parameter-map="{timeEntryId:timerEntryId, weekDate:decideValue.weekDate}"/>
+                    </container>
+                </widgets><fail-widgets>
+                    <container-dialog id="MyTimeTuiStartDialog" button-text="Start timer" icon="sym_o_play_circle" width="560" title="Start the timer">
+                        <form-single name="MyTimeTuiStart" transition="startTimer" map="timerValue">
+                            <field name="weekDate"><default-field><hidden/></default-field></field>
+                            <field name="timerItemId"><default-field title="Work item">
+                                <drop-down><list-options list="itemOptionList" key="${key}" text="${text}"/>
+                                    <dynamic-options transition="itemOptions" server-search="true" min-length="2" value-field="value" label-field="label"/></drop-down></default-field></field>
+                            <field name="comments"><default-field title="What you are doing"><text-line size="50"/></default-field></field>
+                            <field name="submitButton"><default-field title="Start"><submit/></default-field></field>
+                        </form-single>
+                    </container-dialog>
+                </fail-widgets></section>
+            </widgets></section>
+            <!-- the week's changes -->
+            <container style="row q-gutter-sm">
+                <container-dialog id="MyTimeTuiLogDialog" button-text="Log time" icon="sym_o_more_time" width="600" title="Log time" condition="canEdit">
+                    <form-single name="MyTimeTuiLog" transition="logTime" map="logValue">
+                        <field name="partyId"><default-field><hidden/></default-field></field>
+                        <field name="weekDate"><default-field><hidden/></default-field></field>
+                        <field name="entryItemId"><default-field title="Work item">
+                            <drop-down><list-options list="itemOptionList" key="${key}" text="${text}"/>
+                                <dynamic-options transition="itemOptions" server-search="true" min-length="2" value-field="value" label-field="label"/></drop-down></default-field></field>
+                        <field name="day"><default-field title="Day"><drop-down><list-options list="dayOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                        <field name="hours"><default-field title="Hours"><text-line size="6"/></default-field></field>
+                        <field name="billable"><default-field title="Billable">
+                            <drop-down><option key="Y" text="Billable"/><option key="N" text="Not billable"/></drop-down></default-field></field>
+                        <field name="workTypeEnumId"><conditional-field condition="workTypeOptions.length" title="Work type">
+                                <drop-down allow-empty="true"><list-options list="workTypeOptions" key="${key}" text="${text}"/></drop-down></conditional-field>
+                            <default-field><hidden/></default-field></field>
+                        <field name="comments"><default-field title="Comment"><text-line size="50"/></default-field></field>
+                        <field name="submitButton"><default-field title="Log"><submit/></default-field></field>
+                    </form-single>
+                </container-dialog>
+                <link url="decide" link-type="hidden-form-link" text="Submit week" icon="sym_o_send" condition="canSubmit"
+                        confirmation="Submit this week's time for approval? It is locked until it is returned or reopened."
+                        parameter-map="{action:'submit', partyId:decideValue.partyId, weekDate:decideValue.weekDate, timesheetId:decideValue.timesheetId}"/>
+                <link url="decide" link-type="hidden-form-link" text="Approve" icon="sym_o_task_alt" condition="canApprove"
+                        parameter-map="{action:'approve', partyId:decideValue.partyId, weekDate:decideValue.weekDate, timesheetId:decideValue.timesheetId}"/>
+                <container-dialog id="MyTimeTuiReturnDialog" button-text="Return" icon="sym_o_undo" width="520" title="Return the week" condition="canReturn">
+                    <form-single name="MyTimeTuiReturn" transition="decide" map="decideValue">
+                        <field name="action" from="'return'"><default-field><hidden/></default-field></field>
+                        <field name="partyId"><default-field><hidden/></default-field></field>
+                        <field name="weekDate"><default-field><hidden/></default-field></field>
+                        <field name="timesheetId"><default-field><hidden/></default-field></field>
+                        <field name="reason"><default-field title="Why (the person sees it)"><text-area rows="3" cols="50"/></default-field></field>
+                        <field name="submitButton"><default-field title="Return"><submit/></default-field></field>
+                    </form-single>
+                </container-dialog>
+                <container-dialog id="MyTimeTuiReopenDialog" button-text="Reopen" icon="sym_o_lock_open" width="520" title="Reopen the week" condition="canReopen">
+                    <form-single name="MyTimeTuiReopen" transition="decide" map="decideValue">
+                        <field name="action" from="'reopen'"><default-field><hidden/></default-field></field>
+                        <field name="partyId"><default-field><hidden/></default-field></field>
+                        <field name="weekDate"><default-field><hidden/></default-field></field>
+                        <field name="timesheetId"><default-field><hidden/></default-field></field>
+                        <field name="reason"><default-field title="Why"><text-area rows="3" cols="50"/></default-field></field>
+                        <field name="submitButton"><default-field title="Reopen"><submit/></default-field></field>
+                    </form-single>
+                </container-dialog>
+            </container>
             <section-iterate name="MyTimeTuiDay" list="dayList" entry="day"><widgets>
                 <container-box><box-header title="${day.title}"/><box-body-nopad>
                     <form-list name="MyTimeTuiEntries" list="day.entries" skip-form="true" paginate="false">
@@ -69,11 +212,17 @@ along with this software (see the LICENSE.md file). If not, see
                         </default-field></field>
                         <field name="hoursText"><default-field title="Hours"><display/></default-field></field>
                         <field name="comments"><default-field title="Comment"><display/></default-field></field>
+                        <field name="actions"><conditional-field condition="changeable" title="">
+                            <dynamic-dialog id="MyTimeTuiEditDialog" button-text="Edit" icon="sym_o_edit" transition="editEntry" width="640" title="Time entry ${timeEntryId}"
+                                    parameter-map="{timeEntryId:timeEntryId}"/>
+                            <link url="deleteEntry" link-type="hidden-form-link" text="Delete" icon="sym_o_delete" confirmation="Delete this entry of ${hoursText} h?"
+                                    parameter-map="{timeEntryId:timeEntryId, partyId:partyId, weekDate:weekDate}"/>
+                        </conditional-field><default-field title=""><display text=" "/></default-field></field>
                     </form-list>
                     <label type="p" text="No time" style="m-muted q-pa-sm q-mb-none" condition="!day.entries.length"/>
                 </box-body-nopad></container-box>
             </widgets></section-iterate>
-            <label type="p" text="Logging time, the timer and submit are in the browser's My time." style="m-muted"/>
+            <label type="p" text="Typing hours in the grid, Add row and Copy last week's rows are in the browser's My time; Log time adds an entry here." style="m-muted"/>
         </widgets><fail-widgets>
             <label type="p" text="This week is not available." style="m-muted"/>
         </fail-widgets></section>

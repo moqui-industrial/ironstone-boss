@@ -366,11 +366,11 @@ feature("ProjectDetail's Hours for a client: hours by week and work item on shar
         gob.detail.output.includes(INV.bluth)
         !gob.detail.output.includes("2.22")
         !gob.detail.output.includes("Joe Developer")
-        // an internal user: the tab is not in its menu, and opened by its path it reads nothing (the framework checks the item's group
-        // only for the screens above where a render starts: a finding of impl-projects.md P10b)
+        // an internal user: the tab is not in its menu, and opened by its path it is refused (the item's group is checked for the
+        // first screen of a lastStandalone render too since impl-projects.md P11, F133), reading nothing
         john.tabs.includes("Time")
         !john.tabs.includes("ClientHours")
-        john.page.output.includes("does not share its hours")
+        john.page.refused
         leaksOf(john.page.output, ["6.66", "3.25", "Week of"]) == []
         john.hours.shared == false
     },

@@ -16,7 +16,12 @@ along with this software (see the LICENSE.md file). If not, see
     spaces the user may view, then the page open (wikiPageId, or wikiSpaceId and pagePath as the browser has them; a space's
     home page when no page is named) with its breadcrumbs, its text and the pages under it. The same services as
     Knowledge.qvue (KnowledgeServices get#KnowledgeSetup, get#PageView, get#PageChildren), which ask the wiki's own access
-    rule first: a page the user may not view is not found. Editing, history, reviews and the rest are the browser's. -->
+    rule first: a page the user may not view is not found. Editing, history, reviews and the rest are the browser's.
+    The project mode (impl-projects.md P11): ProjectDetail mounts this screen as its hidden KnowledgeTui beside its Docs tab
+    (Knowledge.xml), so its always-actions put the project in projectTabId and inProjectDetail. Then the space is the project's
+    documentation space only (ironstone.ProjectServices.get#ProjectDocs), with the pages of other spaces linked to the project;
+    the links stay in the tab (../Docs); a project without a space says so, and its managers get Set up documentation (in the
+    database; in a repository is the browser's). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Knowledge" default-menu-include="false">
 
@@ -24,11 +29,46 @@ along with this software (see the LICENSE.md file). If not, see
     <parameter name="pagePath"/>
     <parameter name="wikiPageId"/>
 
+    <!-- the project mode's Set up documentation, in the database (the Docs tab's setupProjectDocs) -->
+    <transition name="setupProjectDocs">
+        <actions><script><![CDATA[
+            const projectId = ec.context.get('projectTabId')
+            if (!projectId) ec.message.addError(ec.l10n.localize('Project not available'))
+            const out = projectId ? ec.service.sync().name('ironstone.ProjectServices.setup#ProjectDocs').parameters({workEffortId: projectId, storage: 'db'}).call() || {} : {}
+            if (!ec.message.hasError() && out.message) ec.message.addMessage(out.message, 'success')
+        ]]></script></actions>
+        <default-response url="../Docs"><parameter name="workEffortId"/></default-response>
+        <error-response url="../Docs"><parameter name="workEffortId"/></error-response>
+    </transition>
+
     <actions><script><![CDATA[
-        const setup = ec.service.sync().name('ironstone.KnowledgeServices.get#KnowledgeSetup').parameter('wikiSpaceId', wikiSpaceId || null).call()
-        const openSpaceId = wikiSpaceId || setup.defaultWikiSpaceId || null
-        spaceList = Array.from(setup.spaceList || []).map((space) => ({spaceId: space.wikiSpaceId, description: space.description || space.wikiSpaceId,
-            storageText: space.storageText || '', openText: !wikiPageId && space.wikiSpaceId === openSpaceId ? ec.l10n.localize('Open') : ''}))
+        // in a project's Docs tab: its documentation space only, and the links stay in the tab
+        projectMode = !!ec.context.get('inProjectDetail')
+        knowledgeUrl = projectMode ? '../Docs' : '//Commons/Knowledge'
+        docs = null; linkedList = []; projectNote = ''; canSetupDocs = false
+        let projectSpaceId = null
+        if (projectMode) {
+            const projectId = ec.context.get('projectTabId')
+            docs = projectId ? ec.service.sync().name('ironstone.ProjectServices.get#ProjectDocs').parameters({workEffortId: projectId}).call()?.docs || null : null
+            ec.message.clearErrors()
+            if (!docs) projectNote = ec.l10n.localize('This project is not available.')
+            else {
+                projectSpaceId = docs.wikiSpaceId && docs.canView ? docs.wikiSpaceId : null
+                if (!docs.wikiSpaceId) projectNote = ec.l10n.localize('This project has no documentation space yet.')
+                else if (docs.missing) projectNote = ec.l10n.localize('The documentation space of this project is gone.')
+                else if (!docs.canView) projectNote = ec.l10n.localize('You may not read this project\'s documentation.')
+                canSetupDocs = !docs.wikiSpaceId && !!docs.canSetup
+                linkedList = Array.from(docs.linkedList || []).map((link) => ({title: link.title, spaceName: link.spaceName, linkSpaceId: link.wikiSpaceId,
+                    linkPath: link.pagePath}))
+            }
+        }
+        const setup = projectMode && !projectSpaceId ? {spaceList: []}
+                : ec.service.sync().name('ironstone.KnowledgeServices.get#KnowledgeSetup').parameter('wikiSpaceId', projectMode ? projectSpaceId : (wikiSpaceId || null)).call()
+        // in the project mode a page of a linked space opens too (wikiSpaceId given), else the project's space
+        const openSpaceId = projectMode ? (wikiSpaceId || projectSpaceId) : (wikiSpaceId || setup.defaultWikiSpaceId || null)
+        spaceList = Array.from(setup.spaceList || []).filter((space) => !projectMode || space.wikiSpaceId === projectSpaceId)
+                .map((space) => ({spaceId: space.wikiSpaceId, description: space.description || space.wikiSpaceId,
+                    storageText: space.storageText || '', openText: !wikiPageId && space.wikiSpaceId === openSpaceId ? ec.l10n.localize('Open') : ''}))
         page = null
         crumbList = []
         childList = []
@@ -53,20 +93,40 @@ along with this software (see the LICENSE.md file). If not, see
         }
     ]]></script></actions>
     <widgets>
+        <section name="KnowledgeTuiProject" condition="projectMode"><widgets>
+            <label type="p" text="${projectNote}" style="m-muted" condition="projectNote"/>
+            <section name="KnowledgeTuiSetup" condition="canSetupDocs"><widgets>
+                <form-single name="KnowledgeTuiSetupForm" transition="setupProjectDocs">
+                    <field name="submitButton"><default-field title="Set up documentation"><submit/></default-field></field>
+                </form-single>
+                <label type="p" style="text-caption m-muted" text="A space in the database; one in a repository is set up in the browser."/>
+            </widgets></section>
+            <section name="KnowledgeTuiLinked" condition="linkedList.length"><widgets>
+                <container-box><box-header title="Linked pages"/><box-body-nopad>
+                    <form-list name="KnowledgeTuiLinkedPages" list="linkedList" skip-form="true" paginate="false">
+                        <field name="title"><default-field title="Page">
+                            <link url="${knowledgeUrl}" link-type="anchor" text="${title}" parameter-map="{wikiSpaceId:linkSpaceId, pagePath:linkPath}"/></default-field></field>
+                        <field name="spaceName"><default-field title="Space"><display/></default-field></field>
+                    </form-list>
+                </box-body-nopad></container-box>
+            </widgets></section>
+        </widgets></section>
+        <section name="KnowledgeTuiSpacesBox" condition="!projectMode || spaceList.length"><widgets>
         <container-box><box-header title="Spaces"/><box-body-nopad>
             <form-list name="KnowledgeTuiSpaces" list="spaceList" skip-form="true" paginate="false">
                 <field name="description"><default-field title="Space">
-                    <link url="//Commons/Knowledge" link-type="anchor" text="${description}" parameter-map="{wikiSpaceId:spaceId}"/></default-field></field>
+                    <link url="${knowledgeUrl}" link-type="anchor" text="${description}" parameter-map="{wikiSpaceId:spaceId}"/></default-field></field>
                 <field name="storageText"><default-field title="Storage"><display/></default-field></field>
                 <field name="openText"><default-field title=""><display style="text-caption"/></default-field></field>
             </form-list>
         </box-body-nopad></container-box>
-        <label type="p" style="text-caption m-muted" condition="!spaceList || spaceList.length == 0" text="No spaces you may read."/>
+        </widgets></section>
+        <label type="p" style="text-caption m-muted" condition="!projectMode &amp;&amp; (!spaceList || spaceList.length == 0)" text="No spaces you may read."/>
 
         <section name="KnowledgeTuiPage" condition="page"><widgets>
             <container style="row items-center q-gutter-xs q-mt-md">
                 <section-iterate name="KnowledgeTuiCrumbs" list="crumbList" entry="crumb"><widgets>
-                    <link url="//Commons/Knowledge" link-type="anchor" text="${crumb.label}" parameter-map="{wikiSpaceId:page.wikiSpaceId, pagePath:crumb.crumbPath}"/>
+                    <link url="${knowledgeUrl}" link-type="anchor" text="${crumb.label}" parameter-map="{wikiSpaceId:page.wikiSpaceId, pagePath:crumb.crumbPath}"/>
                 </widgets></section-iterate>
             </container>
             <label type="h5" text="${page.title || page.pageName || page.spaceDescription}"/>
@@ -80,7 +140,7 @@ along with this software (see the LICENSE.md file). If not, see
             <container-box><box-header title="Pages under it"/><box-body-nopad>
                 <form-list name="KnowledgeTuiChildren" list="childList" skip-form="true" paginate="false">
                     <field name="name"><default-field title="Page">
-                        <link url="//Commons/Knowledge" link-type="anchor" text="${name}" parameter-map="{wikiSpaceId:childSpaceId, pagePath:childPath}"/></default-field></field>
+                        <link url="${knowledgeUrl}" link-type="anchor" text="${name}" parameter-map="{wikiSpaceId:childSpaceId, pagePath:childPath}"/></default-field></field>
                     <field name="restrictedText"><default-field title=""><display style="text-caption"/></default-field></field>
                 </form-list>
             </box-body-nopad></container-box>

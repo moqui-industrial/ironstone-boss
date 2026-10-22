@@ -45,7 +45,9 @@ spec({
 
 feature("the report index: seven reports for john.doe, five for joe.developer", {
     when() {
-        return { john: render("apps/Projects/Reports"), joe: as("joe.developer", () => render("apps/Projects/Reports")) }
+        // the index is server-static (impl-projects.md P11): its qvt template holds every report's card behind its condition, so
+        // what each user is offered is read from the server's merge (html)
+        return { john: render("apps/Projects/Reports", {}, "html"), joe: as("joe.developer", () => render("apps/Projects/Reports", {}, "html")) }
     },
     then({ john, joe }) {
         ok(john) && john.output.includes("Time report") && john.output.includes("Profitability report") && john.output.includes("Utilization report")

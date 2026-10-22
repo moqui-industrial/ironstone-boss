@@ -24,13 +24,14 @@ along with this software (see the LICENSE.md file). If not, see
 
     <service verb="get" noun="CodeHosting" allow-remote="false">
         <description>Whether git hosting is in this build (the framework's hosting services answer): the Code screens show
-            "Code hosting is not in this build" when not.</description>
+            "Code hosting is not in this build" when not. The probe runs in a transaction of its own: a service not built into
+            the host fails, and that failure would leave the caller's transaction rollback-only (impl-projects.md P11).</description>
         <out-parameters><parameter name="available" type="Boolean"/></out-parameters>
         <actions><script><![CDATA[
             available = false
             ec.message.pushErrors()
             try {
-                ec.service.sync().name('org.moqui.impl.GitServices.get#GitRepositoryAccess').parameters({repositoryId: '_NA_'}).call()
+                ec.service.sync().name('org.moqui.impl.GitServices.get#GitRepositoryAccess').parameters({repositoryId: '_NA_'}).requireNewTransaction(true).call()
                 available = !ec.message.hasError()
             } catch (err) {
                 available = false
@@ -1008,7 +1009,9 @@ along with this software (see the LICENSE.md file). If not, see
             emailAddress = ec.user.userAccount?.emailAddress || ''
             ec.message.pushErrors()
             try {
-                const first = Array.from(ec.service.sync().name('org.moqui.impl.GitServices.find#GitRepositories').parameters({pageSize: 1}).call()?.repositoryList || [])[0]
+                // a sample clone URL needs git hosting; without it no call (one not built in leaves the request rollback-only)
+                const hosting = !!ec.service.sync().name('ironstone.CodeServices.get#CodeHosting').call()?.available
+                const first = hosting ? Array.from(ec.service.sync().name('org.moqui.impl.GitServices.find#GitRepositories').parameters({pageSize: 1}).call()?.repositoryList || [])[0] : null
                 if (first) {
                     const urls = ec.service.sync().name('org.moqui.impl.GitServices.get#GitCloneUrls').parameters({repositoryId: first.repositoryId}).call() || {}
                     sampleHttpsUrl = urls.httpsUrl || null
@@ -1372,7 +1375,7 @@ along with this software (see the LICENSE.md file). If not, see
             whether it would fast-forward, the default squash and merge commit messages, the linked work items the user sees
             (mantle.work.GitServices.get#MergeRequestItems), its commits with their checks (get#MergeRequestDiff without diffs), the
             review threads' counts, and what the user may do: edit (its author or a maintainer, while open or draft), merge (push
-            rights and every rule met), review (any viewer but the author approves), link work items (who works in their
+            rights and every rule met), review (any viewer comments or requests changes; one who may push, not the author, approves: F132), link work items (who works in their
             project) and the primary action (Mark ready on a draft, Merge, else Review for a requested reviewer). Each extra part
             on its own: one that fails is logged and left empty.</description>
         <in-parameters>
@@ -1419,7 +1422,10 @@ along with this software (see the LICENSE.md file). If not, see
             const reviewerList = Array.from(got.reviewerList || []).map((reviewer) => {
                 const state = labels.reviewer[reviewer.statusId] || [reviewer.statusId, 'grey-8', 'sym_o_person']
                 const stale = reviewer.statusId === 'GmrrApproved' && !reviewer.ofCurrentHead
-                return Object.assign({}, reviewer, {stateLabel: state[0] + (stale ? ' (' + L('an earlier push') + ')' : ''), stateColor: stale ? 'grey-7' : state[1],
+                // an approval of one who may not push (F132: left from before, or the right since lost) does not count
+                const notCounted = reviewer.statusId === 'GmrrApproved' && !stale && reviewer.approvalCounts === false
+                return Object.assign({}, reviewer, {stateLabel: state[0] + (stale ? ' (' + L('an earlier push') + ')' : notCounted ? ' (' + L('not counted: may not push') + ')' : ''),
+                    stateColor: stale || notCounted ? 'grey-7' : state[1],
                     stateIcon: state[2], whenText: fmt(reviewer.reviewedDate || reviewer.requestedDate, 'MMM d, h:mm a'), isMe: reviewer.userId === me,
                     atText: reviewer.reviewedCommitId ? String(reviewer.reviewedCommitId).substring(0, 10) : '', canRemove: false})
             })
@@ -1446,7 +1452,7 @@ along with this software (see the LICENSE.md file). If not, see
                     : ec.resource.expand('${count} approvals, none required', '', {count: Number(got.approvalCount || 0)}),
                 checkState: got.checkState || null, checkList, missingList: Array.from(got.missingList || []).map((text) => L(String(text))),
                 canEdit, canMerge: !!got.canMerge && isOpen, canPush, canView: !!access.canView, archived: !!access.archived,
-                canReview: isOpen && !!me, isAuthor: me === mr.authorUserId,
+                canReview: isOpen && !!me, isAuthor: me === mr.authorUserId, canApprove: isOpen && !!me && me !== mr.authorUserId && canPush,
                 mergeMethodEnumId: got.mergeMethodEnumId || 'GmmMerge', methodOptions: methods.map((id) => ({key: id, text: labels.method[id] || id})),
                 squashMessage: mr.title + ' (!' + mr.mergeRequestNum + ')', mergeMessage: 'Merge !' + mr.mergeRequestNum + ': ' + mr.title,
                 fastForwardPossible: false, itemList: [], commitList: [], threadCounts: {total: 0, open: 0, resolved: 0, outdated: 0}, failedParts}
@@ -1459,7 +1465,7 @@ along with this software (see the LICENSE.md file). If not, see
             detail.isClient = isClient
             if (isClient) {
                 Object.assign(detail, {reviewerList: [], myReview: null, approvalCount: 0, requiredApprovals: 0, approvalsText: '', checkList: [], missingList: [],
-                    canEdit: false, canMerge: false, canPush: false, canReview: false, isRequestedReviewer: false, primaryAction: null, methodOptions: []})
+                    canEdit: false, canMerge: false, canPush: false, canReview: false, canApprove: false, isRequestedReviewer: false, primaryAction: null, methodOptions: []})
                 detail.mergeRequest.mergedByName = ''
                 detail.mergeRequest.mergedByUserId = null
             }
@@ -1582,7 +1588,8 @@ along with this software (see the LICENSE.md file). If not, see
             changes = {mergeRequestId, repositoryId: mr.repositoryId, mergeRequestNum: mr.mergeRequestNum, title: mr.title, statusId: mr.statusId, isOpen,
                 sourceRef: mr.sourceRef, targetRef: mr.targetRef, headCommitId: diff.headCommitId || mr.headCommitId || null, baseCommitId: diff.baseCommitId || null,
                 insertions: diff.insertions || 0, deletions: diff.deletions || 0, fileList, threadList, canComment: isOpen && !!me && !isClient, canReview: isOpen && !!me && !isClient,
-                isAuthor: me === mr.authorUserId, myReviewStatusId: myReview?.statusId || null, myReviewOfHead: !!(myReview && myReview.reviewedCommitId === mr.headCommitId)}
+                isAuthor: me === mr.authorUserId, canApprove: isOpen && !!me && !isClient && me !== mr.authorUserId && !!access.canUpdate,
+                myReviewStatusId: myReview?.statusId || null, myReviewOfHead: !!(myReview && myReview.reviewedCommitId === mr.headCommitId)}
         ]]></script></actions>
     </service>
 
@@ -1635,7 +1642,7 @@ along with this software (see the LICENSE.md file). If not, see
     <service verb="submit" noun="Review">
         <description>The review dialog of MergeRequestDetail and MergeRequestChanges: approve, request changes or comment with a
             summary (org.moqui.impl.GitReviewServices.submit#MergeRequestReview, at the current head; the author does not
-            approve their own); the author and reviewers are told (the Mantle rule on the reviewed event).</description>
+            approve their own, and only one who may push approves); the author and reviewers are told (the Mantle rule on the reviewed event).</description>
         <in-parameters>
             <parameter name="mergeRequestId" required="true"/>
             <parameter name="decision" required="true"/>

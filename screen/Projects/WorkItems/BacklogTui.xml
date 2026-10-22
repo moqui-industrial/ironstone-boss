@@ -13,9 +13,13 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 <!-- The terminal twin of Backlog (style-guide §4.8): Backlog.xml's tui text is a dynamic container of this screen. The project's open
-    sprints, each with its dates, goal, total against capacity and items (a link to SprintDetail), then the ranked backlog, read only,
-    from the same service as Backlog.qvue (ironstone.PlanningServices.get#Backlog). Ranking, planning and the sprint dialogs are the
-    browser's (impl-projects.md P11 for the terminal); an item opens WorkItemDetail. -->
+    sprints, each with its dates, goal, total against capacity and items (a link to SprintDetail), then the ranked backlog, from the
+    same service as Backlog.qvue (ironstone.PlanningServices.get#Backlog). The terminal's changes (impl-projects.md P11), for the
+    project's team, over the services of Backlog.qvue's transitions: Move (a work item to the backlog or a sprint, at the top,
+    the bottom or after an item there: rank#BacklogItems; the transition takes several, comma separated), New sprint, Start sprint and Complete sprint (its open
+    items carried to the next sprint, a new one or the backlog), and for a manager Plan in sprints. Each dialog reloads this
+    container (background-reload-id), so it works in WorkItems' Backlog and in ProjectDetail's Backlog tab alike. Dragging stays the
+    browser's; an item opens WorkItemDetail. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Backlog" default-menu-include="false">
 
@@ -23,6 +27,63 @@ along with this software (see the LICENSE.md file). If not, see
 
     <transition name="workItemDetail"><default-response url="../WorkItemDetail"/></transition>
     <transition name="sprintDetail"><default-response url="../SprintDetail"/></transition>
+    <!-- Move: the items to the backlog (no sprint) or a sprint, at the top, the bottom or after an item of that list -->
+    <transition name="move">
+        <actions><script><![CDATA[
+            const ids = (workEffortIds == null ? [] : typeof workEffortIds === 'string' ? workEffortIds.split(',') : Array.from(workEffortIds)).map((id) => String(id).trim()).filter((id) => id)
+            const sprint = sprintWorkEffortId && sprintWorkEffortId !== 'BACKLOG' ? sprintWorkEffortId : null
+            let previous = null, next = null
+            const got = ec.service.sync().name('ironstone.PlanningServices.get#Backlog').parameters({rootWorkEffortId: rootWorkEffortId || ''}).call()?.backlog
+            if (got) {
+                const list = (sprint ? Array.from(Array.from(got.sprintList || []).find((one) => one.workEffortId === sprint)?.rowList || []) : Array.from(got.backlogList || []))
+                        .map((row) => row.workEffortId).filter((id) => !ids.includes(id))
+                if (afterWorkEffortId && list.includes(afterWorkEffortId)) previous = afterWorkEffortId
+                else if (place === 'bottom') previous = list.length ? list[list.length - 1] : null
+                else next = list.length ? list[0] : null
+            }
+            const out = ec.service.sync().name('ironstone.PlanningServices.rank#BacklogItems').parameters({rootWorkEffortId: rootWorkEffortId || '', workEffortIds: ids,
+                sprintWorkEffortId: sprint, previousWorkEffortId: previous, nextWorkEffortId: next}).call() || {}
+            if (!ec.message.hasError() && out.message) ec.message.addMessage(out.message, out.failedCount ? 'warning' : 'success')
+        ]]></script></actions>
+        <default-response url="../Backlog"><parameter name="rootWorkEffortId"/></default-response>
+        <error-response url="../Backlog"><parameter name="rootWorkEffortId"/></error-response>
+    </transition>
+    <transition name="saveSprint">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.PlanningServices.save#Sprint').parameters({rootWorkEffortId: rootWorkEffortId || null,
+                workEffortName: workEffortName || null, description: description || null, startDay: startDay || null, endDay: endDay || null,
+                capacity: capacity ?? ''}).call() || {}
+            if (!ec.message.hasError() && out.message) ec.message.addMessage(out.message, 'success')
+        ]]></script></actions>
+        <default-response url="../Backlog"><parameter name="rootWorkEffortId"/></default-response>
+        <error-response url="../Backlog"><parameter name="rootWorkEffortId"/></error-response>
+    </transition>
+    <transition name="startSprint">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.PlanningServices.start#Sprint').parameters({workEffortId: sprintWorkEffortId || '',
+                description: description || null, startDay: startDay || null, endDay: endDay || null}).call() || {}
+            if (!ec.message.hasError() && out.message) ec.message.addMessage(out.message, 'success')
+        ]]></script></actions>
+        <default-response url="../Backlog"><parameter name="rootWorkEffortId"/></default-response>
+        <error-response url="../Backlog"><parameter name="rootWorkEffortId"/></error-response>
+    </transition>
+    <transition name="completeSprint">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.PlanningServices.complete#Sprint').parameters({workEffortId: sprintWorkEffortId || '',
+                carryTo: carryTo || 'next', newSprintName: newSprintName || null}).call() || {}
+            if (!ec.message.hasError() && out.message) ec.message.addMessage(out.message, 'success')
+        ]]></script></actions>
+        <default-response url="../Backlog"><parameter name="rootWorkEffortId"/></default-response>
+        <error-response url="../Backlog"><parameter name="rootWorkEffortId"/></error-response>
+    </transition>
+    <transition name="turnOnSprints">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.PlanningServices.turnOn#Sprints').parameters({rootWorkEffortId: rootWorkEffortId || ''}).call() || {}
+            if (!ec.message.hasError() && out.message) ec.message.addMessage(out.message, 'success')
+        ]]></script></actions>
+        <default-response url="../Backlog"><parameter name="rootWorkEffortId"/></default-response>
+        <error-response url="../Backlog"><parameter name="rootWorkEffortId"/></error-response>
+    </transition>
 
     <actions><script><![CDATA[
         backlogFound = false; backlogRows = []; sprintList = []
@@ -41,14 +102,103 @@ along with this software (see the LICENSE.md file). If not, see
             sizeText: row.sizeText || '', assigneeText: row.assigneeText || ''})
         backlogRows = Array.from(backlog.backlogList || []).map(shape)
         backlogTitle = L('Backlog') + ' · ' + backlogRows.length + ' · ' + (backlog.backlogTotalText || '0') + ' ' + unit
-        sprintList = Array.from(backlog.sprintList || []).map((sprint) => ({workEffortId: sprint.workEffortId,
+        const sprints = Array.from(backlog.sprintList || [])
+        sprintList = sprints.map((sprint) => ({workEffortId: sprint.workEffortId,
             title: sprint.workEffortName + ' · ' + sprint.stateLabel + (sprint.datesText ? ' · ' + sprint.datesText : '') + ' · ' + (sprint.totalText || '0')
                 + (sprint.capacityText ? ' / ' + sprint.capacityText : '') + ' ' + unit, goal: sprint.description || '', rows: Array.from(sprint.rowList || []).map(shape)}))
         sprintsOn = !!backlog.project.sprintsOn
+        // what the team may do here (as Backlog.qvue's menus and dialogs)
+        canPlan = !!backlog.project.canUpdate && !!backlog.project.isOpen
+        canTurnOn = canPlan && !sprintsOn && !!backlog.project.canManage
+        projectParam = {rootWorkEffortId: project}
+        const itemText = (row) => row.workEffortId + ' ' + (row.workEffortName || '')
+        moveItemOptions = []
+        for (const sprint of sprints) for (const row of Array.from(sprint.rowList || [])) moveItemOptions.push({key: row.workEffortId, text: itemText(row) + ' · ' + sprint.workEffortName})
+        for (const row of Array.from(backlog.backlogList || [])) moveItemOptions.push({key: row.workEffortId, text: itemText(row) + ' · ' + L('Backlog')})
+        targetOptions = sprints.map((sprint) => ({key: sprint.workEffortId, text: sprint.workEffortName + ' · ' + sprint.stateLabel}))
+        afterOptions = moveItemOptions
+        const planned = sprints.filter((sprint) => sprint.state === 'planned')
+        const active = sprints.filter((sprint) => sprint.state === 'active')
+        plannedOptions = planned.map((sprint) => ({key: sprint.workEffortId, text: sprint.workEffortName + (sprint.datesText ? ' · ' + sprint.datesText : '')}))
+        activeOptions = active.map((sprint) => ({key: sprint.workEffortId, text: sprint.workEffortName + (sprint.datesText ? ' · ' + sprint.datesText : '')}))
+        const first = planned[0] || {}
+        startValue = {rootWorkEffortId: project, sprintWorkEffortId: first.workEffortId || null, description: first.description || '', startDay: first.startDay || '',
+            endDay: first.endDay || ''}
+        completeValue = {rootWorkEffortId: project, sprintWorkEffortId: active[0]?.workEffortId || null, carryTo: 'next'}
+        newSprintValue = Object.assign({rootWorkEffortId: project}, backlog.newSprint || {})
     ]]></script></actions>
     <widgets>
         <section name="BacklogTuiFound" condition="backlogFound"><widgets>
             <label text="${projectName}" type="h5"/>
+            <section name="BacklogTuiPlan" condition="canPlan"><widgets>
+                <container style="row q-gutter-sm">
+                    <container-dialog id="BacklogTuiMoveDialog" button-text="Move" icon="sym_o_low_priority" width="640" title="Move a work item"
+                            condition="moveItemOptions.length">
+                        <form-single name="BacklogTuiMove" transition="move" map="projectParam" background-reload-id="BacklogTui" background-hide-id="BacklogTuiMoveDialog">
+                            <field name="rootWorkEffortId"><default-field><hidden/></default-field></field>
+                            <field name="workEffortIds"><default-field title="Work item">
+                                <drop-down><list-options list="moveItemOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                            <field name="sprintWorkEffortId"><default-field title="To">
+                                <drop-down><option key="BACKLOG" text="The backlog"/>
+                                    <list-options list="targetOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                            <field name="place"><default-field title="Where">
+                                <drop-down><option key="top" text="At the top"/><option key="bottom" text="At the bottom"/></drop-down></default-field></field>
+                            <field name="afterWorkEffortId"><default-field title="Or after">
+                                <drop-down allow-empty="true"><list-options list="afterOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                            <field name="submitButton"><default-field title="Move"><submit/></default-field></field>
+                        </form-single>
+                    </container-dialog>
+                    <section name="BacklogTuiSprintActions" condition="sprintsOn"><widgets>
+                        <container style="row q-gutter-sm">
+                            <container-dialog id="BacklogTuiNewSprintDialog" button-text="New sprint" icon="sym_o_add" width="560" title="New sprint">
+                                <form-single name="BacklogTuiNewSprint" transition="saveSprint" map="newSprintValue" background-reload-id="BacklogTui"
+                                        background-hide-id="BacklogTuiNewSprintDialog">
+                                    <field name="rootWorkEffortId"><default-field><hidden/></default-field></field>
+                                    <field name="workEffortName"><default-field title="Name"><text-line size="30"/></default-field></field>
+                                    <field name="description"><default-field title="Goal"><text-line size="50"/></default-field></field>
+                                    <field name="startDay"><default-field title="Start"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                                    <field name="endDay"><default-field title="End"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                                    <field name="capacity"><default-field title="Capacity"><text-line size="8"/></default-field></field>
+                                    <field name="submitButton"><default-field title="Create"><submit/></default-field></field>
+                                </form-single>
+                            </container-dialog>
+                            <container-dialog id="BacklogTuiStartDialog" button-text="Start sprint" icon="sym_o_play_arrow" width="560" title="Start a sprint"
+                                    condition="plannedOptions.length">
+                                <form-single name="BacklogTuiStart" transition="startSprint" map="startValue" background-reload-id="BacklogTui"
+                                        background-hide-id="BacklogTuiStartDialog">
+                                    <field name="rootWorkEffortId"><default-field><hidden/></default-field></field>
+                                    <field name="sprintWorkEffortId"><default-field title="Sprint">
+                                        <drop-down><list-options list="plannedOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                    <field name="description"><default-field title="Goal"><text-line size="50"/></default-field></field>
+                                    <field name="startDay"><default-field title="Start"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                                    <field name="endDay"><default-field title="End"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                                    <field name="submitButton"><default-field title="Start"><submit/></default-field></field>
+                                </form-single>
+                            </container-dialog>
+                            <container-dialog id="BacklogTuiCompleteDialog" button-text="Complete sprint" icon="sym_o_flag" width="560" title="Complete a sprint"
+                                    condition="activeOptions.length">
+                                <form-single name="BacklogTuiComplete" transition="completeSprint" map="completeValue" background-reload-id="BacklogTui"
+                                        background-hide-id="BacklogTuiCompleteDialog">
+                                    <field name="rootWorkEffortId"><default-field><hidden/></default-field></field>
+                                    <field name="sprintWorkEffortId"><default-field title="Sprint">
+                                        <drop-down><list-options list="activeOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                    <field name="carryTo"><default-field title="Its open items go to">
+                                        <drop-down><option key="next" text="The next sprint"/><option key="new" text="A new sprint"/><option key="backlog" text="The backlog"/></drop-down>
+                                    </default-field></field>
+                                    <field name="newSprintName"><default-field title="New sprint's name"><text-line size="30"/></default-field></field>
+                                    <field name="submitButton"><default-field title="Complete"><submit/></default-field></field>
+                                </form-single>
+                            </container-dialog>
+                        </container>
+                    </widgets></section>
+                    <section name="BacklogTuiTurnOn" condition="canTurnOn"><widgets>
+                        <form-single name="BacklogTuiTurnOnForm" transition="turnOnSprints" map="projectParam" background-reload-id="BacklogTui">
+                            <field name="rootWorkEffortId"><default-field><hidden/></default-field></field>
+                            <field name="submitButton"><default-field title="Plan in sprints"><submit/></default-field></field>
+                        </form-single>
+                    </widgets></section>
+                </container>
+            </widgets></section>
             <section-iterate name="BacklogTuiSprint" list="sprintList" entry="sprint"><widgets>
                 <container-box><box-header title="${sprint.title}"/><box-body-nopad>
                     <label type="p" text="${sprint.goal}" style="m-muted q-pa-sm q-mb-none" condition="sprint.goal"/>
@@ -72,7 +222,6 @@ along with this software (see the LICENSE.md file). If not, see
                 </form-list>
                 <label type="p" text="The backlog is empty" style="m-muted q-pa-sm q-mb-none" condition="!backlogRows.length"/>
             </box-body-nopad></container-box>
-            <label type="p" text="Ranking and planning are in the browser's Backlog." style="m-muted"/>
         </widgets><fail-widgets>
             <label type="p" text="No backlog to show: no project you see." style="m-muted"/>
         </fail-widgets></section>
