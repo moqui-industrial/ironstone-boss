@@ -52,7 +52,7 @@ Sections: [1 scope](#1-scope-and-order) · [2 rules](#2-ground-rules) · [3 phas
 | Phase | Repos | Screens | Status |
 | --- | --- | --- | --- |
 | P0 Checks | all (read) | — | done Oct 21 (§6 F1–F7) |
-| P1 Foundation | mr-moqui, Mantle, BOSS | the Projects root and menu | Mantle and BOSS built Oct 21; framework list pieces in progress |
+| P1 Foundation | mr-moqui, Mantle, BOSS | the Projects root and menu | done Oct 21 |
 | P2 Projects and work items | Mantle, BOSS (mr-moqui) | Home, QuickCreate, Projects, NewProject, ProjectDetail and its Overview, Work items, Team, Files and Settings tabs, WorkItems, WorkItemDetail, WorkItemTypes, Workflows, Labels, Templates | planned |
 | P3a Code: framework | mr-moqui | — | planned |
 | P3b Code: Mantle and BOSS | Mantle, BOSS | every §7 screen, ProjectCode, CodeSettings | planned |
@@ -107,6 +107,11 @@ paths are left to P1, which reads them as it builds.
   Projects for its users; `BossProjectsDemoData.xml` (IRON, a product project on the development flow with a work item
   tree; ACME, a client project; HIRE, a Work group project) and `BossUsersDemoData.xml` (john.doe a manager, joe and bob
   developers); AppStructure covers Projects, `test/ProjectsShell.spec.js`.
+**Built, framework** (Oct 21, 2026, mr-moqui efc1d587): `view-board` `group-fields` and `all-rows` with `max-rows`;
+`view-tree` (`m-list-tree`, with the added `child-count-field`; html a nested table, tui an outline with + and -);
+`form-list` `peek-url`; `m-elapsed`; the gallery's Views (board by status or type, a work-breakdown tree, peek into the
+new ExampleDetail). moqui-core 1548 passed, moqui-tui 139, node 187, `./moq test example` 83.
+
 - Tests: mantle-usl 559 of 564 features passed, 3 skipped, 2 failed (`ContactListSend` site address, `InboxThreads`
   operators) the same with the changes stashed; ironstone-boss 400 of 412 passed, 12 skipped (git, xlsx and imap are
   not in the lite build); `moqui lint --screens` clean.
@@ -206,6 +211,10 @@ Made during the build; each one that changes the design is also written into des
 | Oct 21, 2026 | A project with no visibility is seen only by its parties; a project belongs to an organization by `ownerPartyId` or the organization's current role on it (`create#Project` makes the internal organization Vendor) | P1 |
 | Oct 21, 2026 | A project setting falls back to the organization: the setting type's `optionValue` names the `Proj*` PartySetting, its `enumCode` the key in that setting's JSON object | P1 |
 | Oct 21, 2026 | Managers' authz is ALWAYS, so the team's deny of the managers' screens never reaches a user in both groups | P1 |
+| Oct 21, 2026 | The tree's top level is the list's page; a row whose parent is on the page nests under it and missing parents come muted from `ancestor-transition`, so a find of the top level and a find of every match both work. A move posts the key fields, the parent field and `previousSiblingId`, then the list loads again (P2's `move#Task` takes those names) | P1 framework |
+| Oct 21, 2026 | Rows fetched later in a tree show their fields' text, not the list's cells (no inline edits) outside server-static screens | P1 framework |
+| Oct 21, 2026 | The peek pane is a split layout of its own around the views, not `container-split`, so the list keeps its scroll and edits when Peek toggles; the pane loads the screen's `/apps` path | P1 framework |
+| Oct 21, 2026 | Board group-by: `column-order`, `status-type-id` and `parameter-name` apply to the default field only; another status field gets its own columns and flow hints | P1 framework |
 | Oct 21, 2026 | "May open Projects" for links reads `ArtifactAuthzCheckView` (allow and no deny on the root), since `isPermitted` under the Commons root's inheritable ALWAYS answers true for everyone | P1 |
 
 ## 5. Open questions
@@ -234,6 +243,7 @@ Design assumptions found wrong in the code, with the resolution (written into th
 | F10 | P1: `create#Project` sets no visibility, which reads as members only | P2: NewProject and QuickProject default to General |
 | F11 | P1: a task's flow may be on the task or its project (the demo sets both) | P2: `set#TaskStatus` reads the task's `statusFlowId`, else its project's |
 | F12 | P1: Mantle's demo joe and bob are `PrtEmployee` toward `OrgEmployer`, so `get#PartyOrganizationInfo` gives them no organization and they see General projects only where they are members | Left alone (Commons' filters depend on it); revisit if P2's lists need it |
+| F13 | P1: any request with `pageSize` saves it as the user's page size (`screen.user.page.size`) | All-rows boards and tree levels ask with `pageNoLimit` and cut in the browser (500 for a board, 200 a level with Show more); the server still answers every row, so P2's tree transitions should answer one level only |
 | F7 | P0: a wiki space under an existing repository is documented for a repository root (`rootPageDirectory: "git://docs"`, or `rootPageLocation` `git://<repositoryId>/<SPACE>.md`), not for a subdirectory such as `git://<repositoryId>/docs` | Checked in P4 as the design's §15 row says, before ProjectDocs is built |
 
 ## 7. Later
@@ -250,6 +260,10 @@ Designed, not in this build:
 - `get#VisibleProjectInfo` returns id lists for an IN condition; an organization with thousands of projects wants a
   subquery or a view instead.
 - A sequence refill with a bank of 1 can skip one number across a server restart.
+- The tree view (P1): sorting siblings by a column, CSV and XLSX level and outline columns, an indented `html-print`,
+  the add-sub-item button on a row, Enter and Ctrl+Enter in the quick-add row, the drop line at the landing depth, the
+  focused row's guide line in the primary color, a confirmation before Expand all passes 500 rows (it stops with a
+  message), and in the tui tree fetched levels, ancestors, moves and the totals row.
 
 ## 8. Verification
 
