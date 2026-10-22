@@ -529,7 +529,7 @@ Design assumptions found wrong in the code, with the resolution (written into th
 | F74 | P6b: a `hide` column's title stays in the static qvt output | Specs check row data |
 | F75 | P6b: the lint's quote tracking again (F37) | Worked around |
 | F76 | P6b: the lint calls a property ending in `Items` a collection (F60) | Renamed |
-| F77 | P6b (security): after a spec renders a Commons screen (root authz ALWAYS), authorization stays disabled in that execution context | Investigated after P6b (see the next rows) |
+| F77 | P6b (security): after a spec renders a Commons screen (root authz ALWAYS), authorization stays disabled in that execution context | Not ALWAYS: `ExecutionContext::script_disable_authz` held a guard even when authorization was already off, so a script's `wasDisabled = disableAuthz() ... if (!wasDisabled) enableAuthz()` under framework code that had disabled it (the shell counts service behind `getShellData` on Commons Home and Today) left the rest of that execution context without authorization or entity filters. Within one request only (each request, TUI send and job gets a fresh context), but exploitable there (the Today panel's sources ran unchecked). Fixed in mr-moqui e29d336f with tests; TimeEntries.spec's re-enable loop to be removed |
 | F78 | P6b: `find#TimeEntries` and the timesheet status filter use IN lists up to 20000 ids (F17, F69) | A subquery or view at scale |
 | F7 | P0: a wiki space under an existing repository is documented for a repository root (`rootPageDirectory: "git://docs"`, or `rootPageLocation` `git://<repositoryId>/<SPACE>.md`), not for a subdirectory such as `git://<repositoryId>/docs` | Checked in P4 as the design's §15 row says, before ProjectDocs is built |
 
