@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The report index (design-projects.md §11 Reports; style-guide §3.9 Settings layout): a card per report with a line about it and
+    its link; Profitability and Utilization only for the Projects managers and ADMIN, who may open them (BOSS_PROJECTS_MANAGERS). -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="All reports" default-menu-include="false">
+    <actions><script><![CDATA[
+        isManager = ec.user.isInGroup('BOSS_PROJECT_MANAGER') || ec.user.isInGroup('ADMIN')
+    ]]></script></actions>
+    <widgets>
+        <label type="h5" text="Reports" style="q-mt-none q-mb-sm"/>
+        <container-row>
+            <row-col md="4" sm="6"><container-box><box-header title="Time"/><box-body>
+                <label type="p" text="Hours by project, item, person, work type or client, week by week or by month, with the billable part." style="m-muted"/>
+                <link url="../Time" text="Time report" icon="sym_o_schedule"/>
+            </box-body></container-box></row-col>
+            <row-col md="4" sm="6"><container-box><box-header title="Work items"/><box-body>
+                <label type="p" text="Open, created, resolved and overdue items, by status, type, assignee or component, and the cycle time." style="m-muted"/>
+                <link url="../WorkItems" text="Work item report" icon="sym_o_checklist"/>
+            </box-body></container-box></row-col>
+            <row-col md="4" sm="6"><container-box><box-header title="Sprints"/><box-body>
+                <label type="p" text="The velocity of a project's last sprints and a sprint's burndown." style="m-muted"/>
+                <link url="../Sprints" text="Sprint report" icon="sym_o_sprint"/>
+            </box-body></container-box></row-col>
+            <row-col md="4" sm="6"><container-box><box-header title="Portfolio"/><box-body>
+                <label type="p" text="Every project's status, health, progress, schedule against the forecast, and hours of budget." style="m-muted"/>
+                <link url="../Portfolio" text="Portfolio report" icon="sym_o_dashboard"/>
+            </box-body></container-box></row-col>
+            <row-col md="4" sm="6"><container-box><box-header title="Progress"/><box-body>
+                <label type="p" text="A project's estimated, actual and remaining work by milestone and down the work item tree." style="m-muted"/>
+                <link url="../Progress" text="Progress report" icon="sym_o_account_tree"/>
+            </box-body></container-box></row-col>
+        </container-row>
+        <section name="ManagerReports" condition="isManager"><widgets>
+            <label type="h6" text="For managers" style="q-mt-sm q-mb-sm"/>
+            <container-row>
+                <row-col md="4" sm="6"><container-box><box-header title="Profitability"/><box-body>
+                    <label type="p" text="Budget, cost, billable value, billed and margin by project, with totals by client." style="m-muted"/>
+                    <link url="../Profitability" text="Profitability report" icon="sym_o_payments"/>
+                </box-body></container-box></row-col>
+                <row-col md="4" sm="6"><container-box><box-header title="Utilization"/><box-body>
+                    <label type="p" text="Capacity against the hours logged and billed, by person and week." style="m-muted"/>
+                    <link url="../Utilization" text="Utilization report" icon="sym_o_speed"/>
+                </box-body></container-box></row-col>
+            </container-row>
+        </widgets></section>
+        <label type="p" text="Each report keeps its parameters in the address, so a bookmark opens it again; Print gives a page to print or save as PDF." style="text-caption m-muted"/>
+    </widgets>
+</screen>

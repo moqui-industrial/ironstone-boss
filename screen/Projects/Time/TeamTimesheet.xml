@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The team timesheet (design-projects.md §14; style-guide §8 Print documents), TimeEntries' Print: with renderMode=html-print a crew's
+    time on one piece of work, the entries of TimeEntries' find (its list, item, person, work type, billable and dates; ProjectTime's
+    project as workEffortId) by day: person, from–to, work item, work type, hours, comment, each day's total; then the hours by person
+    and signature lines (ironstone.TimeServices.find#TimeEntryRows over mantle.work.TimeServices.find#TimeEntries, the time the user may
+    see; up to 5000 entries). No rates or amounts. Every value escaped; in another render mode it links to the printed page. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Team timesheet" default-menu-include="false">
+
+    <parameter name="workEffortId"/>
+    <parameter name="list"/>
+    <parameter name="partyId"/>
+    <parameter name="itemId"/>
+    <parameter name="workTypeEnumId"/>
+    <parameter name="billable"/>
+    <parameter name="sheetStatus"/>
+    <parameter name="text"/>
+    <parameter name="entryDate_from"/>
+    <parameter name="entryDate_thru"/>
+
+    <actions><script><![CDATA[
+        const L = (text) => ec.l10n.localize(text)
+        const enc = (text) => String(text == null ? '' : text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+        const n = (value) => ec.l10n.format(Math.round(Number(String(value || 0)) * 100) / 100, '#,##0.##')
+        const ctx = (name) => { const value = ec.context.get(name); return value == null || value === '' ? null : String(value) }
+        const params = {}
+        for (const name of ['workEffortId', 'list', 'partyId', 'itemId', 'workTypeEnumId', 'billable', 'sheetStatus', 'text', 'entryDate_from', 'entryDate_thru']) if (ctx(name)) params[name] = ctx(name)
+        printUrl = '/apps/Projects/Time/TeamTimesheet?renderMode=html-print&' + Object.entries(params).map(([key, value]) => key + '=' + encodeURIComponent(value)).join('&')
+        const dateFrom = ctx('entryDate_from') ? ec.l10n.parseTimestamp(ctx('entryDate_from').substring(0, 10) + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS') : null
+        const dateThru = ctx('entryDate_thru') ? new Date(Number(String(ec.l10n.parseTimestamp(ctx('entryDate_thru').substring(0, 10) + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS'))) + 86400000) : null
+        const out = ec.service.sync().name('ironstone.TimeServices.find#TimeEntryRows').parameters({list: ctx('list') || 'all', partyId: ctx('partyId'), itemId: ctx('itemId'),
+            rootWorkEffortId: ctx('workEffortId'), workTypeEnumId: ctx('workTypeEnumId'), billable: ctx('billable'), sheetStatus: ctx('sheetStatus'), text: ctx('text'),
+            dateFrom: dateFrom, dateThru: dateThru, orderByField: 'fromDate', pageNoLimit: true}).call() || {}
+        ec.message.clearErrors()
+        const rows = Array.from(out.rowList || []).filter((row) => !row.running)
+        // the work it is on: the item, else the project, else the find
+        const focusId = ctx('itemId') || ctx('workEffortId')
+        const focus = focusId ? ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', focusId).disableAuthz().one() : null
+        const visible = focus && (rows.length || ec.service.sync().name('mantle.work.ProjectServices.get#VisibleProjectInfo').call()?.allProjects)
+        const what = visible ? focus.workEffortId + ' ' + (focus.workEffortName || '') : L('Time entries')
+        const days = rows.map((row) => row.dayText).filter((day) => day).sort()
+        const rangeText = days.length ? (days[0] === days[days.length - 1] ? rows.find((row) => row.dayText === days[0]).dateText
+                : rows.find((row) => row.dayText === days[0]).dateText + ' – ' + rows.find((row) => row.dayText === days[days.length - 1]).dateText) : ''
+        const table = (heads, body) => '<table class="list"><tr>' + heads.map((head) => '<th>' + enc(L(head)) + '</th>').join('') + '</tr>' + body + '</table>'
+        let body = ''
+        const byPerson = {}
+        let total = 0
+        for (const day of Array.from(new Set(days))) {
+            const dayRows = rows.filter((row) => row.dayText === day)
+            const dayTotal = dayRows.reduce((sum, row) => sum + Number(String(row.hours || 0)), 0)
+            body += '<tr><td colspan="5"><strong>' + enc(dayRows[0].dateText) + '</strong></td><td><strong>' + enc(n(dayTotal)) + '</strong></td><td></td></tr>'
+            for (const row of dayRows) {
+                body += '<tr>' + ['', row.personName, row.spanText, row.itemText, row.workTypeLabel || '', row.hoursText, row.comments || ''].map((cell) => '<td>' + enc(cell) + '</td>').join('') + '</tr>'
+                const person = byPerson[row.partyId] || (byPerson[row.partyId] = {name: row.personName, hours: 0})
+                person.hours += Number(String(row.hours || 0))
+                total += Number(String(row.hours || 0))
+            }
+        }
+        const people = Object.values(byPerson).sort((a, b) => String(a.name).localeCompare(String(b.name)))
+        printHtml = '<div class="box-header">' + enc(what) + '</div>'
+            + '<p style="color:#555">' + enc([L('Team timesheet'), rangeText, ec.l10n.format(ec.user.nowTimestamp, 'MMMM d, yyyy')].filter((part) => part).join(' · ')) + '</p>'
+            + (rows.length ? table(['Day', 'Person', 'From–to', 'Work item', 'Work type', 'Hours', 'Comment'], body)
+                + '<div class="group-title" style="margin-top:8pt">' + enc(L('Hours by person')) + '</div>'
+                + table(['Person', 'Hours', 'Signature'], people.map((person) => '<tr><td>' + enc(person.name) + '</td><td>' + enc(n(person.hours))
+                    + '</td><td style="min-width:160pt">&#160;</td></tr>').join('') + '<tr><td><strong>' + enc(L('Total')) + '</strong></td><td><strong>' + enc(n(total))
+                    + '</strong></td><td></td></tr>')
+                + (rows.length >= 5000 ? '<p style="color:#555">' + enc(L('The first 5000 entries')) + '</p>' : '')
+              : '<p style="color:#555">' + enc(L('No time entries match')) + '</p>')
+    ]]></script></actions>
+
+    <widgets>
+        <render-mode>
+            <text type="html-print"><![CDATA[${printHtml}]]></text>
+            <text type="qvt"><![CDATA[<p><a href="${WebUtilities.encodeHtml(printUrl)}" target="_blank">${ec.l10n.localize('Open the printable team timesheet')}</a></p>]]></text>
+            <text type="tui"><![CDATA[${JSON.stringify({t: "link", id: "TeamTimesheetPrint", text: ec.l10n.localize("Open the printable team timesheet"), url: printUrl})}]]></text>
+        </render-mode>
+    </widgets>
+</screen>

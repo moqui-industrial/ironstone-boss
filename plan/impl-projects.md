@@ -61,7 +61,7 @@ Sections: [1 scope](#1-scope-and-order) · [2 rules](#2-ground-rules) · [3 phas
 | P6 Time | Mantle, BOSS | MyTime, Timesheets, TimesheetDetail, TimeEntries, ProjectTime, TimeSettings | done Oct 22 |
 | P7 Resources | Mantle, BOSS | TeamPlanner, Allocations, PersonDetail | done Oct 22 |
 | P8 Billing and money | Mantle, BOSS | Unbilled, Invoices, InvoiceDetail, OrderDetail, Rates, ProjectMoney, BillingSettings | done Oct 22 |
-| P9 Reports and outputs | Mantle, BOSS | Reports and its seven reports | planned |
+| P9 Reports and outputs | Mantle, BOSS | Reports and its seven reports | done Oct 22 |
 | P10 Client access | mr-moqui, Mantle, BOSS | the client states of §1.1's screens | planned |
 | P11 Finish | BOSS | — | planned |
 
@@ -418,6 +418,19 @@ tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
   earlier phase.
 - Usable when: each report renders on the demo data and its measures match §11's definitions.
 
+**Built** (Oct 22, 2026):
+- Mantle usl `ProjectReportServices`: `get#ReportScope` (projects, time and money the user may read), `get#TimeReport`,
+  `get#WorkItemSummary`, `get#PortfolioStatus`, `get#ProjectProfitability` (money holders only), `get#Utilization` (over
+  `get#TeamPlan`, billable hours), `get#ProgressBreakdown` (Restricted items out, money stripped), each part on its own;
+  F70 fixed (over the estimate only with an estimate); F86 fixed (`find#TimeEntries` amounts from the RateAmount);
+  `test/WorkProjectReports.spec.js`.
+- BOSS: Reports index and Time, WorkItems, Sprints (velocity), Portfolio, Progress, Profitability and Utilization
+  (parameters, number cards, `m-chart` with a terminal twin, tables with CSV and XLSX, print); `ironstone.ReportServices`
+  (chart config, options); Home's Hours by project and Unbilled by client charts; TimesheetPrint and TeamTimesheet
+  prints; Profitability and Utilization for managers only; demo ACME time; `test/Reports.spec.js` (every report on the
+  demo in qvt, html-print and tui, measures recomputed, joe sees no money).
+- Runs (Debug): ironstone-boss 567/567, mantle-usl 673/675 (ContactListSend), lint clean.
+
 ### P10 — Client access
 
 - Design §1.1 and §15 Client access: the `BOSS_PROJECT_CLIENT` filter set and group, Commons and Comms denied to it,
@@ -494,6 +507,7 @@ Made during the build; each one that changes the design is also written into des
 | Oct 22, 2026 | A gate's requests and decisions are `WorkEffortApproval` rows (the settings still name the requirement and approver); approving reaches the milestone; until P10 a project manager (MILESTONE_APPROVE or ADMIN) records the client's decision, marked `recordedFor` | P8b |
 | Oct 22, 2026 | Sending the estimate makes the order a quote (Proposed); approval moves the project In Planning to Approved and its orders through Placed to Approved; estimate hours priced at the project's standard client rate | P8b |
 | Oct 22, 2026 | No billing share on the Roadmap (it is the team's; money is not) | P8b |
+| Oct 22, 2026 | Reports' time follows `find#TimeEntries`' visibility within visible projects; utilization counts a person's time on any project (their whole load); expenses add to cost and billable value alike; a work item's created date is its first status audit row | P9 |
 | Oct 22, 2026 | A recurring item counted from completion takes the completion day at the due date's time of day (UTC days) and the rule without its COUNT, which counts the items made | P2 |
 
 ## 5. Open questions
@@ -613,6 +627,16 @@ Design assumptions found wrong in the code, with the resolution (written into th
 | F101 | P8b: the estimate is not emailed; the gate's notice reaches only users, and a client contact has none before P10 | With P10 |
 | F102 | P8b: the Money tab shows the parent header in AppStructure (F81) | The walk renders the tab |
 | F103 | P8b: a running server keeps old service definitions (F56) | Restart |
+| F104 | P9: in a spec's `then`, `a \|\| b` evaluates as a boolean | Compute such values outside the assertion |
+| F105 | P9: Home's at-risk counter has no schedule warning (Portfolio has late) | Later |
+| F106 | P9: F86 fixed in `find#TimeEntries` rows and totals | Done |
+| F107 | P9: a `hide` column's title still appears in the select-columns dialog, leaking money headings | Titles empty when hidden; the framework should leave hidden columns out of the dialog |
+| F108 | P9: `show-csv-button` and `show-xlsx-button` show no Export menu without `select-columns` or a header dialog | Framework, later |
+| F109 | P9: form-list fields are fixed, so period and status columns are capped (14, 12) | Totals cover the whole range; the screen says so |
+| F110 | P9: the lint calls `hasRows` a collection (F60, F76) | Renamed |
+| F111 | P9: `get#SprintVelocity` puts the active sprint first, and it and `get#ProjectSprints` check no project visibility | The Sprints screen accepts visible projects only; check callers in P10 |
+| F112 | P9: secondary report tables have no phone column sets | Later |
+| F113 | P9: the Time report's 14 parameters wrap over three rows at 1280 px | Later |
 | F7 | P0: a wiki space under an existing repository is documented for a repository root (`rootPageDirectory: "git://docs"`, or `rootPageLocation` `git://<repositoryId>/<SPACE>.md`), not for a subdirectory such as `git://<repositoryId>/docs` | Checked in P4 as the design's §15 row says, before ProjectDocs is built |
 
 ## 7. Later
@@ -679,6 +703,9 @@ Designed, not in this build:
 - Billing (P8b): Unbilled's Contractor time and the worker summary; emailing the estimate; agreements, opportunities,
   purchase lines and MaterialEstimates on Money; a project from an order line (Sales); milestone gates in Home's
   Approvals block; TUI checks.
+
+- Reports (P9): saved reports on the index; Home's schedule warning; phone columns for secondary tables; indented tree
+  exports (with the tree items above); TUI checks beyond rendering.
 
 ## 8. Verification
 

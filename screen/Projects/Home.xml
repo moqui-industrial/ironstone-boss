@@ -34,7 +34,10 @@ along with this software (see the LICENSE.md file). If not, see
     Billing (impl-projects.md P8a): for managers who manage money, Unbilled (the billable time not invoiced in the projects they see,
     its amount; into Billing's Unbilled).
 
-    Seams for the later phases, each an addition here: the two charts (P9) and the clients' Home (P10). Each counter comes from
+    Reports (impl-projects.md P9): for managers the charts Hours by project over the last four weeks (stacked by week, the time they
+    may see) and, for those who manage money, Unbilled by client, each with its table in a dialog and a link to its report or list.
+
+    Seams for the later phases, each an addition here: the clients' Home (P10). Each counter comes from
     mantle.work.ProjectServices.get#ProjectHomeCounts, which answers null for one the user does not get. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Home" default-menu-index="1">
@@ -107,6 +110,55 @@ along with this software (see the LICENSE.md file). If not, see
             activityList = Array.from(home.activityList || [])
             projectList = Array.from(home.projectList || [])
             projectsTitle = isManager ? L('Projects I manage') : L('My projects')
+
+            // the managers' charts (impl-projects.md P9), each on its own: hours by project over the last four weeks (the time they may
+            // see, mantle.work.ProjectReportServices.get#TimeReport) and, for those who manage money, unbilled by client
+            // (mantle.work.ProjectServices.get#UnbilledSummary's totals by client)
+            hoursChartShown = false; unbilledChartShown = false
+            hoursRows = []; unbilledRows = []
+            if (isManager) {
+                const fmt = (value) => ec.l10n.format(Math.round(Number(String(value || 0)) * 100) / 100, '#,##0.##')
+                const today = ec.l10n.format(new Date(nowMillis), 'yyyy-MM-dd')
+                const js = new Date(today + 'T12:00:00Z').getUTCDay()
+                const monday = new Date(Date.parse(today + 'T12:00:00Z') - ((js + 6) % 7 + 21) * 86400000).toISOString().slice(0, 10)
+                hoursReportUrl = '../Reports/Time?criterion1=project&period=week&fromDate=' + monday + '&thruDate=' + today
+                try {
+                    const time = ec.service.sync().name('mantle.work.ProjectReportServices.get#TimeReport').parameters({fromDate: monday, thruDate: today, period: 'week',
+                        criteria: ['project'], withAmounts: false}).call() || {}
+                    if (ec.message.hasError()) throw new Error(ec.message.getErrorsString())
+                    const series = Array.from(time.chart?.series || [])
+                    if (series.length) {
+                        const chart = ec.service.sync().name('ironstone.ReportServices.get#ChartConfig').parameters({id: 'HomeHoursByProject', type: 'bar',
+                            labels: Array.from(time.chart.labels || []), series: series.map((one) => ({name: one.name, data: Array.from(one.data || [])})), stacked: true,
+                            height: '220px'}).call() || {}
+                        hoursChartHtml = chart.html || ''; hoursChartTui = chart.tui || {t: 'text', text: ''}
+                        const periods = Array.from(time.periodList || [])
+                        hoursRows = Array.from(time.rowList || []).map((row) => ({project: row.values[0].label, hoursText: fmt(row.hours),
+                            weeksText: Array.from(row.periodHours || []).map((hours, i) => (periods[i]?.label || '') + ': ' + fmt(hours)).join(' · ')}))
+                        hoursChartShown = true
+                    }
+                } catch (err) {
+                    ec.logger.error(`Projects Home: the hours by project chart left out: ${err && err.message ? err.message : err}`)
+                } finally { ec.message.clearErrors() }
+                if (unbilledShown) try {
+                    const unbilled = ec.service.sync().name('mantle.work.ProjectServices.get#UnbilledSummary').call() || {}
+                    if (ec.message.hasError()) throw new Error(ec.message.getErrorsString())
+                    const currency = unbilled.totals?.currencyUomId
+                    const byClient = Array.from(unbilled.totals?.byClient || []).filter((one) => Number(String(one.amount || 0)) > 0)
+                    if (byClient.length && currency) {
+                        const chart = ec.service.sync().name('ironstone.ReportServices.get#ChartConfig').parameters({id: 'HomeUnbilledByClient', type: 'bar',
+                            labels: byClient.map((one) => one.clientName || L('No client')), series: [{name: L('Unbilled') + ' (' + currency + ')',
+                            data: byClient.map((one) => Number(String(one.amount || 0)))}], horizontal: true, height: '220px'}).call() || {}
+                        unbilledChartHtml = chart.html || ''; unbilledChartTui = chart.tui || {t: 'text', text: ''}
+                        unbilledRows = byClient.map((one) => ({clientName: one.clientName || L('No client'), hoursText: fmt(one.hours),
+                            amountText: ec.l10n.formatCurrency(toDecimal(one.amount || 0), currency)}))
+                        unbilledChartShown = true
+                    }
+                } catch (err) {
+                    ec.logger.error(`Projects Home: the unbilled by client chart left out: ${err && err.message ? err.message : err}`)
+                } finally { ec.message.clearErrors() }
+            }
+            chartsShown = hoursChartShown || unbilledChartShown
         ]]></script>
     </actions>
 
@@ -258,6 +310,40 @@ along with this software (see the LICENSE.md file). If not, see
                         <label type="p" text="${isManager ? 'You manage no open project' : 'You are on no open project'}" style="m-muted q-pa-sm q-mb-none"/>
                     </widgets></section>
                 </box-body-nopad></container-box>
+
+                <!-- the managers' charts, each with its table (design-projects.md §3 HoursByProject and UnbilledByClient) -->
+                <section name="ManagerCharts" condition="chartsShown"><widgets>
+                    <container-row>
+                        <row-col lg="${unbilledChartShown ? 6 : 12}"><section name="HoursByProject" condition="hoursChartShown"><widgets>
+                            <container-box><box-header title="Hours by project · last four weeks"/><box-toolbar>
+                                <container-dialog id="HomeHoursTable" button-text="Table" icon="sym_o_table" width="640" title="Hours by project · last four weeks">
+                                    <form-list name="HomeHoursByProject" list="hoursRows" skip-form="true" paginate="false">
+                                        <field name="project"><default-field title="Project"><display/></default-field></field>
+                                        <field name="hoursText" align="right"><default-field title="Hours"><display/></default-field></field>
+                                        <field name="weeksText"><default-field title="By week"><display/></default-field></field>
+                                    </form-list>
+                                </container-dialog>
+                                <link url="${hoursReportUrl}" url-type="plain" link-type="anchor" text="Time report"/>
+                            </box-toolbar><box-body>
+                                <render-mode><text type="qvt"><![CDATA[${hoursChartHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(hoursChartTui)}]]></text></render-mode>
+                            </box-body></container-box>
+                        </widgets></section></row-col>
+                        <row-col lg="${hoursChartShown ? 6 : 12}"><section name="UnbilledByClient" condition="unbilledChartShown"><widgets>
+                            <container-box><box-header title="Unbilled by client"/><box-toolbar>
+                                <container-dialog id="HomeUnbilledTable" button-text="Table" icon="sym_o_table" width="520" title="Unbilled by client">
+                                    <form-list name="HomeUnbilledByClient" list="unbilledRows" skip-form="true" paginate="false">
+                                        <field name="clientName"><default-field title="Client"><display/></default-field></field>
+                                        <field name="hoursText" align="right"><default-field title="Hours"><display/></default-field></field>
+                                        <field name="amountText" align="right"><default-field title="Unbilled"><display/></default-field></field>
+                                    </form-list>
+                                </container-dialog>
+                                <link url="../Billing/Unbilled" link-type="anchor" text="Unbilled"/>
+                            </box-toolbar><box-body>
+                                <render-mode><text type="qvt"><![CDATA[${unbilledChartHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(unbilledChartTui)}]]></text></render-mode>
+                            </box-body></container-box>
+                        </widgets></section></row-col>
+                    </container-row>
+                </widgets></section>
             </row-col>
             <row-col md="4">
                 <!-- shortcuts: the shell's quick-create kinds and the screens a team member goes to -->

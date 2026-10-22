@@ -16,8 +16,8 @@ along with this software (see the LICENSE.md file). If not, see
     (service/ironstone/TimeServices.xml get#TimesheetDetail over mantle.work.TimesheetServices.get#TimesheetSummary), for its person,
     its approvers and ADMIN; anyone else gets "not available". The title row: the person, the week, the status-bar (Open,
     Submitted, Approved; read only, the moves are the actions), the return reason or who approved; Approve (primary for its
-    approver), Return and Reopen (each with a reason), Submit (its person) and Open the week (MyTime, where its person or approver
-    changes the time). The number cards: Hours, Billable, Working hours, Difference. The boxes: Entries by day (a day's header with
+    approver), Return and Reopen (each with a reason), Submit (its person), Open the week (MyTime, where its person or approver
+    changes the time) and Print (TimesheetPrint, impl-projects.md P9). The number cards: Hours, Billable, Working hours, Difference. The boxes: Entries by day (a day's header with
     its total, then its entries: from, to, work item, project, hours, work type, billable, comment), By project, Flags (no comment
     where the policy needs one, time on no work item, a day off, a closed item, over 12 hours a day) and History (the status
     changes, by whom and when); Chatter, where a return's reason and the answers live, as the right column from 1440 px. -->
@@ -52,6 +52,7 @@ along with this software (see the LICENSE.md file). If not, see
         stateText = sheet.returned ? L('Returned') + ': ' + (sheet.reason || '') : sheet.statusId === 'TmshApproved'
                 ? L('Approved') + (sheet.approvedByName ? ' ' + L('by') + ' ' + sheet.approvedByName : '') + (sheet.approvedText ? ' · ' + sheet.approvedText : '')
                 : sheet.statusId === 'TmshCompleted' ? L('Submitted') + (sheet.submittedText ? ' ' + sheet.submittedText : '') + ', ' + L('waiting for approval') : ''
+        printUrl = '/apps/Projects/Time/TimesheetPrint?renderMode=html-print&timesheetId=' + encodeURIComponent(timesheetId)
         stateStyle = sheet.returned ? 'text-warning' : sheet.statusId === 'TmshApproved' ? 'text-positive' : 'm-muted'
     ]]></script></actions>
 
@@ -96,6 +97,7 @@ along with this software (see the LICENSE.md file). If not, see
                     <link url="decide" link-type="hidden-form" btn-type="primary" text="Submit week" icon="sym_o_send" parameter-map="{timesheetId:timesheetId, action:'submit'}"
                             condition="access.canSubmit" confirmation="Submit the week? It is locked until its approver returns it."/>
                     <link url="${sheet.weekUrl}" url-type="plain" text="Open the week" icon="sym_o_calendar_view_week" link-type="anchor-button"/>
+                    <link url="${printUrl}" url-type="plain" text="Print" icon="sym_o_print" target-window="_blank" link-type="anchor-button"/>
                 </container>
             </container>
 

@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- PortfolioReport (design-projects.md §11 PortfolioReport; style-guide §3.12 Report): a row per project the user sees, by status (the open
+    ones by default, all, or one status), manager, client and program. The parameters are in the URL (PortfolioParams, a GET form on the
+    screen itself). Cards: projects, at risk (health At risk or Off track, a warning of get#ProjectStats, or late), late (the forecast,
+    the latest due date of the open items, after the target date) and overdue items; a chart of % complete by project; the table
+    (PortfolioTable: project, status, health, % complete, target against the forecast, open and overdue items, hours of budget and used,
+    and for those who manage money the client budget and budget used, the actual client cost over it; managers and client; CSV and
+    XLSX). Print opens the same report in html-print. Over mantle.work.ProjectReportServices.get#PortfolioStatus. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Portfolio" default-menu-index="4">
+
+    <parameter name="statusId"/>
+    <parameter name="managerPartyId"/>
+    <parameter name="clientPartyId"/>
+    <parameter name="parentWorkEffortId"/>
+
+    <actions><script><![CDATA[
+        const L = (text) => ec.l10n.localize(text)
+        const fmt = (value) => value == null ? '' : ec.l10n.format(Math.round(Number(String(value)) * 10) / 10, '#,##0.#')
+        const options = ec.service.sync().name('ironstone.ReportServices.get#ReportOptions').call() || {}
+        ec.message.clearErrors()
+        managerOptions = Array.from(options.managerOptions || [])
+        clientOptions = Array.from(options.clientOptions || [])
+        programOptions = Array.from(options.programOptions || [])
+        statusOptions = [{value: '', label: L('Open (not closed or cancelled)')}, {value: 'all', label: L('All')}].concat(
+            ['WeInPlanning', 'WeApproved', 'WeInProgress', 'WeOnHold', 'WeComplete', 'WeClosed', 'WeCancelled'].map((id) => ({value: id,
+                label: ec.entity.find('moqui.basic.StatusItem').condition('statusId', id).useCache(true).one()?.description || id})))
+        const out = ec.service.sync().name('mantle.work.ProjectReportServices.get#PortfolioStatus').parameters({statusId: statusId || null,
+            managerPartyId: managerPartyId || null, clientPartyId: clientPartyId || null, parentWorkEffortId: parentWorkEffortId || null}).call() || {}
+        ec.message.clearErrors()
+        moneyShown = !!out.moneyShown
+        const totals = out.totals || {}
+        const dayText = (day) => day ? ec.l10n.format(ec.l10n.parseTimestamp(day + ' 12:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS'), 'MMM d, yyyy') : ''
+        const healthColors = {WehOnTrack: 'positive', WehAtRisk: 'warning', WehOffTrack: 'negative'}
+        const projects = Array.from(out.projectList || [])
+        portfolioRows = projects.map((row) => ({workEffortId: row.workEffortId, projectText: row.workEffortName + ' (' + row.workEffortId + ')',
+            statusLabel: row.statusLabel || '', healthLabel: row.healthLabel || L('Not set'), healthColor: healthColors[row.healthEnumId] || 'grey-7',
+            percentText: row.percentComplete == null ? '' : fmt(row.percentComplete) + '%', targetText: dayText(row.targetDate), forecastText: dayText(row.forecastDate),
+            late: !!row.late, atRisk: !!row.atRisk, openCount: row.openCount || 0, overdueCount: row.overdueCount || 0,
+            hoursText: [fmt(row.actualHours), row.estimatedHours != null ? fmt(row.estimatedHours) : ''].filter((part) => part !== '').join(' / '),
+            budgetText: row.hoursBudget == null ? '' : fmt(row.hoursBudget), hoursUsedText: row.hoursUsedPercent == null ? '' : fmt(row.hoursUsedPercent) + '%',
+            clientBudgetText: moneyShown && row.clientBudget != null ? ec.l10n.formatCurrency(row.clientBudget, row.currencyUomId || 'USD') : '',
+            budgetUsedText: moneyShown && row.budgetUsedPercent != null ? fmt(row.budgetUsedPercent) + '%' : '',
+            managerNames: row.managerNames || '', clientName: row.clientName || '', parentName: row.parentName || ''}))
+        portfolioRowsCount = portfolioRows.length
+        anyFound = portfolioRows.length > 0
+        projectsValue = String(totals.projectCount || 0)
+        atRiskValue = String(totals.atRiskCount || 0)
+        lateValue = String(totals.lateCount || 0)
+        overdueValue = String(totals.overdueCount || 0)
+        // the chart: % complete by project (projects with an estimate)
+        const charted = projects.filter((row) => row.percentComplete != null)
+        hasChart = charted.length > 0
+        const chart = hasChart ? ec.service.sync().name('ironstone.ReportServices.get#ChartConfig').parameters({id: 'PortfolioChart', type: 'bar',
+            labels: charted.map((row) => row.workEffortName), series: [{name: L('% complete'), data: charted.map((row) => row.percentComplete)}], horizontal: true,
+            percent: true, height: Math.max(160, 40 + charted.length * 32) + 'px'}).call() || {} : {}
+        ec.message.clearErrors()
+        chartHtml = chart.html || ''
+        chartTui = chart.tui || {t: 'text', text: ''}
+        const query = {statusId: statusId || '', managerPartyId: managerPartyId || '', clientPartyId: clientPartyId || '', parentWorkEffortId: parentWorkEffortId || ''}
+        const params = Object.entries(query).filter(([key, value]) => value).map(([key, value]) => key + '=' + encodeURIComponent(value)).join('&')
+        printUrl = '/apps/Projects/Reports/Portfolio?renderMode=html-print' + (params ? '&' + params : '')
+    ]]></script></actions>
+
+    <widgets>
+        <container style="row items-center q-mb-sm">
+            <label type="h5" text="Portfolio report" style="q-my-none col"/>
+            <link url="${printUrl}" url-type="plain" text="Print" icon="sym_o_print" target-window="_blank" link-type="anchor-button"/>
+        </container>
+        <form-single name="PortfolioParams" transition=".">
+            <field name="statusId"><default-field title="Status">
+                <drop-down><list-options list="statusOptions" key="${value}" text="${label}"/></drop-down></default-field></field>
+            <field name="managerPartyId"><default-field title="Manager">
+                <drop-down allow-empty="true"><list-options list="managerOptions" key="${value}" text="${label}"/></drop-down></default-field></field>
+            <field name="clientPartyId"><default-field title="Client">
+                <drop-down allow-empty="true"><list-options list="clientOptions" key="${value}" text="${label}"/></drop-down></default-field></field>
+            <field name="parentWorkEffortId"><default-field title="Program">
+                <drop-down allow-empty="true"><list-options list="programOptions" key="${value}" text="${label}"/></drop-down></default-field></field>
+            <field name="runButton"><default-field title="Run"><submit icon="sym_o_play_arrow"/></default-field></field>
+            <field-layout>
+                <field-row-big><field-ref name="statusId"/><field-ref name="managerPartyId"/><field-ref name="clientPartyId"/><field-ref name="parentWorkEffortId"/>
+                    <field-ref name="runButton"/></field-row-big>
+            </field-layout>
+        </form-single>
+
+        <dashboard min-width="150" style="q-mb-sm">
+            <number-card title="Projects" value="${projectsValue}" icon="sym_o_folder" size="sm"/>
+            <number-card title="At risk" value="${atRiskValue}" icon="sym_o_warning" size="sm"/>
+            <number-card title="Late" value="${lateValue}" icon="sym_o_event_busy" size="sm"/>
+            <number-card title="Overdue items" value="${overdueValue}" icon="sym_o_assignment_late" size="sm"/>
+        </dashboard>
+
+        <section name="PortfolioChartBox" condition="hasChart"><widgets>
+            <container-box><box-header title="% complete by project"/><box-body>
+                <render-mode><text type="qvt"><![CDATA[${chartHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(chartTui)}]]></text></render-mode>
+            </box-body></container-box>
+        </widgets></section>
+
+        <container-box><box-header title="Projects · ${projectsValue}"/><box-body-nopad>
+            <form-list name="PortfolioTable" list="portfolioRows" skip-form="true" paginate="false" show-csv-button="true" show-xlsx-button="true" select-columns="true">
+                <field name="projectText"><default-field title="Project">
+                    <link url="../../Projects/ProjectDetail" text="${projectText}" parameter-map="{workEffortId:workEffortId}" link-type="anchor"/></default-field></field>
+                <field name="statusLabel"><default-field title="Status"><display/></default-field></field>
+                <field name="healthLabel"><default-field title="Health">
+                    <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${healthColor}">${WebUtilities.encodeHtml(healthLabel ?? '')}</q-chip>${atRisk ? '<q-icon name="sym_o_warning" size="xs" class="text-warning q-ml-xs"><q-tooltip>' + WebUtilities.encodeHtml(ec.l10n.localize('At risk')) + '</q-tooltip></q-icon>' : ''}]]></text>
+                        <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify((healthLabel ?? "") + (atRisk ? " · " + ec.l10n.localize("At risk") : ""))}}]]></text>
+                        <text type="html-print"><![CDATA[${WebUtilities.encodeHtml(healthLabel ?? '')}]]></text></render-mode></default-field></field>
+                <field name="percentText" align="right"><default-field title="% complete"><display/></default-field></field>
+                <field name="targetText"><default-field title="Target"><display/></default-field></field>
+                <field name="forecastText"><default-field title="Forecast"><display style="${late ? 'text-warning text-weight-medium' : ''}"/></default-field></field>
+                <field name="openCount" align="right"><default-field title="Open"><display/></default-field></field>
+                <field name="overdueCount" align="right"><default-field title="Overdue"><display style="${overdueCount ? 'text-warning' : ''}"/></default-field></field>
+                <field name="hoursText" align="right"><default-field title="Actual / est. h"><display/></default-field></field>
+                <field name="budgetText" align="right"><default-field title="Hours budget"><display/></default-field></field>
+                <field name="hoursUsedText" align="right"><default-field title="Hours used"><display/></default-field></field>
+                <field name="clientBudgetText" align="right" hide="!moneyShown"><default-field title="${moneyShown ? 'Client budget' : ''}"><display/></default-field></field>
+                <field name="budgetUsedText" align="right" hide="!moneyShown"><default-field title="${moneyShown ? 'Budget used' : ''}"><display/></default-field></field>
+                <field name="managerNames"><default-field title="Managers"><display/></default-field></field>
+                <field name="clientName"><default-field title="Client"><display/></default-field></field>
+                <columns type="mobile">
+                    <column><field-ref name="projectText"/><field-ref name="healthLabel"/></column>
+                    <column><field-ref name="percentText"/><field-ref name="forecastText"/></column>
+                </columns>
+            </form-list>
+            <label type="p" text="No project you see matches. Change the filters." style="m-muted q-pa-sm q-mb-none" condition="!anyFound"/>
+        </box-body-nopad></container-box>
+        <label type="p" text="% complete: the estimate less what remains, over the estimate. Forecast: the latest due date of the open items; late when after the target. Budget used: the actual client cost over the client budget." style="text-caption m-muted"/>
+    </widgets>
+</screen>

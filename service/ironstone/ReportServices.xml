@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The reports of IronStone Projects (design-projects.md §11; impl-projects.md P9), over mantle.work.ProjectReportServices, which reads
+    only the projects, time and money the user may see. Here: the parameters' options and the charts' m-chart configuration with its
+    terminal twin (style-guide §3.12, §5.1: series colors in the brand order, read from the CSS variables at render time). -->
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
+
+    <service verb="get" noun="ChartConfig" allow-remote="false">
+        <description>
+            An m-chart for a report (style-guide §3.12 and §5.1): config, the :config expression to put in a single-quoted attribute (already
+            escaped for it), html the m-chart element with it, and tui, the terminal's chart component (a map for ${JSON.stringify(...)} in a tui
+            text). type bar or line; labels the x values; series [{name,
+            data, kind (bar or line, for a mixed chart), dashed, axis (y or y2)}]; stacked bars; horizontal bars (indexAxis y); percent
+            for a y axis in percent; yTitle and y2Title; height (default 260px). Series take primary, secondary, accent, info, warning,
+            positive and negative in order, then the darker blue, teal, purple, orange and green; the text and grid colors follow the
+            page's theme. A chart never carries meaning by color alone: the legend names each series, and each report has its table.
+        </description>
+        <in-parameters>
+            <parameter name="id" required="true"/>
+            <parameter name="type" default-value="bar"/>
+            <parameter name="labels" type="List" required="true"/>
+            <parameter name="series" type="List" required="true"/>
+            <parameter name="stacked" type="Boolean" default="false"/>
+            <parameter name="horizontal" type="Boolean" default="false"/>
+            <parameter name="percent" type="Boolean" default="false"/>
+            <parameter name="yTitle"/>
+            <parameter name="y2Title"/>
+            <parameter name="height" default-value="260px"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="config"/>
+            <parameter name="tui" type="Map"/>
+            <parameter name="html"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const names = ['primary', 'secondary', 'accent', 'info', 'warning', 'positive', 'negative']
+            const shades = ['#1565c0', '#00796b', '#6a1b9a', '#ef6c00', '#2e7d32']
+            const list = Array.from(series || []).map((one) => (one && one.getMap ? one.getMap() : one) || {})
+            const labelList = Array.from(labels || []).map((label) => label == null ? '' : String(label))
+            const colorOf = (i) => i < names.length ? 'cv(' + JSON.stringify(names[i]) + ')' : JSON.stringify(shades[(i - names.length) % shades.length])
+            const hasY2 = list.some((one) => one.axis === 'y2')
+            const datasets = list.map((one, i) => {
+                const kind = one.kind || type
+                const data = Array.from(one.data || []).map((value) => value == null || value === '' ? null : Number(String(value)))
+                const parts = ['label: ' + JSON.stringify(String(one.name == null ? '' : one.name)), 'data: ' + JSON.stringify(data),
+                    'borderColor: ' + colorOf(i), 'backgroundColor: ' + colorOf(i), 'type: ' + JSON.stringify(kind)]
+                if (kind === 'line') parts.push('tension: 0', 'pointRadius: 3', 'fill: false', 'spanGaps: true')
+                if (one.dashed) parts.push('borderDash: [6, 4]', 'borderWidth: 1', 'pointRadius: 0')
+                if (one.axis === 'y2') parts.push('yAxisID: "y2"')
+                if (kind === 'bar') parts.push('maxBarThickness: 40', 'borderRadius: 2')
+                return '{' + parts.join(', ') + '}'
+            })
+            const valueAxis = horizontal ? 'x' : 'y'
+            const categoryAxis = horizontal ? 'y' : 'x'
+            const tick = percent ? ', callback: (value) => value + "%"' : ''
+            const titleOf = (text) => text ? ', title: {display: true, text: ' + JSON.stringify(String(text)) + ', color: tc}' : ''
+            const scales = [categoryAxis + ': {stacked: ' + !!stacked + ', ticks: {color: tc, autoSkip: true, maxRotation: 0}, grid: {display: false}}',
+                valueAxis + ': {stacked: ' + !!stacked + ', beginAtZero: true, ticks: {color: tc' + tick + '}, grid: {color: gc}' + titleOf(yTitle) + '}']
+            if (hasY2) scales.push('y2: {position: "right", beginAtZero: true, ticks: {color: tc}, grid: {display: false}' + titleOf(y2Title) + '}')
+            const expression = '((cv, tc, gc) => ({type: ' + JSON.stringify(type === 'line' ? 'line' : 'bar') + ', data: {labels: ' + JSON.stringify(labelList)
+                + ', datasets: [' + datasets.join(', ') + ']}, options: {maintainAspectRatio: false, animation: false' + (horizontal ? ', indexAxis: "y"' : '')
+                + ', plugins: {legend: {display: ' + (list.length > 1) + ', position: "bottom", labels: {color: tc, boxWidth: 12}}}, scales: {' + scales.join(', ') + '}}}))('
+                + '(name) => (c) => c.chart.canvas.ownerDocument.defaultView.getComputedStyle(c.chart.canvas).getPropertyValue("--q-" + name).trim(), '
+                + '(c) => c.chart.canvas.ownerDocument.defaultView.getComputedStyle(c.chart.canvas).color, '
+                + '(c) => c.chart.canvas.ownerDocument.defaultView.getComputedStyle(c.chart.canvas).color.replace(/^rgba?\\((\\d+,\\s*\\d+,\\s*\\d+)[^)]*\\)$/, "rgba($1, 0.12)"))'
+            // for a single-quoted attribute: the text's single quotes, ampersands and less-thans as entities, which the template parser turns back
+            config = expression.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/'/g, '&#39;')
+            const safeHeight = /^\d+(px|rem|em|vh)$/.test(String(height || '')) ? String(height) : '260px'
+            html = '<m-chart height="' + safeHeight + '" :config=\'' + config + '\'></m-chart>'
+            tui = {t: 'component', id: id, name: 'chart', props: {labels: labelList,
+                series: list.map((one) => ({name: String(one.name == null ? '' : one.name), data: Array.from(one.data || []).map((value) => value == null || value === '' ? 0 : Number(String(value)))}))}}
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="ReportOptions" allow-remote="false">
+        <description>The options of the reports' parameters among what the user sees: projectOptions (the projects the user sees, not
+            templates; with includeClosed the closed ones too), programOptions (projects with sub-projects), clientOptions (the current
+            Customer and CustomerBillTo of those projects), managerOptions (their ProjectManager and Manager parties), personOptions
+            (their internal members), workTypeOptions (the WorkType enumerations), typeOptions (the work item types, WorkEffortPurpose
+            of tasks), each [{value, label}] by label; managesMoney (ADMIN or TIME_ENTRY_RATE).</description>
+        <in-parameters><parameter name="includeClosed" type="Boolean" default="true"/></in-parameters>
+        <out-parameters>
+            <parameter name="projectOptions" type="List"/>
+            <parameter name="programOptions" type="List"/>
+            <parameter name="clientOptions" type="List"/>
+            <parameter name="managerOptions" type="List"/>
+            <parameter name="personOptions" type="List"/>
+            <parameter name="workTypeOptions" type="List"/>
+            <parameter name="typeOptions" type="List"/>
+            <parameter name="managesMoney" type="Boolean"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            projectOptions = []; programOptions = []; clientOptions = []; managerOptions = []; personOptions = []; workTypeOptions = []; typeOptions = []
+            managesMoney = !!ec.user.userId && (ec.user.isInGroup('ADMIN') || ec.user.hasPermission('TIME_ENTRY_RATE'))
+            const byLabel = (a, b) => String(a.label).localeCompare(String(b.label))
+            const vis = ec.service.sync().name('mantle.work.ProjectServices.get#VisibleProjectInfo').call() || {}
+            const visible = Array.from(vis.visibleProjectIds || [])
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try {
+                if (vis.allProjects || visible.length) {
+                    let find = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortTypeEnumId', 'WetProject')
+                    if (!vis.allProjects) find = find.condition('workEffortId', 'in', visible)
+                    if (!includeClosed) find = find.condition('statusId', 'not-in', ['WeClosed', 'WeCancelled'])
+                    const projects = Array.from(find.selectField('workEffortId').selectField('workEffortName').selectField('parentWorkEffortId').selectField('isTemplate')
+                            .selectField('statusId').limit(2000).list()).filter((row) => row.isTemplate !== 'Y' && row.statusId !== 'WeCancelled')
+                    const ids = projects.map((row) => row.workEffortId)
+                    const names = {}
+                    for (const row of projects) names[row.workEffortId] = row.workEffortName || row.workEffortId
+                    projectOptions = projects.map((row) => ({value: row.workEffortId, label: names[row.workEffortId] + ' (' + row.workEffortId + ')'})).sort(byLabel)
+                    const parents = new Set(projects.map((row) => row.parentWorkEffortId).filter((id) => id && names[id]))
+                    programOptions = Array.from(parents).map((id) => ({value: id, label: names[id] + ' (' + id + ')'})).sort(byLabel)
+                    const partyNames = {}
+                    const partyName = (id) => {
+                        if (!(id in partyNames)) {
+                            const party = ec.entity.find('mantle.party.PartyDetail').condition('partyId', id).one()
+                            partyNames[id] = party ? (party.organizationName || [party.firstName, party.lastName].filter((part) => part).join(' ') || party.pseudoId || id) : id
+                        }
+                        return partyNames[id]
+                    }
+                    const clients = new Set(), managers = new Set(), people = new Set()
+                    const outside = ['Customer', 'CustomerBillTo', 'ClientManager', 'ClientBilling', 'Vendor', 'VendorBillFrom', 'OrgTeam']
+                    if (ids.length) for (const row of ec.entity.find('mantle.work.effort.WorkEffortParty').condition('workEffortId', 'in', ids)
+                            .conditionDate('fromDate', 'thruDate', null).selectField('partyId').selectField('roleTypeId').list()) {
+                        if (row.roleTypeId === 'Customer' || row.roleTypeId === 'CustomerBillTo') clients.add(row.partyId)
+                        else if (!outside.includes(row.roleTypeId)) {
+                            people.add(row.partyId)
+                            if (row.roleTypeId === 'ProjectManager' || row.roleTypeId === 'Manager') managers.add(row.partyId)
+                        }
+                    }
+                    const persons = people.size ? new Set(Array.from(ec.entity.find('mantle.party.Person').condition('partyId', 'in', Array.from(people))
+                            .selectField('partyId').list()).map((row) => row.partyId)) : new Set()
+                    clientOptions = Array.from(clients).map((id) => ({value: id, label: partyName(id)})).sort(byLabel)
+                    managerOptions = Array.from(managers).filter((id) => persons.has(id)).map((id) => ({value: id, label: partyName(id)})).sort(byLabel)
+                    personOptions = Array.from(people).filter((id) => persons.has(id)).map((id) => ({value: id, label: partyName(id)})).sort(byLabel)
+                }
+                workTypeOptions = Array.from(ec.entity.find('moqui.basic.Enumeration').condition('enumTypeId', 'WorkType').useCache(true).list())
+                        .map((row) => ({value: row.enumId, label: row.description || row.enumId})).sort(byLabel)
+                const purposes = ['WepTask', 'WepFix', 'WepNewFeature', 'WepFeatureEnhance', 'WepFeatureTest', 'WepToDo', 'WepDocument']
+                typeOptions = Array.from(ec.entity.find('moqui.basic.Enumeration').condition('enumId', 'in', purposes).useCache(true).list())
+                        .map((row) => ({value: row.enumId, label: row.description || row.enumId})).sort(byLabel)
+            } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+        ]]></script></actions>
+    </service>
+</services>

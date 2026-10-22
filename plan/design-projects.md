@@ -145,7 +145,8 @@ Depth two, in this order; the detail screens, the wizard, quick create and the p
   - Unbilled — `Projects/Billing/Unbilled`
   - Invoices — `Projects/Billing/Invoices`
   - Rates — `Projects/Billing/Rates`
-- Reports — `Projects/Reports` (internal)
+- Reports — `Projects/Reports` (internal), default the index: Time, Work items, Sprints, Portfolio, Progress, Profitability
+  (managers), Utilization (managers)
 - Settings — `Projects/Settings` (managers): Work item types, Workflows, Labels, Templates, Time, Billing,
   Code, Intake
 
@@ -326,7 +327,7 @@ its record is the detail's.
 | PortfolioReport | `Projects/Reports/Portfolio` | report | xml | Every project's status, health, progress, schedule and budget | `mantle.work.ProjectReportServices.get#PortfolioStatus` (new) | own | internal | new | report parameters |
 | ProfitabilityReport | `Projects/Reports/Profitability` | report | xml | Budget, cost, billable, billed and margin by project | `mantle.work.ProjectReportServices.get#ProjectProfitability` (new) | own | managers | new | report parameters |
 | UtilizationReport | `Projects/Reports/Utilization` | report | xml | Capacity, logged and billable hours by person and week | `mantle.work.ProjectReportServices.get#Utilization` (new) | own | managers | new | report parameters |
-| ProgressReport | `Projects/Reports/Progress` | report | xml | Estimated, actual and remaining work by milestone, and by top-level item down the work item tree | `mantle.work.ProjectServices.get#ProjectMilestoneSummary`, `get#WorkEffortChildStats` | own | internal | parity | report parameters |
+| ProgressReport | `Projects/Reports/Progress` | report | xml | Estimated, actual and remaining work by milestone, and by top-level item down the work item tree | `mantle.work.ProjectServices.get#ProjectMilestoneSummary`, `get#WorkEffortChildStats`; as built (P9) through `mantle.work.ProjectReportServices.get#ProgressBreakdown` | own | internal | parity | report parameters |
 
 ### Settings
 
@@ -381,7 +382,7 @@ Profitability report), and a separate project expenses screen (ProjectMoney's Ex
 | `RecentChanges` | list | What moved in my projects | item, change (status, assignee, comment), by, when | | `mantle.work.ProjectServices.get#ProjectActivity` (new) | Redmine and OpenProject activity |
 | `MyProjects` | list | Projects I am on or manage, or a client's | key, name, health chip, status, progress, next milestone, open items | `q-linear-progress` by `render-mode` | `WorkEffortAndParty` (`entity`); `mantle.work.ProjectServices.get#ProjectStats` | ERPNext project summary; OpenProject project list |
 | `Approvals` | list | Waiting on me as a manager | kind (timesheet, allocation, gate), who, what, since | links to the owning list | the approval topics of §15 through `NotificationMessageUser` (`entity`) | design-drawers-commons §4 `Approvals` |
-| `HoursByProject`, `UnbilledByClient` | display | Two charts with their tables | hours by project and week; unbilled amount by client | `m-chart` by `render-mode` | `get#TimeReport` (new); `mantle.work.ProjectServices.get#UnbilledSummary` (new) | ERPNext Timesheet Working Hours card |
+| `HoursByProject`, `UnbilledByClient` | display | Two charts with their tables | hours by project and week; unbilled amount by client | `m-chart` by `render-mode`; as built (impl-projects.md P9) below Projects I manage, for managers: hours stacked by project over the last four weeks (the time they may see) and, for those who manage money, unbilled by client as bars (left out when the projects bill in more than one currency), each table in a dialog with a link to the Time report or Unbilled | `get#TimeReport` (new); `mantle.work.ProjectServices.get#UnbilledSummary` (new) | ERPNext Timesheet Working Hours card |
 | `ClientReplies` | list | Messages on my requests from the team | request, from, snippet, when | | `RequestCommEvent` with `CommunicationEvent` (`entity`) | Odoo portal; Frappe Helpdesk customer view |
 
 - **States:** a user with no projects sees a first-run card ("Create a project", "Import work items", "Connect a
@@ -1970,6 +1971,24 @@ client budget.
 
 **Needs (all reports):** Reports services; `m-chart` (exists); Print documents.
 
+**As built (impl-projects.md P9).** `Projects/Reports` holds the index (`Reports/Index`, the cards; Profitability and Utilization only for
+managers, who alone may open them through `BOSS_PROJECTS_MANAGERS`) and a screen per report in the menu. Each report keeps its parameters
+in the URL (a GET form), shows number cards, its charts (`ironstone.ReportServices.get#ChartConfig`: the series in the brand order, a
+terminal chart twin) with the tables behind them (CSV and XLSX), and Print opens the same URL in `html-print`. Every report reads only the
+projects the user sees, time by the rule of TimeEntries (the user's own and their reports', that of the projects they manage, everyone's
+for ADMIN) and money only for those who manage it (ADMIN, `TIME_ENTRY_RATE`). The measures as computed: the value of time is the entry's
+own client hour rate, else its `RateAmount`'s (F86), its cost the same of the worker's rate, each to the cent per entry; billable is any
+rate type but no charge; the billable expenses are the project's expense invoices (billed through to the client as
+`create#ProjectInvoiceItems` bills them), so they add to both cost and billable value; billed is the project's client invoices by
+invoice date; margin is billable value less cost (the billing basis Billed: billed less cost). Utilization counts all of a person's
+logged time, on any project, as the team planner does (a person's load is whole), over the capacity of `get#PartyCapacity`; weeks to
+come have none. The work item report's created date is an item's first status audit row (Mantle's `WorkEffort` has no created date),
+its resolved date the first reaching Complete or Closed, its cycle time from first In Progress; its table counts the items of the
+scope by their status now, its cards and chart the period. The time report shows up to fourteen period columns (the totals count the
+whole range). The portfolio's forecast is the latest due date of a project's open items, late when after the project's target date;
+at risk is health At risk or Off track, a warning of `get#ProjectStats` or late. Saved reports on the index's cards are later; a bookmark
+keeps a report's parameters.
+
 ## 12. Settings
 
 App-wide settings belong to the owning organization (`PartySetting` rows of new `PartySettingType`s, the way Mantle
@@ -2163,11 +2182,11 @@ longer written, as design-drawers-commons decided.
 | Project estimate (the work breakdown to a chosen depth, each line's roll-up hours at the client rates, and the milestones) | `html-print`, email; a file of the Estimate milestone sent for the client's approval | ProjectMoney, MilestoneDetail | Dolibarr proposal from a project; services practice |
 | Release notes | wiki page, `CHANGELOG.md` commit, email | ReleaseDetail | Redmine and OpenProject version pages; changelog practice |
 | Sprint report (burndown, completed and carried over) | `html-print` | SprintDetail | OpenProject sprint reports |
-| Timesheet (a person's week) | `html-print` | TimesheetDetail | ERPNext timesheet print |
-| Team timesheet (a crew's time on one piece of work) | `html-print` | TimeEntries | `template/work/TeamTimesheet.xsl-fo.ftl` (`get#TeamTimesheetInfo`) |
+| Timesheet (a person's week) | `html-print` (as built, P9: `Time/TimesheetPrint`, the entries by day, by project, the flags, signature lines) | TimesheetDetail | ERPNext timesheet print |
+| Team timesheet (a crew's time on one piece of work) | `html-print` (as built, P9: `Time/TeamTimesheet`, TimeEntries' Print of its find by day with the hours by person and signatures, no rates) | TimeEntries | `template/work/TeamTimesheet.xsl-fo.ftl` (`get#TeamTimesheetInfo`) |
 | Client invoice with its time detail | PDF, email | InvoiceDetail | Accounting's invoice print, with the time entries behind each line appended |
 | Work items export | CSV, XLSX (the tree view exports a level column and the parent key) | WorkItems | `FindTask` `TaskList.csv` |
-| Progress breakdown | CSV, XLSX, `html-print` at the expanded depth | ProgressReport | `ProjectProgressReport` |
+| Progress breakdown | CSV, XLSX, `html-print` at the expanded depth (as built, P9: Expand to level n is a parameter, the list's rows are the tree to that depth) | ProgressReport | `ProjectProgressReport` |
 | Time export and the reports | CSV, XLSX, `html-print` | TimeEntries, Reports | Redmine spent-time CSV |
 | Work item import (Jira, Redmine, GitHub, generic CSV) | import | WorkItemImport | Commons ContactImport |
 | Time import (the Time entries CSV; the Mantle detail CSV); Toggl, Harvest and Clockify presets after the first release | import | TimeEntries | Mantle `import#TimeDetailFile`; those tools' detailed CSV exports |
@@ -2283,7 +2302,7 @@ record is read through a service that checks the repository's rights (R21).
 | Allocations | data model + service type + seed data | `mantle.work.effort.WorkEffortAllocation` {workEffortAllocationId, workEffortId, partyId (empty for a placeholder), emplPositionClassId, skillTypeEnumId, fromDate, thruDate, hoursPerWeek, statusId (`WealRequested`, `WealAllocated`, `WealRejected`, `WealCancelled`, with a flow), requestedByUserId, reviewedByUserId, comments}; `create#Allocation`, `update#Allocation`, `staff#Allocation`, `approve#Allocation`, `reject#Allocation`, `find#StaffingCandidates`, `get#TeamPlan`; topics `AllocationRequest` (approval) and `AllocationDecision`. As built (P7): also `rootWorkEffortId` (the project), `roleTypeId` (the project role a placeholder fills), `allocationPercent`, `requestedDate`, `reviewedDate` and `reviewComments` (a rejection's reason); `fromDate` and `thruDate` are days; `cancel#Allocation`, `find#Allocations` (the lists and counts), `get#AllocationAccess`; permission `ALLOCATION_APPROVE`; `get#TeamPlan` gives each week's capacity, allocated, requested, assigned and logged hours, the load and the utilization, which `get#Utilization` (P9) can build on | TeamPlanner, Allocations, ProjectTeam, NewProject | answers the research's question (§16) |
 | Milestone billing share | data model + service type | `OrderItemWorkEffort.invoicePercent` (number-decimal); `mantle.account.InvoiceServices.create#MilestoneInvoiceItems(workEffortId, invoiceId)`: an item per linked order line for its share once the milestone is complete, recorded in `WorkEffortBilling` with the percentage. As built (P8b): also `invoiceAmount` (a fixed share); `store#MilestoneShare` (the shares of a line at most its total), `get#MilestoneBilling` (shares billed, due or waiting, and the lines), `link#ProjectOrderItem`; a share is due when its milestone is Complete or Closed and its gate approved; the item takes the line's sales item type (else `ItemServiceProduct`) and product, and `OrderItemBilling` records the part of the line's quantity; `delete#InvoiceItem` deletes the `WorkEffortBilling` and a cancelled invoice zeroes it, so the share is due again | MilestoneDetail, ProjectMoney, Unbilled | |
 | Billing services | service type | `mantle.work.ProjectServices.get#UnbilledSummary` (by project, and with `RaprVendor` by worker: unbilled hours and amounts, expenses, reached milestones, open drafts); the time detail appended to a client invoice's print. As built (P8a): `get#UnbilledSummary` by project for those who manage money (billable time not invoiced, the approved part ready, what waits, entries without a rate, expenses not billed through, the last invoice and the drafts; BigDecimal amounts rounded per entry as an invoice of a line per entry totals them; by client for the chart); `mantle.account.InvoiceServices` `create#ProjectInvoiceItems` and `create#TimeEntryInvoiceItems` take `timeEntryIdList`, `approvedOnly` and `billableOnly` (and the first `includeExpenses`, `settlementTermId`), lock the entries for update and link the project by `WorkEffortInvoice`; `get#InvoiceTimeDetail` (the time behind an invoice's lines); `delete#InvoiceItem` frees the line's time as `cancel#Invoice` frees an invoice's; `get#ProjectHomeCounts` fills `unbilledAmount`. As built (P8b): `get#UnbilledSummary` adds each project's milestone shares due (and lists a project with only those); `get#ProjectMoneySummary` (caps against actuals, invoices, expenses, order lines, shares); `get#ProjectEstimate`. The worker (`RaprVendor`) summary is later | Unbilled, ProjectMoney, Home | |
-| Reports services | service type | `mantle.work.ProjectReportServices`: `get#TimeReport`, `get#WorkItemSummary`, `get#SprintBurndown` (from the `WeatSprint` dates and the audit log of `remainingWorkTime`, `estimatedWorkTime`, `estimatedPoints` and `statusId`; built in P4a with the committed, added, removed, completed, carried-over and remaining sizes, days left, the scope changes and each item's outcome; an hours project sizes items by their estimate and burns down their remaining hours), `get#SprintVelocity` (P4a), `get#PortfolioStatus`, `get#ProjectProfitability`, `get#Utilization`, with the measures of §11 | Reports, SprintDetail, Home | |
+| Reports services | service type | `mantle.work.ProjectReportServices`: `get#TimeReport`, `get#WorkItemSummary`, `get#SprintBurndown` (from the `WeatSprint` dates and the audit log of `remainingWorkTime`, `estimatedWorkTime`, `estimatedPoints` and `statusId`; built in P4a with the committed, added, removed, completed, carried-over and remaining sizes, days left, the scope changes and each item's outcome; an hours project sizes items by their estimate and burns down their remaining hours), `get#SprintVelocity` (P4a), `get#PortfolioStatus`, `get#ProjectProfitability`, `get#Utilization`, with the measures of §11. As built (P9): also `get#ReportScope` (the projects, time and money the user may read), `get#ProgressBreakdown` (the milestones and the item tree to a depth over `get#WorkEffortChildStats`, no money without the right); `get#TimeReport` (criteria and periods, value at the client rates for money holders), `get#WorkItemSummary`, `get#PortfolioStatus`, `get#ProjectProfitability` (money holders only) and `get#Utilization` (over `get#TeamPlan`); `get#ProjectStats`' danger of actual and remaining past the estimate only when there is an estimate (impl-projects.md F70) | Reports, SprintDetail, Home | |
 
 ### Requests and intake (Mantle and BOSS)
 
