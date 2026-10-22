@@ -12,10 +12,10 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for the IronStone Projects landing page (initial-design.md); design-projects.md designs it. -->
+<!-- Placeholder for the Projects landing page (design-projects.md §3 Home; impl-projects.md P2): the group's counters, my work, my projects and, for managers, approvals and charts. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Home" default-menu-index="1">
     <widgets>
-        <label text="Placeholder: The IronStone Projects landing page for project managers and services staff." type="p"/>
+        <label text="Placeholder: The IronStone Projects landing page: my work items, reviews and hours; projects at risk, approvals and unbilled work for managers." type="p"/>
     </widgets>
 </screen>

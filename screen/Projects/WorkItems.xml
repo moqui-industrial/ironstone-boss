@@ -12,11 +12,11 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for the Work items section of IronStone Projects (initial-design.md app table); design-projects.md
-    decides its screens. -->
+<!-- Work items (design-projects.md §5): the work item list is the default subscreen WorkItems/List, with the Backlog, Timeline and Import beside it and WorkItemDetail in its place. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Work items" default-menu-index="3">
+    <subscreens default-item="List"/>
     <widgets>
-        <label text="Placeholder: Work items (tasks)." type="p"/>
+        <subscreens-active/>
     </widgets>
 </screen>

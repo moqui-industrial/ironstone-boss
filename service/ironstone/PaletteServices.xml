@@ -28,7 +28,10 @@ along with this software (see the LICENSE.md file). If not, see
     <service verb="get" noun="RecordLink">
         <description>The BOSS screen link (/qapps) and icon of a Mantle record, by its search document type or the record's
             full entity name (recordEntityName), its id and, for a work effort, its type (looked up when not given); a link of
-            null when Commons and Comms have no screen for it. The Today panel, the notification lists and the palette use it.</description>
+            null when no app the user has has a screen for it. A project, and a task or a request in a project
+            (rootWorkEffortId), open in IronStone Projects for a user who may open it (design-projects.md §1.4: an authorization
+            of the user's groups on the Projects root, with no deny), else a task or request in Commons and a project nowhere;
+            a task or request with no project stays in Commons. The Today panel, the notification lists and the palette use it.</description>
         <in-parameters>
             <parameter name="docType"><description>MantleParty, MantleTask, MantleEvent, MantleRequest, MantleProject,
                 MantleWikiPage, MantleCommunicationEvent, or MantleWorkEffort with workEffortTypeEnumId</description></parameter>
@@ -59,6 +62,35 @@ along with this software (see the LICENSE.md file). If not, see
                 icon = 'sym_o_rate_review'
                 return
             }
+            // IronStone Projects: a project, and a task or a request of a project, for a user who may open the app
+            if (type === 'MantleProject' || type === 'MantleTask' || type === 'MantleRequest') {
+                const entityName = type === 'MantleRequest' ? 'mantle.request.Request' : 'mantle.work.effort.WorkEffort'
+                const inProject = type === 'MantleProject' || !!ec.entity.find(entityName).condition(type === 'MantleRequest' ? 'requestId' : 'workEffortId', id)
+                        .selectField('rootWorkEffortId').disableAuthz().one()?.rootWorkEffortId
+                if (inProject && ec.user.userId) {
+                    let mayOpen = false
+                    try {
+                        const groupIds = Array.from(ec.user.getUserGroupIdSet() || [])
+                        const root = 'component://ironstone-boss/screen/Projects.xml'
+                        const rows = Array.from(ec.entity.find('moqui.security.ArtifactAuthzCheckView').condition('userGroupId', 'in', groupIds)
+                                .condition('artifactTypeEnumId', 'AT_XML_SCREEN').condition('authzActionEnumId', 'in', ['AUTHZA_ALL', 'AUTHZA_VIEW'])
+                                .disableAuthz().list()).filter((row) => row.nameIsPattern === 'Y' ? new RegExp(`^(?:${row.artifactName})$`).test(root)
+                                        : row.artifactName === root)
+                        mayOpen = rows.some((row) => row.authzTypeEnumId === 'AUTHZT_ALLOW' || row.authzTypeEnumId === 'AUTHZT_ALWAYS')
+                                && !rows.some((row) => row.authzTypeEnumId === 'AUTHZT_DENY')
+                    } catch (err) {
+                        ec.logger.error(`Record link of ${type} ${id}: the Projects authorization of user ${ec.user.userId} was not read, linking to Commons: ${err}`)
+                    }
+                    if (mayOpen) {
+                        const projects = {MantleProject: ['/qapps/Projects/Projects/ProjectDetail?workEffortId=', 'sym_o_assignment'],
+                            MantleTask: ['/qapps/Projects/WorkItems/WorkItemDetail?workEffortId=', 'sym_o_task_alt'],
+                            MantleRequest: ['/qapps/Projects/Requests/RequestDetail?requestId=', 'sym_o_support']}[type]
+                        url = projects[0] + q
+                        icon = projects[1]
+                        return
+                    }
+                }
+            }
             const links = {
                 MantleParty: ['/qapps/Commons/Contacts/ContactDetail?partyId=' + q, partyTypeEnumId === 'PtyOrganization' ? 'sym_o_corporate_fare' : 'sym_o_person'],
                 MantleTask: ['/qapps/Commons/Tasks/TaskDetail?workEffortId=' + q, 'sym_o_task_alt'],
@@ -68,7 +100,7 @@ along with this software (see the LICENSE.md file). If not, see
                 MantleWikiPage: [(String(ec.entity.find('moqui.resource.wiki.WikiPage').condition('wikiPageId', id).selectField('wikiSpaceId').one()?.wikiSpaceId || '')
                     === 'NOTES_' + ec.user.userId ? '/qapps/Commons/Notes?wikiPageId=' : '/qapps/Commons/Knowledge?wikiPageId=') + q, 'sym_o_description'],
                 MantleCommunicationEvent: ['/qapps/Comms/Inbox/MessageDetail?communicationEventId=' + q, 'sym_o_mail'],
-                // no project screen in Commons: the Projects app's comes with its design
+                // no project screen in Commons: a user without Projects has no link to a project
                 MantleProject: [null, 'sym_o_assignment']
             }
             const found = links[type] || [null, 'sym_o_description']

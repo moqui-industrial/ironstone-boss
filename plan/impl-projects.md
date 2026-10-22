@@ -52,7 +52,7 @@ Sections: [1 scope](#1-scope-and-order) · [2 rules](#2-ground-rules) · [3 phas
 | Phase | Repos | Screens | Status |
 | --- | --- | --- | --- |
 | P0 Checks | all (read) | — | done Oct 21 (§6 F1–F7) |
-| P1 Foundation | mr-moqui, Mantle, BOSS | the Projects root and menu | planned |
+| P1 Foundation | mr-moqui, Mantle, BOSS | the Projects root and menu | Mantle and BOSS built Oct 21; framework list pieces in progress |
 | P2 Projects and work items | Mantle, BOSS (mr-moqui) | Home, QuickCreate, Projects, NewProject, ProjectDetail and its Overview, Work items, Team, Files and Settings tabs, WorkItems, WorkItemDetail, WorkItemTypes, Workflows, Labels, Templates | planned |
 | P3a Code: framework | mr-moqui | — | planned |
 | P3b Code: Mantle and BOSS | Mantle, BOSS | every §7 screen, ProjectCode, CodeSettings | planned |
@@ -93,6 +93,23 @@ paths are left to P1, which reads them as it builds.
   `all-rows`, the peek pane, `m-elapsed`.
 - Projects demo data (projects with a tree of work items, members, a client).
 - Usable when: the Projects menu renders for each internal group, and the gallery shows the new list pieces.
+
+**Built, Mantle and BOSS** (Oct 21, 2026):
+- Mantle udm: the §15 Work model fields, types, statuses, the `WorkEffortDevelopment` flow, `WorkEffortSetting`,
+  `WorkEffortUpdate`, `StatusUpdate`, the `Proj*` PartySettingTypes, `WepPrClient` and the `Wktp*` work types; the
+  holiday categories are `WcatHoliday`.
+- Mantle usl: `init#ProjectSequence` (keys from 1; `clone#Project` goes on after the highest number it copies and takes
+  `isTemplate`), tasks and cloned tasks take a bank of 1; `get#VisibleProjectInfo` (F1); `store#ProjectSetting` and
+  `get#ProjectSettings`; `test/WorkProjectFoundation.spec.js`.
+- BOSS: the three groups (managers ALWAYS, team ALLOW and denied the managers' screens through
+  `BOSS_PROJECTS_MANAGERS`, the client group without authz until P10), `SSH_GIT`; the §1.2 menu as placeholders, the
+  `<shell-providers>` and `projects` key scope; `get#RecordLink` opens projects and project tasks and requests under
+  Projects for its users; `BossProjectsDemoData.xml` (IRON, a product project on the development flow with a work item
+  tree; ACME, a client project; HIRE, a Work group project) and `BossUsersDemoData.xml` (john.doe a manager, joe and bob
+  developers); AppStructure covers Projects, `test/ProjectsShell.spec.js`.
+- Tests: mantle-usl 559 of 564 features passed, 3 skipped, 2 failed (`ContactListSend` site address, `InboxThreads`
+  operators) the same with the changes stashed; ironstone-boss 400 of 412 passed, 12 skipped (git, xlsx and imap are
+  not in the lite build); `moqui lint --screens` clean.
 
 ### P2 — Projects and work items
 
@@ -184,12 +201,17 @@ Made during the build; each one that changes the design is also written into des
 | Date | Decision | Notes |
 | --- | --- | --- |
 | Oct 21, 2026 | Phase order: Code (P3) right after projects and work items | The user's call |
+| Oct 21, 2026 | InvoiceDetail and OrderDetail are built in P8 for what Projects needs now, as `Shared/` screens, and expanded when design-crosscut and Accounting need more | The user's call (it was an open question) |
+| Oct 21, 2026 | Each phase is built by a subagent, reviewed, then committed per repo | The user's call |
+| Oct 21, 2026 | A project with no visibility is seen only by its parties; a project belongs to an organization by `ownerPartyId` or the organization's current role on it (`create#Project` makes the internal organization Vendor) | P1 |
+| Oct 21, 2026 | A project setting falls back to the organization: the setting type's `optionValue` names the `Proj*` PartySetting, its `enumCode` the key in that setting's JSON object | P1 |
+| Oct 21, 2026 | Managers' authz is ALWAYS, so the team's deny of the managers' screens never reaches a user in both groups | P1 |
+| Oct 21, 2026 | "May open Projects" for links reads `ArtifactAuthzCheckView` (allow and no deny on the root), since `isPermitted` under the Commons root's inheritable ALWAYS answers true for everyone | P1 |
 
 ## 5. Open questions
 
 | Question | Decides | Notes |
 | --- | --- | --- |
-| InvoiceDetail and OrderDetail are crosscut screens for design-crosscut, with Accounting's version first (design §16), and that design does not exist yet. Build them in P8 as `Shared/` screens with only Projects' context, or wait? | user, by P8 | Proposed: build in P8 and adapt when design-crosscut exists |
 | How much of the framework list pieces P1 builds versus P2 building each when first needed | at P1 start | |
 
 People's working-schedule record and Employee 360 do not exist; design §16 already settles that capacity reads
@@ -207,6 +229,11 @@ Design assumptions found wrong in the code, with the resolution (written into th
 | F4 | P0: work item ids come from `sequencedIdPrimary("Project_<KEY>", null, 10)` in `create#Task`; no `SequenceValueItem` row is made for a project | As designed: `create#Project` and `clone#Project` seed the sequence at 1 and `create#Task` takes a bank of 1. P1 |
 | F5 | P0: gix is built without its `merge` feature and the framework has no merge code | P3a turns the feature on (checked against `deny.toml`) |
 | F6 | P0: `run#EmailRules` accepts `createTask` and `createRequest` but logs and skips any action it does not know; there is no hook for an app to supply one | P5: the framework calls a service an app names for an action (by an `EmailRuleAction` enumeration whose `optionValue` is the service), so Mantle and BOSS add `createRequest` and `createWorkItem` without the framework knowing Mantle. Design §15 Email intake row updated |
+| F8 | P1: the shell filters quick-create kinds and palette actions by screen only, and all kinds share `Projects/QuickCreate`, so the team is offered New project | P2: kind `project` refused for non-managers, or its own managers-only screen |
+| F9 | P1: `PartySetting.settingValue` is text-medium (255), tight for JSON app settings such as ProjRepositoryDefaults or ProjTimesheetPolicy | Widen it, or split the settings, when those settings pages are built (P3b, P6) |
+| F10 | P1: `create#Project` sets no visibility, which reads as members only | P2: NewProject and QuickProject default to General |
+| F11 | P1: a task's flow may be on the task or its project (the demo sets both) | P2: `set#TaskStatus` reads the task's `statusFlowId`, else its project's |
+| F12 | P1: Mantle's demo joe and bob are `PrtEmployee` toward `OrgEmployer`, so `get#PartyOrganizationInfo` gives them no organization and they see General projects only where they are members | Left alone (Commons' filters depend on it); revisit if P2's lists need it |
 | F7 | P0: a wiki space under an existing repository is documented for a repository root (`rootPageDirectory: "git://docs"`, or `rootPageLocation` `git://<repositoryId>/<SPACE>.md`), not for a subdirectory such as `git://<repositoryId>/docs` | Checked in P4 as the design's §15 row says, before ProjectDocs is built |
 
 ## 7. Later
@@ -220,6 +247,9 @@ Designed, not in this build:
 - Code search and editing repository files in the browser: the developer tools app (§16). Forks (§16).
 - Custom fields on work items, with the visual developer tools (§16).
 - A project forum setting (§16).
+- `get#VisibleProjectInfo` returns id lists for an IN condition; an organization with thousands of projects wants a
+  subquery or a view instead.
+- A sequence refill with a bank of 1 can skip one number across a server restart.
 
 ## 8. Verification
 

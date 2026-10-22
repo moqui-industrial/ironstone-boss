@@ -12,9 +12,11 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
+<!-- Time entries (design-projects.md §8 TimeEntries; impl-projects.md P6 rewrites it): for now the user's own time entries, the
+    first port's Projects/Timesheets (My Account's time entry list). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Timesheets" default-menu-index="4">
+        default-menu-title="Time entries" default-menu-index="3">
 
     <transition name="taskDetail"><default-response url="//Commons/Tasks/TaskDetail"/></transition>
 

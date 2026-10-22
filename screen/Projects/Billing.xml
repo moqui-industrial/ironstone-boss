@@ -12,11 +12,11 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for the Time & materials billing section of IronStone Projects (initial-design.md app table);
-    design-projects.md decides its screens. -->
+<!-- Billing (design-projects.md §10): unbilled work, invoices and rates, opening on Unbilled. Managers only (BOSS_PROJECTS_MANAGERS in data/BossSetupData.xml); clients get Invoices with client access (impl-projects.md P10). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Time &amp; materials billing" default-menu-index="6">
+        default-menu-title="Billing" default-menu-index="8">
+    <subscreens default-item="Unbilled"/>
     <widgets>
-        <label text="Placeholder: Time and materials billing." type="p"/>
+        <subscreens-active/>
     </widgets>
 </screen>

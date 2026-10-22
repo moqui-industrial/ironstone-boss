@@ -97,12 +97,34 @@ along with this software (see the LICENSE.md file). If not, see
             <filters entityFilterSetId="MANTLE_ACTIVE_ORG"/>
             <filters entityFilterSetId="MANTLE_PRIVATE_CONTACT"/></authz>
     </artifactGroups>
+    <!-- Projects (design-projects.md §1.1): the project team and the project managers, and the client contacts, whose group
+        gets its filter set and authorization with client access (impl-projects.md P10) and so may not open the app yet.
+        Managers are ALWAYS, so the deny below never reaches them; the team is ALLOW, and denied the managers' screens, which
+        leaves those out of its menu. -->
+    <moqui.security.UserGroup userGroupId="BOSS_PROJECT_TEAM" description="Project team (IronStone Projects): employees and contractors who do project work"/>
+    <moqui.security.UserGroup userGroupId="BOSS_PROJECT_MANAGER" description="Project managers (IronStone Projects): project, delivery and resource managers, and who bills the work"/>
+    <moqui.security.UserGroup userGroupId="BOSS_PROJECT_CLIENT" description="Project clients (IronStone Projects): client contacts with a user account"/>
     <artifactGroups artifactGroupId="BOSS_PROJECTS" description="IronStone Projects App (via root screen)">
         <artifacts artifactName="component://ironstone-boss/screen/Projects.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
         <authz artifactAuthzId="BOSS_PROJECTS_ADMIN" userGroupId="ADMIN" authzTypeEnumId="AUTHZT_ALWAYS" authzActionEnumId="AUTHZA_ALL">
             <filters entityFilterSetId="MANTLE_ACTIVE_ORG"/>
             <filters entityFilterSetId="MANTLE_PRIVATE_CONTACT"/></authz>
+        <authz artifactAuthzId="BOSS_PROJECTS_MANAGER" userGroupId="BOSS_PROJECT_MANAGER" authzTypeEnumId="AUTHZT_ALWAYS" authzActionEnumId="AUTHZA_ALL">
+            <filters entityFilterSetId="MANTLE_ACTIVE_ORG"/>
+            <filters entityFilterSetId="MANTLE_PRIVATE_CONTACT"/></authz>
+        <authz artifactAuthzId="BOSS_PROJECTS_TEAM" userGroupId="BOSS_PROJECT_TEAM" authzTypeEnumId="AUTHZT_ALLOW" authzActionEnumId="AUTHZA_ALL">
+            <filters entityFilterSetId="MANTLE_ACTIVE_ORG"/>
+            <filters entityFilterSetId="MANTLE_PRIVATE_CONTACT"/></authz>
     </artifactGroups>
+    <artifactGroups artifactGroupId="BOSS_PROJECTS_MANAGERS" description="IronStone Projects screens for managers only">
+        <artifacts artifactName="component://ironstone-boss/screen/Projects/WorkItems/Import.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
+        <artifacts artifactName="component://ironstone-boss/screen/Projects/Billing.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
+        <artifacts artifactName="component://ironstone-boss/screen/Projects/Settings.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
+        <authz artifactAuthzId="BOSS_PROJECTS_MANAGERS_TEAM" userGroupId="BOSS_PROJECT_TEAM" authzTypeEnumId="AUTHZT_DENY" authzActionEnumId="AUTHZA_ALL"/>
+    </artifactGroups>
+    <!-- git over SSH needs SSH_GIT, which ALL_USERS cannot hold (mr-moqui plans/Remaining-Work.md) -->
+    <moqui.security.UserGroupPermission userGroupId="BOSS_PROJECT_TEAM" userPermissionId="SSH_GIT" fromDate="0"/>
+    <moqui.security.UserGroupPermission userGroupId="BOSS_PROJECT_MANAGER" userPermissionId="SSH_GIT" fromDate="0"/>
     <artifactGroups artifactGroupId="BOSS_INSIGHTS" description="IronStone Insights App (via root screen)">
         <artifacts artifactName="component://ironstone-boss/screen/Insights.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
         <authz artifactAuthzId="BOSS_INSIGHTS_ADMIN" userGroupId="ADMIN" authzTypeEnumId="AUTHZT_ALWAYS" authzActionEnumId="AUTHZA_ALL">

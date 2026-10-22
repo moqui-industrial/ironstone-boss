@@ -12,9 +12,10 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- IronStone Projects: root of the app for project managers and services staff (initial-design.md app table); its
-    sections follow design-projects.md when that file is written. Authorized for ADMIN by BOSS_PROJECTS in
-    data/BossSetupData.xml. -->
+<!-- IronStone Projects: root of the app for project managers, software teams, consultants and their clients
+    (design-projects.md §1). Authorized by BOSS_PROJECTS in data/BossSetupData.xml for ADMIN, BOSS_PROJECT_MANAGER and
+    BOSS_PROJECT_TEAM, with the managers' screens (WorkItems/Import, Billing, Settings) denied to the team, so their menu
+    entries are absent for it (§1.2); BOSS_PROJECT_CLIENT gets its access in impl-projects.md P10. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="IronStone Projects" menu-image="sym_o_assignment" menu-image-type="icon">
 
@@ -30,6 +31,40 @@ along with this software (see the LICENSE.md file). If not, see
         <subscreens-item name="Chatter" location="component://ironstone-boss/screen/Shared/Chatter.xml" menu-include="false"/>
         <subscreens-item name="RecordFiles" location="component://ironstone-boss/screen/Shared/RecordFiles.xml" menu-include="false"/>
     </subscreens>
+
+    <!-- What Projects offers the suite shell (design-projects.md §1.4): the + menu kinds (Projects/QuickCreate by kind; Commons
+        keeps its Task kind for a personal task), the palette's actions and the document types of its records, whose palette
+        and notification links open here for its users (ironstone.PaletteServices.get#RecordLink), and the go-to keys of the
+        projects scope, on only in this app (the global c creates the first kind here, a work item). The Today source, the
+        Code palette group and the notification topics come with the phases that add their services. -->
+    <shell-providers>
+        <quick-create kind="workItem" label="Work item" icon="sym_o_add_task" screen="Projects/QuickCreate" sequence="80">
+            <parameter name="kind" value="workItem"/></quick-create>
+        <quick-create kind="time" label="Log time" icon="sym_o_more_time" screen="Projects/QuickCreate" sequence="81">
+            <parameter name="kind" value="time"/></quick-create>
+        <quick-create kind="project" label="Project" icon="sym_o_create_new_folder" screen="Projects/QuickCreate" sequence="82">
+            <parameter name="kind" value="project"/></quick-create>
+
+        <palette-action label="New work item" icon="sym_o_add_task" screen="Projects/QuickCreate" sequence="10">
+            <parameter name="kind" value="workItem"/></palette-action>
+        <palette-action label="New project" icon="sym_o_create_new_folder" screen="Projects/QuickCreate" sequence="11">
+            <parameter name="kind" value="project"/></palette-action>
+        <palette-action label="Log time" icon="sym_o_more_time" screen="Projects/QuickCreate" sequence="12">
+            <parameter name="kind" value="time"/></palette-action>
+        <palette-action label="My time" icon="sym_o_schedule" screen="Projects/Time/MyTime" sequence="13"/>
+
+        <palette-type doc-type="MantleProject"/>
+        <palette-type doc-type="MantleTask"/>
+        <palette-type doc-type="MantleRequest"/>
+
+        <keymap scope="projects">
+            <key keys="g w" label="Work items" screen="Projects/WorkItems"/>
+            <key keys="g b" label="Backlog" screen="Projects/WorkItems/Backlog"/>
+            <key keys="g r" label="Requests" screen="Projects/Requests"/>
+            <key keys="g o" label="Code" screen="Projects/Code"/>
+            <key keys="g t" label="My time" screen="Projects/Time/MyTime"/>
+        </keymap>
+    </shell-providers>
 
     <widgets><subscreens-panel id="projects-panel" type="popup"/></widgets>
 </screen>

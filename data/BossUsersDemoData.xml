@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<entity-facade-xml type="demo">
+    <!-- The demo users in the IronStone user groups, in a file of their own that loads after data/BossSetupData.xml, which seeds
+        the groups (a component's data files load by name). Projects (impl-projects.md P1): john.doe a project manager, Joe
+        Developer and Bob Developer on the project team. -->
+    <moqui.security.UserGroupMember userGroupId="BOSS_PROJECT_MANAGER" userId="EX_JOHN_DOE" fromDate="2026-10-01 00:00:00"/>
+    <moqui.security.UserGroupMember userGroupId="BOSS_PROJECT_TEAM" userId="ORG_ZIZI_JD" fromDate="2026-10-01 00:00:00"/>
+    <moqui.security.UserGroupMember userGroupId="BOSS_PROJECT_TEAM" userId="ORG_ZIZI_BD" fromDate="2026-10-01 00:00:00"/>
+</entity-facade-xml>

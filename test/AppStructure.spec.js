@@ -1,9 +1,9 @@
 // The IronStone app structure (MoquiConf.xml and screen/): every app root renders its default screen, and every
 // placeholder screen under the roots and in screen/Shared renders in qvt without errors; at each of those paths the shell's
 // menu data builds, which also defines the sibling and default screens the menu lists. Placeholders are found by their
-// "Placeholder:" label. Every other screen under the Commons, Comms and Insights roots and in screen/Shared (the screens
-// built there and the ones moved from the first SimpleScreens port) renders the same way, on the demo records of
-// data/BossDemoData.xml and data/BossMailDemoData.xml, and shows them; a .qvue screen (render-modes vue,qvue: Shared/Chatter,
+// "Placeholder:" label. Every other screen under the Commons, Comms, Insights and Projects roots and in screen/Shared (the
+// screens built there, the ones moved from the first SimpleScreens port and Projects' section screens over its placeholders)
+// renders the same way, on the demo records of data/BossDemoData.xml and data/BossMailDemoData.xml, and shows them; a .qvue screen (render-modes vue,qvue: Shared/Chatter,
 // Shared/RecordFiles, Comms/Inbox/Mail, Comms/Inbox/Compose, Comms/Chat, Comms/Panel/Chat, Comms/Settings/Rules,
 // Comms/Settings/MailAccounts/SignIn, Commons/Knowledge, Commons/Notes and Commons/Files, which the shell loads in their best
 // client mode) renders in qvue, its component.
@@ -124,13 +124,24 @@ const demoRecords = {
     "Insights/ReportBuilder/DatasetView": { parameters: { dataDocumentId: "BOSS_DEMO_PRODUCTS" }, text: "Demo Product One-One" },
     "Insights/ScheduledReports": { text: "Open tasks by priority" },
     "Insights/ScheduledReports/ScheduledReportDetail": { parameters: { screenScheduledId: "BOSS_DEMO_MY_TASKS" }, text: "Open tasks" },
+    // Projects P1: the sections show their default placeholder (design-projects.md §1.2), and the first port's time entry list
+    // (Time/TimeEntries) john.doe's time
+    "Projects/Projects": { text: "Placeholder: Projects" },
+    "Projects/WorkItems": { text: "Placeholder: Work items" },
+    "Projects/Requests": { text: "Placeholder: Requests" },
+    "Projects/Code": { text: "Placeholder: Repositories" },
+    "Projects/Time": { text: "Placeholder: My time" },
+    "Projects/Resources": { text: "Placeholder: Team planner" },
+    "Projects/Billing": { text: "Placeholder: Unbilled" },
+    "Projects/Settings": { text: "Placeholder: The Projects settings" },
+    "Projects/Time/TimeEntries": { text: "Walked the new floor and listed the rooms" },
 }
 
 spec({
     setupSpec() {
         login("john.doe")
         placeholders = findScreenFiles(apps, isPlaceholder)
-        screens = findScreenFiles(["Commons", "Comms", "Insights"], (location) => !isPlaceholder(location))
+        screens = findScreenFiles(["Commons", "Comms", "Insights", "Projects"], (location) => !isPlaceholder(location))
     },
     setup() { ec.artifactExecution.disableAuthz() },
     cleanup() { ec.artifactExecution.enableAuthz() },
@@ -169,13 +180,14 @@ feature("every placeholder screen renders in qvt without errors, with its menu",
     },
     then({ failures }) {
         // fewer as the milestones replace them (129 after M4, 114 after M10 and the Comms mail settings, 110 after M9's
-        // Knowledge and Notes, 104 after M8's Files and Shares and the public page moved out of Commons)
+        // Knowledge and Notes, 104 after M8's Files and Shares and the public page moved out of Commons; Projects P1 adds the
+        // placeholders of its menu, 25 more)
         placeholders.length >= 104
         failures.join("\n") == ""
     },
 })
 
-feature("every other Commons, Comms, Insights and Shared screen renders in qvt (a .qvue screen in qvue) without errors, with its menu", {
+feature("every other Commons, Comms, Insights, Projects and Shared screen renders in qvt (a .qvue screen in qvue) without errors, with its menu", {
     when() {
         const failures = []
         for (const [root, path, location] of screens) {
