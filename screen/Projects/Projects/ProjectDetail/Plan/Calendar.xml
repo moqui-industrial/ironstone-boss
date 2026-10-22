@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- ProjectCalendar (design-projects.md §4 ProjectCalendar; design-drawers-commons.md §7 Calendar & schedules, Projects' row): the
+    Commons Calendar component (screen/Commons/Calendar.qvue) in its project mode, with the transitions it calls answered for the
+    project: calendarSetup adds the project (so the component leaves out its rail and search), calendarEvents gives the project's
+    linked meetings, milestones, releases, sprints and work items by due day (ironstone.PlanningServices.get#ProjectCalendarEvents),
+    a drag moves a milestone, release or work item (move#ProjectCalendarItem) or an event as Commons does, and a new meeting is
+    linked to the project (WorkEffortRecord) for its team. The project is ProjectDetail's (projectTabId from its always-actions; one
+    the user may not see is not available). The terminal: an agenda of the next weeks from the same service. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Calendar" default-menu-index="2" render-modes="vue,qvue,tui" server-static="vue,qvue">
+
+    <parameter name="view"/>
+    <parameter name="date"/>
+
+    <transition name="calendarSetup" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const projectId = ec.context.get('projectTabId') || null
+            const access = projectId ? ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: projectId, need: 'none'}).call() || {} : {}
+            if (!access.canView) { ec.web.sendJsonResponse({project: {workEffortId: workEffortId || null, workEffortName: '', canUpdate: false, notAvailable: true}}); return }
+            const out = ec.service.sync().name('ironstone.CalendarServices.get#CalendarSetup').call() || {}
+            ec.message.clearErrors()
+            ec.web.sendJsonResponse({calendarList: out.calendarList || [], defaultCalendarId: out.defaultCalendarId || null, defaults: out.defaults || {},
+                timeZone: out.timeZone, todayText: out.todayText, nowText: out.nowText, me: out.me, roomOptions: out.roomOptions || [], failedSources: out.failedSources || [],
+                project: {workEffortId: projectId, workEffortName: access.project?.workEffortName || projectId, canUpdate: !!access.canUpdate}})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="calendarEvents" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.PlanningServices.get#ProjectCalendarEvents').parameters({rootWorkEffortId: ec.context.get('projectTabId') || workEffortId || '',
+                start: start || '', end: end || ''}).call() || {}
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {eventList: out.eventList || [], failedSources: out.failedSources || [], skippedCalendarIdList: []})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="eventSummary" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.CalendarServices.get#EventSummary').parameters({workEffortId: eventWorkEffortId || ec.context.get('workEffortId') || '',
+                instanceStart: instanceStart || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() || !out.visible ? {visible: false} : {visible: true, event: out.event})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="searchPeople" read-only="true">
+        <actions>
+            <service-call name="ironstone.CalendarServices.search#Attendees" in-map="{term:term}" out-map="found"/>
+            <script>ec.web.sendJsonResponse(found.optionList || [])</script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- a new meeting of the project's team, linked to the project -->
+    <transition name="createEvent">
+        <actions><script><![CDATA[
+            const projectId = ec.context.get('projectTabId') || ''
+            ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: projectId, need: 'update'}).call()
+            if (ec.message.hasError()) { ec.web.sendJsonResponse({}); return }
+            const out = ec.service.sync().name('ironstone.CalendarServices.create#QuickEvent').parameters({workEffortName: workEffortName || '',
+                start: start || '', end: end || null, allDay: allDay || 'N', calendarId: calendarId || null, facilityId: facilityId || null,
+                attendeePartyIds: attendeePartyIds || null, repeat: repeat || null, reminderMinutes: reminderMinutes ?? null, location: location || null,
+                description: description || null}).call() || {}
+            if (!ec.message.hasError()) ec.service.sync().name('mantle.work.WorkEffortServices.link#WorkEffortRecord').parameters({workEffortId: out.workEffortId,
+                recordEntityName: 'mantle.work.effort.WorkEffort', recordId: projectId}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : Object.assign({workEffortId: out.workEffortId, url: out.url, messageInfos: [{type: 'success',
+                message: out.message, link: out.url, linkText: ec.l10n.localize('Open')}].concat((out.warningList || []).map((text) => ({type: 'warning', message: text})))},
+                andOpen === 'Y' && out.url ? {screenUrl: out.url} : {}))
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- a drag: a milestone, release or work item to other days; an event as Commons Calendar moves it -->
+    <transition name="moveEvent">
+        <actions><script><![CDATA[
+            const id = ec.context.get('eventWorkEffortId') || ''
+            const record = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', id).one()
+            if (record != null && record.workEffortTypeEnumId !== 'WetEvent') {
+                const out = ec.service.sync().name('ironstone.PlanningServices.move#ProjectCalendarItem').parameters({workEffortId: id, start: start || '', end: end || null}).call() || {}
+                ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: out.message}]})
+                return
+            }
+            ec.service.sync().name('ironstone.CalendarServices.get#EventAccessInfo').parameters({workEffortId: id, need: 'edit'}).call()
+            if (ec.message.hasError()) { ec.web.sendJsonResponse({}); return }
+            const theScope = scope || 'all'
+            const out = ec.service.sync().name('mantle.work.EventServices.update#EventOccurrence').parameters({workEffortId: id,
+                instanceStart: instanceStart || null, scope: theScope, start: start || null, end: end || null, allDay: allDay || null,
+                notify: notify || 'N', eventUrl: '/qapps/Commons/Calendar/EventDetail?workEffortId=' + encodeURIComponent(id),
+                allowConflicts: allowConflicts === 'Y' || allowConflicts === 'true'}).call()
+            if (ec.message.hasError()) { ec.web.sendJsonResponse({bookingClash: / is booked then: /.test(ec.message.getErrorsString())}); return }
+            ec.web.sendJsonResponse({targetWorkEffortId: out.targetWorkEffortId, messageInfos: [{type: 'success', message: out.message}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="cancelEvent">
+        <actions><script><![CDATA[
+            const id = ec.context.get('eventWorkEffortId') || ''
+            ec.service.sync().name('ironstone.CalendarServices.get#EventAccessInfo').parameters({workEffortId: id, need: 'edit'}).call()
+            if (ec.message.hasError()) { ec.web.sendJsonResponse({}); return }
+            const out = ec.service.sync().name('mantle.work.EventServices.cancel#EventOccurrence').parameters({workEffortId: id,
+                instanceStart: instanceStart || null, scope: scope || 'all', notify: notify || 'N',
+                eventUrl: '/qapps/Commons/Calendar/EventDetail?workEffortId=' + encodeURIComponent(id)}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: out.message}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="respond">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.CalendarServices.respond#Invitation').parameters({workEffortId: ec.context.get('eventWorkEffortId') || '',
+                response: response || '', message: message || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {statusId: out.statusId, messageInfos: [{type: 'success', message: out.resultMessage}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+
+    <widgets>
+        <render-mode>
+            <text type="qvue" location="component://ironstone-boss/screen/Commons/Calendar.qvue" template="false"/>
+            <!-- the terminal: CalendarTui, the plain screen beside this one, an agenda of the next four weeks -->
+            <text type="tui"><![CDATA[${JSON.stringify([{t: "dynamicContainer", id: "ProjectCalendarTui",
+                url: sri.buildUrl("../CalendarTui").addParameters({workEffortId: workEffortId || null, date: date || null}).getUrlWithParams()}])}]]></text>
+            <text type="html,qvt"><![CDATA[<p class="m-muted">The project's calendar is a .qvue screen: open it under /qapps.</p>]]></text>
+        </render-mode>
+    </widgets>
+</screen>

@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- Import step 1, ImportSource (design-projects.md §5 WorkItemImport): the CSV file, its kind (found from the headers, or Jira,
+    Redmine, GitHub issues or other CSV), its character set and the project the work items go into (one the user works in).
+    saveSource keeps it in the import's draft (ironstone.WorkItemImportServices.save#ImportSource) and answers the importId the
+    next steps carry. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Source" default-menu-index="1" server-static="qvt">
+
+    <parameter name="importId"/>
+    <parameter name="fresh"><description>Y: a new import, leaving the one in the URL</description></parameter>
+    <parameter name="rootWorkEffortId"/>
+
+    <transition name="saveSource">
+        <service-call name="ironstone.WorkItemImportServices.save#ImportSource" in-map="{importId:importId, workItemFile:workItemFile, presetId:presetId,
+                characterSet:characterSet, rootWorkEffortId:rootWorkEffortId}" out-map="sourceOut"/>
+        <actions><set field="importId" from="sourceOut?.importId || importId"/></actions>
+        <default-response url="."><parameter name="importId"/></default-response>
+        <error-response url="."/>
+    </transition>
+
+    <actions>
+        <if condition="fresh == 'Y'"><set field="importId" from="null"/></if>
+        <service-call name="ironstone.WorkItemImportServices.get#ImportDraft" in-map="{importId:importId}" out-map="draftOut"/>
+        <service-call name="ironstone.WorkItemImportServices.get#ImportProjectOptions" out-map="projectsOut"/>
+        <script><![CDATA[
+            draft = draftOut.draft || {}
+            hasFile = !!draftOut.found
+            projectOptions = Array.from(projectsOut.projectList || [])
+            source = {importId: hasFile ? importId : null, presetId: draft.chosenPresetId || '', characterSet: draft.characterSet || 'UTF-8',
+                rootWorkEffortId: draft.rootWorkEffortId || rootWorkEffortId || (projectOptions[0]?.key ?? '')}
+            presetLabel = {jira: 'Jira', redmine: 'Redmine', github: 'GitHub issues', generic: 'CSV'}[draft.presetId] || 'CSV'
+        ]]></script>
+    </actions>
+    <widgets>
+        <container-box><box-header title="The file"/><box-body>
+            <label type="p" text="A CSV file exported from Jira (Filters, Export, CSV all fields), Redmine (the issues list, CSV), GitHub (a project's issues as CSV) or a spreadsheet with a header line. Nothing is imported until the last step." style="m-muted"/>
+            <section name="CurrentFile" condition="hasFile"><widgets>
+                <label type="p" text="Now: ${draft.fileName} (${draft.rowCount} ${draft.rowCount == 1 ? 'row' : 'rows'}, ${presetLabel}). Choose another file to replace it, or go on."/>
+            </widgets></section>
+            <form-single name="ImportSource" transition="saveSource" map="source">
+                <field name="importId"><default-field><hidden/></default-field></field>
+                <field name="workItemFile"><default-field title="File"><file/></default-field></field>
+                <field name="presetId"><default-field title="Kind">
+                    <radio no-current-selected-key=""><option key="" text="Find it from the file"/><option key="jira" text="Jira CSV"/>
+                        <option key="redmine" text="Redmine CSV"/><option key="github" text="GitHub issues CSV"/><option key="generic" text="Other CSV"/></radio></default-field></field>
+                <field name="characterSet"><default-field title="Character set">
+                    <drop-down><option key="UTF-8" text="UTF-8 (most files)"/><option key="WINDOWS-1252" text="Windows (Western)"/>
+                        <option key="ISO-8859-1" text="ISO-8859-1 (Latin 1)"/><option key="UTF-16" text="UTF-16"/></drop-down></default-field></field>
+                <field name="rootWorkEffortId"><default-field title="Into the project">
+                    <drop-down><list-options list="projectOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+            </form-single>
+        </box-body></container-box>
+    </widgets>
+</screen>

@@ -167,8 +167,10 @@ feature("the find narrows a list: text, status, purpose, project, due period and
 })
 
 feature("the list renders in qvt with the chips and counts, the views, the find, the quick-add row, the done checks and the in-place edits", {
-    when() { return { shown: render("apps/Commons/Tasks", {}), week: render("apps/Commons/Tasks", { list: "week" }), done: render("apps/Commons/Tasks", { list: "done" }) } },
-    then({ shown, week, done }) {
+    // a task without a due date sorts after the dated ones, past the first page once the demo's project items have dates (P4c): found by its text
+    when() { return { shown: render("apps/Commons/Tasks", {}), found: render("apps/Commons/Tasks", { text: "backup restore" }),
+        week: render("apps/Commons/Tasks", { list: "week" }), done: render("apps/Commons/Tasks", { list: "done" }) } },
+    then({ shown, found, week, done }) {
         shown.status == 200
         shown.errors == ""
         !shown.broken
@@ -186,7 +188,7 @@ feature("the list renders in qvt with the chips and counts, the views, the find,
         shown.output.includes("Add a task")
         shown.output.includes('id="Tasks_table"')
         shown.output.includes("Plan the office move")
-        shown.output.includes("Check the backup restore")
+        found.output.includes("Check the backup restore")
         shown.output.includes("<m-editable")
         shown.output.includes("updateTaskField")
         shown.output.includes("sym_o_radio_button_unchecked")

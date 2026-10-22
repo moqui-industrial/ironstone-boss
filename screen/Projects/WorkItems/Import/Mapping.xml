@@ -1,0 +1,281 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- Import step 2, ImportMapping (design-projects.md §5 WorkItemImport): what each column is. One field per target (original key,
+    original id, title, type, status, priority, assignee, reporter, created, start, due, resolved, estimate, story points, description,
+    parent, epic, labels, milestone, release, sprint, component), each choosing a column of the file (with its first values; a
+    column the file repeats, such as Jira's Labels and Sprint, counts once with its number), started from the preset; the estimate
+    in hours or seconds (Jira's Original Estimate); and the value maps: each type, status and priority the file has (up to 20, 20
+    and 10) to the project's work item types, the statuses of its flow, and 1 to 9. The step form's fields are fixed in the screen
+    (a target's field, val_ fields by position); Auto-map goes back to the preset. saveMapping keeps it all in the import's draft.
+    (The design's "each column to a field" is the other way round here, a field to a column: an export with a hundred columns
+    would otherwise be a hundred fields, impl-projects.md P4c.) -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Mapping" default-menu-index="2" server-static="qvt">
+
+    <parameter name="importId"/>
+
+    <transition name="saveMapping">
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const out = ec.service.sync().name('ironstone.WorkItemImportServices.get#ImportMappingInfo').parameters({importId: importId}).call() || {}
+            const info = out.info
+            if (!info) { ec.message.addError(L('This import is not available; start again from the file')); return }
+            const columnMapping = {}
+            for (const target of info.targets) {
+                const value = context.get('map_' + target.fieldName)
+                columnMapping[target.fieldName] = value ? String(value) : ''
+            }
+            if (!columnMapping.title) { ec.message.addValidationError(null, 'map_title', null, L('Choose the column of the title'), null); return }
+            const valueMaps = {type: {}, status: {}, priority: {}}
+            info.typeValues.forEach((entry, index) => { const value = context.get('vt_' + index); if (value) valueMaps.type[entry.value] = String(value) })
+            info.statusValues.forEach((entry, index) => { const value = context.get('vs_' + index); if (value) valueMaps.status[entry.value] = String(value) })
+            info.priorityValues.forEach((entry, index) => { const value = context.get('vp_' + index); if (value) valueMaps.priority[entry.value] = Number(value) })
+            ec.service.sync().name('ironstone.WorkItemImportServices.store#ImportDraft').parameters({importId: importId, fields: {columnMapping: columnMapping,
+                valueMaps: valueMaps, estimateUnit: estimateUnit === 'seconds' ? 'seconds' : 'hours', status: 'mapped'}}).call()
+        ]]></script></actions>
+        <default-response url="."><parameter name="importId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <!-- back to the preset's mapping and the value maps from the words -->
+    <transition name="autoMap">
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.WorkItemImportServices.store#ImportDraft').parameters({importId: importId, fields: {columnMapping: null, valueMaps: null}}).call()
+            if (!ec.message.hasError()) ec.message.addMessage(ec.l10n.localize('Mapped from the file kind'), 'success')
+        ]]></script></actions>
+        <default-response url="."><parameter name="importId"/></default-response>
+    </transition>
+
+    <actions><script><![CDATA[
+        const out = ec.service.sync().name('ironstone.WorkItemImportServices.get#ImportMappingInfo').parameters({importId: importId}).call() || {}
+        if (ec.message.hasError()) { parseError = ec.message.getErrorsString(); ec.message.clearErrors() }
+        info = out.info || null
+        hasDraft = !!info
+        if (!hasDraft) return
+        mappingValues = {importId: importId, estimateUnit: info.estimateUnit}
+        summaryText = ec.resource.expand('${file}: ${kind}, ${columns} columns, ${mapped} fields mapped, into ${project}. Choose the column of each field; an empty one is left out.', '',
+                {file: info.draft.fileName, kind: info.presetLabel, columns: info.columnCount, mapped: info.mappedCount, project: info.projectName})
+    ]]></script></actions>
+    <widgets>
+        <section name="NoDraft" condition="!hasDraft"><widgets>
+            <container-box type="warning"><box-body><label type="p" text="${parseError || 'Start with the file.'}"/></box-body></container-box>
+        </widgets></section>
+        <section name="Mapping" condition="hasDraft"><widgets>
+            <container-box><box-header title="Map the columns"/>
+                <box-toolbar>
+                    <link url="autoMap" link-type="hidden-form-link" text="Auto-map" icon="sym_o_auto_fix" parameter-map="{importId:importId}"/>
+                </box-toolbar>
+                <box-body>
+                <label type="p" text="${summaryText}" style="m-muted"/>
+                <form-single name="ImportMapping" transition="saveMapping" map="mappingValues">
+                    <field name="importId"><default-field><hidden/></default-field></field>
+                    <field name="map_sourceKey" from="info.targets[0].column"><default-field title="${info.targets[0].description}">
+                        <drop-down allow-empty="true"><list-options list="info.columnOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                    <field name="map_sourceId" from="info.targets[1].column"><default-field title="${info.targets[1].description}">
+                        <drop-down allow-empty="true"><list-options list="info.columnOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                    <field name="map_title" from="info.targets[2].column"><default-field title="${info.targets[2].description}">
+                        <drop-down allow-empty="true"><list-options list="info.columnOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                    <field name="map_type" from="info.targets[3].column"><default-field title="${info.targets[3].description}">
+                        <drop-down allow-empty="true"><list-options list="info.columnOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                    <field name="map_status" from="info.targets[4].column"><default-field title="${info.targets[4].description}">
+                        <drop-down allow-empty="true"><list-options list="info.columnOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                    <field name="map_priority" from="info.targets[5].column"><default-field title="${info.targets[5].description}">
+                        <drop-down allow-empty="true"><list-options list="info.columnOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                    <field name="map_assignee" from="info.targets[6].column"><default-field title="${info.targets[6].description}">
+                        <drop-down allow-empty="true"><list-options list="info.columnOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                    <field name="map_reporter" from="info.targets[7].column"><default-field title="${info.targets[7].description}">
+                        <drop-down allow-empty="true"><list-options list="info.columnOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                    <field name="map_created" from="info.targets[8].column"><default-field title="${info.targets[8].description}">
+                        <drop-down allow-empty="true"><list-options list="info.columnOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                    <field name="map_start" from="info.targets[9].column"><default-field title="${info.targets[9].description}">
+                        <drop-down allow-empty="true"><list-options list="info.columnOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                    <field name="map_due" from="info.targets[10].column"><default-field title="${info.targets[10].description}">
+                        <drop-down allow-empty="true"><list-options list="info.columnOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                    <field name="map_resolved" from="info.targets[11].column"><default-field title="${info.targets[11].description}">
+                        <drop-down allow-empty="true"><list-options list="info.columnOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                    <field name="map_estimate" from="info.targets[12].column"><default-field title="${info.targets[12].description}">
+                        <drop-down allow-empty="true"><list-options list="info.columnOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                    <field name="map_points" from="info.targets[13].column"><default-field title="${info.targets[13].description}">
+                        <drop-down allow-empty="true"><list-options list="info.columnOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                    <field name="map_description" from="info.targets[14].column"><default-field title="${info.targets[14].description}">
+                        <drop-down allow-empty="true"><list-options list="info.columnOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                    <field name="map_parentKey" from="info.targets[15].column"><default-field title="${info.targets[15].description}">
+                        <drop-down allow-empty="true"><list-options list="info.columnOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                    <field name="map_epicKey" from="info.targets[16].column"><default-field title="${info.targets[16].description}">
+                        <drop-down allow-empty="true"><list-options list="info.columnOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                    <field name="map_labels" from="info.targets[17].column"><default-field title="${info.targets[17].description}">
+                        <drop-down allow-empty="true"><list-options list="info.columnOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                    <field name="map_milestone" from="info.targets[18].column"><default-field title="${info.targets[18].description}">
+                        <drop-down allow-empty="true"><list-options list="info.columnOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                    <field name="map_release" from="info.targets[19].column"><default-field title="${info.targets[19].description}">
+                        <drop-down allow-empty="true"><list-options list="info.columnOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                    <field name="map_sprint" from="info.targets[20].column"><default-field title="${info.targets[20].description}">
+                        <drop-down allow-empty="true"><list-options list="info.columnOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                    <field name="map_component" from="info.targets[21].column"><default-field title="${info.targets[21].description}">
+                        <drop-down allow-empty="true"><list-options list="info.columnOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                    <field name="estimateUnit"><default-field title="The estimate is in">
+                        <radio><option key="hours" text="Hours"/><option key="seconds" text="Seconds (Jira's Original Estimate)"/></radio></default-field></field>
+                    <field name="vt_0" from="info.typeValues[0]?.mapped || ''"><conditional-field condition="info.typeValues.length &gt; 0" title="${info.typeValues[0].value}">
+                        <drop-down><list-options list="info.typeOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vt_1" from="info.typeValues[1]?.mapped || ''"><conditional-field condition="info.typeValues.length &gt; 1" title="${info.typeValues[1].value}">
+                        <drop-down><list-options list="info.typeOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vt_2" from="info.typeValues[2]?.mapped || ''"><conditional-field condition="info.typeValues.length &gt; 2" title="${info.typeValues[2].value}">
+                        <drop-down><list-options list="info.typeOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vt_3" from="info.typeValues[3]?.mapped || ''"><conditional-field condition="info.typeValues.length &gt; 3" title="${info.typeValues[3].value}">
+                        <drop-down><list-options list="info.typeOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vt_4" from="info.typeValues[4]?.mapped || ''"><conditional-field condition="info.typeValues.length &gt; 4" title="${info.typeValues[4].value}">
+                        <drop-down><list-options list="info.typeOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vt_5" from="info.typeValues[5]?.mapped || ''"><conditional-field condition="info.typeValues.length &gt; 5" title="${info.typeValues[5].value}">
+                        <drop-down><list-options list="info.typeOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vt_6" from="info.typeValues[6]?.mapped || ''"><conditional-field condition="info.typeValues.length &gt; 6" title="${info.typeValues[6].value}">
+                        <drop-down><list-options list="info.typeOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vt_7" from="info.typeValues[7]?.mapped || ''"><conditional-field condition="info.typeValues.length &gt; 7" title="${info.typeValues[7].value}">
+                        <drop-down><list-options list="info.typeOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vt_8" from="info.typeValues[8]?.mapped || ''"><conditional-field condition="info.typeValues.length &gt; 8" title="${info.typeValues[8].value}">
+                        <drop-down><list-options list="info.typeOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vt_9" from="info.typeValues[9]?.mapped || ''"><conditional-field condition="info.typeValues.length &gt; 9" title="${info.typeValues[9].value}">
+                        <drop-down><list-options list="info.typeOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vt_10" from="info.typeValues[10]?.mapped || ''"><conditional-field condition="info.typeValues.length &gt; 10" title="${info.typeValues[10].value}">
+                        <drop-down><list-options list="info.typeOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vt_11" from="info.typeValues[11]?.mapped || ''"><conditional-field condition="info.typeValues.length &gt; 11" title="${info.typeValues[11].value}">
+                        <drop-down><list-options list="info.typeOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vt_12" from="info.typeValues[12]?.mapped || ''"><conditional-field condition="info.typeValues.length &gt; 12" title="${info.typeValues[12].value}">
+                        <drop-down><list-options list="info.typeOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vt_13" from="info.typeValues[13]?.mapped || ''"><conditional-field condition="info.typeValues.length &gt; 13" title="${info.typeValues[13].value}">
+                        <drop-down><list-options list="info.typeOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vt_14" from="info.typeValues[14]?.mapped || ''"><conditional-field condition="info.typeValues.length &gt; 14" title="${info.typeValues[14].value}">
+                        <drop-down><list-options list="info.typeOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vt_15" from="info.typeValues[15]?.mapped || ''"><conditional-field condition="info.typeValues.length &gt; 15" title="${info.typeValues[15].value}">
+                        <drop-down><list-options list="info.typeOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vt_16" from="info.typeValues[16]?.mapped || ''"><conditional-field condition="info.typeValues.length &gt; 16" title="${info.typeValues[16].value}">
+                        <drop-down><list-options list="info.typeOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vt_17" from="info.typeValues[17]?.mapped || ''"><conditional-field condition="info.typeValues.length &gt; 17" title="${info.typeValues[17].value}">
+                        <drop-down><list-options list="info.typeOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vt_18" from="info.typeValues[18]?.mapped || ''"><conditional-field condition="info.typeValues.length &gt; 18" title="${info.typeValues[18].value}">
+                        <drop-down><list-options list="info.typeOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vt_19" from="info.typeValues[19]?.mapped || ''"><conditional-field condition="info.typeValues.length &gt; 19" title="${info.typeValues[19].value}">
+                        <drop-down><list-options list="info.typeOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vs_0" from="info.statusValues[0]?.mapped || ''"><conditional-field condition="info.statusValues.length &gt; 0" title="${info.statusValues[0].value}">
+                        <drop-down><list-options list="info.statusOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vs_1" from="info.statusValues[1]?.mapped || ''"><conditional-field condition="info.statusValues.length &gt; 1" title="${info.statusValues[1].value}">
+                        <drop-down><list-options list="info.statusOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vs_2" from="info.statusValues[2]?.mapped || ''"><conditional-field condition="info.statusValues.length &gt; 2" title="${info.statusValues[2].value}">
+                        <drop-down><list-options list="info.statusOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vs_3" from="info.statusValues[3]?.mapped || ''"><conditional-field condition="info.statusValues.length &gt; 3" title="${info.statusValues[3].value}">
+                        <drop-down><list-options list="info.statusOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vs_4" from="info.statusValues[4]?.mapped || ''"><conditional-field condition="info.statusValues.length &gt; 4" title="${info.statusValues[4].value}">
+                        <drop-down><list-options list="info.statusOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vs_5" from="info.statusValues[5]?.mapped || ''"><conditional-field condition="info.statusValues.length &gt; 5" title="${info.statusValues[5].value}">
+                        <drop-down><list-options list="info.statusOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vs_6" from="info.statusValues[6]?.mapped || ''"><conditional-field condition="info.statusValues.length &gt; 6" title="${info.statusValues[6].value}">
+                        <drop-down><list-options list="info.statusOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vs_7" from="info.statusValues[7]?.mapped || ''"><conditional-field condition="info.statusValues.length &gt; 7" title="${info.statusValues[7].value}">
+                        <drop-down><list-options list="info.statusOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vs_8" from="info.statusValues[8]?.mapped || ''"><conditional-field condition="info.statusValues.length &gt; 8" title="${info.statusValues[8].value}">
+                        <drop-down><list-options list="info.statusOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vs_9" from="info.statusValues[9]?.mapped || ''"><conditional-field condition="info.statusValues.length &gt; 9" title="${info.statusValues[9].value}">
+                        <drop-down><list-options list="info.statusOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vs_10" from="info.statusValues[10]?.mapped || ''"><conditional-field condition="info.statusValues.length &gt; 10" title="${info.statusValues[10].value}">
+                        <drop-down><list-options list="info.statusOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vs_11" from="info.statusValues[11]?.mapped || ''"><conditional-field condition="info.statusValues.length &gt; 11" title="${info.statusValues[11].value}">
+                        <drop-down><list-options list="info.statusOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vs_12" from="info.statusValues[12]?.mapped || ''"><conditional-field condition="info.statusValues.length &gt; 12" title="${info.statusValues[12].value}">
+                        <drop-down><list-options list="info.statusOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vs_13" from="info.statusValues[13]?.mapped || ''"><conditional-field condition="info.statusValues.length &gt; 13" title="${info.statusValues[13].value}">
+                        <drop-down><list-options list="info.statusOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vs_14" from="info.statusValues[14]?.mapped || ''"><conditional-field condition="info.statusValues.length &gt; 14" title="${info.statusValues[14].value}">
+                        <drop-down><list-options list="info.statusOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vs_15" from="info.statusValues[15]?.mapped || ''"><conditional-field condition="info.statusValues.length &gt; 15" title="${info.statusValues[15].value}">
+                        <drop-down><list-options list="info.statusOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vs_16" from="info.statusValues[16]?.mapped || ''"><conditional-field condition="info.statusValues.length &gt; 16" title="${info.statusValues[16].value}">
+                        <drop-down><list-options list="info.statusOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vs_17" from="info.statusValues[17]?.mapped || ''"><conditional-field condition="info.statusValues.length &gt; 17" title="${info.statusValues[17].value}">
+                        <drop-down><list-options list="info.statusOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vs_18" from="info.statusValues[18]?.mapped || ''"><conditional-field condition="info.statusValues.length &gt; 18" title="${info.statusValues[18].value}">
+                        <drop-down><list-options list="info.statusOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vs_19" from="info.statusValues[19]?.mapped || ''"><conditional-field condition="info.statusValues.length &gt; 19" title="${info.statusValues[19].value}">
+                        <drop-down><list-options list="info.statusOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vp_0" from="info.priorityValues[0]?.mapped || ''"><conditional-field condition="info.priorityValues.length &gt; 0" title="${info.priorityValues[0].value}">
+                        <drop-down><list-options list="info.priorityOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vp_1" from="info.priorityValues[1]?.mapped || ''"><conditional-field condition="info.priorityValues.length &gt; 1" title="${info.priorityValues[1].value}">
+                        <drop-down><list-options list="info.priorityOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vp_2" from="info.priorityValues[2]?.mapped || ''"><conditional-field condition="info.priorityValues.length &gt; 2" title="${info.priorityValues[2].value}">
+                        <drop-down><list-options list="info.priorityOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vp_3" from="info.priorityValues[3]?.mapped || ''"><conditional-field condition="info.priorityValues.length &gt; 3" title="${info.priorityValues[3].value}">
+                        <drop-down><list-options list="info.priorityOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vp_4" from="info.priorityValues[4]?.mapped || ''"><conditional-field condition="info.priorityValues.length &gt; 4" title="${info.priorityValues[4].value}">
+                        <drop-down><list-options list="info.priorityOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vp_5" from="info.priorityValues[5]?.mapped || ''"><conditional-field condition="info.priorityValues.length &gt; 5" title="${info.priorityValues[5].value}">
+                        <drop-down><list-options list="info.priorityOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vp_6" from="info.priorityValues[6]?.mapped || ''"><conditional-field condition="info.priorityValues.length &gt; 6" title="${info.priorityValues[6].value}">
+                        <drop-down><list-options list="info.priorityOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vp_7" from="info.priorityValues[7]?.mapped || ''"><conditional-field condition="info.priorityValues.length &gt; 7" title="${info.priorityValues[7].value}">
+                        <drop-down><list-options list="info.priorityOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vp_8" from="info.priorityValues[8]?.mapped || ''"><conditional-field condition="info.priorityValues.length &gt; 8" title="${info.priorityValues[8].value}">
+                        <drop-down><list-options list="info.priorityOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field name="vp_9" from="info.priorityValues[9]?.mapped || ''"><conditional-field condition="info.priorityValues.length &gt; 9" title="${info.priorityValues[9].value}">
+                        <drop-down><list-options list="info.priorityOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><ignored/></default-field></field>
+                    <field-layout>
+                        <field-ref name="importId"/>
+                        <field-group title="Fields and their columns">
+                            <field-row><field-ref name="map_sourceKey"/><field-ref name="map_sourceId"/></field-row>
+                            <field-row><field-ref name="map_title"/><field-ref name="map_type"/></field-row>
+                            <field-row><field-ref name="map_status"/><field-ref name="map_priority"/></field-row>
+                            <field-row><field-ref name="map_assignee"/><field-ref name="map_reporter"/></field-row>
+                            <field-row><field-ref name="map_created"/><field-ref name="map_start"/></field-row>
+                            <field-row><field-ref name="map_due"/><field-ref name="map_resolved"/></field-row>
+                            <field-row><field-ref name="map_estimate"/><field-ref name="map_points"/></field-row>
+                            <field-row><field-ref name="map_description"/><field-ref name="map_parentKey"/></field-row>
+                            <field-row><field-ref name="map_epicKey"/><field-ref name="map_labels"/></field-row>
+                            <field-row><field-ref name="map_milestone"/><field-ref name="map_release"/></field-row>
+                            <field-row><field-ref name="map_sprint"/><field-ref name="map_component"/></field-row>
+                            <field-ref name="estimateUnit"/>
+                        </field-group>
+                        <field-group title="Types in the file, as work item types">
+                            <field-row><field-ref name="vt_0"/><field-ref name="vt_1"/></field-row>
+                            <field-row><field-ref name="vt_2"/><field-ref name="vt_3"/></field-row>
+                            <field-row><field-ref name="vt_4"/><field-ref name="vt_5"/></field-row>
+                            <field-row><field-ref name="vt_6"/><field-ref name="vt_7"/></field-row>
+                            <field-row><field-ref name="vt_8"/><field-ref name="vt_9"/></field-row>
+                            <field-row><field-ref name="vt_10"/><field-ref name="vt_11"/></field-row>
+                            <field-row><field-ref name="vt_12"/><field-ref name="vt_13"/></field-row>
+                            <field-row><field-ref name="vt_14"/><field-ref name="vt_15"/></field-row>
+                            <field-row><field-ref name="vt_16"/><field-ref name="vt_17"/></field-row>
+                            <field-row><field-ref name="vt_18"/><field-ref name="vt_19"/></field-row>
+                        </field-group>
+                        <field-group title="Statuses in the file, as the project's">
+                            <field-row><field-ref name="vs_0"/><field-ref name="vs_1"/></field-row>
+                            <field-row><field-ref name="vs_2"/><field-ref name="vs_3"/></field-row>
+                            <field-row><field-ref name="vs_4"/><field-ref name="vs_5"/></field-row>
+                            <field-row><field-ref name="vs_6"/><field-ref name="vs_7"/></field-row>
+                            <field-row><field-ref name="vs_8"/><field-ref name="vs_9"/></field-row>
+                            <field-row><field-ref name="vs_10"/><field-ref name="vs_11"/></field-row>
+                            <field-row><field-ref name="vs_12"/><field-ref name="vs_13"/></field-row>
+                            <field-row><field-ref name="vs_14"/><field-ref name="vs_15"/></field-row>
+                            <field-row><field-ref name="vs_16"/><field-ref name="vs_17"/></field-row>
+                            <field-row><field-ref name="vs_18"/><field-ref name="vs_19"/></field-row>
+                        </field-group>
+                        <field-group title="Priorities in the file, 1 (highest) to 9">
+                            <field-row><field-ref name="vp_0"/><field-ref name="vp_1"/></field-row>
+                            <field-row><field-ref name="vp_2"/><field-ref name="vp_3"/></field-row>
+                            <field-row><field-ref name="vp_4"/><field-ref name="vp_5"/></field-row>
+                            <field-row><field-ref name="vp_6"/><field-ref name="vp_7"/></field-row>
+                            <field-row><field-ref name="vp_8"/><field-ref name="vp_9"/></field-row>
+                        </field-group>
+                    </field-layout>
+                </form-single>
+                </box-body></container-box>
+        </widgets></section>
+    </widgets>
+</screen>

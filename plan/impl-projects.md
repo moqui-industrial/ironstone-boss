@@ -56,7 +56,7 @@ Sections: [1 scope](#1-scope-and-order) · [2 rules](#2-ground-rules) · [3 phas
 | P2 Projects and work items | Mantle, BOSS (mr-moqui) | Home, QuickCreate, Projects, NewProject, ProjectDetail and its Overview, Work items, Team, Files and Settings tabs, WorkItems, WorkItemDetail, WorkItemTypes, Workflows, Labels, Templates | done Oct 22 |
 | P3a Code: framework | mr-moqui | — | done Oct 21 |
 | P3b Code: Mantle and BOSS | Mantle, BOSS | every §7 screen, ProjectCode, CodeSettings | done Oct 22 |
-| P4 Planning | Mantle, BOSS (mr-moqui) | Backlog, SprintDetail, Timeline, WorkItemImport, Roadmap, MilestoneDetail, ReleaseDetail, ProjectBacklog, ProjectTimeline, ProjectCalendar, ProjectRoadmap, ProjectDocs | in progress (P4a and P4b built Oct 22; P4b roadmap, releases and docs; P4c timeline, calendar and import) |
+| P4 Planning | Mantle, BOSS (mr-moqui) | Backlog, SprintDetail, Timeline, WorkItemImport, Roadmap, MilestoneDetail, ReleaseDetail, ProjectBacklog, ProjectTimeline, ProjectCalendar, ProjectRoadmap, ProjectDocs | done Oct 22 |
 | P5 Requests | Mantle, BOSS | Requests, RequestDetail, RequestIntake, ProjectRequests, IntakeSettings | planned |
 | P6 Time | Mantle, BOSS | MyTime, Timesheets, TimesheetDetail, TimeEntries, ProjectTime, TimeSettings | planned |
 | P7 Resources | Mantle, BOSS | TeamPlanner, Allocations, PersonDetail | planned |
@@ -273,6 +273,22 @@ tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
 - Runs (Debug): ironstone-boss 494/494, mantle-usl 607/609 (ContactListSend), moqui-core lib 1691, example 86/86, lint
   clean.
 
+**Built, P4c** (Oct 22, 2026):
+- Framework: a `.qvue` `<style>` is kept once per page by a length-and-hash key, never put in a selector (F53).
+- Mantle usl: `TaskServices` `add#TaskDependency` (self, ancestor, descendant and loops refused; lag), `remove#`,
+  `set#TaskDates` (shift, sub-items, auto-schedule of dependents by business days with the organization's holidays, each
+  on its own); `ProjectServices.get#TimelineData`; `EventServices.get#FullCalendarData` by project; new
+  `WorkItemImportServices` (read, parse, plan, preview, import; Jira, Redmine, GitHub and generic presets; a second pass
+  for parents and epics; plan items and labels made; past sprints completed after their items; a row per transaction, a
+  failed row named; progress topic); `test/WorkProjectPlan.spec.js`.
+- BOSS: `WorkItems/Timeline.qvue` (items, plan and portfolio modes; dependencies with broken ones marked; drag to move
+  and resize) with `TimelineTui.xml`; ProjectDetail's Plan tab (Timeline, Calendar with `CalendarTui`); Commons
+  Calendar's project mode; the Import wizard (Source, Mapping, Options, Preview, Result, progress); Timeline buttons on
+  Roadmap and Projects; `add#WorkItemLink` dependencies through Mantle; demo dates and dependencies on IRON (one
+  broken); `test/TimelineWalk.spec.js` with `test/files/jira-work-items.csv`.
+- Runs (Debug): ironstone-boss 502/502, mantle-usl 617/619 (ContactListSend), example 86/86, moqui-core lib 1691, node
+  190/190, lint clean.
+
 ### P5 — Requests
 
 - Design §6: `Shared/RequestDetail` (Commons RequestDetail becomes it), Requests, ProjectRequests, conversion and status
@@ -365,6 +381,9 @@ Made during the build; each one that changes the design is also written into des
 | Oct 22, 2026 | A project's docs space is members-only unless the project is All users or General; its users follow the project's internal members (managers administer). In a General project every internal user reads the docs in the repository's `docs/` though only members view the repository (F46) | P4b; the user may want the docs space to follow the repository's rights instead |
 | Oct 22, 2026 | Release notes are the release's `WectReleaseNotes` file; publish goes three ways, each on its own: the docs page `Releases/<version>`, the version's section of `CHANGELOG.md`, the ReleasePublished notice (email by preference) | P4b |
 | Oct 22, 2026 | The Roadmap is a flat list by project and due date with kind chips; the team (not only managers) makes milestones and releases | P4b |
+| Oct 22, 2026 | The Timeline is a `.qvue` with its own styles, no Gantt library; auto-schedule only moves dependents later and never moves done items | P4c |
+| Oct 22, 2026 | The import maps each field to a column (exports have a hundred columns); the created date goes on the Reporter's `fromDate` | P4c |
+| Oct 22, 2026 | The project calendar shows milestones and releases on their due day (a phase's start as a chip) and sprints over their days; its work items come from `find#WorkItems` so Restricted ones stay hidden | P4c |
 | Oct 22, 2026 | A recurring item counted from completion takes the completion day at the due date's time of day (UTC days) and the rule without its COUNT, which counts the items made | P2 |
 
 ## 5. Open questions
@@ -433,6 +452,10 @@ Design assumptions found wrong in the code, with the resolution (written into th
 | F50 | P4b: a `container-dialog` `type="primary"` button is tonal, not filled | The Release action and the sprint dialogs are not filled; a framework fix later |
 | F51 | P4b: `get#ProjectMilestoneSummary` is milestones only | `get#PlanItemSummary` for every plan item kind |
 | F52 | P4b: AppStructure walks screen files only, so tabs mounted from other locations (Roadmap, Docs in ProjectDetail) are not covered | ReleaseWalk renders them |
+| F53 | P4c (framework): `addStyle` built a selector from a `.qvue` style's first 40 characters; a line break or quote threw and lost the style | Keyed by length and hash, compared as an attribute value |
+| F54 | P4c: dating demo IRON items pushed an undated task off Commons Tasks' first page | Tasks.spec searches for it; IRON-13 and 14 left undated |
+| F55 | P4c: a find's children come back in no fixed order | `set#TaskDates` orders by id; specs sort |
+| F56 | P4c: a running server does not reload a changed service file (screens and `.qvue` it does) | Restart after a service change |
 | F7 | P0: a wiki space under an existing repository is documented for a repository root (`rootPageDirectory: "git://docs"`, or `rootPageLocation` `git://<repositoryId>/<SPACE>.md`), not for a subdirectory such as `git://<repositoryId>/docs` | Checked in P4 as the design's §15 row says, before ProjectDocs is built |
 
 ## 7. Later
@@ -473,6 +496,9 @@ Designed, not in this build:
 - Planning (P4b): MilestoneDetail's gate, billing share and deliverables, and the Roadmap's Awaiting approval (P8); in-place
   edits of MilestoneDetail's items; the Docs tab's project mode in the terminal; a Components box in Settings; a record
   of the CHANGELOG commit; drag on the Roadmap calendar; client views (P10).
+
+- Planning (P4c): Timeline moves in the terminal (P11); rescheduling a moved subtree's dependents; the Redmine and GitHub
+  presets checked against real exports; month labels kept in view; portfolio moves; client states (P10).
 
 ## 8. Verification
 

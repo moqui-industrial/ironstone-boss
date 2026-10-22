@@ -1,0 +1,770 @@
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- Timeline (design-projects.md §5 Timeline), the component Timeline.xml serves in the qvue render mode. A toolbar (the project when
+    it is not fixed; the mode: work items, milestones or projects; the find: text, assignee, type, sprint, milestone; zoom weeks,
+    months or quarters; group by the tree, milestone, assignee or none; Today; Auto-schedule; a dependency by a dialog; in
+    ProjectDetail's Plan tab the Timeline and Calendar toggle), then one scroll area: the left grid (key, title, assignee, start,
+    due; in the tree grouping indented with expand and collapse) kept in place as the chart scrolls sideways, and the chart: months
+    and days across the top, the sprints as bands, the milestones as diamonds (a phase as a bar) and the releases as flags, weekends
+    and holidays shaded, today as a line, a bar from start to due for each item (its progress inside, a due-only item a short bar,
+    a parent a bracketed summary bar over its sub-items' span), and the dependencies as arrows (a broken one in the warning color).
+    A drag moves a bar, its ends resize it; a summary bar moves its sub-items; with Auto-schedule on the items that wait for it move
+    on by business days. A drag from a bar's round end to another bar makes that one wait for it; a click on an arrow opens
+    DependencyForm (the lag, Remove); a click on a bar opens the item. Alt+Left and Alt+Right move a focused bar by a day. Bars are
+    positioned elements and the arrows an SVG over them, as Calendar.qvue draws its grid; no Gantt library. Status colors are brand
+    color names; the shading is a neutral tint (style-guide §4.8, §5). -->
+<template><div class="boss-timeline">
+    <!-- ===== the toolbar ===== -->
+    <div class="row items-center q-gutter-sm q-mb-xs">
+        <div v-if="!projectFixed && !inPlanTab" class="text-h5 q-mr-sm">{{t('Timeline')}}</div>
+        <q-btn-toggle v-if="inPlanTab" :model-value="'timeline'" dense no-caps unelevated toggle-color="primary"
+                :options="[{label: t('Timeline'), value: 'timeline', icon: 'sym_o_view_timeline'}, {label: t('Calendar'), value: 'calendar', icon: 'sym_o_calendar_month'}]"
+                @update:model-value="planView"></q-btn-toggle>
+        <q-btn-toggle :model-value="mode" dense no-caps unelevated toggle-color="primary" :options="modeOptions" @update:model-value="setMode"></q-btn-toggle>
+        <div v-if="!projectFixed && mode !== 'portfolio' && projectOptionList.length" style="width:260px;max-width:100%"><m-drop-down id="boss-timeline-project" name="timelineProject"
+                :model-value="projectId" :options="projectOptionList" :label="t('Project')" :allow-empty="mode === 'plan'" @update:model-value="changeProject"></m-drop-down></div>
+        <q-space></q-space>
+        <q-btn unelevated dense no-caps class="m-btn-tonal q-px-sm" :label="t('Today')" @click="scrollToToday"></q-btn>
+        <q-btn-toggle v-model="zoom" dense no-caps unelevated toggle-color="primary" :options="zoomOptions"></q-btn-toggle>
+    </div>
+    <div v-if="timeline && mode === 'items'" class="row items-center q-gutter-sm q-mb-sm boss-timeline-filters">
+        <div :style="fieldStyle(180)"><m-text-line id="boss-timeline-text" name="timelineText" v-model="filter.text" :label="t('Search')" @keyup.enter="load"></m-text-line></div>
+        <template v-if="timeline.filters && timeline.filters.typeOptions">
+            <div :style="fieldStyle(150)"><m-drop-down id="boss-timeline-assignee" name="timelineAssignee" v-model="filter.assigneePartyId" allow-empty
+                    :options="timeline.filters.assigneeOptions" :label="t('Assignee')"></m-drop-down></div>
+            <div :style="fieldStyle(150)"><m-drop-down id="boss-timeline-type" name="timelineType" v-model="filter.purposeEnumId" allow-empty
+                    :options="timeline.filters.typeOptions" :label="t('Type')"></m-drop-down></div>
+            <div v-if="timeline.filters.sprintOptions.length" :style="fieldStyle(150)"><m-drop-down id="boss-timeline-sprint" name="timelineSprint" v-model="filter.sprintId" allow-empty
+                    :options="timeline.filters.sprintOptions" :label="t('Sprint')"></m-drop-down></div>
+            <div v-if="timeline.filters.milestoneOptions.length" :style="fieldStyle(170)"><m-drop-down id="boss-timeline-milestone" name="timelineMilestone" v-model="filter.milestoneId"
+                    allow-empty :options="timeline.filters.milestoneOptions" :label="t('Milestone')"></m-drop-down></div>
+        </template>
+        <q-btn v-if="filtered" flat dense no-caps color="primary" :label="t('Clear filters')" @click="clearFilters"></q-btn>
+        <q-space></q-space>
+        <div :style="fieldStyle(150)"><m-drop-down id="boss-timeline-group" name="timelineGroup" v-model="group" :options="groupOptions" :label="t('Group by')"></m-drop-down></div>
+        <q-toggle v-if="canPlan" v-model="autoSchedule" dense :label="t('Auto-schedule')"><q-tooltip>{{t('Moving a bar moves the items that wait for it, by business days')}}</q-tooltip></q-toggle>
+        <q-btn v-if="canPlan" flat dense no-caps color="primary" icon="sym_o_arrow_right_alt" :label="t('Dependency')" @click="openDependency(null)"></q-btn>
+    </div>
+
+    <div v-if="loading && !timeline" class="q-pa-md">
+        <q-skeleton type="text" width="30%"></q-skeleton>
+        <q-skeleton type="rect" height="260px" class="q-mt-md"></q-skeleton>
+    </div>
+    <div v-else-if="noProject" class="q-pa-lg text-center">
+        <q-icon name="sym_o_view_timeline" size="48px" class="m-muted"></q-icon>
+        <div class="text-h6 q-mt-sm">{{t('No project to draw')}}</div>
+        <div class="text-body2 m-muted">{{t('The timeline is of a project you see. Ask a project manager to add you to one.')}}</div>
+    </div>
+    <div v-else-if="notAvailable" class="q-pa-lg text-center">
+        <q-icon name="sym_o_visibility_off" size="48px" class="m-muted"></q-icon>
+        <div class="text-h6 q-mt-sm">{{t('This timeline is not available')}}</div>
+        <div class="text-body2 m-muted">{{t('The project does not exist, or it is a Work group project you are not on.')}}</div>
+    </div>
+    <template v-else-if="timeline">
+        <div v-if="timeline.truncated" class="text-caption text-warning q-mb-xs">{{t('The first 500 work items of the find are drawn; narrow the find to see the others.')}}</div>
+        <div v-if="!rows.length" class="q-pa-lg text-center rounded-borders" :class="dark ? 'bg-grey-9' : 'bg-blue-grey-1'">
+            <div class="text-body2 m-muted">{{emptyText}}</div>
+        </div>
+        <!-- ===== the scroll area: grid and chart ===== -->
+        <div v-else ref="scroller" class="boss-tl-scroll rounded-borders" :class="dark ? 'boss-tl-dark' : ''" :style="{maxHeight: scrollHeight}" @scroll.passive="onScroll">
+            <div class="relative-position" :style="{width: (gridW + chartW) + 'px'}">
+                <!-- the header: months, days or weeks, the sprints, the milestones and releases -->
+                <div class="boss-tl-head row no-wrap" :style="{height: headH + 'px'}">
+                    <div class="boss-tl-corner column justify-end q-px-sm" :style="{width: gridW + 'px', height: headH + 'px'}">
+                        <div class="row no-wrap items-center text-caption text-weight-medium m-muted q-pb-xs">
+                            <div class="col">{{mode === 'portfolio' ? t('Project') : (mode === 'plan' ? t('Milestone or release') : t('Work item'))}}</div>
+                            <template v-if="showDates"><div class="text-right" style="width:52px">{{t('Start')}}</div><div class="text-right" style="width:52px">{{t('Due')}}</div></template>
+                        </div>
+                    </div>
+                    <div class="relative-position" :style="{width: chartW + 'px', height: headH + 'px'}">
+                        <div v-for="month in months" :key="month.key" class="absolute boss-tl-month text-caption text-weight-medium ellipsis q-px-xs"
+                                :style="{left: month.left + 'px', width: month.width + 'px', top: 0, height: '22px', lineHeight: '22px'}">{{month.label}}</div>
+                        <div v-for="tick in ticks" :key="tick.key" class="absolute text-caption m-muted text-center boss-tl-tick"
+                                :class="tick.today ? 'text-primary text-weight-bold' : ''"
+                                :style="{left: tick.left + 'px', width: tick.width + 'px', top: '22px', height: '18px', lineHeight: '18px'}">{{tick.label}}</div>
+                        <!-- sprints as bands -->
+                        <div v-for="band in sprintBands" :key="band.workEffortId" class="absolute ellipsis text-caption q-px-xs rounded-borders cursor-pointer boss-tl-band"
+                                :class="band.active ? 'text-positive' : 'text-info'" :style="{left: band.left + 'px', width: band.width + 'px', top: '42px', height: '18px', lineHeight: '18px'}"
+                                @click="go(band.url)"><q-tooltip>{{band.workEffortName}} · {{band.dateText}}</q-tooltip>{{band.workEffortName}}</div>
+                        <!-- milestones (a diamond, a phase as a bar) and releases (a flag) -->
+                        <template v-for="marker in markers" :key="marker.key">
+                            <div v-if="marker.phase" class="absolute rounded-borders boss-tl-phase text-accent" :style="{left: marker.left + 'px', width: marker.width + 'px', top: '66px', height: '6px'}"></div>
+                            <div class="absolute row no-wrap items-center cursor-pointer boss-tl-marker" :class="marker.kind === 'release' ? 'text-secondary' : 'text-accent'"
+                                    :style="{left: (marker.x - 7) + 'px', top: '62px', height: '20px'}" @click="go(marker.url)">
+                                <q-icon :name="marker.kind === 'release' ? 'sym_o_flag' : 'sym_o_diamond'" size="14px"></q-icon>
+                                <span class="text-caption q-ml-xs text-no-wrap" :class="dark ? 'text-grey-4' : 'text-grey-9'">{{marker.label}}</span>
+                                <q-tooltip>{{marker.title}}</q-tooltip>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- the body -->
+                <div class="relative-position" :style="{height: (rows.length * rowH) + 'px'}">
+                    <!-- shading, lines and today, under the bars -->
+                    <div class="absolute" :style="{left: gridW + 'px', top: 0, width: chartW + 'px', height: (rows.length * rowH) + 'px'}">
+                        <div v-for="shade in shades" :key="shade.key" class="absolute boss-tl-shade" :class="shade.holiday ? 'boss-tl-holiday' : ''"
+                                :style="{left: shade.left + 'px', width: shade.width + 'px', top: 0, bottom: 0}"><q-tooltip v-if="shade.name">{{shade.name}}</q-tooltip></div>
+                        <div v-for="month in months" :key="'l' + month.key" class="absolute boss-tl-line" :style="{left: month.left + 'px', top: 0, bottom: 0}"></div>
+                        <div v-for="marker in markers" :key="'m' + marker.key" class="absolute boss-tl-markline" :class="marker.kind === 'release' ? 'text-secondary' : 'text-accent'"
+                                :style="{left: marker.x + 'px', top: 0, bottom: 0}"></div>
+                        <div v-if="todayX != null" class="absolute bg-negative" :style="{left: todayX + 'px', top: 0, bottom: 0, width: '2px', zIndex: 1}"></div>
+                    </div>
+                    <!-- the rows: the grid cell (kept in place) and the bar -->
+                    <div v-for="(row, index) in rows" :key="row.key" class="row no-wrap boss-tl-row" :class="row.group ? 'boss-tl-grouprow' : ''" :style="{height: rowH + 'px'}">
+                        <div class="boss-tl-cell row no-wrap items-center q-pr-sm" :style="{width: gridW + 'px', paddingLeft: (8 + row.indent * (phone ? 8 : 14)) + 'px'}">
+                            <template v-if="row.group">
+                                <q-icon :name="row.icon" size="xs" class="q-mr-xs m-muted"></q-icon>
+                                <div class="text-weight-medium ellipsis col">{{row.label}}</div>
+                                <div class="text-caption m-muted q-ml-xs">{{row.count}}</div>
+                            </template>
+                            <template v-else>
+                                <q-btn v-if="row.toggle" flat round dense size="xs" :icon="collapsed[row.id] ? 'chevron_right' : 'expand_more'" class="q-mr-xs"
+                                        :aria-label="(collapsed[row.id] ? t('Expand') : t('Collapse')) + ' ' + row.id" @click="toggle(row.id)"></q-btn>
+                                <span v-else-if="group === 'tree' && mode === 'items'" style="width:24px;flex:none"></span>
+                                <q-icon v-if="!phone" :name="row.icon" size="xs" class="q-mr-xs m-muted" style="flex:none"><q-tooltip v-if="row.iconLabel">{{row.iconLabel}}</q-tooltip></q-icon>
+                                <div class="col row no-wrap items-center" style="min-width:0">
+                                    <a v-if="row.showKey" :href="row.url" class="text-mono text-caption q-mr-xs text-no-wrap" style="flex:none" @click.prevent="go(row.url)">{{row.id}}</a>
+                                    <a :href="row.url" class="ellipsis text-body2" :class="[row.muted ? 'm-muted' : '', row.done ? 'text-strike' : '']"
+                                            style="display:block;color:inherit;text-decoration:none;min-width:0" :title="row.name" @click.prevent="go(row.url)">{{row.name}}</a>
+                                </div>
+                                <m-avatar v-if="row.assigneeText && wide" :name="row.assigneeText" size="20px" class="q-ml-xs" style="flex:none"></m-avatar>
+                                <template v-if="showDates">
+                                    <div class="text-caption text-right text-no-wrap" :class="row.startDay ? '' : 'm-muted'" style="width:52px;flex:none">{{row.startText}}</div>
+                                    <div class="text-caption text-right text-no-wrap" :class="row.dueDay ? '' : 'm-muted'" style="width:52px;flex:none">{{row.dueText}}</div>
+                                </template>
+                            </template>
+                        </div>
+                        <div class="relative-position" :style="{width: chartW + 'px', height: rowH + 'px'}">
+                            <div v-if="!row.group && !row.bar && mode === 'items'" class="absolute text-caption m-muted" :style="{left: (scrollLeftChart + 8) + 'px', top: '8px'}">{{t('No dates')}}</div>
+                            <!-- a summary bar: brackets over the subtree's span -->
+                            <div v-else-if="row.bar && row.bar.summary" class="absolute boss-tl-summary" :class="['text-' + row.color, row.canMove ? 'boss-tl-grab' : '']"
+                                    :data-bar="row.id" tabindex="0" role="button" :aria-label="row.ariaLabel"
+                                    :style="barStyle(row, 10)" @pointerdown="onBarDown($event, row, 'move')" @keydown="onBarKey($event, row)">
+                                <div class="boss-tl-bracket"></div>
+                                <div class="absolute boss-tl-summary-progress" :style="{width: row.progress + '%'}"></div>
+                                <q-tooltip :delay="400">{{row.tip}}</q-tooltip>
+                            </div>
+                            <!-- a milestone or release without a start in plan or portfolio mode: a diamond or flag on the row -->
+                            <div v-else-if="row.bar && row.bar.point" class="absolute row no-wrap items-center" :class="'text-' + row.color" :data-bar="row.id"
+                                    :style="{left: (row.bar.x - 8 + previewShift(row)) + 'px', top: '7px', height: '20px'}" tabindex="0" role="button" :aria-label="row.ariaLabel"
+                                    @pointerdown="onBarDown($event, row, 'move')" @keydown="onBarKey($event, row)">
+                                <q-icon :name="row.rowKind === 'release' ? 'sym_o_flag' : 'sym_o_diamond'" size="18px"></q-icon>
+                                <q-tooltip :delay="400">{{row.tip}}</q-tooltip>
+                            </div>
+                            <div v-else-if="row.bar" class="absolute boss-tl-bar rounded-borders" :class="['text-' + row.color, row.canMove ? 'boss-tl-grab' : '', row.ancestor ? 'boss-tl-faint' : '']"
+                                    :data-bar="row.id" tabindex="0" role="button" :aria-label="row.ariaLabel"
+                                    :style="barStyle(row, 20)" @pointerdown="onBarDown($event, row, 'move')" @keydown="onBarKey($event, row)">
+                                <div class="absolute-left boss-tl-progress" :style="{width: row.progress + '%'}"></div>
+                                <div class="relative-position ellipsis q-px-xs text-caption boss-tl-label">{{row.barLabel}}</div>
+                                <template v-if="row.canMove && !phone">
+                                    <div class="absolute boss-tl-edge" style="left:-2px" @pointerdown.stop="onBarDown($event, row, 'start')"></div>
+                                    <div class="absolute boss-tl-edge" style="right:-2px" @pointerdown.stop="onBarDown($event, row, 'end')"></div>
+                                    <div v-if="mode === 'items'" class="absolute boss-tl-handle" :title="t('Drag to the item that waits for this one')"
+                                            @pointerdown.stop="onLinkDown($event, row)"></div>
+                                </template>
+                                <q-tooltip :delay="400">{{row.tip}}</q-tooltip>
+                            </div>
+                            <!-- portfolio: a project's milestones and releases on its row -->
+                            <template v-for="mark in row.marks || []" :key="mark.key">
+                                <div class="absolute cursor-pointer" :class="mark.kind === 'release' ? 'text-secondary' : 'text-accent'" :style="{left: (mark.x - 7) + 'px', top: '24px', lineHeight: 1}"
+                                        @click="go(mark.url)"><q-icon :name="mark.kind === 'release' ? 'sym_o_flag' : 'sym_o_diamond'" size="12px"></q-icon><q-tooltip>{{mark.title}}</q-tooltip></div>
+                            </template>
+                        </div>
+                    </div>
+                    <!-- the dependencies: arrows over the bars -->
+                    <svg class="absolute boss-tl-arrows" :style="{left: gridW + 'px', top: 0}" :width="chartW" :height="rows.length * rowH" aria-hidden="true">
+                        <g v-for="arrow in arrows" :key="arrow.key" :class="arrow.violated ? 'text-warning' : (dark ? 'text-grey-5' : 'text-grey-7')">
+                            <path :d="arrow.d" fill="none" stroke="currentColor" stroke-width="1.5"></path>
+                            <path :d="arrow.head" fill="currentColor" stroke="none"></path>
+                            <path :d="arrow.d" fill="none" stroke="transparent" stroke-width="10" class="boss-tl-hit" @click="openDependency(arrow.link)">
+                                <title>{{arrow.title}}</title></path>
+                        </g>
+                        <line v-if="linkDrag && linkDrag.moved" :x1="linkDrag.x1" :y1="linkDrag.y1" :x2="linkDrag.x2" :y2="linkDrag.y2" stroke="currentColor"
+                                class="text-primary" stroke-width="2" stroke-dasharray="4 3"></line>
+                    </svg>
+                </div>
+            </div>
+        </div>
+        <div v-if="rows.length" class="row items-center q-gutter-md q-mt-xs text-caption m-muted">
+            <span><q-icon name="sym_o_diamond" class="text-accent"></q-icon> {{t('Milestone')}}</span>
+            <span><q-icon name="sym_o_flag" class="text-secondary"></q-icon> {{t('Release')}}</span>
+            <span v-if="mode === 'items'"><span class="boss-tl-key text-warning">&#8594;</span> {{t('Starts too early for what it waits for')}}</span>
+            <span v-if="timeline.holidayList && timeline.holidayList.length"><span class="boss-tl-swatch boss-tl-holiday"></span> {{t('Holiday')}}</span>
+            <span v-if="canPlan && !phone">{{t('Drag a bar to move it, its ends to change its dates, its round end to another bar for a dependency.')}}</span>
+        </div>
+    </template>
+
+    <!-- ===== DependencyForm ===== -->
+    <m-dialog v-model="dep.open" :title="dep.isNew ? t('New dependency') : t('Dependency')" width="480">
+        <div class="q-gutter-y-sm">
+            <template v-if="dep.isNew">
+                <m-drop-down id="boss-dep-dependent" name="dependentId" v-model="dep.dependentId" :options="itemOptions" :label="t('This work item')"></m-drop-down>
+                <m-drop-down id="boss-dep-predecessor" name="predecessorId" v-model="dep.predecessorId" :options="itemOptions" :label="t('waits for (starts after it is done)')"></m-drop-down>
+            </template>
+            <div v-else class="text-body2">{{nameOf(dep.dependentId)}} <span class="m-muted">{{t('waits for')}}</span> {{nameOf(dep.predecessorId)}}</div>
+            <m-text-line id="boss-dep-lag" name="lagDays" v-model="dep.lagDays" input-type="number" :label="t('Lag (working days after it is done)')"></m-text-line>
+            <div v-if="dep.violated" class="text-caption text-warning">{{t('It starts before the other is done (with the lag): move it later, or turn on Auto-schedule and move the other.')}}</div>
+        </div>
+        <div class="row justify-end q-gutter-sm q-mt-md">
+            <q-btn v-if="!dep.isNew && dep.canChange" flat no-caps color="negative" :label="t('Remove')" @click="removeDependency"></q-btn>
+            <q-space></q-space>
+            <q-btn flat no-caps :label="t('Cancel')" v-close-popup></q-btn>
+            <q-btn v-if="dep.isNew || dep.canChange" unelevated no-caps color="primary" :label="t('Save')" :loading="dep.busy"
+                    :disable="!dep.dependentId || !dep.predecessorId" @click="saveDependency"></q-btn>
+        </div>
+    </m-dialog>
+</div></template>
+
+<script>
+const t = (text) => (moqui.l10n && moqui.l10n.localize ? moqui.l10n.localize(text) : text);
+// days are yyyy-MM-dd text, counted as UTC days so the browser's own zone never counts
+const dayNum = (text) => Math.floor(Date.parse(String(text).slice(0, 10) + 'T00:00:00Z') / 86400000);
+const dayText = (num) => new Date(num * 86400000).toISOString().slice(0, 10);
+const addDays = (text, days) => dayText(dayNum(text) + days);
+const weekdayOf = (text) => new Date(dayNum(text) * 86400000).getUTCDay();
+const store = {
+    get(key) { try { return window.localStorage.getItem('boss.timeline.' + key); } catch (err) { return null; } },
+    set(key, value) { try { window.localStorage.setItem('boss.timeline.' + key, value); } catch (err) { /* private window */ } }
+};
+
+module.exports = {
+    name: 'BossTimeline',
+    data() {
+        return {
+            loading: false, seq: 0, timeline: null, projectOptions: [], projectFixed: false, noProject: false, notAvailable: false,
+            filter: { text: '', assigneePartyId: null, purposeEnumId: null, sprintId: null, milestoneId: null },
+            zoom: store.get('zoom') || 'weeks', group: store.get('group') || 'tree', autoSchedule: store.get('auto') === 'Y',
+            collapsed: {}, drag: null, preview: null, linkDrag: null, scrollLeft: 0, scrolledFor: null,
+            dep: { open: false, isNew: true, dependentId: null, predecessorId: null, lagDays: '', violated: false, canChange: false, busy: false }
+        };
+    },
+    computed: {
+        phone() { return this.$q.screen.lt.sm; },
+        wide() { return this.$q.screen.gt.sm; },
+        dark() { return this.$q.dark.isActive; },
+        locale() { return String((moqui.config && moqui.config.locale) || 'en-US').replace('_', '-'); },
+        pathList() { return this.$root.currentPathList || []; },
+        tIndex() { return this.pathList.lastIndexOf('Timeline'); },
+        screenPath() { return this.$root.basePath + '/' + (this.tIndex >= 0 ? this.pathList.slice(0, this.tIndex + 1) : ['Projects', 'WorkItems', 'Timeline']).join('/'); },
+        linkPath() { return (this.$root.linkBasePath || '/qapps') + '/' + (this.tIndex >= 0 ? this.pathList.slice(0, this.tIndex + 1) : ['Projects', 'WorkItems', 'Timeline']).join('/'); },
+        params() { return this.$root.currentParameters || {}; },
+        inProject() { return this.pathList.indexOf('ProjectDetail') >= 0; },
+        inPlanTab() { return this.inProject && this.pathList.indexOf('Plan') >= 0; },
+        mode() { const mode = this.params.mode; return ['items', 'plan', 'portfolio'].includes(mode) ? mode : 'items'; },
+        modeOptions() {
+            const options = [{ label: this.t('Work items'), value: 'items' }, { label: this.t('Milestones'), value: 'plan' }];
+            if (!this.inProject) options.push({ label: this.t('Projects'), value: 'portfolio' });
+            return options;
+        },
+        zoomOptions() { return [{ label: this.t('Weeks'), value: 'weeks' }, { label: this.t('Months'), value: 'months' }, { label: this.t('Quarters'), value: 'quarters' }]; },
+        groupOptions() {
+            return [{ value: 'tree', label: this.t('The tree') }, { value: 'milestone', label: this.t('Milestone') }, { value: 'assignee', label: this.t('Assignee') },
+                { value: 'none', label: this.t('None') }];
+        },
+        projectId() { return this.timeline && this.timeline.project ? this.timeline.project.workEffortId : (this.inProject ? this.params.workEffortId : this.params.rootWorkEffortId) || null; },
+        projectOptionList() { return (this.projectOptions || []).map((option) => ({ value: option.key, label: option.text })); },
+        canPlan() { return this.mode === 'items' && !!(this.timeline && this.timeline.project && this.timeline.project.canUpdate); },
+        filtered() { return Object.keys(this.filter).some((key) => this.filter[key]); },
+        emptyText() {
+            if (this.mode === 'portfolio') return this.t('No projects match');
+            if (this.mode === 'plan') return this.t('No milestones or releases yet');
+            return this.filtered ? this.t('No work item matches the find') : this.t('No work items yet');
+        },
+        dayPx() { return { weeks: 22, months: 7, quarters: 2.5 }[this.zoom] || 22; },
+        rowH() { return 34; },
+        // the sprint and milestone lanes are the work items' (the other modes have them as rows)
+        headH() { return this.mode === 'items' ? 84 : 44; },
+        gridW() { return this.phone ? 150 : (this.wide ? 380 : 260); },
+        showDates() { return this.wide && this.mode !== 'portfolio'; },
+        scrollHeight() { return this.inProject ? 'calc(100vh - 290px)' : 'calc(100vh - 210px)'; },
+        planItems() { return (this.timeline && this.timeline.planItemList) || []; },
+        // the days drawn: the rows' and plan items' dates and today, a little before and after, whole months
+        range() {
+            const days = [];
+            const add = (text) => { if (text) days.push(dayNum(text)); };
+            if (this.timeline) {
+                add(this.timeline.todayText);
+                for (const row of this.timeline.rowList || []) { add(row.startDay); add(row.dueDay); add(row.spanStartDay); add(row.spanDueDay); }
+                for (const plan of this.planItems) { add(plan.startDay); add(plan.dueDay); }
+            }
+            if (!days.length) days.push(dayNum(new Date().toISOString().slice(0, 10)));
+            let first = Math.min(...days) - 7;
+            let last = Math.max(...days) + 21;
+            if (last - first > 3 * 366) last = first + 3 * 366;
+            const firstText = dayText(first);
+            first = dayNum(firstText.slice(0, 7) + '-01');
+            const lastText = dayText(last);
+            const year = Number(lastText.slice(0, 4));
+            const month = Number(lastText.slice(5, 7));
+            last = dayNum(new Date(Date.UTC(year, month, 1)).toISOString().slice(0, 10)) - 1;
+            return { first, last, days: last - first + 1 };
+        },
+        chartW() { return Math.ceil(this.range.days * this.dayPx); },
+        scrollLeftChart() { return Math.max(0, this.scrollLeft); },
+        todayX() {
+            if (!this.timeline) return null;
+            const x = this.xOf(this.timeline.todayText);
+            return x >= 0 && x <= this.chartW ? x : null;
+        },
+        months() {
+            const out = [];
+            let num = this.range.first;
+            while (num <= this.range.last) {
+                const text = dayText(num);
+                const year = Number(text.slice(0, 4));
+                const month = Number(text.slice(5, 7));
+                const next = dayNum(new Date(Date.UTC(year, month, 1)).toISOString().slice(0, 10));
+                const width = (Math.min(next, this.range.last + 1) - num) * this.dayPx;
+                const quarterLabel = this.zoom === 'quarters' ? this.fmt(text, { month: 'short' }) + (month === 1 ? ' ' + year : '') : null;
+                out.push({ key: text, left: (num - this.range.first) * this.dayPx, width,
+                    label: quarterLabel || this.fmt(text, { month: width < 60 ? 'short' : 'long', year: 'numeric' }) });
+                num = next;
+            }
+            return out;
+        },
+        ticks() {
+            const out = [];
+            const today = this.timeline ? this.timeline.todayText : '';
+            if (this.zoom === 'weeks') {
+                for (let num = this.range.first; num <= this.range.last; num++) {
+                    const text = dayText(num);
+                    out.push({ key: text, left: (num - this.range.first) * this.dayPx, width: this.dayPx, label: String(Number(text.slice(8, 10))), today: text === today });
+                }
+            } else if (this.zoom === 'months') {
+                // the Mondays
+                for (let num = this.range.first; num <= this.range.last; num++) {
+                    const text = dayText(num);
+                    if (weekdayOf(text) !== 1) continue;
+                    out.push({ key: text, left: (num - this.range.first) * this.dayPx, width: 7 * this.dayPx, label: String(Number(text.slice(8, 10))) });
+                }
+            }
+            return out;
+        },
+        // weekends (in the weeks zoom) and holidays, shaded
+        shades() {
+            const out = [];
+            if (this.zoom === 'weeks') {
+                for (let num = this.range.first; num <= this.range.last; num++) {
+                    const text = dayText(num);
+                    if (weekdayOf(text) === 6) out.push({ key: 'w' + text, left: (num - this.range.first) * this.dayPx, width: 2 * this.dayPx });
+                }
+            }
+            for (const holiday of (this.timeline && this.timeline.holidayList) || []) {
+                const x = this.xOf(holiday.day);
+                if (x < 0 || x > this.chartW) continue;
+                out.push({ key: 'h' + holiday.day, left: x, width: Math.max(this.dayPx, 2), holiday: true, name: holiday.name + ' · ' + this.fmt(holiday.day, { month: 'short', day: 'numeric' }) });
+            }
+            return out;
+        },
+        sprintBands() {
+            if (this.mode === 'portfolio') return [];
+            return this.planItems.filter((plan) => plan.kind === 'sprint' && plan.startDay && plan.dueDay).map((plan) => ({
+                workEffortId: plan.workEffortId, workEffortName: plan.workEffortName, url: plan.url, active: plan.statusId === 'WeInProgress',
+                left: this.xOf(plan.startDay), width: Math.max(this.dayPx, (dayNum(plan.dueDay) - dayNum(plan.startDay) + 1) * this.dayPx),
+                dateText: this.fmt(plan.startDay, { month: 'short', day: 'numeric' }) + ' – ' + this.fmt(plan.dueDay, { month: 'short', day: 'numeric' }) }));
+        },
+        markers() {
+            if (this.mode !== 'items') return [];
+            return this.planItems.filter((plan) => plan.kind !== 'sprint' && (plan.dueDay || plan.startDay)).map((plan) => {
+                const due = plan.dueDay || plan.startDay;
+                const phase = plan.kind === 'milestone' && plan.startDay && plan.dueDay && plan.startDay < plan.dueDay;
+                return { key: plan.workEffortId, kind: plan.kind, url: plan.url, x: this.xOf(due) + this.dayPx, label: this.zoom === 'quarters' ? '' : plan.workEffortName,
+                    phase, left: phase ? this.xOf(plan.startDay) : 0, width: phase ? (dayNum(plan.dueDay) - dayNum(plan.startDay) + 1) * this.dayPx : 0,
+                    title: plan.workEffortName + ' · ' + plan.kindLabel + ' · ' + (plan.startDay && phase ? this.fmt(plan.startDay, { month: 'short', day: 'numeric' }) + ' – ' : '')
+                        + this.fmt(due, { month: 'short', day: 'numeric', year: 'numeric' }) + ' · ' + plan.statusLabel + ' · ' + (plan.percentDone || 0) + '%' };
+            });
+        },
+        // the rows in their order and grouping, each with its bar
+        rows() {
+            if (!this.timeline) return [];
+            const source = this.timeline.rowList || [];
+            const out = [];
+            const push = (row, indent, extra) => out.push(this.shape(row, indent, extra || {}));
+            if (this.mode !== 'items') {
+                let lastProject = null;
+                for (const row of source) {
+                    if (this.mode === 'plan' && !this.projectFixed && !this.projectId && row.rootWorkEffortId !== lastProject) {
+                        lastProject = row.rootWorkEffortId;
+                        out.push({ key: 'g' + lastProject, group: true, label: row.projectName, icon: 'sym_o_folder', count: source.filter((one) => one.rootWorkEffortId === lastProject).length, indent: 0 });
+                    }
+                    push(row, row.depth || 0);
+                }
+                return out;
+            }
+            const byStart = (a, b) => String(a.startDay || a.dueDay || a.spanStartDay || '9999').localeCompare(String(b.startDay || b.dueDay || b.spanStartDay || '9999'))
+                || this.keyNumber(a.workEffortId) - this.keyNumber(b.workEffortId);
+            if (this.group === 'tree') {
+                const ids = new Set(source.map((row) => row.workEffortId));
+                const kids = {};
+                const roots = [];
+                for (const row of source) {
+                    if (row.parentWorkEffortId && ids.has(row.parentWorkEffortId)) (kids[row.parentWorkEffortId] = kids[row.parentWorkEffortId] || []).push(row);
+                    else roots.push(row);
+                }
+                const byRank = (a, b) => (a.sequenceNum == null ? Number.MAX_SAFE_INTEGER : a.sequenceNum) - (b.sequenceNum == null ? Number.MAX_SAFE_INTEGER : b.sequenceNum)
+                    || this.keyNumber(a.workEffortId) - this.keyNumber(b.workEffortId);
+                const walk = (list, indent) => {
+                    for (const row of list.slice().sort(byRank)) {
+                        const children = kids[row.workEffortId] || [];
+                        push(row, indent, { toggle: children.length > 0 });
+                        if (children.length && !this.collapsed[row.workEffortId]) walk(children, indent + 1);
+                    }
+                };
+                walk(roots, 0);
+                return out;
+            }
+            const items = source.filter((row) => !row.ancestor);
+            if (this.group === 'none') { for (const row of items.slice().sort(byStart)) push(row, 0, { flat: true }); return out; }
+            const groups = new Map();
+            for (const row of items) {
+                const key = this.group === 'milestone' ? (row.milestoneId || '') : (row.assigneePartyId || '');
+                if (!groups.has(key)) groups.set(key, []);
+                groups.get(key).push(row);
+            }
+            const plans = this.planItems.filter((plan) => plan.kind === 'milestone');
+            const keys = Array.from(groups.keys()).sort((a, b) => {
+                if (!a) return 1;
+                if (!b) return -1;
+                if (this.group === 'milestone') return plans.findIndex((plan) => plan.workEffortId === a) - plans.findIndex((plan) => plan.workEffortId === b);
+                return String(groups.get(a)[0].assigneeText).localeCompare(String(groups.get(b)[0].assigneeText));
+            });
+            for (const key of keys) {
+                const list = groups.get(key);
+                const label = this.group === 'milestone' ? (key ? list[0].milestoneName || key : this.t('No milestone'))
+                    : (key ? String(list[0].assigneeText || key).split(', ')[0] : this.t('Unassigned'));
+                out.push({ key: 'g' + key, group: true, label, count: list.length, indent: 0, icon: this.group === 'milestone' ? 'sym_o_diamond' : 'sym_o_person' });
+                for (const row of list.slice().sort(byStart)) push(row, 1, { flat: true });
+            }
+            return out;
+        },
+        rowIndex() {
+            const index = {};
+            this.rows.forEach((row, i) => { if (!row.group) index[row.id] = i; });
+            return index;
+        },
+        // an arrow from the end of what is waited for to the start of what waits
+        arrows() {
+            if (this.mode !== 'items' || !this.timeline) return [];
+            const out = [];
+            for (const link of this.timeline.dependencyList || []) {
+                const from = this.rows[this.rowIndex[link.toWorkEffortId]];
+                const to = this.rows[this.rowIndex[link.workEffortId]];
+                if (!from || !to || !from.bar || !to.bar) continue;
+                const x1 = from.bar.left + from.bar.width + this.previewShift(from) + (this.previewGrow(from));
+                const y1 = this.rowIndex[link.toWorkEffortId] * this.rowH + this.rowH / 2;
+                const x2 = to.bar.left + this.previewShift(to) + this.previewStart(to);
+                const y2 = this.rowIndex[link.workEffortId] * this.rowH + this.rowH / 2;
+                let d;
+                // the line stops where the head starts; the head is its own triangle (an SVG marker does not take the line's color)
+                if (x2 - 6 >= x1 + 6) d = `M${x1},${y1} H${x1 + 6} V${y2} H${x2 - 5}`;
+                else {
+                    const mid = y1 + (y2 > y1 ? this.rowH / 2 : -this.rowH / 2);
+                    d = `M${x1},${y1} H${x1 + 6} V${mid} H${x2 - 10} V${y2} H${x2 - 5}`;
+                }
+                const head = `M${x2},${y2} L${x2 - 6},${y2 - 4} L${x2 - 6},${y2 + 4} Z`;
+                out.push({ key: link.workEffortId + '|' + link.toWorkEffortId, d, head, violated: link.violated, link,
+                    title: link.workEffortId + ' ' + this.t('waits for') + ' ' + link.toWorkEffortId + (link.lagDays ? ' + ' + link.lagDays + ' ' + this.t('days') : '') });
+            }
+            return out;
+        },
+        itemOptions() {
+            return ((this.timeline && this.timeline.rowList) || []).filter((row) => row.rowKind === 'item')
+                .map((row) => ({ value: row.workEffortId, label: row.workEffortId + ' ' + row.workEffortName }));
+        }
+    },
+    watch: {
+        'filter.assigneePartyId'() { this.load(); },
+        'filter.purposeEnumId'() { this.load(); },
+        'filter.sprintId'() { this.load(); },
+        'filter.milestoneId'() { this.load(); },
+        'params.rootWorkEffortId'() { if (!this.inProject) this.load(); },
+        'params.workEffortId'() { if (this.inProject) this.load(); },
+        'params.mode'() { this.load(); },
+        zoom(value) { store.set('zoom', value); this.$nextTick(() => this.scrollToToday()); },
+        group(value) { store.set('group', value); },
+        autoSchedule(value) { store.set('auto', value ? 'Y' : 'N'); }
+    },
+    methods: {
+        t,
+        url(name) { return this.screenPath + '/' + name; },
+        fmt(text, options) {
+            try { return new Intl.DateTimeFormat(this.locale, Object.assign({ timeZone: 'UTC' }, options)).format(new Date(dayNum(text) * 86400000)); }
+            catch (err) { return text; }
+        },
+        keyNumber(id) { const match = /(\d+)$/.exec(String(id)); return match ? Number(match[1]) : Number.MAX_SAFE_INTEGER; },
+        xOf(text) { return (dayNum(text) - this.range.first) * this.dayPx; },
+        // a find field's width: two to a line on a phone
+        fieldStyle(width) { return this.phone ? { width: 'calc(50% - 8px)' } : { width: width + 'px', maxWidth: '100%' }; },
+        go(url) { if (url) this.$root.setUrl(url); },
+        nameOf(id) { const row = ((this.timeline && this.timeline.rowList) || []).find((one) => one.workEffortId === id); return row ? row.workEffortId + ' ' + row.workEffortName : (id || ''); },
+        // a row as the grid and chart show it
+        shape(row, indent, extra) {
+            const item = row.rowKind === 'item';
+            const summary = item && this.group === 'tree' && row.childCount > 0 && !extra.flat;
+            let first = row.startDay || row.dueDay;
+            let last = row.dueDay || row.startDay;
+            if (summary) {
+                if (row.spanStartDay && (!first || row.spanStartDay < first)) first = row.spanStartDay;
+                if (row.spanDueDay && (!last || row.spanDueDay > last)) last = row.spanDueDay;
+            }
+            let bar = null;
+            const pointKind = (row.rowKind === 'milestone' || row.rowKind === 'release') && !row.startDay;
+            if (first && last) {
+                if (pointKind) bar = { point: true, x: this.xOf(last) + this.dayPx / 2, left: this.xOf(last), width: 0 };
+                else bar = { summary, left: this.xOf(first), width: Math.max(this.dayPx, (dayNum(last) - dayNum(first) + 1) * this.dayPx) };
+            }
+            const color = row.rowKind === 'milestone' ? 'accent' : (row.rowKind === 'release' ? 'secondary' : (row.rowKind === 'sprint' ? 'info'
+                : (row.isDone ? 'positive' : (row.statusId === 'WeOnHold' ? 'warning' : (['WeInPlanning', 'WeApproved'].includes(row.statusId) ? 'blue-grey' : 'primary')))));
+            const short = (text) => text ? this.fmt(text, { month: 'short', day: 'numeric' }) : '';
+            const icons = { milestone: 'sym_o_diamond', release: 'sym_o_flag', sprint: 'sym_o_sprint', project: 'sym_o_folder' };
+            const when = first ? (first === last ? short(last) : short(first) + ' – ' + short(last)) : this.t('No dates');
+            return Object.assign({ key: 'r' + row.workEffortId, id: row.workEffortId, name: row.workEffortName, url: row.url, rowKind: row.rowKind, indent,
+                icon: item ? row.typeIcon : (icons[row.rowKind] || 'sym_o_event'), iconLabel: item ? row.purposeLabel : (row.kindLabel || ''), showKey: item,
+                muted: !!row.ancestor, done: !!row.isDone && item, ancestor: !!row.ancestor, assigneeText: row.assigneeText || '',
+                startDay: row.startDay || null, dueDay: row.dueDay || null, startText: short(row.startDay) || '—', dueText: short(row.dueDay) || '—',
+                bar, color, progress: Math.max(0, Math.min(100, Number(row.progress || 0))), canMove: !!row.canMove && !row.ancestor && (!summary || true),
+                barLabel: this.zoom === 'quarters' ? '' : (item ? row.workEffortName : row.workEffortName + (row.statusLabel ? ' · ' + row.statusLabel : '')),
+                tip: (item ? row.workEffortId + ' ' : '') + row.workEffortName + ' · ' + when + (row.statusLabel ? ' · ' + row.statusLabel : '') + ' · ' + Math.round(row.progress || 0) + '%'
+                    + (row.assigneeText ? ' · ' + row.assigneeText : '') + (summary ? ' · ' + this.t('its sub-items') : '') + (row.datesFromItems ? ' · ' + this.t('dates from its items') : ''),
+                ariaLabel: (item ? row.workEffortId + ' ' : '') + row.workEffortName + ', ' + when,
+                marks: this.mode === 'portfolio' ? this.planItems.filter((plan) => plan.rootWorkEffortId === row.workEffortId && plan.dueDay && plan.isOpen)
+                    .map((plan) => ({ key: plan.workEffortId, kind: plan.kind, url: plan.url, x: this.xOf(plan.dueDay) + this.dayPx / 2,
+                        title: plan.workEffortName + ' · ' + plan.kindLabel + ' · ' + short(plan.dueDay) })) : null }, extra);
+        },
+        // the bar as it is drawn, moved or resized while dragged
+        previewShift(row) { return this.preview && this.preview.id === row.id && this.preview.edge === 'move' ? this.preview.delta * this.dayPx : 0; },
+        previewStart(row) { return this.preview && this.preview.id === row.id && this.preview.edge === 'start' ? this.preview.delta * this.dayPx : 0; },
+        previewGrow(row) { return this.preview && this.preview.id === row.id && this.preview.edge === 'end' ? this.preview.delta * this.dayPx : 0; },
+        barStyle(row, height) {
+            const shift = this.previewShift(row);
+            const start = this.previewStart(row);
+            const grow = this.previewGrow(row);
+            return { left: (row.bar.left + shift + start) + 'px', width: Math.max(this.dayPx, row.bar.width - start + grow) + 'px',
+                top: ((this.rowH - height) / 2) + 'px', height: height + 'px', zIndex: this.preview && this.preview.id === row.id ? 3 : 2 };
+        },
+        load() {
+            const seq = ++this.seq;
+            this.loading = true;
+            const params = this.inProject ? { workEffortId: this.params.workEffortId || '' } : { rootWorkEffortId: this.params.rootWorkEffortId || '' };
+            params.mode = this.mode;
+            if (this.params.planList) params.planList = this.params.planList;
+            if (this.params.projectList) params.projectList = this.params.projectList;
+            if (this.mode === 'items') Object.keys(this.filter).forEach((key) => { if (this.filter[key]) params[key] = this.filter[key]; });
+            else if (this.params.text) params.text = this.params.text;
+            return moqui.request(this.url('timeline'), { params }).then((result) => {
+                if (seq !== this.seq) return;
+                this.loading = false;
+                const json = result.json || {};
+                this.projectOptions = json.projectOptions || [];
+                this.projectFixed = !!json.projectFixed || this.inProject;
+                this.noProject = !!json.noProject;
+                this.notAvailable = !!json.notAvailable;
+                this.timeline = json.timeline || null;
+                const key = this.mode + '|' + this.projectId + '|' + this.zoom;
+                if (this.timeline && this.scrolledFor !== key) { this.scrolledFor = key; this.$nextTick(() => this.scrollToToday()); }
+            }, (err) => { if (seq !== this.seq) return; this.loading = false; moqui.handleAjaxError(err); });
+        },
+        post(name, params) {
+            const base = this.inProject ? { workEffortId: this.params.workEffortId || '' } : { rootWorkEffortId: this.projectId || '' };
+            return moqui.request(this.url(name), { method: 'POST', params: Object.assign(base, params || {}) }).then((result) => {
+                const json = result.json || {};
+                if (json.messageInfos && json.messageInfos.length) moqui.notifyMessages(json.messageInfos);
+                return json;
+            }, (err) => { moqui.handleAjaxError(err); throw err; });
+        },
+        setUrlParams(changes) {
+            const params = Object.assign({}, this.params);
+            ['moquiSessionToken', 'lastStandalone', 'pageIndex'].forEach((name) => delete params[name]);
+            Object.assign(params, changes);
+            Object.keys(params).forEach((name) => { if (params[name] == null || params[name] === '') delete params[name]; });
+            const search = moqui.objToSearch(params);
+            this.$root.setUrl(this.linkPath + (search ? '?' + search : ''));
+        },
+        setMode(value) { this.timeline = null; this.setUrlParams({ mode: value === 'items' ? null : value }); },
+        changeProject(value) {
+            if ((value || null) === (this.projectId || null)) return;
+            this.timeline = null;
+            this.setUrlParams({ rootWorkEffortId: value || null });
+        },
+        planView(value) {
+            if (value !== 'calendar') return;
+            const planIndex = this.pathList.lastIndexOf('Plan');
+            this.$root.setUrl((this.$root.linkBasePath || '/qapps') + '/' + this.pathList.slice(0, planIndex + 1).join('/') + '/Calendar?'
+                + moqui.objToSearch({ workEffortId: this.params.workEffortId || '' }));
+        },
+        clearFilters() { this.filter = { text: '', assigneePartyId: null, purposeEnumId: null, sprintId: null, milestoneId: null }; this.load(); },
+        toggle(id) { this.collapsed = Object.assign({}, this.collapsed, { [id]: !this.collapsed[id] }); },
+        onScroll() { const el = this.$refs.scroller; this.scrollLeft = el ? el.scrollLeft : 0; },
+        scrollToToday() {
+            const el = this.$refs.scroller;
+            if (!el || this.todayX == null) return;
+            el.scrollLeft = Math.max(0, this.todayX - Math.min(160, (el.clientWidth - this.gridW) / 3));
+        },
+        // ===== a bar dragged: moved, or an end resized =====
+        onBarDown(event, row, edge) {
+            if (event.button !== 0) return;
+            const touch = event.pointerType === 'touch';
+            // a summary bar moves its sub-items; it is not resized
+            const movable = row.canMove && !touch && !(row.bar.summary && edge !== 'move');
+            if (movable) event.preventDefault();
+            this.drag = { row, edge, x: event.clientX, y: event.clientY, started: false, movable, target: event.currentTarget };
+            window.addEventListener('pointermove', this.onMove);
+            window.addEventListener('pointerup', this.onUp);
+        },
+        onMove(event) {
+            const drag = this.drag;
+            if (!drag) return;
+            if (!drag.started) {
+                if (Math.abs(event.clientX - drag.x) + Math.abs(event.clientY - drag.y) < 5) return;
+                if (!drag.movable) { this.endDrag(); return; }
+                drag.started = true;
+            }
+            const delta = Math.round((event.clientX - drag.x) / this.dayPx);
+            this.preview = { id: drag.row.id, edge: drag.edge, delta };
+        },
+        endDrag() {
+            window.removeEventListener('pointermove', this.onMove);
+            window.removeEventListener('pointerup', this.onUp);
+            this.drag = null;
+        },
+        onUp() {
+            const drag = this.drag;
+            const preview = this.preview;
+            this.endDrag();
+            this.preview = null;
+            if (!drag) return;
+            if (!drag.started) { this.go(drag.row.url); return; }
+            if (!preview || !preview.delta) return;
+            this.moveBar(drag.row, drag.edge, preview.delta);
+        },
+        onBarKey(event, row) {
+            if (event.key === 'Enter') { this.go(row.url); return; }
+            if (!event.altKey || !row.canMove || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+            event.preventDefault();
+            this.moveBar(row, 'move', event.key === 'ArrowLeft' ? -1 : 1);
+        },
+        moveBar(row, edge, delta) {
+            const params = { itemWorkEffortId: row.id, autoSchedule: this.autoSchedule && this.mode === 'items' ? 'Y' : 'N' };
+            if (edge === 'move') {
+                params.shiftDays = String(delta);
+                if (row.bar && row.bar.summary) params.moveSubtree = 'Y';
+            } else if (edge === 'start') {
+                const start = addDays(row.startDay || row.dueDay, delta);
+                if (row.dueDay && start > row.dueDay) return;
+                params.startDay = start;
+            } else {
+                const due = addDays(row.dueDay || row.startDay, delta);
+                if (row.startDay && due < row.startDay) return;
+                params.dueDay = due;
+            }
+            this.post('moveItem', params).then(() => this.load(), () => this.load());
+        },
+        // ===== a dependency: dragged from a bar's round end to another bar, or the dialog =====
+        onLinkDown(event, row) {
+            if (event.button !== 0) return;
+            event.preventDefault();
+            const box = this.$refs.scroller.querySelector('.boss-tl-arrows').getBoundingClientRect();
+            const index = this.rowIndex[row.id];
+            this.linkDrag = { fromId: row.id, box, moved: false, x1: row.bar.left + row.bar.width, y1: index * this.rowH + this.rowH / 2, x2: 0, y2: 0 };
+            window.addEventListener('pointermove', this.onLinkMove);
+            window.addEventListener('pointerup', this.onLinkUp);
+        },
+        onLinkMove(event) {
+            if (!this.linkDrag) return;
+            const box = this.linkDrag.box;
+            this.linkDrag = Object.assign({}, this.linkDrag, { moved: true, x2: event.clientX - box.left, y2: event.clientY - box.top });
+        },
+        onLinkUp(event) {
+            window.removeEventListener('pointermove', this.onLinkMove);
+            window.removeEventListener('pointerup', this.onLinkUp);
+            const drag = this.linkDrag;
+            this.linkDrag = null;
+            if (!drag || !drag.moved) return;
+            const el = document.elementFromPoint(event.clientX, event.clientY);
+            const target = el && el.closest ? el.closest('[data-bar]') : null;
+            const toId = target ? target.getAttribute('data-bar') : null;
+            if (!toId || toId === drag.fromId) return;
+            this.post('saveDependency', { dependentId: toId, predecessorId: drag.fromId }).then((json) => { if (json.saved) this.load(); }, () => {});
+        },
+        openDependency(link) {
+            if (link) this.dep = { open: true, isNew: false, dependentId: link.workEffortId, predecessorId: link.toWorkEffortId, lagDays: link.lagDays != null ? String(link.lagDays) : '',
+                violated: !!link.violated, canChange: !!link.canChange, busy: false };
+            else this.dep = { open: true, isNew: true, dependentId: null, predecessorId: null, lagDays: '', violated: false, canChange: true, busy: false };
+        },
+        saveDependency() {
+            this.dep.busy = true;
+            this.post('saveDependency', { dependentId: this.dep.dependentId, predecessorId: this.dep.predecessorId, lagDays: this.dep.lagDays || '' }).then((json) => {
+                this.dep.busy = false;
+                if (!json.saved) return;
+                this.dep.open = false;
+                this.load();
+            }, () => { this.dep.busy = false; });
+        },
+        removeDependency() {
+            this.post('removeDependency', { dependentId: this.dep.dependentId, predecessorId: this.dep.predecessorId }).then((json) => {
+                if (!json.removed) return;
+                this.dep.open = false;
+                this.load();
+            }, () => {});
+        }
+    },
+    mounted() { this.load(); },
+    beforeUnmount() { this.endDrag(); }
+};
+</script>
+
+<style>
+.boss-tl-scroll { overflow: auto; border: 1px solid rgba(0, 0, 0, .12); position: relative; }
+.boss-tl-dark.boss-tl-scroll { border-color: rgba(255, 255, 255, .14); }
+.boss-tl-head { position: sticky; top: 0; z-index: 5; background: var(--boss-tl-bg, #fff); border-bottom: 1px solid rgba(0, 0, 0, .12); }
+.boss-tl-dark .boss-tl-head { border-bottom-color: rgba(255, 255, 255, .14); }
+.boss-tl-corner, .boss-tl-cell { position: sticky; left: 0; z-index: 4; background: var(--boss-tl-bg, #fff); border-right: 1px solid rgba(0, 0, 0, .12); flex: none; }
+.boss-tl-dark .boss-tl-corner, .boss-tl-dark .boss-tl-cell { border-right-color: rgba(255, 255, 255, .14); }
+.boss-tl-scroll { --boss-tl-bg: #fff; }
+.boss-tl-dark.boss-tl-scroll { --boss-tl-bg: var(--q-dark-page, #121212); }
+.boss-tl-corner { z-index: 6; }
+.boss-tl-row { border-bottom: 1px solid rgba(0, 0, 0, .05); }
+.boss-tl-dark .boss-tl-row { border-bottom-color: rgba(255, 255, 255, .05); }
+.boss-tl-grouprow .boss-tl-cell { background: color-mix(in srgb, var(--boss-tl-bg) 94%, currentColor); }
+.boss-tl-month { border-left: 1px solid rgba(0, 0, 0, .12); }
+.boss-tl-dark .boss-tl-month { border-left-color: rgba(255, 255, 255, .14); }
+.boss-tl-line { width: 1px; background: rgba(0, 0, 0, .08); }
+.boss-tl-dark .boss-tl-line { background: rgba(255, 255, 255, .08); }
+.boss-tl-markline { width: 0; border-left: 1px dashed currentColor; opacity: .35; }
+.boss-tl-shade { background: rgba(0, 0, 0, .035); }
+.boss-tl-dark .boss-tl-shade { background: rgba(255, 255, 255, .04); }
+.boss-tl-holiday { background: rgba(0, 0, 0, .07); }
+.boss-tl-dark .boss-tl-holiday { background: rgba(255, 255, 255, .08); }
+.boss-tl-swatch { display: inline-block; width: 12px; height: 12px; vertical-align: middle; border-radius: 2px; }
+.boss-tl-band { background: color-mix(in srgb, currentColor 16%, transparent); border: 1px solid color-mix(in srgb, currentColor 45%, transparent); }
+.boss-tl-phase { background: color-mix(in srgb, currentColor 35%, transparent); }
+.boss-tl-bar { border: 1px solid currentColor; background: color-mix(in srgb, currentColor 14%, transparent); user-select: none; }
+.boss-tl-bar:focus-visible, .boss-tl-summary:focus-visible { outline: 2px solid var(--q-primary); outline-offset: 2px; }
+.boss-tl-progress { background: currentColor; opacity: .35; height: 100%; }
+.boss-tl-label { color: rgba(0, 0, 0, .87); line-height: 18px; }
+.boss-tl-dark .boss-tl-label { color: rgba(255, 255, 255, .92); }
+.boss-tl-faint { opacity: .55; }
+.boss-tl-grab { cursor: grab; }
+.boss-tl-edge { top: 0; bottom: 0; width: 7px; cursor: ew-resize; z-index: 2; }
+.boss-tl-handle { right: -6px; top: 5px; width: 9px; height: 9px; border-radius: 50%; background: currentColor; border: 2px solid var(--boss-tl-bg); cursor: crosshair; opacity: 0; z-index: 3; }
+.boss-tl-bar:hover .boss-tl-handle, .boss-tl-bar:focus-within .boss-tl-handle { opacity: 1; }
+.boss-tl-summary { user-select: none; }
+.boss-tl-bracket { position: absolute; inset: 0; background: currentColor; opacity: .75;
+    clip-path: polygon(0 0, 100% 0, 100% 100%, calc(100% - 6px) 55%, 6px 55%, 0 100%); }
+.boss-tl-summary-progress { left: 0; top: 0; height: 55%; background: currentColor; }
+.boss-tl-arrows { pointer-events: none; z-index: 3; overflow: visible; }
+.boss-tl-hit { pointer-events: stroke; cursor: pointer; }
+.boss-tl-key { font-weight: bold; }
+</style>

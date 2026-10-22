@@ -12,7 +12,8 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 <!-- The progress of one contact import (ImportProgress.xml): its query (mScreen) names the import (importId) and the file's rows
-    (total). It listens on the topic contactImportProgress (notificationClient.registerListener, which returns an unregister
+    (total), and the topic when it is another import's (Projects' work item import: workItemImportProgress). It listens on the topic,
+    contactImportProgress by default (notificationClient.registerListener, which returns an unregister
     function, called when it leaves) for {progressKey, done, total, createdCount, updatedCount, skippedCount, failedCount,
     finished} of this import, shows "Imported {done} of {total}" with a bar and the counts, and when the import finishes reloads
     the page's screens so the Result step shows the outcome. Brand color names and Quasar classes only (style-guide §4.8, §5). -->
@@ -39,6 +40,7 @@ module.exports = {
     computed: {
         query() { return this.mScreen ? this.mScreen.parameters : {}; },
         importId() { return this.query.importId || null; },
+        topic() { return this.query.topic || 'contactImportProgress'; },
         total() { return Number(this.message ? this.message.total : this.query.total) || 0; },
         done() { return this.message ? Number(this.message.done) || 0 : 0; },
         finished() { return !!(this.message && (this.message.finished === true || this.message.finished === 'true')); },
@@ -73,8 +75,9 @@ module.exports = {
         const client = this.$root.notificationClient || (moqui.webrootVue ? moqui.webrootVue.notificationClient : null);
         if (!client || !client.registerListener) return;
         const onProgress = (jsonObj) => this.receive(jsonObj);
-        const stop = client.registerListener('contactImportProgress', onProgress);
-        this.unregister = typeof stop === 'function' ? stop : () => { if (client.unregisterListener) client.unregisterListener('contactImportProgress', onProgress); };
+        const topic = this.topic;
+        const stop = client.registerListener(topic, onProgress);
+        this.unregister = typeof stop === 'function' ? stop : () => { if (client.unregisterListener) client.unregisterListener(topic, onProgress); };
     },
     beforeUnmount() {
         clearTimeout(this.reloadTimer);

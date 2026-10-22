@@ -1181,4 +1181,356 @@ along with this software (see the LICENSE.md file). If not, see
             message = parts.join(', ')
         ]]></script></actions>
     </service>
+    <!-- ========== The Timeline (design-projects.md §5 Timeline; impl-projects.md P4c) and the project's calendar (§4 ProjectCalendar) ========== -->
+
+    <service verb="get" noun="Timeline" allow-remote="false">
+        <description>
+            The Timeline's data in one of three modes:
+            - items (the default): the work items of the find (ironstone.WorkItemServices.find#WorkItems: list, all by default with
+              the cancelled ones left out, text, type, assignee, sprint, milestone, release, label; one project with
+              rootWorkEffortId), up to 500, with their ancestors (mantle.work.ProjectServices.get#TimelineData) so the tree
+              holds them: each row as WorkItems decorates it, with its own start and due, a parent's span over its sub-items,
+              progress, depth and whether the user may move it; the dependencies between them (kept or broken); the projects'
+              milestones, releases and sprints (decorate#PlanItemRows) and the holidays of their organizations.
+            - plan (the Roadmap's timeline view): the milestones, releases and, in one project, sprints, as bars or markers
+              (find#RoadmapItems with planList, all by default).
+            - portfolio (the Projects list's timeline view): the projects of the find (ironstone.ProjectServices.find#Projects with
+              projectList, active by default) as bars from their start to their due (else the span of their items), each with its
+              open milestones and releases as markers.
+            Who sees a project sees its timeline; its team (canUpdate) moves bars and makes dependencies. A project given that the
+            user may not see is notAvailable.
+        </description>
+        <in-parameters>
+            <parameter name="mode" default-value="items"/>
+            <parameter name="rootWorkEffortId"/>
+            <parameter name="list"/>
+            <parameter name="text"/>
+            <parameter name="purposeEnumId"/>
+            <parameter name="assigneePartyId"/>
+            <parameter name="sprintId"/>
+            <parameter name="milestoneId"/>
+            <parameter name="releaseId"/>
+            <parameter name="labelId"/>
+            <parameter name="planList"/>
+            <parameter name="projectList"/>
+        </in-parameters>
+        <out-parameters><parameter name="timeline" type="Map"/></out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const toMillis = (value) => {
+                if (value == null || value === '') return null
+                if (typeof value === 'number') return value
+                const text = String(value)
+                if (/^-?\d+$/.test(text)) return Number(text)
+                const parsed = Date.parse(text)
+                return Number.isNaN(parsed) ? null : parsed
+            }
+            const dayOf = (value) => toMillis(value) == null ? null : ec.l10n.format(String(toMillis(value)), 'yyyy-MM-dd')
+            const todayText = dayOf(ec.user.nowTimestamp)
+            const theMode = ['items', 'plan', 'portfolio'].includes(mode) ? mode : 'items'
+            timeline = {mode: theMode, todayText: todayText, rowList: [], dependencyList: [], planItemList: [], holidayList: [], filters: {}, project: null, truncated: false}
+            let project = null
+            let access = {}
+            if (rootWorkEffortId) {
+                access = ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: rootWorkEffortId, need: 'none'}).call() || {}
+                if (!access.canView) { timeline.notAvailable = true; return }
+                project = access.project
+                timeline.project = {workEffortId: rootWorkEffortId, workEffortName: project.workEffortName || rootWorkEffortId, canUpdate: !!access.canUpdate,
+                    canManage: !!access.canManage, startDay: dayOf(project.estimatedStartDate), dueDay: dayOf(project.estimatedCompletionDate)}
+            }
+            const vis = ec.service.sync().name('mantle.work.ProjectServices.get#VisibleProjectInfo').call() || {}
+            const members = new Set(Array.from(vis.memberProjectIds || []))
+            const managed = new Set(Array.from(vis.managedProjectIds || []))
+            const projectsManager = ec.user.isInGroup('BOSS_PROJECT_MANAGER') || ec.user.isInGroup('ADMIN')
+            const mayUpdate = (projectId) => !!vis.allProjects || projectsManager || members.has(projectId) || managed.has(projectId)
+            // the holidays of the organizations of the projects drawn (WepHoliday days), a year back and two ahead
+            const holidays = (projectIds) => {
+                const owners = Array.from(new Set(Array.from(ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', 'in', projectIds.concat(['_NA_']))
+                        .selectField('workEffortId,ownerPartyId').list()).map((row) => row.ownerPartyId).filter((id) => id)))
+                if (!owners.length) return []
+                const from = ec.l10n.parseDate(String(Number(todayText.substring(0, 4)) - 1) + todayText.substring(4), 'yyyy-MM-dd')
+                const thru = ec.l10n.parseDate(String(Number(todayText.substring(0, 4)) + 2) + todayText.substring(4), 'yyyy-MM-dd')
+                return Array.from(ec.entity.find('mantle.work.effort.WorkEffort').condition('purposeEnumId', 'WepHoliday').condition('ownerPartyId', 'in', owners)
+                        .condition('allDayStart', 'greater-equals', from).condition('allDayStart', 'less-equals', thru).selectField('allDayStart,workEffortName').list())
+                        .map((row) => ({day: String(row.allDayStart).substring(0, 10), name: row.workEffortName || L('Holiday')}))
+            }
+
+            if (theMode === 'plan') {
+                const out = ec.service.sync().name('ironstone.PlanningServices.find#RoadmapItems').parameters({list: planList || 'all', kind: 'all',
+                    rootWorkEffortId: rootWorkEffortId || null, text: text || null}).call() || {}
+                timeline.rowList = Array.from(out.rowList || []).map((row) => Object.assign({}, row, {rowKind: row.kind, depth: 0, childCount: 0,
+                    progress: row.percentDone || 0, canMove: !!row.canUpdate && row.isOpen}))
+                timeline.holidayList = holidays(Array.from(new Set(timeline.rowList.map((row) => row.rootWorkEffortId))))
+                timeline.filters.planList = out.list || 'all'
+                return
+            }
+            if (theMode === 'portfolio') {
+                const out = ec.service.sync().name('ironstone.ProjectServices.find#Projects').parameters({list: projectList || 'active', text: text || null,
+                    pageNoLimit: true, withCounts: false}).call() || {}
+                const projects = Array.from(out.rowList || []).slice(0, 300)
+                const ids = projects.map((row) => row.workEffortId)
+                // a project without dates spans its items
+                const spans = {}
+                if (ids.length) for (const row of ec.entity.find('mantle.work.effort.WorkEffort').condition('rootWorkEffortId', 'in', ids).condition('workEffortTypeEnumId', 'WetTask')
+                        .condition('statusId', 'not-equals', 'WeCancelled').selectField('rootWorkEffortId,estimatedStartDate,estimatedCompletionDate').list()) {
+                    const span = spans[row.rootWorkEffortId] || (spans[row.rootWorkEffortId] = [null, null])
+                    const start = dayOf(row.estimatedStartDate) || dayOf(row.estimatedCompletionDate)
+                    const due = dayOf(row.estimatedCompletionDate) || start
+                    if (start && (!span[0] || start < span[0])) span[0] = start
+                    if (due && (!span[1] || due > span[1])) span[1] = due
+                }
+                const plans = ids.length ? Array.from(ec.entity.find('mantle.work.effort.WorkEffort').condition('rootWorkEffortId', 'in', ids)
+                        .condition('workEffortTypeEnumId', 'in', ['WetMilestone', 'WetRelease']).condition('statusId', 'not-equals', 'WeCancelled').list()) : []
+                timeline.planItemList = plans.length ? Array.from(ec.service.sync().name('ironstone.PlanningServices.decorate#PlanItemRows').parameters({planList: plans,
+                    visibleInfo: vis}).call()?.rowList || []) : []
+                timeline.rowList = projects.map((row) => {
+                    const span = spans[row.workEffortId] || [null, null]
+                    return {workEffortId: row.workEffortId, workEffortName: row.workEffortName, url: row.url, rowKind: 'project', depth: row.isSubProject ? 1 : 0, childCount: 0,
+                        statusId: row.statusId, statusLabel: row.statusLabel, statusColor: row.statusColor, healthLabel: row.healthLabel, healthColor: row.healthColor,
+                        assigneeText: row.managerName || '', startDay: dayOf(row.estimatedStartDate) || span[0], dueDay: dayOf(row.estimatedCompletionDate) || span[1],
+                        datesFromItems: !row.estimatedStartDate && !row.estimatedCompletionDate && !!(span[0] || span[1]),
+                        progress: row.percentDone || 0, rootWorkEffortId: row.workEffortId, canMove: false}
+                })
+                timeline.holidayList = holidays(ids)
+                timeline.filters.projectList = projectList || 'active'
+                return
+            }
+
+            // ===== items: the find, its ancestors, the dependencies and the plan
+            const found = Array.from(ec.service.sync().name('ironstone.WorkItemServices.find#WorkItems').parameters({list: list || 'all', rootWorkEffortId: rootWorkEffortId || null,
+                text: text || null, purposeEnumId: purposeEnumId || null, assigneePartyId: assigneePartyId || null, sprintId: sprintId || null,
+                milestoneId: milestoneId || null, releaseId: releaseId || null, labelId: labelId || null, treeOrder: true, pageNoLimit: true, withCounts: false}).call()?.rowList || [])
+                    .filter((row) => row.statusId !== 'WeCancelled')
+            if (found.length > 500) timeline.truncated = true
+            const ids = found.slice(0, 500).map((row) => row.workEffortId)
+            const data = ec.service.sync().name('mantle.work.ProjectServices.get#TimelineData').parameters({workEffortIds: ids, withAncestors: true,
+                rootWorkEffortId: rootWorkEffortId || null}).call() || {}
+            const items = Array.from(data.itemList || [])
+            const decorated = {}
+            if (items.length) for (const row of Array.from(ec.service.sync().name('ironstone.WorkItemServices.decorate#WorkItemRows').parameters({taskList: items,
+                    visibleInfo: vis}).call()?.rowList || [])) decorated[row.workEffortId] = row
+            timeline.rowList = items.map((item) => {
+                const row = decorated[item.workEffortId] || {}
+                return {workEffortId: item.workEffortId, workEffortName: item.workEffortName || item.workEffortId, url: row.url, rowKind: 'item',
+                    typeIcon: row.typeIcon || 'sym_o_task_alt', purposeLabel: row.purposeLabel || '', statusId: item.statusId, statusLabel: row.statusLabel || '',
+                    statusColor: row.statusColor || 'grey-7', isDone: !!item.isDone, assigneePartyId: row.assigneePartyId || null, assigneeText: row.assigneeText || '',
+                    parentWorkEffortId: item.parentWorkEffortId || null, rootWorkEffortId: item.rootWorkEffortId || null, projectName: row.projectName || '',
+                    depth: item.depth || 0, childCount: item.childCount || 0, ancestor: !!item.ancestor, sequenceNum: item.sequenceNum ?? null,
+                    startDay: item.startDay, dueDay: item.dueDay,
+                    spanStartDay: item.spanStartDay, spanDueDay: item.spanDueDay, progress: item.progress || 0,
+                    milestoneId: item.milestoneId, milestoneName: row.milestoneName || '', sprintId: item.sprintId, sprintName: row.sprintName || '',
+                    releaseId: item.releaseId, releaseName: row.releaseName || '', canMove: mayUpdate(item.rootWorkEffortId) && item.statusId !== 'WeCancelled'}
+            })
+            timeline.dependencyList = Array.from(data.dependencyList || []).map((link) => ({workEffortId: link.workEffortId, toWorkEffortId: link.toWorkEffortId,
+                lagDays: link.lagDays, violated: !!link.violated, canChange: mayUpdate((items.find((item) => item.workEffortId === link.workEffortId) || {}).rootWorkEffortId)}))
+            const planIds = Array.from(data.planItemList || []).map((plan) => plan.workEffortId)
+            const planRows = planIds.length ? Array.from(ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', 'in', planIds).list()) : []
+            const plans = planRows.length ? Array.from(ec.service.sync().name('ironstone.PlanningServices.decorate#PlanItemRows').parameters({planList: planRows,
+                visibleInfo: vis}).call()?.rowList || []) : []
+            const order = new Map(planIds.map((id, index) => [id, index]))
+            timeline.planItemList = plans.sort((left, right) => order.get(left.workEffortId) - order.get(right.workEffortId))
+                    .map((plan) => Object.assign({}, plan, {canMove: plan.kind !== 'sprint' && !!plan.canUpdate && plan.isOpen}))
+            const projectIds = Array.from(new Set(items.map((item) => item.rootWorkEffortId).filter((id) => id).concat(rootWorkEffortId ? [rootWorkEffortId] : [])))
+            timeline.holidayList = holidays(projectIds)
+            // the find's options, in one project
+            if (rootWorkEffortId) {
+                const assignees = {}
+                const types = {}
+                for (const row of timeline.rowList) {
+                    if (row.assigneePartyId) assignees[row.assigneePartyId] = String(row.assigneeText || '').split(', ')[0] || row.assigneePartyId
+                    if (row.purposeLabel) types[row.purposeLabel] = true
+                }
+                timeline.filters = {assigneeOptions: Object.keys(assignees).map((key) => ({value: key, label: assignees[key]})).sort((a, b) => a.label.localeCompare(b.label)),
+                    typeOptions: Array.from(ec.service.sync().name('ironstone.ProjectServices.get#WorkItemTypes').parameters({rootWorkEffortId: rootWorkEffortId}).call()?.offeredList || [])
+                        .map((type) => ({value: type.enumId, label: type.label})),
+                    sprintOptions: timeline.planItemList.filter((plan) => plan.kind === 'sprint').map((plan) => ({value: plan.workEffortId, label: plan.workEffortName})),
+                    milestoneOptions: timeline.planItemList.filter((plan) => plan.kind === 'milestone').map((plan) => ({value: plan.workEffortId, label: plan.workEffortName})),
+                    releaseOptions: timeline.planItemList.filter((plan) => plan.kind === 'release').map((plan) => ({value: plan.workEffortId, label: plan.workEffortName}))}
+            }
+        ]]></script></actions>
+    </service>
+
+    <service verb="move" noun="TimelineItem" allow-remote="false">
+        <description>A drag on the Timeline: a work item's, milestone's or release's start and due (yyyy-MM-dd; an empty text clears
+            one, a parameter not given leaves it) by the project's team (mantle.work.TaskServices.set#TaskDates); a parent's summary
+            bar takes its sub-items along (moveSubtree), and with autoSchedule the items that depend on it move on by business days.
+            The message names how many items moved and those that could not.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="startDay"/>
+            <parameter name="dueDay"/>
+            <parameter name="shiftDays" type="Integer"><description>A bar dragged along: its dates by that many days</description></parameter>
+            <parameter name="moveSubtree" type="Boolean" default="false"/>
+            <parameter name="autoSchedule" type="Boolean" default="false"/>
+        </in-parameters>
+        <out-parameters><parameter name="movedList" type="List"/><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            const L = (text, values) => ec.resource.expand(ec.l10n.localize(text), '', values || {})
+            const record = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', workEffortId).one()
+            if (record == null) { ec.message.addError(L('${id} is not available', {id: workEffortId})); return }
+            if (record.workEffortTypeEnumId === 'WetTask') {
+                ec.service.sync().name('ironstone.TaskServices.get#TaskAccess').parameters({workEffortId: workEffortId, need: 'update', app: 'projects'}).call()
+            } else if (['WetMilestone', 'WetRelease'].includes(record.workEffortTypeEnumId)) {
+                ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: record.rootWorkEffortId || '', need: 'update'}).call()
+            } else { ec.message.addError(L('${id} is not moved on the timeline', {id: workEffortId})); return }
+            if (ec.message.hasError()) return
+            const out = ec.service.sync().name('mantle.work.TaskServices.set#TaskDates').parameters({workEffortId: workEffortId, startDay: startDay,
+                dueDay: dueDay, shiftDays: shiftDays, moveSubtree: !!moveSubtree && record.workEffortTypeEnumId === 'WetTask', autoSchedule: !!autoSchedule}).call() || {}
+            if (ec.message.hasError()) return
+            movedList = Array.from(out.movedList || [])
+            const failed = Array.from(out.failedList || [])
+            const others = movedList.filter((row) => row.workEffortId !== workEffortId).map((row) => row.workEffortId)
+            message = others.length ? L('${id} moved, and ${others}', {id: workEffortId, others: others.join(', ')}) : L('${id} moved', {id: workEffortId})
+            if (failed.length) message += '; ' + L('not moved: ${ids}', {ids: failed.map((row) => row.workEffortId + ' (' + row.error + ')').join(', ')})
+        ]]></script></actions>
+    </service>
+
+    <service verb="save" noun="TimelineDependency" allow-remote="false">
+        <description>DependencyForm and a drag from a bar's end to another bar: workEffortId waits for toWorkEffortId with lagDays
+            working days (mantle.work.TaskServices.add#TaskDependency: a loop, its own branch of the tree or a negative lag refused),
+            by one who may change workEffortId and sees toWorkEffortId.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="toWorkEffortId" required="true"/>
+            <parameter name="lagDays"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            const L = (text, values) => ec.resource.expand(ec.l10n.localize(text), '', values || {})
+            ec.service.sync().name('ironstone.TaskServices.get#TaskAccess').parameters({workEffortId: workEffortId, need: 'update', app: 'projects'}).call()
+            if (ec.message.hasError()) return
+            ec.service.sync().name('ironstone.TaskServices.get#TaskAccess').parameters({workEffortId: toWorkEffortId, need: 'view', app: 'projects'}).call()
+            if (ec.message.hasError()) return
+            const lagText = lagDays == null ? '' : String(lagDays).trim()
+            const lag = lagText === '' ? null : Number(lagText)
+            if (lagText !== '' && !Number.isFinite(lag)) { ec.message.addError(L('The lag is a number of working days')); return }
+            const out = ec.service.sync().name('mantle.work.TaskServices.add#TaskDependency').parameters({workEffortId: workEffortId, toWorkEffortId: toWorkEffortId,
+                lagDays: lag}).call() || {}
+            if (ec.message.hasError()) return
+            message = out.created ? L('${id} now waits for ${to}', {id: workEffortId, to: toWorkEffortId}) : L('The lag of ${id} after ${to} changed', {id: workEffortId, to: toWorkEffortId})
+        ]]></script></actions>
+    </service>
+    <service verb="remove" noun="TimelineDependency" allow-remote="false">
+        <description>DependencyForm's Remove: workEffortId no longer waits for toWorkEffortId (mantle remove#TaskDependency), by one
+            who may change workEffortId.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="toWorkEffortId" required="true"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.TaskServices.get#TaskAccess').parameters({workEffortId: workEffortId, need: 'update', app: 'projects'}).call()
+            if (ec.message.hasError()) return
+            ec.service.sync().name('mantle.work.TaskServices.remove#TaskDependency').parameters({workEffortId: workEffortId, toWorkEffortId: toWorkEffortId}).call()
+            if (ec.message.hasError()) return
+            message = ec.resource.expand(ec.l10n.localize('${id} no longer waits for ${to}'), '', {id: workEffortId, to: toWorkEffortId})
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="ProjectCalendarEvents" allow-remote="false">
+        <description>
+            The project's calendar (design-projects.md §4 ProjectCalendar: Commons Calendar.qvue in its project mode) from start to
+            end (days yyyy-MM-dd in the user's time zone), as Calendar.qvue takes events: the meetings linked to the project
+            (mantle.work.EventServices.get#FullCalendarData rootWorkEffortId, recurring ones expanded), its sprints over their days,
+            its milestones and releases on their due days (a phase's start a day of its own, not moved), and its work items by their due
+            day (ironstone.WorkItemServices.find#WorkItems, so a Restricted item only for those who see it). A milestone, release
+            or work item the user may change moves by a drag (movable). Each part on its own: one that fails is logged and named
+            in failedSources.
+        </description>
+        <in-parameters>
+            <parameter name="rootWorkEffortId" required="true"/>
+            <parameter name="start" required="true"/>
+            <parameter name="end" required="true"/>
+        </in-parameters>
+        <out-parameters><parameter name="eventList" type="List"/><parameter name="failedSources" type="List"/></out-parameters>
+        <actions><script><![CDATA[
+            eventList = []
+            failedSources = []
+            const access = ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: rootWorkEffortId, need: 'view'}).call() || {}
+            if (ec.message.hasError()) return
+            const dayOk = (text) => /^\d{4}-\d{2}-\d{2}$/.test(String(text || ''))
+            if (!dayOk(start) || !dayOk(end) || String(end) < String(start)) { ec.message.addError(ec.l10n.localize('The range is two days, yyyy-MM-dd')); return }
+            const L = (text) => ec.l10n.localize(text)
+            const addDays = (text, days) => { const d = new Date(text + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + days); return d.toISOString().substring(0, 10) }
+            const wall = (text) => text ? String(text).replace('T', ' ').substring(0, 16) : null
+            const attempt = (name, run) => {
+                ec.message.pushErrors()
+                try { run(); if (ec.message.hasError()) throw new Error(ec.message.getErrorsString()) }
+                catch (err) { failedSources.push(name); ec.logger.error(`Project calendar ${name} of ${rootWorkEffortId} for ${ec.user.username} not read: ${err && err.message ? err.message : err}`) }
+                finally { ec.message.clearErrors(); ec.message.popErrors() }
+            }
+            attempt('events', () => {
+                const out = ec.service.sync().name('mantle.work.EventServices.get#FullCalendarData').parameters({rootWorkEffortId: rootWorkEffortId, start: start,
+                    end: end, excludeCancelled: true, titleGString: '${workEffort.workEffortName || "(no title)"}'}).call()
+                if (ec.message.hasError()) return
+                const partyId = ec.user.userAccount?.partyId || null
+                for (const event of Array.from(out?.eventList || [])) {
+                    const instanceStart = event.instanceStart ? (event.allDay ? String(event.instanceStart).substring(0, 10) : wall(event.instanceStart)) : null
+                    eventList.push({kind: 'event', key: event.workEffortId + '|' + (instanceStart || '') + '|' + event.startMillis, workEffortId: event.workEffortId,
+                        title: event.title, start: event.allDay ? event.start : wall(event.start), end: event.allDay ? event.end : wall(event.end), allDay: !!event.allDay,
+                        color: null, statusId: event.statusId || null, partyStatusId: event.partyStatusId || null, recurring: !!event.recurring,
+                        recurringEventId: event.recurringEventId || null, instanceStart: instanceStart, freeBusyOnly: !!event.freeBusyOnly,
+                        location: event.location || null, canEdit: !!partyId && event.ownerPartyId === partyId, isOrganizer: !!partyId && event.ownerPartyId === partyId,
+                        hasAttendees: false, url: '/qapps/Commons/Calendar/EventDetail?workEffortId=' + encodeURIComponent(event.workEffortId)})
+                }
+            })
+            attempt('plan', () => {
+                const rows = Array.from(ec.entity.find('mantle.work.effort.WorkEffort').condition('rootWorkEffortId', rootWorkEffortId)
+                        .condition('workEffortTypeEnumId', 'in', ['WetMilestone', 'WetRelease', 'WetSprint']).condition('statusId', 'not-equals', 'WeCancelled').list())
+                const plans = rows.length ? Array.from(ec.service.sync().name('ironstone.PlanningServices.decorate#PlanItemRows').parameters({planList: rows}).call()?.rowList || []) : []
+                for (const plan of plans) {
+                    const first = plan.startDay || plan.dueDay
+                    const last = plan.dueDay || plan.startDay
+                    if (!first || last < start || first > end) continue
+                    // a sprint over its days; a milestone or release on its due day (over its days it would fill every day of a month), and a
+                    // phase's start as a day of its own
+                    if (plan.kind === 'sprint') {
+                        eventList.push({kind: 'sprint', key: 'sprint|' + plan.workEffortId, workEffortId: plan.workEffortId, title: plan.workEffortName,
+                            start: first, end: addDays(last, 1), allDay: true, statusId: plan.statusId, done: !plan.isOpen, canEdit: false, url: plan.url})
+                        continue
+                    }
+                    if (plan.dueDay && plan.dueDay >= start && plan.dueDay <= end) eventList.push({kind: plan.kind, key: plan.kind + '|' + plan.workEffortId,
+                        workEffortId: plan.workEffortId, title: plan.workEffortName + ' · ' + plan.kindLabel, start: plan.dueDay, end: addDays(plan.dueDay, 1), allDay: true,
+                        statusId: plan.statusId, done: !plan.isOpen, canEdit: !!plan.canUpdate && plan.isOpen, movable: true, url: plan.url})
+                    if (plan.startDay && plan.startDay !== plan.dueDay && plan.startDay >= start && plan.startDay <= end) eventList.push({kind: plan.kind,
+                        key: plan.kind + '|start|' + plan.workEffortId, workEffortId: plan.workEffortId, title: plan.workEffortName + ' · ' + L('starts'),
+                        start: plan.startDay, end: addDays(plan.startDay, 1), allDay: true, statusId: plan.statusId, done: !plan.isOpen, canEdit: false, url: plan.url})
+                }
+            })
+            attempt('work items', () => {
+                const pattern = 'yyyy-MM-dd HH:mm:ss.SSS'
+                const out = ec.service.sync().name('ironstone.WorkItemServices.find#WorkItems').parameters({list: 'all', rootWorkEffortId: rootWorkEffortId,
+                    dueFrom: ec.l10n.parseTimestamp(start + ' 00:00:00.000', pattern), dueThru: ec.l10n.parseTimestamp(addDays(end, 1) + ' 00:00:00.000', pattern),
+                    pageNoLimit: true, withCounts: false}).call()
+                if (ec.message.hasError()) return
+                for (const row of Array.from(out?.rowList || [])) {
+                    if (row.statusId === 'WeCancelled' || !row.estimatedCompletionDate) continue
+                    eventList.push({kind: 'task', key: 'task|' + row.workEffortId, workEffortId: row.workEffortId, title: row.workEffortId + ' ' + row.workEffortName,
+                        start: row.estimatedCompletionDate, end: addDays(row.estimatedCompletionDate, 1), allDay: true, statusId: row.statusId, done: !!row.isDone,
+                        canEdit: !!row.canUpdate && !row.isDone, movable: true, url: row.url})
+                }
+            })
+        ]]></script></actions>
+    </service>
+    <service verb="move" noun="ProjectCalendarItem" allow-remote="false">
+        <description>A drag in the project's calendar (start, yyyy-MM-dd, the day it was dropped on): a work item's due day moves; a
+            milestone or release moves by as many days as its due day did, its start with it so a phase keeps its length
+            (move#TimelineItem).</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="start" required="true"/>
+            <parameter name="end"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            const record = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', workEffortId).one()
+            if (record == null) { ec.message.addError(ec.resource.expand(ec.l10n.localize('${id} is not available'), '', {id: workEffortId})); return }
+            const first = String(start).substring(0, 10)
+            const params = {workEffortId: workEffortId}
+            const oldDue = record.estimatedCompletionDate == null ? null : ec.l10n.format(record.estimatedCompletionDate, 'yyyy-MM-dd')
+            if (record.workEffortTypeEnumId === 'WetTask' || !oldDue) params.dueDay = first
+            else params.shiftDays = Math.round((Date.parse(first + 'T12:00:00Z') - Date.parse(oldDue + 'T12:00:00Z')) / 86400000)
+            message = ec.service.sync().name('ironstone.PlanningServices.move#TimelineItem').parameters(params).call()?.message || null
+        ]]></script></actions>
+    </service>
 </services>

@@ -428,7 +428,7 @@ project with sub-projects (`parentWorkEffortId`); there is no separate portfolio
 - **Actions:** New project; bulk as above (managers); row: open, follow.
 - **Views:** list; board by status (In Planning, Approved, In Progress, On Hold, Complete), a drag moving the
   project through its flow (`update#Project`); timeline, which opens Timeline in portfolio mode with the same
-  find.
+  find (as built, P4c: a Timeline button with the chip and the text).
 - **States:** clients see their projects and no money columns; a project template never shows here (Settings
   holds them).
 - **Source:** research §1–§2 (OpenProject global projects index, Redmine projects, Dolibarr project list, Odoo
@@ -536,6 +536,19 @@ of that design's Calendar & schedules table, as it is used here:
 
 Services beyond the Commons version: `mantle.work.EventServices.get#FullCalendarData` with the new
 `rootWorkEffortId` filter, and `mantle.work.TaskServices.get#FullCalendarData` for the due work items.
+
+As built (P4c): ProjectDetail's Plan tab (`ProjectDetail/Plan.xml`, menu index 4) holds `Plan/Timeline` (WorkItems/Timeline mounted,
+the default) and `Plan/Calendar`; the toggle between them is a Timeline | Calendar button toggle in each component's header (a tab's
+subscreens have no second row of tabs). `Plan/Calendar.xml` serves Commons' `Calendar.qvue`, which has a project mode (its
+`calendarSetup` answers the project): no rail and no search, its requests carry the project as `workEffortId` and an event's id as
+`eventWorkEffortId` (impl-projects.md F43's pattern). The data is `ironstone.PlanningServices.get#ProjectCalendarEvents`: the meetings
+linked to the project from `get#FullCalendarData` `rootWorkEffortId` (only the linked events: all of them for a party of the
+project, else only the user's own), the sprints over their days, the milestones and releases on their due days (over their days a
+phase filled every day of a month; a phase's start is a day of its own), and the work items by due day through
+`ironstone.WorkItemServices.find#WorkItems` rather than `TaskServices.get#FullCalendarData`, so a Restricted item stays with those
+who see it. A milestone, release or work item the user may change drags to other days (`move#ProjectCalendarItem`: a work item's
+due day; a milestone or release by as many days, its start with it); New meeting
+makes the event and links it (`link#WorkEffortRecord`) for the project's team. The terminal shows an agenda of the next four weeks.
 
 ### ProjectRoadmap (Context passed)
 
@@ -702,7 +715,8 @@ The `record-files` element over the project (design-drawers-commons §9 RecordFi
   row of kind chips (All kinds, Milestones, Releases; Sprints in a project's tab); due and status edited in place by the
   project's team (`update#PlanItemField`; the status along the `Default` flow); progress is done of the items (cancelled left
   out) with the hours, from `mantle.work.ProjectServices.get#PlanItemSummary`; Awaiting approval comes with the milestone gate
-  (P8) and the timeline view with Timeline (P4c); billing share with P8. New milestone and New release are for the project's
+  (P8); billing share with P8. The timeline view (P4c) is a Timeline button that opens the Timeline in plan mode on the same list and
+  project (in a project's tab, its Plan tab's Timeline in plan mode). New milestone and New release are for the project's
   team (not only managers).
 - **Source:** research §7 (OpenProject versions and phases, Redmine roadmap, Odoo milestones); baseline
   `Project/EditMilestones`.
@@ -1027,6 +1041,23 @@ actions.
 - **States:** an item with no dates is listed in the grid with "No dates" and drawn when given a due date; clients
   see the Timeline of their projects read-only.
 - **Source:** research §6 (OpenProject timeline and Gantt module, Redmine Gantt, Dolibarr Gantt, Frappe Gantt), §7.
+- **As built (P4c):** `WorkItems/Timeline.xml` and `Timeline.qvue`, also the Timeline of ProjectDetail's Plan tab; three modes in a
+  toggle: Work items (the find: text, assignee, type, sprint, milestone; all statuses but cancelled; up to 500 items with their
+  ancestors), Milestones (plan mode, the Roadmap's view: milestones, releases and, in a project, sprints as bars; one without a
+  start a diamond or flag) and Projects (portfolio, from the Projects list: each project from its start to its due, else its
+  items' span, with its open milestones and releases as markers). Group by the tree (the default), milestone, assignee or none;
+  zoom weeks (weekends shaded), months or quarters; Today scrolls to it; the zoom, grouping and Auto-schedule are remembered in
+  the browser. The left grid stays in place as the chart scrolls sideways; at 390 px it is key and title only. A drag moves a bar
+  (`shiftDays`, so a due-only item and a parent with no dates of its own move too; a summary bar takes its subtree), its ends
+  resize it; Alt+Left and Alt+Right move a focused bar by a day. Auto-schedule only moves dependents later, never earlier, and
+  not done ones (each on its own, a failure named). A drag from a bar's round end to another bar makes that one wait for it;
+  the toolbar's Dependency opens DependencyForm for phones and the keyboard; a click on an arrow opens it with the lag and Remove.
+  A dependency that closes a loop, joins an item to its own ancestor or descendant, or has a negative lag is refused; one whose
+  item starts before the next weekday after the other's due plus the lag is drawn in the warning color. Holidays are the
+  `WepHoliday` days of the projects' organizations. The terminal has `TimelineTui`, read only (the moves wait for P11).
+  Services: `ironstone.PlanningServices` `get#Timeline`, `move#TimelineItem`, `save#` and `remove#TimelineDependency`; Mantle
+  `TaskServices` `add#`, `remove#TaskDependency` and `set#TaskDates`, `ProjectServices.get#TimelineData` (§15). WorkItemDetail's
+  Links make dependencies through `add#TaskDependency` too.
 - **Needs:** Timeline data; Dependency lag; `view-timeline` (later); `.qvue` TUI texts.
 
 ### WorkItemImport
@@ -1044,6 +1075,21 @@ actions.
 | `ImportResult` | display | What happened | made, updated, skipped, failed with the reason by row; a link to the items | job progress on a topic | `mantle.work.WorkItemImportServices.import#WorkItems` (new, as a job) | Commons `ContactImport` result |
 
 - **Source:** research §16 (the audience moving from Jira and Redmine); Commons ContactImport as the pattern.
+- **As built (P4c):** `WorkItems/Import.xml` and its steps in `Import/`, the draft in the user's own folder
+  (`ironstone.WorkItemImportServices`, as ContactImport's). Source takes the project (one the manager works in). Mapping is a
+  field to a column rather than a column to a field (an export with a hundred columns would be a hundred fields): the targets
+  are those above plus the original id (Jira's Issue id, which its Parent column names), start, resolved, story points and the
+  epic (the parent when no parent is given); a column the file repeats (Jira's Labels, Sprint, Fix Version/s) is one column whose
+  values are all taken (labels each, the sprint the last, the earlier sprints the ones it was carried over from); the estimate in
+  hours or seconds (Jira's Original Estimate); value maps for up to 20 types, 20 statuses and 10 priorities, guessed from the
+  words, the statuses those of the project's flow. Created is the reporter's `fromDate` (a work item has no created date). People
+  are matched by user name, email or full name (one match only). Options: make missing milestones, releases, components, sprints
+  and labels, and skip or update rows already imported. A sprint the file shows as past (an item carried over from it) is
+  completed after its items are in it (its rows written directly, as `set#TaskSprint` refuses a complete sprint). Result: made,
+  updated, skipped and failed by row with the reasons, the failed rows as a CSV download, the warnings, what was made, and links to
+  the project's work items and Timeline; more than 100 rows run as a job with progress on the topic `workItemImportProgress`
+  (Commons' ImportProgress component, which takes the topic). The Redmine and GitHub presets are header guesses from their
+  exports and want checking against real files.
 - **Needs:** Work item import services.
 
 ## 6. Requests
@@ -2048,7 +2094,7 @@ record is read through a service that checks the repository's rights (R21).
 | Rank | data model + service type | `WorkEffort.sequenceNum` (number-integer, gaps of 1000); `set#TaskRank(workEffortId, previousSiblingId)`, renumbering a run when a gap closes; in the tree a rank orders the children of one parent. As built (P4a): the Backlog's `set#TaskBacklogRank(workEffortId, previousWorkEffortId or nextWorkEffortId)` treats the ranks as one order over the project's items at every depth, renumbering the whole project when a gap closes, so the tree's order of siblings is that order narrowed to them | Backlog, the tree, sub-items, board card order | |
 | Work item tree | service type | `mantle.work.ProjectServices.get#WorkItemTree(find parameters, parentWorkEffortId or top, withAncestors)`: one level of the tree in rank order with each row's roll-up (its subtree's estimate, remaining, actual, budget, item and done counts, cancelled left out, as `get#WorkEffortChildStats` sums), a has-children flag, and for a find the ancestors of the matches so each sits in its place; `mantle.work.TaskServices.move#Task(workEffortId, parentWorkEffortId, previousSiblingId)`: the parent in the same project, refused when it is the item or one of its descendants, the rank set among the new siblings, the change in the audit log; `update#Task` with a new `rootWorkEffortId` moves the subtree and refuses a parent left in another project | WorkItems, WorkItemDetail, Backlog's epic filter, Timeline, ProjectOverview | `get#WorkEffortChildStats` reads one level of children per call today |
 | Story points | data model | `WorkEffort.estimatedPoints` (number-decimal); a sprint's capacity in the project's unit | WorkItemDetail, Backlog, SprintReport | |
-| Dependency lag | data model | `WorkEffortAssoc.lagDays` (number-decimal, working days) on `WeatDependsOn`, whose direction is fixed: `workEffortId` depends on `toWorkEffortId` | Timeline, WorkItemDetail | no service sets the direction today |
+| Dependency lag | data model + service type | `WorkEffortAssoc.lagDays` (number-decimal, working days) on `WeatDependsOn`, whose direction is fixed: `workEffortId` depends on `toWorkEffortId`. As built (P4c): `mantle.work.TaskServices.add#TaskDependency` (a loop, an ancestor or descendant, a negative lag refused; one already there takes the new lag) and `remove#TaskDependency`; `set#TaskDates` (start and due days, or `shiftDays`; `moveSubtree`; `autoSchedule` moves the dependents later by business days, keeping their length, through `get#FutureBusinessDay` with the project's organization's holidays) | Timeline, WorkItemDetail | |
 | Development status flow | seed data | `StatusItem`s `WeInReview` (sequence 6) and `WeInTesting` (7) of type `WorkEffort`; `StatusFlow` `WorkEffortDevelopment` with Approved, In Progress, In Review, In Testing, Complete and Closed and the moves back; `complete#TaskFromCommit` and `ironstone.TaskServices.set#TaskStatus` accept it | WorkItems, WorkItemDetail, Backlog | |
 | Labels | data model + seed data | `WorkEffortCategory.categoryTypeEnumId` (new `WorkEffortCategoryType`: `WcatLabel`, `WcatHoliday`) and `colorName` (a brand color name); the holiday categories take `WcatHoliday` | WorkItems, Labels, WorkItemDetail | |
 | Project health | data model + service type + seed data | `WorkEffort.healthEnumId` (new `WorkEffortHealth`: `WehOnTrack`, `WehAtRisk`, `WehOffTrack`); `mantle.work.effort.WorkEffortUpdate` {workEffortId, communicationEventId, updateDate, healthEnumId, percentComplete, clientVisible}; `CommunicationEventType` `StatusUpdate`; `post#ProjectUpdate`; topic `ProjectStatusUpdate` | ProjectOverview, Projects, Home, PortfolioReport | |
@@ -2062,9 +2108,9 @@ record is read through a service that checks the repository's rights (R21).
 | Release notes | service type | `generate#ReleaseNotes` (markdown of the release's items by type with their keys, and its merged merge requests) and `publish#ReleaseNotes` (a page of the project's docs space, a `CHANGELOG.md` commit through `commit#GitFiles`, an email to its followers). As built (P4b): the draft has the release's description, its done items as Features, Fixes and Other, and its merged merge requests of repositories the user may view (the open items are counted, not listed); `store#` and `get#ReleaseNotes` keep them as a `WorkEffortContent` `WectReleaseNotes`; `publish#ReleaseNotes` goes each way on its own (a failure is a warning naming it): the page `Releases/<version>` (Releases made when missing), the version's section at the top of `CHANGELOG.md` (replaced when there), and the topic `ReleasePublished` to the followers of the release and the project; `release#Release` completes it (unfinished items to the next open release or none, a tag, the notes) | ReleaseDetail | |
 | Project activity | service type | `mantle.work.ProjectServices.get#ProjectActivity`: the status changes (audit log), comments, commits and merges of the project's items, newest first, paged | ProjectOverview, Home | |
 | Time in Chatter | service type | `get#RecordTimeline` gains a time-entry source for a work item (who logged how long, with the comment) | WorkItemDetail | design-drawers-commons §15, Projects' row |
-| Calendar project filter | service type | `mantle.work.EventServices.get#FullCalendarData` takes `rootWorkEffortId`: the project's events (by `WorkEffortRecord`), milestones, releases and sprints | ProjectCalendar | |
-| Timeline data | service type | `mantle.work.ProjectServices.get#TimelineData`: the find's items with start, due, progress, plan items and dependencies, and for each parent its subtree's span and roll-up progress; business days through `get#FutureBusinessDay` | Timeline | |
-| Work item import services | service type | `mantle.work.WorkItemImportServices` `parse#WorkItemFile`, `preview#WorkItems`, `import#WorkItems` (a job with progress on a topic; the original key in `sourceReferenceId`; Jira, Redmine and GitHub CSV presets) | WorkItemImport | as `ContactImportServices` |
+| Calendar project filter | service type | `mantle.work.EventServices.get#FullCalendarData` takes `rootWorkEffortId`: the project's events (by `WorkEffortRecord`), milestones, releases and sprints. As built (P4c): only the linked events, all of them for a current party of the project (or ADMIN), else those the user owns or is on; the milestones, releases, sprints and work items are read by the caller (`ironstone.PlanningServices.get#ProjectCalendarEvents`) | ProjectCalendar | |
+| Timeline data | service type | `mantle.work.ProjectServices.get#TimelineData`: the find's items with start, due, progress, plan items and dependencies, and for each parent its subtree's span and roll-up progress; business days through `get#FutureBusinessDay`. As built (P4c): `workEffortIds` with their ancestors (`get#WorkItemTree`, so only items the user sees), `spanStartDay` and `spanDueDay` (cancelled items aside), progress 100 when done, else the roll-up's estimate less remaining, else the done of the sub-items; the dependencies between them with `violated`; the projects' milestones, releases and sprints with their progress (`get#PlanItemSummary`) | Timeline | |
+| Work item import services | service type | `mantle.work.WorkItemImportServices` `parse#WorkItemFile`, `preview#WorkItems`, `import#WorkItems` (a job with progress on a topic; the original key in `sourceReferenceId`; Jira, Redmine and GitHub CSV presets). As built (P4c): also `read#WorkItemRows` (the CSV and the mapping, a script) and `plan#WorkItemRows` (what each row does in the project); `import#WorkItems` makes the missing plan items and labels, then each row in its own transaction (`import#WorkItemRow`), then the parents (`move#Task`), then completes the past sprints it made; the BOSS step runs it as a job past 100 rows | WorkItemImport | as `ContactImportServices` |
 | Wiki space in a repository | service type | `create#WikiSpace` with `rootPageDirectory` `git://<repositoryId>/docs` in a code repository: check that a space rooted in a subdirectory works and that its saves (commits by the user on the default branch) pass the branch rules as writes. Checked (P4b, impl-projects.md F7): it works with no framework change (a moqui-core test, Revision-Management "Wiki spaces on git"); the home page is `docs/<SPACE>.md` and the pages under `docs/<SPACE>/`; `mantle.work.ProjectServices.create#ProjectDocsSpace` makes it (members, visibility, users following the project's members) | ProjectDocs, NewProject | Revision-Management "Wiki spaces on git" |
 
 ### Time, capacity and money (Mantle)

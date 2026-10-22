@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- Import step 3, ImportOptions (design-projects.md §5 WorkItemImport): how. Milestones, releases, components, sprints and labels
+    the file names that the project does not have are made (or the rows are imported without them); rows already imported (an
+    item of the project with the row's original key) are skipped or updated; people are matched by user name, email or full name,
+    else left unassigned; the original key is kept on each item. saveOptions keeps them in the import's draft. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Options" default-menu-index="3" server-static="qvt">
+
+    <parameter name="importId"/>
+
+    <transition name="saveOptions">
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            if (!['skip', 'update'].includes(existingPolicy)) { ec.message.addValidationError(null, 'existingPolicy', null, L('Choose what to do with rows already imported'), null); return }
+            ec.service.sync().name('ironstone.WorkItemImportServices.store#ImportDraft').parameters({importId: importId, fields: {status: 'options',
+                options: {createMissing: createMissing === 'Y', existingPolicy: existingPolicy}}}).call()
+        ]]></script></actions>
+        <default-response url="."><parameter name="importId"/></default-response>
+        <error-response url="."/>
+    </transition>
+
+    <actions>
+        <service-call name="ironstone.WorkItemImportServices.get#ImportDraft" in-map="{importId:importId}" out-map="draftOut"/>
+        <script><![CDATA[
+            hasDraft = !!draftOut.found
+            const saved = (draftOut.draft || {}).options || {}
+            options = {importId: importId, createMissing: saved.createMissing === false ? 'N' : 'Y', existingPolicy: saved.existingPolicy || 'skip'}
+        ]]></script>
+    </actions>
+    <widgets>
+        <section name="NoDraft" condition="!hasDraft"><widgets>
+            <container-box type="warning"><box-body><label type="p" text="Start with the file."/></box-body></container-box>
+        </widgets></section>
+        <section name="OptionsForm" condition="hasDraft"><widgets>
+            <container-box><box-header title="How"/><box-body>
+                <form-single name="ImportOptions" transition="saveOptions" map="options">
+                    <field name="importId"><default-field><hidden/></default-field></field>
+                    <field name="createMissing"><default-field title="Milestones, releases, components, sprints and labels the project does not have">
+                        <radio><option key="Y" text="Make them"/><option key="N" text="Leave them out of the items"/></radio></default-field></field>
+                    <field name="existingPolicy"><default-field title="Rows already imported (the same original key in the project)">
+                        <radio><option key="skip" text="Skip them"/><option key="update" text="Update the items from the file"/></radio></default-field></field>
+                </form-single>
+                <label type="p" text="Assignees and reporters are matched by user name, email or full name; one not found is left unassigned and named in the preview. Each item keeps its original key, so a later import of the same file finds it. A sprint the file shows as past (an item carried over from it) is completed after its items are in it." style="text-caption m-muted"/>
+            </box-body></container-box>
+        </widgets></section>
+    </widgets>
+</screen>

@@ -12,10 +12,79 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for the timeline (design-projects.md §5 Timeline; impl-projects.md P4). -->
+<!-- Timeline (design-projects.md §5 Timeline; style-guide §3.7 Calendar, §4.8 .qvue): work items as bars from start to due over a
+    project's milestones, releases and sprints, the component Timeline.qvue next to this file. Three modes (mode): items, the default
+    (the work item find; a parent's summary bar over its sub-items' span; dependencies as arrows), plan (the Roadmap's timeline view:
+    milestones, releases and sprints as bars) and portfolio (the Projects list's timeline view: projects as bars with their
+    milestones and releases). ProjectDetail mounts this screen as the Timeline of its Plan tab (design-projects.md §4
+    ProjectTimeline) with the project fixed (its always-actions put it in projectTabId); here the project is rootWorkEffortId, else
+    the first the user is on. Every read and change is a JSON transition below over service/ironstone/PlanningServices.xml
+    (get#Timeline, move#TimelineItem, save# and remove#TimelineDependency): who sees a project sees its timeline, its team moves
+    bars and makes dependencies. The terminal: TimelineTui beside this file, read only. It is the default subscreen of the Plan tab, whose
+    level the shell loads in qvt, so it answers qvt and html too (a line that it opens in the browser app), as Comms/Inbox/Mail does. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Timeline" default-menu-index="2">
+        default-menu-title="Timeline" default-menu-index="2" render-modes="vue,qvue,qvt,html,tui" server-static="vue,qvue">
+
+    <parameter name="rootWorkEffortId"/>
+    <parameter name="mode"/>
+
+    <!-- what is drawn: the mode's rows, dependencies, plan items, holidays, and the find's options -->
+    <transition name="timeline" method="get" read-only="true">
+        <actions><script><![CDATA[
+            const fixed = ec.context.get('projectTabId') || null
+            const theMode = ['items', 'plan', 'portfolio'].includes(mode) ? mode : 'items'
+            const projectOptions = fixed ? [] : Array.from(ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').call()?.projectList || [])
+            // in ProjectDetail's tab the project is its workEffortId even when the user may not see it (then "not available")
+            let project = fixed || rootWorkEffortId || (ec.context.get('inProjectDetail') ? workEffortId : null) || null
+            if (!project && theMode === 'items') {
+                const mine = Array.from(ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').parameters({memberOnly: true}).call()?.projectList || [])
+                project = mine[0]?.key || projectOptions[0]?.key || null
+                if (!project) { ec.web.sendJsonResponse({projectOptions: projectOptions, noProject: true}); return }
+            }
+            const out = ec.service.sync().name('ironstone.PlanningServices.get#Timeline').parameters({mode: theMode, rootWorkEffortId: project,
+                list: list || null, text: text || null, purposeEnumId: purposeEnumId || null, assigneePartyId: assigneePartyId || null, sprintId: sprintId || null,
+                milestoneId: milestoneId || null, releaseId: releaseId || null, labelId: labelId || null, planList: planList || null,
+                projectList: projectList || null}).call() || {}
+            if (ec.message.hasError()) { ec.message.clearErrors(); ec.web.sendJsonResponse({projectOptions: projectOptions, notAvailable: true, rootWorkEffortId: project}); return }
+            if (out.timeline?.notAvailable) { ec.web.sendJsonResponse({projectOptions: projectOptions, notAvailable: true, rootWorkEffortId: project}); return }
+            ec.web.sendJsonResponse({timeline: out.timeline, projectOptions: projectOptions, projectFixed: !!fixed})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- a drag: a bar moved or resized (a summary bar with its sub-items; auto-schedule moves the dependents) -->
+    <transition name="moveItem">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.PlanningServices.move#TimelineItem').parameters({workEffortId: itemWorkEffortId || '',
+                startDay: startDay ?? null, dueDay: dueDay ?? null, shiftDays: shiftDays || null, moveSubtree: moveSubtree === 'Y' || moveSubtree === 'true',
+                autoSchedule: autoSchedule === 'Y' || autoSchedule === 'true'}).call() || {}
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {movedCount: Array.from(out.movedList || []).length, messageInfos: [{type: 'success', message: out.message}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- DependencyForm and a drag from a bar's end: the dependent waits for the other, with a lag -->
+    <transition name="saveDependency">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.PlanningServices.save#TimelineDependency').parameters({workEffortId: dependentId || '',
+                toWorkEffortId: predecessorId || '', lagDays: lagDays ?? null}).call() || {}
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {saved: true, messageInfos: [{type: 'success', message: out.message}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="removeDependency">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.PlanningServices.remove#TimelineDependency').parameters({workEffortId: dependentId || '',
+                toWorkEffortId: predecessorId || ''}).call() || {}
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {removed: true, messageInfos: [{type: 'success', message: out.message}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+
     <widgets>
-        <label text="Placeholder: Timeline: work items as bars with dependencies, milestones and sprints." type="p"/>
+        <render-mode><text type="qvue" location="component://ironstone-boss/screen/Projects/WorkItems/Timeline.qvue" template="false"/>
+            <!-- the terminal: TimelineTui, the plain screen beside this one, on the same project and mode -->
+            <text type="tui"><![CDATA[${JSON.stringify([{t: "dynamicContainer", id: "TimelineTui",
+                url: sri.buildUrl("//Projects/WorkItems/TimelineTui").addParameters({rootWorkEffortId: ec.context.get("projectTabId") || rootWorkEffortId || null,
+                    mode: mode || null}).getUrlWithParams()}])}]]></text>
+            <text type="html,qvt"><![CDATA[<p>${ec.l10n.localize('The Timeline opens in the browser app (the qvue render mode).')}</p>]]></text></render-mode>
     </widgets>
 </screen>

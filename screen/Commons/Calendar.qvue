@@ -21,15 +21,21 @@ along with this software (see the LICENSE.md file). If not, see
     so the browser's own zone never counts. The keys follow Google Calendar (t, d, x, w, m, a, j/n or Right, k/p or Left, c, /).
     On a phone the views are day and agenda, the rail opens over the page and a tap creates in a full-screen dialog. While a
     subscreen (EventDetail, Schedules) is in the path only it shows. Calendar colors are the user's data, so the event blocks
-    and the calendar dots take them as inline colors; everything else is brand color names (style-guide §4.8, §5). -->
+    and the calendar dots take them as inline colors; everything else is brand color names (style-guide §4.8, §5).
+
+    Project mode (design-projects.md §4 ProjectCalendar, impl-projects.md P4c): ProjectDetail's Plan tab serves this component from
+    Projects/Projects/ProjectDetail/Plan/Calendar.xml, whose calendarSetup answers the project. Then there is no rail and no search;
+    the grid shows the project's linked meetings, its milestones, releases and sprints over their days and its work items on their
+    due days (kinds milestone, release, sprint and task, each opening its detail); one the user may change drags to other days
+    (movable); a new event is linked to the project, for its team; and the header has the Timeline and Calendar toggle. -->
 <template><div class="boss-calendar">
     <m-screen-context record-entity="mantle.work.effort.WorkEffort" :record-id="contextRecordId" :title="contextTitle"></m-screen-context>
 
     <template v-if="!subActive">
     <div class="row no-wrap items-start">
         <!-- ===== the rail: a column from 1024 px, over the page below ===== -->
-        <div v-if="!wide && railOpen" class="fixed-full bg-black" style="opacity:.35;z-index:3000" @click="railOpen = false"></div>
-        <div v-if="wide || railOpen" :class="wide ? 'col-auto q-pr-md' : 'fixed-left q-pa-md shadow-8 scroll ' + (dark ? 'bg-dark' : 'bg-white')"
+        <div v-if="!wide && railOpen && !project" class="fixed-full bg-black" style="opacity:.35;z-index:3000" @click="railOpen = false"></div>
+        <div v-if="(wide || railOpen) && !project" :class="wide ? 'col-auto q-pr-md' : 'fixed-left q-pa-md shadow-8 scroll ' + (dark ? 'bg-dark' : 'bg-white')"
                 :style="wide ? {width: '248px'} : {width: 'min(320px, 86vw)', zIndex: 3001}">
             <div class="row items-center no-wrap q-mb-sm">
                 <q-btn unelevated no-caps color="primary" icon="sym_o_add" :label="t('New event')" class="col" @click="newEventNow($event)">
@@ -121,20 +127,24 @@ along with this software (see the LICENSE.md file). If not, see
         <div class="col" style="min-width:0">
             <!-- the header -->
             <div class="row items-center no-wrap q-mb-sm">
-                <q-btn v-if="!wide" flat dense round icon="menu" class="q-mr-xs" @click="railOpen = true"><q-tooltip>{{t('Calendars')}}</q-tooltip></q-btn>
+                <q-btn v-if="!wide && !project" flat dense round icon="menu" class="q-mr-xs" @click="railOpen = true"><q-tooltip>{{t('Calendars')}}</q-tooltip></q-btn>
+                <q-btn-toggle v-if="project && !phone" :model-value="'calendar'" dense no-caps unelevated toggle-color="primary" class="q-mr-sm" :options="planViewOptions"
+                        @update:model-value="planView"></q-btn-toggle>
                 <q-btn unelevated dense no-caps class="m-btn-tonal q-px-sm" :label="t('Today')" @click="goToday"><q-tooltip>{{t('Today')}} (t)</q-tooltip></q-btn>
                 <q-btn flat dense round icon="chevron_left" class="q-ml-xs" @click="shift(-1)"><q-tooltip>{{t('Previous')}} (k)</q-tooltip></q-btn>
                 <q-btn flat dense round icon="chevron_right" @click="shift(1)"><q-tooltip>{{t('Next')}} (j)</q-tooltip></q-btn>
                 <div class="q-ml-sm ellipsis" :class="phone ? 'text-subtitle1 text-weight-medium' : 'text-h6'" style="min-width:0">{{rangeTitle}}</div>
                 <q-space></q-space>
-                <div v-if="!compactHeader" class="q-mx-sm" style="width:220px">
+                <div v-if="!compactHeader && !project" class="q-mx-sm" style="width:220px">
                     <m-text-line id="boss-cal-search" name="calendarSearch" v-model="searchText" :label="t('Search events')"
                             @keyup.enter="runSearch(true)"></m-text-line>
                 </div>
-                <q-btn v-else flat dense round icon="search" class="q-mx-xs" @click="openPhoneSearch"><q-tooltip>{{t('Search')}} (/)</q-tooltip></q-btn>
+                <q-btn v-else-if="!project" flat dense round icon="search" class="q-mx-xs" @click="openPhoneSearch"><q-tooltip>{{t('Search')}} (/)</q-tooltip></q-btn>
+                <q-btn v-if="project && project.canUpdate && !phone" unelevated dense no-caps color="primary" icon="sym_o_add" class="q-mx-sm" :label="t('New meeting')"
+                        @click="newEventNow($event)"></q-btn>
                 <q-btn-toggle v-if="!phone" :model-value="shownView" dense no-caps unelevated toggle-color="primary" :options="viewOptions"
                         @update:model-value="setView"></q-btn-toggle>
-                <q-btn v-if="!phone" flat dense round icon="more_vert" class="q-ml-xs">
+                <q-btn v-if="!phone && !project" flat dense round icon="more_vert" class="q-ml-xs">
                     <q-menu auto-close>
                         <q-list dense style="min-width:220px">
                             <q-item clickable @click="openFindTime"><q-item-section avatar><q-icon name="sym_o_event_available"></q-icon></q-item-section><q-item-section>{{t('Find a time')}}</q-item-section></q-item>
@@ -148,9 +158,11 @@ along with this software (see the LICENSE.md file). If not, see
                 </q-btn>
             </div>
             <div v-if="phone" class="row items-center no-wrap q-mb-sm q-gutter-x-sm">
+                <q-btn-toggle v-if="project" :model-value="'calendar'" dense no-caps unelevated toggle-color="primary" :options="planViewIcons"
+                        @update:model-value="planView"></q-btn-toggle>
                 <q-btn-toggle :model-value="shownView" dense no-caps unelevated toggle-color="primary" :options="viewOptions" @update:model-value="setView"></q-btn-toggle>
                 <q-space></q-space>
-                <q-btn unelevated dense no-caps color="primary" icon="sym_o_add" :label="t('New')" @click="newEventNow($event)"></q-btn>
+                <q-btn v-if="!project || project.canUpdate" unelevated dense no-caps color="primary" icon="sym_o_add" :label="t('New')" @click="newEventNow($event)"></q-btn>
             </div>
             <div v-if="compactHeader && phoneSearch" class="q-mb-sm" style="max-width:420px">
                 <m-text-line id="boss-cal-search" name="calendarSearch" v-model="searchText" :label="t('Search events')" @keyup.enter="runSearch(true)"></m-text-line>
@@ -209,7 +221,7 @@ along with this software (see the LICENSE.md file). If not, see
                         </div>
                         <div v-for="item in allDayLayout.items" :key="'a' + item.key" :id="'boss-ev-a' + item.domKey" class="absolute rounded-borders ellipsis q-px-xs text-caption"
                                 :class="eventClass(item)" :style="chipStyle(item)" @pointerdown.stop="onChipDown($event, item, 'allday')">
-                            <q-icon v-if="item.kind === 'task'" :name="item.done ? 'sym_o_task_alt' : 'sym_o_radio_button_unchecked'" size="xs" class="q-mr-xs"></q-icon>{{item.title}}
+                            <q-icon v-if="kindIcon(item)" :name="kindIcon(item)" size="xs" class="q-mr-xs"></q-icon>{{item.title}}
                         </div>
                         <div v-if="chipPreview && chipPreview.zone === 'allday'" class="absolute rounded-borders ellipsis q-px-xs text-caption shadow-3"
                                 :class="eventClass(chipPreview.item)" :style="Object.assign(chipStyle(chipPreview.item, chipPreview), {pointerEvents: 'none', zIndex: 5})">{{chipPreview.item.title}}</div>
@@ -239,7 +251,7 @@ along with this software (see the LICENSE.md file). If not, see
                                         <div :id="'boss-ev-' + item.domKey" class="absolute rounded-borders overflow-hidden q-px-xs"
                                                 :class="eventClass(item)" :style="eventStyle(item)" @pointerdown.stop="onEventDown($event, item, cell.date)">
                                             <div class="text-caption text-weight-medium ellipsis" style="line-height:1.25">
-                                                <q-icon v-if="item.kind === 'task'" :name="item.done ? 'sym_o_task_alt' : 'sym_o_radio_button_unchecked'" size="xs" class="q-mr-xs"></q-icon>
+                                                <q-icon v-if="kindIcon(item)" :name="kindIcon(item)" size="xs" class="q-mr-xs"></q-icon>
                                                 <q-icon v-else-if="item.recurring" name="sym_o_repeat" size="12px" class="q-mr-xs"></q-icon>{{item.title}}<span v-if="item.height < 34"> · {{item.shortTime}}</span>
                                             </div>
                                             <div v-if="item.height >= 34" class="text-caption ellipsis" style="line-height:1.2;opacity:.9">{{item.timeText}}</div>
@@ -326,7 +338,7 @@ along with this software (see the LICENSE.md file). If not, see
                             <q-item-section avatar style="min-width:18px"><span class="rounded-borders" :class="dotClass(item)" :style="dotStyle(item, 10)"></span></q-item-section>
                             <q-item-section>
                                 <q-item-label :class="item.partyStatusId === 'WeptDeclined' || item.done ? 'text-strike m-muted' : ''">
-                                    <q-icon v-if="item.kind === 'task'" name="sym_o_task_alt" size="xs" class="q-mr-xs"></q-icon><q-icon v-else-if="item.recurring" name="sym_o_repeat" size="xs" class="q-mr-xs"></q-icon>{{item.title}}</q-item-label>
+                                    <q-icon v-if="kindIcon(item)" :name="kindIcon(item)" size="xs" class="q-mr-xs"></q-icon><q-icon v-else-if="item.recurring" name="sym_o_repeat" size="xs" class="q-mr-xs"></q-icon>{{item.title}}</q-item-label>
                                 <q-item-label v-if="item.location" caption class="ellipsis">{{item.location}}</q-item-label>
                             </q-item-section>
                             <q-item-section v-if="item.partyStatusId === 'WeptOffered' || item.partyStatusId === 'WeptTentative'" side>
@@ -513,12 +525,14 @@ const isLight = (color) => {
     return (0.299 * (value >> 16) + 0.587 * ((value >> 8) & 255) + 0.114 * (value & 255)) / 255 > 0.66;
 };
 const VIEWS = ['day', 'workweek', 'week', 'month', 'agenda'];
+// the brand colors of a project's calendar items (project mode) and of a task
+const PLAN_COLORS = { task: 'primary', milestone: 'accent', release: 'secondary', sprint: 'info' };
 
 module.exports = {
     name: 'BossCalendar',
     data() {
         return {
-            ready: false, loadingEvents: false, setupFailed: [], failedSources: [], skipped: [],
+            ready: false, project: null, loadingEvents: false, setupFailed: [], failedSources: [], skipped: [],
             calendars: [], defaultCalendarId: null, roomOptions: [], me: {}, timeZone: '', todayText: '', nowMinutes: 0,
             defaults: { view: 'week', weekStart: 0, workStart: '09:00', workEnd: '17:00', workDays: [1, 2, 3, 4, 5], defaultDuration: 60,
                 defaultReminder: '10', showDeclined: false, showWeekNumbers: false, showTasks: false, hiddenCalendarIds: [] },
@@ -787,14 +801,19 @@ module.exports = {
         },
         problems() {
             const out = [];
-            const names = { calendars: this.t('your calendars'), rooms: this.t('the rooms'), events: this.t('the events'), 'event details': this.t('some event details'), tasks: this.t('your tasks') };
+            const names = { calendars: this.t('your calendars'), rooms: this.t('the rooms'), events: this.t('the events'), 'event details': this.t('some event details'), tasks: this.t('your tasks'),
+                plan: this.t('the milestones, releases and sprints'), 'work items': this.t('the work items') };
             const failed = this.setupFailed.concat(this.failedSources);
             if (failed.length) out.push(this.t('Not loaded') + ': ' + failed.map((name) => names[name] || name).join(', '));
             if (this.skipped.length) out.push(this.t('Some calendars are no longer shared with you'));
+            if (this.project && this.project.notAvailable) out.push(this.t('This project is not available: it does not exist, or it is a Work group project you are not on'));
             return out;
         },
-        contextRecordId() { return this.pop.open && this.pop.event ? this.pop.event.workEffortId : ''; },
-        contextTitle() { return this.pop.open && this.pop.event ? this.pop.event.name : this.t('Calendar') + (this.rangeTitle ? ': ' + this.rangeTitle : ''); }
+        contextRecordId() { return this.pop.open && this.pop.event ? this.pop.event.workEffortId : (this.project && this.project.workEffortId ? this.project.workEffortId : ''); },
+        contextTitle() { return this.pop.open && this.pop.event ? this.pop.event.name : (this.project ? this.project.workEffortName + ' · ' : '') + this.t('Calendar') + (this.rangeTitle ? ': ' + this.rangeTitle : ''); },
+        planViewOptions() { return [{ label: this.t('Timeline'), value: 'timeline', icon: 'sym_o_view_timeline' }, { label: this.t('Calendar'), value: 'calendar', icon: 'sym_o_calendar_month' }]; },
+        // on a phone the toggle is its icons, beside the views
+        planViewIcons() { return this.planViewOptions.map((option) => ({ value: option.value, icon: option.icon, attrs: { 'aria-label': option.label } })); }
     },
     watch: {
         // the state is in the URL: a query-only change (Today, previous, next, the views) does not remount the screen
@@ -812,7 +831,18 @@ module.exports = {
     },
     methods: {
         t(text) { return moqui.l10n && moqui.l10n.localize ? moqui.l10n.localize(text) : text; },
-        url(name) { return this.screenPath + '/' + name; },
+        // in a project's calendar every request carries the project (ProjectDetail's workEffortId), and an event's id is eventWorkEffortId
+        url(name) {
+            const projectId = this.projectParamId();
+            return this.screenPath + '/' + name + (projectId ? '?' + moqui.objToSearch({ workEffortId: projectId }) : '');
+        },
+        projectParamId() { return this.pathList.indexOf('ProjectDetail') >= 0 ? (this.$root.currentParameters || {}).workEffortId || null : null; },
+        scoped(params) {
+            if (!this.projectParamId() || !params || params.workEffortId == null) return params;
+            const out = Object.assign({}, params, { eventWorkEffortId: params.workEffortId });
+            delete out.workEffortId;
+            return out;
+        },
         // an m-form action is a path under the web app (m-form puts appRootPath before it)
         action(name) {
             const rootPath = this.$root.appRootPath || '';
@@ -860,6 +890,7 @@ module.exports = {
                 this.me = json.me || {};
                 this.roomOptions = json.roomOptions || [];
                 this.setupFailed = json.failedSources || [];
+                this.project = json.project || null;
                 this.updateNow();
                 this.ready = true;
             }, (err) => { moqui.handleAjaxError(err); this.ready = true; });
@@ -985,14 +1016,14 @@ module.exports = {
         // ===== the look of an event =====
         isInvite(item) { return item.kind === 'event' && (item.partyStatusId === 'WeptOffered' || item.partyStatusId === 'WeptDeclined'); },
         eventClass(item) {
-            if (item.kind === 'task') return (this.dark ? 'bg-grey-9 text-white' : 'bg-grey-3 text-black') + (item.done ? ' text-strike' : '');
+            if (PLAN_COLORS[item.kind]) return (this.dark ? 'bg-grey-9 text-white' : 'bg-grey-3 text-black') + (item.done ? ' text-strike' : '');
             if (item.freeBusyOnly) return this.dark ? 'bg-grey-8 text-white' : 'bg-grey-5 text-white';
             if (this.isInvite(item)) return (this.dark ? 'bg-dark' : 'bg-white') + (item.partyStatusId === 'WeptDeclined' ? ' text-strike' : '');
             return item.color && isLight(item.color) ? 'text-black' : 'text-white';
         },
         colorStyle(item) {
             const color = item.color || 'var(--q-primary)';
-            if (item.kind === 'task') return { borderLeft: '3px solid var(--q-primary)' };
+            if (PLAN_COLORS[item.kind]) return { borderLeft: '3px solid var(--q-' + PLAN_COLORS[item.kind] + ')' };
             if (item.freeBusyOnly) return {};
             if (this.isInvite(item)) return { border: '1px ' + (item.partyStatusId === 'WeptDeclined' ? 'dashed ' : 'solid ') + color, color: color };
             const style = { background: color };
@@ -1011,10 +1042,21 @@ module.exports = {
             return Object.assign(this.colorStyle(item), { top: (lane * 22 + 3) + 'px', height: '20px', lineHeight: '20px', left: 'calc(' + leftPct + '% + 2px)',
                 width: 'calc(' + item.widthPct + '% - 5px)', zIndex: 2, cursor: item.canEdit && !this.phone ? 'grab' : 'pointer', opacity: dragging ? 0.35 : undefined });
         },
-        dotClass(item) { return item.kind === 'task' ? 'bg-grey-6' : (item.freeBusyOnly ? 'bg-grey-5' : ''); },
+        dotClass(item) { return item.kind === 'task' ? 'bg-grey-6' : (PLAN_COLORS[item.kind] ? 'bg-' + PLAN_COLORS[item.kind] : (item.freeBusyOnly ? 'bg-grey-5' : '')); },
+        // a work item, milestone, release or sprint has its kind's icon; an event none
+        kindIcon(item) {
+            if (item.kind === 'task') return item.done ? 'sym_o_task_alt' : 'sym_o_radio_button_unchecked';
+            return { milestone: 'sym_o_diamond', release: 'sym_o_flag', sprint: 'sym_o_sprint' }[item.kind] || null;
+        },
+        planView(value) {
+            if (value !== 'timeline') return;
+            const planIndex = this.pathList.lastIndexOf('Plan');
+            const params = this.$root.currentParameters || {};
+            this.$root.setUrl(this.$root.linkBasePath + '/' + this.pathList.slice(0, planIndex + 1).join('/') + '/Timeline?' + moqui.objToSearch({ workEffortId: params.workEffortId || '' }));
+        },
         dotStyle(item, size) {
             const style = { display: 'inline-block', width: size + 'px', height: size + 'px', flex: 'none', verticalAlign: 'middle' };
-            if (item.kind === 'task' || item.freeBusyOnly) return style;
+            if (PLAN_COLORS[item.kind] || item.freeBusyOnly) return style;
             if (this.isInvite(item)) return Object.assign(style, { border: '2px solid ' + (item.color || 'var(--q-primary)') });
             return Object.assign(style, { background: item.color || 'var(--q-primary)' });
         },
@@ -1087,7 +1129,7 @@ module.exports = {
         onEventDown(event, item, day) {
             if (event.button !== 0) return;
             const touch = event.pointerType === 'touch' || this.phone;
-            const movable = !touch && item.canEdit && item.kind === 'event' && !item.freeBusyOnly;
+            const movable = !touch && item.canEdit && (item.kind === 'event' || item.movable) && !item.freeBusyOnly;
             if (!touch) event.preventDefault();
             const column = event.currentTarget.closest('[data-day]');
             const grab = column ? this.minuteAt(column, event.clientY) - (item.sAbs - dayNum(day) * 1440) : 0;
@@ -1104,7 +1146,7 @@ module.exports = {
         onChipDown(event, item, zone, day) {
             if (event.button !== 0) return;
             const touch = event.pointerType === 'touch' || this.phone;
-            const movable = !touch && item.canEdit && item.kind === 'event' && !item.freeBusyOnly;
+            const movable = !touch && item.canEdit && (item.kind === 'event' || item.movable) && !item.freeBusyOnly;
             if (!touch) event.preventDefault();
             const cell = this.cellAt(event.clientX, event.clientY, zone);
             this.drag = { mode: 'moveDays', zone, item, origin: cell ? cell.getAttribute('data-day') : (day || item.startDay), x: event.clientX, y: event.clientY,
@@ -1207,6 +1249,8 @@ module.exports = {
             this.openQuick({ start, end, allDay }, el);
         },
         openQuick(values, el) {
+            // in a project's calendar its team makes meetings
+            if (this.project && !this.project.canUpdate) return;
             const calendarId = this.calendarOptions.some((option) => option.value === this.defaultCalendarId) ? this.defaultCalendarId
                 : (this.calendarOptions[0] ? this.calendarOptions[0].value : '');
             this.pop.open = false;
@@ -1255,7 +1299,7 @@ module.exports = {
         },
         // ===== the event popover =====
         openItem(domEvent, item) {
-            if (item.kind === 'task') { this.go(item.url); return; }
+            if (item.kind !== 'event') { this.go(item.url); return; }
             this.quick.open = false;
             this.setAnchor(domEvent && domEvent.currentTarget);
             if (item.freeBusyOnly) {
@@ -1266,7 +1310,7 @@ module.exports = {
             }
             this.pop = { open: false, loading: true, item, event: null, color: item.color || null, busy: null };
             this.$nextTick(() => { this.pop.open = true; });
-            moqui.request(this.url('eventSummary'), { params: { workEffortId: item.workEffortId, instanceStart: item.recurringEventId === item.workEffortId ? (item.instanceStart || '') : '' } }).then((result) => {
+            moqui.request(this.url('eventSummary'), { params: this.scoped({ workEffortId: item.workEffortId, instanceStart: item.recurringEventId === item.workEffortId ? (item.instanceStart || '') : '' }) }).then((result) => {
                 if (this.pop.item !== item) return;
                 const json = result.json || {};
                 this.pop.loading = false;
@@ -1282,7 +1326,7 @@ module.exports = {
         respond(value) {
             const event = this.pop.event;
             if (!event) return;
-            moqui.request(this.url('respond'), { method: 'POST', params: { workEffortId: event.workEffortId, response: value } }).then((result) => {
+            moqui.request(this.url('respond'), { method: 'POST', params: this.scoped({ workEffortId: event.workEffortId, response: value }) }).then((result) => {
                 const json = result.json || {};
                 moqui.notifyMessages(json.messageInfos, json.errors);
                 if (json.statusId) event.myStatusId = json.statusId;
@@ -1317,7 +1361,7 @@ module.exports = {
         },
         doChange(kind, payload, scope, notify) {
             const name = kind === 'cancel' ? 'cancelEvent' : 'moveEvent';
-            return moqui.request(this.url(name), { method: 'POST', params: Object.assign({}, payload, { scope, notify }) }).then((result) => {
+            return moqui.request(this.url(name), { method: 'POST', params: this.scoped(Object.assign({}, payload, { scope, notify })) }).then((result) => {
                 const json = result.json || {};
                 moqui.notifyMessages(json.messageInfos, json.errors);
                 this.preview = null;

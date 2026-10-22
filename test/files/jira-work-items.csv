@@ -1,0 +1,7 @@
+Issue key,Issue id,Summary,Issue Type,Status,Priority,Assignee,Reporter,Created,Custom field (Start date),Due date,Original Estimate,Custom field (Story Points),Labels,Labels,Sprint,Sprint,Fix Version/s,Parent,Description
+SHOP-1,20001,Checkout,Epic,In Progress,High,john.doe,john.doe,01/Oct/26 9:00 AM,05/Oct/26,13/Nov/26,,,web,,,,2.0,,"Everything from the cart to the receipt"
+SHOP-2,20002,Cart page,Story,Done,Medium,Joe Developer,john.doe,02/Oct/26 9:00 AM,05/Oct/26,16/Oct/26,57600,5,web,ui,Shop Sprint 1,,2.0,20001,
+SHOP-3,20003,Payment form,Story,In Review,Highest,Joe Developer,john.doe,05/Oct/26 10:00 AM,19/Oct/26,30/Oct/26,28800,3,ui,,Shop Sprint 1,Shop Sprint 2,2.0,20001,"Card first, then
+the wallets"
+SHOP-4,20004,,Bug,To Do,Low,,,06/Oct/26 10:00 AM,,,,,,,,,,,
+SHOP-5,20005,Receipt email,Task,To Do,Lowest,someone.else,,07/Oct/26 10:00 AM,02/Nov/26,06/Nov/26,14400,2,,,Shop Sprint 2,,,SHOP-1,

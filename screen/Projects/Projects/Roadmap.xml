@@ -18,8 +18,9 @@ along with this software (see the LICENSE.md file). If not, see
     the list's dialog (project, text, due period). The columns: the name (a link to MilestoneDetail or ReleaseDetail) with its
     id, the project, the kind, start, due (edited in place by the project's team), status (moved in place along the Default
     flow), progress and the date it was reached or released. New milestone and New release open dialogs (the id KEY-MS-n or
-    KEY-REL-n unless given). Views: the list and a calendar by due date. Awaiting approval comes with the milestone gate
-    (impl-projects.md P8); the timeline in plan mode with Timeline (P4c).
+    KEY-REL-n unless given). Views: the list and a calendar by due date; Timeline opens the Timeline in plan mode (milestones,
+    releases and, in a project, sprints as bars) on the same list and project. Awaiting approval comes with the milestone gate
+    (impl-projects.md P8).
 
     ProjectDetail mounts this screen as its Roadmap tab (design-projects.md §4 ProjectRoadmap): its always-actions put the
     project in projectTabId, so the project is fixed (its column and find field are left out), and the project's sprints are a
@@ -125,6 +126,9 @@ along with this software (see the LICENSE.md file). If not, see
             const empty = {upcoming: 'No open milestones or releases', overdue: 'Nothing overdue', completed: 'Nothing reached or released yet', all: 'No milestones or releases yet'}
             emptyText = Object.keys(kept).filter((key) => key !== 'rootWorkEffortId').length ? L('Nothing matches') : L(empty[list])
             today = ec.l10n.format(ec.user.nowTimestamp, 'yyyy-MM-dd')
+            // the timeline view: the Timeline in plan mode, in the project's Plan tab when the project is fixed
+            timelineUrl = projectFixed ? '/qapps/Projects/Projects/ProjectDetail/Plan/Timeline?workEffortId=' + encodeURIComponent(projectId) + '&mode=plan'
+                : '/qapps/Projects/WorkItems/Timeline?mode=plan&planList=' + encodeURIComponent(list) + (projectId ? '&rootWorkEffortId=' + encodeURIComponent(projectId) : '')
         ]]></script>
     </actions>
 
@@ -133,6 +137,7 @@ along with this software (see the LICENSE.md file). If not, see
             <label text="Roadmap" type="h5" style="q-my-none q-mr-sm" condition="!projectFixed"/>
             <container style="col"/>
             <container style="row q-gutter-xs">
+                <link url="${timelineUrl}" url-type="plain" text="Timeline" icon="sym_o_view_timeline" link-type="anchor-button"/>
                 <container-dialog id="NewMilestoneDialog" button-text="New milestone" icon="sym_o_flag" width="520" title="New milestone" condition="canAdd" type="primary">
                     <form-single name="NewMilestone" transition="savePlanItem" focus-field="workEffortName">
                         <field name="workEffortId" from="pageWorkEffortId"><default-field><hidden/></default-field></field>

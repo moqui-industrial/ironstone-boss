@@ -19,8 +19,8 @@ along with this software (see the LICENSE.md file). If not, see
     period), with saved finds; the columns key, name, client, manager, status and health chips, progress (items done), next
     milestone, open and overdue items, hours of the budget, client budget used (managers) and the last change. The board groups
     by status along the Default flow, every row of the find, a drag moving the project (managers; set#ProjectStatus). Bulk for
-    managers: set the manager, put on hold, close. New project opens the NewProject wizard; the timeline view (Timeline's
-    portfolio mode) comes with impl-projects.md P4. -->
+    managers: set the manager, put on hold, close. New project opens the NewProject wizard; Timeline opens the Timeline's
+    portfolio mode (the projects as bars with their milestones and releases) on the same chip and text. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Projects" default-menu-include="false">
 
@@ -152,6 +152,8 @@ along with this software (see the LICENSE.md file). If not, see
         <container style="row items-center q-mb-sm q-gutter-y-xs">
             <label text="Projects" type="h5" style="q-my-none q-mr-sm"/>
             <container style="col"/>
+            <link url="/qapps/Projects/WorkItems/Timeline" url-type="plain" text="Timeline" icon="sym_o_view_timeline" link-type="anchor-button" style="q-mr-xs"
+                    parameter-map="{mode:'portfolio', projectList:list, text:(text || null)}"/>
             <link url="newProject" text="New project" icon="sym_o_create_new_folder" btn-type="primary" condition="isProjectsManager"/>
         </container>
 

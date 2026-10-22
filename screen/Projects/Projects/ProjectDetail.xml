@@ -23,11 +23,12 @@ along with this software (see the LICENSE.md file). If not, see
     Re-open (service/ironstone/ProjectServices.xml get#ProjectHeader).
 
     The tabs are subscreens, each with the project as its context: Overview (1), Work items (2, WorkItems/List with the project
-    fixed), Backlog (3, WorkItems/Backlog with the project fixed), Roadmap (5, Projects/Roadmap with the project fixed), Code (7),
+    fixed), Backlog (3, WorkItems/Backlog with the project fixed), Plan (4, ProjectDetail/Plan: WorkItems/Timeline with the project
+    fixed and the project's Calendar, a toggle between them), Roadmap (5, Projects/Roadmap with the project fixed), Code (7),
     Docs (8, Commons/Knowledge with the project's documentation space fixed), Team (9), Files (12) and Settings (13, managers,
-    BOSS_PROJECTS_MANAGERS). The later phases' tabs (Plan 4, Requests 6, Time 10, Money 11; impl-projects.md P4c to P8) are left
-    out until they are built; the Modules box of Settings already keeps which are on (WstModules). A project the user may not see
-    is "not available". -->
+    BOSS_PROJECTS_MANAGERS). The later phases' tabs (Requests 6, Time 10, Money 11; impl-projects.md P5 to P8) are left out until
+    they are built; the Modules box of Settings already keeps which are on (WstModules). A project the user may not see is "not
+    available". -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Project" default-menu-include="false">
 
@@ -50,8 +51,8 @@ along with this software (see the LICENSE.md file). If not, see
         <!-- the backlog and sprints with the project fixed (design-projects.md §4 ProjectBacklog); always there (impl-projects.md F24):
             without the Backlog and sprints module it ranks the backlog only, with Plan in sprints for the managers -->
         <subscreens-item name="Backlog" location="component://ironstone-boss/screen/Projects/WorkItems/Backlog.xml" menu-title="Backlog" menu-index="3"/>
-        <!-- the milestones, releases and sprints with the project fixed (design-projects.md §4 ProjectRoadmap); Plan (4) and Requests (6)
-            come with impl-projects.md P4c and P5 -->
+        <!-- the milestones, releases and sprints with the project fixed (design-projects.md §4 ProjectRoadmap); Plan (4) is
+            ProjectDetail/Plan.xml beside this file; Requests (6) comes with impl-projects.md P5 -->
         <subscreens-item name="Roadmap" location="component://ironstone-boss/screen/Projects/Projects/Roadmap.xml" menu-title="Roadmap" menu-index="5"/>
         <!-- the project's documentation space in Commons Knowledge with the space fixed, and its linked pages (design-projects.md §4
             ProjectDocs); always there (impl-projects.md F24): without a space it offers Set up documentation -->

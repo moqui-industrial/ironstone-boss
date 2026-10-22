@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The terminal twin of Timeline (style-guide §4.8): Timeline.xml's tui text is a dynamic container of this screen. The project's
+    milestones, releases and sprints with their dates, then the rows in the timeline's order (the tree indented), each with its
+    start, due, progress and what it waits for (a broken dependency marked), from the same service as Timeline.qvue
+    (ironstone.PlanningServices.get#Timeline), read only; plan and portfolio modes list their rows the same way. Moving bars and
+    making dependencies are the browser's (impl-projects.md P11 for the terminal); an item opens its detail. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Timeline" default-menu-include="false">
+
+    <parameter name="rootWorkEffortId"/>
+    <parameter name="mode"/>
+
+    <transition name="workItemDetail"><default-response url="../WorkItemDetail"/></transition>
+
+    <actions><script><![CDATA[
+        timelineFound = false; rowList = []; planRows = []
+        const L = (text) => ec.l10n.localize(text)
+        const theMode = ['items', 'plan', 'portfolio'].includes(mode) ? mode : 'items'
+        let project = rootWorkEffortId || null
+        if (!project && theMode === 'items') project = Array.from(ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').parameters({memberOnly: true}).call()?.projectList || [])[0]?.key || null
+        if (!project && theMode === 'items') return
+        const out = ec.service.sync().name('ironstone.PlanningServices.get#Timeline').parameters({mode: theMode, rootWorkEffortId: project}).call() || {}
+        ec.message.clearErrors()
+        const timeline = out.timeline
+        if (!timeline || timeline.notAvailable) return
+        timelineFound = true
+        title = theMode === 'portfolio' ? L('Projects') : (timeline.project ? timeline.project.workEffortName + ' (' + timeline.project.workEffortId + ')' : L('Roadmap'))
+        const fmt = (day) => day ? ec.l10n.format(ec.l10n.parseTimestamp(day + ' 12:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS'), 'MMM d') : ''
+        const span = (first, last) => first && last && first !== last ? fmt(first) + ' – ' + fmt(last) : fmt(last || first)
+        const names = {}
+        for (const row of timeline.rowList || []) names[row.workEffortId] = row.workEffortId
+        const waits = {}
+        for (const link of timeline.dependencyList || []) (waits[link.workEffortId] || (waits[link.workEffortId] = [])).push(link.toWorkEffortId
+                + (link.lagDays ? ' +' + link.lagDays + 'd' : '') + (link.violated ? ' (' + L('late') + ')' : ''))
+        rowList = Array.from(timeline.rowList || []).map((row) => ({workEffortId: row.workEffortId, url: row.url || '',
+            name: '  '.repeat(Math.min(row.depth || 0, 6)) + (row.workEffortName || row.workEffortId),
+            whenText: row.childCount && !row.startDay && !row.dueDay ? span(row.spanStartDay, row.spanDueDay) : (span(row.startDay, row.dueDay) || L('No dates')),
+            progressText: (row.progress || 0) + '%', statusLabel: row.statusLabel || '', waitsText: (waits[row.workEffortId] || []).join(', ')}))
+        planRows = Array.from(theMode === 'items' ? (timeline.planItemList || []) : []).map((plan) => ({name: plan.workEffortName, kind: plan.kindLabel,
+            whenText: span(plan.startDay, plan.dueDay), statusLabel: plan.statusLabel, progressText: (plan.percentDone || 0) + '%'}))
+        dependencyCount = (timeline.dependencyList || []).length
+    ]]></script></actions>
+    <widgets>
+        <section name="TimelineTuiFound" condition="timelineFound"><widgets>
+            <label text="${title}" type="h5"/>
+            <section name="TimelineTuiPlan" condition="planRows.length"><widgets>
+                <container-box><box-header title="Milestones, releases and sprints"/><box-body-nopad>
+                    <form-list name="TimelineTuiPlanItems" list="planRows" skip-form="true" paginate="false">
+                        <field name="name"><default-field title="Name"><display/></default-field></field>
+                        <field name="kind"><default-field title="Kind"><display/></default-field></field>
+                        <field name="whenText"><default-field title="When"><display/></default-field></field>
+                        <field name="statusLabel"><default-field title="Status"><display/></default-field></field>
+                        <field name="progressText"><default-field title="Done"><display/></default-field></field>
+                    </form-list>
+                </box-body-nopad></container-box>
+            </widgets></section>
+            <container-box><box-header title="Timeline"/><box-body-nopad>
+                <form-list name="TimelineTuiRows" list="rowList" skip-form="true" paginate="false">
+                    <field name="workEffortId"><default-field title="Key"><link url="${url}" url-type="plain" text="${workEffortId}" link-type="anchor"/></default-field></field>
+                    <field name="name"><default-field title="Title"><display/></default-field></field>
+                    <field name="whenText"><default-field title="When"><display/></default-field></field>
+                    <field name="progressText"><default-field title="Done"><display/></default-field></field>
+                    <field name="statusLabel"><default-field title="Status"><display/></default-field></field>
+                    <field name="waitsText"><default-field title="Waits for"><display/></default-field></field>
+                </form-list>
+                <label type="p" text="Nothing to draw" style="m-muted q-pa-sm q-mb-none" condition="!rowList.length"/>
+            </box-body-nopad></container-box>
+            <label type="p" text="Moving bars and dependencies are in the browser's Timeline." style="m-muted"/>
+        </widgets><fail-widgets>
+            <label type="p" text="No timeline to show: no project you see." style="m-muted"/>
+        </fail-widgets></section>
+    </widgets>
+</screen>

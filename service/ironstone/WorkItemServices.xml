@@ -948,7 +948,8 @@ along with this software (see the LICENSE.md file). If not, see
     <service verb="add" noun="WorkItemLink">
         <description>A relation of a work item to another of a project the user sees (Links): kind blocks, blockedBy, relatesTo,
             duplicates, duplicatedBy, causes, causedBy, clones, clonedBy, basedOn; a dependency (blocks, blocked by) with its lag
-            in working days. The direction is the WorkEffortAssoc's: workEffortId depends on (is blocked by) toWorkEffortId.</description>
+            in working days (mantle.work.TaskServices.add#TaskDependency: a loop or a dependency in the item's own branch of the tree is
+            refused). The direction is the WorkEffortAssoc's: workEffortId depends on (is blocked by) toWorkEffortId.</description>
         <in-parameters>
             <parameter name="workEffortId" required="true"/>
             <parameter name="kind" required="true"/>
@@ -972,6 +973,13 @@ along with this software (see the LICENSE.md file). If not, see
                 if (!entry) { ec.message.addError(ec.resource.expand('${kind} is not a kind of link', '', {kind})); return }
                 const from = entry[1] ? workEffortId : otherId
                 const to = entry[1] ? otherId : workEffortId
+                // a dependency through the Mantle service, which refuses a loop or one in the item's own branch of the tree
+                if (entry[0] === 'WeatDependsOn') {
+                    ec.service.sync().name('mantle.work.TaskServices.add#TaskDependency').parameters({workEffortId: from, toWorkEffortId: to, lagDays: lagDays ?? null}).call()
+                    if (ec.message.hasError()) return
+                    message = ec.resource.expand('Linked to ${otherId}', '', {otherId})
+                    return
+                }
                 const existing = ec.entity.find('mantle.work.effort.WorkEffortAssoc').condition('workEffortId', from).condition('toWorkEffortId', to)
                         .condition('workEffortAssocTypeEnumId', entry[0]).conditionDate('fromDate', 'thruDate', null).count()
                 if (!existing) ec.service.sync().name('create#mantle.work.effort.WorkEffortAssoc').parameters({workEffortId: from, toWorkEffortId: to,

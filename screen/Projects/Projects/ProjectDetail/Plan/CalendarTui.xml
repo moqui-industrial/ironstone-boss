@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The terminal twin of the project's calendar (Plan/Calendar.xml's tui text is a dynamic container of this screen): the next four
+    weeks from date (today by default) of ironstone.PlanningServices.get#ProjectCalendarEvents, each with its kind and a link to it. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Calendar" default-menu-include="false">
+
+    <parameter name="date"/>
+
+    <actions><script><![CDATA[
+        // the terminal's agenda: the next four weeks
+        agendaRows = []
+        const projectId = ec.context.get('projectTabId') || null
+        if (!projectId) return
+        const today = ec.l10n.format(ec.user.nowTimestamp, 'yyyy-MM-dd')
+        const first = /^\d{4}-\d{2}-\d{2}$/.test(String(date || '')) ? String(date) : today
+        const d = new Date(first + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + 27)
+        const out = ec.service.sync().name('ironstone.PlanningServices.get#ProjectCalendarEvents').parameters({rootWorkEffortId: projectId, start: first,
+        end: d.toISOString().substring(0, 10)}).call() || {}
+        ec.message.clearErrors()
+        const kinds = {event: 'Meeting', task: 'Work item due', milestone: 'Milestone', release: 'Release', sprint: 'Sprint'}
+        agendaRows = Array.from(out.eventList || []).map((event) => ({when: String(event.start).substring(0, 16),
+        kind: ec.l10n.localize(kinds[event.kind] || 'Event'), title: event.title, url: event.url || ''})).sort((a, b) => a.when.localeCompare(b.when))
+    ]]></script></actions>
+    <widgets>
+        <form-list name="ProjectAgenda" list="agendaRows" skip-form="true" paginate="false">
+            <field name="when"><default-field title="When"><display/></default-field></field>
+            <field name="kind"><default-field title="What"><display/></default-field></field>
+            <field name="title"><default-field title="Title"><link url="${url}" url-type="plain" text="${title}" link-type="anchor"/></default-field></field>
+        </form-list>
+        <label type="p" text="Nothing on the project's calendar in the next four weeks" style="m-muted" condition="!agendaRows.length"/>
+    </widgets>
+</screen>

@@ -192,6 +192,21 @@ const demoRecords = {
     "Projects/WorkItems/BacklogTui": { parameters: { rootWorkEffortId: "IRON" }, text: "Approve submitted time" },
     "Projects/WorkItems/SprintDetail": { parameters: { workEffortId: "IRON-SP-2" }, text: "The tree view and the timer." },
     "Projects/WorkItems/SprintReport": { parameters: { workEffortId: "IRON-SP-1" }, text: "Open the printable sprint report" },
+    // Projects P4c: the Timeline (a .qvue, its component; also the Timeline of ProjectDetail's Plan tab, which test/TimelineWalk.spec.js
+    // renders) and its terminal twin, the Plan tab and its Calendar (Commons' Calendar.qvue in its project mode), the work item import
+    // wizard's steps (no import yet; test/TimelineWalk.spec.js walks them) and its progress
+    "Projects/WorkItems/Timeline": { parameters: { rootWorkEffortId: "IRON" } },
+    "Projects/WorkItems/TimelineTui": { parameters: { rootWorkEffortId: "IRON" }, text: "Weekly timesheet grid" },
+    "Projects/Projects/ProjectDetail/Plan": { parameters: { workEffortId: "IRON" }, text: "ProjectStatusBar" },
+    "Projects/Projects/ProjectDetail/Plan/Calendar": { parameters: { workEffortId: "IRON" } },
+    "Projects/Projects/ProjectDetail/Plan/CalendarTui": { parameters: { workEffortId: "IRON", date: "2026-10-26" }, text: "ProjectStatusBar" },
+    "Projects/WorkItems/Import": { text: "Import work items" },
+    "Projects/WorkItems/Import/Source": {},
+    "Projects/WorkItems/Import/Mapping": {},
+    "Projects/WorkItems/Import/Options": {},
+    "Projects/WorkItems/Import/Preview": {},
+    "Projects/WorkItems/Import/Result": {},
+    "Projects/WorkItems/ImportProgress": {},
     "Projects/Time": { text: "Placeholder: My time" },
     "Projects/Resources": { text: "Placeholder: Team planner" },
     "Projects/Billing": { text: "Placeholder: Unbilled" },
