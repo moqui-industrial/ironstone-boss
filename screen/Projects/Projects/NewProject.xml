@@ -16,7 +16,7 @@ along with this software (see the LICENSE.md file). If not, see
     subscreens-panel type="wizard" over the steps in NewProject/: Start (template, name, key, purpose, client, manager, dates,
     visibility, program; Create now skips to the project with the template's or the default settings), Team (members and their
     roles; allocations come with impl-projects.md P7), Modules and code (modules, estimate unit, work item flow, a repository
-    made or linked, documentation on database files: in the repository comes with P4), Money (billing basis, the hours and
+    made or linked, documentation on database files or in the repository at docs/), Money (billing basis, the hours and
     client budgets, the project's rates) and Review (everything chosen; Create opens the project). After Start the project exists
     In Planning (service/ironstone/ProjectServices.xml create#NewProject), so a wizard left keeps a draft project; each later step
     carries its workEffortId in the URL. For managers (BOSS_PROJECTS_MANAGERS); QuickProject's More options opens it. The

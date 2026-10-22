@@ -28,6 +28,10 @@ along with this software (see the LICENSE.md file). If not, see
               request's head, failed on IRON-7-timer.
             - acme: the repository acme-portal (database) of ACME: two commits by joe.developer naming ACME-1 and ACME-3, the tag
               ACME/v0.1.
+              In iron's history before IRON-3 (P4b), IRON's documentation space in the repository at docs/
+              (mantle.work.ProjectServices create#ProjectDocsSpace, impl-projects.md F7) with Getting started and Architecture,
+              and the page Build setup of the Engineering notes space linked to IRON; when it fails it is logged and the rest
+              of the part goes on.
             No commit message holds a Fixes keyword, so no demo work item changes status. A part that fails is logged by name
             and the others are still loaded.</description>
         <actions><script><![CDATA[
@@ -108,6 +112,27 @@ along with this software (see the LICENSE.md file). If not, see
                             '    for (const item of items) {\n        const key = item[field] ?? \'none\'\n        if (!groups.has(key)) groups.set(key, [])\n' +
                             '        groups.get(key).push(item)\n    }\n    return groups\n}\n'}))
                     const tagged = as('john', 9, () => call(`${GIT}.create#GitRef`, {repositoryId: 'iron', refName: 'IRON/v0.1', refType: 'tag', message: 'The first preview'}))
+                    // IRON's documentation beside the code, before IRON-3 (so the head of main stays that commit)
+                    try {
+                        if (ec.entity.find('mantle.work.effort.WorkEffortSetting').condition({workEffortId: 'IRON', settingTypeEnumId: 'WstDocsWikiSpace'}).one() == null) {
+                            const spaceId = as('john', 8.5, () => call('mantle.work.ProjectServices.create#ProjectDocsSpace', {workEffortId: 'IRON', storage: 'repository', repositoryId: 'iron'}).wikiSpaceId)
+                            const page = (who, daysAgo, pageName, pageText, versionNote) => as(who, daysAgo, () => call('org.moqui.impl.WikiServices.update#WikiPage',
+                                {wikiSpaceId: spaceId, pageName, pageText, versionNote}))
+                            page('john', 8, 'Getting started', '# Getting started\n\nClone the repository, load the demo and open Projects:\n\n```\ngit clone https://git.example.com/git/iron\n./moq load\n./moq run\n```\n\n'
+                                + 'Work items are keyed `IRON-n`; name one in a commit message or a branch (`IRON-7-timer`) to link it. See [Architecture](Architecture).\n', 'Getting started')
+                            page('joe', 7.5, 'Architecture', '# Architecture\n\n- **Screens** in `screen/`, one per design section.\n- **Services** in `service/`, the Mantle records underneath.\n'
+                                + '- **Data** in `data/`: seed and demo.\n\nThe work item tree loads a level at a time (`src/tree.js`).\n', 'Architecture')
+                            page('joe', 7, 'Getting started', '# Getting started\n\nClone the repository, load the demo and open Projects:\n\n```\ngit clone https://git.example.com/git/iron\n./moq load\n./moq run\n```\n\n'
+                                + 'Work items are keyed `IRON-n`; name one in a commit message or a branch (`IRON-7-timer`) to link it. See [Architecture](Architecture).\n\n'
+                                + 'Sign in as `john.doe` for the manager\u2019s view, or `joe.developer` for a developer\u2019s.\n', 'Sign-in users')
+                            const build = ec.entity.find('moqui.resource.wiki.WikiPage').condition({wikiSpaceId: 'BOSSENG', pagePath: 'Build setup'}).disableAuthz().one()
+                            if (build != null && ec.entity.find('mantle.work.effort.WikiPageWorkEffort').condition({wikiPageId: build.wikiPageId, workEffortId: 'IRON'}).count() === 0)
+                                call('create#mantle.work.effort.WikiPageWorkEffort', {wikiPageId: build.wikiPageId, workEffortId: 'IRON'})
+                        }
+                    } catch (err) {
+                        ec.message.clearErrors()
+                        ec.logger.error(`Code demo: IRON's documentation space was not made: ${err && err.message ? err.message : err}`)
+                    }
                     const mainHead = as('joe', 6, () => commit('iron', 'IRON-3 Expand and collapse rows', {
                         'src/tree.js': '// the work item tree: one level at a time\nexport function loadLevel(parentId) {\n    return fetch(`/items?parent=${parentId}`)\n' +
                             '        .then((response) => response.json())\n}\n\n// a row opens to its children and closes again\nexport function toggle(row) {\n' +

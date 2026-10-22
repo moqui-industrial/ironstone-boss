@@ -12,10 +12,264 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for the roadmap (design-projects.md §4 Roadmap; impl-projects.md P4). -->
+<!-- Roadmap (design-projects.md §4 Roadmap; style-guide §3.2 List): the milestones and releases of the projects the user sees, by
+    project and then due date, each with its progress (done of its items, hours), as Redmine's roadmap shows versions. Chips with
+    their counts: Upcoming (open, the default), Overdue, Completed and All, and the kind: All, Milestones, Releases. The find in
+    the list's dialog (project, text, due period). The columns: the name (a link to MilestoneDetail or ReleaseDetail) with its
+    id, the project, the kind, start, due (edited in place by the project's team), status (moved in place along the Default
+    flow), progress and the date it was reached or released. New milestone and New release open dialogs (the id KEY-MS-n or
+    KEY-REL-n unless given). Views: the list and a calendar by due date. Awaiting approval comes with the milestone gate
+    (impl-projects.md P8); the timeline in plan mode with Timeline (P4c).
+
+    ProjectDetail mounts this screen as its Roadmap tab (design-projects.md §4 ProjectRoadmap): its always-actions put the
+    project in projectTabId, so the project is fixed (its column and find field are left out), and the project's sprints are a
+    third kind (Sprints). Services: ironstone.PlanningServices find#RoadmapItems, save#PlanItem, update#PlanItemField,
+    get#PlanItemStatusOptions. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Roadmap" default-menu-index="1">
+
+    <parameter name="list"/>
+    <parameter name="kind"/>
+    <parameter name="rootWorkEffortId"/>
+    <parameter name="text"/>
+    <parameter name="due_period"/>
+    <parameter name="due_poffset"/>
+    <parameter name="due_pdate"/>
+    <parameter name="due_from"/>
+    <parameter name="due_thru"/>
+
+    <!-- a new milestone or release (planWorkEffortId empty); in a project's tab workEffortId is the project's, kept by the response -->
+    <transition name="savePlanItem">
+        <actions>
+            <service-call name="ironstone.PlanningServices.save#PlanItem" out-map="saveOut" in-map="{workEffortId:null,
+                    rootWorkEffortId:(ec.context.get('projectTabId') || rootWorkEffortId || null), kind:kind, newWorkEffortId:newWorkEffortId,
+                    workEffortName:workEffortName, description:description, startDay:startDay, dueDay:dueDay, statusId:statusId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="list"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <!-- the in-place edits of a row (m-editable), as JSON: due and status -->
+    <transition name="updateField">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.PlanningServices.update#PlanItemField').parameters({workEffortId: planWorkEffortId || '', field: field || '',
+                value: value == null ? '' : value}).call() || {}
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {valueText: out.valueText, messageInfos: [{type: 'success', message: out.message}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="fieldValue" read-only="true">
+        <actions><script><![CDATA[
+            let answer = {value: ''}
+            const access = ec.service.sync().name('ironstone.PlanningServices.get#PlanItemAccess').parameters({workEffortId: planWorkEffortId || '', need: 'view'}).call() || {}
+            if (!ec.message.hasError() && access.plan) {
+                if (field === 'due') answer = {value: access.plan.estimatedCompletionDate != null && access.plan.estimatedCompletionDate !== '' ? ec.l10n.format(access.plan.estimatedCompletionDate, 'yyyy-MM-dd') : ''}
+                else if (field === 'status') {
+                    const out = ec.service.sync().name('ironstone.PlanningServices.get#PlanItemStatusOptions').parameters({workEffortId: planWorkEffortId}).call() || {}
+                    const map = {}
+                    for (const option of Array.from(out.optionList || [])) map[option.value] = option.label
+                    map.selected = out.statusId
+                    answer = map
+                }
+            }
+            ec.message.clearErrors()
+            ec.web.sendJsonResponse(answer)
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+
+    <actions>
+        <script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            // in ProjectDetail's Roadmap tab its always-actions put the project in projectTabId: the project is fixed
+            projectFixed = ec.context.get('projectTabId') != null
+            // the project of the find: the tab's (kept out of the find's own fields, so no filter chip shows it), else the find's
+            const projectId = projectFixed ? ec.context.get('projectTabId') : (rootWorkEffortId || null)
+            if (projectFixed) rootWorkEffortId = null
+            pageWorkEffortId = projectFixed ? projectId : null
+            const ctx = (name) => { const value = ec.context.get(name); return value == null || value === '' ? null : String(value) }
+            let dueFrom = null
+            let dueThru = null
+            if (ctx('due_period')) {
+                const range = ec.user.getPeriodRange(ctx('due_period'), ctx('due_poffset') || '0', ctx('due_pdate'))
+                if (range) { dueFrom = range[0]; dueThru = range[1] }
+            } else {
+                if (ctx('due_from')) dueFrom = ec.l10n.parseTimestamp(ctx('due_from').substring(0, 10) + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS')
+                if (ctx('due_thru')) dueThru = new Date(Number(String(ec.l10n.parseTimestamp(ctx('due_thru').substring(0, 10) + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS'))) + 86400000)
+            }
+            const out = ec.service.sync().name('ironstone.PlanningServices.find#RoadmapItems').parameters({list: list || null, kind: kind || null,
+                rootWorkEffortId: projectId, text: text || null, dueFrom: dueFrom, dueThru: dueThru}).call() || {}
+            ec.message.clearErrors()
+            list = out.list || 'upcoming'
+            kind = out.kind || 'all'
+            roadmapRows = Array.from(out.rowList || [])
+            roadmapRowsCount = roadmapRows.length
+            const counts = out.counts || {}
+            const kindCounts = out.kindCounts || {}
+            // the find narrows every chip; a chip keeps it
+            const kept = {}
+            for (const [key, value] of [['text', text], ['rootWorkEffortId', projectFixed ? null : rootWorkEffortId], ['due_period', ctx('due_period')],
+                    ['due_poffset', ctx('due_poffset')], ['due_pdate', ctx('due_pdate')], ['due_from', ctx('due_from')], ['due_thru', ctx('due_thru')]]) if (value) kept[key] = value
+            const lists = [['upcoming', 'Upcoming', 'sym_o_upcoming'], ['overdue', 'Overdue', 'sym_o_event_busy'], ['completed', 'Completed', 'sym_o_task_alt'], ['all', 'All', 'sym_o_select_all']]
+            listChips = lists.map(([key, label, icon]) => ({label: L(label) + ' · ' + (counts[key] || 0), icon: icon, on: key === list, params: Object.assign({list: key, kind: kind}, kept)}))
+            const kinds = [['all', 'All kinds', 'sym_o_category'], ['milestone', 'Milestones', 'sym_o_flag'], ['release', 'Releases', 'sym_o_new_releases']]
+                    .concat(projectFixed ? [['sprint', 'Sprints', 'sym_o_sprint']] : [])
+            kindChips = kinds.map(([key, label, icon]) => ({label: L(label) + ' · ' + (kindCounts[key] || 0), icon: icon, on: key === kind, params: Object.assign({list: list, kind: key}, kept)}))
+            listLabel = L(lists.find((entry) => entry[0] === list)[1])
+            // the projects: of the find, and those a milestone or release may be made in (the user's own)
+            projectOptions = projectFixed ? [] : Array.from(ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').call()?.projectList || [])
+            addProjectOptions = projectFixed ? [] : Array.from(ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').parameters({memberOnly: true}).call()?.projectList || [])
+            canAdd = projectFixed ? !!ec.context.get('canManage') || !!ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: projectId, need: 'none'}).call()?.canUpdate
+                    : addProjectOptions.length > 0
+            addProjectId = projectFixed ? projectId : (projectId && addProjectOptions.some((option) => option.key === projectId) ? projectId : (addProjectOptions[0]?.key || ''))
+            const empty = {upcoming: 'No open milestones or releases', overdue: 'Nothing overdue', completed: 'Nothing reached or released yet', all: 'No milestones or releases yet'}
+            emptyText = Object.keys(kept).filter((key) => key !== 'rootWorkEffortId').length ? L('Nothing matches') : L(empty[list])
+            today = ec.l10n.format(ec.user.nowTimestamp, 'yyyy-MM-dd')
+        ]]></script>
+    </actions>
+
     <widgets>
-        <label text="Placeholder: Roadmap: milestones and releases across projects with their progress." type="p"/>
+        <container style="row items-center q-mb-sm q-gutter-y-xs">
+            <label text="Roadmap" type="h5" style="q-my-none q-mr-sm" condition="!projectFixed"/>
+            <container style="col"/>
+            <container style="row q-gutter-xs">
+                <container-dialog id="NewMilestoneDialog" button-text="New milestone" icon="sym_o_flag" width="520" title="New milestone" condition="canAdd" type="primary">
+                    <form-single name="NewMilestone" transition="savePlanItem" focus-field="workEffortName">
+                        <field name="workEffortId" from="pageWorkEffortId"><default-field><hidden/></default-field></field>
+                        <field name="kind" from="'milestone'"><default-field><hidden/></default-field></field>
+                        <field name="list" from="list"><default-field><hidden/></default-field></field>
+                        <field name="rootWorkEffortId" from="addProjectId"><conditional-field condition="!projectFixed" title="Project">
+                            <drop-down><list-options list="addProjectOptions" key="${key}" text="${text}"/></drop-down></conditional-field>
+                            <default-field><hidden/></default-field></field>
+                        <field name="workEffortName"><default-field title="Name"><text-line size="40"/></default-field></field>
+                        <field name="newWorkEffortId"><default-field title="Id (empty: KEY-MS-n, the next)"><text-line size="16"/></default-field></field>
+                        <field name="startDay"><default-field title="Start (when it marks a phase)"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                        <field name="dueDay"><default-field title="Due"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                        <field name="statusId" from="'WeInPlanning'"><default-field title="Status">
+                            <drop-down><option key="WeInPlanning" text="In Planning"/><option key="WeApproved" text="Approved"/><option key="WeInProgress" text="In Progress"/></drop-down></default-field></field>
+                        <field name="description"><default-field title="Description"><text-area rows="2" cols="60"/></default-field></field>
+                        <field name="submitButton"><default-field title="Create milestone"><submit/></default-field></field>
+                        <field-layout><field-ref name="rootWorkEffortId"/><field-row><field-ref name="workEffortName"/><field-ref name="newWorkEffortId"/></field-row>
+                            <field-row><field-ref name="startDay"/><field-ref name="dueDay"/></field-row><field-ref name="statusId"/><field-ref name="description"/>
+                            <field-ref name="submitButton"/></field-layout>
+                    </form-single>
+                </container-dialog>
+                <container-dialog id="NewReleaseDialog" button-text="New release" icon="sym_o_new_releases" width="520" title="New release" condition="canAdd">
+                    <form-single name="NewRelease" transition="savePlanItem" focus-field="workEffortName">
+                        <field name="workEffortId" from="pageWorkEffortId"><default-field><hidden/></default-field></field>
+                        <field name="kind" from="'release'"><default-field><hidden/></default-field></field>
+                        <field name="list" from="list"><default-field><hidden/></default-field></field>
+                        <field name="rootWorkEffortId" from="addProjectId"><conditional-field condition="!projectFixed" title="Project">
+                            <drop-down><list-options list="addProjectOptions" key="${key}" text="${text}"/></drop-down></conditional-field>
+                            <default-field><hidden/></default-field></field>
+                        <field name="workEffortName"><default-field title="Version (as 1.4.0)"><text-line size="20"/></default-field></field>
+                        <field name="startDay"><default-field title="Start"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                        <field name="dueDay"><default-field title="Planned date"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                        <field name="description"><default-field title="Description (the notes start with it)"><text-area rows="3" cols="60"/></default-field></field>
+                        <field name="submitButton"><default-field title="Create release"><submit/></default-field></field>
+                        <field-layout><field-ref name="rootWorkEffortId"/><field-ref name="workEffortName"/>
+                            <field-row><field-ref name="startDay"/><field-ref name="dueDay"/></field-row><field-ref name="description"/><field-ref name="submitButton"/></field-layout>
+                    </form-single>
+                    <label type="p" text="A tag named as the version, or v and the version (v1.4.0), links to the release when it is pushed." style="text-caption m-muted"/>
+                </container-dialog>
+            </container>
+        </container>
+
+        <container style="row q-gutter-xs q-mb-xs m-task-chips">
+            <section-iterate name="RoadmapListChip" list="listChips" entry="chip"><widgets>
+                <section name="RoadmapListChipOn" condition="chip.on"><widgets>
+                    <link url="." link-type="anchor-button" btn-type="primary" text="${chip.label}" icon="${chip.icon}" parameter-map="chip.params"/>
+                </widgets><fail-widgets>
+                    <link url="." link-type="anchor-button" text="${chip.label}" icon="${chip.icon}" parameter-map="chip.params"/>
+                </fail-widgets></section>
+            </widgets></section-iterate>
+        </container>
+        <container style="row q-gutter-xs q-mb-sm m-task-chips">
+            <section-iterate name="RoadmapKindChip" list="kindChips" entry="chip"><widgets>
+                <section name="RoadmapKindChipOn" condition="chip.on"><widgets>
+                    <link url="." link-type="anchor-button" btn-type="primary" text="${chip.label}" icon="${chip.icon}" parameter-map="chip.params" style="m-btn-tonal"/>
+                </widgets><fail-widgets>
+                    <link url="." link-type="anchor-button" text="${chip.label}" icon="${chip.icon}" parameter-map="chip.params"/>
+                </fail-widgets></section>
+            </widgets></section-iterate>
+        </container>
+
+        <container-box><box-header title="${listLabel} · ${roadmapRowsCount}"/><box-body-nopad>
+            <form-list name="RoadmapList" list="roadmapRows" skip-form="true" paginate="false" header-dialog="true" saved-finds="true" views="list,calendar">
+                <field name="list"><header-field><hidden/></header-field></field>
+                <field name="kind"><header-field><hidden/></header-field></field>
+                <field name="text"><header-field title="Text in the name"><text-line size="20"/></header-field></field>
+                <field name="workEffortName"><default-field title="Name">
+                    <container style="row items-center no-wrap">
+                        <render-mode><text type="qvt"><![CDATA[<q-icon name="${kindIcon}" size="xs" class="q-mr-xs m-muted"><q-tooltip>${WebUtilities.encodeHtml(kindLabel ?? '')}</q-tooltip></q-icon>]]></text>
+                            <text type="tui" template="false">[]</text></render-mode>
+                        <link url="${url}" url-type="plain" text="${workEffortName}" link-type="anchor" style="text-weight-medium"/>
+                    </container>
+                    <label text="${workEffortId}" type="div" style="text-caption text-mono m-muted"/>
+                </default-field></field>
+                <field name="rootWorkEffortId"><header-field title="Project">
+                        <drop-down allow-empty="true"><list-options list="projectOptions" key="${key}" text="${text}"/></drop-down></header-field>
+                    <conditional-field condition="!projectFixed" title="Project">
+                        <link url="/qapps/Projects/Projects/ProjectDetail/Roadmap" url-type="plain" text="${projectName}" parameter-map="{workEffortId:rootWorkEffortId}" link-type="anchor"/>
+                    </conditional-field><default-field title=""><label text="" type="span"/></default-field></field>
+                <field name="kindLabel"><default-field title="Kind">
+                    <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${kind == 'release' ? 'secondary' : kind == 'sprint' ? 'info' : 'primary'}" icon="${kindIcon}">${WebUtilities.encodeHtml(kindLabel ?? '')}</q-chip>]]></text>
+                        <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify(kindLabel ?? "")}}]]></text></render-mode>
+                </default-field></field>
+                <field name="startText"><default-field title="Start"><label text="${startText}" type="span" style="text-no-wrap"/></default-field></field>
+                <field name="due"><header-field title="Due"><date-period allow-empty="true"/></header-field>
+                    <conditional-field condition="canUpdate &amp;&amp; isOpen" title="Due">
+                        <container style="text-no-wrap ${overdue ? 'text-warning' : ''}">
+                            <render-mode><text type="qvt"><![CDATA[<span @click.stop>]]></text><text type="tui" template="false">[]</text></render-mode>
+                            <editable id="RoadmapDue" text="${dueText || '—'}" transition="updateField" widget-type="date"
+                                    parameter-map="{planWorkEffortId:workEffortId, field:'due', workEffortId:pageWorkEffortId}">
+                                <editable-load transition="fieldValue" parameter-map="{planWorkEffortId:workEffortId, field:'due', workEffortId:pageWorkEffortId}"/></editable>
+                            <render-mode><text type="qvt"><![CDATA[</span>]]></text><text type="tui" template="false">[]</text></render-mode>
+                        </container>
+                    </conditional-field>
+                    <default-field title="Due"><label text="${dueText}" type="span" style="text-no-wrap ${overdue ? 'text-warning' : ''}"/></default-field>
+                </field>
+                <field name="statusId"><default-field title="Status">
+                    <section name="RoadmapStatusEdit" condition="canUpdate"><widgets>
+                        <render-mode><text type="qvt"><![CDATA[<span @click.stop>]]></text><text type="tui" template="false">[]</text></render-mode>
+                        <editable id="RoadmapStatus" text="${statusLabel}" transition="updateField" widget-type="select"
+                                parameter-map="{planWorkEffortId:workEffortId, field:'status', workEffortId:pageWorkEffortId}">
+                            <editable-load transition="fieldValue" parameter-map="{planWorkEffortId:workEffortId, field:'status', workEffortId:pageWorkEffortId}"/></editable>
+                        <render-mode><text type="qvt"><![CDATA[</span>]]></text><text type="tui" template="false">[]</text></render-mode>
+                    </widgets><fail-widgets>
+                        <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${statusColor}" data-status="${statusId}">${WebUtilities.encodeHtml(statusLabel ?? '')}</q-chip>]]></text>
+                            <text type="tui"><![CDATA[{"t": "text", "style": "strong", "text": ${JSON.stringify(statusLabel ?? "")}}]]></text></render-mode>
+                    </fail-widgets></section>
+                </default-field></field>
+                <field name="percentDone"><default-field title="Progress">
+                    <render-mode><text type="qvt"><![CDATA[<div style="min-width:120px"><q-linear-progress :value="${progressValue}" rounded size="6px" color="${percentDone == 100 ? 'positive' : 'primary'}" class="q-mt-xs"></q-linear-progress><div class="text-caption m-muted text-no-wrap">${WebUtilities.encodeHtml(doneOfTotal)} · ${percentDone}%${hoursText ? ' · ' + WebUtilities.encodeHtml(hoursText) : ''}</div></div>]]></text>
+                        <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify(doneOfTotal + " · " + percentDone + "%" + (hoursText ? " · " + hoursText : ""))}}]]></text></render-mode>
+                </default-field></field>
+                <field name="reachedText"><default-field title="Reached or released"><label text="${reachedText}" type="span" style="text-no-wrap"/></default-field></field>
+                <field name="findButton"><header-field title="Find"><submit/></header-field></field>
+
+                <form-list-column><field-ref name="workEffortName"/></form-list-column>
+                <form-list-column><field-ref name="rootWorkEffortId"/></form-list-column>
+                <form-list-column><field-ref name="kindLabel"/></form-list-column>
+                <form-list-column><field-ref name="startText"/></form-list-column>
+                <form-list-column><field-ref name="due"/></form-list-column>
+                <form-list-column><field-ref name="statusId"/></form-list-column>
+                <form-list-column><field-ref name="percentDone"/></form-list-column>
+                <form-list-column><field-ref name="reachedText"/></form-list-column>
+                <form-list-column><field-ref name="findButton"/></form-list-column>
+                <columns type="mobile">
+                    <column><field-ref name="workEffortName"/><field-ref name="percentDone"/></column>
+                    <column><field-ref name="due"/><field-ref name="statusId"/></column>
+                </columns>
+
+                <view-calendar start-field="dueDay" all-day-field="allDay" title-field="calendarTitle" color-field="statusId" key-fields="workEffortId"/>
+            </form-list>
+            <section name="NoRoadmapItems" condition="!roadmapRows.length"><widgets>
+                <container style="q-pa-sm">
+                    <label type="p" text="${emptyText}" style="m-muted q-mb-xs"/>
+                    <label type="p" text="A milestone marks a point or a phase of a project; a release is a version that ships its work items." style="text-caption m-muted q-mb-none" condition="list == 'all' || list == 'upcoming'"/>
+                </container>
+            </widgets></section>
+        </box-body-nopad></container-box>
     </widgets>
 </screen>

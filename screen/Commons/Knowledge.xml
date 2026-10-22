@@ -19,7 +19,9 @@ along with this software (see the LICENSE.md file). If not, see
     from a link elsewhere; versionName for an old version; review for a review's compare; edit). Every read and change goes
     through the JSON transitions below, each a service of service/ironstone/KnowledgeServices.xml, which asks the wiki's
     own access rule first (WikiServices.get#WikiPageAccess, get#WikiViewScope): a page the user may not view is "not found",
-    a change the user may not make is refused. -->
+    a change the user may not make is refused. ProjectDetail mounts this screen as its Docs tab (design-projects.md §4 ProjectDocs):
+    there setup answers the project's documentation space as the only space, with its linked pages, and the transitions
+    setupProjectDocs, linkProjectPage and searchLinkPages serve the tab (Knowledge.qvue's project mode). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Knowledge" default-menu-index="7"
         render-modes="vue,qvue,tui" server-static="vue,qvue">
@@ -31,11 +33,54 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- ========== Reads ========== -->
 
     <!-- the side pane: spaces, the space to open, recent pages, reviews waiting, the user -->
+    <!-- in a project's Docs tab (ProjectDetail's always-actions set inProjectDetail and projectTabId) the space is the project's
+        documentation space (ironstone.ProjectServices.get#ProjectDocs, answered as project), the only one listed -->
     <transition name="setup" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.KnowledgeServices.get#KnowledgeSetup').parameter('wikiSpaceId', wikiSpaceId || null).call()
-            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {spaceList: out.spaceList, defaultWikiSpaceId: out.defaultWikiSpaceId,
-                recentList: out.recentList, reviewCount: out.reviewCount, me: out.me, failedParts: out.failedParts})
+            let project = null
+            if (ec.context.get('inProjectDetail')) {
+                const projectId = ec.context.get('projectTabId')
+                project = projectId ? ec.service.sync().name('ironstone.ProjectServices.get#ProjectDocs').parameters({workEffortId: projectId}).call()?.docs || null : null
+                ec.message.clearErrors()
+                if (project == null) { ec.web.sendJsonResponse({spaceList: [], recentList: [], reviewCount: 0, me: {}, project: {notAvailable: true, linkedList: [], repositoryOptions: []}}); return }
+            }
+            const out = ec.service.sync().name('ironstone.KnowledgeServices.get#KnowledgeSetup').parameter('wikiSpaceId', project ? project.wikiSpaceId : (wikiSpaceId || null)).call()
+            if (ec.message.hasError()) { ec.web.sendJsonResponse({}); return }
+            const spaceList = project ? Array.from(out.spaceList || []).filter((space) => space.wikiSpaceId === project.wikiSpaceId) : out.spaceList
+            ec.web.sendJsonResponse({spaceList: spaceList, defaultWikiSpaceId: project ? (spaceList.length ? project.wikiSpaceId : null) : out.defaultWikiSpaceId,
+                recentList: project ? [] : out.recentList, reviewCount: out.reviewCount, me: out.me, failedParts: out.failedParts, project: project})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- a project's Docs tab: Set up documentation (managers), Link page and Unlink (the team), the pages to link -->
+    <transition name="setupProjectDocs">
+        <actions><script><![CDATA[
+            const projectId = ec.context.get('projectTabId')
+            if (!projectId) ec.message.addError(ec.l10n.localize('Project not available'))
+            const out = projectId ? ec.service.sync().name('ironstone.ProjectServices.setup#ProjectDocs').parameters({workEffortId: projectId, storage: storage || 'db',
+                repositoryId: repositoryId || null}).call() || {} : {}
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {wikiSpaceId: out.wikiSpaceId, messageInfos: [{type: 'success', message: out.message}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="linkProjectPage">
+        <actions><script><![CDATA[
+            const projectId = ec.context.get('projectTabId')
+            if (!projectId) ec.message.addError(ec.l10n.localize('Project not available'))
+            const out = projectId ? ec.service.sync().name('ironstone.ProjectServices.link#ProjectDocsPage').parameters({workEffortId: projectId, wikiPageId: wikiPageId || '',
+                unlink: String(unlink) === 'true'}).call() || {} : {}
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: out.message}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="searchLinkPages" read-only="true">
+        <actions><script><![CDATA[
+            const projectId = ec.context.get('projectTabId')
+            const own = projectId ? ec.entity.find('mantle.work.effort.WorkEffortSetting').condition({workEffortId: projectId, settingTypeEnumId: 'WstDocsWikiSpace'}).one()?.settingValue : null
+            const out = projectId && term ? ec.service.sync().name('ironstone.KnowledgeServices.search#Pages').parameters({text: term, scope: 'knowledge', limit: 15}).call() || {} : {}
+            ec.message.clearErrors()
+            ec.web.sendJsonResponse(Array.from(out.pageList || []).filter((hit) => hit.wikiPageId && hit.wikiSpaceId !== own)
+                    .map((hit) => ({value: hit.wikiPageId, label: (hit.title || hit.pagePath || hit.wikiSpaceId) + ' · ' + (hit.spaceDescription || hit.wikiSpaceId)})))
         ]]></script></actions>
         <default-response type="none"/>
     </transition>

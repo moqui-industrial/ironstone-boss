@@ -56,7 +56,7 @@ Sections: [1 scope](#1-scope-and-order) · [2 rules](#2-ground-rules) · [3 phas
 | P2 Projects and work items | Mantle, BOSS (mr-moqui) | Home, QuickCreate, Projects, NewProject, ProjectDetail and its Overview, Work items, Team, Files and Settings tabs, WorkItems, WorkItemDetail, WorkItemTypes, Workflows, Labels, Templates | done Oct 22 |
 | P3a Code: framework | mr-moqui | — | done Oct 21 |
 | P3b Code: Mantle and BOSS | Mantle, BOSS | every §7 screen, ProjectCode, CodeSettings | done Oct 22 |
-| P4 Planning | Mantle, BOSS (mr-moqui) | Backlog, SprintDetail, Timeline, WorkItemImport, Roadmap, MilestoneDetail, ReleaseDetail, ProjectBacklog, ProjectTimeline, ProjectCalendar, ProjectRoadmap, ProjectDocs | in progress (P4a built Oct 22; P4b roadmap, releases and docs; P4c timeline, calendar and import) |
+| P4 Planning | Mantle, BOSS (mr-moqui) | Backlog, SprintDetail, Timeline, WorkItemImport, Roadmap, MilestoneDetail, ReleaseDetail, ProjectBacklog, ProjectTimeline, ProjectCalendar, ProjectRoadmap, ProjectDocs | in progress (P4a and P4b built Oct 22; P4b roadmap, releases and docs; P4c timeline, calendar and import) |
 | P5 Requests | Mantle, BOSS | Requests, RequestDetail, RequestIntake, ProjectRequests, IntakeSettings | planned |
 | P6 Time | Mantle, BOSS | MyTime, Timesheets, TimesheetDetail, TimeEntries, ProjectTime, TimeSettings | planned |
 | P7 Resources | Mantle, BOSS | TeamPlanner, Allocations, PersonDetail | planned |
@@ -257,6 +257,22 @@ tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
   start, complete with a carry-over).
 - Runs (Debug): ironstone-boss 488/488, mantle-usl 600/602 (ContactListSend), lint clean.
 
+**Built, P4b** (Oct 22, 2026):
+- F7 checked: a wiki space rooted at `git://<repositoryId>/docs` works with no framework change (a moqui-core test with
+  a code repository and a merge-request-required branch rule; `git://` writes pass the rules and are logged); the home
+  page is `docs/<SPACE>.md`, its pages under `docs/<SPACE>/`. docs/Revision-Management.md says so.
+- Mantle udm: content type `WectReleaseNotes`. Mantle usl `ProjectServices`: `get#PlanItemDefaults`, `create#PlanItem`
+  (`KEY-MS-n`, `KEY-REL-n`, `KEY-CMP-n`), `create#Release`, `create#Component`, `update#Milestone` (description,
+  clearFields, unique version, date order, actual completion), `get#PlanItemSummary`, release notes (`generate#`, `get#`,
+  `store#`, `publish#ReleaseNotes`), `release#Release`, `create#ProjectDocsSpace`, `sync#ProjectDocsSpaceUsers` (a
+  WorkEffortParty rule); topic `ReleasePublished`; `test/WorkProjectReleases.spec.js`.
+- BOSS: `PlanningServices` roadmap, plan item detail, items, release code, tag, notes and release; `ProjectServices`
+  project docs; Roadmap, MilestoneDetail, ReleaseDetail; ProjectDetail's Roadmap and Docs tabs (Commons Knowledge in a
+  project mode); NewProject's documentation in the repository; demo IRON-MS-2, IRON-REL-2 and IRON's docs space in
+  `iron`; `test/ReleaseWalk.spec.js` (the walk: notes generated and published to the docs space in the repository).
+- Runs (Debug): ironstone-boss 494/494, mantle-usl 607/609 (ContactListSend), moqui-core lib 1691, example 86/86, lint
+  clean.
+
 ### P5 — Requests
 
 - Design §6: `Shared/RequestDetail` (Commons RequestDetail becomes it), Requests, ProjectRequests, conversion and status
@@ -345,6 +361,10 @@ Made during the build; each one that changes the design is also written into des
 | Oct 22, 2026 | A sprint is `<KEY>-SP-n`, capacity `estimatedPoints` or `totalTimeAllowed` by the project's unit; done is Complete or Closed, Cancelled is neither done nor carried; the burndown steps on weekdays in the user's time zone | P4a |
 | Oct 22, 2026 | The team ranks, plans, starts and completes sprints; only managers turn on Plan in sprints | P4a |
 | Oct 22, 2026 | ProjectDetail tab order: Overview 1, Work items 2, Backlog 3, Code 4, Team 5, Files 8, Settings 9; Plan, Roadmap and Requests go before Code | P4a |
+| Oct 22, 2026 | ProjectDetail tab order: Overview 1, Work items 2, Backlog 3, Plan 4, Roadmap 5, Requests 6, Code 7, Docs 8, Team 9, Time 10, Money 11, Files 12, Settings 13 | P4b |
+| Oct 22, 2026 | A project's docs space is members-only unless the project is All users or General; its users follow the project's internal members (managers administer). In a General project every internal user reads the docs in the repository's `docs/` though only members view the repository (F46) | P4b; the user may want the docs space to follow the repository's rights instead |
+| Oct 22, 2026 | Release notes are the release's `WectReleaseNotes` file; publish goes three ways, each on its own: the docs page `Releases/<version>`, the version's section of `CHANGELOG.md`, the ReleasePublished notice (email by preference) | P4b |
+| Oct 22, 2026 | The Roadmap is a flat list by project and due date with kind chips; the team (not only managers) makes milestones and releases | P4b |
 | Oct 22, 2026 | A recurring item counted from completion takes the completion day at the due date's time of day (UTC days) and the rule without its COUNT, which counts the items made | P2 |
 
 ## 5. Open questions
@@ -404,6 +424,15 @@ Design assumptions found wrong in the code, with the resolution (written into th
 | F41 | P4a: loading data writes status audit rows at load time | The demo carries past audit rows; the burndown reads a first row with no old value as the earlier value too |
 | F42 | P4a: a form-list field whose conditional-field is `<ignored/>` seems to keep its column (not isolated) | Shown as a note in another column; check later |
 | F43 | P4a: a screen mounted in ProjectDetail opened by one who cannot see the project has no `projectTabId` | Transitions fall back to `workEffortId` so the answer is not available; later tabs do the same |
+| F44 | P4b: F7 resolved, no framework change; the layout is `docs/<SPACE>.md` and `docs/<SPACE>/...` | Design §15 row updated |
+| F45 | P4b: `get#WikiSpacePages` lists a directory only when its parent page file exists | `publish#ReleaseNotes` makes the Releases page first |
+| F46 | P4b (security): wiki rights are the wiki's own and ignore repository rights, so a docs space in a code repository could show docs to those who may not view the repository | The space is restricted and its users synced from the project's members (decision above) |
+| F47 | P4b: a release's description is too short for its notes | Content type `WectReleaseNotes` |
+| F48 | P4b: commits added to the demo repository after IRON-3 change what CommitDetail shows for main, which two specs check | The demo's docs commits come before IRON-3 |
+| F49 | P4b: the screen lint applies Groovy's split rules to JS, flagging `split('\|')` | Worked around with `indexOf`; the lint should know JS (with F37) |
+| F50 | P4b: a `container-dialog` `type="primary"` button is tonal, not filled | The Release action and the sprint dialogs are not filled; a framework fix later |
+| F51 | P4b: `get#ProjectMilestoneSummary` is milestones only | `get#PlanItemSummary` for every plan item kind |
+| F52 | P4b: AppStructure walks screen files only, so tabs mounted from other locations (Roadmap, Docs in ProjectDetail) are not covered | ReleaseWalk renders them |
 | F7 | P0: a wiki space under an existing repository is documented for a repository root (`rootPageDirectory: "git://docs"`, or `rootPageLocation` `git://<repositoryId>/<SPACE>.md`), not for a subdirectory such as `git://<repositoryId>/docs` | Checked in P4 as the design's §15 row says, before ProjectDocs is built |
 
 ## 7. Later
@@ -440,6 +469,10 @@ Designed, not in this build:
 
 - Planning (P4a): the Backlog's moves and dialogs in the terminal (P11); Reports/Sprints with velocity (P9); holidays in
   the burndown; capacity from availability (P7); QuickWorkItem's sprint list shown when empty.
+
+- Planning (P4b): MilestoneDetail's gate, billing share and deliverables, and the Roadmap's Awaiting approval (P8); in-place
+  edits of MilestoneDetail's items; the Docs tab's project mode in the terminal; a Components box in Settings; a record
+  of the CHANGELOG commit; drag on the Roadmap calendar; client views (P10).
 
 ## 8. Verification
 

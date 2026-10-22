@@ -60,6 +60,7 @@ along with this software (see the LICENSE.md file). If not, see
         <notification-topic topic="MergeRequestReview"/>
         <notification-topic topic="MergeRequestUpdate"/>
         <notification-topic topic="CommitStatusFailed"/>
+        <notification-topic topic="ReleasePublished"/>
 
         <palette-type doc-type="MantleProject"/>
         <palette-type doc-type="MantleTask"/>

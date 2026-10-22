@@ -1,0 +1,408 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- ReleaseDetail (design-projects.md §4 ReleaseDetail; style-guide §3.3 Detail): a release. The title row: its version, the project
+    chip (a link to the project's Roadmap tab), the stages (In Planning, In Progress, Complete as released, Closed; read only), the
+    planned and released dates and its tags; for the project's team Release (the primary while it is open: the items not done to
+    another release or out of any, a tag at a ref, the notes published to the docs space, CHANGELOG.md and the followers), Edit
+    (version, dates, description) and More (the other moves). The number cards: Items done, Done, Merge requests merged and the
+    planned or released date. The boxes: Work items (Features, Fixes, Other; Add items and Remove for the team), Merge requests of
+    its items, Tag (Create tag at a ref, Link an existing tag, Remove), Release notes (the markdown kept, or a draft from the
+    items and merged merge requests; Save, Generate draft, Publish to the docs space, a CHANGELOG.md commit, the followers);
+    Chatter as the right column from 1440 px. Merge requests and tags are of the repositories the user may view (F23). Services:
+    ironstone.PlanningServices get#PlanItemDetail, get#ReleaseCode, get#ReleaseNotesInfo, save#PlanItem, set#PlanItemItems,
+    create#ReleaseTag, save#ReleaseNotes, release#ReleaseBoss; ironstone.CodeServices link# and unlink#RefWorkEffort. A release
+    of a project the user does not see is "not available". -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Release" default-menu-include="false">
+
+    <parameter name="workEffortId" required="true"/>
+
+    <transition name="workItemDetail"><default-response url="//Projects/WorkItems/WorkItemDetail"/></transition>
+    <transition name="roadmap"><default-response url="../Roadmap"/></transition>
+    <transition name="savePlanItem">
+        <actions>
+            <service-call name="ironstone.PlanningServices.save#PlanItem" out-map="saveOut" in-map="{workEffortId:workEffortId, workEffortName:workEffortName,
+                    description:(description ?? ''), startDay:(startDay ?? ''), dueDay:(dueDay ?? '')}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="changeStatus">
+        <actions>
+            <service-call name="ironstone.PlanningServices.update#PlanItemField" out-map="statusOut" in-map="{workEffortId:workEffortId, field:'status', value:statusId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(statusOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="releaseRelease">
+        <actions>
+            <service-call name="ironstone.PlanningServices.release#ReleaseBoss" out-map="releaseOut" in-map="{workEffortId:workEffortId,
+                    moveUnfinishedTo:(moveUnfinishedTo || 'none'), createTag:(createTag == 'Y'), repositoryId:repositoryId, tagName:tagName, revision:revision,
+                    publish:(publishDocs == 'Y'), toChangelog:(toChangelog == 'Y'), notify:(notify == 'Y')}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(releaseOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="addItems">
+        <actions>
+            <service-call name="ironstone.PlanningServices.set#PlanItemItems" out-map="itemsOut" in-map="{workEffortId:workEffortId, workEffortIds:itemWorkEffortIds}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(itemsOut.message, itemsOut.failedCount ? 'warning' : 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="removeItem">
+        <actions>
+            <service-call name="ironstone.PlanningServices.set#PlanItemItems" out-map="itemsOut" in-map="{workEffortId:workEffortId, workEffortIds:itemWorkEffortId, remove:true}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(itemsOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="searchItems" read-only="true">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.PlanningServices.search#PlanItemCandidates').parameters({workEffortId: workEffortId || '', term: term || ''}).call() || {}
+            ec.message.clearErrors()
+            ec.web.sendJsonResponse(out.optionList || [])
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="createTag">
+        <actions>
+            <service-call name="ironstone.PlanningServices.create#ReleaseTag" out-map="tagOut" in-map="{workEffortId:workEffortId, repositoryId:repositoryId,
+                    tagName:tagName, revision:revision}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(tagOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <!-- Link an existing tag: tagKey is repositoryId|refName -->
+    <transition name="linkTag">
+        <actions>
+            <script>const tagText = String(tagKey || ''); const tagBar = tagText.indexOf('|'); const tagParts = tagBar &gt; 0 ? [tagText.substring(0, tagBar), tagText.substring(tagBar + 1)] : [tagText, '']</script>
+            <service-call name="ironstone.CodeServices.link#RefWorkEffort" out-map="linkOut" in-map="{repositoryId:tagParts[0], refName:(tagParts[1] || ''), workEffortId:workEffortId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(linkOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="unlinkTag">
+        <actions>
+            <service-call name="ironstone.CodeServices.unlink#RefWorkEffort" out-map="linkOut" in-map="{repositoryId:repositoryId, refName:refName, workEffortId:workEffortId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(linkOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <!-- the notes: Save (the text), Generate draft (generate Y) and Publish (publish Y with where) -->
+    <transition name="saveNotes">
+        <actions>
+            <service-call name="ironstone.PlanningServices.save#ReleaseNotes" out-map="notesOut" in-map="{workEffortId:workEffortId, notesText:notesText,
+                    generate:(generate == 'Y'), publish:(publish == 'Y'), toDocs:(toDocs == 'Y'), toChangelog:(toChangelog == 'Y'), repositoryId:repositoryId,
+                    notify:(notify == 'Y')}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(notesOut.message, notesOut.messageType || 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+
+    <actions><script><![CDATA[
+        const out = ec.service.sync().name('ironstone.PlanningServices.get#PlanItemDetail').parameters({workEffortId: workEffortId || '', kind: 'release'}).call() || {}
+        ec.message.clearErrors()
+        recordFound = !!out.detail
+        if (!recordFound) return
+        const L = (text) => ec.l10n.localize(text)
+        const enc = (text) => String(text == null ? '' : text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\u0022/g, '&quot;').replace(/\u0027/g, '&#39;')
+        release = out.detail
+        canUpdate = !!release.canUpdate
+        isOpen = !!release.isOpen
+        code = ec.service.sync().name('ironstone.PlanningServices.get#ReleaseCode').parameters({workEffortId: workEffortId}).call()?.code || {hosting: false, mergeRequestList: [],
+            tagList: [], repositoryOptions: [], tagOptions: [], failedParts: []}
+        ec.message.clearErrors()
+        notes = ec.service.sync().name('ironstone.PlanningServices.get#ReleaseNotesInfo').parameters({workEffortId: workEffortId}).call()?.notes || {notesText: '', draft: true}
+        ec.message.clearErrors()
+        itemRows = release.rowList
+        itemRowsCount = itemRows.length
+        mergeRequestRows = code.mergeRequestList
+        tagRows = code.tagList
+        projectUrl = '/qapps/Projects/Projects/ProjectDetail/Roadmap?workEffortId=' + encodeURIComponent(release.rootWorkEffortId)
+        const dates = [release.startText ? L('Start') + ' ' + release.startText : '', release.dueText ? L('Planned') + ' ' + release.dueText : '',
+            release.reachedText ? L('Released') + ' ' + release.reachedText : ''].filter((part) => part)
+        const tags = tagRows.filter((tag) => !tag.ended).map((tag) => tag.tagName)
+        factsHtml = '<div class="row items-center q-gutter-x-md q-mt-xs text-body2">'
+            + '<m-link href="' + enc(projectUrl) + '"><q-chip dense square clickable icon="sym_o_folder" class="q-ma-none m-tonal text-primary">'
+            + enc(release.projectName + ' (' + release.rootWorkEffortId + ')') + '</q-chip></m-link>'
+            + (dates.length ? '<span class="' + (release.overdue ? 'text-warning' : '') + '"><q-icon name="sym_o_date_range" size="xs" class="q-mr-xs m-muted"></q-icon>' + enc(dates.join(' · ')) + '</span>' : '')
+            + tags.map((tag) => '<q-chip dense square icon="sym_o_sell" class="q-ma-none m-tonal text-secondary text-mono">' + enc(tag) + '</q-chip>').join('') + '</div>'
+        factsTui = {t: 'text', id: 'ReleaseFacts', text: [release.projectName + ' (' + release.rootWorkEffortId + ')'].concat(dates).concat(tags.map((tag) => L('Tag') + ' ' + tag)).join(' · ')}
+        const moveLabels = {WeInProgress: ['WeInPlanning', 'WeApproved'].includes(release.statusId) ? 'Begin' : 'Resume', WeClosed: 'Close', WeInPlanning: 'Re-open',
+            WeOnHold: 'Hold', WeCancelled: 'Cancel'}
+        otherMoves = canUpdate ? release.moveIds.filter((id) => moveLabels[id]).map((id) => ({statusId: id, label: L(moveLabels[id])})) : []
+        moveIds = otherMoves.map((move) => move.statusId)
+        beginLabel = L(moveLabels.WeInProgress)
+        // Release: where the items not done go, a tag, the notes
+        unfinishedCount = itemRows.filter((row) => row.state === 'notStarted' || row.state === 'inProgress').length
+        moveOptions = release.otherOptions.concat([{key: 'none', text: L('Out of any release')}])
+        moveDefault = release.otherOptions.length ? release.otherOptions[0].key : 'none'
+        repositoryOptions = code.repositoryOptions
+        defaultRepositoryId = repositoryOptions.length ? repositoryOptions[0].key : ''
+        defaultRevision = repositoryOptions.length ? repositoryOptions[0].defaultBranch : 'main'
+        canTag = canUpdate && code.hosting && repositoryOptions.length > 0
+        hasDocs = !!notes.docsSpaceId
+        mergedCount = mergeRequestRows.filter((row) => row.statusId === 'GmrMerged').length
+        doneValue = release.doneOfTotal
+        percentValue = release.percentDone + '%'
+        dateTitle = release.reachedText ? L('Released') : L('Planned')
+        dateValue = release.reachedText || release.dueText || '—'
+        notesCaption = notes.draft ? L('A draft from the done work items and the merged merge requests: Save keeps it, Publish publishes it.')
+            : (L('Saved') + ' ' + notes.savedText)
+        publishedText = notes.published ? ec.resource.expand('Published as ${pagePath} in the documentation space', '', {pagePath: notes.pagePath}) : ''
+        releaseNote = ec.resource.expand('${done} done, ${open} not done', '', {done: release.doneCount || 0, open: unfinishedCount})
+    ]]></script></actions>
+
+    <widgets>
+        <section name="ReleaseNotFound" condition="!recordFound"><widgets>
+            <container-box type="warning"><box-header title="Not available"/><box-body>
+                <label type="p" text="Release ${workEffortId} is not available: it does not exist, or it is of a project you do not see."/>
+                <link url="roadmap" link-type="anchor" text="Back to the roadmap"/>
+            </box-body></container-box>
+        </widgets></section>
+
+        <section name="ReleaseFound" condition="recordFound"><widgets>
+            <context record-entity="mantle.work.effort.WorkEffort" record-id="${workEffortId}" title="${release.workEffortName}"/>
+            <container style="row items-start q-col-gutter-sm q-mb-sm m-plan-header">
+                <container style="col-12 col-md">
+                    <container style="row items-center no-wrap">
+                        <render-mode><text type="qvt"><![CDATA[<q-icon name="sym_o_new_releases" size="sm" class="q-mr-sm m-muted"></q-icon>]]></text><text type="tui" template="false">[]</text></render-mode>
+                        <label text="${release.projectName} ${release.workEffortName}" type="h5" style="q-my-none"/>
+                        <label text="${workEffortId}" type="span" style="text-caption text-mono m-muted q-ml-sm"/>
+                    </container>
+                    <status-bar id="ReleaseStatusBar" status-id="${release.statusId}" status-flow-id="Default" stages="${release.stageStatusIds}" read-only="true"/>
+                    <render-mode><text type="qvt"><![CDATA[${factsHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(factsTui)}]]></text></render-mode>
+                </container>
+                <container style="col-12 col-md-auto row items-center q-gutter-x-xs q-gutter-y-xs">
+                    <container-dialog id="ReleaseReleaseDialog" button-text="Release" icon="sym_o_rocket_launch" width="560" title="Release ${release.workEffortName}"
+                            condition="canUpdate &amp;&amp; isOpen" type="primary">
+                        <label type="p" text="${releaseNote}. The release is complete today."/>
+                        <form-single name="ReleaseRelease" transition="releaseRelease">
+                            <field name="workEffortId"><default-field><hidden/></default-field></field>
+                            <field name="moveUnfinishedTo" from="moveDefault"><conditional-field condition="unfinishedCount" title="The work items not done go to">
+                                <radio><list-options list="moveOptions" key="${key}" text="${text}"/></radio></conditional-field>
+                                <default-field><hidden/></default-field></field>
+                            <field name="createTag" from="canTag ? 'Y' : 'N'"><conditional-field condition="canTag" title=" ">
+                                <check><option key="Y" text="Make a tag"/></check></conditional-field><default-field><hidden/></default-field></field>
+                            <field name="repositoryId" from="defaultRepositoryId"><conditional-field condition="canTag" title="Repository">
+                                <drop-down><list-options list="repositoryOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><hidden/></default-field></field>
+                            <field name="tagName" from="code.defaultTagName"><conditional-field condition="canTag" title="Tag">
+                                <text-line size="20"/></conditional-field><default-field><hidden/></default-field></field>
+                            <field name="revision" from="defaultRevision"><conditional-field condition="canTag" title="At (branch, tag or commit)">
+                                <text-line size="24"/></conditional-field><default-field><hidden/></default-field></field>
+                            <field name="publishDocs" from="hasDocs ? 'Y' : 'N'"><conditional-field condition="hasDocs" title=" ">
+                                <check><option key="Y" text="Publish the notes to the documentation space"/></check></conditional-field><default-field><hidden/></default-field></field>
+                            <field name="toChangelog"><conditional-field condition="canTag" title=" ">
+                                <check><option key="Y" text="Add the notes to CHANGELOG.md of the repository"/></check></conditional-field><default-field><hidden/></default-field></field>
+                            <field name="notify" from="'Y'"><default-field title=" "><check><option key="Y" text="Tell the followers"/></check></default-field></field>
+                            <field name="submitButton"><default-field title="Release"><submit confirmation="Release ${release.workEffortName} now?"/></default-field></field>
+                        </form-single>
+                        <label type="p" text="The notes as saved are published, or a draft from the done work items when none are saved." style="text-caption m-muted"/>
+                    </container-dialog>
+                    <container-dialog id="ReleaseEditDialog" button-text="Edit" icon="sym_o_edit" width="520" title="Edit ${release.workEffortName}" condition="canUpdate">
+                        <form-single name="ReleaseForm" transition="savePlanItem" focus-field="workEffortName">
+                            <field name="workEffortId"><default-field><hidden/></default-field></field>
+                            <field name="workEffortName" from="release.workEffortName"><default-field title="Version"><text-line size="20"/></default-field></field>
+                            <field name="startDay" from="release.startDay"><default-field title="Start"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                            <field name="dueDay" from="release.dueDay"><default-field title="Planned date"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                            <field name="description" from="release.description"><default-field title="Description (the notes start with it)"><text-area rows="3" cols="60"/></default-field></field>
+                            <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                            <field-layout><field-ref name="workEffortName"/><field-row><field-ref name="startDay"/><field-ref name="dueDay"/></field-row>
+                                <field-ref name="description"/><field-ref name="submitButton"/></field-layout>
+                        </form-single>
+                    </container-dialog>
+                    <button-menu text="More" icon="more_horiz" condition="otherMoves.length">
+                        <link url="changeStatus" link-type="hidden-form-link" text="${beginLabel}" icon="sym_o_play_arrow" condition="moveIds.includes('WeInProgress')"
+                                confirmation="${beginLabel}: ${release.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:'WeInProgress'}"/>
+                        <link url="changeStatus" link-type="hidden-form-link" text="Hold" icon="sym_o_pause" condition="moveIds.includes('WeOnHold')"
+                                confirmation="Hold: ${release.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:'WeOnHold'}"/>
+                        <link url="changeStatus" link-type="hidden-form-link" text="Close" icon="sym_o_archive" condition="moveIds.includes('WeClosed')"
+                                confirmation="Close: ${release.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:'WeClosed'}"/>
+                        <link url="changeStatus" link-type="hidden-form-link" text="Re-open" icon="sym_o_undo" condition="moveIds.includes('WeInPlanning')"
+                                confirmation="Re-open: ${release.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:'WeInPlanning'}"/>
+                        <link url="changeStatus" link-type="hidden-form-link" text="Cancel" icon="sym_o_cancel" btn-type="danger" condition="moveIds.includes('WeCancelled')"
+                                confirmation="Cancel: ${release.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:'WeCancelled'}"/>
+                    </button-menu>
+                </container>
+            </container>
+            <section name="ReleaseDescription" condition="release.description"><widgets>
+                <markdown-view text="${release.description}"/>
+            </widgets></section>
+
+            <dashboard min-width="150" style="q-mb-sm">
+                <number-card title="Items done" value="${doneValue}" icon="sym_o_task_alt" size="sm"/>
+                <number-card title="Done" value="${percentValue}" icon="sym_o_percent" size="sm"/>
+                <number-card title="Merged" value="${mergedCount}" icon="sym_o_call_merge" size="sm" condition="code.hosting"/>
+                <number-card title="${dateTitle}" value="${dateValue}" icon="sym_o_event" size="sm"/>
+            </dashboard>
+
+            <container style="row q-col-gutter-sm">
+                <container style="col-12 col-lg-8">
+                    <container-box><box-header title="Work items · ${itemRowsCount}"/>
+                        <box-toolbar>
+                            <container-dialog id="ReleaseAddItemsDialog" button-text="Add items" icon="sym_o_add" width="560" title="Add work items to ${release.workEffortName}" condition="canUpdate">
+                                <form-single name="AddReleaseItems" transition="addItems">
+                                    <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                    <field name="itemWorkEffortIds"><default-field title="Work items (key or words)">
+                                        <drop-down allow-multiple="true"><dynamic-options transition="searchItems" server-search="true" min-length="0" parameter-map="{workEffortId:workEffortId}"/></drop-down></default-field></field>
+                                    <field name="submitButton"><default-field title="Add"><submit/></default-field></field>
+                                </form-single>
+                                <label type="p" text="An item is in one release at a time: adding it here takes it out of another." style="text-caption m-muted"/>
+                            </container-dialog>
+                        </box-toolbar>
+                        <box-body-nopad>
+                        <form-list name="ReleaseItems" list="itemRows" skip-form="true" paginate="false" select-columns="true">
+                            <field name="groupLabel"><default-field title="Kind"><label text="${groupLabel}" type="span" style="text-caption text-weight-medium"/></default-field></field>
+                            <field name="workEffortId"><default-field title="Key">
+                                <link url="workItemDetail" text="${workEffortId}" parameter-map="{workEffortId:workEffortId}" link-type="anchor" style="text-mono text-no-wrap"/></default-field></field>
+                            <field name="purposeEnumId"><default-field title="Type">
+                                <render-mode><text type="qvt"><![CDATA[<q-icon name="${WebUtilities.encodeHtml(typeIcon ?? '')}" size="xs" class="m-muted"><q-tooltip>${WebUtilities.encodeHtml(purposeLabel ?? '')}</q-tooltip></q-icon>]]></text>
+                                    <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify(purposeLabel ?? "")}}]]></text></render-mode></default-field></field>
+                            <field name="workEffortName"><default-field title="Title">
+                                <link url="workItemDetail" text="${workEffortName}" parameter-map="{workEffortId:workEffortId}" style="${state == 'done' || state == 'cancelled' ? 'm-muted' : ''}"/></default-field></field>
+                            <field name="statusId"><default-field title="Status">
+                                <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${statusColor}" data-status="${statusId}">${WebUtilities.encodeHtml(statusLabel ?? '')}</q-chip>]]></text>
+                                    <text type="tui"><![CDATA[{"t": "text", "style": "strong", "text": ${JSON.stringify(statusLabel ?? "")}}]]></text></render-mode></default-field></field>
+                            <field name="assigneePartyId"><default-field title="Assignees"><display text="${assigneeText || ''}"/></default-field></field>
+                            <field name="removeItem"><conditional-field condition="canUpdate" title="">
+                                <link url="removeItem" link-type="hidden-form-link" text="Remove" icon="sym_o_remove_circle_outline"
+                                        confirmation="Take ${workEffortId} out of ${release.workEffortName}?" parameter-map="{workEffortId:release.workEffortId, itemWorkEffortId:workEffortId}"/>
+                            </conditional-field><default-field title=""><label text="" type="span"/></default-field></field>
+                            <columns type="mobile">
+                                <column><field-ref name="workEffortId"/><field-ref name="workEffortName"/></column>
+                                <column><field-ref name="statusId"/><field-ref name="groupLabel"/></column>
+                            </columns>
+                        </form-list>
+                        <label type="p" text="No work items in this release yet: add them here, or set the release on a work item." style="m-muted q-pa-sm q-mb-none" condition="!itemRows.length"/>
+                    </box-body-nopad></container-box>
+
+                    <container-box><box-header title="Release notes"/>
+                        <box-toolbar>
+                            <link url="saveNotes" link-type="hidden-form-link" text="Generate draft" icon="sym_o_auto_awesome" condition="canUpdate"
+                                    confirmation="Make the notes again from the work items and merge requests? The text now is replaced." parameter-map="{workEffortId:workEffortId, generate:'Y'}"/>
+                            <container-dialog id="ReleasePublishDialog" button-text="Publish" icon="sym_o_publish" width="520" title="Publish the notes of ${release.workEffortName}" condition="canUpdate">
+                                <label type="p" text="The notes as saved are published${notes.draft ? ' (the draft, as none are saved yet)' : ''}."/>
+                                <form-single name="PublishNotes" transition="saveNotes">
+                                    <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                    <field name="publish" from="'Y'"><default-field><hidden/></default-field></field>
+                                    <field name="toDocs" from="hasDocs ? 'Y' : 'N'"><conditional-field condition="hasDocs" title=" ">
+                                        <check><option key="Y" text="To the documentation space, as Releases/${release.workEffortName}"/></check></conditional-field>
+                                        <default-field><hidden/></default-field></field>
+                                    <field name="toChangelog"><conditional-field condition="canTag" title=" ">
+                                        <check><option key="Y" text="To CHANGELOG.md, a commit"/></check></conditional-field><default-field><hidden/></default-field></field>
+                                    <field name="repositoryId" from="defaultRepositoryId"><conditional-field condition="canTag" title="Repository">
+                                        <drop-down><list-options list="repositoryOptions" key="${key}" text="${text}"/></drop-down></conditional-field><default-field><hidden/></default-field></field>
+                                    <field name="notify"><default-field title=" "><check><option key="Y" text="Tell the followers"/></check></default-field></field>
+                                    <field name="submitButton"><default-field title="Publish"><submit/></default-field></field>
+                                </form-single>
+                                <label type="p" text="The project has no documentation space: set it up on the project's Docs tab." style="text-caption m-muted" condition="!hasDocs"/>
+                            </container-dialog>
+                        </box-toolbar>
+                        <box-body>
+                            <label type="p" text="${notesCaption}" style="text-caption m-muted q-mb-xs"/>
+                            <section name="ReleaseNotesPublished" condition="notes.published"><widgets>
+                                <container style="row items-center q-gutter-x-sm q-mb-sm">
+                                    <label text="${publishedText}" type="span" style="text-caption"/>
+                                    <link url="${notes.pageUrl}" url-type="plain" text="Open the page" link-type="anchor" condition="notes.pageUrl" style="text-caption"/>
+                                </container>
+                            </widgets></section>
+                            <section name="ReleaseNotesEdit" condition="canUpdate"><widgets>
+                                <form-single name="ReleaseNotesForm" transition="saveNotes">
+                                    <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                    <field name="notesText" from="notes.notesText"><default-field title="Notes (markdown)"><text-area rows="14" cols="80" editor-type="md"/></default-field></field>
+                                    <field name="submitButton"><default-field title="Save notes"><submit/></default-field></field>
+                                </form-single>
+                            </widgets><fail-widgets>
+                                <markdown-view text="${notes.notesText}"/>
+                            </fail-widgets></section>
+                        </box-body>
+                    </container-box>
+
+                    <container-box><box-header title="Merge requests · ${mergeRequestRows.length}"/><box-body-nopad>
+                        <section name="ReleaseMergeRequests" condition="code.hosting"><widgets>
+                            <form-list name="ReleaseMergeRequestList" list="mergeRequestRows" skip-form="true" paginate="false">
+                                <field name="numText"><default-field title="Merge request">
+                                    <link url="${url}" url-type="plain" text="${numText} ${title}" link-type="anchor"/></default-field></field>
+                                <field name="repositoryId"><default-field title="Repository"><label text="${repositoryId}" type="span" style="text-mono"/></default-field></field>
+                                <field name="statusLabel"><default-field title="Status">
+                                    <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${statusColor}" icon="${statusIcon}">${WebUtilities.encodeHtml(statusLabel ?? '')}</q-chip>]]></text>
+                                        <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify(statusLabel ?? "")}}]]></text></render-mode></default-field></field>
+                                <field name="itemsText"><default-field title="Work items"><label text="${itemsText}" type="span" style="text-mono"/></default-field></field>
+                                <field name="mergedText"><default-field title="Merged"><label text="${mergedText}" type="span" style="text-no-wrap"/></default-field></field>
+                            </form-list>
+                            <label type="p" text="No merge requests of its work items yet." style="m-muted q-pa-sm q-mb-none" condition="!mergeRequestRows.length"/>
+                        </widgets><fail-widgets>
+                            <label type="p" text="Code hosting is not in this build." style="m-muted q-pa-sm q-mb-none"/>
+                        </fail-widgets></section>
+                    </box-body-nopad></container-box>
+
+                    <container-box><box-header title="Tag"/>
+                        <box-toolbar>
+                            <container-dialog id="ReleaseCreateTagDialog" button-text="Create tag" icon="sym_o_sell" width="480" title="A tag for ${release.workEffortName}" condition="canTag">
+                                <form-single name="CreateReleaseTag" transition="createTag">
+                                    <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                    <field name="repositoryId" from="defaultRepositoryId"><default-field title="Repository">
+                                        <drop-down><list-options list="repositoryOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                    <field name="tagName" from="code.defaultTagName"><default-field title="Tag"><text-line size="20"/></default-field></field>
+                                    <field name="revision" from="defaultRevision"><default-field title="At (branch, tag or commit)"><text-line size="24"/></default-field></field>
+                                    <field name="submitButton"><default-field title="Create tag"><submit/></default-field></field>
+                                </form-single>
+                            </container-dialog>
+                            <container-dialog id="ReleaseLinkTagDialog" button-text="Link a tag" icon="sym_o_link" width="480" title="Link a tag to ${release.workEffortName}"
+                                    condition="canUpdate &amp;&amp; code.tagOptions.length">
+                                <form-single name="LinkReleaseTag" transition="linkTag">
+                                    <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                    <field name="tagKey"><default-field title="Tag"><drop-down><list-options list="code.tagOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                    <field name="submitButton"><default-field title="Link"><submit/></default-field></field>
+                                </form-single>
+                            </container-dialog>
+                        </box-toolbar>
+                        <box-body-nopad>
+                        <section name="ReleaseTags" condition="code.hosting"><widgets>
+                            <form-list name="ReleaseTagList" list="tagRows" skip-form="true" paginate="false">
+                                <field name="tagName"><default-field title="Tag">
+                                    <link url="${repositoryUrl}" url-type="plain" text="${tagName}" link-type="anchor" style="text-mono ${ended ? 'm-muted' : ''}"/></default-field></field>
+                                <field name="repositoryId"><default-field title="Repository"><label text="${repositoryId}" type="span" style="text-mono"/></default-field></field>
+                                <field name="commitShort"><default-field title="Commit">
+                                    <link url="${commitUrl}" url-type="plain" text="${commitShort}" link-type="anchor" style="text-mono" condition="commitUrl"/></default-field></field>
+                                <field name="sourceText"><default-field title="Linked"><label text="${sourceText}${linkedText ? ' · ' + linkedText : ''}" type="span" style="text-caption"/></default-field></field>
+                                <field name="unlink"><conditional-field condition="canUpdate" title="">
+                                    <link url="unlinkTag" link-type="hidden-form-link" text="Remove" icon="sym_o_link_off" confirmation="Remove the link of ${tagName} to ${release.workEffortName}? The tag stays."
+                                            parameter-map="{workEffortId:release.workEffortId, repositoryId:repositoryId, refName:refName}"/>
+                                </conditional-field><default-field title=""><label text="" type="span"/></default-field></field>
+                            </form-list>
+                            <label type="p" text="No tag yet: make one, or push a tag named as the version (${code.defaultTagName})." style="m-muted q-pa-sm q-mb-none" condition="!tagRows.length"/>
+                        </widgets><fail-widgets>
+                            <label type="p" text="Code hosting is not in this build." style="m-muted q-pa-sm q-mb-none"/>
+                        </fail-widgets></section>
+                    </box-body-nopad></container-box>
+                </container>
+                <container style="col-12 col-lg-4">
+                    <chatter id="ReleaseChatter" record-entity="mantle.work.effort.WorkEffort" record-id="${workEffortId}" default-tab="message"/>
+                </container>
+            </container>
+        </widgets></section>
+    </widgets>
+</screen>

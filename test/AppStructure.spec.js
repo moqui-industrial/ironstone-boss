@@ -146,6 +146,10 @@ const demoRecords = {
     "Projects/Projects/ProjectDetail/Files": { parameters: { workEffortId: "IRON" }, text: "ProjectStatusBar" },
     "Projects/Projects/ProjectDetail/Settings": { parameters: { workEffortId: "IRON" }, text: "ProjectStatusBar" },
     "Projects/Projects/StatusReport": { parameters: { workEffortId: "IRON" }, text: "Open the printable status report" },
+    // P4b: the roadmap, a milestone and a release (data/BossProjectsDemoData.xml)
+    "Projects/Projects/Roadmap": { text: "General availability" },
+    "Projects/Projects/MilestoneDetail": { parameters: { workEffortId: "IRON-MS-1" }, text: "MilestoneStatusBar" },
+    "Projects/Projects/ReleaseDetail": { parameters: { workEffortId: "IRON-REL-2" }, text: "ReleaseStatusBar" },
     "Projects/Settings": { text: "Projects settings" },
     "Projects/Settings/Index": { text: "Projects settings" },
     "Projects/Settings/WorkItemTypes": { text: "Bug Fix" },

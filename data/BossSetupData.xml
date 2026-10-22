@@ -136,6 +136,8 @@ along with this software (see the LICENSE.md file). If not, see
         detail (impl-projects.md P3b2), a failed check its commit -->
     <moqui.security.user.NotificationTopic topic="MergeRequestReview" linkTemplate="/qapps/Projects/Code/MergeRequestDetail?mergeRequestId=${mergeRequestId}"/>
     <moqui.security.user.NotificationTopic topic="MergeRequestUpdate" linkTemplate="/qapps/Projects/Code/MergeRequestDetail?mergeRequestId=${mergeRequestId}"/>
+    <!-- and of ReleasePublished (mantle.work.ProjectServices.publish#ReleaseNotes): the release (impl-projects.md P4b) -->
+    <moqui.security.user.NotificationTopic topic="ReleasePublished" linkTemplate="/qapps/Projects/Projects/ReleaseDetail?workEffortId=${workEffortId}"/>
     <moqui.security.user.NotificationTopic topic="CommitStatusFailed" linkTemplate="/qapps/Projects/Code/CommitDetail?repositoryId=${repositoryId}&amp;commitId=${commitId}"/>
     <!-- the saved finds of WorkItems every Projects user has beside their own (design-projects.md §5 WorkItems; Blocked waits for the
         dependency find of impl-projects.md P4) -->

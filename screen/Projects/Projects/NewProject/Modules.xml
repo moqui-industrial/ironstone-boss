@@ -16,7 +16,7 @@ along with this software (see the LICENSE.md file). If not, see
     unit and the work item flow; a repository: none, a new one on disk or in the database (mantle.work.GitServices
     create#ProjectRepository, its id the key in lower case unless given) or one linked that the user may view
     (add#ProjectRepository; a mirror of a URL is an administrator's, in the tools); documentation: none, or a wiki space on
-    database files (in the repository comes with impl-projects.md P4). Next saves them
+    database files, or in the repository made or linked here at docs/ (impl-projects.md P4b). Next saves them
     (ironstone.ProjectServices.save#ProjectModules); without git hosting in the build no repository can be made or linked. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Modules and code" default-menu-index="3">
@@ -83,11 +83,12 @@ along with this software (see the LICENSE.md file). If not, see
                         <drop-down allow-empty="true"><list-options list="repositoryOptions" key="${key}" text="${text}"/></drop-down>
                         <visible-when field="repositoryChoice" value="link"/></default-field></field>
                     <field name="docsChoice"><default-field title="Documentation">
-                        <radio><option key="none" text="None"/><option key="db" text="A documentation space (in the database)"/></radio></default-field></field>
+                        <radio><option key="none" text="None"/><option key="repository" text="In the repository, beside the code (docs/)"/>
+                            <option key="db" text="A documentation space (in the database)"/></radio></default-field></field>
                 </form-single>
                 <label type="p" text="Linked now: ${linkedText}" style="text-caption m-muted" condition="linkedText"/>
                 <label type="p" text="Documentation space: ${docsSpaceId}" style="text-caption m-muted" condition="docsSpaceId"/>
-                <label type="p" text="Documentation in the project's repository, beside the code, comes with the project's Docs tab." style="text-caption m-muted"/>
+                <label type="p" text="Documentation in the repository: pages are markdown files under docs/ of the repository made or linked here (else the project's first), each save a commit." style="text-caption m-muted"/>
             </box-body></container-box>
         </widgets></section>
     </widgets>

@@ -508,7 +508,7 @@ along with this software (see the LICENSE.md file). If not, see
                         typeLabel: plan.workEffortTypeEnumId === 'WetRelease' ? L('Release') : L('Milestone'), statusId: plan.statusId, statusLabel: statusText(plan.statusId),
                         dueText: plan.estimatedCompletionDate != null ? ec.l10n.format(plan.estimatedCompletionDate, 'MMM d, yyyy') : '—',
                         progress: total ? Math.round(done * 100 / total) : 0, progressText: done + '/' + total,
-                        url: tabUrl('&list=all&' + (type === 'WeatRelease' ? 'releaseId=' : 'milestoneId=') + encodeURIComponent(plan.workEffortId))})
+                        url: (type === 'WeatRelease' ? '/qapps/Projects/Projects/ReleaseDetail' : '/qapps/Projects/Projects/MilestoneDetail') + '?workEffortId=' + encodeURIComponent(plan.workEffortId)})
                 }
                 const colors = ec.service.sync().name('org.moqui.impl.StatusServices.get#StatusColors').parameters({statusIdList: overview.milestoneList.map((row) => row.statusId)}).call()?.colors || {}
                 for (const row of overview.milestoneList) row.statusColor = colors[row.statusId] || 'grey-7'
@@ -1034,10 +1034,10 @@ along with this software (see the LICENSE.md file). If not, see
         <description>NewProject's Modules and code step (design-projects.md §4 ProjectModulesStep): the modules, the estimate unit
             and the work item flow (save#ProjectSettingValues); a repository (repositoryChoice none, local or db: a new one,
             mantle.work.GitServices.create#ProjectRepository with repositoryId, by default the key in lower case; link: an
-            existing one the user may view, add#ProjectRepository); documentation (docsChoice none or db: a wiki space on
-            database files, org.moqui.impl.WikiServices.create#WikiSpace, named in WstDocsWikiSpace; in the repository comes
-            with impl-projects.md P4). By one who manages the project; a repository already linked or a space already set is
-            left as it is.</description>
+            existing one the user may view, add#ProjectRepository); documentation (docsChoice none, db: a space on database
+            files, or repository: a space in the repository made or linked here, else the project's first, at docs/;
+            mantle.work.ProjectServices.create#ProjectDocsSpace, named in WstDocsWikiSpace). By one who manages the project; a
+            repository already linked or a space already set is left as it is.</description>
         <in-parameters>
             <parameter name="workEffortId" required="true"/>
             <parameter name="modules" type="Object"/>
@@ -1073,22 +1073,22 @@ along with this software (see the LICENSE.md file). If not, see
                 repositoryId = linkRepositoryId
                 parts.push(ec.resource.expand('repository ${linkRepositoryId} linked', '', {linkRepositoryId}))
             }
-            if (docsChoice === 'db') {
-                const settings = ec.service.sync().name('mantle.work.ProjectServices.get#ProjectSettings').parameters({workEffortId: workEffortId}).call()?.settings || {}
-                if (settings.WstDocsWikiSpace) wikiSpaceId = settings.WstDocsWikiSpace
+            if (docsChoice === 'db' || docsChoice === 'repository') {
+                const own = ec.entity.find('mantle.work.effort.WorkEffortSetting').condition({workEffortId: workEffortId, settingTypeEnumId: 'WstDocsWikiSpace'}).one()
+                if (own?.settingValue) wikiSpaceId = own.settingValue
                 else {
-                    // a space id is 3 to 8 letters, digits or _, from a letter: the key, else the key with DOCS
-                    const key = /^[A-Z]/.test(workEffortId) ? workEffortId : 'P' + workEffortId
-                    const tries = [key, (key + 'DOCS').substring(0, 8), (key.substring(0, 5) + 'DOC').substring(0, 8), (key.substring(0, 4) + 'WIKI')].filter((id) => id.length >= 3)
-                    const free = tries.find((id) => ec.entity.find('moqui.resource.wiki.WikiSpace').condition('wikiSpaceId', id).one() == null)
-                    if (!free) { ec.message.addError(ec.l10n.localize('No documentation space id is free for this key')); return }
-                    wikiSpaceId = ec.service.sync().name('org.moqui.impl.WikiServices.create#WikiSpace').parameters({wikiSpaceId: free,
-                        description: (project.workEffortName || workEffortId) + ' ' + ec.l10n.localize('documentation')}).call()?.wikiSpaceId
+                    // in the repository: the one made or linked here, else the project's first
+                    let docsRepositoryId = null
+                    if (docsChoice === 'repository') {
+                        docsRepositoryId = (repositoryChoice !== 'none' ? repositoryId : null) || Array.from(ec.entity.find('mantle.work.effort.WorkEffortGitRepository').condition('workEffortId', workEffortId)
+                                .conditionDate('fromDate', 'thruDate', null).orderBy('repositoryId').list())[0]?.repositoryId || null
+                        if (!docsRepositoryId) { ec.message.addError(ec.l10n.localize('Documentation in the repository needs a repository: make or link one')); return }
+                    }
+                    wikiSpaceId = ec.service.sync().name('mantle.work.ProjectServices.create#ProjectDocsSpace').parameters({workEffortId: workEffortId,
+                        storage: docsChoice, repositoryId: docsRepositoryId}).call()?.wikiSpaceId
                     if (ec.message.hasError()) return
-                    ec.service.sync().name('mantle.work.ProjectServices.store#ProjectSetting').parameters({workEffortId: workEffortId,
-                        settingTypeEnumId: 'WstDocsWikiSpace', settingValue: wikiSpaceId}).call()
-                    if (ec.message.hasError()) return
-                    parts.push(ec.resource.expand('documentation space ${wikiSpaceId} made', '', {wikiSpaceId}))
+                    parts.push(docsRepositoryId ? ec.resource.expand('documentation space ${wikiSpaceId} made in ${docsRepositoryId}', '', {wikiSpaceId, docsRepositoryId})
+                            : ec.resource.expand('documentation space ${wikiSpaceId} made', '', {wikiSpaceId}))
                 }
             }
             message = parts.join(', ')
@@ -1553,6 +1553,125 @@ along with this software (see the LICENSE.md file). If not, see
                 const out = ec.service.sync().name(T + 'merge#Labels').parameters({fromCategoryId, intoCategoryId}).call() || {}
                 if (!ec.message.hasError()) message = ec.resource.expand('Labels merged; ${count} work items moved', '', {count: out.itemCount || 0})
             } else ec.message.addError(ec.resource.expand('No label action ${action}', '', {action}))
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== The project's documentation (design-projects.md §4 ProjectDocs; impl-projects.md P4b) ==========
+        ProjectDetail's Docs tab is the Commons Knowledge screen with the space fixed to the project's documentation space
+        (WstDocsWikiSpace; mantle.work.ProjectServices.create#ProjectDocsSpace makes it, in a repository of the project at
+        git://repositoryId/docs or on database files), and its Linked pages: pages of other spaces linked to the project
+        (WikiPageWorkEffort). Pages are read and written through the wiki's own rules (KnowledgeServices, WikiServices
+        get#WikiPageAccess), so a page the user may not view never shows. -->
+
+    <service verb="get" noun="ProjectDocs" allow-remote="false">
+        <description>The Docs tab's data for a project the user sees: the documentation space (wikiSpaceId, its name, its storage as
+            text, whether the user may view and change it), whether the Docs module is on, whether the user may set it up (one who
+            manages the project) and the project's repositories the user may update (for a space in a repository), and the linked
+            pages of other spaces the user may view (title, space, link) with whether the user may link and unlink (the team).</description>
+        <in-parameters><parameter name="workEffortId" required="true"/></in-parameters>
+        <out-parameters><parameter name="docs" type="Map"/></out-parameters>
+        <actions><script><![CDATA[
+            docs = null
+            const access = ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: workEffortId, need: 'view'}).call() || {}
+            if (ec.message.hasError()) return
+            const L = (text) => ec.l10n.localize(text)
+            const settings = ec.service.sync().name('mantle.work.ProjectServices.get#ProjectSettings').parameters({workEffortId: workEffortId}).call()?.settings || {}
+            const own = ec.entity.find('mantle.work.effort.WorkEffortSetting').condition({workEffortId: workEffortId, settingTypeEnumId: 'WstDocsWikiSpace'}).one()
+            const spaceId = own?.settingValue || null
+            docs = {workEffortId: workEffortId, projectName: access.project.workEffortName || workEffortId, docsOn: String(settings.WstModules || '').split(',').map((key) => key.trim()).includes('docs'),
+                wikiSpaceId: null, spaceName: '', storageText: '', canView: false, canUpdate: false, missing: false, canSetup: !!access.canManage,
+                canLink: !!access.canUpdate, repositoryOptions: [], linkedList: []}
+            if (spaceId) {
+                const space = ec.entity.find('moqui.resource.wiki.WikiSpace').condition('wikiSpaceId', spaceId).disableAuthz().one()
+                if (space == null) docs.missing = true
+                else {
+                    const spaceAccess = ec.service.sync().name('org.moqui.impl.WikiServices.get#WikiPageAccess').parameters({wikiSpaceId: spaceId}).call() || {}
+                    ec.message.clearErrors()
+                    docs.wikiSpaceId = spaceId
+                    docs.spaceName = space.description || spaceId
+                    docs.canView = !!spaceAccess.canView
+                    docs.canUpdate = !!spaceAccess.canUpdate
+                    const root = String(space.rootPageLocation || '')
+                    docs.storageText = spaceAccess.storage === 'git' ? ec.resource.expand('In the repository ${repositoryId}, ${path}', '', {repositoryId: spaceAccess.repositoryId,
+                        path: root.replace(/^git:\/\/[^/]+\//, '').replace(/\.[^/.]*$/, '/')}) : L('Database files')
+                }
+            }
+            // a space in a repository: those of the project the user may update, not a mirror
+            if (docs.canSetup && !spaceId) {
+                for (const row of Array.from(ec.entity.find('mantle.work.effort.WorkEffortGitRepository').condition('workEffortId', workEffortId)
+                        .conditionDate('fromDate', 'thruDate', null).orderBy('repositoryId').list())) {
+                    ec.message.pushErrors()
+                    try {
+                        const repoAccess = ec.service.sync().name('org.moqui.impl.GitServices.get#GitRepositoryAccess').parameters({repositoryId: row.repositoryId}).call() || {}
+                        const repo = ec.entity.find('moqui.resource.GitRepository').condition('repositoryId', row.repositoryId).disableAuthz().one()
+                        if (!ec.message.hasError() && repoAccess.canUpdate && !repoAccess.archived && repo?.repositoryKind !== 'remote')
+                            docs.repositoryOptions.push({key: row.repositoryId, text: row.repositoryId + (repo?.description ? ' · ' + repo.description : '')})
+                    } catch (err) {
+                        ec.logger.warn(`Docs of ${workEffortId}: repository ${row.repositoryId} not read: ${err && err.message ? err.message : err}`)
+                    } finally { ec.message.clearErrors(); ec.message.popErrors() }
+                }
+            }
+            // the linked pages of other spaces (WikiPageWorkEffort), those the user may view
+            for (const link of Array.from(ec.entity.find('mantle.work.effort.WikiPageWorkEffort').condition('workEffortId', workEffortId).list())) {
+                const page = ec.entity.find('moqui.resource.wiki.WikiPage').condition('wikiPageId', link.wikiPageId).disableAuthz().one()
+                if (page == null || page.wikiSpaceId === spaceId) continue
+                const pageAccess = ec.service.sync().name('org.moqui.impl.WikiServices.get#WikiPageAccess').parameters({wikiPageId: page.wikiPageId}).call() || {}
+                ec.message.clearErrors()
+                if (!pageAccess.canView) continue
+                const space = ec.entity.find('moqui.resource.wiki.WikiSpace').condition('wikiSpaceId', page.wikiSpaceId).useCache(true).disableAuthz().one()
+                const path = String(page.pagePath || '')
+                docs.linkedList.push({wikiPageId: page.wikiPageId, wikiSpaceId: page.wikiSpaceId, pagePath: path,
+                    title: path ? path.substring(path.lastIndexOf('/') + 1) : (space?.description || page.wikiSpaceId), spaceName: space?.description || page.wikiSpaceId,
+                    url: '/qapps/Commons/Knowledge?wikiPageId=' + encodeURIComponent(page.wikiPageId)})
+            }
+            docs.linkedList.sort((left, right) => String(left.spaceName).localeCompare(String(right.spaceName)) || String(left.pagePath).localeCompare(String(right.pagePath)))
+        ]]></script></actions>
+    </service>
+    <service verb="setup" noun="ProjectDocs" allow-remote="false">
+        <description>Set up documentation: the project's documentation space (mantle.work.ProjectServices.create#ProjectDocsSpace),
+            storage repository (in repositoryId, at docs/) or db, by one who manages the project.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="storage" default-value="db"/>
+            <parameter name="repositoryId"/>
+        </in-parameters>
+        <out-parameters><parameter name="wikiSpaceId"/><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: workEffortId, need: 'manage'}).call()
+            if (ec.message.hasError()) return
+            const out = ec.service.sync().name('mantle.work.ProjectServices.create#ProjectDocsSpace').parameters({workEffortId: workEffortId, storage: storage === 'repository' ? 'repository' : 'db',
+                repositoryId: storage === 'repository' ? (repositoryId || null) : null}).call() || {}
+            if (ec.message.hasError()) return
+            wikiSpaceId = out.wikiSpaceId
+            message = storage === 'repository' ? ec.resource.expand('Documentation space ${wikiSpaceId} made in ${repositoryId}, under docs/', '', {wikiSpaceId, repositoryId})
+                : ec.resource.expand('Documentation space ${wikiSpaceId} made', '', {wikiSpaceId})
+        ]]></script></actions>
+    </service>
+    <service verb="link" noun="ProjectDocsPage" allow-remote="false">
+        <description>Link page: a page of another space the user may view (wikiPageId) linked to the project (WikiPageWorkEffort), by
+            the project's team; unlink removes the link.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="wikiPageId" required="true"/>
+            <parameter name="unlink" type="Boolean" default="false"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: workEffortId, need: 'update'}).call()
+            if (ec.message.hasError()) return
+            const pageAccess = ec.service.sync().name('org.moqui.impl.WikiServices.get#WikiPageAccess').parameters({wikiPageId: wikiPageId}).call() || {}
+            if (ec.message.hasError() || !pageAccess.canView) { ec.message.clearErrors(); ec.message.addError(ec.l10n.localize('Page not found')); return }
+            const page = ec.entity.find('moqui.resource.wiki.WikiPage').condition('wikiPageId', wikiPageId).disableAuthz().one()
+            const title = String(page?.pagePath || wikiPageId)
+            const existing = ec.entity.find('mantle.work.effort.WikiPageWorkEffort').condition({wikiPageId: wikiPageId, workEffortId: workEffortId}).one()
+            if (unlink) {
+                if (existing != null) existing.delete()
+                message = ec.resource.expand('${title} unlinked', '', {title})
+                return
+            }
+            if (existing == null) ec.service.sync().name('create#mantle.work.effort.WikiPageWorkEffort').parameters({wikiPageId: wikiPageId, workEffortId: workEffortId}).call()
+            if (ec.message.hasError()) return
+            message = ec.resource.expand('${title} linked to the project', '', {title})
         ]]></script></actions>
     </service>
 </services>

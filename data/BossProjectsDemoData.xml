@@ -126,6 +126,13 @@ along with this software (see the LICENSE.md file). If not, see
             workEffortName="Beta" estimatedStartDate="2026-10-05 09:00:00" estimatedCompletionDate="2026-12-18 17:00:00"/>
     <mantle.work.effort.WorkEffort workEffortId="IRON-REL-1" workEffortTypeEnumId="WetRelease" statusId="WeInPlanning" rootWorkEffortId="IRON"
             workEffortName="1.0" estimatedCompletionDate="2027-03-31 17:00:00"/>
+    <!-- P4b: a second milestone, General availability (a phase from December), and the release 0.9 in progress, due with Sprint 3 -->
+    <mantle.work.effort.WorkEffort workEffortId="IRON-MS-2" workEffortTypeEnumId="WetMilestone" statusId="WeInPlanning" rootWorkEffortId="IRON"
+            workEffortName="General availability" description="Timesheets and approvals, ready for the first clients." estimatedStartDate="2026-12-21 09:00:00"
+            estimatedCompletionDate="2027-03-31 17:00:00"/>
+    <mantle.work.effort.WorkEffort workEffortId="IRON-REL-2" workEffortTypeEnumId="WetRelease" statusId="WeInProgress" rootWorkEffortId="IRON"
+            workEffortName="0.9" description="The work item tree and the first of time." estimatedStartDate="2026-10-05 09:00:00"
+            estimatedCompletionDate="2026-11-13 17:00:00"/>
     <!-- Sprint 1: complete; IRON-12 added after the start, IRON-3 carried over to Sprint 2. Sprint 2: in progress, IRON-10 added
         after the start. Sprint 3: planned. Capacity in points, the project's unit. -->
     <mantle.work.effort.WorkEffort workEffortId="IRON-SP-1" workEffortTypeEnumId="WetSprint" statusId="WeComplete" rootWorkEffortId="IRON"
@@ -144,6 +151,13 @@ along with this software (see the LICENSE.md file). If not, see
     <mantle.work.effort.WorkEffortAssoc workEffortId="IRON-MS-1" toWorkEffortId="IRON-9" workEffortAssocTypeEnumId="WeatMilestone" fromDate="2026-10-19 09:00:00"/>
     <mantle.work.effort.WorkEffortAssoc workEffortId="IRON-REL-1" toWorkEffortId="IRON-5" workEffortAssocTypeEnumId="WeatRelease" fromDate="2026-10-16 15:00:00"/>
     <mantle.work.effort.WorkEffortAssoc workEffortId="IRON-REL-1" toWorkEffortId="IRON-8" workEffortAssocTypeEnumId="WeatRelease" fromDate="2026-10-19 09:00:00"/>
+    <mantle.work.effort.WorkEffortAssoc workEffortId="IRON-MS-2" toWorkEffortId="IRON-13" workEffortAssocTypeEnumId="WeatMilestone" fromDate="2026-10-21 10:00:00"/>
+    <mantle.work.effort.WorkEffortAssoc workEffortId="IRON-MS-2" toWorkEffortId="IRON-14" workEffortAssocTypeEnumId="WeatMilestone" fromDate="2026-10-21 10:00:00"/>
+    <mantle.work.effort.WorkEffortAssoc workEffortId="IRON-REL-2" toWorkEffortId="IRON-3" workEffortAssocTypeEnumId="WeatRelease" fromDate="2026-10-19 09:00:00"/>
+    <mantle.work.effort.WorkEffortAssoc workEffortId="IRON-REL-2" toWorkEffortId="IRON-7" workEffortAssocTypeEnumId="WeatRelease" fromDate="2026-10-19 09:00:00"/>
+    <mantle.work.effort.WorkEffortAssoc workEffortId="IRON-REL-2" toWorkEffortId="IRON-9" workEffortAssocTypeEnumId="WeatRelease" fromDate="2026-10-19 09:00:00"/>
+    <mantle.work.effort.WorkEffortAssoc workEffortId="IRON-REL-2" toWorkEffortId="IRON-11" workEffortAssocTypeEnumId="WeatRelease" fromDate="2026-10-09 16:00:00"/>
+    <mantle.work.effort.WorkEffortAssoc workEffortId="IRON-REL-2" toWorkEffortId="IRON-12" workEffortAssocTypeEnumId="WeatRelease" fromDate="2026-10-14 15:00:00"/>
     <mantle.work.effort.WorkEffortAssoc workEffortId="IRON-SP-1" toWorkEffortId="IRON-5" workEffortAssocTypeEnumId="WeatSprint" fromDate="2026-10-02 15:00:00"/>
     <mantle.work.effort.WorkEffortAssoc workEffortId="IRON-SP-1" toWorkEffortId="IRON-11" workEffortAssocTypeEnumId="WeatSprint" fromDate="2026-10-02 15:00:00"/>
     <mantle.work.effort.WorkEffortAssoc workEffortId="IRON-SP-1" toWorkEffortId="IRON-3" workEffortAssocTypeEnumId="WeatSprint" fromDate="2026-10-02 15:00:00"

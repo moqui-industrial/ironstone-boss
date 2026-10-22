@@ -178,7 +178,7 @@ New records and fields are marked (new) and specified in §15.
 | Capacity and allocation | Working hours are `WetAvailable` work efforts (Commons Preferences writes them); leave is `WetTimeOff`, holidays `WepHoliday` events; new `WorkEffortAllocation` | Capacity is computed (§9); People's working-schedule record feeds it when it exists |
 | Money | Caps `totalTimeAllowed` and `totalClientCostAllowed`; actuals from `mantle.work.ProjectServices.get#ProjectStats`; material estimates `WorkEffortProduct`; `OrderItemWorkEffort` (with the new `invoicePercent`), `AgreementItemWorkEffort`, `SalesOpportunityWorkEffort`; `WorkEffortInvoice`, `WorkEffortBilling` | Invoices are made by `mantle.account.InvoiceServices.create#ProjectInvoiceItems` (which calls `create#TimeEntryInvoiceItems`), `create#WorkerInvoiceItems` and the new `create#MilestoneInvoiceItems` |
 | Status updates | New `WorkEffortUpdate` with a `CommunicationEvent` of the new type `StatusUpdate` | The project's `healthEnumId` follows the latest |
-| Documents | A `WikiSpace` named in the project's settings, on database files or in the project's repository at `git://<repositoryId>/docs`; `WikiPageWorkEffort` for pages linked from other spaces | Knowledge's editor, history and review work on both storages (design-drawers-commons §10) |
+| Documents | A `WikiSpace` named in the project's settings, on database files or in the project's repository under `git://<repositoryId>/docs` (the home page `docs/<SPACE>.md`, the pages under `docs/<SPACE>/`); `WikiPageWorkEffort` for pages linked from other spaces and for a release's published notes | Knowledge's editor, history and review work on both storages (design-drawers-commons §10) |
 | Discussion | Chatter (`WorkEffortCommEvent`, `RequestCommEvent`, `CommunicationEventRecord`), the record-bound chat room of Comms | Log note is internal; Send message reaches the parties, client users included |
 
 ### 1.4 Shell providers and keys
@@ -236,7 +236,7 @@ its record is the detail's.
 | ProjectRoadmap | `Projects/Projects/ProjectDetail/Roadmap` | list | xml | The project's milestones, releases and sprints | `WorkEffort` | Roadmap (§4) with the project fixed | app | parity | inherits |
 | ProjectRequests | `Projects/Projects/ProjectDetail/Requests` | list | xml | The project's requests and its intake addresses | `Request` | Requests (§6) with the project fixed | app | parity | inherits; `Request rows` |
 | ProjectCode | `Projects/Projects/ProjectDetail/Code` | detail | xml | The project's repositories, tags, open merge requests and recent commits | `WorkEffortGitRepository` | own | internal; clients when shared | parity | inherits |
-| ProjectDocs | `Projects/Projects/ProjectDetail/Docs` | editor | qvue | The project's documentation space, and pages linked from other spaces | `WikiPage` | Knowledge, design-drawers-commons §10, with the space fixed | internal | new | `WikiPage wikiPageId` |
+| ProjectDocs | `Projects/Projects/ProjectDetail/Docs` | editor | qvue | The project's documentation space, and pages linked from other spaces | `WikiPage` | Knowledge, design-drawers-commons §10, with the space fixed (Commons/Knowledge.xml mounted as the tab, P4b) | internal | new | inherits; `WikiPage` `wikiSpaceId` and `pagePath` |
 | ProjectTeam | `Projects/Projects/ProjectDetail/Team` | detail | xml | Members and roles, teams, client contacts, allocations | `WorkEffortParty` | own | internal | parity | inherits |
 | ProjectTime | `Projects/Projects/ProjectDetail/Time` | list | xml | The project's time with totals by person and work type | `TimeEntry` | TimeEntries (§8) with the project fixed | internal | parity | inherits; `TimeEntry rows` |
 | ProjectMoney | `Projects/Projects/ProjectDetail/Money` | detail | xml | Budget and actuals, rates, unbilled work, milestone billing, invoices, expenses, the order and agreement behind it | `WorkEffort`, `TimeEntry`, `Invoice` | own | managers | parity | inherits |
@@ -539,7 +539,10 @@ Services beyond the Commons version: `mantle.work.EventServices.get#FullCalendar
 
 ### ProjectRoadmap (Context passed)
 
-Roadmap (below) with the project fixed, plus the project's sprints (planned, active and closed) as a third chip.
+Roadmap (below) with the project fixed, plus the project's sprints (planned, active and closed) as a third kind chip
+(Sprints), each opening its SprintDetail. As built (P4b): `Projects/Roadmap.xml` mounted as the tab, the project fixed by
+ProjectDetail's `projectTabId`; the tab order is Overview 1, Work items 2, Backlog 3, Plan 4, Roadmap 5, Requests 6, Code 7,
+Docs 8, Team 9, Time 10, Money 11, Files 12, Settings 13.
 
 ### ProjectRequests (Context passed)
 
@@ -585,6 +588,18 @@ of the Knowledge per-app table:
 
 Services beyond the Commons version: `org.moqui.impl.WikiServices.create#WikiSpace` with `rootPageDirectory`;
 `WikiPageWorkEffort` (`entity`), which covers `Project/EditWikiPages` `AddWpweForm` and `DeleteWpweForm`.
+
+As built (P4b): the tab is Commons `Knowledge.xml` mounted in ProjectDetail; `Knowledge.qvue` has a project mode (its setup
+answers the project's space through `ironstone.ProjectServices.get#ProjectDocs`): the side pane names the space and its
+storage instead of the space choice and has Linked pages (Link a page of another space, Unlink) in place of Recent and the
+Commons links; a page of another space opens in Commons Knowledge. A project with no space shows "Set up documentation" to
+those who manage it: in a repository of the project the user may update (not a mirror), or on database files
+(`mantle.work.ProjectServices.create#ProjectDocsSpace`, also NewProject's documentation choice). The space's home page is
+`docs/<SPACE>.md` and its pages are under `docs/<SPACE>/` (the wiki's page files sit under a directory named as the home page,
+impl-projects.md F7), each save a commit on the default branch that a branch rule does not refuse. The space is members only
+(`restrictView`) unless the project is All users or General, changed by members only (`restrictUpdate`), and its
+`WikiSpaceUser` rows follow the project's internal members (`sync#ProjectDocsSpaceUsers`, by a rule on `WorkEffortParty`;
+ProjectManager and Manager administer it), so a repository's docs are never readable by those the project hides them from.
 
 ### ProjectTeam
 
@@ -682,6 +697,13 @@ The `record-files` element over the project (design-drawers-commons §9 RecordFi
 
 - **Views:** list; calendar by due date (`view-calendar`, range-find); timeline, which opens Timeline in plan mode.
 - **States:** clients see their projects' plan items, read only.
+- **As built (P4b):** `ironstone.PlanningServices.find#RoadmapItems` (up to 500, not paged, so the calendar has every row and
+  no range-find); the list is sorted by project and then due date with a project column (list grouping is §16 later); a second
+  row of kind chips (All kinds, Milestones, Releases; Sprints in a project's tab); due and status edited in place by the
+  project's team (`update#PlanItemField`; the status along the `Default` flow); progress is done of the items (cancelled left
+  out) with the hours, from `mantle.work.ProjectServices.get#PlanItemSummary`; Awaiting approval comes with the milestone gate
+  (P8) and the timeline view with Timeline (P4c); billing share with P8. New milestone and New release are for the project's
+  team (not only managers).
 - **Source:** research §7 (OpenProject versions and phases, Redmine roadmap, Odoo milestones); baseline
   `Project/EditMilestones`.
 - **Needs:** Releases and components; Milestone approval.
@@ -705,6 +727,11 @@ The `record-files` element over the project (design-drawers-commons §9 RecordFi
 
 - **Actions:** the next status (Complete asks for approval when the gate requires it); Request approval; Invoice
   milestone (managers, when complete); Move unfinished items (to another milestone).
+- **As built (P4b):** the title row, Progress as number cards (items done, percent, hours or points done, due), Work items
+  with the chips All, Not started, In progress, Done (no in-place edits: a row opens the work item), Add items (a search of
+  the project's items, `search#PlanItemCandidates`) and Remove, Chatter; the moves for the project's team with Complete
+  labelled Reach; Move unfinished items to another open milestone or out of any. The gate, the billing share and the
+  deliverables come with P8, which builds Milestone approval and Milestone billing share.
 - **Source:** research §7 (milestones, phases and gates); baseline `Project/MilestoneSummary`.
 - **Needs:** Milestone approval; Milestone billing share; `chatter`.
 
@@ -726,6 +753,14 @@ The `record-files` element over the project (design-drawers-commons §9 RecordFi
 - **Actions:** Release (primary when In Progress: confirms; completes the release with its date, creates the tag
   when asked, moves unfinished items to the next release or to none, and publishes the notes); Generate draft.
 - **States:** clients see the version, dates, the shared items and the published notes.
+- **As built (P4b):** the work items in one list with a Kind column (Features, Fixes, Other) rather than grouped (list grouping
+  is later); the merge requests and tags only of repositories the user may view (`get#ReleaseCode`); Create tag (an annotated
+  tag, by default `v` and the version, at a ref given or the default branch) and Link a tag; the notes are kept as the
+  release's `WorkEffortContent` of the new type `WectReleaseNotes`, shown as a generated draft until saved, edited in the
+  markdown editor (Save notes), Generate draft replaces them, Publish publishes the saved notes to the docs space (the page
+  `Releases/<version>`, linked to the release by `WikiPageWorkEffort`), a `CHANGELOG.md` commit and the followers (the topic
+  `ReleasePublished`, which emails by the user's preference) — Email followers is that notice; the Release dialog moves the
+  items not done to another open release or out of any, makes the tag, publishes and tells the followers.
 - **Source:** research §7 (versions and roadmap); mr-moqui Git-Hosting tag conventions.
 - **Needs:** Releases and components; Git refs (create a tag); Release notes; Release tags by version.
 
@@ -2009,7 +2044,7 @@ record is read through a service that checks the repository's rights (R21).
 | --- | --- | --- | --- | --- |
 | Shared work item and request detail | BOSS screens | `Shared/WorkItemDetail.xml` and `Shared/RequestDetail.xml`, made from the Commons M6 screens and their `ironstone.TaskServices` and `RequestServices`, with the app context (tabs, fields, actions) set by the including app; Commons mounts them at its present paths | WorkItemDetail, RequestDetail, Commons | design-doc-guide §10 |
 | Sprints | data model + service type + seed data | `WorkEffortType` `WetSprint` and `WorkEffortAssocType` `WeatSprint` (sprint to item; a carry-over ends one membership and starts the next); `mantle.work.ProjectServices.create#Sprint`, `update#Sprint`, `get#SprintDefaults`, `start#Sprint`, `complete#Sprint`; `mantle.work.TaskServices.set#TaskSprint` as `set#TaskMilestone`. As built (P4a): id `<KEY>-SP-<n>`; In Planning, In Progress, Complete; the goal is the description; the capacity is `estimatedPoints` in a points project, `totalTimeAllowed` in an hours one; done is Complete or Closed (a cancelled item is neither done nor carried); a carried item's membership ends at the sprint's `actualCompletionDate`; a change in a sprint in progress writes an `EntityAuditLog` row (`WorkEffortAssoc`, `pkPrimaryValue` the sprint, `pkSecondaryValue` the item, `fromDate` added or `thruDate` removed) with the user | Backlog, SprintDetail, WorkItems, QuickCreate | |
-| Releases and components | service type | `create#Release`, `create#Component` as `create#Milestone` (ids `<KEY>-REL-<n>`, `<KEY>-CMP-<n>`, milestones `<KEY>-MS-<n>`); `set#TaskRelease`, `set#TaskComponent` as `set#TaskMilestone` | Roadmap, ReleaseDetail, ProjectSettings, WorkItemDetail | the types and assoc types exist |
+| Releases and components | service type | `create#Release`, `create#Component` as `create#Milestone` (ids `<KEY>-REL-<n>`, `<KEY>-CMP-<n>`, milestones `<KEY>-MS-<n>`); `set#TaskRelease`, `set#TaskComponent` as `set#TaskMilestone`. As built (P4b): `get#PlanItemDefaults` and `create#PlanItem` under the three (an id given is refused when taken; a release's version is its own in the project); `create#Milestone` takes no id or a description now; `update#Milestone` takes the description and `clearFields`, checks the version and the dates, and sets `actualCompletionDate` on Complete or Closed; `get#PlanItemSummary` (items by state, hours, points, of milestones, releases, sprints and components) | Roadmap, ReleaseDetail, ProjectSettings, WorkItemDetail | the types and assoc types exist |
 | Rank | data model + service type | `WorkEffort.sequenceNum` (number-integer, gaps of 1000); `set#TaskRank(workEffortId, previousSiblingId)`, renumbering a run when a gap closes; in the tree a rank orders the children of one parent. As built (P4a): the Backlog's `set#TaskBacklogRank(workEffortId, previousWorkEffortId or nextWorkEffortId)` treats the ranks as one order over the project's items at every depth, renumbering the whole project when a gap closes, so the tree's order of siblings is that order narrowed to them | Backlog, the tree, sub-items, board card order | |
 | Work item tree | service type | `mantle.work.ProjectServices.get#WorkItemTree(find parameters, parentWorkEffortId or top, withAncestors)`: one level of the tree in rank order with each row's roll-up (its subtree's estimate, remaining, actual, budget, item and done counts, cancelled left out, as `get#WorkEffortChildStats` sums), a has-children flag, and for a find the ancestors of the matches so each sits in its place; `mantle.work.TaskServices.move#Task(workEffortId, parentWorkEffortId, previousSiblingId)`: the parent in the same project, refused when it is the item or one of its descendants, the rank set among the new siblings, the change in the audit log; `update#Task` with a new `rootWorkEffortId` moves the subtree and refuses a parent left in another project | WorkItems, WorkItemDetail, Backlog's epic filter, Timeline, ProjectOverview | `get#WorkEffortChildStats` reads one level of children per call today |
 | Story points | data model | `WorkEffort.estimatedPoints` (number-decimal); a sprint's capacity in the project's unit | WorkItemDetail, Backlog, SprintReport | |
@@ -2024,13 +2059,13 @@ record is read through a service that checks the repository's rights (R21).
 | Client project purpose | seed data | `Enumeration` `WepPrClient` ("Client Project") under `WetProject` | NewProject, ProjectSettings | |
 | Milestone approval | service type + seed data | `request#MilestoneApproval`, `approve#MilestoneApproval`, `refuse#MilestoneApproval` (the requirement and the approver in the milestone's `WorkEffortSetting`); topic `MilestoneApproval` naming the two decision services; `mantle.work.ProjectServices.send#EstimateForApproval` (the estimate's `html-print` saved as a `WorkEffortContent` file of the project's Estimate milestone, made first when missing with its gate and the client approver, then `request#MilestoneApproval`) | MilestoneDetail, ProjectMoney, the tray's Approvals | |
 | Recurring work items | data model + service type | `WorkEffortRecurrence` (built for Calendar) gains `recurFromCompletion` (text-indicator: count the next dates from the completion day rather than the due date); `mantle.work.TaskServices.set#TaskRecurrence(workEffortId, rrule, recurFromCompletion)` (an empty rule stops it) and `make#NextRecurringTask`, a SECA on the task's move to Complete, or to Cancelled when skipped: the copy of §5, start and due from the rule through the ICalendar tool's expansion, linked from the series by `WeatRecurrenceInstance` with its date; nothing is made past the rule's end | WorkItemDetail, WorkItems, Commons TaskDetail | Odoo recurring tasks |
-| Release notes | service type | `generate#ReleaseNotes` (markdown of the release's items by type with their keys, and its merged merge requests) and `publish#ReleaseNotes` (a page of the project's docs space, a `CHANGELOG.md` commit through `commit#GitFiles`, an email to its followers) | ReleaseDetail | |
+| Release notes | service type | `generate#ReleaseNotes` (markdown of the release's items by type with their keys, and its merged merge requests) and `publish#ReleaseNotes` (a page of the project's docs space, a `CHANGELOG.md` commit through `commit#GitFiles`, an email to its followers). As built (P4b): the draft has the release's description, its done items as Features, Fixes and Other, and its merged merge requests of repositories the user may view (the open items are counted, not listed); `store#` and `get#ReleaseNotes` keep them as a `WorkEffortContent` `WectReleaseNotes`; `publish#ReleaseNotes` goes each way on its own (a failure is a warning naming it): the page `Releases/<version>` (Releases made when missing), the version's section at the top of `CHANGELOG.md` (replaced when there), and the topic `ReleasePublished` to the followers of the release and the project; `release#Release` completes it (unfinished items to the next open release or none, a tag, the notes) | ReleaseDetail | |
 | Project activity | service type | `mantle.work.ProjectServices.get#ProjectActivity`: the status changes (audit log), comments, commits and merges of the project's items, newest first, paged | ProjectOverview, Home | |
 | Time in Chatter | service type | `get#RecordTimeline` gains a time-entry source for a work item (who logged how long, with the comment) | WorkItemDetail | design-drawers-commons §15, Projects' row |
 | Calendar project filter | service type | `mantle.work.EventServices.get#FullCalendarData` takes `rootWorkEffortId`: the project's events (by `WorkEffortRecord`), milestones, releases and sprints | ProjectCalendar | |
 | Timeline data | service type | `mantle.work.ProjectServices.get#TimelineData`: the find's items with start, due, progress, plan items and dependencies, and for each parent its subtree's span and roll-up progress; business days through `get#FutureBusinessDay` | Timeline | |
 | Work item import services | service type | `mantle.work.WorkItemImportServices` `parse#WorkItemFile`, `preview#WorkItems`, `import#WorkItems` (a job with progress on a topic; the original key in `sourceReferenceId`; Jira, Redmine and GitHub CSV presets) | WorkItemImport | as `ContactImportServices` |
-| Wiki space in a repository | service type | `create#WikiSpace` with `rootPageDirectory` `git://<repositoryId>/docs` in a code repository: check that a space rooted in a subdirectory works and that its saves (commits by the user on the default branch) pass the branch rules as writes | ProjectDocs, NewProject | Revision-Management "Wiki spaces on git" |
+| Wiki space in a repository | service type | `create#WikiSpace` with `rootPageDirectory` `git://<repositoryId>/docs` in a code repository: check that a space rooted in a subdirectory works and that its saves (commits by the user on the default branch) pass the branch rules as writes. Checked (P4b, impl-projects.md F7): it works with no framework change (a moqui-core test, Revision-Management "Wiki spaces on git"); the home page is `docs/<SPACE>.md` and the pages under `docs/<SPACE>/`; `mantle.work.ProjectServices.create#ProjectDocsSpace` makes it (members, visibility, users following the project's members) | ProjectDocs, NewProject | Revision-Management "Wiki spaces on git" |
 
 ### Time, capacity and money (Mantle)
 

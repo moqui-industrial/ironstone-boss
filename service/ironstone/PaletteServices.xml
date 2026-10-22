@@ -30,7 +30,8 @@ along with this software (see the LICENSE.md file). If not, see
             full entity name (recordEntityName), its id and, for a work effort, its type (looked up when not given); a link of
             null when no app the user has has a screen for it. A project, and a task or a request in a project
             (rootWorkEffortId), open in IronStone Projects for a user who may open it (design-projects.md §1.4: an authorization
-            of the user's groups on the Projects root, with no deny), else a task or request in Commons and a project nowhere;
+            of the user's groups on the Projects root, with no deny; a sprint, milestone or release opens its detail there), else a
+            task or request in Commons and a project nowhere;
             a task or request with no project stays in Commons. The Today panel, the notification lists and the palette use it.</description>
         <in-parameters>
             <parameter name="docType"><description>MantleParty, MantleTask, MantleEvent, MantleRequest, MantleProject,
@@ -55,7 +56,8 @@ along with this software (see the LICENSE.md file). If not, see
                         .condition('partyId', id).selectField('partyTypeEnumId').one()?.partyTypeEnumId || null
             }
             if (type === 'MantleWorkEffort') type = workEffortTypeEnumId === 'WetEvent' ? 'MantleEvent' : workEffortTypeEnumId === 'WetTask' ? 'MantleTask'
-                : workEffortTypeEnumId === 'WetProject' ? 'MantleProject' : workEffortTypeEnumId === 'WetSprint' ? 'MantleSprint' : null
+                : workEffortTypeEnumId === 'WetProject' ? 'MantleProject' : workEffortTypeEnumId === 'WetSprint' ? 'MantleSprint'
+                : workEffortTypeEnumId === 'WetMilestone' ? 'MantleMilestone' : workEffortTypeEnumId === 'WetRelease' ? 'MantleRelease' : null
             // a wiki page review (topics WikiPageReview, WikiPageReviewDecision) opens its page on the review's compare
             if (!type && recordEntityName === 'moqui.resource.wiki.WikiPageReview') {
                 const review = ec.entity.find('moqui.resource.wiki.WikiPageReview').condition('wikiPageReviewId', id).one()
@@ -91,6 +93,13 @@ along with this software (see the LICENSE.md file). If not, see
             if (type === 'MantleSprint') {
                 url = mayOpenProjects() ? '/qapps/Projects/WorkItems/SprintDetail?workEffortId=' + q : null
                 icon = 'sym_o_sprint'
+                return
+            }
+            // a milestone or a release (its Chatter, the topic ReleasePublished) opens its detail in Projects
+            if (type === 'MantleMilestone' || type === 'MantleRelease') {
+                const release = type === 'MantleRelease'
+                url = mayOpenProjects() ? (release ? '/qapps/Projects/Projects/ReleaseDetail?workEffortId=' : '/qapps/Projects/Projects/MilestoneDetail?workEffortId=') + q : null
+                icon = release ? 'sym_o_new_releases' : 'sym_o_flag'
                 return
             }
             // IronStone Projects: a project, and a task or a request of a project, for a user who may open the app

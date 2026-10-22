@@ -21,7 +21,7 @@ along with this software (see the LICENSE.md file). If not, see
     plan items of P4. Service: ironstone.ProjectServices get#ProjectSettingsInfo, save#ProjectGeneral, save#ProjectSettingValues,
     set#ProjectTemplateFlag, set#ProjectStatus, delete#EmptyProject. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Settings" default-menu-index="9">
+        default-menu-title="Settings" default-menu-index="13">
 
     <transition name="saveGeneral">
         <actions>

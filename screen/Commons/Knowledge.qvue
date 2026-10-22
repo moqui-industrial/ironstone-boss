@@ -25,7 +25,14 @@ along with this software (see the LICENSE.md file). If not, see
     backlinks and links not made yet, tags, linked tasks and requests, files, and Chatter. The History dialog lists the versions
     (notes, who, when, current, published, moved from), compares two with the server's diff, views, restores and publishes one;
     a review opens there on its compare with Approve and Request changes. Keys: e edit, Ctrl+S save, / search, n new page,
-    h history. Colors are brand color names and Quasar classes only (style-guide §4.8). -->
+    h history. Colors are brand color names and Quasar classes only (style-guide §4.8).
+
+    In a project (ProjectDetail's Docs tab, design-projects.md §4 ProjectDocs; impl-projects.md P4b) the same component has the
+    space fixed to the project's documentation space (setup answers project: ironstone.ProjectServices.get#ProjectDocs): the side
+    pane names the space and its storage instead of the space choice, has Linked pages (pages of other spaces linked to the
+    project, Link page and Unlink for the project's team) in place of the recent pages and the Commons links, and a project with
+    no space yet shows Set up documentation (in a repository of the project at docs/, or on database files) to those who manage
+    it. A page of another space opens in Commons Knowledge. -->
 <template><div class="boss-knowledge">
     <m-screen-context record-entity="moqui.resource.wiki.WikiPage" :record-id="contextRecordId" :title="contextTitle"></m-screen-context>
 
@@ -36,11 +43,17 @@ along with this software (see the LICENSE.md file). If not, see
         <div v-if="wide || sideOpen" :class="wide ? 'col-auto q-pr-md' : 'fixed-left q-pa-md shadow-8 scroll ' + (dark ? 'bg-dark' : 'bg-white')"
                 :style="wide ? {width: '280px', position: 'sticky', top: '58px', maxHeight: 'calc(100vh - 66px)', overflowY: 'auto'} : {width: 'min(320px, 86vw)', zIndex: 3001}">
             <div class="row items-center no-wrap q-mb-sm">
+                <div v-if="inProject" class="col" style="min-width:0">
+                    <div class="text-subtitle2 ellipsis">{{project && project.spaceName ? project.spaceName : t('Documentation')}}</div>
+                    <div v-if="project && project.storageText" class="text-caption m-muted ellipsis">{{project.storageText}}</div>
+                </div>
+                <template v-else>
                 <div class="col">
                     <m-drop-down id="boss-knowledge-space" name="knowledgeSpace" :model-value="spaceId" :options="spaceOptions" :label="t('Space')"
                             @update:model-value="openSpace"></m-drop-down>
                 </div>
                 <q-btn flat dense round icon="sym_o_settings" class="q-ml-xs" @click="go(spacesUrl)"><q-tooltip>{{t('Spaces and their settings')}}</q-tooltip></q-btn>
+                </template>
                 <q-btn v-if="!wide" flat dense round icon="close" @click="sideOpen = false"></q-btn>
             </div>
             <m-text-line id="boss-knowledge-search" name="knowledgeSearch" v-model="searchText" :label="t('Search pages')"
@@ -93,7 +106,7 @@ along with this software (see the LICENSE.md file). If not, see
                 <div v-else-if="treeReady && spaceId" class="text-caption m-muted q-pa-sm">{{t('No pages under the home page yet')}}</div>
                 <div v-if="space && space.canUpdate && treeNodes.length > 1 && wide" class="text-caption m-muted q-px-xs q-pt-xs">{{t('Drag a page to move it')}}</div>
 
-                <template v-if="recent.length">
+                <template v-if="recent.length && !inProject">
                     <div class="text-caption text-weight-medium m-muted q-mt-md q-px-xs">{{t('Recent')}}</div>
                     <q-list dense>
                         <q-item v-for="item in recent" :key="item.wikiPageId" clickable dense class="rounded-borders q-px-xs" @click="go(item.url)">
@@ -107,7 +120,29 @@ along with this software (see the LICENSE.md file). If not, see
             </template>
 
             <q-separator class="q-my-sm"></q-separator>
-            <q-list dense>
+            <!-- in a project: the pages of other spaces linked to it -->
+            <div v-if="inProject" class="boss-knowledge-linked">
+                <div class="row items-center no-wrap">
+                    <div class="col text-caption text-weight-medium m-muted q-px-xs">{{t('Linked pages')}}</div>
+                </div>
+                <q-list dense>
+                    <q-item v-for="linked in projectLinked" :key="linked.wikiPageId" dense class="rounded-borders q-px-xs" clickable @click="go(linked.url)">
+                        <q-item-section>
+                            <q-item-label class="ellipsis">{{linked.title}}</q-item-label>
+                            <q-item-label caption class="ellipsis">{{linked.spaceName}}</q-item-label>
+                        </q-item-section>
+                        <q-item-section v-if="project && project.canLink" side>
+                            <q-btn flat dense round size="sm" icon="sym_o_link_off" @click.stop="unlinkPage(linked)"><q-tooltip>{{t('Unlink')}}</q-tooltip></q-btn>
+                        </q-item-section>
+                    </q-item>
+                </q-list>
+                <div v-if="!projectLinked.length" class="text-caption m-muted q-px-xs">{{t('No pages of other spaces linked yet')}}</div>
+                <div v-if="project && project.canLink" class="q-mt-xs">
+                    <m-drop-down id="boss-knowledge-link-page" name="linkWikiPageId" v-model="linkPageValue" server-search :options-url="url('searchLinkPages')" :options-parameters="withProject({})"
+                            :label="t('Link a page of another space')" @update:model-value="linkPage"></m-drop-down>
+                </div>
+            </div>
+            <q-list v-else dense>
                 <q-item clickable dense class="rounded-borders q-px-xs" @click="go(reviewUrl)">
                     <q-item-section avatar style="min-width:28px"><q-icon name="sym_o_rate_review" size="xs"></q-icon></q-item-section>
                     <q-item-section>{{t('Reviews')}}</q-item-section>
@@ -130,6 +165,25 @@ along with this software (see the LICENSE.md file). If not, see
                 <q-skeleton type="text" width="40%" class="text-h5"></q-skeleton>
                 <q-skeleton type="text" width="25%"></q-skeleton>
                 <q-skeleton type="rect" height="240px" class="q-mt-md"></q-skeleton>
+            </div>
+
+            <div v-else-if="inProject && project && !project.wikiSpaceId" class="q-pa-lg">
+                <q-btn v-if="!wide" flat dense round icon="menu" class="float-left" @click="sideOpen = true"></q-btn>
+                <div class="text-center">
+                    <q-icon name="sym_o_menu_book" size="48px" class="m-muted"></q-icon>
+                    <div class="text-h6 q-mt-sm">{{project.missing ? t('The documentation space is not there') : t('No documentation yet')}}</div>
+                    <div class="text-body2 m-muted q-mb-md">{{t('The project\u2019s pages: guides, decisions and release notes. In the repository they are markdown files beside the code, and each save is a commit.')}}</div>
+                </div>
+                <q-card v-if="project.canSetup" flat bordered class="q-pa-md q-mx-auto" style="max-width:520px">
+                    <div class="text-subtitle1 q-mb-sm">{{t('Set up documentation')}}</div>
+                    <q-option-group v-model="setup.storage" :options="setupOptions" type="radio" dense></q-option-group>
+                    <m-drop-down v-if="setup.storage === 'repository'" id="boss-knowledge-setup-repo" name="docsRepositoryId" v-model="setup.repositoryId"
+                            :options="project.repositoryOptions.map((option) => ({ value: option.key, label: option.text }))" :label="t('Repository')" class="q-mt-sm"></m-drop-down>
+                    <div v-if="setup.storage === 'repository'" class="text-caption m-muted q-mt-xs">{{t('The pages go under docs/ of the repository, on its default branch.')}}</div>
+                    <q-btn unelevated no-caps color="primary" icon="sym_o_add" class="q-mt-md" :label="t('Set up documentation')" :loading="setup.busy"
+                            :disable="setup.storage === 'repository' && !setup.repositoryId" @click="setupDocs"></q-btn>
+                </q-card>
+                <div v-else class="text-body2 m-muted text-center">{{t('Those who manage the project set it up here.')}}</div>
             </div>
 
             <div v-else-if="!spaceOptions.length && !page" class="q-pa-lg text-center">
@@ -344,7 +398,7 @@ along with this software (see the LICENSE.md file). If not, see
                             <div v-else class="text-body2 m-muted">{{t('None yet')}}</div>
                             <div v-if="page.canUpdate && page.wikiPageId" class="q-mt-xs">
                                 <m-drop-down id="boss-knowledge-record" name="linkRecord" :model-value="linkRecordValue" server-search :server-min-length="2" allow-empty
-                                        :options-url="url('searchRecords')" :label="t('Link a task, event or request (id or words)')" @update:model-value="linkRecord"></m-drop-down>
+                                        :options-url="url('searchRecords')" :options-parameters="withProject({})" :label="t('Link a task, event or request (id or words)')" @update:model-value="linkRecord"></m-drop-down>
                             </div>
                         </m-container-box>
                     </div>
@@ -518,7 +572,7 @@ along with this software (see the LICENSE.md file). If not, see
     <m-dialog v-model="reviewRequest.open" :title="t('Request review')" width="560">
         <div class="q-gutter-y-sm">
             <div class="text-body2">{{t('Version')}} {{page && page.currentShort}}{{page && page.publishedShort ? ' · ' + t('compared with the published') + ' ' + page.publishedShort : ''}}</div>
-            <m-drop-down id="boss-knowledge-reviewers" name="reviewerUserIds" v-model="reviewRequest.reviewers" multiple server-search :options-url="url('searchUsers')"
+            <m-drop-down id="boss-knowledge-reviewers" name="reviewerUserIds" v-model="reviewRequest.reviewers" multiple server-search :options-url="url('searchUsers')" :options-parameters="withProject({})"
                     :label="t('Reviewers (none: anyone who may edit the page)')"></m-drop-down>
             <m-date-time id="boss-knowledge-due" name="dueDate" type="date" v-model="reviewRequest.dueDate" :label="t('Due (optional)')"></m-date-time>
             <m-text-area id="boss-knowledge-reviewnote" name="note" v-model="reviewRequest.note" rows="3" :label="t('Note to the reviewers')"></m-text-area>
@@ -578,7 +632,8 @@ module.exports = {
             changes: { open: false, review: null, note: '', busy: false },
             confirmOpen: false,
             preview: { open: false, src: '', name: '' },
-            handledReviewKey: '', handledEditKey: ''
+            handledReviewKey: '', handledEditKey: '',
+            project: null, linkPageValue: null, setup: { storage: 'repository', repositoryId: null, busy: false }
         };
     },
     computed: {
@@ -588,7 +643,16 @@ module.exports = {
         dark() { return this.$q.dark.isActive; },
         locale() { return String((moqui.config && moqui.config.locale) || 'en-US').replace('_', '-'); },
         pathList() { return this.$root.currentPathList || []; },
-        kIndex() { return this.pathList.indexOf('Knowledge'); },
+        // Commons Knowledge, or a project's Docs tab (ProjectDetail mounts this screen there)
+        inProject() { return this.pathList.indexOf('Knowledge') < 0 && this.pathList.indexOf('ProjectDetail') >= 0 && this.pathList.indexOf('Docs') >= 0; },
+        kIndex() { const index = this.pathList.indexOf('Knowledge'); return index >= 0 || !this.inProject ? index : this.pathList.indexOf('Docs'); },
+        projectLinked() { return this.project && this.project.linkedList ? this.project.linkedList : []; },
+        setupOptions() {
+            const list = [];
+            if (this.project && this.project.repositoryOptions && this.project.repositoryOptions.length) list.push({ value: 'repository', label: this.t('In a repository of the project, beside the code (docs/)') });
+            list.push({ value: 'db', label: this.t('On database files') });
+            return list;
+        },
         // a subscreen (Spaces, SpaceDetail, Review) in the path: it shows in place of the page
         subActive() { return this.kIndex >= 0 && this.pathList.length > this.kIndex + 1; },
         screenPath() { return this.$root.basePath + '/' + (this.kIndex >= 0 ? this.pathList.slice(0, this.kIndex + 1) : ['Commons', 'Knowledge']).join('/'); },
@@ -667,8 +731,14 @@ module.exports = {
     methods: {
         t(text) { return moqui.l10n && moqui.l10n.localize ? moqui.l10n.localize(text) : text; },
         url(name) { return this.screenPath + '/' + name; },
+        // in a project's Docs tab every request names the project (ProjectDetail's parameter, which fixes the space)
+        withProject(params) {
+            if (!this.inProject) return params || {};
+            if (typeof FormData !== 'undefined' && params instanceof FormData) { params.append('workEffortId', this.params.workEffortId || ''); return params; }
+            return Object.assign({ workEffortId: this.params.workEffortId || '' }, params || {});
+        },
         request(name, params, method) {
-            return moqui.request(this.url(name), { method: method || 'GET', params: params || {} }).then((result) => {
+            return moqui.request(this.url(name), { method: method || 'GET', params: this.withProject(params) }).then((result) => {
                 const json = result.json || {};
                 if (json.messageInfos && json.messageInfos.length) moqui.notifyMessages(json.messageInfos);
                 return json;
@@ -687,6 +757,11 @@ module.exports = {
         },
         pageUrl(spaceId, path, extra) {
             const query = Object.assign({ wikiSpaceId: spaceId }, path ? { pagePath: path } : {}, extra || {});
+            // in a project: its own space here, any other in Commons Knowledge
+            if (this.inProject) {
+                if (this.project && spaceId && spaceId !== this.project.wikiSpaceId) return this.$root.linkBasePath + '/Commons/Knowledge?' + moqui.objToSearch(query);
+                return this.linkPath + '?' + moqui.objToSearch(Object.assign({ workEffortId: this.params.workEffortId || '' }, query));
+            }
             return this.linkPath + '?' + moqui.objToSearch(query);
         },
         openPage(spaceId, path, extra) { this.go(this.pageUrl(spaceId, path, extra)); },
@@ -713,7 +788,11 @@ module.exports = {
                 this.recent = json.recentList || [];
                 this.reviewCount = json.reviewCount || 0;
                 this.me = json.me || {};
-                if (!this.spaceId) this.spaceId = json.defaultWikiSpaceId || null;
+                this.project = json.project || null;
+                if (this.project && this.project.repositoryOptions && !this.project.repositoryOptions.length) this.setup.storage = 'db';
+                else if (this.project && this.project.repositoryOptions && !this.setup.repositoryId) this.setup.repositoryId = this.project.repositoryOptions[0].key;
+                if (this.inProject) this.spaceId = this.project && this.project.canView ? this.project.wikiSpaceId : null;
+                else if (!this.spaceId) this.spaceId = json.defaultWikiSpaceId || null;
                 this.ready = true;
             }, () => { this.ready = true; });
         },
@@ -733,7 +812,7 @@ module.exports = {
             this.loadingPage = true;
             this.editing = false;
             this.conflict = null;
-            moqui.request(this.url('page'), { params: query }).then((result) => {
+            moqui.request(this.url('page'), { params: this.withProject(query) }).then((result) => {
                 if (seq !== this.pageSeq) return;
                 const page = (result.json || {}).page;
                 this.loadingPage = false;
@@ -841,7 +920,7 @@ module.exports = {
         },
         fetchChildren(path) {
             const spaceId = this.treeSpaceId;
-            return moqui.request(this.url('children'), { params: { wikiSpaceId: spaceId, pagePath: path } }).then((result) => {
+            return moqui.request(this.url('children'), { params: this.withProject({ wikiSpaceId: spaceId, pagePath: path }) }).then((result) => {
                 if (spaceId !== this.treeSpaceId) return [];
                 const list = (result.json || {}).childList || [];
                 this.treeCache[path] = list;
@@ -918,6 +997,25 @@ module.exports = {
                 });
             }, () => {});
         },
+        // ===== a project's documentation (the Docs tab) =====
+        setupDocs() {
+            if (this.setup.busy) return;
+            this.setup.busy = true;
+            this.post('setupProjectDocs', { storage: this.setup.storage, repositoryId: this.setup.storage === 'repository' ? (this.setup.repositoryId || '') : '' }).then((json) => {
+                this.setup.busy = false;
+                if (!json.wikiSpaceId) return;
+                this.treeCache = {};
+                this.loadSetup().then(() => this.openPage(json.wikiSpaceId, ''));
+            }, () => { this.setup.busy = false; });
+        },
+        linkPage(value) {
+            if (!value) return;
+            this.post('linkProjectPage', { wikiPageId: value }).then(() => { this.linkPageValue = null; this.loadSetup(); }, () => { this.linkPageValue = null; });
+        },
+        unlinkPage(linked) {
+            this.ask(this.t('Unlink this page?'), this.t('The page stays in its space; only its link to the project goes.'), this.t('Unlink'), true,
+                () => this.post('linkProjectPage', { wikiPageId: linked.wikiPageId, unlink: 'true' }).then(() => this.loadSetup(), () => {}));
+        },
         // ===== search =====
         runSearch(now) {
             const text = String(this.searchText || '').trim();
@@ -925,7 +1023,7 @@ module.exports = {
             const seq = ++this.search.seq;
             this.search.active = true;
             this.search.loading = true;
-            moqui.request(this.url('search'), { params: { text } }).then((result) => {
+            moqui.request(this.url('search'), { params: this.withProject(Object.assign({ text }, this.inProject && this.spaceId ? { wikiSpaceId: this.spaceId } : {})) }).then((result) => {
                 if (seq !== this.search.seq) return;
                 this.search.results = (result.json || {}).pageList || [];
                 this.search.loading = false;
@@ -1011,7 +1109,7 @@ module.exports = {
                 .then(() => { this.page.records = this.page.records.filter((item) => item !== record); }, () => {});
         },
         fileUrl(file, inline) {
-            return this.url('attachment') + '?' + moqui.objToSearch({ wikiPageId: this.page ? this.page.wikiPageId : '', filename: file.filename, inline: inline ? 'true' : 'false' });
+            return this.url('attachment') + '?' + moqui.objToSearch(this.withProject({ wikiPageId: this.page ? this.page.wikiPageId : '', filename: file.filename, inline: inline ? 'true' : 'false' }));
         },
         openFile(file) {
             if (file.isImage) this.preview = { open: true, src: this.fileUrl(file, true), name: file.filename };
