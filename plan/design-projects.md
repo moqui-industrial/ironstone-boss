@@ -522,7 +522,9 @@ no bulk actions and no estimate columns.
 
 ### ProjectBacklog, ProjectTimeline and ProjectCalendar (Context passed)
 
-Backlog and Timeline (§5) with the project fixed. **Plan** is one tab with a toggle between ProjectTimeline and
+Backlog and Timeline (§5) with the project fixed. The Backlog tab is always there (a tab cannot be hidden by a condition,
+impl-projects.md F24): with the Backlog and sprints module off it ranks the backlog only, with Plan in sprints for the
+managers (built in P4a by mounting `WorkItems/Backlog` in ProjectDetail). **Plan** is one tab with a toggle between ProjectTimeline and
 ProjectCalendar. ProjectCalendar is the Commons Calendar component (design-drawers-commons §7) in its project
 mode, filtered to the project's events (meetings linked to the project through `WorkEffortRecord`, which quick
 create's link chip writes), its milestones, releases and sprints, and its work items by due date. Projects' row
@@ -925,16 +927,21 @@ actions.
   planned ones, each collapsible with its dates, goal, item count and the sum of estimates against its capacity,
   and Start or Complete). Rows drag within a pane to re-rank and between panes to plan; a selection drags as one.
   Below 1024 px the panes stack, sprints first. It uses `m-avatar`, `m-dialog` with `m-form` and the `m-*` inputs,
-  `q-list` and `q-expansion-item`, with HTML5 drag as `Gallery/Board.qvue` does.
+  `q-list` and `q-expansion-item`, with HTML5 drag as `Gallery/Board.qvue` does. As built (impl-projects.md P4a): the
+  backlog's items are the **leaves** of the work breakdown (open items with no sub-items, cancelled ones aside; a parent's
+  estimate is its children's, and it is completed from the tree), while a sprint holds items at any depth; a row's menu does the same moves as a drag (top, bottom, to a
+  sprint, back to the backlog) for phones and the keyboard; quick add puts the new item at the top of the backlog; the
+  filters narrow the rows of both panes but not a sprint's total. The project's team ranks, plans, makes, starts and
+  completes sprints; Plan in sprints is its managers'. The terminal has `BacklogTui`, read only.
 - **Forms:**
 
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
 | --- | --- | --- | --- | --- | --- | --- |
-| `BacklogList` | component | The ranked backlog | rank handle, type icon, key, title, epic (its top-level item, as a chip that filters by it), estimate, assignee, labels, release | drag; quick add | `mantle.work.TaskServices.set#TaskRank` (new); `create#Task` | OpenProject backlogs; Jira backlog (familiar shape) |
+| `BacklogList` | component | The ranked backlog | rank handle, type icon, key, title, epic (its top-level item, as a chip that filters by it), estimate, assignee, labels, release | drag; quick add | `mantle.work.TaskServices.set#TaskBacklogRank` (new; one order over the project, §15 Rank); `create#Task` | OpenProject backlogs; Jira backlog (familiar shape) |
 | `SprintLists` | component | Each sprint's items | as the backlog, plus status chip; totals against capacity | drag in and out | `set#TaskSprint` (new) | OpenProject sprints; Ever Gauzy sprint view |
-| `SprintForm` | dialog | Make or edit a sprint | name, goal, start, end (two weeks after the last sprint by default), capacity in hours or points | | `mantle.work.ProjectServices.create#Sprint` (new); `update#Milestone` | OpenProject sprint settings |
+| `SprintForm` | dialog | Make or edit a sprint | name, goal, start, end (two weeks after the last sprint by default, on weekdays), capacity in hours or points | | `mantle.work.ProjectServices.create#Sprint`, `update#Sprint`, `get#SprintDefaults` (new) | OpenProject sprint settings |
 | `StartSprint` | dialog | Begin the sprint | dates, goal; refused while another sprint is active unless the project allows several, then it names them | | `mantle.work.ProjectServices.start#Sprint` (new) | Jira start sprint |
-| `CompleteSprint` | dialog | End the sprint | done and not done counts; not done items go to the next sprint, a new sprint or the backlog | | `mantle.work.ProjectServices.complete#Sprint` (new) | Jira complete sprint |
+| `CompleteSprint` | dialog | End the sprint | done and not done counts; not done items go to the next sprint, a new sprint or the backlog | | `mantle.work.ProjectServices.complete#Sprint` (new: `carryTo` next, new or backlog, or `carryToSprintId`) | Jira complete sprint |
 
 - **States:** a project without sprints shows the backlog only, with "Plan in sprints" turning the module on for
   managers; one sprint is active at a time per project unless the project allows several (ProjectSettings, for teams
@@ -951,10 +958,10 @@ actions.
 
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
 | --- | --- | --- | --- | --- | --- | --- |
-| `SprintHeader` | single | The sprint | name, goal, start, end, capacity | | `update#Milestone` | OpenProject sprint |
+| `SprintHeader` | single | The sprint | name, goal, start, end, capacity | | `update#Sprint` (new) | OpenProject sprint |
 | `Burndown` | display | Remaining work by day against the ideal line | day, remaining hours or points, ideal | `m-chart` line with its table | `mantle.work.ProjectReportServices.get#SprintBurndown` (new) | OpenProject burndown; Odoo burndown chart |
-| `SprintItems` | list | Its items | as WorkItems | board view by status | WorkItems' services | OpenProject sprint list |
-| `ScopeChanges` | list | Items added or removed after the start | item, added or removed, when, by | | `WorkEffortAssoc` `WeatSprint` from and thru dates (`entity`) | Jira sprint report |
+| `SprintItems` | list | Its items | as WorkItems; a completed sprint marks the items carried over | board view by status | WorkItems' services | OpenProject sprint list |
+| `ScopeChanges` | list | Items added or removed after the start | item, added or removed, size, when, by | | `get#SprintBurndown` `scopeChangeList`: the `WeatSprint` from and thru dates, and for "by" the audit rows `set#TaskSprint` writes | Jira sprint report |
 
 - **Actions:** Start, Complete (as Backlog), Edit, Print (`html-print`, the sprint report).
 - **Source:** research §5; Jira sprint report (familiar shape).
@@ -2001,9 +2008,9 @@ record is read through a service that checks the repository's rights (R21).
 | Need | Kind | Proposed as | Used by | Stub spec |
 | --- | --- | --- | --- | --- |
 | Shared work item and request detail | BOSS screens | `Shared/WorkItemDetail.xml` and `Shared/RequestDetail.xml`, made from the Commons M6 screens and their `ironstone.TaskServices` and `RequestServices`, with the app context (tabs, fields, actions) set by the including app; Commons mounts them at its present paths | WorkItemDetail, RequestDetail, Commons | design-doc-guide §10 |
-| Sprints | data model + service type + seed data | `WorkEffortType` `WetSprint` and `WorkEffortAssocType` `WeatSprint` (sprint to item; a carry-over ends one membership and starts the next); `mantle.work.ProjectServices.create#Sprint`, `start#Sprint`, `complete#Sprint`; `mantle.work.TaskServices.set#TaskSprint` as `set#TaskMilestone` | Backlog, SprintDetail, WorkItems, QuickCreate | |
+| Sprints | data model + service type + seed data | `WorkEffortType` `WetSprint` and `WorkEffortAssocType` `WeatSprint` (sprint to item; a carry-over ends one membership and starts the next); `mantle.work.ProjectServices.create#Sprint`, `update#Sprint`, `get#SprintDefaults`, `start#Sprint`, `complete#Sprint`; `mantle.work.TaskServices.set#TaskSprint` as `set#TaskMilestone`. As built (P4a): id `<KEY>-SP-<n>`; In Planning, In Progress, Complete; the goal is the description; the capacity is `estimatedPoints` in a points project, `totalTimeAllowed` in an hours one; done is Complete or Closed (a cancelled item is neither done nor carried); a carried item's membership ends at the sprint's `actualCompletionDate`; a change in a sprint in progress writes an `EntityAuditLog` row (`WorkEffortAssoc`, `pkPrimaryValue` the sprint, `pkSecondaryValue` the item, `fromDate` added or `thruDate` removed) with the user | Backlog, SprintDetail, WorkItems, QuickCreate | |
 | Releases and components | service type | `create#Release`, `create#Component` as `create#Milestone` (ids `<KEY>-REL-<n>`, `<KEY>-CMP-<n>`, milestones `<KEY>-MS-<n>`); `set#TaskRelease`, `set#TaskComponent` as `set#TaskMilestone` | Roadmap, ReleaseDetail, ProjectSettings, WorkItemDetail | the types and assoc types exist |
-| Rank | data model + service type | `WorkEffort.sequenceNum` (number-integer, gaps of 1000); `set#TaskRank(workEffortId, previousSiblingId)`, renumbering a run when a gap closes; in the tree a rank orders the children of one parent | Backlog, the tree, sub-items, board card order | |
+| Rank | data model + service type | `WorkEffort.sequenceNum` (number-integer, gaps of 1000); `set#TaskRank(workEffortId, previousSiblingId)`, renumbering a run when a gap closes; in the tree a rank orders the children of one parent. As built (P4a): the Backlog's `set#TaskBacklogRank(workEffortId, previousWorkEffortId or nextWorkEffortId)` treats the ranks as one order over the project's items at every depth, renumbering the whole project when a gap closes, so the tree's order of siblings is that order narrowed to them | Backlog, the tree, sub-items, board card order | |
 | Work item tree | service type | `mantle.work.ProjectServices.get#WorkItemTree(find parameters, parentWorkEffortId or top, withAncestors)`: one level of the tree in rank order with each row's roll-up (its subtree's estimate, remaining, actual, budget, item and done counts, cancelled left out, as `get#WorkEffortChildStats` sums), a has-children flag, and for a find the ancestors of the matches so each sits in its place; `mantle.work.TaskServices.move#Task(workEffortId, parentWorkEffortId, previousSiblingId)`: the parent in the same project, refused when it is the item or one of its descendants, the rank set among the new siblings, the change in the audit log; `update#Task` with a new `rootWorkEffortId` moves the subtree and refuses a parent left in another project | WorkItems, WorkItemDetail, Backlog's epic filter, Timeline, ProjectOverview | `get#WorkEffortChildStats` reads one level of children per call today |
 | Story points | data model | `WorkEffort.estimatedPoints` (number-decimal); a sprint's capacity in the project's unit | WorkItemDetail, Backlog, SprintReport | |
 | Dependency lag | data model | `WorkEffortAssoc.lagDays` (number-decimal, working days) on `WeatDependsOn`, whose direction is fixed: `workEffortId` depends on `toWorkEffortId` | Timeline, WorkItemDetail | no service sets the direction today |
@@ -2036,7 +2043,7 @@ record is read through a service that checks the repository's rights (R21).
 | Allocations | data model + service type + seed data | `mantle.work.effort.WorkEffortAllocation` {workEffortAllocationId, workEffortId, partyId (empty for a placeholder), emplPositionClassId, skillTypeEnumId, fromDate, thruDate, hoursPerWeek, statusId (`WealRequested`, `WealAllocated`, `WealRejected`, `WealCancelled`, with a flow), requestedByUserId, reviewedByUserId, comments}; `create#Allocation`, `update#Allocation`, `staff#Allocation`, `approve#Allocation`, `reject#Allocation`, `find#StaffingCandidates`, `get#TeamPlan`; topics `AllocationRequest` (approval) and `AllocationDecision` | TeamPlanner, Allocations, ProjectTeam, NewProject | answers the research's question (§16) |
 | Milestone billing share | data model + service type | `OrderItemWorkEffort.invoicePercent` (number-decimal); `mantle.account.InvoiceServices.create#MilestoneInvoiceItems(workEffortId, invoiceId)`: an item per linked order line for its share once the milestone is complete, recorded in `WorkEffortBilling` with the percentage | MilestoneDetail, ProjectMoney, Unbilled | |
 | Billing services | service type | `mantle.work.ProjectServices.get#UnbilledSummary` (by project, and with `RaprVendor` by worker: unbilled hours and amounts, expenses, reached milestones, open drafts); the time detail appended to a client invoice's print | Unbilled, ProjectMoney, Home | |
-| Reports services | service type | `mantle.work.ProjectReportServices`: `get#TimeReport`, `get#WorkItemSummary`, `get#SprintBurndown` (from the `WeatSprint` dates and the audit log of `remainingWorkTime`, `estimatedPoints` and `statusId`), `get#SprintVelocity`, `get#PortfolioStatus`, `get#ProjectProfitability`, `get#Utilization`, with the measures of §11 | Reports, SprintDetail, Home | |
+| Reports services | service type | `mantle.work.ProjectReportServices`: `get#TimeReport`, `get#WorkItemSummary`, `get#SprintBurndown` (from the `WeatSprint` dates and the audit log of `remainingWorkTime`, `estimatedWorkTime`, `estimatedPoints` and `statusId`; built in P4a with the committed, added, removed, completed, carried-over and remaining sizes, days left, the scope changes and each item's outcome; an hours project sizes items by their estimate and burns down their remaining hours), `get#SprintVelocity` (P4a), `get#PortfolioStatus`, `get#ProjectProfitability`, `get#Utilization`, with the measures of §11 | Reports, SprintDetail, Home | |
 
 ### Requests and intake (Mantle and BOSS)
 

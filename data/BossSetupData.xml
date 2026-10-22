@@ -137,8 +137,8 @@ along with this software (see the LICENSE.md file). If not, see
     <moqui.security.user.NotificationTopic topic="MergeRequestReview" linkTemplate="/qapps/Projects/Code/MergeRequestDetail?mergeRequestId=${mergeRequestId}"/>
     <moqui.security.user.NotificationTopic topic="MergeRequestUpdate" linkTemplate="/qapps/Projects/Code/MergeRequestDetail?mergeRequestId=${mergeRequestId}"/>
     <moqui.security.user.NotificationTopic topic="CommitStatusFailed" linkTemplate="/qapps/Projects/Code/CommitDetail?repositoryId=${repositoryId}&amp;commitId=${commitId}"/>
-    <!-- the saved finds of WorkItems every Projects user has beside their own (design-projects.md §5 WorkItems; Blocked and
-        Current sprint wait for the dependency find and the sprints of impl-projects.md P4) -->
+    <!-- the saved finds of WorkItems every Projects user has beside their own (design-projects.md §5 WorkItems; Blocked waits for the
+        dependency find of impl-projects.md P4) -->
     <moqui.screen.form.FormListFind formListFindId="BOSS_PROJ_OPEN_BUGS" description="Open bugs"
             formLocation="component://ironstone-boss/screen/Projects/WorkItems/List.xml.form_list$WorkItemList" orderByField="priority">
         <moqui.screen.form.FormListFindField fieldName="list" fieldValue="open"/>
@@ -150,6 +150,13 @@ along with this software (see the LICENSE.md file). If not, see
             formLocation="component://ironstone-boss/screen/Projects/WorkItems/List.xml.form_list$WorkItemList">
         <moqui.screen.form.FormListFindField fieldName="list" fieldValue="all"/>
         <moqui.screen.form.FormListFindField fieldName="statusId" fieldValue="WeInReview"/>
+        <moqui.screen.form.FormListFindUserGroup userGroupId="BOSS_PROJECT_TEAM"/>
+        <moqui.screen.form.FormListFindUserGroup userGroupId="BOSS_PROJECT_MANAGER"/>
+    </moqui.screen.form.FormListFind>
+    <moqui.screen.form.FormListFind formListFindId="BOSS_PROJ_CUR_SPRINT" description="Current sprint"
+            formLocation="component://ironstone-boss/screen/Projects/WorkItems/List.xml.form_list$WorkItemList">
+        <moqui.screen.form.FormListFindField fieldName="list" fieldValue="all"/>
+        <moqui.screen.form.FormListFindField fieldName="sprintId" fieldValue="current"/>
         <moqui.screen.form.FormListFindUserGroup userGroupId="BOSS_PROJECT_TEAM"/>
         <moqui.screen.form.FormListFindUserGroup userGroupId="BOSS_PROJECT_MANAGER"/>
     </moqui.screen.form.FormListFind>

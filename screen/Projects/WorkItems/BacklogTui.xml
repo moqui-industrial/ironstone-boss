@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The terminal twin of Backlog (style-guide §4.8): Backlog.xml's tui text is a dynamic container of this screen. The project's open
+    sprints, each with its dates, goal, total against capacity and items (a link to SprintDetail), then the ranked backlog, read only,
+    from the same service as Backlog.qvue (ironstone.PlanningServices.get#Backlog). Ranking, planning and the sprint dialogs are the
+    browser's (impl-projects.md P11 for the terminal); an item opens WorkItemDetail. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Backlog" default-menu-include="false">
+
+    <parameter name="rootWorkEffortId"/>
+
+    <transition name="workItemDetail"><default-response url="../WorkItemDetail"/></transition>
+    <transition name="sprintDetail"><default-response url="../SprintDetail"/></transition>
+
+    <actions><script><![CDATA[
+        backlogFound = false; backlogRows = []; sprintList = []
+        const L = (text) => ec.l10n.localize(text)
+        let project = rootWorkEffortId || null
+        if (!project) project = Array.from(ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').parameters({memberOnly: true}).call()?.projectList || [])[0]?.key || null
+        if (!project) return
+        const out = ec.service.sync().name('ironstone.PlanningServices.get#Backlog').parameters({rootWorkEffortId: project}).call() || {}
+        ec.message.clearErrors()
+        if (!out.backlog) return
+        backlogFound = true
+        const backlog = out.backlog
+        const unit = backlog.project.unitLabel
+        projectName = backlog.project.workEffortName + ' (' + project + ')'
+        const shape = (row) => ({workEffortId: row.workEffortId, workEffortName: row.workEffortName, epicName: row.epicName || '', statusLabel: row.statusLabel || '',
+            sizeText: row.sizeText || '', assigneeText: row.assigneeText || ''})
+        backlogRows = Array.from(backlog.backlogList || []).map(shape)
+        backlogTitle = L('Backlog') + ' · ' + backlogRows.length + ' · ' + (backlog.backlogTotalText || '0') + ' ' + unit
+        sprintList = Array.from(backlog.sprintList || []).map((sprint) => ({workEffortId: sprint.workEffortId,
+            title: sprint.workEffortName + ' · ' + sprint.stateLabel + (sprint.datesText ? ' · ' + sprint.datesText : '') + ' · ' + (sprint.totalText || '0')
+                + (sprint.capacityText ? ' / ' + sprint.capacityText : '') + ' ' + unit, goal: sprint.description || '', rows: Array.from(sprint.rowList || []).map(shape)}))
+        sprintsOn = !!backlog.project.sprintsOn
+    ]]></script></actions>
+    <widgets>
+        <section name="BacklogTuiFound" condition="backlogFound"><widgets>
+            <label text="${projectName}" type="h5"/>
+            <section-iterate name="BacklogTuiSprint" list="sprintList" entry="sprint"><widgets>
+                <container-box><box-header title="${sprint.title}"/><box-body-nopad>
+                    <label type="p" text="${sprint.goal}" style="m-muted q-pa-sm q-mb-none" condition="sprint.goal"/>
+                    <link url="sprintDetail" text="Open the sprint" parameter-map="{workEffortId:sprint.workEffortId}" link-type="anchor"/>
+                    <form-list name="BacklogTuiSprintItems" list="sprint.rows" skip-form="true" paginate="false">
+                        <field name="workEffortId"><default-field title="Key"><link url="workItemDetail" text="${workEffortId}" parameter-map="{workEffortId:workEffortId}" link-type="anchor"/></default-field></field>
+                        <field name="workEffortName"><default-field title="Title"><display/></default-field></field>
+                        <field name="statusLabel"><default-field title="Status"><display/></default-field></field>
+                        <field name="sizeText"><default-field title="Size"><display/></default-field></field>
+                        <field name="assigneeText"><default-field title="Assignee"><display/></default-field></field>
+                    </form-list>
+                </box-body-nopad></container-box>
+            </widgets></section-iterate>
+            <container-box><box-header title="${backlogTitle}"/><box-body-nopad>
+                <form-list name="BacklogTuiItems" list="backlogRows" skip-form="true" paginate="false">
+                    <field name="workEffortId"><default-field title="Key"><link url="workItemDetail" text="${workEffortId}" parameter-map="{workEffortId:workEffortId}" link-type="anchor"/></default-field></field>
+                    <field name="workEffortName"><default-field title="Title"><display/></default-field></field>
+                    <field name="epicName"><default-field title="Epic"><display/></default-field></field>
+                    <field name="sizeText"><default-field title="Size"><display/></default-field></field>
+                    <field name="assigneeText"><default-field title="Assignee"><display/></default-field></field>
+                </form-list>
+                <label type="p" text="The backlog is empty" style="m-muted q-pa-sm q-mb-none" condition="!backlogRows.length"/>
+            </box-body-nopad></container-box>
+            <label type="p" text="Ranking and planning are in the browser's Backlog." style="m-muted"/>
+        </widgets><fail-widgets>
+            <label type="p" text="No backlog to show: no project you see." style="m-muted"/>
+        </fail-widgets></section>
+    </widgets>
+</screen>

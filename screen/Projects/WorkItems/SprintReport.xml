@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The sprint report (design-projects.md §14; style-guide §8 Print documents), SprintDetail's Print: with renderMode=html-print a
+    printed page of a sprint: its dates, goal and numbers (committed, added, removed, completed, carried over, remaining, against
+    its capacity), the burndown by day against the ideal line, the items completed, the items carried over or still open, the scope
+    changes, and the velocity of the project's last sprints (ironstone.PlanningServices.get#SprintDetail,
+    mantle.work.ProjectReportServices.get#SprintVelocity), every value escaped. A sibling of SprintDetail, so the page has none of
+    its header; in another render mode it links to the printed page. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Sprint report" default-menu-include="false">
+
+    <parameter name="workEffortId" required="true"/>
+
+    <actions><script><![CDATA[
+        const out = ec.service.sync().name('ironstone.PlanningServices.get#SprintDetail').parameters({workEffortId: workEffortId || ''}).call() || {}
+        ec.message.clearErrors()
+        const L = (text) => ec.l10n.localize(text)
+        const enc = (text) => String(text == null ? '' : text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\u0022/g, '&quot;')
+        printUrl = '/apps/Projects/WorkItems/SprintReport?renderMode=html-print&workEffortId=' + encodeURIComponent(workEffortId || '')
+        const sprint = out.detail
+        if (!sprint) { printHtml = '<p>' + enc(L('This sprint is not available')) + '</p>'; return }
+        const unit = sprint.unitLabel
+        const fmt = (value) => value == null ? '' : ec.l10n.format(Math.round(Number(String(value)) * 100) / 100, '#,##0.##')
+        const row = (label, value) => value ? '<tr><td class="field-title">' + enc(L(label)) + '</td><td class="field-value">' + enc(value) + '</td></tr>' : ''
+        const table = (heads, rows) => rows.length ? '<table class="list"><tr>' + heads.map((head) => '<th>' + enc(L(head)) + '</th>').join('') + '</tr>'
+                + rows.map((cells) => '<tr>' + cells.map((cell) => '<td>' + enc(cell) + '</td>').join('') + '</tr>').join('') + '</table>' : '<p style="color:#555">' + enc(L('None')) + '</p>'
+        const title = (text) => '<div class="group-title" style="margin-top:8pt">' + enc(L(text)) + '</div>'
+        const rows = Array.from(sprint.rowList || [])
+        const doneRows = rows.filter((item) => item.outcome === 'done')
+        const openRows = rows.filter((item) => item.outcome === 'carried' || item.outcome === 'open')
+        let velocity = []
+        try {
+            velocity = Array.from(ec.service.sync().name('mantle.work.ProjectReportServices.get#SprintVelocity').parameters({rootWorkEffortId: sprint.rootWorkEffortId,
+                sprintCount: 6}).call()?.sprintList || [])
+        } catch (err) {
+            ec.logger.error(`Sprint report ${workEffortId}: no velocity: ${err && err.message ? err.message : err}`)
+        }
+        ec.message.clearErrors()
+        printHtml = '<div class="box-header">' + enc(sprint.workEffortName) + ' · ' + enc(sprint.projectName) + ' (' + enc(sprint.rootWorkEffortId) + ')</div>'
+            + '<p style="color:#555">' + enc([L('Sprint report'), ec.l10n.format(ec.user.nowTimestamp, 'MMMM d, yyyy')].join(' · ')) + '</p>'
+            + '<table class="field">' + row('Status', sprint.stateLabel) + row('Dates', sprint.datesText) + row('Started', sprint.startedText)
+            + row('Completed on', sprint.completedDateText) + row('Goal', sprint.description)
+            + row('Capacity', sprint.capacityText) + '</table>'
+            + title('Numbers') + '<table class="field">' + row('Committed', sprint.committedText) + row('Added after the start', fmt(sprint.added) + ' ' + unit)
+            + row('Removed after the start', fmt(sprint.removed) + ' ' + unit) + row('Completed', sprint.completedText)
+            + row('Carried over', sprint.state === 'closed' ? fmt(sprint.carriedOver) + ' ' + unit : '') + row('Remaining', sprint.remainingText)
+            + row('Days left', sprint.state === 'active' ? String(sprint.daysLeft) : '') + '</table>'
+            + title('Burndown') + table(['Day', 'Remaining', 'Ideal'], Array.from(sprint.dayList || []).map((day) => [day.label, day.remainingText, day.idealText]))
+            + title('Completed') + table(['Item', 'Type', 'Size', 'Assignees'], doneRows.map((item) => [item.workEffortId + ' ' + item.workEffortName, item.purposeLabel,
+                item.sizeText, item.assigneeText || '']))
+            + title(sprint.state === 'closed' ? 'Carried over' : 'Not done yet') + table(['Item', 'Status', 'Size', 'Assignees'], openRows.map((item) => [item.workEffortId + ' '
+                + item.workEffortName, item.statusLabel, item.sizeText, item.assigneeText || '']))
+            + title('Scope changes') + table(['Item', 'Change', 'Size', 'When', 'By'], Array.from(sprint.scopeChangeList || []).map((change) => [change.workEffortId + ' '
+                + change.workEffortName, change.changeLabel, change.sizeText, change.dateText, change.byText]))
+            + title('Velocity of the last sprints') + table(['Sprint', 'Committed', 'Added', 'Completed', 'Carried over'], velocity.map((one) => [one.workEffortName,
+                fmt(one.committed), fmt(one.added), fmt(one.completed), fmt(one.carriedOver)]))
+    ]]></script></actions>
+
+    <widgets>
+        <render-mode>
+            <text type="html-print"><![CDATA[${printHtml}]]></text>
+            <text type="qvt"><![CDATA[<p><a href="${WebUtilities.encodeHtml(printUrl)}" target="_blank">${ec.l10n.localize('Open the printable sprint report')}</a></p>]]></text>
+            <text type="tui"><![CDATA[${JSON.stringify({t: "link", id: "SprintReportPrint", text: ec.l10n.localize("Open the printable sprint report"), url: printUrl})}]]></text>
+        </render-mode>
+    </widgets>
+</screen>

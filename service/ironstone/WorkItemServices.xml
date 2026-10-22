@@ -47,6 +47,8 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="reporterPartyId"/>
             <parameter name="milestoneId"/>
             <parameter name="releaseId"/>
+            <parameter name="sprintId"><description>Comma list of sprints, or current: the sprints in progress (of the project
+                when rootWorkEffortId is given)</description></parameter>
             <parameter name="labelId"/>
             <parameter name="parentWorkEffortId"/>
             <parameter name="underWorkEffortId"/>
@@ -185,6 +187,16 @@ along with this software (see the LICENSE.md file). If not, see
                     .condition('workEffortAssocTypeEnumId', type).condition(current()).selectField('toWorkEffortId').list(), 'toWorkEffortId')
             if (milestoneId) conds.push(inIds(memberOf(milestoneId, 'WeatMilestone')))
             if (releaseId) conds.push(inIds(memberOf(releaseId, 'WeatRelease')))
+            if (sprintId) {
+                let sprintIds = split(sprintId)
+                if (sprintIds.includes('current')) {
+                    let active = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortTypeEnumId', 'WetSprint').condition('statusId', 'WeInProgress')
+                    if (rootWorkEffortId) active = active.condition('rootWorkEffortId', rootWorkEffortId)
+                    else if (!all) active = active.condition('rootWorkEffortId', 'in', visibleIds)
+                    sprintIds = sprintIds.filter((id) => id !== 'current').concat(idsOf(active.selectField('workEffortId').list()))
+                }
+                conds.push(inIds(Array.from(new Set(sprintIds.flatMap((id) => memberOf(id, 'WeatSprint'))))))
+            }
             if (labelId) conds.push(inIds(idsOf(ec.entity.find('mantle.work.effort.WorkEffortCategoryAppl').condition('workEffortCategoryId', 'in', split(labelId))
                     .selectField('workEffortId').list())))
             if (parentWorkEffortId) conds.push(cf.makeCondition('parentWorkEffortId', 'equals', parentWorkEffortId))
@@ -370,13 +382,14 @@ along with this software (see the LICENSE.md file). If not, see
                     assigneePartyId: (assignees[id] || [])[0] || null, assigneeText: others.join(', '),
                     milestoneId: plan.WeatMilestone || null, milestoneName: plan.WeatMilestone ? names[plan.WeatMilestone] : '',
                     releaseId: plan.WeatRelease || null, releaseName: plan.WeatRelease ? names[plan.WeatRelease] : '',
-                    sprintName: plan.WeatSprint ? names[plan.WeatSprint] : '', componentName: plan.WeatComponent ? names[plan.WeatComponent] : '',
+                    sprintId: plan.WeatSprint || null, sprintName: plan.WeatSprint ? names[plan.WeatSprint] : '',
+                    componentId: plan.WeatComponent || null, componentName: plan.WeatComponent ? names[plan.WeatComponent] : '',
                     labelList: labels[id] || [], labelText: (labels[id] || []).map((label) => label.label).join(', '),
                     estimatedCompletionDate: due != null ? dayText(due) : null, dueAllDay: 'Y', dueText: dueText, dueEditText: due != null ? dayText(due) : '',
                     overdue: isOpen && due != null && due < todayStart,
                     estimatedWorkTime: task.estimatedWorkTime ?? null, remainingWorkTime: task.remainingWorkTime ?? null, actualWorkTime: task.actualWorkTime ?? null,
                     estimatedText: hours(task.estimatedWorkTime), remainingText: hours(task.remainingWorkTime), actualText: hours(task.actualWorkTime),
-                    pointsText: hours(task.estimatedPoints), sequenceNum: task.sequenceNum ?? null, isRecurring: recurring.has(id),
+                    estimatedPoints: task.estimatedPoints ?? null, pointsText: hours(task.estimatedPoints), sequenceNum: task.sequenceNum ?? null, isRecurring: recurring.has(id),
                     visibilityEnumId: task.visibilityEnumId || null,
                     childCount: rollup.childCount ?? 0, totalEstimatedWorkTime: rollup.totalEstimatedWorkTime ?? null,
                     totalRemainingWorkTime: rollup.totalRemainingWorkTime ?? null, totalActualWorkTime: rollup.totalActualWorkTime ?? null,
@@ -388,7 +401,7 @@ along with this software (see the LICENSE.md file). If not, see
                 const row = rowList[rowList.length - 1]
                 Object.assign(row, {purposeEnumId_display: row.purposeLabel, statusId_display: row.statusLabel, assigneePartyId_display: row.assigneeText,
                     rootWorkEffortId_display: row.projectName, parentWorkEffortId_display: row.parentWorkEffortId ? row.parentWorkEffortId + ' ' + row.parentName : '',
-                    milestoneId_display: row.milestoneName, releaseId_display: row.releaseName, estimatedCompletionDate_display: row.dueText,
+                    milestoneId_display: row.milestoneName, releaseId_display: row.releaseName, sprintId_display: row.sprintName, estimatedCompletionDate_display: row.dueText,
                     estimatedWorkTime_display: row.estimatedText, remainingWorkTime_display: row.remainingText, actualWorkTime_display: row.actualText})
             }
         ]]></script></actions>
@@ -418,8 +431,8 @@ along with this software (see the LICENSE.md file). If not, see
         ]]></script></actions>
     </service>
     <service verb="get" noun="PlanItemOptions">
-        <description>The milestones, releases or components (workEffortTypeEnumId) of a project the user sees, by date then name,
-            as drop-down options (key, text); open ones unless includeClosed.</description>
+        <description>The milestones, releases, components or sprints (workEffortTypeEnumId) of a project the user sees, by date then
+            name, as drop-down options (key, text); open ones unless includeClosed (a sprint that is complete is not open).</description>
         <in-parameters>
             <parameter name="rootWorkEffortId"/>
             <parameter name="workEffortTypeEnumId" default-value="WetMilestone"/>
@@ -434,7 +447,8 @@ along with this software (see the LICENSE.md file). If not, see
             if (!allowed.length && !(vis.allProjects && !rootWorkEffortId)) return
             let find = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortTypeEnumId', workEffortTypeEnumId)
             if (allowed.length) find = find.condition('rootWorkEffortId', 'in', allowed)
-            if (!includeClosed) find = find.condition(ec.entity.conditionFactory.makeCondition('statusId', 'not-in', ['WeClosed', 'WeCancelled'], true))
+            if (!includeClosed) find = find.condition(ec.entity.conditionFactory.makeCondition('statusId', 'not-in',
+                    workEffortTypeEnumId === 'WetSprint' ? ['WeComplete', 'WeClosed', 'WeCancelled'] : ['WeClosed', 'WeCancelled'], true))
             for (const row of find.orderBy('estimatedCompletionDate').orderBy('workEffortName').limit(200).list())
                 optionList.push({key: row.workEffortId, text: (row.workEffortName || row.workEffortId) + (rootWorkEffortId ? '' : ' (' + row.rootWorkEffortId + ')')})
         ]]></script></actions>
@@ -497,7 +511,8 @@ along with this software (see the LICENSE.md file). If not, see
         <description>The quick-add rows of WorkItems and of a work item's sub-items, and QuickCreate's QuickWorkItem: a work item
             in a project the user may add to (mantle.work.TaskServices.create#Task, numbered KEY-n), the user its owner and
             reporter, with its type, an assignee, a priority, a due date and an estimate, under parentWorkEffortId (an item of
-            the same project) at the end of its siblings; Work group visibility unless the project shares new items
+            the same project) at the end of its siblings, in sprintWorkEffortId when given (a sprint of the project that is not
+            complete); Work group visibility unless the project shares new items
             (WstShareNewItems Y: General); the project's flow. The context record of quick create is linked to it.</description>
         <in-parameters>
             <parameter name="rootWorkEffortId"/>
@@ -508,6 +523,8 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="priority"/>
             <parameter name="estimatedCompletionDate"/>
             <parameter name="estimatedWorkTime" type="BigDecimal"/>
+            <parameter name="estimatedPoints" type="BigDecimal"/>
+            <parameter name="sprintWorkEffortId"/>
             <parameter name="description"/>
             <parameter name="recordEntity"/>
             <parameter name="recordId"/>
@@ -539,7 +556,7 @@ along with this software (see the LICENSE.md file). If not, see
             const fields = {rootWorkEffortId: root, parentWorkEffortId: parent ? parent.workEffortId : null, workEffortName: name,
                 purposeEnumId: purposeEnumId || 'WepTask', priority: priority && /^[1-9]$/.test(String(priority)) ? Number(priority) : 5,
                 visibilityEnumId: settings.WstShareNewItems === 'Y' ? 'WevGeneral' : 'WevWorkGroup', ownerPartyId: me,
-                description: description || null, estimatedWorkTime: estimatedWorkTime ?? null}
+                description: description || null, estimatedWorkTime: estimatedWorkTime ?? null, estimatedPoints: estimatedPoints ?? null}
             if (estimatedCompletionDate) {
                 const text = String(estimatedCompletionDate).trim()
                 const due = /^\d{4}-\d{2}-\d{2}$/.test(text) ? ec.l10n.parseTimestamp(text + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS') : null
@@ -558,6 +575,14 @@ along with this software (see the LICENSE.md file). If not, see
             const last = siblings.reduce((best, row) => row.sequenceNum != null && (best == null || Number(String(row.sequenceNum)) > Number(String(best.sequenceNum))) ? row : best, null)
             if (!siblings.length || last) ec.service.sync().name('mantle.work.TaskServices.set#TaskRank').parameters({workEffortId: workEffortId,
                 previousSiblingId: last ? last.workEffortId : null}).call()
+            if (sprintWorkEffortId) {
+                const sprint = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', sprintWorkEffortId).one()
+                if (sprint == null || sprint.workEffortTypeEnumId !== 'WetSprint' || sprint.rootWorkEffortId !== root) {
+                    ec.message.addError(ec.resource.expand('${sprintWorkEffortId} is not a sprint of project ${root}', '', {sprintWorkEffortId, root})); return
+                }
+                ec.service.sync().name('mantle.work.TaskServices.set#TaskSprint').parameters({workEffortId: workEffortId, sprintWorkEffortId: sprintWorkEffortId}).call()
+                if (ec.message.hasError()) return
+            }
             if (recordEntity && recordId) ec.service.sync().name('mantle.work.WorkEffortServices.link#WorkEffortRecord').parameters({workEffortId: workEffortId,
                 recordEntityName: recordEntity, recordId: recordId}).call()
             if (ec.message.hasError()) return
@@ -570,7 +595,7 @@ along with this software (see the LICENSE.md file). If not, see
         <description>One field of a work item, from an in-place edit, the board or the detail's Edit: due (yyyy-MM-dd, empty clears),
             priority (1-9), estimate, remaining, points, budget (totalTimeAllowed), start (yyyy-MM-dd), title, type (purpose),
             visibility, resolution, assignee (the item's assignee replaced; empty unassigns), milestone, release, component (empty takes it
-            out), parent (move#Task, at the end of the new siblings; empty to the top level), label and unlabel (a label id).
+            out), sprint (mantle.work.TaskServices.set#TaskSprint; empty to the backlog), parent (move#Task, at the end of the new siblings; empty to the top level), label and unlabel (a label id).
             By a user who may change the item (get#TaskAccess, app projects).</description>
         <in-parameters>
             <parameter name="workEffortId" required="true"/>
@@ -651,6 +676,11 @@ along with this software (see the LICENSE.md file). If not, see
                                 .conditionDate('fromDate', 'thruDate', null).list()) if (!call('mantle.work.WorkEffortServices.remove#WorkEffortParty', {workEffortId, partyId: wep.partyId, roleTypeId: 'Assignee'})) return
                         valueText = ''; message = ec.resource.expand('${name}: unassigned', '', {name})
                     }
+                } else if (field === 'sprint') {
+                    if (!call('mantle.work.TaskServices.set#TaskSprint', {workEffortId, sprintWorkEffortId: text || null})) return
+                    valueText = text ? (ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', text).one()?.workEffortName || text) : ''
+                    message = text ? ec.resource.expand('${name}: ${field} ${value}', '', {name, field: ec.l10n.localize('sprint'), value: valueText})
+                        : ec.resource.expand('${name}: back to the backlog', '', {name})
                 } else if (plans[field]) {
                     if (!call('mantle.work.TaskServices.set#TaskPlanItem', {workEffortId, assocTypeEnumId: plans[field], planWorkEffortId: text || null})) return
                     valueText = text ? (ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', text).one()?.workEffortName || text) : ''
@@ -679,7 +709,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <service verb="move" noun="WorkItemCard">
         <description>A card moved on the WorkItems board to another column of the field it is grouped by (groupField): the status
-            along the item's flow (set#TaskStatus), else the assignee, priority, milestone or release (update#WorkItemField).</description>
+            along the item's flow (set#TaskStatus), else the assignee, priority, milestone, release or sprint (update#WorkItemField).</description>
         <in-parameters>
             <parameter name="workEffortId" required="true"/>
             <parameter name="groupField" default-value="statusId"/>
@@ -687,7 +717,7 @@ along with this software (see the LICENSE.md file). If not, see
         </in-parameters>
         <out-parameters><parameter name="message"/></out-parameters>
         <actions><script><![CDATA[
-            const fields = {assigneePartyId: 'assignee', priority: 'priority', milestoneId: 'milestone', releaseId: 'release'}
+            const fields = {assigneePartyId: 'assignee', priority: 'priority', milestoneId: 'milestone', releaseId: 'release', sprintId: 'sprint'}
             if (!groupField || groupField === 'statusId') {
                 if (!value) { ec.message.addError(ec.l10n.localize('Drop the card on a status')); return }
                 message = ec.service.sync().name('ironstone.TaskServices.set#TaskStatus').parameters({workEffortId, toStatusId: value, app: 'projects'}).call()?.message
@@ -701,7 +731,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <service verb="bulk" noun="WorkItems">
         <description>A bulk change of WorkItems on the selected items (workEffortIds, a list or comma text): assign (partyId),
-            unassign, status (statusId), priority, due (empty clears), milestone, release (empty takes them out), label and
+            unassign, status (statusId), priority, due (empty clears), milestone, release, sprint (empty takes them out), label and
             unlabel (labelId), visibility, move to project (rootWorkEffortId; each moves with its subtree, update#Task), move
             under an item (parentWorkEffortId, empty to the top level) and delete (managers; items with no time, sub-items,
             comments or files). Each item in its own transaction: one the user may not change, or whose change fails, is
@@ -721,7 +751,7 @@ along with this software (see the LICENSE.md file). If not, see
             doneCount = 0; failedCount = 0; failures = []
             const ids = (Array.isArray(workEffortIds) ? workEffortIds : String(workEffortIds || '').split(',')).map((id) => String(id).trim()).filter((id) => id)
             const fields = {assign: 'assignee', unassign: 'assignee', priority: 'priority', due: 'due', milestone: 'milestone', release: 'release',
-                label: 'label', unlabel: 'unlabel', visibility: 'visibility', moveUnder: 'parent'}
+                sprint: 'sprint', label: 'label', unlabel: 'unlabel', visibility: 'visibility', moveUnder: 'parent'}
             const actions = Object.keys(fields).concat(['status', 'moveToProject', 'delete'])
             if (!actions.includes(action)) { ec.message.addError(ec.resource.expand('${action} is not a bulk change', '', {action})); return }
             if (!ids.length) { ec.message.addError(ec.l10n.localize('Select one or more work items first')); return }

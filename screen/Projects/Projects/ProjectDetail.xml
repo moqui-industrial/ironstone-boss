@@ -23,9 +23,9 @@ along with this software (see the LICENSE.md file). If not, see
     Re-open (service/ironstone/ProjectServices.xml get#ProjectHeader).
 
     The tabs are subscreens, each with the project as its context: Overview, Work items (WorkItems/List with the project fixed),
-    Team, Files and Settings (managers, BOSS_PROJECTS_MANAGERS). The later phases' tabs (Backlog, Plan, Roadmap, Requests, Code,
-    Docs, Time, Money; impl-projects.md P3b to P8) are left out until they are built; the Modules box of Settings already keeps
-    which are on (WstModules). A project the user may not see is "not available". -->
+    Backlog (WorkItems/Backlog with the project fixed), Code, Team, Files and Settings (managers, BOSS_PROJECTS_MANAGERS). The later
+    phases' tabs (Plan, Roadmap, Requests, Docs, Time, Money; impl-projects.md P4b to P8) are left out until they are built; the
+    Modules box of Settings already keeps which are on (WstModules). A project the user may not see is "not available". -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Project" default-menu-include="false">
 
@@ -43,6 +43,9 @@ along with this software (see the LICENSE.md file). If not, see
 
     <subscreens default-item="Overview">
         <subscreens-item name="WorkItems" location="component://ironstone-boss/screen/Projects/WorkItems/List.xml" menu-title="Work items" menu-index="2"/>
+        <!-- the backlog and sprints with the project fixed (design-projects.md §4 ProjectBacklog); always there (impl-projects.md F24):
+            without the Backlog and sprints module it ranks the backlog only, with Plan in sprints for the managers -->
+        <subscreens-item name="Backlog" location="component://ironstone-boss/screen/Projects/WorkItems/Backlog.xml" menu-title="Backlog" menu-index="3"/>
     </subscreens>
 
     <transition name="projects"><default-response url="../List"/></transition>

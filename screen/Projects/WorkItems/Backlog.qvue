@@ -1,0 +1,534 @@
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- Backlog (design-projects.md §5 Backlog), the component Backlog.xml serves in the qvue render mode. A toolbar (the project when it
+    is not fixed; filters for assignee, type, label, component, epic and text; New sprint), the Backlog pane (the ranked backlog with
+    quick add at the top and its total) and the Sprints pane (the active sprints, then the planned, each collapsible with its dates,
+    goal, items, total against capacity, Start or Complete, Edit). From 1024 px the panes are side by side, below they stack with
+    the sprints first. Rows drag within a list to rank and between lists to plan (HTML5 drag as Gallery/Board.qvue); the ticked
+    rows drag as one; each row's menu does the same moves without a drag (a phone, the keyboard). A project that does not plan in
+    sprints shows the backlog only, with Plan in sprints for its managers. Dialogs: SprintForm (New sprint, Edit), StartSprint
+    and CompleteSprint (done and open counts; the open items to the next sprint, a new one or the backlog). -->
+<template><div class="boss-backlog">
+    <!-- ===== the toolbar ===== -->
+    <!-- the title and project (not in ProjectDetail's tab, where the selection and New sprint end the filters' row) -->
+    <div v-if="!projectFixed" class="row items-center q-gutter-sm q-mb-xs">
+        <div class="text-h5 q-mr-sm">{{t('Backlog')}}</div>
+        <div v-if="projectOptionList.length" style="width:300px;max-width:100%"><m-drop-down id="boss-backlog-project" name="backlogProject"
+                :model-value="projectId" :options="projectOptionList" :label="t('Project')" @update:model-value="changeProject"></m-drop-down></div>
+        <q-space></q-space>
+        <template v-if="backlog">
+            <div v-if="selectedIds.length" class="text-caption m-muted">{{selectedIds.length}} {{t('selected')}}
+                <q-btn flat dense no-caps size="sm" color="primary" :label="t('Clear')" @click="selected = {}"></q-btn></div>
+            <q-btn v-if="canPlan && backlog.project.sprintsOn" unelevated no-caps color="primary" icon="sym_o_add" :label="t('New sprint')" @click="openSprintForm(null)"></q-btn>
+        </template>
+    </div>
+    <div v-if="backlog" class="row items-center q-gutter-sm q-mb-sm boss-backlog-filters">
+        <div style="width:200px;max-width:100%"><m-text-line id="boss-backlog-text" name="backlogText" v-model="filter.text" :label="t('Search')"
+                @keyup.enter="load"></m-text-line></div>
+        <div style="width:160px"><m-drop-down id="boss-backlog-assignee" name="backlogAssignee" v-model="filter.assigneePartyId" allow-empty
+                :options="backlog.filters.assigneeOptions" :label="t('Assignee')"></m-drop-down></div>
+        <div style="width:160px"><m-drop-down id="boss-backlog-type" name="backlogType" v-model="filter.purposeEnumId" allow-empty
+                :options="backlog.filters.typeOptions" :label="t('Type')"></m-drop-down></div>
+        <div style="width:160px"><m-drop-down id="boss-backlog-label" name="backlogLabel" v-model="filter.labelId" allow-empty
+                :options="backlog.filters.labelOptions" :label="t('Label')"></m-drop-down></div>
+        <div v-if="backlog.filters.componentOptions.length" style="width:160px"><m-drop-down id="boss-backlog-component" name="backlogComponent"
+                v-model="filter.componentId" allow-empty :options="backlog.filters.componentOptions" :label="t('Component')"></m-drop-down></div>
+        <div style="width:200px;max-width:100%"><m-drop-down id="boss-backlog-epic" name="backlogEpic" v-model="filter.epicId" allow-empty
+                :options="backlog.filters.epicOptions" :label="t('Epic')"></m-drop-down></div>
+        <q-btn v-if="filtered" flat dense no-caps color="primary" :label="t('Clear filters')" @click="clearFilters"></q-btn>
+        <template v-if="projectFixed">
+            <q-space></q-space>
+            <div v-if="selectedIds.length" class="text-caption m-muted">{{selectedIds.length}} {{t('selected')}}
+                <q-btn flat dense no-caps size="sm" color="primary" :label="t('Clear')" @click="selected = {}"></q-btn></div>
+            <q-btn v-if="canPlan && backlog.project.sprintsOn" unelevated no-caps color="primary" icon="sym_o_add" :label="t('New sprint')" @click="openSprintForm(null)"></q-btn>
+        </template>
+    </div>
+
+    <div v-if="loading && !backlog" class="q-pa-md">
+        <q-skeleton type="text" width="30%"></q-skeleton>
+        <q-skeleton type="rect" height="240px" class="q-mt-md"></q-skeleton>
+    </div>
+    <div v-else-if="noProject" class="q-pa-lg text-center">
+        <q-icon name="sym_o_view_list" size="48px" class="m-muted"></q-icon>
+        <div class="text-h6 q-mt-sm">{{t('No project to plan')}}</div>
+        <div class="text-body2 m-muted">{{t('The backlog is of a project you see. Ask a project manager to add you to one.')}}</div>
+    </div>
+    <div v-else-if="notAvailable" class="q-pa-lg text-center">
+        <q-icon name="sym_o_visibility_off" size="48px" class="m-muted"></q-icon>
+        <div class="text-h6 q-mt-sm">{{t('This backlog is not available')}}</div>
+        <div class="text-body2 m-muted">{{t('The project does not exist, or it is a Work group project you are not on.')}}</div>
+    </div>
+    <template v-else-if="backlog">
+        <!-- a project that does not plan in sprints -->
+        <div v-if="!backlog.project.sprintsOn" class="row items-center q-pa-sm q-mb-sm rounded-borders" :class="dark ? 'bg-grey-9' : 'bg-blue-grey-1'">
+            <q-icon name="sym_o_info" size="sm" class="q-mr-sm text-info"></q-icon>
+            <div class="col text-body2">{{t('This project ranks its backlog without sprints.')}}
+                <span v-if="!backlog.project.canManage" class="m-muted">{{t('Its managers can turn sprints on.')}}</span></div>
+            <q-btn v-if="backlog.project.canManage" unelevated no-caps color="primary" icon="sym_o_event_repeat" :label="t('Plan in sprints')" @click="turnOnSprints"></q-btn>
+        </div>
+
+        <div class="row q-col-gutter-md items-start">
+            <!-- ===== the Sprints pane: first on a phone ===== -->
+            <div v-if="backlog.project.sprintsOn" :class="wide ? 'col-5 order-last' : 'col-12'">
+                <div class="row items-center q-mb-xs">
+                    <div class="text-subtitle1 text-weight-medium">{{t('Sprints')}}</div>
+                    <q-chip v-if="backlog.project.severalSprints" dense square class="q-ml-sm m-tonal text-grey-8">{{t('Several at once')}}</q-chip>
+                </div>
+                <div v-if="!backlog.sprintList.length" class="q-pa-md text-center rounded-borders" :class="dark ? 'bg-grey-9' : 'bg-blue-grey-1'">
+                    <div class="text-body2 m-muted">{{t('No sprint planned yet.')}}</div>
+                    <q-btn v-if="canPlan" flat no-caps color="primary" icon="sym_o_add" :label="t('New sprint')" @click="openSprintForm(null)"></q-btn>
+                </div>
+                <q-card v-for="sprint in backlog.sprintList" :key="sprint.workEffortId" flat bordered class="q-mb-sm boss-sprint-card" :data-sprint="sprint.workEffortId">
+                    <q-expansion-item v-model="expanded[sprint.workEffortId]" dense switch-toggle-side expand-separator header-class="q-pr-sm">
+                        <template v-slot:header>
+                            <q-item-section style="min-width:0">
+                                <div class="row items-center no-wrap" style="min-width:0;width:100%">
+                                    <a :href="sprintUrl(sprint)" class="text-weight-medium text-body1 ellipsis" style="display:block;min-width:0"
+                                            @click.prevent.stop="openSprint(sprint)">{{sprint.workEffortName}}</a>
+                                    <q-chip dense square class="q-my-none q-ml-sm m-tonal" style="flex:none" :class="sprint.state === 'active' ? 'text-positive' : 'text-grey-8'">{{sprint.stateLabel}}</q-chip>
+                                </div>
+                                <div class="text-caption m-muted">{{sprint.datesText}}<span v-if="sprint.datesText"> · </span>{{sprint.itemCount}} {{sprint.itemCount === 1 ? t('item') : t('items')}}
+                                    · <span :class="sprint.overCapacity ? 'text-negative text-weight-medium' : ''">{{sizeText(sprint)}}</span></div>
+                                <q-linear-progress v-if="sprint.capacity" rounded size="4px" class="q-mt-xs" style="max-width:220px" :value="Math.min(1, sprint.total / sprint.capacity)"
+                                        :color="sprint.overCapacity ? 'negative' : 'primary'" track-color="grey-4"></q-linear-progress>
+                            </q-item-section>
+                            <q-item-section side>
+                                <div class="row items-center no-wrap q-gutter-x-xs" @click.stop>
+                                    <q-btn v-if="canPlan && sprint.state === 'planned'" unelevated dense no-caps color="primary" class="q-px-sm" :label="t('Start')" @click="openStart(sprint)"></q-btn>
+                                    <q-btn v-if="canPlan && sprint.state === 'active'" unelevated dense no-caps color="primary" class="q-px-sm" :label="t('Complete')" @click="openComplete(sprint)"></q-btn>
+                                    <q-btn v-if="canPlan" flat round dense icon="sym_o_edit" size="sm" :aria-label="t('Edit sprint')" @click="openSprintForm(sprint)"><q-tooltip>{{t('Edit sprint')}}</q-tooltip></q-btn>
+                                </div>
+                            </q-item-section>
+                        </template>
+                        <div v-if="sprint.description" class="text-body2 q-px-md q-pt-xs q-pb-xs m-muted">{{sprint.description}}</div>
+                        <q-list class="q-pb-xs" :class="dropListKey === sprint.workEffortId && dropIndex == null ? dropClass : ''"
+                                @dragover.prevent="overList(sprint.workEffortId)" @drop.prevent="drop(sprint.workEffortId)">
+                            <backlog-row v-for="(row, index) in sprint.rowList" :key="row.workEffortId" :row="row" :index="index" :list-key="sprint.workEffortId"
+                                    :selected="!!selected[row.workEffortId]" :can-plan="canPlan" :dark="dark" :status="true" :unit-label="backlog.project.unitLabel"
+                                    :drop-mark="dropListKey === sprint.workEffortId && dropIndex === index ? dropSide : null" :dragging="isDragging(row)"
+                                    :targets="targetsFor(sprint.workEffortId)" @toggle="toggle(row)" @open="openItem(row)" @epic="filterEpic(row)"
+                                    @move="(target, where) => moveByMenu(row, sprint.workEffortId, target, where)"
+                                    @dragstart="dragStart(row, sprint.workEffortId, $event)" @dragend="dragEnd" @dragover="overRow(sprint.workEffortId, index, $event)"></backlog-row>
+                            <div v-if="!sprint.rowList.length" class="q-pa-md text-center text-caption m-muted">{{filtered && sprint.itemCount ? t('No item of this sprint matches the filters')
+                                    : t('Drag work items here to plan them')}}</div>
+                        </q-list>
+                    </q-expansion-item>
+                </q-card>
+            </div>
+
+            <!-- ===== the Backlog pane ===== -->
+            <div :class="backlog.project.sprintsOn ? (wide ? 'col-7' : 'col-12') : 'col-12'">
+                <q-card flat bordered>
+                    <q-card-section class="q-py-sm row items-center">
+                        <div class="text-subtitle1 text-weight-medium">{{t('Backlog')}}</div>
+                        <div class="text-caption m-muted q-ml-sm">{{backlog.backlogList.length}} {{backlog.backlogList.length === 1 ? t('item') : t('items')}}
+                            · {{backlog.backlogTotalText || '0'}} {{backlog.project.unitLabel}}</div>
+                        <q-space></q-space>
+                        <q-btn v-if="selectedIds.length && canPlan && backlog.project.sprintsOn && backlog.sprintList.length" flat dense no-caps color="primary" icon="sym_o_move_down"
+                                :label="t('Move selected')">
+                            <q-menu><q-list dense style="min-width:220px">
+                                <q-item v-for="target in targetsFor(null)" :key="target.key" clickable v-close-popup @click="moveSelected(target.key)">
+                                    <q-item-section>{{target.label}}</q-item-section></q-item>
+                            </q-list></q-menu>
+                        </q-btn>
+                    </q-card-section>
+                    <q-separator></q-separator>
+                    <!-- quick add at the top -->
+                    <div v-if="canPlan && backlog.project.isOpen" class="row items-center q-col-gutter-sm q-px-sm q-pt-sm q-pb-xs">
+                        <div class="col-12 col-sm-auto" style="min-width:130px"><m-drop-down id="boss-backlog-add-type" name="addType" v-model="quick.purposeEnumId"
+                                :options="backlog.filters.typeOptions" :label="t('Type')"></m-drop-down></div>
+                        <div class="col"><m-text-line id="boss-backlog-add" name="addTitle" v-model="quick.name" :label="t('Add a work item')"
+                                @keyup.enter="quickAdd"></m-text-line></div>
+                        <div class="col-auto"><q-btn unelevated dense no-caps color="primary" icon="sym_o_add" :label="t('Add')" :loading="quick.busy"
+                                :disable="!quick.name.trim()" @click="quickAdd"></q-btn></div>
+                    </div>
+                    <q-list class="q-pb-xs" :class="dropListKey === '' && dropIndex == null ? dropClass : ''" style="min-height:64px"
+                            @dragover.prevent="overList('')" @drop.prevent="drop('')">
+                        <backlog-row v-for="(row, index) in backlog.backlogList" :key="row.workEffortId" :row="row" :index="index" list-key=""
+                                :selected="!!selected[row.workEffortId]" :can-plan="canPlan" :dark="dark" :status="false" :unit-label="backlog.project.unitLabel"
+                                :drop-mark="dropListKey === '' && dropIndex === index ? dropSide : null" :dragging="isDragging(row)"
+                                :targets="targetsFor('')" @toggle="toggle(row)" @open="openItem(row)" @epic="filterEpic(row)"
+                                @move="(target, where) => moveByMenu(row, '', target, where)"
+                                @dragstart="dragStart(row, '', $event)" @dragend="dragEnd" @dragover="overRow('', index, $event)"></backlog-row>
+                        <div v-if="!backlog.backlogList.length" class="q-pa-lg text-center text-body2 m-muted">{{filtered ? t('No backlog item matches the filters')
+                                : t('The backlog is empty: every open work item is planned.')}}</div>
+                    </q-list>
+                </q-card>
+            </div>
+        </div>
+    </template>
+
+    <!-- ===== SprintForm: a new sprint, or the changes to one ===== -->
+    <m-dialog v-model="sprintForm.open" :title="sprintForm.isNew ? t('New sprint') : t('Edit sprint')" width="520">
+        <m-form :key="'sprint' + sprintForm.key" :action="action('saveSprint')" :fields-initial="sprintForm.initial" focus-field="workEffortName" @submitted="afterSave" v-slot="formProps">
+            <m-text-line v-model="formProps.fields.workEffortName" name="workEffortName" id="boss-sprint-name" :label="t('Name')" required></m-text-line>
+            <m-text-area v-model="formProps.fields.description" name="description" id="boss-sprint-goal" rows="2" :label="t('Goal')"></m-text-area>
+            <div class="row q-col-gutter-sm q-mt-none">
+                <div class="col-6"><m-date-time v-model="formProps.fields.startDay" name="startDay" id="boss-sprint-start" type="date" :label="t('Start')"></m-date-time></div>
+                <div class="col-6"><m-date-time v-model="formProps.fields.endDay" name="endDay" id="boss-sprint-end" type="date" :label="t('End')"></m-date-time></div>
+            </div>
+            <m-text-line v-model="formProps.fields.capacity" name="capacity" id="boss-sprint-capacity" input-type="number"
+                    :label="t('Capacity') + ' (' + (backlog ? backlog.project.unitLabel : '') + ')'"></m-text-line>
+            <div class="row justify-end q-gutter-sm q-mt-md">
+                <q-btn flat no-caps :label="t('Cancel')" v-close-popup></q-btn>
+                <q-btn unelevated no-caps color="primary" type="submit" :label="sprintForm.isNew ? t('Make sprint') : t('Save')"></q-btn>
+            </div>
+        </m-form>
+    </m-dialog>
+
+    <!-- ===== StartSprint ===== -->
+    <m-dialog v-model="start.open" :title="t('Start') + ' ' + (start.sprint ? start.sprint.workEffortName : '')" width="520">
+        <m-form :key="'start' + start.key" :action="action('startSprint')" :fields-initial="start.initial" @submitted="afterChange(start)" v-slot="formProps">
+            <div class="text-body2 q-mb-sm">{{start.sprint ? start.sprint.itemCount : 0}} {{t('work items')}} · {{start.sprint ? sizeText(start.sprint) : ''}}</div>
+            <div class="row q-col-gutter-sm q-mt-none">
+                <div class="col-6"><m-date-time v-model="formProps.fields.startDay" name="startDay" id="boss-start-start" type="date" :label="t('Start')"></m-date-time></div>
+                <div class="col-6"><m-date-time v-model="formProps.fields.endDay" name="endDay" id="boss-start-end" type="date" :label="t('End')"></m-date-time></div>
+            </div>
+            <m-text-area v-model="formProps.fields.description" name="description" id="boss-start-goal" rows="2" :label="t('Goal')"></m-text-area>
+            <div v-if="activeOthers.length && !backlog.project.severalSprints" class="text-caption text-warning q-mt-xs">{{t('In progress now')}}: {{activeOthers.join(', ')}}.
+                {{t('Complete it first, or let the project run several sprints at once (Settings).')}}</div>
+            <div class="row justify-end q-gutter-sm q-mt-md">
+                <q-btn flat no-caps :label="t('Cancel')" v-close-popup></q-btn>
+                <q-btn unelevated no-caps color="primary" type="submit" :label="t('Start sprint')"></q-btn>
+            </div>
+        </m-form>
+    </m-dialog>
+
+    <!-- ===== CompleteSprint ===== -->
+    <m-dialog v-model="complete.open" :title="t('Complete') + ' ' + (complete.sprint ? complete.sprint.workEffortName : '')" width="520">
+        <div v-if="!complete.summary" class="q-pa-md"><q-skeleton type="text"></q-skeleton><q-skeleton type="text" width="60%"></q-skeleton></div>
+        <m-form v-else :key="'complete' + complete.key" :action="action('completeSprint')" :fields-initial="complete.initial" @submitted="afterChange(complete)" v-slot="formProps">
+            <div class="row q-col-gutter-md q-mb-sm">
+                <div class="col-6"><div class="text-h5 text-positive">{{complete.summary.doneCount}}</div><div class="text-caption m-muted">{{t('done')}} · {{complete.summary.completedText}}</div></div>
+                <div class="col-6"><div class="text-h5" :class="complete.summary.openCount ? 'text-warning' : ''">{{complete.summary.openCount}}</div>
+                    <div class="text-caption m-muted">{{t('not done')}} · {{complete.summary.remainingText}}</div></div>
+            </div>
+            <template v-if="complete.summary.openCount">
+                <div class="text-body2 q-mb-xs">{{t('The items not done go to')}}</div>
+                <q-option-group v-model="formProps.fields.carryTo" type="radio" dense :options="carryChoices"></q-option-group>
+                <m-text-line v-if="formProps.fields.carryTo === 'new'" v-model="formProps.fields.newSprintName" name="newSprintName" id="boss-complete-new"
+                        class="q-mt-sm" :label="t('New sprint name (empty: the next number)')"></m-text-line>
+            </template>
+            <div v-else class="text-body2 m-muted">{{t('Every item is done.')}}</div>
+            <div class="row justify-end q-gutter-sm q-mt-md">
+                <q-btn flat no-caps :label="t('Cancel')" v-close-popup></q-btn>
+                <q-btn unelevated no-caps color="primary" type="submit" :label="t('Complete sprint')"></q-btn>
+            </div>
+        </m-form>
+    </m-dialog>
+</div></template>
+
+<script>
+const t = (text) => (moqui.l10n && moqui.l10n.localize ? moqui.l10n.localize(text) : text);
+
+// a row of the backlog or of a sprint: drag handle, tick, type, key, title, epic, labels, release, status, size, assignee, menu
+const backlogRow = {
+    props: { row: Object, index: Number, listKey: String, selected: Boolean, canPlan: Boolean, status: Boolean, unitLabel: String, dark: Boolean,
+        dropMark: String, dragging: Boolean, targets: Array },
+    emits: ['toggle', 'open', 'epic', 'move', 'dragstart', 'dragend', 'dragover'],
+    methods: { t },
+    computed: {
+        rowStyle() {
+            const style = {};
+            if (this.dropMark === 'before') style.boxShadow = 'inset 0 2px 0 var(--q-primary)';
+            if (this.dropMark === 'after') style.boxShadow = 'inset 0 -2px 0 var(--q-primary)';
+            if (this.selected) style.background = this.dark ? 'rgba(255, 255, 255, .06)' : 'rgba(25, 118, 210, .06)';
+            return style;
+        }
+    },
+    template: '<q-item dense class="q-px-sm boss-backlog-row" :class="dragging ? \'m-muted\' : \'\'" :style="rowStyle"' +
+            ' :data-key="row.workEffortId" :draggable="canPlan ? \'true\' : \'false\'" @dragstart="$emit(\'dragstart\', $event)" @dragend="$emit(\'dragend\')"' +
+            ' @dragover.prevent.stop="$emit(\'dragover\', $event)">' +
+        '<q-item-section side class="q-pr-xs gt-xs" v-if="canPlan"><q-icon name="sym_o_drag_indicator" size="xs" class="m-muted cursor-move"></q-icon></q-item-section>' +
+        '<q-item-section side class="q-pr-xs" v-if="canPlan"><q-checkbox dense size="sm" :model-value="selected" @update:model-value="$emit(\'toggle\')"' +
+            ' :aria-label="t(\'Select\') + \' \' + row.workEffortId"></q-checkbox></q-item-section>' +
+        '<q-item-section side class="q-pr-xs"><q-icon :name="row.typeIcon" size="xs" class="m-muted"><q-tooltip>{{row.purposeLabel}}</q-tooltip></q-icon></q-item-section>' +
+        '<q-item-section style="min-width:0"><div class="row items-center no-wrap" style="min-width:0;width:100%;overflow:hidden">' +
+            '<a :href="row.url" class="text-mono text-caption q-mr-sm text-no-wrap" style="flex:none" @click.prevent="$emit(\'open\')">{{row.workEffortId}}</a>' +
+            '<a :href="row.url" class="ellipsis text-body2" :class="row.isDone ? \'m-muted\' : \'\'" style="display:block;color:inherit;text-decoration:none;flex:0 1 auto;min-width:0"' +
+                ' @click.prevent="$emit(\'open\')" :title="row.workEffortName">{{row.workEffortName}}</a>' +
+            '<q-chip v-if="row.epicName" dense square clickable class="q-my-none q-ml-sm m-tonal text-info gt-xs" @click="$emit(\'epic\')" style="max-width:150px;flex:none">' +
+                '<span class="ellipsis">{{row.epicName}}</span><q-tooltip>{{t(\'Epic\')}}: {{row.epicId}} {{row.epicName}}</q-tooltip></q-chip>' +
+            '<template v-if="!status"><q-chip v-for="label in row.labelList" :key="label.labelId" dense square class="q-my-none q-ml-xs m-tonal gt-sm" style="flex:none"' +
+                ' :class="\'text-\' + label.colorName">{{label.label}}</q-chip>' +
+            '<q-chip v-if="row.releaseName" dense square icon="sym_o_new_releases" class="q-my-none q-ml-xs m-tonal text-grey-8 gt-md" style="flex:none">{{row.releaseName}}</q-chip></template>' +
+        '</div></q-item-section>' +
+        '<q-item-section side v-if="status" class="gt-xs"><q-chip dense square class="q-ma-none m-tonal" :class="\'text-\' + row.statusColor">{{row.statusLabel}}</q-chip></q-item-section>' +
+        '<q-item-section side><q-badge rounded :color="row.sizeText ? \'grey-7\' : \'grey-4\'" :text-color="row.sizeText ? \'white\' : \'grey-8\'"' +
+            ' :label="row.sizeText || \'–\'"><q-tooltip>{{row.sizeText ? row.sizeText + \' \' + unitLabel : t(\'No estimate\')}}</q-tooltip></q-badge></q-item-section>' +
+        '<q-item-section side style="min-width:26px"><m-avatar v-if="row.assigneePartyId" :name="row.assigneeText" size="22px"></m-avatar>' +
+            '<q-icon v-else name="sym_o_person_off" size="xs" class="m-muted"><q-tooltip>{{t(\'Unassigned\')}}</q-tooltip></q-icon></q-item-section>' +
+        '<q-item-section side v-if="canPlan"><q-btn flat round dense size="sm" icon="more_vert" :aria-label="t(\'Move\') + \' \' + row.workEffortId">' +
+            '<q-menu><q-list dense style="min-width:220px">' +
+                '<q-item clickable v-close-popup @click="$emit(\'move\', listKey, \'top\')"><q-item-section>{{t(\'Move to the top\')}}</q-item-section></q-item>' +
+                '<q-item clickable v-close-popup @click="$emit(\'move\', listKey, \'bottom\')"><q-item-section>{{t(\'Move to the bottom\')}}</q-item-section></q-item>' +
+                '<q-separator v-if="targets.length"></q-separator>' +
+                '<q-item v-for="target in targets" :key="target.key" clickable v-close-popup @click="$emit(\'move\', target.key, \'bottom\')">' +
+                    '<q-item-section>{{target.label}}</q-item-section></q-item>' +
+            '</q-list></q-menu></q-btn></q-item-section>' +
+    '</q-item>'
+};
+
+module.exports = {
+    name: 'BossBacklog',
+    components: { 'backlog-row': backlogRow },
+    data() {
+        return {
+            loading: false, seq: 0, backlog: null, projectOptions: [], projectFixed: false, noProject: false, notAvailable: false,
+            filter: { text: '', assigneePartyId: null, purposeEnumId: null, labelId: null, componentId: null, epicId: null },
+            selected: {}, expanded: {}, drag: null, dropListKey: null, dropIndex: null, dropSide: null,
+            quick: { name: '', purposeEnumId: 'WepTask', busy: false },
+            sprintForm: { open: false, key: 0, isNew: true, initial: {} },
+            start: { open: false, key: 0, sprint: null, initial: {} },
+            complete: { open: false, key: 0, sprint: null, summary: null, initial: {} },
+            loadedProject: null
+        };
+    },
+    computed: {
+        wide() { return this.$q.screen.gt.sm; },
+        dark() { return this.$q.dark.isActive; },
+        dropClass() { return this.dark ? 'bg-grey-9' : 'bg-blue-grey-1'; },
+        pathList() { return this.$root.currentPathList || []; },
+        bIndex() { return this.pathList.lastIndexOf('Backlog'); },
+        screenPath() { return this.$root.basePath + '/' + (this.bIndex >= 0 ? this.pathList.slice(0, this.bIndex + 1) : ['Projects', 'WorkItems', 'Backlog']).join('/'); },
+        params() { return this.$root.currentParameters || {}; },
+        // in ProjectDetail's tab the project is the detail's workEffortId; here rootWorkEffortId, else the one the server chose
+        inProject() { return this.pathList.indexOf('ProjectDetail') >= 0; },
+        projectId() { return this.backlog ? this.backlog.project.workEffortId : (this.inProject ? this.params.workEffortId : this.params.rootWorkEffortId) || null; },
+        projectOptionList() { return (this.projectOptions || []).map((option) => ({ value: option.key, label: option.text })); },
+        canPlan() { return !!(this.backlog && this.backlog.project.canUpdate); },
+        filtered() { return Object.keys(this.filter).some((key) => this.filter[key]); },
+        selectedIds() { return Object.keys(this.selected).filter((id) => this.selected[id]); },
+        activeOthers() {
+            if (!this.backlog || !this.start.sprint) return [];
+            return this.backlog.sprintList.filter((sprint) => sprint.state === 'active' && sprint.workEffortId !== this.start.sprint.workEffortId).map((sprint) => sprint.workEffortName);
+        },
+        carryChoices() {
+            const summary = this.complete.summary;
+            if (!summary) return [];
+            const choices = (summary.carryOptions || []).map((option) => ({ label: option.text, value: option.key }));
+            choices.push({ label: this.t('A new sprint'), value: 'new' }, { label: this.t('The backlog'), value: 'backlog' });
+            return choices;
+        }
+    },
+    watch: {
+        'filter.assigneePartyId'() { this.load(); },
+        'filter.purposeEnumId'() { this.load(); },
+        'filter.labelId'() { this.load(); },
+        'filter.componentId'() { this.load(); },
+        'filter.epicId'() { this.load(); },
+        'params.rootWorkEffortId'() { if (!this.inProject) this.load(); },
+        'params.workEffortId'() { if (this.inProject) this.load(); }
+    },
+    methods: {
+        t,
+        url(name) { return this.screenPath + '/' + name; },
+        // an m-form action is a path under the web app (m-form puts appRootPath before it)
+        action(name) {
+            const rootPath = this.$root.appRootPath || '';
+            const path = this.url(name);
+            return rootPath && path.indexOf(rootPath) === 0 ? path.slice(rootPath.length) : path;
+        },
+        // the project parameters every request carries: ProjectDetail's tab needs its workEffortId
+        projectParams() {
+            const params = { rootWorkEffortId: this.projectId || '' };
+            if (this.inProject) params.workEffortId = this.params.workEffortId || this.projectId || '';
+            return params;
+        },
+        request(name, params, method) {
+            return moqui.request(this.url(name), { method: method || 'GET', params: Object.assign(this.projectParams(), params || {}) }).then((result) => {
+                const json = result.json || {};
+                if (json.messageInfos && json.messageInfos.length) moqui.notifyMessages(json.messageInfos);
+                return json;
+            }, (err) => { moqui.handleAjaxError(err); throw err; });
+        },
+        post(name, params) { return this.request(name, params, 'POST'); },
+        load() {
+            const seq = ++this.seq;
+            this.loading = true;
+            const params = Object.assign({}, this.inProject ? { workEffortId: this.params.workEffortId || '' } : { rootWorkEffortId: this.params.rootWorkEffortId || '' });
+            Object.keys(this.filter).forEach((key) => { if (this.filter[key]) params[key] = this.filter[key]; });
+            return moqui.request(this.url('backlog'), { params }).then((result) => {
+                if (seq !== this.seq) return;
+                this.loading = false;
+                const json = result.json || {};
+                this.projectOptions = json.projectOptions || [];
+                this.projectFixed = !!json.projectFixed || this.inProject;
+                this.noProject = !!json.noProject;
+                this.notAvailable = !!json.notAvailable;
+                this.backlog = json.backlog || null;
+                if (!this.backlog) return;
+                if (this.loadedProject !== this.backlog.project.workEffortId) {
+                    this.loadedProject = this.backlog.project.workEffortId;
+                    this.selected = {};
+                    const types = this.backlog.filters.typeOptions || [];
+                    this.quick.purposeEnumId = types.some((type) => type.value === 'WepTask') ? 'WepTask' : (types[0] ? types[0].value : 'WepTask');
+                }
+                // the active sprints and the first planned one open
+                const expanded = Object.assign({}, this.expanded);
+                let firstPlanned = true;
+                this.backlog.sprintList.forEach((sprint) => {
+                    if (expanded[sprint.workEffortId] !== undefined) return;
+                    expanded[sprint.workEffortId] = sprint.state === 'active' || (sprint.state === 'planned' && firstPlanned);
+                    if (sprint.state === 'planned') firstPlanned = false;
+                });
+                this.expanded = expanded;
+                // a ticked row no longer shown is not ticked
+                const shown = new Set(this.allRows().map((row) => row.workEffortId));
+                const selected = {};
+                Object.keys(this.selected).forEach((id) => { if (this.selected[id] && shown.has(id)) selected[id] = true; });
+                this.selected = selected;
+            }, (err) => { if (seq !== this.seq) return; this.loading = false; moqui.handleAjaxError(err); });
+        },
+        // a sprint's total against its capacity: "8 of 12 points"
+        sizeText(sprint) {
+            const unit = this.backlog ? this.backlog.project.unitLabel : '';
+            return (sprint.totalText || '0') + (sprint.capacityText ? ' ' + this.t('of') + ' ' + sprint.capacityText : '') + ' ' + unit;
+        },
+        allRows() {
+            if (!this.backlog) return [];
+            return this.backlog.sprintList.flatMap((sprint) => sprint.rowList).concat(this.backlog.backlogList);
+        },
+        rowsOf(listKey) {
+            if (!this.backlog) return [];
+            if (!listKey) return this.backlog.backlogList;
+            const sprint = this.backlog.sprintList.find((one) => one.workEffortId === listKey);
+            return sprint ? sprint.rowList : [];
+        },
+        changeProject(value) {
+            if (!value || value === this.projectId) return;
+            this.backlog = null;
+            this.$root.setUrl(this.$root.linkBasePath + '/' + this.pathList.slice(0, this.bIndex + 1).join('/') + '?' + moqui.objToSearch({ rootWorkEffortId: value }));
+        },
+        clearFilters() { this.filter = { text: '', assigneePartyId: null, purposeEnumId: null, labelId: null, componentId: null, epicId: null }; this.load(); },
+        filterEpic(row) { if (row.epicId) this.filter.epicId = row.epicId; },
+        toggle(row) { this.selected = Object.assign({}, this.selected, { [row.workEffortId]: !this.selected[row.workEffortId] }); },
+        openItem(row) { this.$root.setUrl(row.url); },
+        sprintUrl(sprint) { return (this.$root.linkBasePath || '/qapps') + '/Projects/WorkItems/SprintDetail?workEffortId=' + encodeURIComponent(sprint.workEffortId); },
+        openSprint(sprint) { this.$root.setUrl(this.sprintUrl(sprint)); },
+        // the lists a row may be sent to from its menu: the other open sprints and the backlog
+        targetsFor(listKey) {
+            if (!this.backlog || !this.backlog.project.sprintsOn) return [];
+            const targets = this.backlog.sprintList.filter((sprint) => sprint.workEffortId !== listKey)
+                    .map((sprint) => ({ key: sprint.workEffortId, label: this.t('To') + ' ' + sprint.workEffortName }));
+            if (listKey) targets.push({ key: '', label: this.t('Back to the backlog') });
+            return targets;
+        },
+        // ===== drag and drop =====
+        isDragging(row) { return !!(this.drag && this.drag.ids.includes(row.workEffortId)); },
+        dragStart(row, listKey, event) {
+            if (!this.canPlan) return;
+            // the ticked rows drag as one, in their order on the page, when the row is one of them
+            const ids = this.selected[row.workEffortId] ? this.allRows().map((one) => one.workEffortId).filter((id) => this.selected[id]) : [row.workEffortId];
+            this.drag = { ids, from: listKey };
+            if (event && event.dataTransfer) { event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', ids.join(',')); }
+        },
+        dragEnd() { this.drag = null; this.dropListKey = null; this.dropIndex = null; this.dropSide = null; },
+        overRow(listKey, index, event) {
+            if (!this.drag) return;
+            const target = event && event.currentTarget;
+            let side = 'after';
+            if (target && target.getBoundingClientRect) {
+                const box = target.getBoundingClientRect();
+                side = event.clientY < box.top + box.height / 2 ? 'before' : 'after';
+            }
+            this.dropListKey = listKey; this.dropIndex = index; this.dropSide = side;
+        },
+        overList(listKey) {
+            if (!this.drag) return;
+            if (this.dropListKey !== listKey) { this.dropListKey = listKey; this.dropIndex = null; this.dropSide = null; }
+        },
+        drop(listKey) {
+            if (!this.drag) return;
+            const ids = this.drag.ids;
+            const rows = this.rowsOf(listKey);
+            // where in the list: before or after the row under the pointer, else at the end
+            let at = rows.length;
+            if (this.dropListKey === listKey && this.dropIndex != null) at = this.dropIndex + (this.dropSide === 'after' ? 1 : 0);
+            const before = rows.slice(0, at).filter((row) => !ids.includes(row.workEffortId));
+            const after = rows.slice(at).filter((row) => !ids.includes(row.workEffortId));
+            this.dragEnd();
+            this.place(ids, listKey, before.length ? before[before.length - 1].workEffortId : null, before.length ? null : (after.length ? after[0].workEffortId : null));
+        },
+        moveByMenu(row, fromKey, toKey, where) {
+            const ids = this.selected[row.workEffortId] ? this.allRows().map((one) => one.workEffortId).filter((id) => this.selected[id]) : [row.workEffortId];
+            const rows = this.rowsOf(toKey).filter((one) => !ids.includes(one.workEffortId));
+            if (where === 'top') this.place(ids, toKey, null, rows.length ? rows[0].workEffortId : null);
+            else this.place(ids, toKey, rows.length ? rows[rows.length - 1].workEffortId : null, null);
+        },
+        moveSelected(toKey) {
+            const ids = this.selectedIds.length ? this.allRows().map((one) => one.workEffortId).filter((id) => this.selected[id]) : [];
+            if (!ids.length) return;
+            const rows = this.rowsOf(toKey).filter((one) => !ids.includes(one.workEffortId));
+            this.place(ids, toKey, rows.length ? rows[rows.length - 1].workEffortId : null, null);
+        },
+        place(ids, listKey, previousId, nextId) {
+            // in the page at once, then from the server
+            const moving = this.allRows().filter((row) => ids.includes(row.workEffortId));
+            const strip = (list) => list.filter((row) => !ids.includes(row.workEffortId));
+            this.backlog.backlogList = strip(this.backlog.backlogList);
+            this.backlog.sprintList.forEach((sprint) => { sprint.rowList = strip(sprint.rowList); });
+            const target = this.rowsOf(listKey);
+            let at = target.length;
+            if (previousId) at = target.findIndex((row) => row.workEffortId === previousId) + 1;
+            else if (nextId) at = Math.max(0, target.findIndex((row) => row.workEffortId === nextId));
+            target.splice(at, 0, ...moving);
+            this.post('rank', { workEffortIds: ids.join(','), sprintWorkEffortId: listKey || '', previousWorkEffortId: previousId || '', nextWorkEffortId: nextId || '' })
+                    .then(() => { this.selected = {}; this.load(); }, () => this.load());
+        },
+        // ===== quick add =====
+        quickAdd() {
+            const name = this.quick.name.trim();
+            if (!name || this.quick.busy) return;
+            this.quick.busy = true;
+            const first = this.backlog.backlogList[0];
+            this.post('quickAdd', { workEffortName: name, purposeEnumId: this.quick.purposeEnumId || '', nextWorkEffortId: first ? first.workEffortId : '' }).then((json) => {
+                this.quick.busy = false;
+                if (!json.workEffortId) return;
+                this.quick.name = '';
+                this.load();
+                this.$nextTick(() => { const el = document.getElementById('boss-backlog-add'); if (el && el.focus) el.focus(); });
+            }, () => { this.quick.busy = false; });
+        },
+        // ===== the dialogs =====
+        openSprintForm(sprint) {
+            const fields = this.projectParams();
+            if (sprint) Object.assign(fields, { sprintWorkEffortId: sprint.workEffortId, workEffortName: sprint.workEffortName, description: sprint.description || '',
+                startDay: sprint.startDay || '', endDay: sprint.endDay || '', capacity: sprint.capacity != null ? String(sprint.capacity) : '' });
+            else Object.assign(fields, { sprintWorkEffortId: '', workEffortName: this.backlog.newSprint.workEffortName, description: '',
+                startDay: this.backlog.newSprint.startDay, endDay: this.backlog.newSprint.endDay, capacity: this.backlog.newSprint.capacity || '' });
+            this.sprintForm = { open: true, key: this.sprintForm.key + 1, isNew: !sprint, initial: fields };
+        },
+        afterSave() { this.sprintForm.open = false; this.load(); },
+        openStart(sprint) {
+            this.start = { open: true, key: this.start.key + 1, sprint, initial: Object.assign(this.projectParams(), { sprintWorkEffortId: sprint.workEffortId,
+                startDay: sprint.startDay || '', endDay: sprint.endDay || '', description: sprint.description || '' }) };
+        },
+        openComplete(sprint) {
+            this.complete = { open: true, key: this.complete.key + 1, sprint, summary: null, initial: {} };
+            this.request('sprintSummary', { sprintWorkEffortId: sprint.workEffortId }).then((json) => {
+                const summary = json.summary;
+                if (!summary) { this.complete.open = false; return; }
+                this.complete.summary = summary;
+                this.complete.initial = Object.assign(this.projectParams(), { sprintWorkEffortId: sprint.workEffortId,
+                    carryTo: summary.nextSprintId || 'new', newSprintName: '' });
+                this.complete.key++;
+            }, () => { this.complete.open = false; });
+        },
+        afterChange(dialog) { dialog.open = false; this.load(); },
+        turnOnSprints() { this.post('turnOnSprints', {}).then((json) => { if (json.on) this.load(); }, () => {}); }
+    },
+    mounted() { this.load(); }
+};
+</script>

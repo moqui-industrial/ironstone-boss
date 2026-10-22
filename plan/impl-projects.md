@@ -56,7 +56,7 @@ Sections: [1 scope](#1-scope-and-order) · [2 rules](#2-ground-rules) · [3 phas
 | P2 Projects and work items | Mantle, BOSS (mr-moqui) | Home, QuickCreate, Projects, NewProject, ProjectDetail and its Overview, Work items, Team, Files and Settings tabs, WorkItems, WorkItemDetail, WorkItemTypes, Workflows, Labels, Templates | done Oct 22 |
 | P3a Code: framework | mr-moqui | — | done Oct 21 |
 | P3b Code: Mantle and BOSS | Mantle, BOSS | every §7 screen, ProjectCode, CodeSettings | done Oct 22 |
-| P4 Planning | Mantle, BOSS (mr-moqui) | Backlog, SprintDetail, Timeline, WorkItemImport, Roadmap, MilestoneDetail, ReleaseDetail, ProjectBacklog, ProjectTimeline, ProjectCalendar, ProjectRoadmap, ProjectDocs | in progress (P4a sprints and backlog; then P4b roadmap, releases and docs; P4c timeline, calendar and import) |
+| P4 Planning | Mantle, BOSS (mr-moqui) | Backlog, SprintDetail, Timeline, WorkItemImport, Roadmap, MilestoneDetail, ReleaseDetail, ProjectBacklog, ProjectTimeline, ProjectCalendar, ProjectRoadmap, ProjectDocs | in progress (P4a built Oct 22; P4b roadmap, releases and docs; P4c timeline, calendar and import) |
 | P5 Requests | Mantle, BOSS | Requests, RequestDetail, RequestIntake, ProjectRequests, IntakeSettings | planned |
 | P6 Time | Mantle, BOSS | MyTime, Timesheets, TimesheetDetail, TimeEntries, ProjectTime, TimeSettings | planned |
 | P7 Resources | Mantle, BOSS | TeamPlanner, Allocations, PersonDetail | planned |
@@ -244,6 +244,19 @@ tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
   MilestoneDetail, ReleaseDetail with release notes and the project's Roadmap and Docs tabs (F7 checked first); P4c
   Timeline, the project's Plan tab (Timeline and Calendar) and WorkItemImport.
 
+**Built, P4a** (Oct 22, 2026):
+- Mantle usl: `ProjectServices` `get#SprintDefaults`, `create#`, `update#`, `start#` and `complete#Sprint` (carry to the
+  next sprint, a new one or the backlog); `TaskServices` `set#TaskSprint` (scope changes of a running sprint in the
+  audit log) and `set#TaskBacklogRank` (the project-wide order); new `ProjectReportServices` `get#SprintBurndown` and
+  `get#SprintVelocity`; `test/WorkProjectSprints.spec.js`.
+- BOSS: `ironstone.PlanningServices`; `WorkItems/Backlog.qvue` (ranked leaf backlog and sprint lists, drag or a row menu
+  to rank and plan, sprint dialogs) with `BacklogTui.xml` (read only), `SprintDetail` (burndown, items, scope changes)
+  and `SprintReport` (print, with velocity); ProjectDetail's Backlog tab; the sprint on WorkItems (find with `current`,
+  column, board group, bulk, quick add), WorkItemDetail and QuickWorkItem; the Current sprint saved find; demo IRON
+  sprints 1 (complete, a carry-over), 2 (active) and 3 (planned); `test/SprintWalk.spec.js` (the walk: rank, plan,
+  start, complete with a carry-over).
+- Runs (Debug): ironstone-boss 488/488, mantle-usl 600/602 (ContactListSend), lint clean.
+
 ### P5 — Requests
 
 - Design §6: `Shared/RequestDetail` (Commons RequestDetail becomes it), Requests, ProjectRequests, conversion and status
@@ -328,6 +341,10 @@ Made during the build; each one that changes the design is also written into des
 | Oct 22, 2026 | The Code tab is always on ProjectDetail and says when the module is off (F24) | P3b1 |
 | Oct 22, 2026 | Line comments are markdown (`m-text-area`, shown with `m-markdown`), as `create#ReviewComment` stores; diff lines are always text, never html | P3b2 |
 | Oct 22, 2026 | MergeRequests' Open chip includes drafts; no updated-period find; the merge box has one message field seeded by the repository's method; Review is also in More for the terminal | P3b2 |
+| Oct 22, 2026 | The backlog is the open leaf items in no open sprint; rank is one order over the project (`set#TaskBacklogRank` takes the gap's middle, renumbers the project when it closes) | P4a |
+| Oct 22, 2026 | A sprint is `<KEY>-SP-n`, capacity `estimatedPoints` or `totalTimeAllowed` by the project's unit; done is Complete or Closed, Cancelled is neither done nor carried; the burndown steps on weekdays in the user's time zone | P4a |
+| Oct 22, 2026 | The team ranks, plans, starts and completes sprints; only managers turn on Plan in sprints | P4a |
+| Oct 22, 2026 | ProjectDetail tab order: Overview 1, Work items 2, Backlog 3, Code 4, Team 5, Files 8, Settings 9; Plan, Roadmap and Requests go before Code | P4a |
 | Oct 22, 2026 | A recurring item counted from completion takes the completion day at the due date's time of day (UTC days) and the rule without its COUNT, which counts the items made | P2 |
 
 ## 5. Open questions
@@ -380,6 +397,13 @@ Design assumptions found wrong in the code, with the resolution (written into th
 | F34 | P3b2: the screen lint's gstring check flagged a template literal in a script, likely reading a `/"/g` regex as a string's start | Worked around with concatenation; check the lint later |
 | F35 | P3b2: Chatter's header shows a `moqui.*` record by type and id ("Merge request 100000") | A label for framework records in Chatter, later |
 | F36 | P3b2: a team user calling `org.moqui.impl.GitServices` outside a screen is refused (only the app root's ALLOW grants the services) | As intended; specs stand in for a push with authorization off |
+| F37 | P4a: the screen lint's gstring check loses its place on any odd quote in a script (an apostrophe in a `//` comment, the `/"/g` regex of the `enc` helpers), then flags a double-quoted attribute with `$root` (extends F34) | Worked around; the lint should skip comments and regex literals |
+| F38 | P4a: a `paginate="false"` form-list with a header row shows No results found unless the screen sets `${listName}Count` | Set in SprintDetail; the framework could fall back to the list's size |
+| F39 | P4a: in `.qvue`, a `q-item-section` does not bound its inner row's width | `width:100%` on the row and `display:block` on the ellipsis link |
+| F40 | P4a: the tree's `set#TaskRank` numbers one parent's children 1000, 2000..., which can tie with other parents' items in the project order | The backlog breaks ties by key; its next drag renumbers the project |
+| F41 | P4a: loading data writes status audit rows at load time | The demo carries past audit rows; the burndown reads a first row with no old value as the earlier value too |
+| F42 | P4a: a form-list field whose conditional-field is `<ignored/>` seems to keep its column (not isolated) | Shown as a note in another column; check later |
+| F43 | P4a: a screen mounted in ProjectDetail opened by one who cannot see the project has no `projectTabId` | Transitions fall back to `workEffortId` so the answer is not available; later tabs do the same |
 | F7 | P0: a wiki space under an existing repository is documented for a repository root (`rootPageDirectory: "git://docs"`, or `rootPageLocation` `git://<repositoryId>/<SPACE>.md`), not for a subdirectory such as `git://<repositoryId>/docs` | Checked in P4 as the design's §15 row says, before ProjectDocs is built |
 
 ## 7. Later
@@ -413,6 +437,9 @@ Designed, not in this build:
 
 - Code (P3b2): MergeRequests' updated-period find; a link from a line comment in Chatter into Changes; @mentions in line
   comments; the terminal diff for Changes (P11); the Development tab's Unlink on phones; a screenshot of side-by-side.
+
+- Planning (P4a): the Backlog's moves and dialogs in the terminal (P11); Reports/Sprints with velocity (P9); holidays in
+  the burndown; capacity from availability (P7); QuickWorkItem's sprint list shown when empty.
 
 ## 8. Verification
 

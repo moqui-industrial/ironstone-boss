@@ -27,8 +27,9 @@ along with this software (see the LICENSE.md file). If not, see
     Projects (service/ironstone/WorkItemServices.xml get#WorkItemDetail): above the title the item's path (the project, then
     each ancestor); the type icon, the key and the title; the status-bar of the item's flow (the development flow's In Review
     and In Testing too); the facts (assignees, due, priority, its estimate and the one with sub-items, milestone, release,
-    sprint, labels) and the repeat rule in words. Actions: Assign to me, Reassign, Set due, Edit (every field of Details,
-    the parent and the plan items included), Repeat and Stop repeating, Watch or Unwatch, Move to project, and in More Clone,
+    sprint (a link to its SprintDetail), labels) and the repeat rule in words. Actions: Assign to me, Reassign, Set due, Edit
+    (every field of Details, the parent and the plan items included: the sprint of the project's open ones, empty for the
+    backlog, impl-projects.md P4a), Repeat and Stop repeating, Watch or Unwatch, Move to project, and in More Clone,
     Convert to request and Delete (the owner or the project's manager, with no time or sub-items). The tabs: Overview
     (description, details, labels, requests, linked records, people; Chatter beside it from 1440 px), Sub-items (the subtree
     as a view-tree, one level per open, with roll-ups, drag and Tab to move within it, and a quick-add row), Links (relations
@@ -200,11 +201,12 @@ along with this software (see the LICENSE.md file). If not, see
                     start: day(item.estimatedStartDate), due: day(item.estimatedCompletionDate), estimate: num(item.estimatedWorkTime), remaining: num(item.remainingWorkTime),
                     points: num(item.estimatedPoints), budget: num(item.totalTimeAllowed), visibility: item.visibilityEnumId || '',
                     milestone: detail.planItems?.milestone?.workEffortId || '', release: detail.planItems?.release?.workEffortId || '',
-                    component: detail.planItems?.component?.workEffortId || '', parent: item.parentWorkEffortId || '', description: item.description || '',
-                    resolution: item.resolutionEnumId || ''}
+                    component: detail.planItems?.component?.workEffortId || '', sprint: detail.planItems?.sprint?.workEffortId || '',
+                    parent: item.parentWorkEffortId || '', description: item.description || '', resolution: item.resolutionEnumId || ''}
                 const posted = {title: workEffortName, type: purposeEnumId, priority: priority, start: estimatedStartDate, due: estimatedCompletionDate,
                     estimate: estimatedWorkTime, remaining: remainingWorkTime, points: estimatedPoints, budget: totalTimeAllowed, visibility: visibilityEnumId,
-                    milestone: milestoneId, release: releaseId, component: componentId, parent: parentWorkEffortId, description: description, resolution: resolutionEnumId}
+                    milestone: milestoneId, release: releaseId, component: componentId, sprint: sprintId, parent: parentWorkEffortId, description: description,
+                    resolution: resolutionEnumId}
                 let changed = 0
                 for (const field of Object.keys(posted)) {
                     if (posted[field] === undefined || posted[field] === null) continue
@@ -439,7 +441,11 @@ along with this software (see the LICENSE.md file). If not, see
                 factsHtml += fact('Estimate', rollup.estimatedText ? enc(rollup.estimatedText) + ' h' : '—', '')
                 if (rollup.childCount) factsHtml += fact('With sub-items', enc(rollup.totalEstimatedText || '0') + ' h · ' + enc(String(rollup.doneCount)) + '/' + enc(String(rollup.itemCount)) + ' ' + enc(L('done')), '')
                 if (rollup.pointsText) factsHtml += fact('Points', enc(rollup.pointsText), '')
-                for (const [key, label] of [['sprint', 'Sprint'], ['milestone', 'Milestone'], ['release', 'Release']])
+                if (plans.sprint) {
+                    const sprintUrl = '/qapps/Projects/WorkItems/SprintDetail?workEffortId=' + encodeURIComponent(plans.sprint.workEffortId)
+                    factsHtml += fact('Sprint', '<a href="' + enc(sprintUrl) + '" @click.prevent="$root.setUrl(\'' + enc(sprintUrl) + '\')">' + enc(plans.sprint.name) + '</a>', '')
+                }
+                for (const [key, label] of [['milestone', 'Milestone'], ['release', 'Release']])
                     if (plans[key]) factsHtml += fact(label, enc(plans[key].name), '')
                 const labels = extra.labelList || []
                 if (labels.length) factsHtml += fact('Labels', labels.map((label) => '<q-chip dense square class="q-ma-none q-mr-xs m-tonal text-' + enc(label.colorName) + '">' + enc(label.label) + '</q-chip>').join(''), '')
@@ -493,6 +499,7 @@ along with this software (see the LICENSE.md file). If not, see
                     estimatedWorkTime: num(item.estimatedWorkTime), remainingWorkTime: num(item.remainingWorkTime), estimatedPoints: num(item.estimatedPoints),
                     totalTimeAllowed: num(item.totalTimeAllowed), visibilityEnumId: item.visibilityEnumId || '', resolutionEnumId: item.resolutionEnumId || '',
                     milestoneId: planItems.milestone?.workEffortId || '', releaseId: planItems.release?.workEffortId || '', componentId: planItems.component?.workEffortId || '',
+                    sprintId: planItems.sprint?.workEffortId || '',
                     parentWorkEffortId: item.parentWorkEffortId || '', description: item.description || ''}
                 isTopLevel = !item.parentWorkEffortId
                 detailsList = [['Type', task.purposeLabel], ['Status', task.statusLabel], ['Resolution', isDoneItem ? enumText(item.resolutionEnumId) : ''],
@@ -511,6 +518,10 @@ along with this software (see the LICENSE.md file). If not, see
                 milestoneOptions = options('ironstone.WorkItemServices.get#PlanItemOptions', {rootWorkEffortId: item.rootWorkEffortId, workEffortTypeEnumId: 'WetMilestone'})
                 releaseOptions = options('ironstone.WorkItemServices.get#PlanItemOptions', {rootWorkEffortId: item.rootWorkEffortId, workEffortTypeEnumId: 'WetRelease'})
                 componentOptions = options('ironstone.WorkItemServices.get#PlanItemOptions', {rootWorkEffortId: item.rootWorkEffortId, workEffortTypeEnumId: 'WetComponent'})
+                // the open sprints, and the item's own when it is complete (so an edit keeps it)
+                sprintOptions = options('ironstone.PlanningServices.get#SprintOptions', {rootWorkEffortId: item.rootWorkEffortId})
+                if (planItems.sprint && !sprintOptions.some((option) => option.key === planItems.sprint.workEffortId))
+                    sprintOptions.push({key: planItems.sprint.workEffortId, text: planItems.sprint.name})
                 labelOptions = options('ironstone.WorkItemServices.get#LabelOptions', {}).filter((option) => !labelList.some((label) => label.labelId === option.key))
                 projectOptions = ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').parameters({memberOnly: true}).call()?.projectList || []
                 parentText = item.parentWorkEffortId ? item.parentWorkEffortId + ' ' + (task.parentName || '') : ''
@@ -637,6 +648,8 @@ along with this software (see the LICENSE.md file). If not, see
                                     <drop-down allow-empty="true"><list-options list="milestoneOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
                                 <field name="releaseId"><default-field title="Release">
                                     <drop-down allow-empty="true"><list-options list="releaseOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                <field name="sprintId"><default-field title="Sprint (empty: the backlog)">
+                                    <drop-down allow-empty="true"><list-options list="sprintOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
                                 <field name="componentId"><default-field title="Component">
                                     <drop-down allow-empty="true"><list-options list="componentOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
                                 <field name="resolutionEnumId"><conditional-field condition="isDoneItem" title="Resolution">
@@ -651,8 +664,8 @@ along with this software (see the LICENSE.md file). If not, see
                                     <field-row><field-ref name="purposeEnumId"/><field-ref name="priority"/><field-ref name="visibilityEnumId"/></field-row>
                                     <field-row><field-ref name="estimatedStartDate"/><field-ref name="estimatedCompletionDate"/></field-row>
                                     <field-row><field-ref name="estimatedWorkTime"/><field-ref name="remainingWorkTime"/><field-ref name="estimatedPoints"/><field-ref name="totalTimeAllowed"/></field-row>
-                                    <field-row><field-ref name="parentWorkEffortId"/><field-ref name="milestoneId"/></field-row>
-                                    <field-row><field-ref name="releaseId"/><field-ref name="componentId"/></field-row>
+                                    <field-row><field-ref name="parentWorkEffortId"/><field-ref name="sprintId"/></field-row>
+                                    <field-row><field-ref name="milestoneId"/><field-ref name="releaseId"/><field-ref name="componentId"/></field-row>
                                     <field-ref name="resolutionEnumId"/>
                                     <field-ref name="description"/><field-ref name="submitButton"/>
                                 </field-layout>

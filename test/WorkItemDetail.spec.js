@@ -73,7 +73,7 @@ feature("a work item renders with its path, key, the development flow's stages, 
         Object.keys(transitionsOf(three.output)).includes("Test")
         // facts: the milestone, sprint, labels and the estimate
         three.output.includes("Beta")
-        three.output.includes("Sprint 1")
+        three.output.includes("Sprint 2")
         three.output.includes(">UI</q-chip>")
         three.output.includes("Assign to me")
         three.output.includes("Sub-items")

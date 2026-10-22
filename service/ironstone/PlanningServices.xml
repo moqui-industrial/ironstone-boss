@@ -1,0 +1,519 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The planning of IronStone Projects (design-projects.md §5 Backlog and SprintDetail; impl-projects.md P4a): a project's backlog
+    and sprints. The backlog is the project's open work items that have no sub-items, cancelled ones aside (the leaves of the work
+    breakdown; a parent's estimate is its children's, and it is completed from the tree), and are in no open sprint, in rank order: one order over the project
+    (mantle.work.TaskServices.set#TaskBacklogRank), which keeps the tree's order of siblings. A sprint (mantle.work.ProjectServices
+    create#, update#, start#, complete#Sprint) is planned, in progress or complete; its items are the work items in it at any
+    depth (set#TaskSprint). Who sees the project sees its backlog and sprints (ironstone.ProjectServices.get#ProjectAccess); its
+    team (members and those who manage it) ranks and plans, makes, starts and completes sprints; turning sprints on for a project
+    is for those who manage it. The items are as WorkItems shows them (ironstone.WorkItemServices find# and decorate#WorkItemRows,
+    which leave out the Restricted items the user may not see). A change of several items takes each on its own: one that fails
+    is logged and named, the rest go on. -->
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
+
+    <service verb="get" noun="ProjectSprints" allow-remote="false">
+        <description>The sprints of a project: the open ones (in progress first, then the planned by start) and, with
+            includeClosed, the completed ones (the latest first), each with its dates as text, goal, capacity and status label.</description>
+        <in-parameters>
+            <parameter name="rootWorkEffortId" required="true"/>
+            <parameter name="includeClosed" type="Boolean" default="false"/>
+        </in-parameters>
+        <out-parameters><parameter name="sprintList" type="List"/><parameter name="estimateUnit"/></out-parameters>
+        <actions><script><![CDATA[
+            sprintList = []
+            const L = (text) => ec.l10n.localize(text)
+            const settings = ec.service.sync().name('mantle.work.ProjectServices.get#ProjectSettings').parameters({workEffortId: rootWorkEffortId}).call()?.settings || {}
+            estimateUnit = settings.WstEstimateUnit === 'points' ? 'points' : 'hours'
+            const toMillis = (value) => {
+                if (value == null || value === '') return null
+                if (typeof value === 'number') return value
+                const text = String(value)
+                if (/^-?\d+$/.test(text)) return Number(text)
+                const parsed = Date.parse(text)
+                return Number.isNaN(parsed) ? null : parsed
+            }
+            const day = (value) => toMillis(value) == null ? '' : ec.l10n.format(String(toMillis(value)), 'yyyy-MM-dd')
+            const short = (value) => toMillis(value) == null ? '' : ec.l10n.format(String(toMillis(value)), 'MMM d')
+            const order = {WeInProgress: 0, WeApproved: 1, WeInPlanning: 1, WeComplete: 2, WeClosed: 2}
+            const statuses = ['WeInProgress', 'WeApproved', 'WeInPlanning'].concat(includeClosed ? ['WeComplete', 'WeClosed'] : [])
+            const rows = Array.from(ec.entity.find('mantle.work.effort.WorkEffort').condition('rootWorkEffortId', rootWorkEffortId)
+                    .condition('workEffortTypeEnumId', 'WetSprint').condition('statusId', 'in', statuses).list())
+            rows.sort((left, right) => (order[left.statusId] - order[right.statusId])
+                    || (order[left.statusId] === 2 ? (toMillis(right.actualCompletionDate) || 0) - (toMillis(left.actualCompletionDate) || 0)
+                        : (toMillis(left.estimatedStartDate) ?? Number.MAX_SAFE_INTEGER) - (toMillis(right.estimatedStartDate) ?? Number.MAX_SAFE_INTEGER))
+                    || String(left.workEffortId).localeCompare(String(right.workEffortId)))
+            for (const row of rows) {
+                const capacity = estimateUnit === 'points' ? row.estimatedPoints : row.totalTimeAllowed
+                const state = row.statusId === 'WeInProgress' ? 'active' : ['WeComplete', 'WeClosed'].includes(row.statusId) ? 'closed' : 'planned'
+                sprintList.push({workEffortId: row.workEffortId, workEffortName: row.workEffortName || row.workEffortId, description: row.description || '',
+                    statusId: row.statusId, state: state, stateLabel: L({active: 'Active', planned: 'Planned', closed: 'Complete'}[state]),
+                    startDay: day(row.estimatedStartDate), endDay: day(row.estimatedCompletionDate),
+                    datesText: [short(row.estimatedStartDate), short(row.estimatedCompletionDate)].filter((part) => part).join(' – '),
+                    capacity: capacity == null || capacity === '' ? null : Number(String(capacity))})
+            }
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="Backlog">
+        <description>The Backlog screen's data for a project the user sees: the project (key, name, estimate unit, whether it plans
+            in sprints (WstModules backlog), runs several sprints at once, and what the user may do), the backlog rows and each
+            open sprint with its rows, item count, total size against its capacity; and the filter options. The filters
+            (assignee, type, label, component, epic: under a top-level item at any depth, and text) narrow the rows of both panes,
+            not a sprint's total. Each row is as WorkItems decorates it, with its epic (its top-level item) and its size in the
+            project's unit.</description>
+        <in-parameters>
+            <parameter name="rootWorkEffortId" required="true"/>
+            <parameter name="assigneePartyId"/>
+            <parameter name="purposeEnumId"/>
+            <parameter name="labelId"/>
+            <parameter name="componentId"/>
+            <parameter name="epicId"/>
+            <parameter name="text"/>
+        </in-parameters>
+        <out-parameters><parameter name="backlog" type="Map"/></out-parameters>
+        <actions><script><![CDATA[
+            backlog = null
+            const access = ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: rootWorkEffortId, need: 'view'}).call() || {}
+            if (ec.message.hasError()) return
+            const L = (text) => ec.l10n.localize(text)
+            const project = access.project
+            const settings = ec.service.sync().name('mantle.work.ProjectServices.get#ProjectSettings').parameters({workEffortId: rootWorkEffortId}).call()?.settings || {}
+            const unit = settings.WstEstimateUnit === 'points' ? 'points' : 'hours'
+            const sprintsOn = String(settings.WstModules || '').split(',').map((part) => part.trim()).includes('backlog')
+            const num = (value) => value == null || value === '' ? null : Number(String(value))
+            const fmt = (value) => value == null ? '' : ec.l10n.format(Math.round(value * 100) / 100, '#,##0.##')
+            const sprints = Array.from(ec.service.sync().name('ironstone.PlanningServices.get#ProjectSprints').parameters({rootWorkEffortId: rootWorkEffortId}).call()?.sprintList || [])
+            const openSprintIds = sprints.map((sprint) => sprint.workEffortId)
+
+            // the project's tasks: parents, which have children (cancelled ones aside), names, for the leaves and the epics
+            const all = Array.from(ec.entity.find('mantle.work.effort.WorkEffort').condition('rootWorkEffortId', rootWorkEffortId)
+                    .condition('workEffortTypeEnumId', 'WetTask').selectField('workEffortId').selectField('parentWorkEffortId').selectField('workEffortName')
+                    .selectField('statusId').selectField('sequenceNum').selectField('estimatedPoints').selectField('estimatedWorkTime').limit(20000).list())
+            const byId = {}
+            const openChildren = {}
+            for (const row of all) {
+                byId[row.workEffortId] = row
+                if (row.parentWorkEffortId && row.statusId !== 'WeCancelled') openChildren[row.parentWorkEffortId] = true
+            }
+            const epicOf = (id) => {
+                let at = byId[id]
+                for (let guard = 0; at && at.parentWorkEffortId && byId[at.parentWorkEffortId] && guard < 1000; guard++) at = byId[at.parentWorkEffortId]
+                return at && at.workEffortId !== id ? at : null
+            }
+            const sizeOf = (row) => num(unit === 'points' ? row.estimatedPoints : row.estimatedWorkTime)
+            const rankOf = (id) => { const rank = num(byId[id]?.sequenceNum); return rank == null ? Number.MAX_SAFE_INTEGER : rank }
+            const keyNumber = (id) => { const match = /(\d+)$/.exec(String(id)); return match ? Number(match[1]) : Number.MAX_SAFE_INTEGER }
+            const byRank = (left, right) => rankOf(left.workEffortId) - rankOf(right.workEffortId) || keyNumber(left.workEffortId) - keyNumber(right.workEffortId)
+
+            // the rows as WorkItems finds and decorates them, with the filters
+            const find = (list, more) => Array.from(ec.service.sync().name('ironstone.WorkItemServices.find#WorkItems').parameters(Object.assign({list: list,
+                rootWorkEffortId: rootWorkEffortId, text: text || null, purposeEnumId: purposeEnumId || null, assigneePartyId: assigneePartyId || null,
+                labelId: labelId || null, underWorkEffortId: epicId || null, pageNoLimit: true, withCounts: false}, more || {})).call()?.rowList || [])
+                    .filter((row) => !componentId || row.componentId === componentId)
+            const shape = (row) => {
+                const epic = epicOf(row.workEffortId)
+                const size = sizeOf(byId[row.workEffortId] || {})
+                return Object.assign({}, row, {epicId: epic ? epic.workEffortId : null, epicName: epic ? (epic.workEffortName || epic.workEffortId) : '',
+                    size: size, sizeText: fmt(size)})
+            }
+            const backlogList = find('open').filter((row) => !openChildren[row.workEffortId] && !(row.sprintId && openSprintIds.includes(row.sprintId)))
+                    .map(shape).sort(byRank)
+            const sprintRows = openSprintIds.length ? find('all', {sprintId: openSprintIds.join(',')}).filter((row) => row.statusId !== 'WeCancelled').map(shape) : []
+
+            // the totals of each sprint over all its items, not only the rows the filters keep
+            const memberships = openSprintIds.length ? Array.from(ec.entity.find('mantle.work.effort.WorkEffortAssoc').condition('workEffortId', 'in', openSprintIds)
+                    .condition('workEffortAssocTypeEnumId', 'WeatSprint').conditionDate('fromDate', 'thruDate', null).list()) : []
+            const sprintList = sprints.map((sprint) => {
+                const memberIds = memberships.filter((assoc) => assoc.workEffortId === sprint.workEffortId).map((assoc) => assoc.toWorkEffortId)
+                        .filter((id) => byId[id] && byId[id].statusId !== 'WeCancelled')
+                let total = 0, doneSize = 0, doneCount = 0
+                for (const id of memberIds) {
+                    const size = sizeOf(byId[id]) || 0
+                    total += size
+                    if (['WeComplete', 'WeClosed'].includes(byId[id].statusId)) { doneSize += size; doneCount++ }
+                }
+                const capacity = sprint.capacity
+                return Object.assign({}, sprint, {itemCount: memberIds.length, doneCount: doneCount, total: Math.round(total * 100) / 100, totalText: fmt(total),
+                    doneText: fmt(doneSize), capacityText: capacity == null ? '' : fmt(capacity), overCapacity: capacity != null && total > capacity,
+                    rowList: sprintRows.filter((row) => row.sprintId === sprint.workEffortId).sort(byRank)})
+            })
+
+            // the filter options
+            const assignees = {}
+            const types = {}
+            for (const row of backlogList.concat(sprintRows)) {
+                if (row.assigneePartyId) assignees[row.assigneePartyId] = String(row.assigneeText || '').split(', ')[0] || row.assigneePartyId
+                if (row.purposeEnumId) types[row.purposeEnumId] = row.purposeLabel || row.purposeEnumId
+            }
+            const options = (map) => Object.keys(map).map((key) => ({value: key, label: map[key]})).sort((left, right) => String(left.label).localeCompare(String(right.label)))
+            const epicOptions = all.filter((row) => !row.parentWorkEffortId && openChildren[row.workEffortId] && !['WeComplete', 'WeClosed', 'WeCancelled'].includes(row.statusId)).sort(byRank)
+                    .map((row) => ({value: row.workEffortId, label: row.workEffortId + ' ' + (row.workEffortName || '')}))
+            const componentOptions = Array.from(ec.service.sync().name('ironstone.WorkItemServices.get#PlanItemOptions').parameters({rootWorkEffortId: rootWorkEffortId,
+                workEffortTypeEnumId: 'WetComponent'}).call()?.optionList || []).map((option) => ({value: option.key, label: option.text}))
+            const labelOptions = Array.from(ec.service.sync().name('ironstone.WorkItemServices.get#LabelOptions').call()?.optionList || [])
+                    .map((option) => ({value: option.key, label: option.text}))
+            const typeOptions = Array.from(ec.service.sync().name('ironstone.ProjectServices.get#WorkItemTypes').parameters({rootWorkEffortId: rootWorkEffortId}).call()?.offeredList || [])
+                    .map((type) => ({value: type.enumId, label: type.label}))
+            const defaults = access.canUpdate ? ec.service.sync().name('mantle.work.ProjectServices.get#SprintDefaults').parameters({rootWorkEffortId: rootWorkEffortId}).call() || {} : {}
+            let backlogTotal = 0
+            for (const row of backlogList) backlogTotal += row.size || 0
+            backlog = {
+                project: {workEffortId: rootWorkEffortId, workEffortName: project.workEffortName || rootWorkEffortId, estimateUnit: unit,
+                    unitLabel: L(unit === 'points' ? 'points' : 'h'), sprintsOn: sprintsOn, severalSprints: settings.WstSeveralSprints === 'Y',
+                    canUpdate: !!access.canUpdate, canManage: !!access.canManage,
+                    isOpen: !['WeComplete', 'WeClosed', 'WeCancelled'].includes(project.statusId)},
+                backlogList: backlogList, backlogTotalText: fmt(backlogTotal), sprintList: sprintList,
+                filters: {assigneeOptions: options(assignees), typeOptions: typeOptions.length ? typeOptions : options(types), labelOptions: labelOptions,
+                    componentOptions: componentOptions, epicOptions: epicOptions},
+                newSprint: {workEffortName: defaults.workEffortName || '', startDay: defaults.startDay || '', endDay: defaults.endDay || '',
+                    capacity: defaults.capacity != null ? String(Number(String(defaults.capacity))) : ''}
+            }
+        ]]></script></actions>
+    </service>
+
+    <service verb="rank" noun="BacklogItems">
+        <description>A drag in the Backlog: the items (workEffortIds, in their order) go to the sprint sprintWorkEffortId (empty for
+            the backlog) and, in that list, right after previousWorkEffortId, else before nextWorkEffortId, one after the other
+            (set#TaskSprint, set#TaskBacklogRank); with neither (an empty list) only the sprint changes. Each item on its own,
+            in its own transaction, by one who may change it: one that fails is logged and named, the rest go on.</description>
+        <in-parameters>
+            <parameter name="rootWorkEffortId" required="true"/>
+            <parameter name="workEffortIds" type="Object" required="true"/>
+            <parameter name="sprintWorkEffortId"/>
+            <parameter name="previousWorkEffortId"/>
+            <parameter name="nextWorkEffortId"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="doneCount" type="Integer"/>
+            <parameter name="failedCount" type="Integer"/>
+            <parameter name="failures" type="List"/>
+            <parameter name="message"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            doneCount = 0; failedCount = 0; failures = []
+            ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: rootWorkEffortId, need: 'update'}).call()
+            if (ec.message.hasError()) return
+            const ids = (Array.isArray(workEffortIds) ? workEffortIds : String(workEffortIds || '').split(',')).map((id) => String(id).trim()).filter((id) => id)
+            if (!ids.length) { ec.message.addError(ec.l10n.localize('Choose the work items to move')); return }
+            let sprint = null
+            if (sprintWorkEffortId) {
+                sprint = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', sprintWorkEffortId).one()
+                if (sprint == null || sprint.workEffortTypeEnumId !== 'WetSprint' || sprint.rootWorkEffortId !== rootWorkEffortId) {
+                    ec.message.addError(ec.resource.expand('${sprintWorkEffortId} is not a sprint of project ${rootWorkEffortId}', '', {sprintWorkEffortId, rootWorkEffortId})); return
+                }
+            }
+            let previous = previousWorkEffortId || null
+            const next = previous ? null : (nextWorkEffortId || null)
+            const rankIt = !!(previous || next)
+            for (const id of ids) {
+                ec.message.pushErrors()
+                let reason = null
+                try {
+                    const access = ec.service.sync().name('ironstone.TaskServices.get#TaskAccess').parameters({workEffortId: id, need: 'check', app: 'projects'}).call() || {}
+                    if (!access.visible) reason = ec.l10n.localize('not available')
+                    else if (access.workEffort.rootWorkEffortId !== rootWorkEffortId) reason = ec.l10n.localize('in another project')
+                    else if (!access.canUpdate) reason = ec.l10n.localize('you may not change it')
+                    else {
+                        ec.service.sync().name('ironstone.PlanningServices.place#BacklogItem').parameters({workEffortId: id, sprintWorkEffortId: sprintWorkEffortId || null,
+                            previousWorkEffortId: rankIt ? previous : null, nextWorkEffortId: rankIt && !previous ? next : null, rankIt: rankIt}).requireNewTransaction(true).call()
+                        if (ec.message.hasError()) reason = ec.message.getErrorsString()
+                    }
+                } catch (err) {
+                    reason = String(err && err.message ? err.message : err)
+                } finally {
+                    ec.message.clearErrors()
+                    ec.message.popErrors()
+                }
+                if (reason) {
+                    failedCount++
+                    failures.push({workEffortId: id, reason: reason})
+                    ec.logger.warn(`Backlog of ${rootWorkEffortId}: ${id} not moved: ${reason}`)
+                } else {
+                    doneCount++
+                    previous = id
+                }
+            }
+            const where = sprint ? (sprint.workEffortName || sprint.workEffortId) : ec.l10n.localize('the backlog')
+            message = doneCount === 1 && ids.length === 1 ? ec.resource.expand('${id} moved in ${where}', '', {id: ids[0], where})
+                    : ec.resource.expand('${count} work items moved in ${where}', '', {count: doneCount, where})
+            if (failedCount) message += ec.resource.expand('; ${count} not moved: ${reasons}', '', {count: failedCount,
+                reasons: failures.map((failure) => failure.workEffortId + ' ' + failure.reason).join(', ')})
+        ]]></script></actions>
+    </service>
+    <service verb="place" noun="BacklogItem" allow-remote="false">
+        <description>One item of rank#BacklogItems: its sprint when it changes, then its rank.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="sprintWorkEffortId"/>
+            <parameter name="previousWorkEffortId"/>
+            <parameter name="nextWorkEffortId"/>
+            <parameter name="rankIt" type="Boolean" default="true"/>
+        </in-parameters>
+        <actions><script><![CDATA[
+            const open = Array.from(ec.entity.find('mantle.work.effort.WorkEffortAssoc').condition('toWorkEffortId', workEffortId)
+                    .condition('workEffortAssocTypeEnumId', 'WeatSprint').conditionDate('fromDate', 'thruDate', null).list()).map((assoc) => assoc.workEffortId)
+            const openSprints = open.length ? Array.from(ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', 'in', open)
+                    .condition('statusId', 'in', ['WeInPlanning', 'WeApproved', 'WeInProgress']).list()).map((row) => row.workEffortId) : []
+            const inTarget = sprintWorkEffortId ? openSprints.includes(sprintWorkEffortId) : !openSprints.length
+            if (!inTarget) {
+                // to the backlog: out of its open sprint only (a membership in a completed sprint is its history)
+                ec.service.sync().name('mantle.work.TaskServices.set#TaskSprint').parameters({workEffortId: workEffortId, sprintWorkEffortId: sprintWorkEffortId || null}).call()
+                if (ec.message.hasError()) return
+            }
+            if (rankIt && (previousWorkEffortId || nextWorkEffortId) && previousWorkEffortId !== workEffortId && nextWorkEffortId !== workEffortId)
+                ec.service.sync().name('mantle.work.TaskServices.set#TaskBacklogRank').parameters({workEffortId: workEffortId,
+                    previousWorkEffortId: previousWorkEffortId || null, nextWorkEffortId: nextWorkEffortId || null}).call()
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="SprintAccess" allow-remote="false">
+        <description>A sprint and its project's access (get#ProjectAccess with need): sprint (the record), project, canView,
+            canUpdate (the team: rank, plan, edit, start, complete), canManage. A sprint the user may not see is "not
+            available".</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="need" default-value="view"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="sprint" type="Map"/>
+            <parameter name="project" type="Map"/>
+            <parameter name="canView" type="Boolean"/>
+            <parameter name="canUpdate" type="Boolean"/>
+            <parameter name="canManage" type="Boolean"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            sprint = null; project = null; canView = false; canUpdate = false; canManage = false
+            const row = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', workEffortId).one()
+            if (row != null && row.workEffortTypeEnumId === 'WetSprint' && row.rootWorkEffortId) {
+                const access = ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: row.rootWorkEffortId, need: 'none'}).call() || {}
+                canView = !!access.canView; canUpdate = !!access.canUpdate; canManage = !!access.canManage
+                if (canView) { sprint = row.getMap(); project = access.project }
+            }
+            if (need === 'none') return
+            if (!canView) { ec.message.addError(ec.resource.expand('Sprint ${workEffortId} is not available', '', {workEffortId})); return }
+            if (need === 'update' && !canUpdate) ec.message.addError(ec.resource.expand('You are not on the team of ${name}', '', {name: project.workEffortName || project.workEffortId}))
+        ]]></script></actions>
+    </service>
+
+    <service verb="save" noun="Sprint">
+        <description>SprintForm: a new sprint of the project (no workEffortId; mantle create#Sprint) or the changes to one (update#Sprint):
+            name, goal, start and end (yyyy-MM-dd), capacity in the project's unit. By the project's team.</description>
+        <in-parameters>
+            <parameter name="rootWorkEffortId"/>
+            <parameter name="workEffortId"/>
+            <parameter name="workEffortName"/>
+            <parameter name="description"/>
+            <parameter name="startDay"/>
+            <parameter name="endDay"/>
+            <parameter name="capacity"/>
+        </in-parameters>
+        <out-parameters><parameter name="workEffortId"/><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            const parseDay = (text, label) => {
+                const value = text == null ? '' : String(text).trim()
+                if (!value) return null
+                const parsed = /^\d{4}-\d{2}-\d{2}/.test(value) ? ec.l10n.parseTimestamp(value.substring(0, 10) + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS') : null
+                if (parsed == null) ec.message.addError(ec.resource.expand('${label}: not a date (${value}); use yyyy-MM-dd', '', {label: ec.l10n.localize(label), value}))
+                return parsed
+            }
+            const start = parseDay(startDay, 'Start')
+            const end = parseDay(endDay, 'End')
+            if (ec.message.hasError()) return
+            const capacityText = capacity == null ? '' : String(capacity).trim()
+            if (capacityText && !(Number(capacityText) >= 0)) { ec.message.addError(ec.l10n.localize('The capacity is a number of 0 or more')); return }
+            if (workEffortId) {
+                ec.service.sync().name('ironstone.PlanningServices.get#SprintAccess').parameters({workEffortId: workEffortId, need: 'update'}).call()
+                if (ec.message.hasError()) return
+                ec.service.sync().name('mantle.work.ProjectServices.update#Sprint').parameters({workEffortId: workEffortId, workEffortName: workEffortName ?? null,
+                    description: description ?? null, estimatedStartDate: start, estimatedCompletionDate: end, capacity: capacityText}).call()
+                if (ec.message.hasError()) return
+                message = ec.resource.expand('${name} saved', '', {name: workEffortName || workEffortId})
+                return
+            }
+            if (!rootWorkEffortId) { ec.message.addError(ec.l10n.localize('Choose the project of the sprint')); return }
+            ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: rootWorkEffortId, need: 'update'}).call()
+            if (ec.message.hasError()) return
+            workEffortId = ec.service.sync().name('mantle.work.ProjectServices.create#Sprint').parameters({rootWorkEffortId: rootWorkEffortId,
+                workEffortName: workEffortName || null, description: description || null, estimatedStartDate: start, estimatedCompletionDate: end,
+                capacity: capacityText ? Number(capacityText) : null}).call()?.workEffortId || null
+            if (ec.message.hasError()) return
+            const name = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', workEffortId).one()?.workEffortName || workEffortId
+            message = ec.resource.expand('${name} made: drag work items into it to plan it', '', {name})
+        ]]></script></actions>
+    </service>
+    <service verb="start" noun="Sprint">
+        <description>StartSprint: begins a planned sprint with its dates and goal (mantle start#Sprint, which refuses while another is in
+            progress unless the project allows several, naming it). By the project's team.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="description"/>
+            <parameter name="startDay"/>
+            <parameter name="endDay"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            const access = ec.service.sync().name('ironstone.PlanningServices.get#SprintAccess').parameters({workEffortId: workEffortId, need: 'update'}).call() || {}
+            if (ec.message.hasError()) return
+            const parseDay = (text) => {
+                const value = text == null ? '' : String(text).trim()
+                return /^\d{4}-\d{2}-\d{2}/.test(value) ? ec.l10n.parseTimestamp(value.substring(0, 10) + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS') : null
+            }
+            const out = ec.service.sync().name('mantle.work.ProjectServices.start#Sprint').parameters({workEffortId: workEffortId, description: description ?? null,
+                estimatedStartDate: parseDay(startDay), estimatedCompletionDate: parseDay(endDay)}).call() || {}
+            if (ec.message.hasError()) return
+            message = ec.resource.expand('${name} started with ${count} work items', '', {name: access.sprint.workEffortName || workEffortId, count: out.itemCount || 0})
+        ]]></script></actions>
+    </service>
+    <service verb="complete" noun="Sprint">
+        <description>CompleteSprint: ends a sprint in progress (mantle complete#Sprint); its open items go to carryToSprintId, else by
+            carryTo (next, new or backlog). By the project's team.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="carryTo" default-value="next"/>
+            <parameter name="newSprintName"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/><parameter name="carriedToSprintId"/></out-parameters>
+        <actions><script><![CDATA[
+            const access = ec.service.sync().name('ironstone.PlanningServices.get#SprintAccess').parameters({workEffortId: workEffortId, need: 'update'}).call() || {}
+            if (ec.message.hasError()) return
+            // carryTo: next, new, backlog, or the id of an open sprint
+            const choice = String(carryTo || 'next')
+            const named = !['next', 'new', 'backlog'].includes(choice)
+            const out = ec.service.sync().name('mantle.work.ProjectServices.complete#Sprint').parameters({workEffortId: workEffortId,
+                carryTo: named ? 'next' : choice, carryToSprintId: named ? choice : null, newSprintName: newSprintName || null}).call() || {}
+            if (ec.message.hasError()) return
+            carriedToSprintId = out.carriedToSprintId || null
+            const name = access.sprint.workEffortName || workEffortId
+            const to = carriedToSprintId ? (ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', carriedToSprintId).one()?.workEffortName || carriedToSprintId)
+                    : ec.l10n.localize('the backlog')
+            message = ec.resource.expand('${name} complete: ${done} done', '', {name, done: out.doneCount || 0})
+                    + (out.notDoneCount ? ec.resource.expand(', ${count} carried over to ${to}', '', {count: (out.carriedIds || []).length, to}) : '')
+        ]]></script></actions>
+    </service>
+    <service verb="turnOn" noun="Sprints">
+        <description>"Plan in sprints": turns the Backlog and sprints module on for the project (WstModules backlog), by one who
+            manages it.</description>
+        <in-parameters><parameter name="rootWorkEffortId" required="true"/></in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: rootWorkEffortId, need: 'manage'}).call()
+            if (ec.message.hasError()) return
+            const own = ec.entity.find('mantle.work.effort.WorkEffortSetting').condition('workEffortId', rootWorkEffortId).condition('settingTypeEnumId', 'WstModules').one()
+            const settings = ec.service.sync().name('mantle.work.ProjectServices.get#ProjectSettings').parameters({workEffortId: rootWorkEffortId}).call()?.settings || {}
+            const modules = String((own ? own.settingValue : settings.WstModules) || '').split(',').map((part) => part.trim()).filter((part) => part)
+            if (!modules.includes('backlog')) modules.unshift('backlog')
+            ec.service.sync().name('mantle.work.ProjectServices.store#ProjectSetting').parameters({workEffortId: rootWorkEffortId, settingTypeEnumId: 'WstModules',
+                settingValue: modules.join(',')}).call()
+            if (ec.message.hasError()) return
+            message = ec.l10n.localize('Sprints are on: make the first one with New sprint')
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="SprintOptions">
+        <description>The open sprints of a project (in progress, then planned) as drop-down options (key, text) for the sprint fields
+            of quick add, QuickWorkItem, WorkItemDetail and the bulk change; none for a project the user does not see.</description>
+        <in-parameters><parameter name="rootWorkEffortId"/></in-parameters>
+        <out-parameters><parameter name="optionList" type="List"/></out-parameters>
+        <actions><script><![CDATA[
+            optionList = []
+            if (!rootWorkEffortId) return
+            const access = ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: rootWorkEffortId, need: 'none'}).call() || {}
+            if (!access.canView) return
+            for (const sprint of ec.service.sync().name('ironstone.PlanningServices.get#ProjectSprints').parameters({rootWorkEffortId: rootWorkEffortId}).call()?.sprintList || [])
+                optionList.push({key: sprint.workEffortId, text: sprint.workEffortName + ' · ' + sprint.stateLabel + (sprint.datesText ? ' · ' + sprint.datesText : '')})
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="SprintDetail">
+        <description>SprintDetail's data: the sprint (name, goal, dates, capacity, status and its label), its project, what the user may
+            do, the numbers (committed, completed, remaining, days left) and burndown by day, the scope changes and the items with
+            what became of each (mantle.work.ProjectReportServices.get#SprintBurndown), the item rows as WorkItems decorates them, and
+            for Complete the counts and the open sprints the open items may go to.</description>
+        <in-parameters><parameter name="workEffortId" required="true"/></in-parameters>
+        <out-parameters><parameter name="detail" type="Map"/></out-parameters>
+        <actions><script><![CDATA[
+            detail = null
+            const access = ec.service.sync().name('ironstone.PlanningServices.get#SprintAccess').parameters({workEffortId: workEffortId, need: 'view'}).call() || {}
+            if (ec.message.hasError()) return
+            const L = (text) => ec.l10n.localize(text)
+            const sprint = access.sprint
+            const project = access.project
+            const toMillis = (value) => {
+                if (value == null || value === '') return null
+                if (typeof value === 'number') return value
+                const text = String(value)
+                if (/^-?\d+$/.test(text)) return Number(text)
+                const parsed = Date.parse(text)
+                return Number.isNaN(parsed) ? null : parsed
+            }
+            const day = (value) => toMillis(value) == null ? '' : ec.l10n.format(String(toMillis(value)), 'yyyy-MM-dd')
+            const long = (value) => toMillis(value) == null ? '' : ec.l10n.format(String(toMillis(value)), 'MMM d, yyyy')
+            const fmt = (value) => value == null ? '' : ec.l10n.format(Math.round(Number(String(value)) * 100) / 100, '#,##0.##')
+            const burn = ec.service.sync().name('mantle.work.ProjectReportServices.get#SprintBurndown').parameters({workEffortId: workEffortId}).call() || {}
+            if (ec.message.hasError()) return
+            const unit = burn.estimateUnit || 'hours'
+            const unitLabel = L(unit === 'points' ? 'points' : 'h')
+            const state = sprint.statusId === 'WeInProgress' ? 'active' : ['WeComplete', 'WeClosed'].includes(sprint.statusId) ? 'closed' : 'planned'
+            // the items: those in it now (a completed sprint: those it ended with, carried over ones too)
+            const outcome = {}
+            for (const item of burn.itemList || []) outcome[item.workEffortId] = item.outcome
+            const shownIds = Array.from(burn.itemList || []).filter((item) => item.outcome !== 'removed').map((item) => item.workEffortId)
+            let rows = []
+            if (shownIds.length) {
+                const tasks = Array.from(ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', 'in', Array.from(new Set(shownIds))).list()).map((row) => row.getMap())
+                // the visibility of WorkItems: only the rows find#WorkItems would show
+                const visible = new Set(Array.from(ec.service.sync().name('ironstone.WorkItemServices.find#WorkItems').parameters({list: 'all', rootWorkEffortId: sprint.rootWorkEffortId,
+                    sprintId: state === 'closed' ? null : workEffortId, pageNoLimit: true, withCounts: false}).call()?.rowList || []).map((row) => row.workEffortId))
+                const shown = state === 'closed' ? tasks.filter((task) => ec.service.sync().name('ironstone.TaskServices.get#TaskAccess')
+                        .parameters({workEffortId: task.workEffortId, need: 'check', app: 'projects'}).call()?.visible) : tasks.filter((task) => visible.has(task.workEffortId))
+                rows = Array.from(ec.service.sync().name('ironstone.WorkItemServices.decorate#WorkItemRows').parameters({taskList: shown}).call()?.rowList || [])
+                const sizes = {}
+                for (const task of tasks) sizes[task.workEffortId] = unit === 'points' ? task.estimatedPoints : task.estimatedWorkTime
+                const outcomeLabels = {done: L('Done'), carried: L('Carried over'), cancelled: L('Cancelled'), open: L('Open')}
+                rows = rows.map((row) => Object.assign(row, {sizeText: fmt(sizes[row.workEffortId]), outcome: outcome[row.workEffortId] || 'open',
+                    outcomeLabel: outcomeLabels[outcome[row.workEffortId]] || ''}))
+                const rankOf = (id) => { const task = tasks.find((one) => one.workEffortId === id); return task && task.sequenceNum != null ? Number(String(task.sequenceNum)) : Number.MAX_SAFE_INTEGER }
+                rows.sort((left, right) => rankOf(left.workEffortId) - rankOf(right.workEffortId))
+            }
+            const scopeChangeList = Array.from(burn.scopeChangeList || []).map((change) => Object.assign({}, change, {changeLabel: L(change.change === 'added' ? 'Added' : 'Removed'),
+                dateText: ec.l10n.format(String(change.changedDate), 'MMM d, h:mm a'), byText: change.userName || '', sizeText: fmt(change.size),
+                url: '/qapps/Projects/WorkItems/WorkItemDetail?workEffortId=' + encodeURIComponent(change.workEffortId)}))
+            const dayList = Array.from(burn.dayList || []).map((row) => Object.assign({}, row, {label: row.start ? L('Start') : ec.l10n.format(ec.l10n.parseTimestamp(row.day + ' 12:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS'), 'MMM d'),
+                remainingText: row.remaining == null ? '' : fmt(row.remaining), idealText: fmt(row.ideal)}))
+            const sprints = Array.from(ec.service.sync().name('ironstone.PlanningServices.get#ProjectSprints').parameters({rootWorkEffortId: sprint.rootWorkEffortId}).call()?.sprintList || [])
+            const carryOptions = sprints.filter((other) => other.workEffortId !== workEffortId).map((other) => ({key: other.workEffortId, text: other.workEffortName + ' · ' + other.stateLabel
+                    + (other.datesText ? ' · ' + other.datesText : '')}))
+            const openCount = Array.from(burn.itemList || []).filter((item) => item.outcome === 'open').length
+            const capacity = burn.capacity
+            const settings = ec.service.sync().name('mantle.work.ProjectServices.get#ProjectSettings').parameters({workEffortId: sprint.rootWorkEffortId}).call()?.settings || {}
+            detail = {workEffortId: workEffortId, workEffortName: sprint.workEffortName || workEffortId, description: sprint.description || '',
+                statusId: sprint.statusId, state: state, stateLabel: L({active: 'Active', planned: 'Planned', closed: 'Complete'}[state]),
+                rootWorkEffortId: sprint.rootWorkEffortId, projectName: project.workEffortName || sprint.rootWorkEffortId,
+                startDay: day(sprint.estimatedStartDate), endDay: day(sprint.estimatedCompletionDate),
+                datesText: [long(sprint.estimatedStartDate), long(sprint.estimatedCompletionDate)].filter((part) => part).join(' – '),
+                startedText: long(sprint.actualStartDate), completedDateText: long(sprint.actualCompletionDate),
+                capacity: capacity, capacityText: capacity == null ? '' : fmt(capacity) + ' ' + unitLabel, capacityValue: capacity == null ? '' : String(capacity),
+                estimateUnit: unit, unitLabel: unitLabel, canUpdate: !!access.canUpdate, canManage: !!access.canManage,
+                severalSprints: settings.WstSeveralSprints === 'Y',
+                committed: burn.committed, completed: burn.completed, remaining: burn.remaining, added: burn.added, removed: burn.removed,
+                carriedOver: burn.carriedOver, daysLeft: burn.daysLeft, workDays: burn.workDays, itemCount: burn.itemCount, doneCount: burn.doneCount,
+                committedText: fmt(burn.committed) + ' ' + unitLabel, completedText: fmt(burn.completed) + ' ' + unitLabel,
+                remainingText: fmt(burn.remaining) + ' ' + unitLabel, addedText: fmt(burn.added), removedText: fmt(burn.removed), carriedText: fmt(burn.carriedOver),
+                openCount: openCount, dayList: dayList, scopeChangeList: scopeChangeList, rowList: rows, carryOptions: carryOptions,
+                nextSprintId: carryOptions.length ? carryOptions.find((option) => sprints.find((other) => other.workEffortId === option.key)?.state === 'planned')?.key || null : null}
+        ]]></script></actions>
+    </service>
+</services>

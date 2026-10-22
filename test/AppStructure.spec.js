@@ -182,6 +182,12 @@ const demoRecords = {
     "Projects/Code/MergeRequestDetail/ChangesTui": { mergeRequest: true, codeText: "Expand and collapse rows (IRON-3)" },
     "Projects/Settings/Code": { text: "Repository defaults" },
     "Projects/Projects/ProjectDetail/Code": { parameters: { workEffortId: "IRON" }, text: "ProjectStatusBar" },
+    // Projects P4a: the Backlog (a .qvue, its component; also ProjectDetail's Backlog tab), its terminal twin, SprintDetail on the active
+    // sprint and the sprint report
+    "Projects/WorkItems/Backlog": { parameters: { rootWorkEffortId: "IRON" } },
+    "Projects/WorkItems/BacklogTui": { parameters: { rootWorkEffortId: "IRON" }, text: "Approve submitted time" },
+    "Projects/WorkItems/SprintDetail": { parameters: { workEffortId: "IRON-SP-2" }, text: "The tree view and the timer." },
+    "Projects/WorkItems/SprintReport": { parameters: { workEffortId: "IRON-SP-1" }, text: "Open the printable sprint report" },
     "Projects/Time": { text: "Placeholder: My time" },
     "Projects/Resources": { text: "Placeholder: Team planner" },
     "Projects/Billing": { text: "Placeholder: Unbilled" },

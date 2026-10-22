@@ -271,6 +271,47 @@ feature("the bulk changes take each selected item on its own: one Joe may not ch
     },
 })
 
+// impl-projects.md P4a: the sprint find, the quick add into a sprint, the board's sprint group and the bulk Sprint
+feature("the sprints of WorkItems: the current sprint find, the quick add into a sprint, a board move to a sprint and the bulk Sprint", {
+    when() {
+        const currentIds = idsOf(rows({ sprintId: "current", list: "all", rootWorkEffortId: "IRON" }))
+        const planned = idsOf(rows({ sprintId: "IRON-SP-3", list: "all" }))
+        const page = render("apps/Projects/WorkItems/List", { rootWorkEffortId: "IRON", sprintId: "current", list: "all" })
+        const added = post("WorkItems/List/quickAdd", { workEffortName: "BOSS_TEST sprint quick add", projectId: "IRON", addSprintId: "IRON-SP-2", keep: keep({ list: "all" }) })
+        const item = sys(() => ec.entity.find("mantle.work.effort.WorkEffort").condition("workEffortName", "BOSS_TEST sprint quick add").one())
+        const inSprint = current("mantle.work.effort.WorkEffortAssoc", { toWorkEffortId: item.workEffortId, workEffortAssocTypeEnumId: "WeatSprint" }).map((row) => row.workEffortId)
+        const card = post("WorkItems/List/moveCard", { workEffortId: item.workEffortId, groupField: "sprintId", sprintId: "IRON-SP-3" })
+        const afterCard = current("mantle.work.effort.WorkEffortAssoc", { toWorkEffortId: item.workEffortId, workEffortAssocTypeEnumId: "WeatSprint" }).map((row) => row.workEffortId)
+        const bulk = post("WorkItems/List/bulkAction", { bulk: "sprint", selectedIds: item.workEffortId, value: "", keep: keep() })
+        const afterBulk = current("mantle.work.effort.WorkEffortAssoc", { toWorkEffortId: item.workEffortId, workEffortAssocTypeEnumId: "WeatSprint" }).map((row) => row.workEffortId)
+        // a complete sprint takes no items: the bulk change skips it
+        post("WorkItems/List/bulkAction", { bulk: "sprint", selectedIds: item.workEffortId, value: "IRON-SP-1", keep: keep() })
+        const afterClosed = current("mantle.work.effort.WorkEffortAssoc", { toWorkEffortId: item.workEffortId, workEffortAssocTypeEnumId: "WeatSprint" }).map((row) => row.workEffortId)
+        // the sprint 2 audit row of the quick add: a scope change of the sprint in progress, by john.doe
+        const audit = sys(() => ec.entity.find("moqui.entity.EntityAuditLog").condition({ changedEntityName: "mantle.work.effort.WorkEffortAssoc",
+            pkPrimaryValue: "IRON-SP-2", pkSecondaryValue: item.workEffortId }).list()).map((row) => row.changedFieldName + " " + row.changedByUserId)
+        sys(() => { item.statusId = "WeCancelled"; item.update() })
+        return { currentIds, planned, page, added, inSprint, card, afterCard, bulk, afterBulk, afterClosed, audit }
+    },
+    allowMessageErrors: true,
+    then({ currentIds, planned, page, added, inSprint, card, afterCard, bulk, afterBulk, afterClosed, audit }) {
+        currentIds.sort() == ["IRON-10", "IRON-3", "IRON-7", "IRON-9"]
+        planned == ["IRON-8"]
+        page.status == 200
+        !page.broken
+        page.output.includes("Current sprint (in progress)")
+        page.output.includes("Sprint 2 · Active")
+        added.errors == ""
+        inSprint == ["IRON-SP-2"]
+        card.errors == ""
+        afterCard == ["IRON-SP-3"]
+        bulk.errors == ""
+        afterBulk == []
+        afterClosed == []
+        audit.sort() == ["fromDate EX_JOHN_DOE", "thruDate EX_JOHN_DOE"]
+    },
+})
+
 feature("QuickCreate's work item in the project of the screen context; QuickTime waits for P6; the project kind is the managers' QuickProject", {
     allowMessageErrors: true,
     when() {

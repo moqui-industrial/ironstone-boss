@@ -55,7 +55,7 @@ along with this software (see the LICENSE.md file). If not, see
                         .condition('partyId', id).selectField('partyTypeEnumId').one()?.partyTypeEnumId || null
             }
             if (type === 'MantleWorkEffort') type = workEffortTypeEnumId === 'WetEvent' ? 'MantleEvent' : workEffortTypeEnumId === 'WetTask' ? 'MantleTask'
-                : workEffortTypeEnumId === 'WetProject' ? 'MantleProject' : null
+                : workEffortTypeEnumId === 'WetProject' ? 'MantleProject' : workEffortTypeEnumId === 'WetSprint' ? 'MantleSprint' : null
             // a wiki page review (topics WikiPageReview, WikiPageReviewDecision) opens its page on the review's compare
             if (!type && recordEntityName === 'moqui.resource.wiki.WikiPageReview') {
                 const review = ec.entity.find('moqui.resource.wiki.WikiPageReview').condition('wikiPageReviewId', id).one()
@@ -85,6 +85,12 @@ along with this software (see the LICENSE.md file). If not, see
                 const isMergeRequest = recordEntityName === 'moqui.resource.GitMergeRequest'
                 url = mayOpenProjects() ? (isMergeRequest ? '/qapps/Projects/Code/MergeRequestDetail?mergeRequestId=' : '/qapps/Projects/Code/RepositoryDetail?repositoryId=') + q : null
                 icon = isMergeRequest ? 'sym_o_merge' : 'sym_o_folder_data'
+                return
+            }
+            // a sprint (its Chatter, the retrospective) opens its SprintDetail in Projects
+            if (type === 'MantleSprint') {
+                url = mayOpenProjects() ? '/qapps/Projects/WorkItems/SprintDetail?workEffortId=' + q : null
+                icon = 'sym_o_sprint'
                 return
             }
             // IronStone Projects: a project, and a task or a request of a project, for a user who may open the app

@@ -1,0 +1,264 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- SprintDetail (design-projects.md §5 SprintDetail; style-guide §3.3 Detail): a sprint. The title row: its name, the project chip
+    (a link to the project's Backlog tab), the stages (In Planning as planned, In Progress as active, Complete as closed; read only,
+    the moves are the actions), the dates and the goal; Start (a planned sprint), Complete (an active one: the done and open
+    counts, the open items to the next sprint, a new one or the backlog), Edit (SprintForm) and Print (the sprint report,
+    SprintReport in html-print) for the project's team. The number cards: Committed, Completed, Remaining (in the project's unit)
+    and Days left. The boxes: Burndown (the remaining work by day against the ideal line, m-chart with its table), Items (as
+    WorkItems shows them, with a board by status whose drag moves an item along its flow; a completed sprint shows what became of
+    each), Scope changes (items added or taken out after the start, when and by whom); Chatter, the retrospective, as the right
+    column from 1440 px. Services: ironstone.PlanningServices get#SprintDetail, save#, start#, complete#Sprint;
+    ironstone.WorkItemServices.move#WorkItemCard. A sprint of a project the user does not see is "not available". -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Sprint" default-menu-include="false">
+
+    <parameter name="workEffortId" required="true"/>
+
+    <transition name="workItemDetail"><default-response url="../WorkItemDetail"/></transition>
+    <transition name="saveSprint">
+        <actions>
+            <service-call name="ironstone.PlanningServices.save#Sprint" out-map="saveOut" in-map="{workEffortId:workEffortId, workEffortName:workEffortName,
+                    description:description, startDay:startDay, endDay:endDay, capacity:(capacity ?? '')}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="startSprint">
+        <actions>
+            <service-call name="ironstone.PlanningServices.start#Sprint" out-map="startOut" in-map="{workEffortId:workEffortId, description:description,
+                    startDay:startDay, endDay:endDay}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(startOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="completeSprint">
+        <actions>
+            <service-call name="ironstone.PlanningServices.complete#Sprint" out-map="completeOut" in-map="{workEffortId:workEffortId, carryTo:carryTo,
+                    newSprintName:newSprintName}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(completeOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <!-- the board: a card moved to another status column, along the item's flow -->
+    <transition name="moveCard">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.WorkItemServices.move#WorkItemCard').parameters({workEffortId: ec.web.parameters.workEffortId || '',
+                groupField: groupField || 'statusId', value: ec.web.parameters[groupField || 'statusId'] ?? ''}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: out.message}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+
+    <actions><script><![CDATA[
+        const out = ec.service.sync().name('ironstone.PlanningServices.get#SprintDetail').parameters({workEffortId: workEffortId || ''}).call() || {}
+        ec.message.clearErrors()
+        recordFound = !!out.detail
+        if (!recordFound) return
+        const L = (text) => ec.l10n.localize(text)
+        const enc = (text) => String(text == null ? '' : text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\u0022/g, '&quot;').replace(/\u0027/g, '&#39;')
+        sprint = out.detail
+        canPlan = !!sprint.canUpdate
+        isPlanned = sprint.state === 'planned'
+        isActive = sprint.state === 'active'
+        isClosed = sprint.state === 'closed'
+        stageStatusIds = ['WeInPlanning', 'WeInProgress', 'WeComplete']
+        itemRows = sprint.rowList
+        // the list header's count (select-columns and the views): a list that is not paged sets it itself
+        itemRowsCount = itemRows.length
+        scopeRows = sprint.scopeChangeList
+        dayRows = sprint.dayList.filter((row) => !row.start).map((row) => Object.assign({}, row, {dayLabel: ec.l10n.format(ec.l10n.parseTimestamp(row.day + ' 12:00:00.000',
+            'yyyy-MM-dd HH:mm:ss.SSS'), 'EEE MMM d')}))
+        projectUrl = '/qapps/Projects/Projects/ProjectDetail/Backlog?workEffortId=' + encodeURIComponent(sprint.rootWorkEffortId)
+        printUrl = '/apps/Projects/WorkItems/SprintReport?renderMode=html-print&workEffortId=' + encodeURIComponent(workEffortId)
+        const unit = sprint.unitLabel
+        factsHtml = '<div class="row items-center q-gutter-x-md q-mt-xs text-body2">'
+            + '<m-link href="' + enc(projectUrl) + '"><q-chip dense square clickable icon="sym_o_folder" class="q-ma-none m-tonal text-primary">'
+            + enc(sprint.projectName + ' (' + sprint.rootWorkEffortId + ')') + '</q-chip></m-link>'
+            + (sprint.datesText ? '<span><q-icon name="sym_o_date_range" size="xs" class="q-mr-xs m-muted"></q-icon>' + enc(sprint.datesText) + '</span>' : '')
+            + (sprint.capacityText ? '<span class="m-muted">' + enc(L('Capacity')) + ' ' + enc(sprint.capacityText) + '</span>' : '')
+            + (isClosed && sprint.completedDateText ? '<span class="m-muted">' + enc(L('Completed')) + ' ' + enc(sprint.completedDateText) + '</span>' : '') + '</div>'
+            + (sprint.description ? '<div class="text-body1 q-mt-sm"><span class="text-weight-medium">' + enc(L('Goal')) + ':</span> ' + enc(sprint.description) + '</div>' : '')
+        factsTui = {t: 'text', id: 'SprintFacts', text: [sprint.projectName + ' (' + sprint.rootWorkEffortId + ')', sprint.datesText,
+            sprint.capacityText ? L('Capacity') + ' ' + sprint.capacityText : '', sprint.description ? L('Goal') + ': ' + sprint.description : ''].filter((part) => part).join(' · ')}
+        committedValue = sprint.committedText
+        completedValue = sprint.completedText
+        remainingValue = sprint.remainingText
+        daysLeftValue = isClosed ? '—' : String(sprint.daysLeft ?? 0)
+        scopeText = [sprint.added ? '+' + sprint.addedText + ' ' + unit + ' ' + L('added') : '', sprint.removed ? '−' + sprint.removedText + ' ' + unit + ' ' + L('removed') : '']
+                .filter((part) => part).join(' · ')
+        // the chart: the remaining line and the ideal, dashed
+        chartLabels = JSON.stringify(sprint.dayList.map((row) => row.label))
+        chartRemaining = JSON.stringify(sprint.dayList.map((row) => row.remaining))
+        chartIdeal = JSON.stringify(sprint.dayList.map((row) => row.ideal))
+        chartRemainingLabel = JSON.stringify(L('Remaining') + ' (' + unit + ')')
+        chartIdealLabel = JSON.stringify(L('Ideal'))
+        hasChart = sprint.dayList.length > 1
+        // the dialogs
+        carryOptions = sprint.carryOptions.concat([{key: 'new', text: L('A new sprint')}, {key: 'backlog', text: L('The backlog')}])
+        carryDefault = sprint.nextSprintId || 'new'
+        completeNote = ec.resource.expand('${done} done (${completed}), ${open} not done (${remaining})', '', {done: sprint.doneCount || 0, completed: sprint.completedText,
+            open: sprint.openCount || 0, remaining: sprint.remainingText})
+        isProjectsManager = ec.user.isInGroup('BOSS_PROJECT_MANAGER') || ec.user.isInGroup('ADMIN')
+    ]]></script></actions>
+
+    <widgets>
+        <section name="SprintNotFound" condition="!recordFound"><widgets>
+            <container-box type="warning"><box-header title="Not available"/><box-body>
+                <label type="p" text="Sprint ${workEffortId} is not available: it does not exist, or it is of a project you do not see."/>
+                <link url="../Backlog" link-type="anchor" text="Back to the backlog"/>
+            </box-body></container-box>
+        </widgets></section>
+
+        <section name="SprintFound" condition="recordFound"><widgets>
+            <context record-entity="mantle.work.effort.WorkEffort" record-id="${workEffortId}" title="${sprint.workEffortName}"/>
+            <container style="row items-start q-col-gutter-sm q-mb-sm m-sprint-header">
+                <container style="col-12 col-md">
+                    <container style="row items-center no-wrap">
+                        <render-mode><text type="qvt"><![CDATA[<q-icon name="sym_o_sprint" size="sm" class="q-mr-sm m-muted"></q-icon>]]></text><text type="tui" template="false">[]</text></render-mode>
+                        <label text="${sprint.workEffortName}" type="h5" style="q-my-none"/>
+                    </container>
+                    <status-bar id="SprintStatusBar" status-id="${sprint.statusId}" status-flow-id="Default" stages="${stageStatusIds}" read-only="true"/>
+                    <render-mode><text type="qvt"><![CDATA[${factsHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(factsTui)}]]></text></render-mode>
+                </container>
+                <container style="col-12 col-md-auto row items-center q-gutter-x-xs q-gutter-y-xs">
+                    <container-dialog id="SprintStartDialog" button-text="Start sprint" icon="sym_o_play_arrow" width="520" title="Start ${sprint.workEffortName}"
+                            condition="canPlan &amp;&amp; isPlanned" type="primary">
+                        <form-single name="StartSprint" transition="startSprint">
+                            <field name="workEffortId"><default-field><hidden/></default-field></field>
+                            <field name="startDay" from="sprint.startDay"><default-field title="Start"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                            <field name="endDay" from="sprint.endDay"><default-field title="End"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                            <field name="description" from="sprint.description"><default-field title="Goal"><text-area rows="2" cols="60"/></default-field></field>
+                            <field name="submitButton"><default-field title="Start sprint"><submit/></default-field></field>
+                            <field-layout><field-row><field-ref name="startDay"/><field-ref name="endDay"/></field-row><field-ref name="description"/>
+                                <field-ref name="submitButton"/></field-layout>
+                        </form-single>
+                        <label type="p" text="${sprint.itemCount} work items, ${sprint.committedText}. Only one sprint of a project is in progress at a time unless its settings allow several." style="text-caption m-muted"/>
+                    </container-dialog>
+                    <container-dialog id="SprintCompleteDialog" button-text="Complete sprint" icon="sym_o_task_alt" width="520" title="Complete ${sprint.workEffortName}"
+                            condition="canPlan &amp;&amp; isActive" type="primary">
+                        <label type="p" text="${completeNote}"/>
+                        <form-single name="CompleteSprint" transition="completeSprint">
+                            <field name="workEffortId"><default-field><hidden/></default-field></field>
+                            <field name="carryTo" from="carryDefault"><conditional-field condition="sprint.openCount" title="The items not done go to">
+                                <radio><list-options list="carryOptions" key="${key}" text="${text}"/></radio></conditional-field>
+                                <default-field><hidden/></default-field></field>
+                            <field name="newSprintName"><conditional-field condition="sprint.openCount" title="New sprint name (when a new sprint; empty: the next number)">
+                                <text-line size="30"/></conditional-field><default-field><hidden/></default-field></field>
+                            <field name="submitButton"><default-field title="Complete sprint"><submit/></default-field></field>
+                        </form-single>
+                    </container-dialog>
+                    <container-dialog id="SprintEditDialog" button-text="Edit" icon="sym_o_edit" width="520" title="Edit ${sprint.workEffortName}" condition="canPlan">
+                        <form-single name="SprintForm" transition="saveSprint" focus-field="workEffortName">
+                            <field name="workEffortId"><default-field><hidden/></default-field></field>
+                            <field name="workEffortName" from="sprint.workEffortName"><default-field title="Name"><text-line size="40"/></default-field></field>
+                            <field name="description" from="sprint.description"><default-field title="Goal"><text-area rows="2" cols="60"/></default-field></field>
+                            <field name="startDay" from="sprint.startDay"><default-field title="Start"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                            <field name="endDay" from="sprint.endDay"><default-field title="End"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                            <field name="capacity" from="sprint.capacityValue"><default-field title="Capacity (${sprint.unitLabel})"><text-line size="6" input-type="number"/></default-field></field>
+                            <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                            <field-layout><field-ref name="workEffortName"/><field-ref name="description"/>
+                                <field-row><field-ref name="startDay"/><field-ref name="endDay"/></field-row><field-ref name="capacity"/><field-ref name="submitButton"/></field-layout>
+                        </form-single>
+                    </container-dialog>
+                    <link url="${printUrl}" url-type="plain" text="Print" icon="sym_o_print" target-window="_blank" link-type="anchor-button"/>
+                </container>
+            </container>
+
+            <dashboard min-width="150" style="q-mb-sm">
+                <number-card title="Committed" value="${committedValue}" icon="sym_o_assignment" size="sm"/>
+                <number-card title="Completed" value="${completedValue}" icon="sym_o_task_alt" size="sm"/>
+                <number-card title="Remaining" value="${remainingValue}" icon="sym_o_pending_actions" size="sm"/>
+                <number-card title="Days left" value="${daysLeftValue}" icon="sym_o_hourglass_bottom" size="sm"/>
+            </dashboard>
+
+            <container style="row q-col-gutter-sm">
+                <container style="col-12 col-lg-8">
+                    <container-box><box-header title="Burndown"/>
+                        <box-toolbar><label text="${scopeText}" type="span" style="text-caption m-muted" condition="scopeText"/>
+                            <container-dialog id="SprintBurndownTable" button-text="Table" icon="sym_o_table" width="560" title="Burndown of ${sprint.workEffortName}" condition="hasChart">
+                                <form-list name="BurndownDays" list="dayRows" skip-form="true" paginate="false">
+                                    <field name="dayLabel"><default-field title="Day"><display/></default-field></field>
+                                    <field name="remainingText" align="right"><default-field title="Remaining (${sprint.unitLabel})"><display/></default-field></field>
+                                    <field name="idealText" align="right"><default-field title="Ideal"><display/></default-field></field>
+                                </form-list>
+                            </container-dialog></box-toolbar>
+                        <box-body>
+                        <section name="BurndownChart" condition="hasChart"><widgets>
+                            <render-mode><text type="qvt"><![CDATA[<m-chart height="240px" :config='((cv, tc, gc) => ({type: "line",
+                                data: {labels: ${chartLabels}, datasets: [
+                                    {label: ${chartRemainingLabel}, data: ${chartRemaining}, borderColor: cv("primary"), backgroundColor: cv("primary"), tension: 0, spanGaps: false, pointRadius: 3},
+                                    {label: ${chartIdealLabel}, data: ${chartIdeal}, borderColor: tc, backgroundColor: tc, borderDash: [6, 4], borderWidth: 1, pointRadius: 0}]},
+                                options: {maintainAspectRatio: false, animation: false, plugins: {legend: {position: "bottom", labels: {color: tc, boxWidth: 12}}},
+                                    scales: {x: {ticks: {color: tc, autoSkip: true, maxRotation: 0}, grid: {display: false}}, y: {beginAtZero: true, ticks: {color: tc}, grid: {color: gc}}}}}))(
+                                (name) => (c) => c.chart.canvas.ownerDocument.defaultView.getComputedStyle(c.chart.canvas).getPropertyValue("--q-" + name).trim(),
+                                (c) => c.chart.canvas.ownerDocument.defaultView.getComputedStyle(c.chart.canvas).color,
+                                (c) => c.chart.canvas.ownerDocument.defaultView.getComputedStyle(c.chart.canvas).color.replace(/^rgba?\((\d+,\s*\d+,\s*\d+)[^)]*\)$/, "rgba($1, 0.12)"))'></m-chart>]]></text>
+                                <text type="tui"><![CDATA[{"t": "component", "id": "SprintBurndownChart", "name": "chart", "props": {"labels": ${JSON.stringify(JSON.parse(chartLabels))},
+                                    "series": [{"name": ${JSON.stringify(JSON.parse(chartRemainingLabel))}, "data": ${JSON.stringify(sprint.dayList.map((row) => row.remaining ?? 0))}},
+                                        {"name": ${JSON.stringify(JSON.parse(chartIdealLabel))}, "data": ${JSON.stringify(JSON.parse(chartIdeal))}}]}}]]></text></render-mode>
+                        </widgets><fail-widgets>
+                            <label type="p" text="The burndown shows once the sprint has its dates." style="m-muted q-mb-none"/>
+                        </fail-widgets></section>
+                    </box-body></container-box>
+
+                    <container-box><box-header title="Items · ${sprint.itemCount}"/><box-body-nopad>
+                        <form-list name="SprintItems" list="itemRows" skip-form="true" paginate="false" views="list,board" select-columns="true">
+                            <field name="workEffortId"><default-field title="Key">
+                                <link url="workItemDetail" text="${workEffortId}" parameter-map="{workEffortId:workEffortId}" link-type="anchor" style="text-mono text-no-wrap"/></default-field></field>
+                            <field name="purposeEnumId"><default-field title="Type">
+                                <render-mode><text type="qvt"><![CDATA[<q-icon name="${WebUtilities.encodeHtml(typeIcon ?? '')}" size="xs" class="m-muted"><q-tooltip>${WebUtilities.encodeHtml(purposeLabel ?? '')}</q-tooltip></q-icon>]]></text>
+                                    <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify(purposeLabel ?? "")}}]]></text></render-mode></default-field></field>
+                            <field name="workEffortName"><default-field title="Title">
+                                <link url="workItemDetail" text="${workEffortName}" parameter-map="{workEffortId:workEffortId}" style="${isDone ? 'm-muted' : ''}"/></default-field></field>
+                            <!-- a completed sprint: the items carried over are marked so -->
+                            <field name="statusId"><default-field title="Status">
+                                <render-mode><text type="qvt"><![CDATA[<span class="text-no-wrap"><q-chip dense square class="q-ma-none m-tonal text-${statusColor}" data-status="${statusId}">${WebUtilities.encodeHtml(statusLabel ?? '')}</q-chip>${outcome == 'carried' ? '<span class="text-caption text-warning q-ml-xs">' + WebUtilities.encodeHtml(outcomeLabel ?? '') + '</span>' : ''}</span>]]></text>
+                                    <text type="tui"><![CDATA[{"t": "text", "style": "strong", "text": ${JSON.stringify((statusLabel ?? "") + (outcome == "carried" ? " · " + (outcomeLabel ?? "") : ""))}}]]></text></render-mode></default-field></field>
+                            <field name="assigneePartyId"><default-field title="Assignees"><display text="${assigneeText || ''}"/></default-field></field>
+                            <field name="sizeText" align="right"><default-field title="${sprint.unitLabel == 'h' ? 'Est. (h)' : 'Points'}"><display/></default-field></field>
+                            <field name="remainingWorkTime" align="right"><default-field title="Rem. (h)"><display format="#,##0.##"/></default-field></field>
+                            <field name="labelText"><default-field title="Labels"><display/></default-field></field>
+                            <view-board group-field="statusId" card-title-field="workEffortName" card-fields="workEffortId,assigneePartyId,sizeText" key-fields="workEffortId"
+                                    transition="moveCard" all-rows="true"/>
+                        </form-list>
+                        <label type="p" text="No work items in this sprint: plan it on the Backlog." style="m-muted q-pa-sm q-mb-none" condition="!itemRows.length"/>
+                    </box-body-nopad></container-box>
+
+                    <container-box><box-header title="Scope changes"/><box-body-nopad>
+                        <form-list name="ScopeChanges" list="scopeRows" skip-form="true" paginate="false">
+                            <field name="workEffortId"><default-field title="Item">
+                                <link url="workItemDetail" text="${workEffortId} ${workEffortName}" parameter-map="{workEffortId:workEffortId}" link-type="anchor"/></default-field></field>
+                            <field name="changeLabel"><default-field title="Change">
+                                <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${change == 'added' ? 'warning' : 'info'}">${WebUtilities.encodeHtml(changeLabel ?? '')}</q-chip>]]></text>
+                                    <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify(changeLabel ?? "")}}]]></text></render-mode></default-field></field>
+                            <field name="sizeText" align="right"><default-field title="Size"><display/></default-field></field>
+                            <field name="dateText"><default-field title="When"><display/></default-field></field>
+                            <field name="byText"><default-field title="By"><display/></default-field></field>
+                        </form-list>
+                        <label type="p" text="${isPlanned ? 'Changes after the start show here.' : 'No changes since the start.'}" style="m-muted q-pa-sm q-mb-none" condition="!scopeRows.length"/>
+                    </box-body-nopad></container-box>
+                </container>
+                <!-- Chatter, the retrospective, beside the boxes from 1440 px -->
+                <container style="col-12 col-lg-4">
+                    <chatter id="SprintChatter" record-entity="mantle.work.effort.WorkEffort" record-id="${workEffortId}" default-tab="message"/>
+                </container>
+            </container>
+        </widgets></section>
+    </widgets>
+</screen>

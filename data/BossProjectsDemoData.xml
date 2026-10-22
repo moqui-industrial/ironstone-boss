@@ -18,7 +18,8 @@ along with this software (see the LICENSE.md file). If not, see
         as create#Project and clone#Project start them). The dates are fixed, so
         no task of john.doe or Joe Developer has a due date, which would put it on their Today once past:
         - IRON, IronStone Projects, a product development project on the development flow, General: a tree of work items
-          (epics of epics) with hours and points, ranked, in a milestone, a release and a sprint, with labels;
+          (epics of epics) with hours and points, ranked, in a milestone, a release and sprints (Sprint 1 complete with a
+          carry-over and a scope change, Sprint 2 in progress, Sprint 3 planned; the audit rows of their burndown), with labels;
         - ACME, Acme customer portal, a client project (WepPrClient) for Another Company Making Everything with its client
           manager and billing contact, at risk after its latest status update, with a weekly report that repeats;
         - HIRE, Hiring plan 2027, a Work group project only john.doe is on, which the team does not see;
@@ -43,7 +44,7 @@ along with this software (see the LICENSE.md file). If not, see
     <mantle.work.effort.WorkEffortParty workEffortId="IRON" partyId="ORG_ZIZI_JD" roleTypeId="Programmer" fromDate="2026-10-05 09:00:00" statusId="WeptAssigned"/>
     <mantle.work.effort.WorkEffortParty workEffortId="IRON" partyId="ORG_ZIZI_BD" roleTypeId="QualityAnalyst" fromDate="2026-10-05 09:00:00" statusId="WeptAssigned"/>
     <mantle.work.effort.WorkEffortParty workEffortId="IRON" partyId="ORG_ZIZI_SERVICES" roleTypeId="Vendor" fromDate="2026-10-05 09:00:00"/>
-    <moqui.entity.SequenceValueItem seqName="Project_IRON" seqNum="10"/>
+    <moqui.entity.SequenceValueItem seqName="Project_IRON" seqNum="14"/>
 
     <!-- the tree: Work items (an epic of epics) holds the tree view (an epic) and the board; Time holds the timer and the grid -->
     <mantle.work.effort.WorkEffort workEffortId="IRON-1" workEffortTypeEnumId="WetTask" purposeEnumId="WepNewFeature" statusId="WeInProgress"
@@ -87,11 +88,30 @@ along with this software (see the LICENSE.md file). If not, see
             statusFlowId="WorkEffortDevelopment" resolutionEnumId="WerUnresolved" visibilityEnumId="WevWorkGroup" priority="5" sequenceNum="4000"
             rootWorkEffortId="IRON" ownerPartyId="EX_JOHN_DOE" workEffortName="Write the getting started guide"
             estimatedWorkTime="3" remainingWorkTime="3" estimatedPoints="2" timeUomId="TF_hr"/>
+    <!-- under Time: two items done in Sprint 1, two in the backlog -->
+    <mantle.work.effort.WorkEffort workEffortId="IRON-11" workEffortTypeEnumId="WetTask" purposeEnumId="WepNewFeature" statusId="WeComplete"
+            statusFlowId="WorkEffortDevelopment" resolutionEnumId="WerCompleted" visibilityEnumId="WevWorkGroup" priority="4" sequenceNum="3000"
+            rootWorkEffortId="IRON" parentWorkEffortId="IRON-6" ownerPartyId="EX_JOHN_DOE" workEffortName="Time entry list on a work item"
+            estimatedWorkTime="4" remainingWorkTime="0" actualWorkTime="3.5" estimatedPoints="2" timeUomId="TF_hr" actualCompletionDate="2026-10-09 16:00:00"/>
+    <mantle.work.effort.WorkEffort workEffortId="IRON-12" workEffortTypeEnumId="WetTask" purposeEnumId="WepNewFeature" statusId="WeComplete"
+            statusFlowId="WorkEffortDevelopment" resolutionEnumId="WerCompleted" visibilityEnumId="WevWorkGroup" priority="4" sequenceNum="4000"
+            rootWorkEffortId="IRON" parentWorkEffortId="IRON-6" ownerPartyId="EX_JOHN_DOE" workEffortName="Hours on the work item detail"
+            estimatedWorkTime="5" remainingWorkTime="0" actualWorkTime="6" estimatedPoints="3" timeUomId="TF_hr" actualCompletionDate="2026-10-14 15:00:00"/>
+    <mantle.work.effort.WorkEffort workEffortId="IRON-13" workEffortTypeEnumId="WetTask" purposeEnumId="WepNewFeature" statusId="WeInPlanning"
+            statusFlowId="WorkEffortDevelopment" resolutionEnumId="WerUnresolved" visibilityEnumId="WevWorkGroup" priority="5" sequenceNum="5000"
+            rootWorkEffortId="IRON" parentWorkEffortId="IRON-6" ownerPartyId="EX_JOHN_DOE" workEffortName="Approve submitted time"
+            estimatedWorkTime="10" remainingWorkTime="10" estimatedPoints="5" timeUomId="TF_hr"/>
+    <mantle.work.effort.WorkEffort workEffortId="IRON-14" workEffortTypeEnumId="WetTask" purposeEnumId="WepFeatureEnhance" statusId="WeInPlanning"
+            statusFlowId="WorkEffortDevelopment" resolutionEnumId="WerUnresolved" visibilityEnumId="WevWorkGroup" priority="5" sequenceNum="6000"
+            rootWorkEffortId="IRON" parentWorkEffortId="IRON-6" ownerPartyId="EX_JOHN_DOE" workEffortName="Import time from a CSV file"
+            estimatedWorkTime="6" remainingWorkTime="6" estimatedPoints="3" timeUomId="TF_hr"/>
     <mantle.work.effort.WorkEffortParty workEffortId="IRON-3" partyId="ORG_ZIZI_JD" roleTypeId="Assignee" fromDate="2026-10-19 09:00:00" statusId="WeptAssigned"/>
     <mantle.work.effort.WorkEffortParty workEffortId="IRON-4" partyId="ORG_ZIZI_JD" roleTypeId="Assignee" fromDate="2026-10-19 09:00:00" statusId="WeptAssigned"/>
     <mantle.work.effort.WorkEffortParty workEffortId="IRON-5" partyId="ORG_ZIZI_JD" roleTypeId="Assignee" fromDate="2026-10-12 09:00:00" statusId="WeptAssigned"/>
     <mantle.work.effort.WorkEffortParty workEffortId="IRON-7" partyId="ORG_ZIZI_BD" roleTypeId="Assignee" fromDate="2026-10-19 09:00:00" statusId="WeptAssigned"/>
     <mantle.work.effort.WorkEffortParty workEffortId="IRON-9" partyId="ORG_ZIZI_BD" roleTypeId="Assignee" fromDate="2026-10-19 09:00:00" statusId="WeptAssigned"/>
+    <mantle.work.effort.WorkEffortParty workEffortId="IRON-11" partyId="ORG_ZIZI_JD" roleTypeId="Assignee" fromDate="2026-10-05 09:00:00" statusId="WeptAssigned"/>
+    <mantle.work.effort.WorkEffortParty workEffortId="IRON-12" partyId="ORG_ZIZI_JD" roleTypeId="Assignee" fromDate="2026-10-07 10:00:00" statusId="WeptAssigned"/>
     <mantle.work.effort.WorkEffortCategoryAppl workEffortId="IRON-3" workEffortCategoryId="BOSS_DEMO_LBL_UI"/>
     <mantle.work.effort.WorkEffortCategoryAppl workEffortId="IRON-4" workEffortCategoryId="BOSS_DEMO_LBL_UI"/>
     <mantle.work.effort.WorkEffortCategoryAppl workEffortId="IRON-8" workEffortCategoryId="BOSS_DEMO_LBL_SERVICES"/>
@@ -101,30 +121,60 @@ along with this software (see the LICENSE.md file). If not, see
     <mantle.work.effort.WorkEffortAssoc workEffortId="IRON-4" toWorkEffortId="IRON-3" workEffortAssocTypeEnumId="WeatDependsOn"
             fromDate="2026-10-19 09:00:00" lagDays="1"/>
 
-    <!-- a milestone, a release and the current sprint, each with its items -->
+    <!-- a milestone, a release and the sprints, each with its items -->
     <mantle.work.effort.WorkEffort workEffortId="IRON-MS-1" workEffortTypeEnumId="WetMilestone" statusId="WeInProgress" rootWorkEffortId="IRON"
             workEffortName="Beta" estimatedStartDate="2026-10-05 09:00:00" estimatedCompletionDate="2026-12-18 17:00:00"/>
     <mantle.work.effort.WorkEffort workEffortId="IRON-REL-1" workEffortTypeEnumId="WetRelease" statusId="WeInPlanning" rootWorkEffortId="IRON"
             workEffortName="1.0" estimatedCompletionDate="2027-03-31 17:00:00"/>
-    <mantle.work.effort.WorkEffort workEffortId="IRON-SP-1" workEffortTypeEnumId="WetSprint" statusId="WeInProgress" rootWorkEffortId="IRON"
-            workEffortName="Sprint 1" description="The tree view and the timer." estimatedStartDate="2026-10-19 09:00:00"
-            estimatedCompletionDate="2026-10-30 17:00:00"/>
+    <!-- Sprint 1: complete; IRON-12 added after the start, IRON-3 carried over to Sprint 2. Sprint 2: in progress, IRON-10 added
+        after the start. Sprint 3: planned. Capacity in points, the project's unit. -->
+    <mantle.work.effort.WorkEffort workEffortId="IRON-SP-1" workEffortTypeEnumId="WetSprint" statusId="WeComplete" rootWorkEffortId="IRON"
+            workEffortName="Sprint 1" description="The board and the first of the time pieces." estimatedStartDate="2026-10-05 09:00:00"
+            estimatedCompletionDate="2026-10-16 17:00:00" actualStartDate="2026-10-05 09:00:00" actualCompletionDate="2026-10-16 17:00:00"
+            estimatedPoints="10" timeUomId="TF_hr"/>
+    <mantle.work.effort.WorkEffort workEffortId="IRON-SP-2" workEffortTypeEnumId="WetSprint" statusId="WeInProgress" rootWorkEffortId="IRON"
+            workEffortName="Sprint 2" description="The tree view and the timer." estimatedStartDate="2026-10-19 09:00:00"
+            estimatedCompletionDate="2026-10-30 17:00:00" actualStartDate="2026-10-19 09:00:00" estimatedPoints="12" timeUomId="TF_hr"/>
+    <mantle.work.effort.WorkEffort workEffortId="IRON-SP-3" workEffortTypeEnumId="WetSprint" statusId="WeInPlanning" rootWorkEffortId="IRON"
+            workEffortName="Sprint 3" description="Timesheets." estimatedStartDate="2026-11-02 09:00:00"
+            estimatedCompletionDate="2026-11-13 17:00:00" estimatedPoints="12" timeUomId="TF_hr"/>
     <mantle.work.effort.WorkEffortAssoc workEffortId="IRON-MS-1" toWorkEffortId="IRON-3" workEffortAssocTypeEnumId="WeatMilestone" fromDate="2026-10-19 09:00:00"/>
     <mantle.work.effort.WorkEffortAssoc workEffortId="IRON-MS-1" toWorkEffortId="IRON-4" workEffortAssocTypeEnumId="WeatMilestone" fromDate="2026-10-19 09:00:00"/>
     <mantle.work.effort.WorkEffortAssoc workEffortId="IRON-MS-1" toWorkEffortId="IRON-7" workEffortAssocTypeEnumId="WeatMilestone" fromDate="2026-10-19 09:00:00"/>
     <mantle.work.effort.WorkEffortAssoc workEffortId="IRON-MS-1" toWorkEffortId="IRON-9" workEffortAssocTypeEnumId="WeatMilestone" fromDate="2026-10-19 09:00:00"/>
     <mantle.work.effort.WorkEffortAssoc workEffortId="IRON-REL-1" toWorkEffortId="IRON-5" workEffortAssocTypeEnumId="WeatRelease" fromDate="2026-10-16 15:00:00"/>
     <mantle.work.effort.WorkEffortAssoc workEffortId="IRON-REL-1" toWorkEffortId="IRON-8" workEffortAssocTypeEnumId="WeatRelease" fromDate="2026-10-19 09:00:00"/>
-    <mantle.work.effort.WorkEffortAssoc workEffortId="IRON-SP-1" toWorkEffortId="IRON-3" workEffortAssocTypeEnumId="WeatSprint" fromDate="2026-10-19 09:00:00"/>
-    <mantle.work.effort.WorkEffortAssoc workEffortId="IRON-SP-1" toWorkEffortId="IRON-7" workEffortAssocTypeEnumId="WeatSprint" fromDate="2026-10-19 09:00:00"/>
-    <mantle.work.effort.WorkEffortAssoc workEffortId="IRON-SP-1" toWorkEffortId="IRON-9" workEffortAssocTypeEnumId="WeatSprint" fromDate="2026-10-19 09:00:00"/>
+    <mantle.work.effort.WorkEffortAssoc workEffortId="IRON-SP-1" toWorkEffortId="IRON-5" workEffortAssocTypeEnumId="WeatSprint" fromDate="2026-10-02 15:00:00"/>
+    <mantle.work.effort.WorkEffortAssoc workEffortId="IRON-SP-1" toWorkEffortId="IRON-11" workEffortAssocTypeEnumId="WeatSprint" fromDate="2026-10-02 15:00:00"/>
+    <mantle.work.effort.WorkEffortAssoc workEffortId="IRON-SP-1" toWorkEffortId="IRON-3" workEffortAssocTypeEnumId="WeatSprint" fromDate="2026-10-02 15:00:00"
+            thruDate="2026-10-16 17:00:00"/>
+    <mantle.work.effort.WorkEffortAssoc workEffortId="IRON-SP-1" toWorkEffortId="IRON-12" workEffortAssocTypeEnumId="WeatSprint" fromDate="2026-10-07 10:00:00"/>
+    <mantle.work.effort.WorkEffortAssoc workEffortId="IRON-SP-2" toWorkEffortId="IRON-3" workEffortAssocTypeEnumId="WeatSprint" fromDate="2026-10-16 17:00:00"/>
+    <mantle.work.effort.WorkEffortAssoc workEffortId="IRON-SP-2" toWorkEffortId="IRON-7" workEffortAssocTypeEnumId="WeatSprint" fromDate="2026-10-16 17:30:00"/>
+    <mantle.work.effort.WorkEffortAssoc workEffortId="IRON-SP-2" toWorkEffortId="IRON-9" workEffortAssocTypeEnumId="WeatSprint" fromDate="2026-10-16 17:30:00"/>
+    <mantle.work.effort.WorkEffortAssoc workEffortId="IRON-SP-2" toWorkEffortId="IRON-10" workEffortAssocTypeEnumId="WeatSprint" fromDate="2026-10-20 11:00:00"/>
+    <mantle.work.effort.WorkEffortAssoc workEffortId="IRON-SP-3" toWorkEffortId="IRON-8" workEffortAssocTypeEnumId="WeatSprint" fromDate="2026-10-21 10:00:00"/>
+    <!-- the history of the sprints' burndown (mantle.work.ProjectReportServices.get#SprintBurndown): the status changes of Sprint 1's
+        items, and who changed the scopes (the rows mantle.work.TaskServices.set#TaskSprint writes) -->
+    <moqui.entity.EntityAuditLog auditHistorySeqId="BOSS_DEMO_IRON_AUD1" changedEntityName="mantle.work.effort.WorkEffort" changedFieldName="statusId"
+            pkPrimaryValue="IRON-11" oldValueText="WeInProgress" newValueText="WeComplete" changedDate="2026-10-09 16:00:00" changedByUserId="ORG_ZIZI_JD"/>
+    <moqui.entity.EntityAuditLog auditHistorySeqId="BOSS_DEMO_IRON_AUD2" changedEntityName="mantle.work.effort.WorkEffort" changedFieldName="statusId"
+            pkPrimaryValue="IRON-12" oldValueText="WeInProgress" newValueText="WeComplete" changedDate="2026-10-14 15:00:00" changedByUserId="ORG_ZIZI_JD"/>
+    <moqui.entity.EntityAuditLog auditHistorySeqId="BOSS_DEMO_IRON_AUD3" changedEntityName="mantle.work.effort.WorkEffort" changedFieldName="statusId"
+            pkPrimaryValue="IRON-5" oldValueText="WeInTesting" newValueText="WeComplete" changedDate="2026-10-16 15:00:00" changedByUserId="ORG_ZIZI_JD"/>
+    <moqui.entity.EntityAuditLog auditHistorySeqId="BOSS_DEMO_IRON_AUD4" changedEntityName="mantle.work.effort.WorkEffortAssoc" changedFieldName="fromDate"
+            pkPrimaryValue="IRON-SP-1" pkSecondaryValue="IRON-12" pkRestCombinedValue="workEffortAssocTypeEnumId:'WeatSprint'" newValueText="2026-10-07 10:00:00"
+            changedDate="2026-10-07 10:00:00" changedByUserId="EX_JOHN_DOE"/>
+    <moqui.entity.EntityAuditLog auditHistorySeqId="BOSS_DEMO_IRON_AUD5" changedEntityName="mantle.work.effort.WorkEffortAssoc" changedFieldName="fromDate"
+            pkPrimaryValue="IRON-SP-2" pkSecondaryValue="IRON-10" pkRestCombinedValue="workEffortAssocTypeEnumId:'WeatSprint'" newValueText="2026-10-20 11:00:00"
+            changedDate="2026-10-20 11:00:00" changedByUserId="ORG_ZIZI_JD"/>
     <!-- the project's own choices; the rest come from the organization -->
     <mantle.work.effort.WorkEffortSetting workEffortId="IRON" settingTypeEnumId="WstEstimateUnit" settingValue="points"/>
     <mantle.work.effort.WorkEffortSetting workEffortId="IRON" settingTypeEnumId="WstBranchPattern" settingValue="IRON-&lt;n&gt;-&lt;words&gt;"/>
     <mantle.work.effort.WorkEffortSetting workEffortId="IRON" settingTypeEnumId="WstModules" settingValue="backlog,code,docs,time"/>
     <!-- the latest status update, on the project's Chatter -->
     <mantle.party.communication.CommunicationEvent communicationEventId="BOSS_DEMO_IRON_UPD1" communicationEventTypeId="StatusUpdate"
-            statusId="CeSent" fromPartyId="EX_JOHN_DOE" entryDate="2026-10-19 10:00:00" subject="Sprint 1 started on time"
+            statusId="CeSent" fromPartyId="EX_JOHN_DOE" entryDate="2026-10-19 10:00:00" subject="Sprint 2 started on time"
             contentType="text/markdown" body="The tree view is in review and the timer is half done. **Next:** the timesheet grid."/>
     <mantle.work.effort.WorkEffortUpdate workEffortId="IRON" communicationEventId="BOSS_DEMO_IRON_UPD1" updateDate="2026-10-19 10:00:00"
             healthEnumId="WehOnTrack" percentComplete="20" clientVisible="N"/>

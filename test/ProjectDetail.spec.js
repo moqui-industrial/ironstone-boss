@@ -139,7 +139,7 @@ feature("ProjectDetail renders in qvt with its title row, numbers, tabs and the 
         acmeOverview.output.includes("ProjectChatter")
         iron.status == 200
         !iron.broken
-        iron.output.includes("Sprint 1 started on time")
+        iron.output.includes("Sprint 2 started on time")
         iron.output.includes("Work items")
         iron.output.includes("Joe Developer")
         menu.includes("\"Team\"")
