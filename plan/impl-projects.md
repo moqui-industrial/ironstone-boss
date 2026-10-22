@@ -372,7 +372,8 @@ tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
   usable-when walk with authorization on).
 - Runs (Debug, with the F77 fix): ironstone-boss 541/541, mantle-usl 648/650 (ContactListSend), moqui-core lib 1754,
   tui_screens ok, lint clean. TimeEntries.spec now asserts authorization is on after the Today panel (F77).
- — Billing and money
+
+### P8 — Billing and money
 
 - Design §10: Rates, Unbilled, Invoices, InvoiceDetail, OrderDetail, BillingSettings; §4 ProjectMoney; the milestone
   billing share, milestone approval and the estimate sent for approval; Home's unbilled.
