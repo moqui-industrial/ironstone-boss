@@ -56,7 +56,7 @@ Sections: [1 scope](#1-scope-and-order) · [2 rules](#2-ground-rules) · [3 phas
 | P2 Projects and work items | Mantle, BOSS (mr-moqui) | Home, QuickCreate, Projects, NewProject, ProjectDetail and its Overview, Work items, Team, Files and Settings tabs, WorkItems, WorkItemDetail, WorkItemTypes, Workflows, Labels, Templates | done Oct 22 |
 | P3a Code: framework | mr-moqui | — | done Oct 21 |
 | P3b Code: Mantle and BOSS | Mantle, BOSS | every §7 screen, ProjectCode, CodeSettings | done Oct 22 |
-| P4 Planning | Mantle, BOSS (mr-moqui) | Backlog, SprintDetail, Timeline, WorkItemImport, Roadmap, MilestoneDetail, ReleaseDetail, ProjectBacklog, ProjectTimeline, ProjectCalendar, ProjectRoadmap, ProjectDocs | planned |
+| P4 Planning | Mantle, BOSS (mr-moqui) | Backlog, SprintDetail, Timeline, WorkItemImport, Roadmap, MilestoneDetail, ReleaseDetail, ProjectBacklog, ProjectTimeline, ProjectCalendar, ProjectRoadmap, ProjectDocs | in progress (P4a sprints and backlog; then P4b roadmap, releases and docs; P4c timeline, calendar and import) |
 | P5 Requests | Mantle, BOSS | Requests, RequestDetail, RequestIntake, ProjectRequests, IntakeSettings | planned |
 | P6 Time | Mantle, BOSS | MyTime, Timesheets, TimesheetDetail, TimeEntries, ProjectTime, TimeSettings | planned |
 | P7 Resources | Mantle, BOSS | TeamPlanner, Allocations, PersonDetail | planned |
@@ -240,6 +240,9 @@ tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
   and Docs tabs.
 - Usable when: a team ranks the backlog, runs a sprint to completion with a carry-over, sees it on the timeline with
   dependencies, imports a Jira CSV, and publishes a release's notes to the docs space in the repository.
+- Built in three parts (Oct 22): P4a sprints, Backlog, SprintDetail and the project's Backlog tab; P4b Roadmap,
+  MilestoneDetail, ReleaseDetail with release notes and the project's Roadmap and Docs tabs (F7 checked first); P4c
+  Timeline, the project's Plan tab (Timeline and Calendar) and WorkItemImport.
 
 ### P5 — Requests
 
