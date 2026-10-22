@@ -20,7 +20,7 @@ along with this software (see the LICENSE.md file). If not, see
         - IRON, IronStone Projects, a product development project on the development flow, General: a tree of work items
           (epics of epics) with hours and points, ranked, in a milestone, a release and a sprint, with labels;
         - ACME, Acme customer portal, a client project (WepPrClient) for Another Company Making Everything with its client
-          manager and billing contact, at risk after its latest status update;
+          manager and billing contact, at risk after its latest status update, with a weekly report that repeats;
         - HIRE, Hiring plan 2027, a Work group project only john.doe is on, which the team does not see. -->
 
     <!-- labels of the organization -->
@@ -131,7 +131,7 @@ along with this software (see the LICENSE.md file). If not, see
     <mantle.work.effort.WorkEffortParty workEffortId="ACME" partyId="ORG_ACME" roleTypeId="Customer" fromDate="2026-09-14 09:00:00"/>
     <mantle.work.effort.WorkEffortParty workEffortId="ACME" partyId="ORG_ACME_SA" roleTypeId="ClientManager" fromDate="2026-09-14 09:00:00" statusId="WeptAssigned"/>
     <mantle.work.effort.WorkEffortParty workEffortId="ACME" partyId="ORG_ACME_BA" roleTypeId="ClientBilling" fromDate="2026-09-14 09:00:00" statusId="WeptAssigned"/>
-    <moqui.entity.SequenceValueItem seqName="Project_ACME" seqNum="5"/>
+    <moqui.entity.SequenceValueItem seqName="Project_ACME" seqNum="6"/>
     <mantle.work.effort.WorkEffort workEffortId="ACME-1" workEffortTypeEnumId="WetTask" purposeEnumId="WepNewFeature" statusId="WeInProgress"
             resolutionEnumId="WerUnresolved" visibilityEnumId="WevGeneral" priority="2" sequenceNum="1000" rootWorkEffortId="ACME"
             ownerPartyId="EX_JOHN_DOE" workEffortName="Customer sign-in" estimatedWorkTime="24" remainingWorkTime="10" actualWorkTime="16"
@@ -155,6 +155,13 @@ along with this software (see the LICENSE.md file). If not, see
     <mantle.work.effort.WorkEffortParty workEffortId="ACME-3" partyId="ORG_ZIZI_JD" roleTypeId="Assignee" fromDate="2026-10-12 09:00:00" statusId="WeptAssigned"/>
     <mantle.work.effort.WorkEffortParty workEffortId="ACME-4" partyId="ORG_ZIZI_JD" roleTypeId="Assignee" fromDate="2026-10-12 09:00:00" statusId="WeptAssigned"/>
     <mantle.work.effort.WorkEffortCategoryAppl workEffortId="ACME-3" workEffortCategoryId="BOSS_DEMO_LBL_SERVICES"/>
+    <!-- a recurring work item (design-projects.md §5 "Recurring work items"): each Friday's status report, the next made when one
+        is completed (mantle.work.TaskServices.make#NextRecurringTask) -->
+    <mantle.work.effort.WorkEffort workEffortId="ACME-6" workEffortTypeEnumId="WetTask" purposeEnumId="WepDocument" statusId="WeInPlanning"
+            resolutionEnumId="WerUnresolved" visibilityEnumId="WevWorkGroup" priority="4" sequenceNum="4000" rootWorkEffortId="ACME"
+            ownerPartyId="EX_JOHN_DOE" workEffortName="Weekly status report to Acme" estimatedWorkTime="1" remainingWorkTime="1" timeUomId="TF_hr"
+            estimatedCompletionDate="2026-10-23 16:00:00" description="What was done this week, what comes next, and what we need from Acme."/>
+    <mantle.work.effort.WorkEffortRecurrence workEffortId="ACME-6" rrule="FREQ=WEEKLY;BYDAY=FR" recurFromCompletion="N" timeZone="America/Chicago"/>
     <mantle.work.effort.WorkEffort workEffortId="ACME-MS-1" workEffortTypeEnumId="WetMilestone" statusId="WeInProgress" rootWorkEffortId="ACME"
             workEffortName="Go live" estimatedStartDate="2026-09-14 09:00:00" estimatedCompletionDate="2026-12-04 17:00:00"/>
     <mantle.work.effort.WorkEffortAssoc workEffortId="ACME-MS-1" toWorkEffortId="ACME-1" workEffortAssocTypeEnumId="WeatMilestone" fromDate="2026-09-14 09:00:00"/>

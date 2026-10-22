@@ -1,5 +1,6 @@
 // The IronStone Projects root (design-projects.md §1; impl-projects.md P1): its shell providers in shellData (the + menu
-// kinds to Projects/QuickCreate, the palette actions and types, the go-to keys of the projects scope); its menu by group
+// kinds to Projects/QuickCreate, and the project kind to the managers' Projects/QuickProject, which the team is not offered
+// (impl-projects.md F8, P2), the palette actions and types, the go-to keys of the projects scope); its menu by group
 // (data/BossSetupData.xml: the managers' screens WorkItems/Import, Billing and Settings absent for the team); and the record
 // links of ironstone.PaletteServices.get#RecordLink: a project, and a task or request of a project, open in Projects for a
 // user who may open it, else a task or request in Commons and a project nowhere, while a personal task stays in Commons.
@@ -42,17 +43,26 @@ feature("shellData lists Projects with its quick-create kinds, palette actions a
         const found = shellJson("shellData")
         const apps = found.json && Array.isArray(found.json.apps) ? found.json.apps : []
         const projects = (apps.find((item) => item.name === "Projects") || { providers: {} }).providers
-        return { status: found.status, title: (apps.find((item) => item.name === "Projects") || {}).title,
+        // the team: the same, without the project kind and action
+        const team = as("joe.developer", () => {
+            const teamFound = shellJson("shellData")
+            const teamApps = teamFound.json && Array.isArray(teamFound.json.apps) ? teamFound.json.apps : []
+            const providers = (teamApps.find((item) => item.name === "Projects") || { providers: {} }).providers
+            return { kinds: (providers.quickCreate || []).map((kind) => kind.kind), actions: (providers.paletteActions || []).map((action) => action.label) }
+        }, true)
+        return { team, status: found.status, title: (apps.find((item) => item.name === "Projects") || {}).title,
             kinds: (projects.quickCreate || []).map((kind) => kind.kind), kindUrls: (projects.quickCreate || []).map((kind) => kind.url),
             actions: (projects.paletteActions || []).map((action) => action.label), actionUrls: (projects.paletteActions || []).map((action) => action.url),
             types: projects.paletteTypes || [], keymaps: (projects.keymaps || []).map((map) => ({ scope: map.scope, keys: map.keys.map((key) => key.keys) })) }
     },
-    then({ status, title, kinds, kindUrls, actions, actionUrls, types, keymaps }) {
+    then({ team, status, title, kinds, kindUrls, actions, actionUrls, types, keymaps }) {
         status == 200
         title == "IronStone Projects"
         kinds == ["workItem", "time", "project"]
-        kindUrls == ["/qapps/Projects/QuickCreate?kind=workItem", "/qapps/Projects/QuickCreate?kind=time", "/qapps/Projects/QuickCreate?kind=project"]
+        kindUrls == ["/qapps/Projects/QuickCreate?kind=workItem", "/qapps/Projects/QuickCreate?kind=time", "/qapps/Projects/QuickProject"]
         actions == ["New work item", "New project", "Log time", "My time"]
+        team.kinds == ["workItem", "time"]
+        team.actions == ["New work item", "Log time", "My time"]
         actionUrls[3] == "/qapps/Projects/Time/MyTime"
         types == ["MantleProject", "MantleTask", "MantleRequest"]
         keymaps == [{ scope: "projects", keys: ["g w", "g b", "g r", "g o", "g t"] }]
@@ -97,7 +107,7 @@ feature("a project's records open in Projects for its users, in Commons for othe
     },
 })
 
-feature("the detail placeholders the links open render, with a way to the record in Commons", {
+feature("the details the links open render: the project's placeholder, the work item's detail (P2), the request in Commons", {
     when() {
         const render = (path, parameters) => {
             const str = ec.screen.makeTest().rootScreen("component://ironstone-boss/screen/Projects.xml").renderMode("qvt").withStaticData()
@@ -111,8 +121,9 @@ feature("the detail placeholders the links open render, with a way to the record
         project.status == 200
         project.output.includes("The project IRON")
         task.status == 200
-        task.output.includes("Open the task in Commons")
-        task.output.includes("Commons/Tasks/TaskDetail")
+        task.errors == ""
+        task.output.includes("Expand and collapse rows")
+        task.output.includes("WorkItemStatusBar")
         request.status == 200
         request.output.includes("Commons/Requests/RequestDetail")
     },

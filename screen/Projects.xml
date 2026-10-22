@@ -32,8 +32,8 @@ along with this software (see the LICENSE.md file). If not, see
         <subscreens-item name="RecordFiles" location="component://ironstone-boss/screen/Shared/RecordFiles.xml" menu-include="false"/>
     </subscreens>
 
-    <!-- What Projects offers the suite shell (design-projects.md §1.4): the + menu kinds (Projects/QuickCreate by kind; Commons
-        keeps its Task kind for a personal task), the palette's actions and the document types of its records, whose palette
+    <!-- What Projects offers the suite shell (design-projects.md §1.4): the + menu kinds (Projects/QuickCreate by kind, and the
+        managers' Projects/QuickProject for a project, impl-projects.md F8; Commons keeps its Task kind for a personal task), the palette's actions and the document types of its records, whose palette
         and notification links open here for its users (ironstone.PaletteServices.get#RecordLink), and the go-to keys of the
         projects scope, on only in this app (the global c creates the first kind here, a work item). The Today source, the
         Code palette group and the notification topics come with the phases that add their services. -->
@@ -42,13 +42,11 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="kind" value="workItem"/></quick-create>
         <quick-create kind="time" label="Log time" icon="sym_o_more_time" screen="Projects/QuickCreate" sequence="81">
             <parameter name="kind" value="time"/></quick-create>
-        <quick-create kind="project" label="Project" icon="sym_o_create_new_folder" screen="Projects/QuickCreate" sequence="82">
-            <parameter name="kind" value="project"/></quick-create>
+        <quick-create kind="project" label="Project" icon="sym_o_create_new_folder" screen="Projects/QuickProject" sequence="82"/>
 
         <palette-action label="New work item" icon="sym_o_add_task" screen="Projects/QuickCreate" sequence="10">
             <parameter name="kind" value="workItem"/></palette-action>
-        <palette-action label="New project" icon="sym_o_create_new_folder" screen="Projects/QuickCreate" sequence="11">
-            <parameter name="kind" value="project"/></palette-action>
+        <palette-action label="New project" icon="sym_o_create_new_folder" screen="Projects/QuickProject" sequence="11"/>
         <palette-action label="Log time" icon="sym_o_more_time" screen="Projects/QuickCreate" sequence="12">
             <parameter name="kind" value="time"/></palette-action>
         <palette-action label="My time" icon="sym_o_schedule" screen="Projects/Time/MyTime" sequence="13"/>

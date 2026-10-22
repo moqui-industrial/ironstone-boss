@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- QuickProject (design-projects.md §3 QuickCreate, the QuickProject form; style-guide §3.11 Dialog): the + menu's Project kind, a
+    project in one step: name, key (made upper case; not yet suggested from the name), client, template, the user its project manager,
+    General visibility (impl-projects.md F10) (service/ironstone/WorkItemServices.xml create#QuickProject). A screen of its
+    own in BOSS_PROJECTS_MANAGERS (data/BossSetupData.xml), since the shell offers a quick-create kind by its screen's
+    authorization: the team is not offered it (impl-projects.md F8), and the service refuses a non-manager too. More options
+    opens the NewProject wizard (P2's projects half). -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="New project" default-menu-include="false">
+
+    <transition name="createProject">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.WorkItemServices.create#QuickProject').parameters({workEffortId: workEffortId || '',
+                workEffortName: workEffortName || '', clientPartyId: clientPartyId || null, templateWorkEffortId: templateWorkEffortId || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {workEffortId: out.projectId, url: out.url,
+                messageInfos: [{type: 'success', message: out.message, link: out.url}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="searchClients" read-only="true">
+        <actions>
+            <entity-find entity-name="mantle.party.PartyDetail" list="partyList" limit="20">
+                <econdition field-name="partyTypeEnumId" value="PtyOrganization"/>
+                <econdition field-name="organizationName" operator="like" value="%${term}%" ignore-case="true" ignore="!term"/>
+                <econdition field-name="disabled" operator="not-equals" value="Y" or-null="true"/>
+                <econdition field-name="privateOwnerUserId" from="ec.user.userId" or-null="true"/>
+                <order-by field-name="^organizationName"/>
+            </entity-find>
+            <script>ec.web.sendJsonResponse(Array.from(partyList).map((party) => ({value: party.partyId, label: party.organizationName || party.partyId})))</script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+
+    <actions>
+        <entity-find entity-name="mantle.work.effort.WorkEffort" list="templateList">
+            <econdition field-name="workEffortTypeEnumId" value="WetProject"/><econdition field-name="isTemplate" value="Y"/>
+            <order-by field-name="workEffortName"/></entity-find>
+    </actions>
+
+    <widgets>
+        <form-single name="QuickProject" transition="createProject" focus-field="workEffortName">
+            <field name="workEffortName"><default-field title="Name"><text-line size="40"/></default-field></field>
+            <field name="workEffortId"><default-field title="Key (1 to 8 letters or digits)" tooltip="Work items are numbered KEY-1, KEY-2; the key is typed in commit messages and branch names">
+                <text-line size="10"/></default-field></field>
+            <field name="clientPartyId"><default-field title="Client (empty: an internal project)">
+                <drop-down allow-empty="true"><dynamic-options transition="searchClients" server-search="true" min-length="0"/></drop-down></default-field></field>
+            <field name="templateWorkEffortId"><default-field title="From template">
+                <drop-down allow-empty="true"><list-options list="templateList" key="${workEffortId}" text="${workEffortName}"/></drop-down></default-field></field>
+            <field name="createButton"><default-field title="Create"><submit/></default-field></field>
+            <field-layout>
+                <field-ref name="workEffortName"/>
+                <field-row><field-ref name="workEffortId"/><field-ref name="clientPartyId"/></field-row>
+                <field-ref name="templateWorkEffortId"/><field-ref name="createButton"/>
+            </field-layout>
+        </form-single>
+        <label type="p" text="You are its project manager; it is seen by everyone in your organization (General). Change both in the project's settings." style="text-caption m-muted"/>
+    </widgets>
+</screen>

@@ -32,6 +32,11 @@ along with this software (see the LICENSE.md file). If not, see
         <in-parameters>
             <parameter name="workEffortId" required="true"/>
             <parameter name="need" default-value="view"/>
+            <parameter name="app" default-value="commons"><description>commons, or projects: IronStone Projects' rule (design-projects.md
+                §1.1): an item of a project the user sees (mantle.work.ProjectServices.get#VisibleProjectInfo; a Restricted or
+                Confidential one for its parties and the project's managers) is visible, besides the Commons rule; and its owner,
+                its assignees, the project's team (a current role on the project other than a client's) and ADMIN may change it,
+                its project's managers (and a Projects manager who sees it) manage it too (canManage).</description></parameter>
         </in-parameters>
         <out-parameters>
             <parameter name="found" type="Boolean"/>
@@ -43,10 +48,12 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="isWatcher" type="Boolean"/>
             <parameter name="isParty" type="Boolean"/>
             <parameter name="canUpdate" type="Boolean"/>
+            <parameter name="isMember" type="Boolean"><description>projects: on the item's project's team</description></parameter>
+            <parameter name="canManage" type="Boolean"><description>projects: a manager of the item's project</description></parameter>
         </out-parameters>
         <actions><script><![CDATA[
             found = false; visible = false; workEffort = null; roleList = []
-            isOwner = false; isAssignee = false; isWatcher = false; isParty = false; canUpdate = false
+            isOwner = false; isAssignee = false; isWatcher = false; isParty = false; canUpdate = false; isMember = false; canManage = false
             const notAvailable = () => ec.resource.expand('Task ${workEffortId} is not available', '', {workEffortId: workEffortId})
             const row = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', workEffortId).one()
             if (row == null || row.workEffortTypeEnumId !== 'WetTask') {
@@ -54,7 +61,17 @@ along with this software (see the LICENSE.md file). If not, see
                 return
             }
             found = true
-            const info = ec.service.sync().name('mantle.party.CommunicationServices.get#RecordLinkInfo').parameters({
+            // Projects: the project's visibility first (get#VisibleProjectInfo, impl-projects.md F1)
+            let projectVisible = false
+            let projectInfo = null
+            if (app === 'projects' && row.rootWorkEffortId) {
+                projectInfo = ec.service.sync().name('mantle.work.ProjectServices.get#VisibleProjectInfo').call() || {}
+                const ids = (name) => Array.from(projectInfo[name] || [])
+                projectVisible = !!projectInfo.allProjects || (ids('visibleProjectIds').includes(row.rootWorkEffortId)
+                        && (!['WevRestricted', 'WevConfidential'].includes(row.visibilityEnumId) || ids('managedProjectIds').includes(row.rootWorkEffortId)
+                            || ids('restrictedItemIds').includes(workEffortId)))
+            }
+            const info = projectVisible ? {recordVisible: true} : ec.service.sync().name('mantle.party.CommunicationServices.get#RecordLinkInfo').parameters({
                 recordEntityName: 'mantle.work.effort.WorkEffort', recordId: workEffortId, checkOnly: true}).call()
             if (ec.message.hasError()) return
             visible = info?.recordVisible === true
@@ -80,6 +97,16 @@ along with this software (see the LICENSE.md file). If not, see
                     .condition('recordEntityName', 'mantle.work.effort.WorkEffort').condition('recordId', workEffortId)
                     .condition('userId', ec.user.userId).count() > 0
             canUpdate = isOwner || isAssignee
+            if (app === 'projects' && row.rootWorkEffortId) {
+                if (!projectInfo) projectInfo = ec.service.sync().name('mantle.work.ProjectServices.get#VisibleProjectInfo').call() || {}
+                const clientRoles = ['Customer', 'CustomerBillTo', 'ClientManager', 'ClientBilling']
+                isMember = !!partyId && ec.entity.find('mantle.work.effort.WorkEffortParty').condition('workEffortId', row.rootWorkEffortId)
+                        .condition('partyId', partyId).condition(cf.makeConditionDate('fromDate', 'thruDate', null))
+                        .condition(cf.makeCondition('roleTypeId', 'not-in', clientRoles)).count() > 0
+                canManage = !!projectInfo.allProjects || Array.from(projectInfo.managedProjectIds || []).includes(row.rootWorkEffortId)
+                        || (projectVisible && ec.user.isInGroup('BOSS_PROJECT_MANAGER'))
+                canUpdate = canUpdate || isMember || canManage || roleList.includes('Manager')
+            }
             if (need === 'update' && !canUpdate)
                 ec.message.addError(ec.resource.expand('You may not change task ${workEffortId}', '', {workEffortId: workEffortId}))
         ]]></script></actions>
@@ -286,6 +313,7 @@ along with this software (see the LICENSE.md file). If not, see
         <in-parameters>
             <parameter name="taskList" type="List"/>
             <parameter name="entries" type="Map"/>
+            <parameter name="detailPath" default-value="/qapps/Commons/Tasks/TaskDetail"><description>The screen a row links to</description></parameter>
         </in-parameters>
         <out-parameters><parameter name="rowList" type="List"/></out-parameters>
         <actions><script><![CDATA[
@@ -413,7 +441,7 @@ along with this software (see the LICENSE.md file). If not, see
                 const onToday = isOpen && roles.length > 0 && due != null && due < tomorrowStart && !snoozed
                 const link = links[id] ? captionOf(links[id]) : null
                 const others = (assignees[id] || []).map((assigneeId) => names[assigneeId] || assigneeId)
-                rowList.push({workEffortId: id, workEffortName: task.workEffortName || id, url: '/qapps/Commons/Tasks/TaskDetail?workEffortId=' + encodeURIComponent(id),
+                rowList.push({workEffortId: id, workEffortName: task.workEffortName || id, url: detailPath + '?workEffortId=' + encodeURIComponent(id),
                     statusId: task.statusId || null, statusLabel: statusLabel(task.statusId), statusColor: colors[task.statusId] || 'grey-7',
                     isDone: isDone, isOpen: isOpen, canUpdate: canUpdate, isOwner: isOwner, roleList: roles, follower: !!entry.follower,
                     dueMillis: due, dueText: dueText, dueEditText: due != null ? dayText(due) : '', estimatedCompletionDate: due != null ? dayText(due) : null, dueAllDay: 'Y',
@@ -503,30 +531,32 @@ along with this software (see the LICENSE.md file). If not, see
     </service>
 
     <service verb="set" noun="TaskStatus">
-        <description>A status change of the task by the user (owner or assignee), along the status flow: In Planning, In
-            Progress, On Hold, Complete and Cancelled (Approved and Closed are the Projects app's). Complete sets the resolution
-            Completed and the actual completion date; going back from Complete clears them (mantle.work.TaskServices.update#Task;
-            the entity's status flow check refuses a change the flow has not).</description>
+        <description>A status change of the task by a user who may change it (get#TaskAccess), along the task's status flow (its
+            own, else its project's, else Default: mantle.work.TaskServices.set#TaskStatus, which refuses a move the flow has not).
+            In Commons a task goes to In Planning, In Progress, On Hold, Complete or Cancelled and the statuses of the
+            development flow (Approved and Closed are the Projects app's); in Projects to any status of its flow. Complete sets
+            the resolution (resolutionEnumId, else Completed) and the actual completion date, Cancelled its resolution (else
+            Won't Complete); going back from Complete clears them. stopRepeating Y on a recurring task ends its rule first, so
+            cancelling it makes no next one (else a cancel skips it and the next is made).</description>
         <in-parameters>
             <parameter name="workEffortId" required="true"/>
             <parameter name="toStatusId" required="true"/>
+            <parameter name="resolutionEnumId"/>
+            <parameter name="stopRepeating"/>
+            <parameter name="app" default-value="commons"><description>commons or projects (get#TaskAccess)</description></parameter>
         </in-parameters>
         <out-parameters><parameter name="workEffortName"/><parameter name="statusLabel"/><parameter name="message"/></out-parameters>
         <actions>
-            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'update'}" out-map="access"/>
+            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'update', app:app}" out-map="access"/>
             <if condition="ec.message.hasError()"><return/></if>
-            <if condition="!['WeInPlanning', 'WeInProgress', 'WeOnHold', 'WeComplete', 'WeCancelled'].includes(toStatusId)">
+            <if condition="app != 'projects' &amp;&amp; !['WeInPlanning', 'WeInProgress', 'WeOnHold', 'WeInReview', 'WeInTesting', 'WeComplete', 'WeCancelled'].includes(toStatusId)">
                 <return error="true" message="A task in Commons cannot be set to ${toStatusId}"/></if>
-            <set field="fromStatusId" from="access.workEffort.statusId"/>
-            <if condition="toStatusId == 'WeComplete'"><then>
-                <service-call name="mantle.work.TaskServices.update#Task" in-map="{workEffortId:workEffortId, statusId:toStatusId,
-                        resolutionEnumId:'WerCompleted', actualCompletionDate:ec.user.nowTimestamp}"/>
-            </then><else-if condition="['WeComplete', 'WeClosed'].includes(fromStatusId)">
-                <service-call name="mantle.work.TaskServices.update#Task" in-map="{workEffortId:workEffortId, statusId:toStatusId,
-                        resolutionEnumId:'WerUnresolved', actualCompletionDate:null}"/>
-            </else-if><else>
-                <service-call name="mantle.work.TaskServices.update#Task" in-map="{workEffortId:workEffortId, statusId:toStatusId}"/>
-            </else></if>
+            <if condition="stopRepeating == 'Y'">
+                <service-call name="mantle.work.TaskServices.set#TaskRecurrence" in-map="{workEffortId:workEffortId, rrule:''}"/>
+                <if condition="ec.message.hasError()"><return/></if>
+            </if>
+            <service-call name="mantle.work.TaskServices.set#TaskStatus" in-map="{workEffortId:workEffortId, statusId:toStatusId,
+                    resolutionEnumId:(resolutionEnumId || null)}"/>
             <if condition="ec.message.hasError()"><return/></if>
             <entity-find-one entity-name="moqui.basic.StatusItem" value-field="toStatus" cache="true"><field-map field-name="statusId" from="toStatusId"/></entity-find-one>
             <set field="workEffortName" from="access.workEffort.workEffortName || workEffortId"/>
@@ -538,15 +568,18 @@ along with this software (see the LICENSE.md file). If not, see
     <service verb="toggle" noun="TaskDone">
         <description>The done checkbox: an open task to Complete, a done one back (Complete to In Progress, Closed to In
             Planning, as the status flow has them).</description>
-        <in-parameters><parameter name="workEffortId" required="true"/></in-parameters>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="app" default-value="commons"><description>commons or projects (get#TaskAccess)</description></parameter>
+        </in-parameters>
         <out-parameters><parameter name="message"/><parameter name="isDone" type="Boolean"/></out-parameters>
         <actions>
-            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'update'}" out-map="access"/>
+            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'update', app:app}" out-map="access"/>
             <if condition="ec.message.hasError()"><return/></if>
             <set field="fromStatusId" from="access.workEffort.statusId"/>
             <set field="isDone" from="!['WeComplete', 'WeClosed'].includes(fromStatusId)"/>
             <if condition="fromStatusId == 'WeCancelled'"><return error="true" message="A cancelled task is not done; open it again first"/></if>
-            <service-call name="ironstone.TaskServices.set#TaskStatus" out-map="statusOut" in-map="{workEffortId:workEffortId,
+            <service-call name="ironstone.TaskServices.set#TaskStatus" out-map="statusOut" in-map="{workEffortId:workEffortId, app:app,
                     toStatusId:(isDone ? 'WeComplete' : (fromStatusId == 'WeClosed' ? 'WeInPlanning' : 'WeInProgress'))}"/>
             <if condition="ec.message.hasError()"><return/></if>
             <set field="message" from="ec.resource.expand(isDone ? 'Done: ${name}' : 'Open again: ${name}', '', {name:statusOut.workEffortName})"/>
@@ -557,13 +590,14 @@ along with this software (see the LICENSE.md file). If not, see
         <description>An inline edit of the list or the detail: field due (a date, yyyy-MM-dd, keeping the time of day of the old
             due date; empty clears it) or priority (1 to 9), by the task's owner or an assignee.</description>
         <in-parameters>
+            <parameter name="app" default-value="commons"><description>commons or projects (get#TaskAccess)</description></parameter>
             <parameter name="workEffortId" required="true"/>
             <parameter name="field" required="true"/>
             <parameter name="value"/>
         </in-parameters>
         <out-parameters><parameter name="message"/><parameter name="valueText"/></out-parameters>
         <actions>
-            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'update'}" out-map="access"/>
+            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'update', app:app}" out-map="access"/>
             <if condition="ec.message.hasError()"><return/></if>
             <script><![CDATA[
                 const text = value == null ? '' : String(value).trim()
@@ -600,6 +634,7 @@ along with this software (see the LICENSE.md file). If not, see
         <description>The Edit dialog of TaskDetail: name, purpose, description, priority and due date (update#TaskField), by the
             task's owner or an assignee; a field not given stays as it is.</description>
         <in-parameters>
+            <parameter name="app" default-value="commons"><description>commons or projects (get#TaskAccess)</description></parameter>
             <parameter name="workEffortId" required="true"/>
             <parameter name="workEffortName"/>
             <parameter name="purposeEnumId"/>
@@ -609,7 +644,7 @@ along with this software (see the LICENSE.md file). If not, see
         </in-parameters>
         <out-parameters><parameter name="message"/></out-parameters>
         <actions>
-            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'update'}" out-map="access"/>
+            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'update', app:app}" out-map="access"/>
             <if condition="ec.message.hasError()"><return/></if>
             <script><![CDATA[
                 const fields = {workEffortId: workEffortId}
@@ -624,7 +659,7 @@ along with this software (see the LICENSE.md file). If not, see
                     if (ec.message.hasError()) return
                 }
                 if (priority != null && String(priority).trim() !== '' && String(priority) !== String(access.workEffort.priority ?? '')) {
-                    ec.service.sync().name('ironstone.TaskServices.update#TaskField').parameters({workEffortId: workEffortId, field: 'priority', value: priority}).call()
+                    ec.service.sync().name('ironstone.TaskServices.update#TaskField').parameters({workEffortId: workEffortId, field: 'priority', value: priority, app: app}).call()
                     if (ec.message.hasError()) return
                 }
                 if (dueDate != null) {
@@ -632,7 +667,7 @@ along with this software (see the LICENSE.md file). If not, see
                     const oldText = old != null && old !== '' ? ec.l10n.format(old, 'yyyy-MM-dd') : ''
                     const text = String(dueDate).trim().substring(0, 10)
                     if (text !== oldText) {
-                        ec.service.sync().name('ironstone.TaskServices.update#TaskField').parameters({workEffortId: workEffortId, field: 'due', value: text}).call()
+                        ec.service.sync().name('ironstone.TaskServices.update#TaskField').parameters({workEffortId: workEffortId, field: 'due', value: text, app: app}).call()
                         if (ec.message.hasError()) return
                     }
                 }
@@ -646,10 +681,13 @@ along with this software (see the LICENSE.md file). If not, see
             (mantle.work.WorkEffortServices.snooze#UserTodayItem unsnooze), and a task with no due date or due after today is
             made due today, keeping the time of day of its due date (which only its owner or an assignee may change). The user
             must be on the task, as Today shows only those.</description>
-        <in-parameters><parameter name="workEffortId" required="true"/></in-parameters>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="app" default-value="commons"><description>commons or projects (get#TaskAccess)</description></parameter>
+        </in-parameters>
         <out-parameters><parameter name="message"/><parameter name="dueChanged" type="Boolean"/></out-parameters>
         <actions>
-            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'view'}" out-map="access"/>
+            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'view', app:app}" out-map="access"/>
             <if condition="ec.message.hasError()"><return/></if>
             <if condition="!access.isParty"><return error="true" message="Today has the tasks you are on: assign this one to yourself first"/></if>
             <if condition="['WeComplete', 'WeClosed', 'WeCancelled'].includes(access.workEffort.statusId)">
@@ -666,7 +704,7 @@ along with this software (see the LICENSE.md file). If not, see
                         ec.message.addError(ec.l10n.localize('Only the owner or an assignee may make this task due today'))
                         return
                     }
-                    ec.service.sync().name('ironstone.TaskServices.update#TaskField').parameters({workEffortId: workEffortId, field: 'due', value: todayText}).call()
+                    ec.service.sync().name('ironstone.TaskServices.update#TaskField').parameters({workEffortId: workEffortId, field: 'due', value: todayText, app: app}).call()
                     if (ec.message.hasError()) return
                     dueChanged = true
                 }
@@ -682,12 +720,13 @@ along with this software (see the LICENSE.md file). If not, see
         <description>The task to another assignee (mantle.work.WorkEffortServices.replace#WorkEffortParty, role Assignee, status
             Assigned): the current assignees end, the new one is added; by the owner or an assignee.</description>
         <in-parameters>
+            <parameter name="app" default-value="commons"><description>commons or projects (get#TaskAccess)</description></parameter>
             <parameter name="workEffortId" required="true"/>
             <parameter name="assignToPartyId" required="true"/>
         </in-parameters>
         <out-parameters><parameter name="message"/></out-parameters>
         <actions>
-            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'update'}" out-map="access"/>
+            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'update', app:app}" out-map="access"/>
             <if condition="ec.message.hasError()"><return/></if>
             <entity-find-one entity-name="mantle.party.PartyDetail" value-field="assignee"><field-map field-name="partyId" from="assignToPartyId"/></entity-find-one>
             <if condition="assignee == null || assignee.disabled == 'Y' || (assignee.privateOwnerUserId &amp;&amp; assignee.privateOwnerUserId != ec.user.userId)">
@@ -789,7 +828,13 @@ along with this software (see the LICENSE.md file). If not, see
             is on, the sub-tasks (decorated), the user's time entries on it with the open one, the totals, and the actions
             that apply: canUpdate (owner or assignee), canDelete (the owner, with no time logged and no sub-tasks), and the
             add to today of the row.</description>
-        <in-parameters><parameter name="workEffortId" required="true"/></in-parameters>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="app" default-value="commons"><description>commons or projects (get#TaskAccess): in projects the
+                status-bar has the stages of the item's flow and every move of it, and the owner or a manager of the project may
+                delete it</description></parameter>
+            <parameter name="detailPath" default-value="/qapps/Commons/Tasks/TaskDetail"><description>The screen the links to a task go to</description></parameter>
+        </in-parameters>
         <out-parameters>
             <parameter name="found" type="Boolean"/>
             <parameter name="visible" type="Boolean"/>
@@ -807,9 +852,11 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="canUpdate" type="Boolean"/>
             <parameter name="canDelete" type="Boolean"/>
             <parameter name="isOwner" type="Boolean"/>
+            <parameter name="isMember" type="Boolean"/>
+            <parameter name="canManage" type="Boolean"/>
         </out-parameters>
         <actions>
-            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'check'}" out-map="access"/>
+            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'check', app:app}" out-map="access"/>
             <set field="found" from="!!access.found"/>
             <set field="visible" from="!!access.visible"/>
             <if condition="!visible"><return/></if>
@@ -820,18 +867,20 @@ along with this software (see the LICENSE.md file). If not, see
                 const workEffort = access.workEffort
                 canUpdate = !!access.canUpdate
                 isOwner = !!access.isOwner
+                isMember = !!access.isMember
+                canManage = !!access.canManage
                 const toMillis = (value) => value == null || value === '' ? null : (/^-?\d+$/.test(String(value)) ? Number(String(value)) : Date.parse(String(value)))
                 const fmt = (millis, format) => ec.l10n.format(new Date(Number(millis)), format)
                 const partyName = (party) => party ? (party.organizationName || [party.firstName, party.lastName].filter((name) => name).join(' ') ||
                         party.pseudoId || party.partyId) : null
-                const decorate = (list) => ec.service.sync().name('ironstone.TaskServices.decorate#TaskRows').parameters({taskList: list}).call()?.rowList || []
+                const decorate = (list) => ec.service.sync().name('ironstone.TaskServices.decorate#TaskRows').parameters({taskList: list, detailPath: detailPath}).call()?.rowList || []
 
                 task = Object.assign({}, decorate([workEffort])[0] || {}, {description: workEffort.description || '', ownerPartyId: workEffort.ownerPartyId || null,
                     isWatcher: !!access.isWatcher, roleList: access.roleList || []})
                 if (workEffort.parentWorkEffortId) {
                     const parent = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', workEffort.parentWorkEffortId).one()
                     task.parentName = parent ? (parent.workEffortName || parent.workEffortId) : workEffort.parentWorkEffortId
-                    task.parentUrl = parent && parent.workEffortTypeEnumId === 'WetTask' ? '/qapps/Commons/Tasks/TaskDetail?workEffortId=' + encodeURIComponent(parent.workEffortId) : null
+                    task.parentUrl = parent && parent.workEffortTypeEnumId === 'WetTask' ? detailPath + '?workEffortId=' + encodeURIComponent(parent.workEffortId) : null
                 }
                 // the status-bar: the Commons stages, the transitions of the flow the user may take (its own flow, else its project's)
                 statusFlowId = workEffort.statusFlowId || null
@@ -840,6 +889,17 @@ along with this software (see the LICENSE.md file). If not, see
                 statusFlowId = statusFlowId || 'Default'
                 stageStatusIds = ['WeInPlanning', 'WeInProgress', 'WeComplete']
                 allowedStatusIds = canUpdate ? ['WeInPlanning', 'WeInProgress', 'WeOnHold', 'WeComplete', 'WeCancelled'] : []
+                if (app === 'projects') {
+                    // Projects: the stages of the item's flow (the development flow's review and testing too) and each move of it
+                    const flow = ec.service.sync().name('mantle.work.TaskServices.get#TaskStatusFlow').parameters({workEffortId: workEffortId}).call() || {}
+                    statusFlowId = flow.statusFlowId || statusFlowId
+                    stageStatusIds = Array.from(flow.flowStatusIds || []).filter((id) => !['WeOnHold', 'WeCancelled', 'WeClosed'].includes(id))
+                    allowedStatusIds = canUpdate ? Array.from(flow.transitionList || []).map((transition) => transition.toStatusId) : []
+                } else if (['WeInReview', 'WeInTesting'].includes(workEffort.statusId)) {
+                    // a task of a development project: its review and testing stages in Commons too
+                    stageStatusIds = ['WeInPlanning', 'WeInProgress', 'WeInReview', 'WeInTesting', 'WeComplete']
+                    if (canUpdate) allowedStatusIds = allowedStatusIds.concat(['WeInReview', 'WeInTesting'])
+                }
 
                 // the parties: owner, assignees, watchers and the others
                 partyList = []
@@ -921,14 +981,14 @@ along with this software (see the LICENSE.md file). If not, see
                             const otherTask = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', other.workEffortId).one()
                             otherOpenTimeEntry = {timeEntryId: other.timeEntryId, workEffortId: other.workEffortId, workEffortName: otherTask?.workEffortName || other.workEffortId,
                                 sinceText: fmt(toMillis(other.fromDate), 'MMM d, h:mm a'),
-                                url: '/qapps/Commons/Tasks/TaskDetail?workEffortId=' + encodeURIComponent(other.workEffortId) + '&tab=time'}
+                                url: detailPath + '?workEffortId=' + encodeURIComponent(other.workEffortId) + '&tab=time'}
                         }
                     }
                 }
                 myHoursText = ec.l10n.format(myHours, '#,##0.00')
                 const hasTime = ec.entity.find('mantle.work.time.TimeEntry').condition('workEffortId', workEffortId).count() > 0
                 const hasChildren = ec.entity.find('mantle.work.effort.WorkEffort').condition('parentWorkEffortId', workEffortId).count() > 0
-                canDelete = isOwner && !hasTime && !hasChildren
+                canDelete = (isOwner || canManage) && !hasTime && !hasChildren
             ]]></script>
         </actions>
     </service>
@@ -937,13 +997,14 @@ along with this software (see the LICENSE.md file). If not, see
         <description>A sub-task of the task (parentWorkEffortId, the same project), for the user, due on dueDate; by the task's
             owner or an assignee.</description>
         <in-parameters>
+            <parameter name="app" default-value="commons"><description>commons or projects (get#TaskAccess)</description></parameter>
             <parameter name="workEffortId" required="true"><description>The parent task</description></parameter>
             <parameter name="workEffortName" required="true"/>
             <parameter name="dueDate"/>
         </in-parameters>
         <out-parameters><parameter name="subTaskId"/><parameter name="message"/></out-parameters>
         <actions>
-            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'update'}" out-map="access"/>
+            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'update', app:app}" out-map="access"/>
             <if condition="ec.message.hasError()"><return/></if>
             <service-call name="ironstone.QuickCreateServices.create#Task" out-map="created"
                     in-map="{workEffortName:workEffortName.trim(), estimatedCompletionDate:(dueDate ? String(dueDate).trim() : null)}"/>
@@ -959,10 +1020,13 @@ along with this software (see the LICENSE.md file). If not, see
         <description>A copy of the task for the user (mantle.work.WorkEffortServices.clone#WorkEffort): In Planning, the same name
             with "(copy)", description, purpose, priority, due date, estimate, project and parent, with its files and notes but
             no time, no actual dates and no parties; the user's party owns it and is its assignee; on the same records.</description>
-        <in-parameters><parameter name="workEffortId" required="true"/></in-parameters>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="app" default-value="commons"><description>commons or projects (get#TaskAccess)</description></parameter>
+        </in-parameters>
         <out-parameters><parameter name="newWorkEffortId"/><parameter name="url"/><parameter name="message"/></out-parameters>
         <actions>
-            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'view'}" out-map="access"/>
+            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'view', app:app}" out-map="access"/>
             <if condition="ec.message.hasError()"><return/></if>
             <set field="base" from="access.workEffort"/>
             <set field="cloneName" from="ec.resource.expand('${name} (copy)', '', {name:(base.workEffortName || workEffortId)})"/>
@@ -993,12 +1057,13 @@ along with this software (see the LICENSE.md file). If not, see
             (mantle.request.RequestServices.create#Request), its customer the party the task is on when it is on one, linked to
             the task by RequestWorkEffort. The task stays as it is; the request opens to be completed and submitted.</description>
         <in-parameters>
+            <parameter name="app" default-value="commons"><description>commons or projects (get#TaskAccess)</description></parameter>
             <parameter name="workEffortId" required="true"/>
             <parameter name="requestTypeEnumId" default-value="RqtSupport"/>
         </in-parameters>
         <out-parameters><parameter name="requestId"/><parameter name="url"/><parameter name="message"/></out-parameters>
         <actions>
-            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'view'}" out-map="access"/>
+            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'view', app:app}" out-map="access"/>
             <if condition="ec.message.hasError()"><return/></if>
             <entity-find entity-name="mantle.work.effort.WorkEffortRecord" list="partyLinkList" limit="1">
                 <econdition field-name="workEffortId"/><econdition field-name="recordEntityName" value="mantle.party.Party"/></entity-find>
@@ -1017,12 +1082,15 @@ along with this software (see the LICENSE.md file). If not, see
         <description>Delete own: a task the user created (owns) with no time logged, no sub-tasks, no comments and no files
             (mantle.work.WorkEffortServices.delete#WorkEffort with its parties, after its record links and followers, which
             are links only). Anything else is refused: cancel the task instead.</description>
-        <in-parameters><parameter name="workEffortId" required="true"/></in-parameters>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="app" default-value="commons"><description>commons or projects (get#TaskAccess)</description></parameter>
+        </in-parameters>
         <out-parameters><parameter name="message"/></out-parameters>
         <actions>
-            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'view'}" out-map="access"/>
+            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'view', app:app}" out-map="access"/>
             <if condition="ec.message.hasError()"><return/></if>
-            <if condition="!access.isOwner"><return error="true" message="Only the task's owner may delete it; cancel it instead"/></if>
+            <if condition="!access.isOwner &amp;&amp; !access.canManage"><return error="true" message="Only the task's owner may delete it; cancel it instead"/></if>
             <script><![CDATA[
                 const refuse = (why) => ec.message.addError(ec.resource.expand('Task ${workEffortId} has ${why}, so it is not deleted: cancel it instead', '',
                         {workEffortId: workEffortId, why: ec.l10n.localize(why)}))
@@ -1055,12 +1123,13 @@ along with this software (see the LICENSE.md file). If not, see
         <description>Clock in on the task (mantle.work.TimeServices.create#TimeEntryClockIn, from now), for an owner or assignee
             with no entry open on it.</description>
         <in-parameters>
+            <parameter name="app" default-value="commons"><description>commons or projects (get#TaskAccess)</description></parameter>
             <parameter name="workEffortId" required="true"/>
             <parameter name="comments"/>
         </in-parameters>
         <out-parameters><parameter name="timeEntryId"/><parameter name="message"/></out-parameters>
         <actions>
-            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'update'}" out-map="access"/>
+            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'update', app:app}" out-map="access"/>
             <if condition="ec.message.hasError()"><return/></if>
             <entity-find entity-name="mantle.work.time.TimeEntry" list="openList" limit="1">
                 <econdition field-name="workEffortId"/><econdition field-name="partyId" from="ec.user.userAccount.partyId"/>
@@ -1077,10 +1146,13 @@ along with this software (see the LICENSE.md file). If not, see
     <service verb="clockOut" noun="Task">
         <description>Clock out: the user's open entry on the task ends now (mantle.work.TimeServices.store#TimeEntry, which counts
             the hours and the rates and lowers the remaining time).</description>
-        <in-parameters><parameter name="workEffortId" required="true"/></in-parameters>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="app" default-value="commons"><description>commons or projects (get#TaskAccess)</description></parameter>
+        </in-parameters>
         <out-parameters><parameter name="hours" type="BigDecimal"/><parameter name="message"/></out-parameters>
         <actions>
-            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'update'}" out-map="access"/>
+            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'update', app:app}" out-map="access"/>
             <if condition="ec.message.hasError()"><return/></if>
             <entity-find entity-name="mantle.work.time.TimeEntry" list="openList" limit="1">
                 <econdition field-name="workEffortId"/><econdition field-name="partyId" from="ec.user.userAccount.partyId"/>
@@ -1099,6 +1171,7 @@ along with this software (see the LICENSE.md file). If not, see
         <description>Add time: hours on a day (fromDate, by default now less the hours) with a comment, for an owner or assignee
             (mantle.work.TaskServices.add#TaskTime).</description>
         <in-parameters>
+            <parameter name="app" default-value="commons"><description>commons or projects (get#TaskAccess)</description></parameter>
             <parameter name="workEffortId" required="true"/>
             <parameter name="hours" type="BigDecimal" required="true"/>
             <parameter name="fromDate" type="Timestamp"/>
@@ -1106,7 +1179,7 @@ along with this software (see the LICENSE.md file). If not, see
         </in-parameters>
         <out-parameters><parameter name="timeEntryId"/><parameter name="message"/></out-parameters>
         <actions>
-            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'update'}" out-map="access"/>
+            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'update', app:app}" out-map="access"/>
             <if condition="ec.message.hasError()"><return/></if>
             <if condition="!(toDecimal(hours).compare(0) &gt; 0 &amp;&amp; toDecimal(hours).compare(24) &lt;= 0)"><return error="true" message="Hours are more than 0 and at most 24"/></if>
             <service-call name="mantle.work.TaskServices.add#TaskTime" out-map="timeOut" in-map="{workEffortId:workEffortId, partyId:ec.user.userAccount.partyId,
@@ -1121,12 +1194,13 @@ along with this software (see the LICENSE.md file). If not, see
         <description>Removes one of the user's own time entries on the task that is not invoiced (mantle.work.TimeServices
             delete#TimeEntry).</description>
         <in-parameters>
+            <parameter name="app" default-value="commons"><description>commons or projects (get#TaskAccess)</description></parameter>
             <parameter name="workEffortId" required="true"/>
             <parameter name="timeEntryId" required="true"/>
         </in-parameters>
         <out-parameters><parameter name="message"/></out-parameters>
         <actions>
-            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'view'}" out-map="access"/>
+            <service-call name="ironstone.TaskServices.get#TaskAccess" in-map="{workEffortId:workEffortId, need:'view', app:app}" out-map="access"/>
             <if condition="ec.message.hasError()"><return/></if>
             <entity-find-one entity-name="mantle.work.time.TimeEntry" value-field="entry"/>
             <if condition="entry == null || entry.workEffortId != workEffortId || entry.partyId != ec.user.userAccount?.partyId">

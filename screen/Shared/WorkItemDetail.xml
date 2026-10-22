@@ -1,0 +1,1047 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- WorkItemDetail (design-projects.md §5 WorkItemDetail, the Task / work item screen of research-crosscut §3.12; style-guide §3.3
+    Detail): one task or work item, mounted by Commons at Commons/Tasks/TaskDetail and by Projects at
+    Projects/WorkItems/WorkItemDetail; the app root's appRoot chooses the context (design §5 "Per-app context").
+
+    Commons (design-drawers-commons.md §8 TaskDetail, service/ironstone/TaskServices.xml get#TaskDetail): the name, the status as
+    a row of stage chips with the next status as the primary action and Hold and Cancel beside it (the framework's status-bar),
+    the due date, the priority and the assignees, and the actions Reassign, Set due, Add to Today, and in More Clone, Convert to
+    request and Delete (own, with no time logged). The tabs: Overview (description, purpose, project, the records the task is
+    on, its people), Sub-tasks (the children, add one), Time (the user's entries, clock in and out, add time), Files (record
+    files) and Chatter, which is the right column of the overview from 1440 px and a tab below (opening on Log note). The
+    planning fields are left out. The changes are for the task's owner and assignees.
+
+    Projects (service/ironstone/WorkItemServices.xml get#WorkItemDetail): above the title the item's path (the project, then
+    each ancestor); the type icon, the key and the title; the status-bar of the item's flow (the development flow's In Review
+    and In Testing too); the facts (assignees, due, priority, its estimate and the one with sub-items, milestone, release,
+    sprint, labels) and the repeat rule in words. Actions: Assign to me, Reassign, Set due, Edit (every field of Details,
+    the parent and the plan items included), Repeat and Stop repeating, Watch or Unwatch, Move to project, and in More Clone,
+    Convert to request and Delete (the owner or the project's manager, with no time or sub-items). The tabs: Overview
+    (description, details, labels, requests, linked records, people; Chatter beside it from 1440 px), Sub-items (the subtree
+    as a view-tree, one level per open, with roll-ups, drag and Tab to move within it, and a quick-add row), Links (relations
+    by kind, a dependency with its lag), Time (the user's own entries, as Commons; everyone's time, rates and Log time are
+    impl-projects.md P6), Files and Chatter. The Development tab (branches, commits, merge requests) is P3b and not shown yet.
+    The team of the item's project, its owner and assignees may change it (ironstone.TaskServices.get#TaskAccess app
+    projects). With peek=true (WorkItems' Peek pane, whose bar has Open full) it renders compact: the title row, the facts, then the
+    description, the sub-items and Chatter one under the other (the tabs would load the whole page, not the pane).
+
+    An item the user may not see is "not available" (IronStone R5, R28; in Projects the project's visibility, impl-projects.md
+    F1). The keys of design §1.4 (a, s, t, b, m) wait for a screen-level key binding of the framework. -->
+<screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
+        default-menu-title="Work item" default-menu-include="false">
+
+    <parameter name="workEffortId" required="true"/>
+    <parameter name="tab"/>
+    <parameter name="peek"/>
+
+    <transition name="tasks"><default-response url="../List"/></transition>
+
+    <!-- ========== changes, each showing the item again on its tab ========== -->
+    <transition name="changeStatus">
+        <actions>
+            <service-call name="ironstone.TaskServices.set#TaskStatus" out-map="statusOut" in-map="{workEffortId:workEffortId, toStatusId:toStatusId,
+                    resolutionEnumId:(resolutionEnumId || null), stopRepeating:(stopRepeating || null), app:(appRoot == 'Projects' ? 'projects' : 'commons')}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(statusOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="tab"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="updateTask">
+        <actions>
+            <service-call name="ironstone.TaskServices.update#TaskInfo" out-map="updateOut" in-map="{workEffortId:workEffortId, workEffortName:workEffortName,
+                    purposeEnumId:purposeEnumId, description:description, priority:priority, dueDate:dueDate, app:(appRoot == 'Projects' ? 'projects' : 'commons')}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(updateOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="tab"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="setDue">
+        <actions>
+            <service-call name="ironstone.TaskServices.update#TaskField" out-map="dueOut" in-map="{workEffortId:workEffortId, field:'due', value:(dueDate || ''),
+                    app:(appRoot == 'Projects' ? 'projects' : 'commons')}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(dueOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="tab"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="reassign">
+        <actions>
+            <service-call name="ironstone.TaskServices.reassign#Task" out-map="reassignOut" in-map="{workEffortId:workEffortId, assignToPartyId:assignToPartyId,
+                    app:(appRoot == 'Projects' ? 'projects' : 'commons')}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(reassignOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="tab"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="addToToday">
+        <actions>
+            <service-call name="ironstone.TaskServices.add#TaskToToday" out-map="todayOut" in-map="{workEffortId:workEffortId, app:(appRoot == 'Projects' ? 'projects' : 'commons')}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(todayOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="tab"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="cloneTask">
+        <actions>
+            <service-call name="ironstone.TaskServices.clone#Task" out-map="cloneOut" in-map="{workEffortId:workEffortId, app:(appRoot == 'Projects' ? 'projects' : 'commons')}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(cloneOut.message, 'success')</script></if>
+        </actions>
+        <conditional-response url="." condition="cloneOut?.newWorkEffortId"><parameter name="workEffortId" from="cloneOut.newWorkEffortId"/></conditional-response>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="convertToRequest">
+        <actions>
+            <service-call name="ironstone.TaskServices.convert#TaskToRequest" out-map="convertOut" in-map="{workEffortId:workEffortId, app:(appRoot == 'Projects' ? 'projects' : 'commons')}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(convertOut.message, 'success')</script></if>
+        </actions>
+        <conditional-response url="//Commons/Requests/RequestDetail" condition="convertOut?.requestId">
+            <parameter name="requestId" from="convertOut.requestId"/></conditional-response>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="deleteTask">
+        <actions>
+            <service-call name="ironstone.TaskServices.delete#OwnTask" out-map="deleteOut" in-map="{workEffortId:workEffortId, app:(appRoot == 'Projects' ? 'projects' : 'commons')}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(deleteOut.message, 'success')</script></if>
+        </actions>
+        <conditional-response url="../List" condition="deleteOut?.message"/>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <!-- sub-tasks (Commons): subTaskId is the sub-task, workEffortId stays the task shown -->
+    <transition name="addSubTask">
+        <actions>
+            <service-call name="ironstone.TaskServices.add#SubTask" out-map="subOut" in-map="{workEffortId:workEffortId, workEffortName:(workEffortName || ''),
+                    dueDate:(dueDate || null), app:(appRoot == 'Projects' ? 'projects' : 'commons')}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(subOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="tab" value="subtasks"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="toggleSubTask">
+        <actions>
+            <service-call name="ironstone.TaskServices.toggle#TaskDone" out-map="doneOut" in-map="{workEffortId:subTaskId, app:(appRoot == 'Projects' ? 'projects' : 'commons')}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(doneOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="tab" value="subtasks"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <!-- time -->
+    <transition name="clockIn">
+        <actions>
+            <service-call name="ironstone.TaskServices.clockIn#Task" out-map="timeOut" in-map="{workEffortId:workEffortId, comments:comments, app:(appRoot == 'Projects' ? 'projects' : 'commons')}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(timeOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="tab" value="time"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="clockOut">
+        <actions>
+            <service-call name="ironstone.TaskServices.clockOut#Task" out-map="timeOut" in-map="{workEffortId:workEffortId, app:(appRoot == 'Projects' ? 'projects' : 'commons')}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(timeOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="tab" value="time"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="addTime">
+        <actions>
+            <service-call name="ironstone.TaskServices.add#TimeOnTask" out-map="timeOut" in-map="{workEffortId:workEffortId, hours:hours,
+                    fromDate:(fromDate || null), comments:comments, app:(appRoot == 'Projects' ? 'projects' : 'commons')}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(timeOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="tab" value="time"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="deleteTime">
+        <actions>
+            <service-call name="ironstone.TaskServices.delete#MyTimeEntry" out-map="timeOut" in-map="{workEffortId:workEffortId, timeEntryId:timeEntryId,
+                    app:(appRoot == 'Projects' ? 'projects' : 'commons')}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(timeOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="tab" value="time"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <!-- the people of the reassign drop-down -->
+    <transition name="assigneeSearch" read-only="true">
+        <actions>
+            <service-call name="ironstone.TaskServices.search#Assignees" in-map="{term:term}" out-map="found"/>
+            <script>ec.web.sendJsonResponse(found.optionList || [])</script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+
+    <!-- ========== Projects: the fields, labels, repeat, links, sub-items ========== -->
+    <!-- the Edit dialog: each field that changed, through update#WorkItemField; the first refused stops it -->
+    <transition name="saveWorkItem">
+        <actions><script><![CDATA[
+            const detail = ec.service.sync().name('ironstone.WorkItemServices.get#WorkItemDetail').parameters({workEffortId: workEffortId}).call() || {}
+            if (!ec.message.hasError() && detail.detail?.visible) {
+                const task = detail.detail.task || {}
+                const item = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', workEffortId).one()
+                const day = (value) => value == null || value === '' ? '' : ec.l10n.format(value, 'yyyy-MM-dd')
+                const num = (value) => value == null || value === '' ? '' : String(Number(String(value)))
+                const current = {title: item.workEffortName || '', type: item.purposeEnumId || '', priority: item.priority != null ? String(item.priority) : '',
+                    start: day(item.estimatedStartDate), due: day(item.estimatedCompletionDate), estimate: num(item.estimatedWorkTime), remaining: num(item.remainingWorkTime),
+                    points: num(item.estimatedPoints), budget: num(item.totalTimeAllowed), visibility: item.visibilityEnumId || '',
+                    milestone: detail.planItems?.milestone?.workEffortId || '', release: detail.planItems?.release?.workEffortId || '',
+                    component: detail.planItems?.component?.workEffortId || '', parent: item.parentWorkEffortId || '', description: item.description || '',
+                    resolution: item.resolutionEnumId || ''}
+                const posted = {title: workEffortName, type: purposeEnumId, priority: priority, start: estimatedStartDate, due: estimatedCompletionDate,
+                    estimate: estimatedWorkTime, remaining: remainingWorkTime, points: estimatedPoints, budget: totalTimeAllowed, visibility: visibilityEnumId,
+                    milestone: milestoneId, release: releaseId, component: componentId, parent: parentWorkEffortId, description: description, resolution: resolutionEnumId}
+                let changed = 0
+                for (const field of Object.keys(posted)) {
+                    if (posted[field] === undefined || posted[field] === null) continue
+                    const value = String(posted[field]).trim()
+                    const before = field === 'due' || field === 'start' ? current[field] : field === 'estimate' || field === 'remaining' || field === 'points' || field === 'budget'
+                            ? current[field] : current[field]
+                    const same = ['estimate', 'remaining', 'points', 'budget'].includes(field) ? (value === '' ? before === '' : before !== '' && Number(value) === Number(before))
+                            : value === before
+                    if (same) continue
+                    ec.service.sync().name('ironstone.WorkItemServices.update#WorkItemField').parameters({workEffortId: workEffortId, field: field === 'resolution' ? 'resolution' : field,
+                        value: value}).call()
+                    if (ec.message.hasError()) break
+                    changed++
+                }
+                if (!ec.message.hasError()) ec.message.addMessage(changed ? ec.l10n.localize('Work item saved') : ec.l10n.localize('Nothing changed'), 'success')
+            }
+        ]]></script></actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="tab"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="assignToMe">
+        <actions>
+            <service-call name="ironstone.WorkItemServices.update#WorkItemField" out-map="fieldOut"
+                    in-map="{workEffortId:workEffortId, field:'assignee', value:ec.user.userAccount?.partyId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(fieldOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="tab"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="addLabel">
+        <actions>
+            <service-call name="ironstone.WorkItemServices.update#WorkItemField" out-map="fieldOut" in-map="{workEffortId:workEffortId, field:'label', value:labelId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(fieldOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="tab"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="removeLabel">
+        <actions>
+            <service-call name="ironstone.WorkItemServices.update#WorkItemField" out-map="fieldOut" in-map="{workEffortId:workEffortId, field:'unlabel', value:labelId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(fieldOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="tab"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="setRepeat">
+        <actions>
+            <service-call name="ironstone.WorkItemServices.set#WorkItemRecurrence" out-map="repeatOut" in-map="{workEffortId:workEffortId, frequency:(frequency || null),
+                    interval:(interval || 1), byDay:(byDay || null), byMonthDay:(byMonthDay || null), count:(count || null), until:(until || null),
+                    fromCompletion:(fromCompletion || 'N')}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(repeatOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="tab"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="watch">
+        <actions>
+            <service-call name="ironstone.ChatterServices.follow#Record" out-map="followOut" in-map="{recordEntityName:'mantle.work.effort.WorkEffort', recordId:workEffortId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(followOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="tab"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="unwatch">
+        <actions>
+            <service-call name="ironstone.ChatterServices.unfollow#Record" out-map="followOut" in-map="{recordEntityName:'mantle.work.effort.WorkEffort', recordId:workEffortId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(followOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="tab"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="moveToProject">
+        <actions>
+            <service-call name="ironstone.WorkItemServices.bulk#WorkItems" out-map="moveOut" in-map="{action:'moveToProject', workEffortIds:[workEffortId], value:rootWorkEffortId}"/>
+            <script><![CDATA[
+                if (!ec.message.hasError()) {
+                    if (moveOut.failedCount) ec.message.addError(moveOut.failures[0].reason)
+                    else ec.message.addMessage(ec.resource.expand('${workEffortId} moved to ${project} with its sub-items', '', {workEffortId, project: rootWorkEffortId}), 'success')
+                }
+            ]]></script>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="addLink">
+        <actions>
+            <service-call name="ironstone.WorkItemServices.add#WorkItemLink" out-map="linkOut" in-map="{workEffortId:workEffortId, kind:kind,
+                    otherWorkEffortId:otherWorkEffortId, lagDays:(lagDays || null)}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(linkOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="tab" value="links"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="removeLink">
+        <actions>
+            <service-call name="ironstone.WorkItemServices.remove#WorkItemLink" out-map="linkOut" in-map="{workEffortId:workEffortId, fromWorkEffortId:fromWorkEffortId,
+                    toWorkEffortId:toWorkEffortId, workEffortAssocTypeEnumId:workEffortAssocTypeEnumId}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(linkOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="tab" value="links"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <transition name="addSubItem">
+        <actions>
+            <service-call name="ironstone.WorkItemServices.quickAdd#WorkItem" out-map="addOut" in-map="{parentWorkEffortId:(underId || workEffortId),
+                    workEffortName:(workEffortName || ''), purposeEnumId:(purposeEnumId || null), assignToPartyId:(assignToPartyId || null),
+                    estimatedWorkTime:(estimatedWorkTime || null)}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(addOut.message, 'success')</script></if>
+        </actions>
+        <default-response url="."><parameter name="workEffortId"/><parameter name="tab" value="subitems"/></default-response>
+        <error-response url="."/>
+    </transition>
+    <!-- the sub-item tree (view-tree): a level of the subtree, as JSON, and a move within it, which posts the row (subItemId),
+        its new parent (empty: the item shown) and its new previous sibling -->
+    <transition name="subItemLevel" read-only="true">
+        <actions><script><![CDATA[
+            const level = ec.service.sync().name('mantle.work.ProjectServices.get#WorkItemTree').parameters({parentWorkEffortId: parentWorkEffortId || workEffortId}).call() || {}
+            const rows = Array.from(level.workItemList || [])
+            const decorated = rows.length ? (ec.service.sync().name('ironstone.WorkItemServices.decorate#WorkItemRows').parameters({taskList: rows}).call()?.rowList || []) : []
+            ec.web.sendJsonResponse({subItemList: decorated.map((row) => Object.assign(row, {subItemId: row.workEffortId,
+                parentWorkEffortId: row.parentWorkEffortId === workEffortId ? '' : row.parentWorkEffortId}))})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="moveSubItem" method="post">
+        <parameter name="workEffortId"/>
+        <actions><script><![CDATA[
+            const access = ec.service.sync().name('ironstone.TaskServices.get#TaskAccess').parameters({workEffortId: subItemId, need: 'update', app: 'projects'}).call()
+            let out = null
+            if (!ec.message.hasError()) out = ec.service.sync().name('mantle.work.TaskServices.move#Task').parameters({workEffortId: subItemId,
+                parentWorkEffortId: parentWorkEffortId || workEffortId, previousSiblingId: previousSiblingId || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: ec.resource.expand('${id} moved', '', {id: subItemId})}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="parentSearch" read-only="true">
+        <actions>
+            <service-call name="ironstone.WorkItemServices.search#ParentOptions" in-map="{workEffortId:workEffortId, term:term}" out-map="found"/>
+            <script>ec.web.sendJsonResponse([{value: '', label: ec.l10n.localize('None (a top-level item)')}].concat(found.optionList || []))</script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+
+    <actions>
+        <script><![CDATA[
+            projects = appRoot === 'Projects'
+            appKey = projects ? 'projects' : 'commons'
+            compact = peek === 'true'
+            detailPath = projects ? '/qapps/Projects/WorkItems/WorkItemDetail' : '/qapps/Commons/Tasks/TaskDetail'
+            const tabKeys = projects ? ['overview', 'subitems', 'links', 'time', 'files', 'chatter'] : ['overview', 'subtasks', 'time', 'files', 'chatter']
+            tab = tabKeys.includes(tab) ? tab : 'overview'
+            let extra = {}
+            if (projects) {
+                extra = ec.service.sync().name('ironstone.WorkItemServices.get#WorkItemDetail').parameters({workEffortId: workEffortId}).call() || {}
+                detail = extra.detail || {}
+            } else {
+                detail = ec.service.sync().name('ironstone.TaskServices.get#TaskDetail').parameters({workEffortId: workEffortId}).call() || {}
+            }
+            recordFound = !!detail.visible
+            if (!recordFound) return
+            const L = (text) => ec.l10n.localize(text)
+            const enc = (text) => String(text == null ? '' : text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+            task = detail.task
+            canUpdate = !!detail.canUpdate
+            canDelete = !!detail.canDelete
+            parentTaskId = workEffortId
+            // the status-bar: the stages and the statuses the user may move the task to
+            statusFlowId = detail.statusFlowId || 'Default'
+            stageStatusIds = detail.stageStatusIds || []
+            allowedStatusIds = detail.allowedStatusIds || []
+            subTaskList = detail.subTaskList || []
+            timeEntryList = detail.timeEntryList || []
+            openTimeEntry = detail.openTimeEntry
+            otherOpenTimeEntry = detail.otherOpenTimeEntry
+            linkedRecordList = detail.linkedRecordList || []
+            partyList = detail.partyList || []
+            myHoursText = detail.myHoursText
+            captionText = [L('Task') + ' ' + workEffortId, task.purposeLabel, task.projectName ? L('Project') + ': ' + task.projectName : null].filter((part) => part).join(' · ')
+            // the key facts: due, priority, assignees (and in Projects the estimate, plan items and labels)
+            const fact = (label, value, cls) => '<div class="col-auto"><div class="text-caption m-muted">' + enc(L(label)) + '</div><div class="text-body2' + (cls ? ' ' + cls : '') + '">' + value + '</div></div>'
+            const assignees = (task.assigneeList || []).map((party) => '<span class="row inline items-center no-wrap q-mr-sm"><m-avatar name="' + enc(party.name) + '"' + (party.userId ? ' user-id="' + enc(party.userId) + '"' : '') + ' size="22px" class="q-mr-xs"></m-avatar>'
+                    + enc(party.name) + '</span>').join('')
+            factsHtml = '<div class="row q-col-gutter-lg q-mb-sm m-task-facts">'
+                + (projects ? fact('Assignees', assignees || enc(L('Unassigned')), '') : '')
+                + fact('Due', task.dueText ? enc(task.dueText) + (task.overdue ? ' · ' + enc(L('overdue')) : '') : enc(L('No due date')), task.overdue ? 'text-warning text-weight-medium' : '')
+                + fact('Priority', task.priorityText ? enc(task.priorityText) : '—', '')
+                + (!projects ? fact('Assignees', assignees || enc(L('Nobody')), '') : '')
+                + (task.onToday ? fact('Today', '<q-icon name="sym_o_today" size="xs" class="q-mr-xs"></q-icon>' + enc(L('On your Today')), 'text-primary') : '')
+                + (task.isWatcher && !projects ? fact('Following', enc(L('You watch this task')), '') : '')
+            if (projects) {
+                const rollup = extra.rollup || {}
+                const plans = extra.planItems || {}
+                planItems = plans
+                rollupInfo = rollup
+                factsHtml += fact('Estimate', rollup.estimatedText ? enc(rollup.estimatedText) + ' h' : '—', '')
+                if (rollup.childCount) factsHtml += fact('With sub-items', enc(rollup.totalEstimatedText || '0') + ' h · ' + enc(String(rollup.doneCount)) + '/' + enc(String(rollup.itemCount)) + ' ' + enc(L('done')), '')
+                if (rollup.pointsText) factsHtml += fact('Points', enc(rollup.pointsText), '')
+                for (const [key, label] of [['sprint', 'Sprint'], ['milestone', 'Milestone'], ['release', 'Release']])
+                    if (plans[key]) factsHtml += fact(label, enc(plans[key].name), '')
+                const labels = extra.labelList || []
+                if (labels.length) factsHtml += fact('Labels', labels.map((label) => '<q-chip dense square class="q-ma-none q-mr-xs m-tonal text-' + enc(label.colorName) + '">' + enc(label.label) + '</q-chip>').join(''), '')
+            }
+            factsHtml += '</div>'
+            // the tabs: Chatter is a tab only below 1440 px, beside the overview from there
+            const tabs = projects ? [['overview', 'Overview'], ['subitems', 'Sub-items' + ((extra.rollup?.childCount) ? ' (' + extra.rollup.childCount + ')' : '')],
+                    ['links', 'Links' + ((extra.relationList || []).length ? ' (' + extra.relationList.length + ')' : '')], ['time', 'Time'], ['files', 'Files'], ['chatter', 'Chatter']]
+                : [['overview', 'Overview'], ['subtasks', 'Sub-tasks' + (subTaskList.length ? ' (' + subTaskList.length + ')' : '')], ['time', 'Time'], ['files', 'Files'], ['chatter', 'Chatter']]
+            const base = detailPath + '?workEffortId=' + encodeURIComponent(workEffortId)
+            tabsHtml = '<q-tabs dense no-caps inline-label narrow-indicator outside-arrows mobile-arrows align="left" active-color="primary" indicator-color="primary"'
+                    + ' class="text-grey-8 m-task-tabs" model-value="' + enc(tab) + '">' + tabs.map(([key, label]) => {
+                        const cls = key === 'chatter' && tab !== 'chatter' ? ' class="lt-lg"' : ''
+                        return '<q-tab name="' + key + '" label="' + enc(L(label)) + '"' + cls + ' data-tab="' + key + '" @click="$root.setUrl(\'' + enc(base + '&tab=' + key) + '\')"></q-tab>'
+                    }).join('') + '</q-tabs><q-separator class="q-mb-sm"></q-separator>'
+            // the tabs in the terminal: links to this screen with the tab
+            tabsTui = {t: 'row', id: 'TaskTabs', c: tabs.map(([key, label]) => ({t: 'link', id: 'TaskTab_' + key, text: key === tab ? '[' + L(label) + ']' : L(label),
+                url: sri.buildUrl('.').path + base.substring(base.indexOf('?')) + '&tab=' + key}))}
+            linkedRecordsHtml = linkedRecordList.map((record) => '<m-record-card record-entity="' + enc(record.recordEntityName) + '" record-id="' + enc(record.recordId)
+                    + '" card-url="/apps/Commons/Chatter/recordCard" class="q-mb-xs"></m-record-card>').join('')
+            todayText = ec.l10n.format(ec.user.nowTimestamp, 'yyyy-MM-dd')
+            dueEditText = task.dueEditText || ''
+            projectLabel = task.projectName || ''
+
+            if (projects) {
+                const item = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', workEffortId).one()
+                const day = (value) => value == null || value === '' ? '' : ec.l10n.format(value, 'yyyy-MM-dd')
+                const num = (value) => value == null || value === '' ? '' : String(Number(String(value)))
+                const enumText = (id) => id ? (ec.entity.find('moqui.basic.Enumeration').condition('enumId', id).useCache(true).one()?.description || id) : ''
+                canManage = !!detail.canManage
+                typeIcon = extra.typeIcon || 'sym_o_task_alt'
+                breadcrumbList = extra.breadcrumbList || []
+                breadcrumbHtml = '<div class="row items-center q-gutter-x-xs text-caption m-workitem-path">' + breadcrumbList.map((crumb, i) =>
+                        (i ? '<q-icon name="sym_o_chevron_right" size="xs" class="m-muted"></q-icon>' : '') + '<a href="' + enc(crumb.url) + '" @click.prevent="$root.setUrl(\'' + enc(crumb.url) + '\')">'
+                        + enc(crumb.label) + '</a>').join('') + '</div>'
+                labelList = extra.labelList || []
+                relationList = extra.relationList || []
+                requestList = extra.requestList || []
+                subItemList = (extra.subItemList || []).map((row) => Object.assign({}, row, {subItemId: row.workEffortId,
+                    parentWorkEffortId: row.parentWorkEffortId === workEffortId ? '' : row.parentWorkEffortId}))
+                subItemTotals = extra.subItemTotals || {}
+                recurrence = extra.recurrence || null
+                isWatcher = !!task.isWatcher
+                isFollower = ec.entity.find('mantle.party.communication.RecordFollower').condition('recordEntityName', 'mantle.work.effort.WorkEffort')
+                        .condition('recordId', workEffortId).condition('userId', ec.user.userId).count() > 0
+                isDoneItem = ['WeComplete', 'WeClosed', 'WeCancelled'].includes(item.statusId)
+                // the Details and the values of the Edit dialog
+                fields = {workEffortName: item.workEffortName || '', purposeEnumId: item.purposeEnumId || '', priority: item.priority != null ? String(item.priority) : '5',
+                    estimatedStartDate: day(item.estimatedStartDate), estimatedCompletionDate: day(item.estimatedCompletionDate),
+                    estimatedWorkTime: num(item.estimatedWorkTime), remainingWorkTime: num(item.remainingWorkTime), estimatedPoints: num(item.estimatedPoints),
+                    totalTimeAllowed: num(item.totalTimeAllowed), visibilityEnumId: item.visibilityEnumId || '', resolutionEnumId: item.resolutionEnumId || '',
+                    milestoneId: planItems.milestone?.workEffortId || '', releaseId: planItems.release?.workEffortId || '', componentId: planItems.component?.workEffortId || '',
+                    parentWorkEffortId: item.parentWorkEffortId || '', description: item.description || ''}
+                isTopLevel = !item.parentWorkEffortId
+                detailsList = [['Type', task.purposeLabel], ['Status', task.statusLabel], ['Resolution', isDoneItem ? enumText(item.resolutionEnumId) : ''],
+                    ['Priority', task.priorityText], ['Project', task.projectName], ['Parent', item.parentWorkEffortId ? item.parentWorkEffortId + ' ' + (task.parentName || '') : ''],
+                    ['Milestone', planItems.milestone?.name], ['Release', planItems.release?.name], ['Sprint', planItems.sprint?.name], ['Component', planItems.component?.name],
+                    ['Starts', fields.estimatedStartDate], ['Due', fields.estimatedCompletionDate],
+                    ['Estimate', rollupInfo.estimatedText ? rollupInfo.estimatedText + ' h' + (rollupInfo.childCount ? ' (' + (rollupInfo.totalEstimatedText || '0') + ' h ' + L('with sub-items') + ')' : '') : ''],
+                    ['Remaining', rollupInfo.remainingText ? rollupInfo.remainingText + ' h' + (rollupInfo.childCount ? ' (' + (rollupInfo.totalRemainingText || '0') + ' h ' + L('with sub-items') + ')' : '') : ''],
+                    ['Actual', rollupInfo.actualText ? rollupInfo.actualText + ' h' + (rollupInfo.childCount ? ' (' + (rollupInfo.totalActualText || '0') + ' h ' + L('with sub-items') + ')' : '') : ''],
+                    ['% complete', rollupInfo.percentDone != null ? rollupInfo.percentDone + '%' : ''], ['Points', rollupInfo.pointsText],
+                    ['Hours budget', isTopLevel && rollupInfo.budgetText ? rollupInfo.budgetText + ' h' : ''], ['Visibility', enumText(item.visibilityEnumId)],
+                    ['Repeats', recurrence ? recurrence.text : '']]
+                        .filter((entry) => entry[1] != null && entry[1] !== '').map(([label, value]) => ({label: L(label), value: String(value)}))
+                // the drop-downs of the Edit dialog
+                const options = (service, parameters) => ec.service.sync().name(service).parameters(parameters).call()?.optionList || []
+                milestoneOptions = options('ironstone.WorkItemServices.get#PlanItemOptions', {rootWorkEffortId: item.rootWorkEffortId, workEffortTypeEnumId: 'WetMilestone'})
+                releaseOptions = options('ironstone.WorkItemServices.get#PlanItemOptions', {rootWorkEffortId: item.rootWorkEffortId, workEffortTypeEnumId: 'WetRelease'})
+                componentOptions = options('ironstone.WorkItemServices.get#PlanItemOptions', {rootWorkEffortId: item.rootWorkEffortId, workEffortTypeEnumId: 'WetComponent'})
+                labelOptions = options('ironstone.WorkItemServices.get#LabelOptions', {}).filter((option) => !labelList.some((label) => label.labelId === option.key))
+                projectOptions = ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').parameters({memberOnly: true}).call()?.projectList || []
+                parentText = item.parentWorkEffortId ? item.parentWorkEffortId + ' ' + (task.parentName || '') : ''
+                keyChipHtml = '<q-chip dense square class="q-ma-none q-mr-sm text-mono m-workitem-key">' + enc(workEffortId) + '</q-chip>'
+                repeatParts = {}
+                if (recurrence?.rrule) for (const part of String(recurrence.rrule).split(';')) { const [k, v] = part.split('='); repeatParts[k] = v }
+            }
+        ]]></script>
+    </actions>
+
+    <widgets>
+        <section name="TaskNotFound" condition="!recordFound"><widgets>
+            <container-box type="warning"><box-header title="Not available"/><box-body>
+                <label type="p" text="Task ${workEffortId} is not available: it does not exist, or you are not one of its people or organizations."/>
+                <link url="tasks" text="${projects ? 'Back to Work items' : 'Back to Tasks'}" link-type="anchor"/>
+            </box-body></container-box>
+        </widgets></section>
+
+        <section name="TaskFound" condition="recordFound"><widgets>
+            <!-- the record for the shell: quick create's link chip and the activity kind, Today's "Add activity on this record" -->
+            <context record-entity="mantle.work.effort.WorkEffort" record-id="${workEffortId}" title="${task.workEffortName}"/>
+
+            <!-- ===== Commons: the header as the Tasks drawer has it ===== -->
+            <section name="CommonsHeader" condition="!projects"><widgets>
+                <container style="q-mb-xs"><link url="tasks" link-type="anchor" text="Tasks" icon="arrow_back"/></container>
+                <container style="row items-start q-col-gutter-sm q-mb-sm m-task-header">
+                    <container style="col-12 col-md">
+                        <label text="${task.workEffortName}" type="h5" style="q-my-none ${task.isDone ? 'm-muted' : ''}"/>
+                        <label text="${captionText}" type="div" style="text-caption m-muted q-mb-xs"/>
+                        <status-bar id="TaskStatusBar" status-id="${task.statusId}" status-flow-id="${statusFlowId}" stages="${stageStatusIds}"
+                                allowed-status-ids="${allowedStatusIds}" transition="changeStatus" parameter-name="toStatusId"
+                                parameter-map="{workEffortId:workEffortId, tab:tab}" title="${task.workEffortName}"/>
+                    </container>
+                    <container style="col-12 col-md-auto row items-center q-gutter-y-xs m-task-actions">
+                        <container-dialog id="TaskReassignDialog" button-text="Reassign" icon="sym_o_person_add" width="480" title="Assign ${task.workEffortName} to"
+                                condition="canUpdate">
+                            <form-single name="TaskReassign" transition="reassign">
+                                <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                <field name="tab"><default-field><hidden/></default-field></field>
+                                <field name="assignToPartyId"><default-field title="Assignee">
+                                    <drop-down><dynamic-options transition="assigneeSearch" server-search="true" min-length="0"/></drop-down></default-field></field>
+                                <field name="submitButton"><default-field title="Reassign"><submit/></default-field></field>
+                            </form-single>
+                        </container-dialog>
+                        <container-dialog id="TaskDueDialog" button-text="Set due" icon="sym_o_event" width="400" title="Due date" condition="canUpdate">
+                            <form-single name="TaskSetDue" transition="setDue">
+                                <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                <field name="tab"><default-field><hidden/></default-field></field>
+                                <field name="dueDate" from="dueEditText"><default-field title="Due (empty: no due date)"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                                <field name="submitButton"><default-field title="Set due"><submit/></default-field></field>
+                            </form-single>
+                        </container-dialog>
+                        <link url="addToToday" link-type="hidden-form" text="Add to Today" icon="sym_o_today" style="q-ml-xs" condition="task.canAddToToday"
+                                parameter-map="{workEffortId:workEffortId, tab:tab}"/>
+                        <button-menu text="More" icon="more_horiz" style="q-ml-xs">
+                            <link url="cloneTask" link-type="hidden-form-link" text="Clone" icon="sym_o_content_copy" parameter-map="{workEffortId:workEffortId}"/>
+                            <link url="convertToRequest" link-type="hidden-form-link" text="Convert to request" icon="sym_o_support"
+                                    confirmation="Draft a request from ${task.workEffortName}?" parameter-map="{workEffortId:workEffortId}"/>
+                            <link url="deleteTask" link-type="hidden-form-link" text="Delete" icon="sym_o_delete" btn-type="danger" condition="canDelete"
+                                    confirmation="Delete ${task.workEffortName}?" parameter-map="{workEffortId:workEffortId}"/>
+                        </button-menu>
+                    </container>
+                </container>
+            </widgets></section>
+
+            <!-- ===== Projects: the path, the type, key and title, the flow's status-bar and the actions ===== -->
+            <section name="ProjectsHeader" condition="projects"><widgets>
+                <section name="WorkItemPath" condition="!compact"><widgets>
+                    <render-mode><text type="qvt"><![CDATA[${breadcrumbHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify({t: "text", id: "WorkItemPath", text: breadcrumbList.map((crumb) => crumb.label).join(" > ")})}]]></text></render-mode>
+                </widgets></section>
+                <container style="row items-start q-col-gutter-sm q-mb-sm m-task-header">
+                    <container style="col-12 col-md">
+                        <container style="row items-center no-wrap">
+                            <render-mode><text type="qvt"><![CDATA[<q-icon name="${WebUtilities.encodeHtml(typeIcon)}" size="sm" class="q-mr-sm m-muted"><q-tooltip>${WebUtilities.encodeHtml(task.purposeLabel || '')}</q-tooltip></q-icon>${keyChipHtml}]]></text>
+                                <text type="tui"><![CDATA[${JSON.stringify({t: "text", id: "WorkItemKey", style: "strong", text: workEffortId})}]]></text></render-mode>
+                            <label text="${task.workEffortName}" type="h5" style="q-my-none ${task.isDone ? 'm-muted' : ''}"/>
+                        </container>
+                        <status-bar id="WorkItemStatusBar" status-id="${task.statusId}" status-flow-id="${statusFlowId}" stages="${stageStatusIds}"
+                                allowed-status-ids="${allowedStatusIds}" transition="changeStatus" parameter-name="toStatusId"
+                                parameter-map="{workEffortId:workEffortId, tab:tab}" title="${task.workEffortName}"/>
+                    </container>
+                    <container style="col-12 col-md-auto row items-center q-gutter-y-xs m-task-actions">
+                        <link url="assignToMe" link-type="hidden-form" text="Assign to me" icon="sym_o_person_raised_hand" condition="canUpdate"
+                                parameter-map="{workEffortId:workEffortId, tab:tab}"/>
+                        <container-dialog id="WorkItemEditDialog" button-text="Edit" icon="sym_o_edit" width="720" title="Edit ${workEffortId}" condition="canUpdate">
+                            <form-single name="WorkItemEdit" transition="saveWorkItem" map="fields" focus-field="workEffortName">
+                                <field name="workEffortId" from="workEffortId"><default-field><hidden/></default-field></field>
+                                <field name="tab" from="tab"><default-field><hidden/></default-field></field>
+                                <field name="workEffortName"><default-field title="Title"><text-line size="50"/></default-field></field>
+                                <field name="purposeEnumId"><default-field title="Type">
+                                    <drop-down><entity-options key="${enumId}" text="${description}">
+                                        <entity-find entity-name="moqui.basic.Enumeration" cache="true">
+                                            <econdition field-name="enumTypeId" value="WorkEffortPurpose"/><econdition field-name="parentEnumId" value="WetTask"/>
+                                            <order-by field-name="description"/></entity-find>
+                                    </entity-options></drop-down></default-field></field>
+                                <field name="priority"><default-field title="Priority">
+                                    <drop-down><option key="1" text="1 (highest)"/><option key="2" text="2 (high)"/><option key="3"/><option key="4"/>
+                                        <option key="5" text="5 (normal)"/><option key="6"/><option key="7"/><option key="8" text="8 (low)"/>
+                                        <option key="9" text="9 (lowest)"/></drop-down></default-field></field>
+                                <field name="visibilityEnumId"><default-field title="Visibility">
+                                    <drop-down><option key="WevGeneral" text="General (shared with the client)"/><option key="WevWorkGroup" text="Work group (internal)"/>
+                                        <option key="WevRestricted" text="Restricted (its people and the managers)"/></drop-down></default-field></field>
+                                <field name="estimatedStartDate"><default-field title="Starts"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                                <field name="estimatedCompletionDate"><default-field title="Due"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                                <field name="estimatedWorkTime"><default-field title="Estimate (h)"><text-line size="6" input-type="number"/></default-field></field>
+                                <field name="remainingWorkTime"><default-field title="Remaining (h)"><text-line size="6" input-type="number"/></default-field></field>
+                                <field name="estimatedPoints"><default-field title="Points"><text-line size="5" input-type="number"/></default-field></field>
+                                <field name="totalTimeAllowed"><conditional-field condition="isTopLevel" title="Hours budget (the subtree)">
+                                    <text-line size="6" input-type="number"/></conditional-field><default-field><ignored/></default-field></field>
+                                <field name="parentWorkEffortId"><default-field title="Under">
+                                    <drop-down allow-empty="true" current-description="${parentText}"><dynamic-options transition="parentSearch" server-search="true" min-length="0"/></drop-down>
+                                </default-field></field>
+                                <field name="milestoneId"><default-field title="Milestone">
+                                    <drop-down allow-empty="true"><list-options list="milestoneOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                <field name="releaseId"><default-field title="Release">
+                                    <drop-down allow-empty="true"><list-options list="releaseOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                <field name="componentId"><default-field title="Component">
+                                    <drop-down allow-empty="true"><list-options list="componentOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                <field name="resolutionEnumId"><conditional-field condition="isDoneItem" title="Resolution">
+                                    <drop-down><entity-options key="${enumId}" text="${description}">
+                                        <entity-find entity-name="moqui.basic.Enumeration" cache="true"><econdition field-name="enumTypeId" value="WorkEffortResolution"/>
+                                            <order-by field-name="description"/></entity-find></entity-options></drop-down>
+                                </conditional-field><default-field><ignored/></default-field></field>
+                                <field name="description"><default-field title="Description (markdown)"><text-area rows="6" cols="70"/></default-field></field>
+                                <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                                <field-layout>
+                                    <field-ref name="workEffortName"/>
+                                    <field-row><field-ref name="purposeEnumId"/><field-ref name="priority"/><field-ref name="visibilityEnumId"/></field-row>
+                                    <field-row><field-ref name="estimatedStartDate"/><field-ref name="estimatedCompletionDate"/></field-row>
+                                    <field-row><field-ref name="estimatedWorkTime"/><field-ref name="remainingWorkTime"/><field-ref name="estimatedPoints"/><field-ref name="totalTimeAllowed"/></field-row>
+                                    <field-row><field-ref name="parentWorkEffortId"/><field-ref name="milestoneId"/></field-row>
+                                    <field-row><field-ref name="releaseId"/><field-ref name="componentId"/></field-row>
+                                    <field-ref name="resolutionEnumId"/>
+                                    <field-ref name="description"/><field-ref name="submitButton"/>
+                                </field-layout>
+                            </form-single>
+                        </container-dialog>
+                        <section name="ProjectsActions" condition="!compact"><widgets>
+                            <container-dialog id="TaskReassignDialog" button-text="Reassign" icon="sym_o_person_add" width="480" title="Assign ${workEffortId} to"
+                                    condition="canUpdate">
+                                <form-single name="TaskReassign" transition="reassign">
+                                    <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                    <field name="tab"><default-field><hidden/></default-field></field>
+                                    <field name="assignToPartyId"><default-field title="Assignee">
+                                        <drop-down><dynamic-options transition="assigneeSearch" server-search="true" min-length="0"/></drop-down></default-field></field>
+                                    <field name="submitButton"><default-field title="Reassign"><submit/></default-field></field>
+                                </form-single>
+                            </container-dialog>
+                            <button-menu text="More" icon="more_horiz" style="q-ml-xs">
+                                <container-dialog id="WorkItemRepeatDialog" button-text="${recurrence ? 'Repeat rule' : 'Repeat'}" icon="sym_o_repeat" width="560"
+                                        title="Repeat ${workEffortId}" condition="canUpdate">
+                                    <form-single name="WorkItemRepeat" transition="setRepeat">
+                                        <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                        <field name="tab"><default-field><hidden/></default-field></field>
+                                        <field name="frequency" from="repeatParts.FREQ || 'MONTHLY'"><default-field title="Every">
+                                            <drop-down><option key="DAILY" text="Day"/><option key="WEEKLY" text="Week"/><option key="MONTHLY" text="Month"/>
+                                                <option key="YEARLY" text="Year"/></drop-down></default-field></field>
+                                        <field name="interval" from="repeatParts.INTERVAL || '1'"><default-field title="Interval"><text-line size="3" input-type="number"/></default-field></field>
+                                        <field name="byDay" from="repeatParts.BYDAY || ''"><default-field title="On weekdays (weekly; MO,TU,…)"><text-line size="20"/></default-field></field>
+                                        <field name="byMonthDay" from="repeatParts.BYMONTHDAY || ''"><default-field title="On day of the month (monthly; -1 the last)"><text-line size="3"/></default-field></field>
+                                        <field name="count" from="repeatParts.COUNT || ''"><default-field title="Times (empty: no end)"><text-line size="4" input-type="number"/></default-field></field>
+                                        <field name="until" from="repeatParts.UNTIL ? repeatParts.UNTIL.substring(0, 4) + '-' + repeatParts.UNTIL.substring(4, 6) + '-' + repeatParts.UNTIL.substring(6, 8) : ''">
+                                            <default-field title="Until"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                                        <field name="fromCompletion" from="recurrence?.recurFromCompletion ? 'Y' : 'N'"><default-field title="Count from">
+                                            <radio><option key="N" text="The due date (on schedule)"/><option key="Y" text="The day it is completed"/></radio></default-field></field>
+                                        <field name="submitButton"><default-field title="Repeat"><submit/></default-field></field>
+                                        <field-layout><field-row><field-ref name="frequency"/><field-ref name="interval"/></field-row>
+                                            <field-row><field-ref name="byDay"/><field-ref name="byMonthDay"/></field-row>
+                                            <field-row><field-ref name="count"/><field-ref name="until"/></field-row>
+                                            <field-ref name="fromCompletion"/><field-ref name="submitButton"/></field-layout>
+                                    </form-single>
+                                </container-dialog>
+                                <link url="setRepeat" link-type="hidden-form-link" text="Stop repeating" icon="sym_o_repeat_one" condition="canUpdate &amp;&amp; recurrence"
+                                        confirmation="Stop repeating ${task.workEffortName}? The items made stay." parameter-map="{workEffortId:workEffortId, frequency:''}"/>
+                                <link url="watch" link-type="hidden-form-link" text="Watch" icon="sym_o_visibility" condition="!isFollower" parameter-map="{workEffortId:workEffortId}"/>
+                                <link url="unwatch" link-type="hidden-form-link" text="Unwatch" icon="sym_o_visibility_off" condition="isFollower" parameter-map="{workEffortId:workEffortId}"/>
+                                <container-dialog id="WorkItemMoveDialog" button-text="Move to project" icon="sym_o_drive_file_move" width="480"
+                                        title="Move ${workEffortId} and its sub-items to" condition="canUpdate">
+                                    <form-single name="WorkItemMove" transition="moveToProject">
+                                        <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                        <field name="rootWorkEffortId"><default-field title="Project">
+                                            <drop-down><list-options list="projectOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                        <field name="submitButton"><default-field title="Move"><submit/></default-field></field>
+                                    </form-single>
+                                </container-dialog>
+                                <link url="cloneTask" link-type="hidden-form-link" text="Clone" icon="sym_o_content_copy" parameter-map="{workEffortId:workEffortId}"/>
+                                <link url="convertToRequest" link-type="hidden-form-link" text="Convert to request" icon="sym_o_support"
+                                        confirmation="Draft a request from ${task.workEffortName}?" parameter-map="{workEffortId:workEffortId}"/>
+                                <link url="deleteTask" link-type="hidden-form-link" text="Delete" icon="sym_o_delete" btn-type="danger" condition="canDelete"
+                                        confirmation="Delete ${task.workEffortName}?" parameter-map="{workEffortId:workEffortId}"/>
+                            </button-menu>
+                        </widgets></section>
+                    </container>
+                </container>
+            </widgets></section>
+
+            <render-mode><text type="qvt"><![CDATA[${factsHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(Object.assign({t: "html", id: "TaskFacts"}, JSON.parse(sri.htmlText(factsHtml))))}]]></text></render-mode>
+            <section name="RepeatLine" condition="projects &amp;&amp; recurrence"><widgets>
+                <container style="row items-center q-mb-sm text-body2">
+                    <render-mode><text type="qvt"><![CDATA[<q-icon name="sym_o_repeat" size="xs" class="q-mr-xs m-muted"></q-icon>]]></text><text type="tui" template="false">[]</text></render-mode>
+                    <label text="${recurrence.text}" type="span" style="m-muted"/>
+                </container>
+            </widgets></section>
+
+            <!-- ===== Projects in the Peek pane: the description, the sub-items and Chatter, one under the other ===== -->
+            <section name="PeekBody" condition="projects &amp;&amp; compact"><widgets>
+                <container-box><box-header title="Description"/><box-body>
+                    <markdown-view text="${fields.description}"/>
+                    <label text="No description" type="p" style="m-muted q-mb-none" condition="!fields.description"/>
+                </box-body></container-box>
+                <section name="PeekSubItems" condition="subItemList.length"><widgets>
+                    <container-box><box-header title="Sub-items · ${rollupInfo.doneCount}/${rollupInfo.itemCount} done"/><box-body-nopad>
+                        <form-list name="PeekSubItemList" list="subItemList" skip-form="true" paginate="false">
+                            <field name="workEffortId"><default-field title="Key"><link url="${url}" url-type="plain" text="${workEffortId}" link-type="anchor"/></default-field></field>
+                            <field name="workEffortName"><default-field title="Title"><display/></default-field></field>
+                            <field name="statusLabel"><default-field title="Status"><display/></default-field></field>
+                            <field name="totalEstimatedText" align="right"><default-field title="Est. (with sub-items)"><display/></default-field></field>
+                        </form-list>
+                    </box-body-nopad></container-box>
+                </widgets></section>
+                <chatter id="WorkItemPeekChatter" record-entity="mantle.work.effort.WorkEffort" record-id="${workEffortId}" default-tab="log"/>
+            </widgets></section>
+
+            <section name="FullBody" condition="!(projects &amp;&amp; compact)"><widgets>
+            <render-mode><text type="qvt"><![CDATA[${tabsHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(tabsTui)}]]></text></render-mode>
+
+            <!-- ===== Overview ===== -->
+            <section name="OverviewTab" condition="tab == 'overview'"><widgets>
+                <container style="row q-col-gutter-sm">
+                    <container style="col-12 col-lg-8">
+                        <!-- Commons: the details without the planning fields -->
+                        <section name="CommonsOverview" condition="!projects"><widgets>
+                        <container style="row q-col-gutter-sm">
+                            <container style="col-12 col-md-6">
+                                <container-box><box-header title="Details"/>
+                                    <box-toolbar>
+                                        <container-dialog id="TaskEditDialog" button-text="Edit" icon="sym_o_edit" width="600" title="Edit ${task.workEffortName}" condition="canUpdate">
+                                            <form-single name="TaskEdit" transition="updateTask" map="task" focus-field="workEffortName">
+                                                <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                                <field name="tab"><default-field><hidden/></default-field></field>
+                                                <field name="workEffortName"><default-field title="Name"><text-line size="40"/></default-field></field>
+                                                <field name="purposeEnumId"><default-field title="Purpose">
+                                                    <drop-down><entity-options key="${enumId}" text="${description}">
+                                                        <entity-find entity-name="moqui.basic.Enumeration" cache="true">
+                                                            <econdition field-name="enumTypeId" value="WorkEffortPurpose"/><econdition field-name="parentEnumId" value="WetTask"/>
+                                                            <order-by field-name="description"/></entity-find>
+                                                    </entity-options></drop-down></default-field></field>
+                                                <field name="priority" from="task.priorityText || '5'"><default-field title="Priority">
+                                                    <drop-down><option key="1" text="1 (highest)"/><option key="2" text="2 (high)"/><option key="3"/><option key="4"/>
+                                                        <option key="5" text="5 (normal)"/><option key="6"/><option key="7"/><option key="8" text="8 (low)"/>
+                                                        <option key="9" text="9 (lowest)"/></drop-down></default-field></field>
+                                                <field name="dueDate" from="dueEditText"><default-field title="Due"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                                                <field name="description"><default-field title="Description"><text-area rows="5" cols="60"/></default-field></field>
+                                                <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                                                <field-layout>
+                                                    <field-ref name="workEffortName"/>
+                                                    <field-row><field-ref name="purposeEnumId"/><field-ref name="priority"/><field-ref name="dueDate"/></field-row>
+                                                    <field-ref name="description"/><field-ref name="submitButton"/>
+                                                </field-layout>
+                                            </form-single>
+                                        </container-dialog>
+                                    </box-toolbar>
+                                    <box-body>
+                                        <label text="${task.description}" type="p" style="text-body2" condition="task.description"/>
+                                        <label text="No description" type="p" style="m-muted" condition="!task.description"/>
+                                        <form-single name="TaskFacts" map="task">
+                                            <field name="statusLabel"><default-field title="Status"><display/></default-field></field>
+                                            <field name="purposeLabel"><default-field title="Purpose"><display/></default-field></field>
+                                            <field name="projectLabel" from="projectLabel"><conditional-field condition="projectLabel" title="Project"><display/></conditional-field>
+                                                <default-field><ignored/></default-field></field>
+                                            <field name="parentName"><conditional-field condition="task.parentUrl" title="Part of">
+                                                <link url="${task.parentUrl}" url-type="plain" text="${task.parentName}" link-type="anchor"/>
+                                            </conditional-field><conditional-field condition="task.parentName" title="Part of">
+                                                <display also-hidden="false"/>
+                                            </conditional-field><default-field><ignored/></default-field></field>
+                                            <field name="completedText"><conditional-field condition="task.completedText" title="Completed"><display/></conditional-field>
+                                                <default-field><ignored/></default-field></field>
+                                            <field-layout><field-row><field-ref name="statusLabel"/><field-ref name="purposeLabel"/></field-row>
+                                                <field-row><field-ref name="projectLabel"/><field-ref name="parentName"/></field-row>
+                                                <field-ref name="completedText"/></field-layout>
+                                        </form-single>
+                                    </box-body>
+                                </container-box>
+                            </container>
+                            <container style="col-12 col-md-6">
+                                <container-box><box-header title="Linked records"/><box-body>
+                                    <section name="LinkedRecords" condition="linkedRecordList.length"><widgets>
+                                        <render-mode><text type="qvt"><![CDATA[${linkedRecordsHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(linkedRecordList.map((record) => ({t: "text", text: String(record.recordEntityName).split(".").pop() + " " + record.recordId})))}]]></text></render-mode>
+                                    </widgets><fail-widgets>
+                                        <label type="p" text="Not on a record. A task made from a record (a request, a contact, an order) shows it here." style="m-muted q-mb-none"/>
+                                    </fail-widgets></section>
+                                </box-body></container-box>
+                                <container-box><box-header title="People"/><box-body-nopad>
+                                    <form-list name="TaskPeople" list="partyList" skip-form="true" skip-header="true" paginate="false">
+                                        <field name="name"><default-field><label text="${name}${isMe ? ' (' + ec.l10n.localize('you') + ')' : ''}" type="span"
+                                                style="${declined ? 'm-muted' : ''}"/></default-field></field>
+                                        <field name="roleText"><default-field><label text="${roleText}" type="span" style="m-muted"/></default-field></field>
+                                        <field name="statusText" align="right"><default-field><label text="${statusText}" type="span" style="text-caption m-muted"/></default-field></field>
+                                    </form-list>
+                                </box-body-nopad></container-box>
+                            </container>
+                        </container>
+                        </widgets></section>
+
+                        <!-- Projects: the description, every field, the labels, the requests, the records and the people -->
+                        <section name="ProjectsOverview" condition="projects"><widgets>
+                        <container style="row q-col-gutter-sm">
+                            <container style="col-12 col-md-7">
+                                <container-box><box-header title="Description"/><box-body>
+                                    <markdown-view text="${fields.description}"/>
+                                    <label text="No description" type="p" style="m-muted q-mb-none" condition="!fields.description"/>
+                                </box-body></container-box>
+                                <container-box><box-header title="Details"/><box-body-nopad>
+                                    <form-list name="WorkItemDetails" list="detailsList" skip-form="true" skip-header="true" paginate="false">
+                                        <field name="label"><default-field><label text="${label}" type="span" style="m-muted"/></default-field></field>
+                                        <field name="value"><default-field><display/></default-field></field>
+                                    </form-list>
+                                </box-body-nopad></container-box>
+                            </container>
+                            <container style="col-12 col-md-5">
+                                <container-box><box-header title="Labels"/>
+                                    <box-toolbar>
+                                        <container-dialog id="WorkItemLabelDialog" button-text="Add label" icon="sym_o_label" width="420" title="Add a label to ${workEffortId}"
+                                                condition="canUpdate &amp;&amp; labelOptions.length">
+                                            <form-single name="WorkItemAddLabel" transition="addLabel">
+                                                <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                                <field name="tab"><default-field><hidden/></default-field></field>
+                                                <field name="labelId"><default-field title="Label">
+                                                    <drop-down><list-options list="labelOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                                <field name="submitButton"><default-field title="Add"><submit/></default-field></field>
+                                            </form-single>
+                                        </container-dialog>
+                                    </box-toolbar>
+                                    <box-body>
+                                        <section-iterate name="WorkItemLabels" list="labelList" entry="labelEntry"><widgets>
+                                            <container style="row inline items-center q-mr-sm q-mb-xs">
+                                                <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${WebUtilities.encodeHtml(labelEntry.colorName)}">${WebUtilities.encodeHtml(labelEntry.label)}</q-chip>]]></text>
+                                                    <text type="tui"><![CDATA[${JSON.stringify({t: "text", text: labelEntry.label})}]]></text></render-mode>
+                                                <link url="removeLabel" link-type="hidden-form-link" icon="sym_o_close" text="" tooltip="Take the label off" style="m-btn-flat"
+                                                        condition="canUpdate" parameter-map="{workEffortId:workEffortId, labelId:labelEntry.labelId, tab:tab}"/>
+                                            </container>
+                                        </widgets></section-iterate>
+                                        <label text="No labels" type="p" style="m-muted q-mb-none" condition="!labelList.length"/>
+                                    </box-body>
+                                </container-box>
+                                <section name="WorkItemRequests" condition="requestList.length"><widgets>
+                                    <container-box><box-header title="Requests"/><box-body-nopad>
+                                        <form-list name="WorkItemRequestList" list="requestList" skip-form="true" skip-header="true" paginate="false">
+                                            <field name="requestName"><default-field><link url="${url}" url-type="plain" text="${requestId} ${requestName}" link-type="anchor"/></default-field></field>
+                                            <field name="statusText" align="right"><default-field><label text="${statusText}" type="span" style="text-caption m-muted"/></default-field></field>
+                                        </form-list>
+                                    </box-body-nopad></container-box>
+                                </widgets></section>
+                                <container-box><box-header title="Linked records"/><box-body>
+                                    <section name="WorkItemLinkedRecords" condition="linkedRecordList.length"><widgets>
+                                        <render-mode><text type="qvt"><![CDATA[${linkedRecordsHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(linkedRecordList.map((record) => ({t: "text", text: String(record.recordEntityName).split(".").pop() + " " + record.recordId})))}]]></text></render-mode>
+                                    </widgets><fail-widgets>
+                                        <label type="p" text="Not on a record" style="m-muted q-mb-none"/>
+                                    </fail-widgets></section>
+                                </box-body></container-box>
+                                <container-box><box-header title="People"/><box-body-nopad>
+                                    <form-list name="WorkItemPeople" list="partyList" skip-form="true" skip-header="true" paginate="false">
+                                        <field name="name"><default-field><label text="${name}${isMe ? ' (' + ec.l10n.localize('you') + ')' : ''}" type="span"
+                                                style="${declined ? 'm-muted' : ''}"/></default-field></field>
+                                        <field name="roleText"><default-field><label text="${roleText}" type="span" style="m-muted"/></default-field></field>
+                                        <field name="statusText" align="right"><default-field><label text="${statusText}" type="span" style="text-caption m-muted"/></default-field></field>
+                                    </form-list>
+                                </box-body-nopad></container-box>
+                            </container>
+                        </container>
+                        </widgets></section>
+                    </container>
+                    <!-- Chatter beside the overview from 1440 px -->
+                    <container style="col-12 col-lg-4 gt-md">
+                        <chatter id="TaskChatter" record-entity="mantle.work.effort.WorkEffort" record-id="${workEffortId}" default-tab="log"/>
+                    </container>
+                </container>
+            </widgets></section>
+
+            <!-- ===== Sub-tasks (Commons) ===== -->
+            <section name="SubTasksTab" condition="tab == 'subtasks'"><widgets>
+                <container-box><box-header title="Sub-tasks"/><box-body-nopad>
+                    <section name="AddSubTask" condition="canUpdate"><widgets>
+                        <container style="q-px-sm q-pt-sm">
+                            <form-single name="NewSubTask" transition="addSubTask" focus-field="workEffortName">
+                                <field name="workEffortId" from="parentTaskId"><default-field><hidden/></default-field></field>
+                                <field name="workEffortName" from="''"><default-field title="Add a sub-task"><text-line size="36"/></default-field></field>
+                                <field name="dueDate" from="''"><default-field title="Due"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                                <field name="addButton"><default-field title="Add"><submit icon="sym_o_add"/></default-field></field>
+                                <field-layout><field-row-big><field-ref name="workEffortName"/><field-ref name="dueDate"/><field-ref name="addButton"/></field-row-big></field-layout>
+                            </form-single>
+                        </container>
+                    </widgets></section>
+                    <form-list name="SubTasks" list="subTaskList" skip-form="true" paginate="false">
+                        <field name="done"><conditional-field condition="canUpdate &amp;&amp; isDone" title="">
+                            <link url="toggleSubTask" link-type="hidden-form-link" icon="sym_o_check_circle" text="" tooltip="Done: open it again" style="m-btn-flat text-positive"
+                                    parameter-map="{workEffortId:parentTaskId, subTaskId:workEffortId}"/>
+                        </conditional-field><conditional-field condition="canUpdate &amp;&amp; isOpen" title="">
+                            <link url="toggleSubTask" link-type="hidden-form-link" icon="sym_o_radio_button_unchecked" text="" tooltip="Mark done" style="m-btn-flat"
+                                    parameter-map="{workEffortId:parentTaskId, subTaskId:workEffortId}"/>
+                        </conditional-field><default-field title=""><label text="" type="span"/></default-field></field>
+                        <field name="workEffortName"><default-field title="Sub-task">
+                            <link url="${url}" url-type="plain" text="${workEffortName}" style="${isDone ? 'm-muted' : ''}"/></default-field></field>
+                        <field name="statusId"><default-field title="Status">
+                            <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${statusColor}">${WebUtilities.encodeHtml(statusLabel ?? '')}</q-chip>]]></text><text type="tui"><![CDATA[{"t": "text", "style": "strong", "text": ${JSON.stringify(statusLabel ?? "")}}]]></text></render-mode>
+                        </default-field></field>
+                        <field name="dueText"><default-field title="Due"><label text="${dueText}" type="span" style="text-no-wrap ${overdue ? 'text-warning' : ''}"/></default-field></field>
+                        <field name="assigneeText"><default-field title="Assignees"><display/></default-field></field>
+                    </form-list>
+                    <section name="NoSubTasks" condition="!subTaskList.length"><widgets>
+                        <label type="p" text="No sub-tasks" style="m-muted q-pa-sm q-mb-none"/>
+                    </widgets></section>
+                </box-body-nopad></container-box>
+            </widgets></section>
+
+            <!-- ===== Sub-items (Projects): the subtree as a tree, a level per open, with roll-ups ===== -->
+            <section name="SubItemsTab" condition="tab == 'subitems'"><widgets>
+                <container-box><box-header title="Sub-items · ${rollupInfo.doneCount}/${rollupInfo.itemCount} done · ${subItemTotals.totalEstimatedText || '0'} h estimated, ${subItemTotals.totalRemainingText || '0'} h remaining"/>
+                    <box-body-nopad>
+                    <section name="AddSubItem" condition="canUpdate"><widgets>
+                        <container style="q-px-sm q-pt-sm">
+                            <form-single name="NewSubItem" transition="addSubItem" focus-field="workEffortName">
+                                <field name="workEffortId" from="workEffortId"><default-field><hidden/></default-field></field>
+                                <field name="workEffortName" from="''"><default-field title="Add a sub-item"><text-line size="36"/></default-field></field>
+                                <field name="purposeEnumId" from="'WepTask'"><default-field title="Type">
+                                    <drop-down><entity-options key="${enumId}" text="${description}">
+                                        <entity-find entity-name="moqui.basic.Enumeration" cache="true">
+                                            <econdition field-name="enumTypeId" value="WorkEffortPurpose"/><econdition field-name="parentEnumId" value="WetTask"/>
+                                            <econdition field-name="enumId" operator="not-in" value="WepToDo,WepCommunication,WepPlaceholder"/>
+                                            <order-by field-name="description"/></entity-find>
+                                    </entity-options></drop-down></default-field></field>
+                                <field name="assignToPartyId"><default-field title="Assignee">
+                                    <drop-down allow-empty="true"><dynamic-options transition="assigneeSearch" server-search="true" min-length="0"/></drop-down></default-field></field>
+                                <field name="estimatedWorkTime"><default-field title="Est. (h)"><text-line size="5" input-type="number"/></default-field></field>
+                                <field name="addButton"><default-field title="Add"><submit icon="sym_o_add"/></default-field></field>
+                                <field-layout><field-row-big><field-ref name="workEffortName"/><field-ref name="purposeEnumId"/><field-ref name="assignToPartyId"/>
+                                    <field-ref name="estimatedWorkTime"/><field-ref name="addButton"/></field-row-big></field-layout>
+                            </form-single>
+                        </container>
+                    </widgets></section>
+                    <form-list name="SubItems" list="subItemList" skip-form="true" paginate="false" views="tree,list">
+                        <view-tree parent-field="parentWorkEffortId" children-transition="subItemLevel" child-count-field="childCount" key-fields="subItemId"
+                                rollup-fields="totalEstimatedText,totalRemainingText,totalActualText,doneOfTotal" transition="moveSubItem"/>
+                        <field name="subItemId"><default-field><hidden/></default-field></field>
+                        <field name="workEffortName"><default-field title="Item">
+                            <link url="${url}" url-type="plain" text="${subItemId} ${workEffortName}" style="${isDone ? 'm-muted' : ''}"/></default-field></field>
+                        <field name="statusLabel"><default-field title="Status">
+                            <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${statusColor}">${WebUtilities.encodeHtml(statusLabel ?? '')}</q-chip>]]></text><text type="tui"><![CDATA[{"t": "text", "style": "strong", "text": ${JSON.stringify(statusLabel ?? "")}}]]></text></render-mode>
+                        </default-field></field>
+                        <field name="assigneeText"><default-field title="Assignee"><display/></default-field></field>
+                        <field name="dueText"><default-field title="Due"><label text="${dueText}" type="span" style="text-no-wrap ${overdue ? 'text-warning' : ''}"/></default-field></field>
+                        <field name="estimatedText" align="right"><default-field title="Est."><display/></default-field></field>
+                        <field name="remainingText" align="right"><default-field title="Rem."><display/></default-field></field>
+                        <field name="actualText" align="right"><default-field title="Act."><display/></default-field></field>
+                        <field name="totalEstimatedText" align="right"><default-field title="Total est."><display/></default-field></field>
+                        <field name="totalRemainingText" align="right"><default-field title="Total rem."><display/></default-field></field>
+                        <field name="totalActualText" align="right"><default-field title="Total act."><display/></default-field></field>
+                        <field name="doneOfTotal" align="right"><default-field title="Done"><display/></default-field></field>
+                    </form-list>
+                    <section name="NoSubItems" condition="!subItemList.length"><widgets>
+                        <label type="p" text="No sub-items: add one above to break the work down" style="m-muted q-pa-sm q-mb-none"/>
+                    </widgets></section>
+                </box-body-nopad></container-box>
+            </widgets></section>
+
+            <!-- ===== Links (Projects): relations by kind ===== -->
+            <section name="LinksTab" condition="tab == 'links'"><widgets>
+                <container-box><box-header title="Links"/>
+                    <box-toolbar>
+                        <container-dialog id="WorkItemLinkDialog" button-text="Add link" icon="sym_o_add_link" width="520" title="Link ${workEffortId} to another work item"
+                                condition="canUpdate">
+                            <form-single name="WorkItemAddLink" transition="addLink">
+                                <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                <field name="kind" from="'relatesTo'"><default-field title="This item">
+                                    <drop-down><option key="blockedBy" text="is blocked by"/><option key="blocks" text="blocks"/><option key="relatesTo" text="relates to"/>
+                                        <option key="duplicates" text="duplicates"/><option key="duplicatedBy" text="is duplicated by"/><option key="causes" text="causes"/>
+                                        <option key="causedBy" text="is caused by"/><option key="clones" text="clones"/><option key="clonedBy" text="is cloned by"/>
+                                        <option key="basedOn" text="is based on"/></drop-down></default-field></field>
+                                <field name="otherWorkEffortId"><default-field title="Work item key"><text-line size="16"/></default-field></field>
+                                <field name="lagDays"><default-field title="Lag (working days, for a dependency)"><text-line size="4" input-type="number"/></default-field></field>
+                                <field name="submitButton"><default-field title="Link"><submit/></default-field></field>
+                                <field-layout><field-row><field-ref name="kind"/><field-ref name="otherWorkEffortId"/></field-row>
+                                    <field-ref name="lagDays"/><field-ref name="submitButton"/></field-layout>
+                            </form-single>
+                        </container-dialog>
+                    </box-toolbar>
+                    <box-body-nopad>
+                        <form-list name="WorkItemLinks" list="relationList" skip-form="true" paginate="false">
+                            <field name="kindText"><default-field title="Link"><display/></default-field></field>
+                            <field name="otherId"><conditional-field condition="otherUrl" title="Item">
+                                <link url="${otherUrl}" url-type="plain" text="${otherId} ${otherName}" link-type="anchor"/></conditional-field>
+                                <default-field title="Item"><label text="${otherId} ${otherName}" type="span"/></default-field></field>
+                            <field name="otherStatus"><default-field title="Status"><display/></default-field></field>
+                            <field name="lagText" align="right"><default-field title="Lag (days)"><display/></default-field></field>
+                            <field name="remove" align="right"><conditional-field condition="canUpdate" title="">
+                                <link url="removeLink" link-type="hidden-form-link" icon="sym_o_link_off" text="" tooltip="Remove the link" style="m-btn-flat"
+                                        parameter-map="{workEffortId:workEffortId, fromWorkEffortId:workEffortId, toWorkEffortId:toWorkEffortId,
+                                            workEffortAssocTypeEnumId:workEffortAssocTypeEnumId}"/>
+                            </conditional-field><default-field title=""><label text="" type="span"/></default-field></field>
+                        </form-list>
+                        <section name="NoLinks" condition="!relationList.length"><widgets>
+                            <label type="p" text="No links: what this item blocks, is blocked by, duplicates or relates to shows here" style="m-muted q-pa-sm q-mb-none"/>
+                        </widgets></section>
+                    </box-body-nopad>
+                </container-box>
+            </widgets></section>
+
+            <!-- ===== Time: the user's entries ===== -->
+            <section name="TimeTab" condition="tab == 'time'"><widgets>
+                <container-box><box-header title="My time"/>
+                    <box-toolbar>
+                        <section name="ClockActions" condition="canUpdate"><widgets>
+                            <section name="ClockOutAction" condition="openTimeEntry"><widgets>
+                                <link url="clockOut" link-type="hidden-form" btn-type="primary" text="Clock out" icon="sym_o_timer_off"
+                                        parameter-map="{workEffortId:workEffortId}"/>
+                            </widgets><fail-widgets>
+                                <link url="clockIn" link-type="hidden-form" text="Clock in" icon="sym_o_timer" parameter-map="{workEffortId:workEffortId}"/>
+                            </fail-widgets></section>
+                            <container-dialog id="TaskAddTimeDialog" button-text="Add time" icon="sym_o_more_time" width="480" title="Add time on ${task.workEffortName}">
+                                <form-single name="TaskAddTime" transition="addTime" focus-field="hours">
+                                    <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                    <field name="hours"><default-field title="Hours"><text-line size="6" input-type="number"/></default-field></field>
+                                    <field name="fromDate"><default-field title="From" tooltip="When the work started; empty: the hours up to now">
+                                        <date-time type="timestamp" format="yyyy-MM-dd HH:mm"/></default-field></field>
+                                    <field name="comments"><default-field title="What was done"><text-area rows="2" cols="50"/></default-field></field>
+                                    <field name="submitButton"><default-field title="Add time"><submit/></default-field></field>
+                                    <field-layout><field-row><field-ref name="hours"/><field-ref name="fromDate"/></field-row><field-ref name="comments"/>
+                                        <field-ref name="submitButton"/></field-layout>
+                                </form-single>
+                            </container-dialog>
+                        </widgets></section>
+                    </box-toolbar>
+                    <box-body-nopad>
+                        <section name="ClockedIn" condition="openTimeEntry"><widgets>
+                            <label type="p" text="Clocked in since ${openTimeEntry.dateText} ${openTimeEntry.fromText}" style="text-primary q-pa-sm q-mb-none"/>
+                        </widgets></section>
+                        <section name="ClockedInElsewhere" condition="otherOpenTimeEntry"><widgets>
+                            <container style="q-pa-sm text-body2">
+                                <label type="span" text="You are clocked in on " style="m-muted"/>
+                                <link url="${otherOpenTimeEntry.url}" url-type="plain" link-type="anchor" text="${otherOpenTimeEntry.workEffortName}"/>
+                                <label type="span" text=" since ${otherOpenTimeEntry.sinceText}" style="m-muted"/>
+                            </container>
+                        </widgets></section>
+                        <form-list name="TaskTime" list="timeEntryList" skip-form="true" paginate="false">
+                            <field name="dateText"><default-field title="Day"><display/></default-field></field>
+                            <field name="span"><default-field title="From – thru"><label text="${fromText} – ${thruText}" type="span" style="text-no-wrap"/></default-field></field>
+                            <field name="hoursText" align="right"><default-field title="Hours"><display/></default-field></field>
+                            <field name="comments"><default-field title="Comments"><display/></default-field></field>
+                            <field name="remove" align="right"><conditional-field condition="canDelete &amp;&amp; !isOpen" title="">
+                                <link url="deleteTime" link-type="hidden-form-link" icon="sym_o_delete" text="" tooltip="Remove" style="m-btn-flat"
+                                        confirmation="Remove this time entry?" parameter-map="{workEffortId:parentTaskId, timeEntryId:timeEntryId}"/>
+                            </conditional-field><default-field title=""><label text="" type="span"/></default-field></field>
+                        </form-list>
+                        <section name="NoTime" condition="!timeEntryList.length"><widgets>
+                            <label type="p" text="No time logged by you on this task" style="m-muted q-pa-sm q-mb-none"/>
+                        </widgets></section>
+                        <label type="p" text="Your time: ${myHoursText} h · the task's time: ${task.actualText || '0'} h" style="text-caption m-muted q-px-sm q-pb-sm q-mb-none"/>
+                    </box-body-nopad>
+                </container-box>
+            </widgets></section>
+
+            <!-- ===== Files ===== -->
+            <section name="FilesTab" condition="tab == 'files'"><widgets>
+                <record-files id="TaskFiles" record-entity="mantle.work.effort.WorkEffort" record-id="${workEffortId}"/>
+            </widgets></section>
+
+            <!-- ===== Chatter, a tab below 1440 px ===== -->
+            <section name="ChatterTab" condition="tab == 'chatter'"><widgets>
+                <chatter id="TaskChatterTab" record-entity="mantle.work.effort.WorkEffort" record-id="${workEffortId}" default-tab="log"/>
+            </widgets></section>
+            </widgets></section>
+        </widgets></section>
+    </widgets>
+</screen>

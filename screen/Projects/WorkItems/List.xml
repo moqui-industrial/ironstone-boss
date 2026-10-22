@@ -12,10 +12,534 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for the work item list (design-projects.md §5 WorkItems; impl-projects.md P2). -->
+<!-- WorkItems (design-projects.md §5 WorkItems; style-guide §3.2 List, §3.6 Board, §3.15 Tree list, §3.8 Split for the peek
+    pane): the work items of the projects the user sees (service/ironstone/WorkItemServices.xml find#WorkItems, impl-projects.md
+    F1). A chip row of smart lists with their counts (Open, Assigned to me, Reported by me, Watching, Unassigned, Due this
+    week, Overdue, Recently changed, Done, All); the find in the list's dialog (text or a key, project, type, status, priority band,
+    assignee, milestone, release, label, under an item, top-level only, due period, visibility, repeating), whose saved finds
+    the user keeps and the seeded ones of the Projects groups (Open bugs, In review) appear beside it; the quick-add row
+    (type, title, assignee, project); the bulk changes on the selected rows (assign, unassign, status, priority, due, milestone,
+    release, add or remove a label, visibility, move to a project, move under an item, delete for managers), each item on its
+    own; due and priority edited in place; the sums of estimate, remaining and actual of the find above the rows. The views are the
+    list, the board (by status along each item's flow, or grouped by assignee, priority, milestone or release, every row of
+    the find; a drag sets the field), the calendar by due date (the dates shown asked for, a drag moving the due date) and
+    the tree (the work breakdown: a row under its parent, the parents the find leaves out muted, a level fetched per open
+    in rank order, the roll-ups of each branch, a drag or Tab moving an item through mantle.work.TaskServices.move#Task).
+    Peek opens a row's WorkItemDetail compact beside the list from 1280 px. Sprints (the Current sprint chip, the board's
+    sprint group, the quick-add sprint) come with impl-projects.md P4. The list's state is in the URL; each change answers
+    this screen again with it (the keep field, a JSON of the find). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Work items" default-menu-include="false">
+
+    <parameter name="list"/>
+    <parameter name="text"/>
+    <parameter name="rootWorkEffortId"/>
+    <parameter name="purposeEnumId"/>
+    <parameter name="statusId"/>
+    <parameter name="priorityBand"/>
+    <parameter name="assigneePartyId"/>
+    <parameter name="milestoneId"/>
+    <parameter name="releaseId"/>
+    <parameter name="labelId"/>
+    <parameter name="underWorkEffortId"/>
+    <parameter name="topLevel"/>
+    <parameter name="visibilityEnumId"/>
+    <parameter name="recurring"/>
+    <parameter name="orderByField"/>
+    <parameter name="pageIndex"/>
+    <parameter name="due_period"/>
+    <parameter name="due_poffset"/>
+    <parameter name="due_pdate"/>
+    <parameter name="due_from"/>
+    <parameter name="due_thru"/>
+
+    <transition name="workItemDetail"><default-response url="../WorkItemDetail"/></transition>
+
+    <!-- ========== changes that show the list again, with the find of the keep field ========== -->
+    <transition name="quickAdd">
+        <actions>
+            <service-call name="ironstone.WorkItemServices.quickAdd#WorkItem" out-map="addOut" in-map="{workEffortName:(workEffortName || ''),
+                    rootWorkEffortId:(projectId || null), purposeEnumId:(purposeEnumId || null), assignToPartyId:(assignToPartyId || null)}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(addOut.message, 'success')</script></if>
+            <script><![CDATA[
+                let kept = {}
+                try { kept = JSON.parse(keep || '{}') || {} } catch (err) { kept = {} }
+                ec.context.putAll(kept)
+            ]]></script>
+        </actions>
+        <default-response url=".">
+            <parameter name="list"/><parameter name="text"/><parameter name="rootWorkEffortId"/><parameter name="purposeEnumId"/><parameter name="statusId"/>
+            <parameter name="priorityBand"/><parameter name="assigneePartyId"/><parameter name="milestoneId"/><parameter name="releaseId"/><parameter name="labelId"/>
+            <parameter name="underWorkEffortId"/><parameter name="topLevel"/><parameter name="visibilityEnumId"/><parameter name="recurring"/><parameter name="orderByField"/>
+            <parameter name="due_period"/><parameter name="due_poffset"/><parameter name="due_pdate"/><parameter name="due_from"/><parameter name="due_thru"/>
+        </default-response>
+        <error-response url="."/>
+    </transition>
+    <!-- the bulk changes: selectedIds (a comma list), the change and its value -->
+    <transition name="bulkAction">
+        <actions>
+            <service-call name="ironstone.WorkItemServices.bulk#WorkItems" out-map="bulkOut" in-map="{action:bulk, workEffortIds:(selectedIds || ''), value:(value || null)}"/>
+            <if condition="!ec.message.hasError()"><script>ec.message.addMessage(bulkOut.message, bulkOut.failedCount ? 'warning' : 'success')</script></if>
+            <script><![CDATA[
+                let kept = {}
+                try { kept = JSON.parse(keep || '{}') || {} } catch (err) { kept = {} }
+                ec.context.putAll(kept)
+            ]]></script>
+        </actions>
+        <default-response url=".">
+            <parameter name="list"/><parameter name="text"/><parameter name="rootWorkEffortId"/><parameter name="purposeEnumId"/><parameter name="statusId"/>
+            <parameter name="priorityBand"/><parameter name="assigneePartyId"/><parameter name="milestoneId"/><parameter name="releaseId"/><parameter name="labelId"/>
+            <parameter name="underWorkEffortId"/><parameter name="topLevel"/><parameter name="visibilityEnumId"/><parameter name="recurring"/><parameter name="orderByField"/>
+            <parameter name="pageIndex"/>
+            <parameter name="due_period"/><parameter name="due_poffset"/><parameter name="due_pdate"/><parameter name="due_from"/><parameter name="due_thru"/>
+        </default-response>
+        <error-response url="."/>
+    </transition>
+
+    <!-- ========== the in-place edits of a row (m-editable), as JSON ========== -->
+    <transition name="updateField">
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.WorkItemServices.update#WorkItemField').parameters({workEffortId: workEffortId, field: field,
+                value: value == null ? '' : value}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {valueText: out.valueText, messageInfos: [{type: 'success', message: out.message}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="fieldValue" read-only="true">
+        <actions><script><![CDATA[
+            const access = ec.service.sync().name('ironstone.TaskServices.get#TaskAccess').parameters({workEffortId: workEffortId, need: 'view', app: 'projects'}).call()
+            let value = ''
+            if (!ec.message.hasError() && access.workEffort) {
+                const item = access.workEffort
+                if (field === 'due') value = item.estimatedCompletionDate != null && item.estimatedCompletionDate !== '' ? ec.l10n.format(item.estimatedCompletionDate, 'yyyy-MM-dd') : ''
+                else if (field === 'priority') value = item.priority != null ? String(item.priority) : ''
+            }
+            ec.web.sendJsonResponse({value: value})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+
+    <!-- ========== the board, calendar and tree views (m-list-views), as JSON ========== -->
+    <!-- a card moved to another column: the field it is grouped by (groupField), the status by default, its value under the
+        field's name -->
+    <transition name="moveCard">
+        <actions><script><![CDATA[
+            const groupBy = groupField || 'statusId'
+            const out = ec.service.sync().name('ironstone.WorkItemServices.move#WorkItemCard').parameters({workEffortId: workEffortId, groupField: groupBy,
+                value: ec.web.parameters[groupBy] ?? ''}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: out.message}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- an item moved to another day: its due date -->
+    <transition name="moveDue">
+        <actions><script><![CDATA[
+            const day = estimatedCompletionDate == null ? '' : String(estimatedCompletionDate).trim().substring(0, 10)
+            if (!day) { ec.message.addError(ec.l10n.localize('Drop the work item on a day')); ec.web.sendJsonResponse({}); return }
+            const out = ec.service.sync().name('ironstone.WorkItemServices.update#WorkItemField').parameters({workEffortId: workEffortId, field: 'due', value: day}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: out.message}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- the tree: a move (a drag, Tab, Shift+Tab, Alt+Up or Down) posts the row, its new parent and its new previous sibling -->
+    <transition name="moveWorkItem" method="post">
+        <actions><script><![CDATA[
+            ec.service.sync().name('ironstone.TaskServices.get#TaskAccess').parameters({workEffortId: workEffortId, need: 'update', app: 'projects'}).call()
+            if (!ec.message.hasError()) ec.service.sync().name('mantle.work.TaskServices.move#Task').parameters({workEffortId: workEffortId,
+                parentWorkEffortId: parentWorkEffortId || null, previousSiblingId: previousSiblingId || null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success',
+                message: ec.resource.expand(parentWorkEffortId ? '${id} moved under ${parent}' : '${id} moved to the top level', '', {id: workEffortId, parent: parentWorkEffortId})}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <!-- the tree: the parents the find leaves out (ids), each with its chain to the top, muted in the tree -->
+    <transition name="workItemAncestors" read-only="true">
+        <actions><script><![CDATA[
+            const wanted = String(ids || '').split(',').map((id) => id.trim()).filter((id) => id)
+            const found = wanted.length ? ec.service.sync().name('mantle.work.ProjectServices.get#WorkItemTree').parameters({workEffortIds: wanted, withAncestors: true}).call() : {}
+            const rows = Array.from(found?.workItemList || [])
+            const decorated = rows.length ? ec.service.sync().name('ironstone.WorkItemServices.decorate#WorkItemRows').parameters({taskList: rows}).call()?.rowList || [] : []
+            ec.web.sendJsonResponse({workItemRows: decorated})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+
+    <!-- the people of the assignee drop-downs -->
+    <transition name="assigneeSearch" read-only="true">
+        <actions>
+            <service-call name="ironstone.TaskServices.search#Assignees" in-map="{term:term}" out-map="found"/>
+            <script>ec.web.sendJsonResponse(found.optionList || [])</script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+
+    <actions>
+        <script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const lists = [['open', 'Open', 'sym_o_checklist'], ['mine', 'Assigned to me', 'sym_o_person'], ['reported', 'Reported by me', 'sym_o_edit_note'],
+                ['watching', 'Watching', 'sym_o_visibility'], ['unassigned', 'Unassigned', 'sym_o_person_off'], ['week', 'Due this week', 'sym_o_date_range'],
+                ['overdue', 'Overdue', 'sym_o_assignment_late'], ['recent', 'Recently changed', 'sym_o_history'], ['done', 'Done', 'sym_o_task_alt'],
+                ['all', 'All', 'sym_o_select_all']]
+            if (!lists.some((entry) => entry[0] === list)) list = 'open'
+            const param = (name) => { const value = ec.web.parameters[name]; return value == null || value === '' ? null : String(value) }
+            const ctx = (name) => { const value = ec.context.get(name); return value == null || value === '' ? null : String(value) }
+            // the due period of the find (a date-period field), or its from and thru
+            let dueFrom = null
+            let dueThru = null
+            if (ctx('due_period')) {
+                const range = ec.user.getPeriodRange(ctx('due_period'), ctx('due_poffset') || '0', ctx('due_pdate'))
+                if (range) { dueFrom = range[0]; dueThru = range[1] }
+            } else {
+                if (ctx('due_from')) dueFrom = ec.l10n.parseTimestamp(ctx('due_from').substring(0, 10) + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS')
+                if (ctx('due_thru')) dueThru = new Date(Number(String(ec.l10n.parseTimestamp(ctx('due_thru').substring(0, 10) + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS'))) + 86400000)
+            }
+            // the dates of the calendar (view-calendar range-find, epoch millis, thru inclusive)
+            const millisOf = (text) => text == null ? null : (/^-?\d+$/.test(text) ? Number(text) : (Number.isNaN(Date.parse(text)) ? null : Date.parse(text)))
+            const rangeFrom = millisOf(param('estimatedCompletionDate_from'))
+            const rangeThru = millisOf(param('estimatedCompletionDate_thru'))
+            if (rangeFrom != null && (dueFrom == null || rangeFrom > Number(String(dueFrom)))) dueFrom = new Date(rangeFrom)
+            if (rangeThru != null && (dueThru == null || rangeThru + 1 < Number(String(dueThru)))) dueThru = new Date(rangeThru + 1)
+            // a level of the tree (view-tree children, impl-projects.md F13), and every row of the board or calendar, without the counts
+            const treeParent = param('parentWorkEffortId')
+            const noLimit = param('pageNoLimit') === 'true'
+            const out = ec.service.sync().name('ironstone.WorkItemServices.find#WorkItems').parameters({list: list, text: text || null,
+                rootWorkEffortId: rootWorkEffortId || null, purposeEnumId: purposeEnumId || null, statusId: statusId || null, priorityBand: priorityBand || null,
+                assigneePartyId: assigneePartyId || null, milestoneId: milestoneId || null, releaseId: releaseId || null, labelId: labelId || null,
+                parentWorkEffortId: treeParent, underWorkEffortId: underWorkEffortId || null, topLevel: topLevel || null, visibilityEnumId: visibilityEnumId || null,
+                recurring: recurring || null, dueFrom: dueFrom, dueThru: dueThru, treeOrder: param('view') === 'tree', orderByField: orderByField || null,
+                pageIndex: Number(pageIndex || 0) || 0, pageSize: 25, pageNoLimit: noLimit || !!treeParent, withCounts: !noLimit && !treeParent}).call() || {}
+            workItemRows = Array.from(out.rowList || [])
+            workItemRowsCount = out.rowCount || 0
+            workItemRowsPageIndex = out.pageIndex || 0
+            workItemRowsPageSize = out.pageSize || 25
+            workItemRowsPageMaxIndex = out.pageMaxIndex || 0
+            workItemRowsPageRangeLow = out.pageRangeLow || 0
+            workItemRowsPageRangeHigh = out.pageRangeHigh || 0
+            const counts = out.counts || {}
+            keyMatch = out.keyMatch || null
+            hoursTotals = out.totals || {}
+
+            // the find as it is, kept by every change of the list
+            const find = {text: text || null, rootWorkEffortId: rootWorkEffortId || null, purposeEnumId: purposeEnumId || null, statusId: statusId || null,
+                priorityBand: priorityBand || null, assigneePartyId: assigneePartyId || null, milestoneId: milestoneId || null, releaseId: releaseId || null,
+                labelId: labelId || null, underWorkEffortId: underWorkEffortId || null, topLevel: topLevel || null, visibilityEnumId: visibilityEnumId || null,
+                recurring: recurring || null, orderByField: orderByField || null, due_period: ctx('due_period'), due_poffset: ctx('due_poffset'),
+                due_pdate: ctx('due_pdate'), due_from: ctx('due_from'), due_thru: ctx('due_thru')}
+            Object.keys(find).forEach((key) => { if (find[key] == null) delete find[key] })
+            filtered = Object.keys(find).some((key) => key !== 'orderByField')
+            const keepMap = Object.assign({list: list}, find, workItemRowsPageIndex ? {pageIndex: String(workItemRowsPageIndex)} : {})
+            keepJson = JSON.stringify(keepMap)
+            listChips = lists.map(([key, label, icon]) => ({key: key, label: L(label) + ' · ' + (counts[key] || 0), icon: icon, on: key === list,
+                params: Object.assign({}, find, {list: key})}))
+            listLabel = L(lists.find((entry) => entry[0] === list)[1])
+            // the drop-downs
+            projectOptions = ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').call()?.projectList || []
+            addProjectOptions = ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').parameters({memberOnly: true}).call()?.projectList || []
+            addProjectId = rootWorkEffortId && addProjectOptions.some((option) => option.key === rootWorkEffortId) ? rootWorkEffortId : (addProjectOptions[0]?.key || '')
+            milestoneOptions = ec.service.sync().name('ironstone.WorkItemServices.get#PlanItemOptions').parameters({rootWorkEffortId: rootWorkEffortId || null,
+                workEffortTypeEnumId: 'WetMilestone'}).call()?.optionList || []
+            releaseOptions = ec.service.sync().name('ironstone.WorkItemServices.get#PlanItemOptions').parameters({rootWorkEffortId: rootWorkEffortId || null,
+                workEffortTypeEnumId: 'WetRelease'}).call()?.optionList || []
+            labelOptions = ec.service.sync().name('ironstone.WorkItemServices.get#LabelOptions').call()?.optionList || []
+            isProjectsManager = ec.user.isInGroup('BOSS_PROJECT_MANAGER') || ec.user.isInGroup('ADMIN')
+            const empty = {open: 'No open work items', mine: 'No open work items assigned to you', reported: 'No open work items you reported',
+                watching: 'You are not watching any open work item', unassigned: 'Every open work item has an assignee', week: 'Nothing due this week',
+                overdue: 'Nothing overdue', recent: 'Nothing changed in the last seven days', done: 'Nothing done yet', all: 'No work items'}
+            emptyText = filtered ? L('No work items match') : (addProjectOptions.length ? L(empty[list]) : L('No work items yet: you are on no project'))
+            newItemHtml = '<q-btn unelevated no-caps dense color="primary" class="q-ml-sm" icon="sym_o_add_task" label="' + sri.encodeHtml(L('New work item')) + '"'
+                    + ' @click="$root.openQuickCreate({url: \'/qapps/Projects/QuickCreate?kind=workItem' + (rootWorkEffortId ? '&rootWorkEffortId=' + encodeURIComponent(rootWorkEffortId) : '')
+                    + '\', label: \'' + sri.encodeHtml(L('New work item').replace(/['\\]/g, '')) + '\'})"></q-btn>'
+        ]]></script>
+    </actions>
+
     <widgets>
-        <label text="Placeholder: Work items across projects or in one: smart lists and saved finds, quick add, bulk changes; list, board, calendar and tree views." type="p"/>
+        <!-- the selection of the list is the shell's (Assist, bulk) -->
+        <context selection-form="WorkItemList"/>
+
+        <!-- title row: New work item (the views switch and Peek are above the list) -->
+        <container style="row items-center q-mb-sm q-gutter-y-xs">
+            <label text="Work items" type="h5" style="q-my-none q-mr-sm"/>
+            <container style="col"/>
+            <render-mode><text type="qvt"><![CDATA[${newItemHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify({t: "link", id: "WorkItemsNew", text: ec.l10n.localize("New work item"), url: sri.buildUrl("../../QuickCreate").path + "?kind=workItem"})}]]></text></render-mode>
+        </container>
+
+        <!-- the smart lists, each with its count -->
+        <container style="row q-gutter-xs q-mb-sm m-task-chips">
+            <section-iterate name="ListChip" list="listChips" entry="chip"><widgets>
+                <section name="ListChipOn" condition="chip.on"><widgets>
+                    <link url="." link-type="anchor-button" btn-type="primary" text="${chip.label}" icon="${chip.icon}" parameter-map="chip.params"/>
+                </widgets><fail-widgets>
+                    <link url="." link-type="anchor-button" text="${chip.label}" icon="${chip.icon}" parameter-map="chip.params"/>
+                </fail-widgets></section>
+            </widgets></section-iterate>
+        </container>
+        <section name="ClearFilters" condition="filtered"><widgets>
+            <container style="q-mb-xs row items-center q-gutter-x-sm">
+                <section name="KeyMatch" condition="keyMatch"><widgets>
+                    <link url="workItemDetail" link-type="anchor-button" btn-type="primary" text="Open ${keyMatch}" icon="sym_o_open_in_new" parameter-map="{workEffortId:keyMatch}"/>
+                </widgets></section>
+                <link url="." link-type="anchor" text="Clear filters" parameter-map="{list:list}"/>
+            </container>
+        </widgets></section>
+
+        <container-box><box-header title="${listLabel} · ${workItemRowsCount}"/>
+            <box-toolbar><label text="${hoursTotals.estimatedText || '0'} h estimated · ${hoursTotals.remainingText || '0'} h remaining · ${hoursTotals.actualText || '0'} h actual"
+                type="span" style="text-caption m-muted"/></box-toolbar>
+            <box-body-nopad>
+            <!-- the quick-add row: a work item in a project the user is on; Enter adds it and the cursor is back in the title -->
+            <section name="QuickAddRow" condition="addProjectOptions.length"><widgets>
+                <container style="q-px-sm q-pt-sm m-task-quick-add">
+                    <form-single name="NewWorkItem" transition="quickAdd" focus-field="workEffortName">
+                        <field name="keep" from="keepJson"><default-field><hidden/></default-field></field>
+                        <field name="purposeEnumId" from="'WepTask'"><default-field title="Type">
+                            <drop-down><entity-options key="${enumId}" text="${description}">
+                                <entity-find entity-name="moqui.basic.Enumeration" cache="true">
+                                    <econdition field-name="enumTypeId" value="WorkEffortPurpose"/><econdition field-name="parentEnumId" value="WetTask"/>
+                                    <econdition field-name="enumId" operator="not-in" value="WepToDo,WepCommunication,WepPlaceholder"/>
+                                    <order-by field-name="description"/></entity-find>
+                            </entity-options></drop-down></default-field></field>
+                        <field name="workEffortName" from="''"><default-field title="Add a work item"><text-line size="36"/></default-field></field>
+                        <field name="assignToPartyId"><default-field title="Assignee">
+                            <drop-down allow-empty="true"><dynamic-options transition="assigneeSearch" server-search="true" min-length="0"/></drop-down></default-field></field>
+                        <field name="projectId" from="addProjectId"><conditional-field condition="rootWorkEffortId"><hidden/></conditional-field>
+                            <default-field title="Project"><drop-down><list-options list="addProjectOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                        <field name="addButton"><default-field title="Add"><submit icon="sym_o_add"/></default-field></field>
+                        <field-layout><field-row-big><field-ref name="purposeEnumId"/><field-ref name="workEffortName"/><field-ref name="assignToPartyId"/>
+                            <field-ref name="projectId"/><field-ref name="addButton"/></field-row-big></field-layout>
+                    </form-single>
+                </container>
+            </widgets></section>
+
+            <form-list name="WorkItemList" list="workItemRows" skip-form="true" paginate="true" show-page-size="false" views="list,board,calendar,tree"
+                    header-dialog="true" saved-finds="true" select-columns="true" show-csv-button="true" show-xlsx-button="true" peek-url="../WorkItemDetail">
+                <row-selection id-field="workEffortId" parameter="selectedIds" list-mode="true">
+                    <action><dialog button-text="Assign" button-icon="sym_o_person_add" title="Assign the selected work items to"/>
+                        <form-single name="BulkAssign" transition="bulkAction">
+                            <field name="bulk" from="'assign'"><default-field><hidden/></default-field></field>
+                            <field name="keep" from="keepJson"><default-field><hidden/></default-field></field>
+                            <field name="value"><default-field title="Assignee">
+                                <drop-down><dynamic-options transition="assigneeSearch" server-search="true" min-length="0"/></drop-down></default-field></field>
+                            <field name="submitButton"><default-field title="Assign"><submit/></default-field></field>
+                        </form-single></action>
+                    <action><form-single name="BulkUnassign" transition="bulkAction">
+                        <field name="bulk" from="'unassign'"><default-field><hidden/></default-field></field>
+                        <field name="keep" from="keepJson"><default-field><hidden/></default-field></field>
+                        <field name="submitButton"><default-field title="Unassign"><submit icon="sym_o_person_remove"/></default-field></field>
+                    </form-single></action>
+                    <action><dialog button-text="Status" button-icon="sym_o_flag" title="Status of the selected work items (along each one's flow)"/>
+                        <form-single name="BulkStatus" transition="bulkAction">
+                            <field name="bulk" from="'status'"><default-field><hidden/></default-field></field>
+                            <field name="keep" from="keepJson"><default-field><hidden/></default-field></field>
+                            <field name="value"><default-field title="Status">
+                                <drop-down><entity-options key="${statusId}" text="${description}">
+                                    <entity-find entity-name="moqui.basic.StatusItem" cache="true"><econdition field-name="statusTypeId" value="WorkEffort"/>
+                                        <order-by field-name="sequenceNum"/></entity-find></entity-options></drop-down></default-field></field>
+                            <field name="submitButton"><default-field title="Set status"><submit/></default-field></field>
+                        </form-single></action>
+                    <action><dialog button-text="Priority" button-icon="sym_o_priority_high" title="Priority of the selected work items"/>
+                        <form-single name="BulkPriority" transition="bulkAction">
+                            <field name="bulk" from="'priority'"><default-field><hidden/></default-field></field>
+                            <field name="keep" from="keepJson"><default-field><hidden/></default-field></field>
+                            <field name="value"><default-field title="Priority">
+                                <drop-down no-current-selected-key="5"><option key="1" text="1 (highest)"/><option key="2" text="2 (high)"/><option key="3"/>
+                                    <option key="4"/><option key="5" text="5 (normal)"/><option key="6"/><option key="7"/><option key="8" text="8 (low)"/>
+                                    <option key="9" text="9 (lowest)"/></drop-down></default-field></field>
+                            <field name="submitButton"><default-field title="Set priority"><submit/></default-field></field>
+                        </form-single></action>
+                    <action><dialog button-text="Due" button-icon="sym_o_event" title="Due date of the selected work items"/>
+                        <form-single name="BulkDue" transition="bulkAction">
+                            <field name="bulk" from="'due'"><default-field><hidden/></default-field></field>
+                            <field name="keep" from="keepJson"><default-field><hidden/></default-field></field>
+                            <field name="value"><default-field title="Due (empty: no due date)"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                            <field name="submitButton"><default-field title="Set due"><submit/></default-field></field>
+                        </form-single></action>
+                    <action><dialog button-text="Milestone" button-icon="sym_o_flag_circle" title="Milestone of the selected work items"/>
+                        <form-single name="BulkMilestone" transition="bulkAction">
+                            <field name="bulk" from="'milestone'"><default-field><hidden/></default-field></field>
+                            <field name="keep" from="keepJson"><default-field><hidden/></default-field></field>
+                            <field name="value"><default-field title="Milestone (empty: none; of the items' project)">
+                                <drop-down allow-empty="true"><list-options list="milestoneOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                            <field name="submitButton"><default-field title="Set milestone"><submit/></default-field></field>
+                        </form-single></action>
+                    <action><dialog button-text="Release" button-icon="sym_o_new_releases" title="Release of the selected work items"/>
+                        <form-single name="BulkRelease" transition="bulkAction">
+                            <field name="bulk" from="'release'"><default-field><hidden/></default-field></field>
+                            <field name="keep" from="keepJson"><default-field><hidden/></default-field></field>
+                            <field name="value"><default-field title="Release (empty: none; of the items' project)">
+                                <drop-down allow-empty="true"><list-options list="releaseOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                            <field name="submitButton"><default-field title="Set release"><submit/></default-field></field>
+                        </form-single></action>
+                    <action><dialog button-text="Label" button-icon="sym_o_label" title="Add a label to the selected work items"/>
+                        <form-single name="BulkLabel" transition="bulkAction">
+                            <field name="bulk" from="'label'"><default-field><hidden/></default-field></field>
+                            <field name="keep" from="keepJson"><default-field><hidden/></default-field></field>
+                            <field name="value"><default-field title="Label">
+                                <drop-down><list-options list="labelOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                            <field name="submitButton"><default-field title="Add label"><submit/></default-field></field>
+                        </form-single></action>
+                    <action><dialog button-text="Unlabel" button-icon="sym_o_label_off" title="Take a label off the selected work items"/>
+                        <form-single name="BulkUnlabel" transition="bulkAction">
+                            <field name="bulk" from="'unlabel'"><default-field><hidden/></default-field></field>
+                            <field name="keep" from="keepJson"><default-field><hidden/></default-field></field>
+                            <field name="value"><default-field title="Label">
+                                <drop-down><list-options list="labelOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                            <field name="submitButton"><default-field title="Take off"><submit/></default-field></field>
+                        </form-single></action>
+                    <action><dialog button-text="Visibility" button-icon="sym_o_visibility" title="Visibility of the selected work items"/>
+                        <form-single name="BulkVisibility" transition="bulkAction">
+                            <field name="bulk" from="'visibility'"><default-field><hidden/></default-field></field>
+                            <field name="keep" from="keepJson"><default-field><hidden/></default-field></field>
+                            <field name="value"><default-field title="Visibility">
+                                <drop-down><option key="WevGeneral" text="General (shared with the client)"/><option key="WevWorkGroup" text="Work group (internal)"/>
+                                    <option key="WevRestricted" text="Restricted (its people and the managers)"/></drop-down></default-field></field>
+                            <field name="submitButton"><default-field title="Set visibility"><submit/></default-field></field>
+                        </form-single></action>
+                    <action><dialog button-text="Move to project" button-icon="sym_o_drive_file_move" title="Move the selected work items, with their sub-items, to"/>
+                        <form-single name="BulkMoveToProject" transition="bulkAction">
+                            <field name="bulk" from="'moveToProject'"><default-field><hidden/></default-field></field>
+                            <field name="keep" from="keepJson"><default-field><hidden/></default-field></field>
+                            <field name="value"><default-field title="Project">
+                                <drop-down><list-options list="addProjectOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                            <field name="submitButton"><default-field title="Move"><submit/></default-field></field>
+                        </form-single></action>
+                    <action><dialog button-text="Move under" button-icon="sym_o_subdirectory_arrow_right" title="Move the selected work items under an item of their project"/>
+                        <form-single name="BulkMoveUnder" transition="bulkAction">
+                            <field name="bulk" from="'moveUnder'"><default-field><hidden/></default-field></field>
+                            <field name="keep" from="keepJson"><default-field><hidden/></default-field></field>
+                            <field name="value"><default-field title="Parent key (empty: the top level)"><text-line size="16"/></default-field></field>
+                            <field name="submitButton"><default-field title="Move"><submit/></default-field></field>
+                        </form-single></action>
+                    <action><dialog button-text="Delete" button-icon="sym_o_delete" title="Delete the selected work items (those with no time, sub-items, comments or files)"/>
+                        <form-single name="BulkDelete" transition="bulkAction">
+                            <field name="bulk" from="'delete'"><default-field><hidden/></default-field></field>
+                            <field name="keep" from="keepJson"><default-field><hidden/></default-field></field>
+                            <field name="submitButton"><default-field title="Delete"><submit confirmation="Delete the selected work items?"/></default-field></field>
+                        </form-single></action>
+                </row-selection>
+
+                <!-- the find (the list's dialog): fields with a header widget only are find fields -->
+                <field name="text"><header-field title="Text or key"><text-line size="20"/></header-field></field>
+                <field name="list"><header-field><hidden/></header-field></field>
+                <field name="due"><header-field title="Due"><date-period allow-empty="true"/></header-field></field>
+                <field name="labelId"><header-field title="Label">
+                    <drop-down allow-empty="true"><list-options list="labelOptions" key="${key}" text="${text}"/></drop-down></header-field></field>
+                <field name="priorityBand"><header-field title="Priority">
+                    <drop-down allow-empty="true"><option key="high" text="High (1-3)"/><option key="normal" text="Normal (4-6)"/><option key="low" text="Low (7-9)"/></drop-down></header-field></field>
+                <field name="underWorkEffortId"><header-field title="Under (an item's key, any depth)"><text-line size="14"/></header-field></field>
+                <field name="topLevel"><header-field title="Top-level only"><check><option key="Y" text=" "/></check></header-field></field>
+                <field name="visibilityEnumId"><header-field title="Visibility">
+                    <drop-down allow-empty="true"><option key="WevGeneral" text="General"/><option key="WevWorkGroup" text="Work group"/>
+                        <option key="WevRestricted" text="Restricted"/></drop-down></header-field></field>
+                <field name="recurring"><header-field title="Repeating"><check><option key="Y" text=" "/></check></header-field></field>
+
+                <!-- the columns -->
+                <field name="workEffortId"><header-field title="Key" show-order-by="true"/><default-field>
+                    <link url="workItemDetail" text="${workEffortId}" parameter-map="{workEffortId:workEffortId}" link-type="anchor" style="text-mono text-no-wrap"/>
+                </default-field></field>
+                <field name="purposeEnumId"><header-field title="Type" show-order-by="true">
+                        <drop-down allow-empty="true" allow-multiple="true"><entity-options key="${enumId}" text="${description}">
+                            <entity-find entity-name="moqui.basic.Enumeration" cache="true">
+                                <econdition field-name="enumTypeId" value="WorkEffortPurpose"/><econdition field-name="parentEnumId" value="WetTask"/>
+                                <order-by field-name="description"/></entity-find></entity-options></drop-down></header-field>
+                    <default-field title="Type">
+                        <render-mode><text type="qvt"><![CDATA[<q-icon name="${WebUtilities.encodeHtml(typeIcon ?? '')}" size="xs" class="m-muted"><q-tooltip>${WebUtilities.encodeHtml(purposeLabel ?? '')}</q-tooltip></q-icon>]]></text>
+                            <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify(purposeLabel ?? "")}}]]></text></render-mode>
+                    </default-field></field>
+                <field name="workEffortName"><header-field title="Title" show-order-by="true"/><default-field>
+                    <link url="workItemDetail" text="${workEffortName}${isRecurring ? ' ↻' : ''}" parameter-map="{workEffortId:workEffortId}" style="${isDone ? 'm-muted' : ''}"/>
+                </default-field></field>
+                <field name="statusId"><header-field title="Status" show-order-by="true">
+                        <drop-down allow-empty="true" allow-multiple="true"><entity-options key="${statusId}" text="${description}">
+                            <entity-find entity-name="moqui.basic.StatusItem" cache="true"><econdition field-name="statusTypeId" value="WorkEffort"/>
+                                <order-by field-name="sequenceNum"/></entity-find></entity-options></drop-down></header-field>
+                    <default-field>
+                        <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none m-tonal text-${statusColor}" data-status="${statusId}">${WebUtilities.encodeHtml(statusLabel ?? '')}</q-chip>]]></text><text type="tui"><![CDATA[{"t": "text", "style": "strong", "text": ${JSON.stringify(statusLabel ?? "")}}]]></text></render-mode>
+                    </default-field></field>
+                <!-- the in-place edits keep their click (@click.stop), so on a board card they edit rather than open the item -->
+                <field name="priority"><header-field title="Priority" show-order-by="true"/>
+                    <conditional-field condition="canUpdate &amp;&amp; isOpen">
+                        <render-mode><text type="qvt"><![CDATA[<span @click.stop>]]></text><text type="tui" template="false">[]</text></render-mode>
+                        <editable id="WorkItemPriority" text="${priorityText || '—'}" transition="updateField" widget-type="select" parameter-map="{workEffortId:workEffortId, field:'priority'}">
+                            <editable-load transition="fieldValue" parameter-map="{workEffortId:workEffortId, field:'priority'}"/></editable>
+                        <render-mode><text type="qvt"><![CDATA[</span>]]></text><text type="tui" template="false">[]</text></render-mode>
+                    </conditional-field>
+                    <default-field><label text="${priorityText}" type="span"/></default-field>
+                </field>
+                <field name="assigneePartyId"><header-field title="Assignee">
+                        <drop-down allow-empty="true"><dynamic-options transition="assigneeSearch" server-search="true" min-length="0"/></drop-down></header-field>
+                    <default-field title="Assignees"><display text="${assigneeText || ''}"/></default-field></field>
+                <field name="estimatedCompletionDate"><header-field title="Due" show-order-by="true"/>
+                    <conditional-field condition="canUpdate &amp;&amp; isOpen">
+                        <container style="text-no-wrap ${overdue ? 'text-warning' : ''}">
+                            <render-mode><text type="qvt"><![CDATA[<span @click.stop>]]></text><text type="tui" template="false">[]</text></render-mode>
+                            <editable id="WorkItemDue" text="${dueText || '—'}" transition="updateField" widget-type="select" parameter-map="{workEffortId:workEffortId, field:'due'}">
+                                <editable-load transition="fieldValue" parameter-map="{workEffortId:workEffortId, field:'due'}"/></editable>
+                            <render-mode><text type="qvt"><![CDATA[</span>]]></text><text type="tui" template="false">[]</text></render-mode>
+                        </container>
+                    </conditional-field>
+                    <default-field><label text="${dueText}" type="span" style="text-no-wrap ${overdue ? 'text-warning' : ''}"/></default-field>
+                </field>
+                <field name="rootWorkEffortId"><header-field title="Project" show-order-by="true">
+                        <drop-down allow-empty="true"><list-options list="projectOptions" key="${key}" text="${text}"/></drop-down></header-field>
+                    <default-field title="Project"><display text="${projectName || ''}"/></default-field></field>
+                <field name="parentWorkEffortId"><default-field title="Parent"><display text="${parentWorkEffortId ? parentWorkEffortId + ' ' + parentName : ''}"/></default-field></field>
+                <field name="milestoneId"><header-field title="Milestone">
+                        <drop-down allow-empty="true"><list-options list="milestoneOptions" key="${key}" text="${text}"/></drop-down></header-field>
+                    <default-field title="Milestone"><display text="${milestoneName || ''}"/></default-field></field>
+                <field name="releaseId"><header-field title="Release">
+                        <drop-down allow-empty="true"><list-options list="releaseOptions" key="${key}" text="${text}"/></drop-down></header-field>
+                    <default-field title="Release"><display text="${releaseName || ''}"/></default-field></field>
+                <field name="labelText"><default-field title="Labels"><display/></default-field></field>
+                <field name="estimatedWorkTime" align="right"><header-field title="Est." show-order-by="true"/>
+                    <default-field title="Est."><display format="#,##0.##"/></default-field></field>
+                <field name="remainingWorkTime" align="right"><header-field title="Rem." show-order-by="true"/>
+                    <default-field title="Rem."><display format="#,##0.##"/></default-field></field>
+                <field name="actualWorkTime" align="right"><header-field title="Act." show-order-by="true"/>
+                    <default-field title="Act."><display format="#,##0.##"/></default-field></field>
+                <!-- the roll-ups of the tree (its branch totals), and the time changed -->
+                <field name="totalEstimatedText" align="right"><default-field title="Total est."><display/></default-field></field>
+                <field name="totalRemainingText" align="right"><default-field title="Total rem."><display/></default-field></field>
+                <field name="totalActualText" align="right"><default-field title="Total act."><display/></default-field></field>
+                <field name="doneOfTotal" align="right"><default-field title="Done"><display/></default-field></field>
+                <field name="findButton"><header-field title="Find"><submit/></header-field></field>
+
+                <!-- the key first: the tree is drawn in the first column, the record's link (style-guide §3.15) -->
+                <form-list-column><field-ref name="workEffortId"/></form-list-column>
+                <form-list-column><field-ref name="purposeEnumId"/></form-list-column>
+                <form-list-column><field-ref name="workEffortName"/></form-list-column>
+                <form-list-column><field-ref name="statusId"/></form-list-column>
+                <form-list-column><field-ref name="priority"/></form-list-column>
+                <form-list-column><field-ref name="assigneePartyId"/></form-list-column>
+                <form-list-column><field-ref name="estimatedCompletionDate"/></form-list-column>
+                <form-list-column><field-ref name="rootWorkEffortId"/><field-ref name="parentWorkEffortId"/></form-list-column>
+                <form-list-column><field-ref name="milestoneId"/><field-ref name="releaseId"/></form-list-column>
+                <form-list-column><field-ref name="labelText"/></form-list-column>
+                <form-list-column><field-ref name="estimatedWorkTime"/></form-list-column>
+                <form-list-column><field-ref name="remainingWorkTime"/></form-list-column>
+                <form-list-column><field-ref name="actualWorkTime"/></form-list-column>
+                <form-list-column><field-ref name="totalEstimatedText"/></form-list-column>
+                <form-list-column><field-ref name="totalRemainingText"/></form-list-column>
+                <form-list-column><field-ref name="totalActualText"/></form-list-column>
+                <form-list-column><field-ref name="doneOfTotal"/></form-list-column>
+                <form-list-column><field-ref name="findButton"/></form-list-column>
+
+                <!-- the views: a card is the item's key and title with its type, assignees, due and priority -->
+                <view-board group-field="statusId" group-fields="assigneePartyId,priority,milestoneId,releaseId" card-title-field="workEffortName"
+                        card-fields="workEffortId,assigneePartyId,estimatedCompletionDate" badge-field="priority" sum-field="estimatedWorkTime"
+                        key-fields="workEffortId" transition="moveCard" all-rows="true"/>
+                <view-calendar start-field="estimatedCompletionDate" all-day-field="dueAllDay" title-field="workEffortName" color-field="statusId" key-fields="workEffortId"
+                        transition="moveDue" range-find="true" card-fields="workEffortId,assigneePartyId"/>
+                <view-tree parent-field="parentWorkEffortId" ancestor-transition="workItemAncestors" child-count-field="childCount" key-fields="workEffortId"
+                        rollup-fields="totalEstimatedText,totalRemainingText,totalActualText,doneOfTotal" transition="moveWorkItem"/>
+            </form-list>
+            <section name="NoWorkItems" condition="!workItemRows.length"><widgets>
+                <container style="q-pa-sm">
+                    <label type="p" text="${emptyText}" style="m-muted q-mb-xs"/>
+                    <section name="NoWorkItemsClear" condition="filtered"><widgets>
+                        <link url="." link-type="anchor" text="Clear filters" parameter-map="{list:list}"/>
+                    </widgets></section>
+                </container>
+            </widgets></section>
+        </box-body-nopad></container-box>
     </widgets>
 </screen>

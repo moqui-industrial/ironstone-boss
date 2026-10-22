@@ -82,7 +82,9 @@ const demoRecords = {
     "Commons/Settings/ContactBooks": { text: "Team Contacts" },
     "Commons/Tasks": { text: "Review the open support requests" },
     "Commons/Tasks/List": { text: "Plan the office move" },
-    "Commons/Tasks/TaskDetail": { parameters: { workEffortId: "BOSS_DEMO_TASK" }, text: "Review the open support requests" },
+    // the shared work item detail (Commons mounts it at Tasks/TaskDetail, Projects at WorkItems/WorkItemDetail), here in the
+    // Commons context
+    "Shared/WorkItemDetail/": { parameters: { workEffortId: "BOSS_DEMO_TASK" }, text: "Review the open support requests" },
     // M9: Knowledge and Notes (.qvue screens: their components) and Knowledge's Spaces, SpaceDetail and Review on the knowledge
     // demo (data/BossKnowledgeDemoData.xml; test/Knowledge.spec.js, KnowledgeReview.spec.js and Notes.spec.js call their transitions)
     "Commons/Knowledge": { text: "BossKnowledge" },
@@ -127,7 +129,11 @@ const demoRecords = {
     // Projects P1: the sections show their default placeholder (design-projects.md §1.2), and the first port's time entry list
     // (Time/TimeEntries) john.doe's time
     "Projects/Projects": { text: "Placeholder: Projects" },
-    "Projects/WorkItems": { text: "Placeholder: Work items" },
+    // Projects P2: the work items, their list the default of WorkItems, and the quick-create forms
+    "Projects/WorkItems": { text: "Expand and collapse rows" },
+    "Projects/WorkItems/List": { parameters: { rootWorkEffortId: "IRON", list: "all" }, text: "Write the getting started guide" },
+    "Projects/QuickCreate": { parameters: { kind: "workItem" }, text: "QuickWorkItem" },
+    "Projects/QuickProject": { text: "From template" },
     "Projects/Requests": { text: "Placeholder: Requests" },
     "Projects/Code": { text: "Placeholder: Repositories" },
     "Projects/Time": { text: "Placeholder: My time" },

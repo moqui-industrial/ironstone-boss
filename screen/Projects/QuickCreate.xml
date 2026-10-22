@@ -12,14 +12,118 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Placeholder for the Projects quick-create dialog of the + menu kinds workItem, time and project (design-projects.md §3 QuickCreate; impl-projects.md P2), with the record of the screen context as Commons/QuickCreate has it. -->
+<!-- QuickCreate (design-projects.md §3 QuickCreate; style-guide §3.11 Dialog): the screen of the Projects + menu kinds workItem
+    and time, as Commons/QuickCreate is for Commons, with the record of the screen context (recordEntity, recordId and
+    recordTitle, which the shell adds). QuickWorkItem: a work item in a project the user is on (the project of the screen
+    context, of the list it was opened from, else the first), its type, title, assignee (unassigned by default, "me" one
+    click), priority and due (service/ironstone/WorkItemServices.xml quickAdd#WorkItem); a record that is not a work effort is
+    linked to it. The sprint waits for impl-projects.md P4. QuickTime waits for P6: the kind stays and says so, with a link to
+    the time entries. The project kind is the managers-only screen Projects/QuickProject (impl-projects.md F8); here it only
+    points there. The transition answers JSON messages, so the shell's dialog closes and the page under it stays. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Quick create" default-menu-include="false">
     <parameter name="kind"/>
     <parameter name="recordEntity"/>
     <parameter name="recordId"/>
     <parameter name="recordTitle"/>
+    <parameter name="rootWorkEffortId"/>
+
+    <transition name="createWorkItem">
+        <actions><script><![CDATA[
+            const linkable = recordEntity && recordId && recordEntity !== 'mantle.work.effort.WorkEffort'
+            const out = ec.service.sync().name('ironstone.WorkItemServices.quickAdd#WorkItem').parameters({rootWorkEffortId: rootWorkEffortId || null,
+                workEffortName: workEffortName || '', purposeEnumId: purposeEnumId || null, priority: priority || null,
+                assignToPartyId: assignToPartyId || (assignToMe === 'Y' ? ec.user.userAccount?.partyId : null),
+                estimatedCompletionDate: estimatedCompletionDate || null, recordEntity: linkable ? recordEntity : null, recordId: linkable ? recordId : null}).call()
+            ec.web.sendJsonResponse(ec.message.hasError() ? {} : {workEffortId: out.workEffortId, url: out.url,
+                messageInfos: [{type: 'success', message: out.message, link: out.url}]})
+        ]]></script></actions>
+        <default-response type="none"/>
+    </transition>
+    <transition name="searchPeople" read-only="true">
+        <actions>
+            <service-call name="ironstone.TaskServices.search#Assignees" in-map="{term:term}" out-map="found"/>
+            <script>ec.web.sendJsonResponse(found.optionList || [])</script>
+        </actions>
+        <default-response type="none"/>
+    </transition>
+
+    <actions>
+        <script><![CDATA[
+            const kinds = ['workItem', 'time', 'project']
+            kind = kinds.includes(kind) ? kind : 'workItem'
+            hasRecord = !!(recordEntity && recordId)
+            recordLabel = hasRecord ? (recordTitle || recordId) : null
+            myPartyId = ec.user.userAccount?.partyId || null
+            myName = ec.user.userAccount?.userFullName || ec.user.username
+            // the project: of the list, of the work effort of the screen context (a project, or the project of a work item), else the first
+            projectOptions = ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').parameters({memberOnly: true}).call()?.projectList || []
+            let projectId = rootWorkEffortId || null
+            if (!projectId && hasRecord && recordEntity === 'mantle.work.effort.WorkEffort') {
+                const record = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', recordId).one()
+                projectId = record?.workEffortTypeEnumId === 'WetProject' ? record.workEffortId : (record?.rootWorkEffortId || null)
+            }
+            defaultProjectId = projectId && projectOptions.some((option) => option.key === projectId) ? projectId : (projectOptions[0]?.key || '')
+            linkRecord = hasRecord && recordEntity !== 'mantle.work.effort.WorkEffort'
+            isProjectsManager = ec.user.isInGroup('BOSS_PROJECT_MANAGER') || ec.user.isInGroup('ADMIN')
+        ]]></script>
+    </actions>
+
     <widgets>
-        <label text="Placeholder: Quick create a work item, a time entry or a project (kind ${kind || 'workItem'})." type="p"/>
+        <section name="RecordChip" condition="linkRecord &amp;&amp; kind == 'workItem'"><widgets>
+            <render-mode><text type="qvt"><![CDATA[<q-chip dense square icon="sym_o_link" class="q-ml-none q-mb-sm">]]></text><text type="tui" template="false">[]</text></render-mode>
+            <label type="span" text="Linked to ${recordLabel}"/>
+            <render-mode><text type="qvt"><![CDATA[<span class="q-mx-xs">&#183;</span>]]></text><text type="tui" template="false">[]</text></render-mode>
+            <link url="." link-type="anchor" text="remove" dynamic-load-id="m-quick-create-body"
+                    parameter-map="{kind:kind, recordEntity:'', recordId:'', recordTitle:'', rootWorkEffortId:rootWorkEffortId}"/>
+            <render-mode><text type="qvt"><![CDATA[</q-chip>]]></text><text type="tui" template="false">[]</text></render-mode>
+        </widgets></section>
+
+        <!-- a work item -->
+        <section name="WorkItemKind" condition="kind == 'workItem'"><widgets>
+            <section name="WorkItemProjects" condition="projectOptions.length"><widgets>
+                <form-single name="QuickWorkItem" transition="createWorkItem" focus-field="workEffortName">
+                    <field name="recordEntity"><default-field><hidden/></default-field></field>
+                    <field name="recordId"><default-field><hidden/></default-field></field>
+                    <field name="rootWorkEffortId" from="defaultProjectId"><default-field title="Project">
+                        <drop-down><list-options list="projectOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                    <field name="purposeEnumId" from="'WepTask'"><default-field title="Type"><radio>
+                        <option key="WepTask" text="Task"/><option key="WepFix" text="Bug"/><option key="WepNewFeature" text="Feature"/>
+                        <option key="WepFeatureEnhance" text="Enhancement"/><option key="WepDocument" text="Document"/><option key="WepSupport" text="Support"/></radio></default-field></field>
+                    <field name="workEffortName"><default-field title="Title"><text-line size="44"/></default-field></field>
+                    <field name="assignToPartyId"><default-field title="Assignee (empty: unassigned)">
+                        <drop-down allow-empty="true"><dynamic-options transition="searchPeople" server-search="true" min-length="0"/></drop-down></default-field></field>
+                    <field name="assignToMe"><default-field title=" "><check><option key="Y" text="Assign to me"/></check></default-field></field>
+                    <field name="priority" from="'5'"><default-field title="Priority"><radio>
+                        <option key="2" text="High"/><option key="5" text="Normal"/><option key="8" text="Low"/></radio></default-field></field>
+                    <field name="estimatedCompletionDate"><default-field title="Due"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                    <field name="createButton"><default-field title="Create"><submit/></default-field></field>
+                    <field-layout>
+                        <field-ref name="rootWorkEffortId"/><field-ref name="purposeEnumId"/><field-ref name="workEffortName"/>
+                        <field-row><field-ref name="assignToPartyId"/><field-ref name="assignToMe"/></field-row>
+                        <field-row><field-ref name="priority"/><field-ref name="estimatedCompletionDate"/></field-row>
+                        <field-ref name="createButton"/>
+                    </field-layout>
+                </form-single>
+                <link url="../WorkItems" link-type="anchor" text="More options" parameter-map="{rootWorkEffortId:defaultProjectId}"/>
+            </widgets><fail-widgets>
+                <label type="p" text="You are on no project yet: a work item goes in a project you are on. Ask a project manager to add you, or use a personal task in Commons." style="m-muted"/>
+            </fail-widgets></section>
+        </widgets></section>
+
+        <!-- time: impl-projects.md P6 -->
+        <section name="TimeKind" condition="kind == 'time'"><widgets>
+            <label type="p" text="Logging time here is coming with My time (the weekly grid and the timer). Until then, record time in Time entries, or clock in on a work item's Time tab." style="m-muted"/>
+            <link url="../Time/TimeEntries" link-type="anchor" text="Open Time entries"/>
+        </widgets></section>
+
+        <!-- project: the managers' screen -->
+        <section name="ProjectKind" condition="kind == 'project'"><widgets>
+            <section name="ProjectForManagers" condition="isProjectsManager"><widgets>
+                <link url="../QuickProject" link-type="anchor" text="Open the new project form"/>
+            </widgets><fail-widgets>
+                <label type="p" text="Only project managers make projects." style="m-muted"/>
+            </fail-widgets></section>
+        </widgets></section>
     </widgets>
 </screen>

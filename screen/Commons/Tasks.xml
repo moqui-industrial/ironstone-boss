@@ -14,10 +14,13 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- Commons Tasks (design-drawers-commons.md §8 Tasks; impl-drawers-commons.md M6): the user's own slice of tasks. The list is
     the default subscreen Tasks/List, so /qapps/Commons/Tasks is the list and Tasks/TaskDetail shows in its place: the client
-    loads each screen of the path on its own, so a screen with subscreens cannot tell which one is shown. -->
+    loads each screen of the path on its own, so a screen with subscreens cannot tell which one is shown. TaskDetail is the shared
+    work item detail (screen/Shared/WorkItemDetail.xml) in the Commons context (design-projects.md §5 "Per-app context"). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Tasks" default-menu-index="4">
-    <subscreens default-item="List"/>
+    <subscreens default-item="List">
+        <subscreens-item name="TaskDetail" location="component://ironstone-boss/screen/Shared/WorkItemDetail.xml" menu-include="false"/>
+    </subscreens>
     <widgets>
         <subscreens-active/>
     </widgets>

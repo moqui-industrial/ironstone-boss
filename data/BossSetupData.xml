@@ -120,8 +120,29 @@ along with this software (see the LICENSE.md file). If not, see
         <artifacts artifactName="component://ironstone-boss/screen/Projects/WorkItems/Import.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
         <artifacts artifactName="component://ironstone-boss/screen/Projects/Billing.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
         <artifacts artifactName="component://ironstone-boss/screen/Projects/Settings.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
+        <!-- the + menu's Project kind (impl-projects.md F8: the shell offers a kind by its screen's authorization) -->
+        <artifacts artifactName="component://ironstone-boss/screen/Projects/QuickProject.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
         <authz artifactAuthzId="BOSS_PROJECTS_MANAGERS_TEAM" userGroupId="BOSS_PROJECT_TEAM" authzTypeEnumId="AUTHZT_DENY" authzActionEnumId="AUTHZA_ALL"/>
     </artifactGroups>
+    <!-- Projects' link of the WorkItemAssigned topic that Mantle seeds and sends (mantle.work.TaskServices.notify#TaskAssigned): the
+        work item in Projects, for the email; the tray opens the record's screen (ironstone.PaletteServices.get#RecordLink) -->
+    <moqui.security.user.NotificationTopic topic="WorkItemAssigned" linkTemplate="/qapps/Projects/WorkItems/WorkItemDetail?workEffortId=${workEffortId}"/>
+    <!-- the saved finds of WorkItems every Projects user has beside their own (design-projects.md §5 WorkItems; Blocked and
+        Current sprint wait for the dependency find and the sprints of impl-projects.md P4) -->
+    <moqui.screen.form.FormListFind formListFindId="BOSS_PROJ_OPEN_BUGS" description="Open bugs"
+            formLocation="component://ironstone-boss/screen/Projects/WorkItems/List.xml.form_list$WorkItemList" orderByField="priority">
+        <moqui.screen.form.FormListFindField fieldName="list" fieldValue="open"/>
+        <moqui.screen.form.FormListFindField fieldName="purposeEnumId" fieldValue="WepFix"/>
+        <moqui.screen.form.FormListFindUserGroup userGroupId="BOSS_PROJECT_TEAM"/>
+        <moqui.screen.form.FormListFindUserGroup userGroupId="BOSS_PROJECT_MANAGER"/>
+    </moqui.screen.form.FormListFind>
+    <moqui.screen.form.FormListFind formListFindId="BOSS_PROJ_IN_REVIEW" description="In review"
+            formLocation="component://ironstone-boss/screen/Projects/WorkItems/List.xml.form_list$WorkItemList">
+        <moqui.screen.form.FormListFindField fieldName="list" fieldValue="all"/>
+        <moqui.screen.form.FormListFindField fieldName="statusId" fieldValue="WeInReview"/>
+        <moqui.screen.form.FormListFindUserGroup userGroupId="BOSS_PROJECT_TEAM"/>
+        <moqui.screen.form.FormListFindUserGroup userGroupId="BOSS_PROJECT_MANAGER"/>
+    </moqui.screen.form.FormListFind>
     <!-- git over SSH needs SSH_GIT, which ALL_USERS cannot hold (mr-moqui plans/Remaining-Work.md) -->
     <moqui.security.UserGroupPermission userGroupId="BOSS_PROJECT_TEAM" userPermissionId="SSH_GIT" fromDate="0"/>
     <moqui.security.UserGroupPermission userGroupId="BOSS_PROJECT_MANAGER" userPermissionId="SSH_GIT" fromDate="0"/>

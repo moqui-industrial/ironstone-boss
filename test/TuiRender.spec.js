@@ -26,7 +26,8 @@ const demoParameters = {
     "Commons/Calendar/EventDetail": { workEffortId: "BOSS_DEMO_EVENT" },
     "Commons/Calendar/Schedules/ResourceDetail": { resourceType: "room", resourceId: "BOSS_DEMO_ROOM_MAPLE" },
     "Commons/Requests/RequestDetail": { requestId: "BOSS_DEMO_REQUEST" },
-    "Commons/Tasks/TaskDetail": { workEffortId: "BOSS_DEMO_TASK_PLAN" },
+    // the shared work item detail, which Commons mounts at Tasks/TaskDetail (Projects' context: WorkItemDetail.spec.js)
+    "WorkItemDetail": { workEffortId: "BOSS_DEMO_TASK_PLAN" },
     "Commons/Contacts/ContactDetail": { partyId: "ORG_ACME_BA" },
     "Commons/Contacts/Compare": { partyId: "BOSS_DEMO_DUP_A", otherPartyId: "BOSS_DEMO_DUP_B" },
     "Commons/Knowledge/SpaceDetail": { wikiSpaceId: "BOSSKB" },
