@@ -1,0 +1,19 @@
+<#-- The IronStone suite on the App List in the html render mode, as AppList.qvt.fancy; ${} is HTML escaped. -->
+<#assign named = suite.groups.flatMap(function (group) { return group.names })>
+<#assign more = suite.items.filter(function (item) { return !named.includes(item.name) })>
+<#assign shown = suite.groups.map(function (group) { return Object.assign({}, group, {items: group.names.map(function (name) { return suite.items.find(function (item) { return item.name == name }) }).filter(Boolean)}) }).concat(more.length ? [{name: 'More', title: 'More', items: more}] : []).filter(function (group) { return group.items.length })>
+<section data-app-section data-app-suite>
+    <h3>${ec.l10n.localize(suite.title)}</h3>
+    <div data-app-groups>
+    <#list shown as group>
+    <div data-app-group<#if group.tiles> data-app-group-tiles</#if>>
+        <h4>${ec.l10n.localize(group.title)}</h4>
+        <#if group.tiles><div data-app-tiles><#else><ul></#if>
+        <#list group.items as item>
+        <#if group.tiles><a href="${item.url}" data-app-tile><#else><li><a href="${item.url}"></#if><#if item.iconClass><i class="${item.iconClass}"></i><#else><span class="material-symbols-outlined">${(item.iconName || 'sym_o_apps').replace(/^sym_o_/, '')}</span></#if><span>${item.label.replace(suite.titlePrefix, '')}</span></a><#if !group.tiles></li></#if>
+        </#list>
+        <#if group.tiles></div><#else></ul></#if>
+    </div>
+    </#list>
+    </div>
+</section>

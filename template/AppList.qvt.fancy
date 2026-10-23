@@ -1,0 +1,24 @@
+<#-- The IronStone suite on the App List (screen-extend/webroot/screen/webroot/apps/AppList.xml): one row, wrapping as the width
+    needs, of the tiles group and then the other groups as columns of links; a group with none of the user's apps is left out. -->
+<#assign named = suite.groups.flatMap(function (group) { return group.names })>
+<#assign more = suite.items.filter(function (item) { return !named.includes(item.name) })>
+<#assign shown = suite.groups.map(function (group) { return Object.assign({}, group, {items: group.names.map(function (name) { return suite.items.find(function (item) { return item.name == name }) }).filter(Boolean)}) }).concat(more.length ? [{name: 'More', title: 'More', items: more}] : []).filter(function (group) { return group.items.length })>
+<q-card flat bordered class="m-app-section q-mb-lg">
+    <q-card-section class="q-pb-sm"><div class="text-subtitle1 text-weight-medium">${html(ec.l10n.localize(suite.title))}</div></q-card-section>
+    <q-card-section class="q-pt-none"><div class="m-app-groups">
+    <#list shown as group>
+        <div class="m-app-group<#if group.tiles> m-app-group-tiles</#if>">
+            <div class="text-overline m-muted">${html(ec.l10n.localize(group.title))}</div>
+            <#if group.tiles><div class="m-app-tiles justify-start">
+            <#list group.items as item>
+                <q-btn flat no-caps stack class="m-app-tile" to="${html(item.url)}"><#if item.iconClass><i class="${html(item.iconClass)} m-app-tile-icon"></i><#else><q-icon name="${html(item.iconName || 'sym_o_apps')}"></q-icon></#if><div class="m-app-tile-label">${html(item.label.replace(suite.titlePrefix, ''))}</div></q-btn>
+            </#list>
+            </div><#else><q-list dense>
+            <#list group.items as item>
+                <q-item clickable to="${html(item.url)}" class="rounded-borders"><q-item-section side class="q-pr-sm"><#if item.iconClass><i class="${html(item.iconClass)} text-primary"></i><#else><q-icon name="${html(item.iconName || 'sym_o_apps')}" color="primary"></q-icon></#if></q-item-section><q-item-section>${html(item.label.replace(suite.titlePrefix, ''))}</q-item-section></q-item>
+            </#list>
+            </q-list></#if>
+        </div>
+    </#list>
+    </div></q-card-section>
+</q-card>

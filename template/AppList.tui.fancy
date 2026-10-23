@@ -1,0 +1,5 @@
+<#-- The IronStone suite on the App List in the terminal UI: a JSON array of nodes, each group a heading and its apps as links. -->
+<#assign named = suite.groups.flatMap(function (group) { return group.names })>
+<#assign more = suite.items.filter(function (item) { return !named.includes(item.name) })>
+<#assign shown = suite.groups.map(function (group) { return Object.assign({}, group, {items: group.names.map(function (name) { return suite.items.find(function (item) { return item.name == name }) }).filter(Boolean)}) }).concat(more.length ? [{name: 'More', title: 'More', items: more}] : []).filter(function (group) { return group.items.length })>
+${JSON.stringify([{t: 'text', id: 'AppListSuite' + suite.name, text: String(ec.l10n.localize(suite.title)), style: 'h5'}].concat(shown.flatMap((group) => [{t: 'text', id: 'AppListGroup' + group.name, text: String(ec.l10n.localize(group.title)), style: 'h6'}].concat(group.items.map((item) => ({t: 'link', id: 'AppListApp' + item.name, kind: 'anchor-button', text: item.label.replace(suite.titlePrefix, ''), url: String(item.url)}))))))}

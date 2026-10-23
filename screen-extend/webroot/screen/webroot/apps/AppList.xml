@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a 
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The IronStone apps on the App List as one suite, grouped as in plan/initial-design.md: the shared suites used from every
+    app first, as tiles, then the department apps in four columns. An app of this component that no group names shows in a
+    trailing More group. -->
+<screen-extend>
+    <actions-extend when="append">
+        <script><![CDATA[
+            appSuites.push({name: 'IronStoneBoss', title: 'IronStone BOSS', component: 'ironstone-boss', order: 10,
+                titlePrefix: 'IronStone ', groups: [
+                    {name: 'Workspace', title: 'Workspace', tiles: true, names: ['Commons', 'Comms']},
+                    {name: 'Customers', title: 'Customer-facing', names: ['Sales', 'Marketing', 'CustomerService', 'Commerce']},
+                    {name: 'Operations', title: 'Supply & Operations', names: ['Products', 'Purchasing', 'Warehouse', 'Manufacturing', 'Maintenance']},
+                    {name: 'Finance', title: 'Finance, People & Projects', names: ['Accounting', 'People', 'Projects']},
+                    {name: 'Management', title: 'Management', names: ['Insights', 'Admin']}],
+                templates: {html: 'component://ironstone-boss/template/AppList.html.fancy',
+                    qvt: 'component://ironstone-boss/template/AppList.qvt.fancy', tui: 'component://ironstone-boss/template/AppList.tui.fancy'}})
+        ]]></script>
+    </actions-extend>
+</screen-extend>
