@@ -269,9 +269,10 @@ const demoRecords = {
     "Projects/Projects/ProjectDetail/ClientHours": { parameters: { workEffortId: "ACME" }, text: "ProjectStatusBar" },
     "Projects/Projects/EstimatePrint": { parameters: { workEffortId: "ACME" }, text: "Open the printable estimate" },
     "Shared/OrderDetail/": { parameters: { orderId: "BOSS_DEMO_ACME_SO" }, text: "Customer portal, fixed fee" },
-    // Projects P6b: Time entries (All: the demo's support desk time John Doe manages), the entry dialog (a new entry), the time import
-    // wizard's steps (no import yet; test/TimeEntries.spec.js walks them) and its progress, and the time settings
-    "Projects/Time/TimeEntries": { parameters: { list: "all" }, text: "Upgraded the client servers" },
+    // Projects P6b: Time entries (All: the demo's support desk time John Doe manages, on SUPP-2 so the time the specs before this
+    // one log does not push it past the first page), the entry dialog (a new entry), the time import wizard's steps (no import yet;
+    // test/TimeEntries.spec.js walks them) and its progress, and the time settings
+    "Projects/Time/TimeEntries": { parameters: { list: "all", itemId: "SUPP-2" }, text: "Upgraded the client servers" },
     "Projects/Time/TimeEntries/EditEntry": { text: "Log time" },
     "Projects/Time/Import": { text: "Import time" },
     "Projects/Time/Import/Source": {},

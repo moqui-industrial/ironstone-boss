@@ -79,9 +79,13 @@ feature("Repositories: the demo's repositories by chip, each user seeing those o
         const page = render("apps/Projects/Code/Repositories", { list: "all" })
         const bob = as("bob.developer", () => render("apps/Projects/Code/Repositories", { list: "all" }))
         const joeMine = as("joe.developer", () => render("apps/Projects/Code/Repositories"))
-        return { page, john, bob, joeMine }
+        // the mantle-usl specs that run first can put joe on their own projects with a repository: the chip counts those too, and
+        // of the demo's repositories (iron and acme-portal, both on projects joe is on) none is left out
+        const joeRepos = as("joe.developer", () => sys(() => call("ironstone.CodeServices.find#Repositories", {})))
+        const joeDemo = joeRepos.rowList.map((row) => row.repositoryId).filter((id) => id == "iron" || id == "acme-portal")
+        return { page, john, bob, joeMine, joeRepos, joeDemo }
     },
-    then({ page, john, bob, joeMine }) {
+    then({ page, john, bob, joeMine, joeRepos, joeDemo }) {
         john.rowList.map((row) => row.repositoryId).includes("iron")
         john.rowList.map((row) => row.repositoryId).includes("acme-portal")
         page.status == 200
@@ -96,7 +100,8 @@ feature("Repositories: the demo's repositories by chip, each user seeing those o
         bob.output.includes("IronStone Projects, the app")
         !bob.output.includes("acme-portal")
         joeMine.output.includes("acme-portal")
-        joeMine.output.includes("Mine · 2")
+        joeMine.output.includes("Mine · " + joeRepos.counts.mine)
+        joeDemo.sort() == ["acme-portal", "iron"]
     },
 })
 
