@@ -138,7 +138,7 @@ feature("the setup card keeps Done and Dismiss, and goes when every item is", {
         first.output.includes("Requests assigned")
         !done.output.includes("Add a mail account")
         done.output.includes("Import contacts")
-        !dismissed.output.includes("Set up IronStone")
+        !dismissed.output.includes("Get started")
         states.mailAccount == "done"
         states.importContacts == "dismissed"
     },

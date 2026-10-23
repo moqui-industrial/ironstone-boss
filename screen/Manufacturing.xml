@@ -16,7 +16,7 @@ along with this software (see the LICENSE.md file). If not, see
     its sections follow design-manufacturing.md when that file is written. Not yet implemented: its BOSS_MANUFACTURING
     grant in data/BossSetupData.xml is commented out, so no one may open it and it is in no menu. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="IronStone Manufacturing" menu-image="sym_o_precision_manufacturing" menu-image-type="icon">
+        default-menu-title="Manufacturing" menu-image="sym_o_precision_manufacturing" menu-image-type="icon">
 
     <always-actions>
         <set field="appRoot" value="Manufacturing"/>

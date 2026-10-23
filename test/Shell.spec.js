@@ -56,7 +56,7 @@ feature("shellData lists Commons and Comms with their providers and the IronSton
         text.startsWith("{")
         appNames.includes("Commons")
         appNames.includes("Comms")
-        commonsTitle == "IronStone Commons"
+        commonsTitle == "Commons"
         // the kinds open the theme's quick-create screen with their kind
         // the activity kind needs a record in the screen context (requiresRecord), which the client checks
         commonsKinds == ["task", "activity", "event", "note", "contact", "request"]

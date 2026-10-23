@@ -16,7 +16,7 @@ along with this software (see the LICENSE.md file). If not, see
     design-insights.md when that file is written. Not yet implemented: its BOSS_INSIGHTS grant in data/BossSetupData.xml
     is commented out, so no one may open it and it is in no menu. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="IronStone Insights" menu-image="sym_o_insights" menu-image-type="icon">
+        default-menu-title="Insights" menu-image="sym_o_insights" menu-image-type="icon">
 
     <always-actions>
         <set field="appRoot" value="Insights"/>

@@ -120,7 +120,7 @@ along with this software (see the LICENSE.md file). If not, see
                             <field-ref name="submitButton"/>
                         </field-layout>
                     </form-single>
-                    <label type="p" text="Your contacts are your personal contacts, the people in your contact books and those shared with you, and the directory. People inside the organization are the users of IronStone and addresses at the domains of your shared accounts and the other domains you list. Turning the reply on again sends it to everyone again." style="text-caption m-muted q-mb-none"/>
+                    <label type="p" text="Your contacts are your personal contacts, the people in your contact books and those shared with you, and the directory. People inside the organization are the system's users and addresses at the domains of your shared accounts and the other domains you list. Turning the reply on again sends it to everyone again." style="text-caption m-muted q-mb-none"/>
                 </box-body>
             </container-box>
         </widgets></section>

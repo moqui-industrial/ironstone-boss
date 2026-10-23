@@ -86,7 +86,7 @@ along with this software (see the LICENSE.md file). If not, see
             // the app titles for the app chips, from the shell data
             const shellData = sri.getShellData()
             const titles = {}
-            for (const app of (shellData && Array.isArray(shellData.apps) ? shellData.apps : [])) titles[app.name] = String(app.title || app.name).replace(/^IronStone /, '')
+            for (const app of (shellData && Array.isArray(shellData.apps) ? shellData.apps : [])) titles[app.name] = String(app.title || app.name)
             appTitles = titles
             const L = (text) => ec.l10n.localize(text)
             const get = (parameters) => ec.service.sync().name('org.moqui.impl.NotificationServices.get#UserNotifications').parameters(parameters).call() || {}

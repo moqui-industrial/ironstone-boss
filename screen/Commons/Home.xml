@@ -150,7 +150,7 @@ along with this software (see the LICENSE.md file). If not, see
 
         <!-- first run: what a small business or a household sets up first -->
         <section name="SetupCard" condition="showSetup"><widgets>
-            <container-box type="info"><box-header title="Set up IronStone"/><box-toolbar>
+            <container-box type="info"><box-header title="Get started"/><box-toolbar>
                 <link url="setSetup" link-type="hidden-form-link" text="Dismiss all" parameter-map="{item:'all', state:'dismissed'}"/>
             </box-toolbar><box-body-nopad>
                 <render-mode><text type="qvt"><![CDATA[<q-list separator>]]></text><text type="tui" template="false">[]</text></render-mode>

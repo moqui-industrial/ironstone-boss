@@ -116,12 +116,12 @@ along with this software (see the LICENSE.md file). If not, see
             storeHost: settings.storeHost || null, oauthProviderEnumId: oauthProvider || accountProvider || null}).call()?.choice || null
         oauthConfigured = oauthChoice?.configured === true
         providerLabel = oauthChoice?.providerLabel || null
-        signInIntro = oauthConfigured ? ec.resource.expand('Sign in with your ${name} account in the window that opens: IronStone never sees your password, and no app password is needed.', '',
+        signInIntro = oauthConfigured ? ec.resource.expand('Sign in with your ${name} account in the window that opens: we never see your password, and no app password is needed.', '',
             {name: providerLabel}) : null
         signedInText = oauthSignedIn ? ec.resource.expand('Signed in with ${name} as ${address}', '', {name: providerLabel || L('the provider'), address: signedInAddress}) : null
         signInOffText = oauthChoice && !oauthConfigured ? ec.resource.expand('Sign-in with ${name}, which needs no app password, is not set up on this server: an administrator can set it up. Until then, use an app password.', '',
             {name: providerLabel}) : null
-        const SOURCES = {provider: L('IronStone knows the server settings of your provider.'), autoconfig: L('Your mail provider publishes these server settings.'),
+        const SOURCES = {provider: L('We know the server settings of your provider.'), autoconfig: L('Your mail provider publishes these server settings.'),
             ispdb: L('These server settings are from the Thunderbird database of mail providers.'), srv: L('These server settings are from the DNS records of your domain.'),
             saved: L('These are the server settings saved with the account.'),
             guess: L('These server settings are guesses from your domain: check them against your provider\'s help page for mail apps (IMAP and SMTP).'),

@@ -335,7 +335,7 @@ along with this software (see the LICENSE.md file). If not, see
                         : (account.recordFilingEnumId === 'ErfLinkedOnly' ? L('Files only the mail you link') : null)}
                 if (item.isInternal) {
                     Object.assign(item, {accountName: L('Internal messages'), emailAddress: null, statusLabel: L('Always on'), statusColor: 'primary',
-                        problemText: null, accessText: L('Messages inside IronStone and your mailboxes; not removable')})
+                        problemText: null, accessText: L('Messages inside the system and your mailboxes; not removable')})
                     accountList.push(item)
                     continue
                 }
