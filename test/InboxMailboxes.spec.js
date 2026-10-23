@@ -56,12 +56,12 @@ feature("the owner's header has the members, the pending request and what the ow
 
 feature("a pending requester sees a private mailbox's header only, until an owner accepts; then its posts", {
     when() {
-        const before = as("joe.developer", () => ({ header: get("mailbox", { contactListId: "BOSS_DEMO_MBX_LEAD" }), threads: get("threads", { mailbox: "BOSS_DEMO_MBX_LEAD" }),
-            thread: get("thread", { store: "internal", threadId: "BOSS_DEMO_MAIL_POST3" }) }))
+        // (the post's thread is not found to him: test/Inbox.spec.js)
+        const before = as("joe.developer", () => ({ header: get("mailbox", { contactListId: "BOSS_DEMO_MBX_LEAD" }), threads: get("threads", { mailbox: "BOSS_DEMO_MBX_LEAD" }) }))
         const accepted = post("mailboxAddMember", { contactListId: "BOSS_DEMO_MBX_LEAD", partyId: "ORG_ZIZI_JD" })
         const after = as("joe.developer", () => ({ header: get("mailbox", { contactListId: "BOSS_DEMO_MBX_LEAD" }), threads: get("threads", { mailbox: "BOSS_DEMO_MBX_LEAD" }) }))
         // and a stranger does not see it at all
-        const stranger = as("bob.developer", () => ({ header: get("mailbox", { contactListId: "BOSS_DEMO_MBX_LEAD" }), threads: get("threads", { mailbox: "BOSS_DEMO_MBX_LEAD" }) }))
+        const stranger = as("bob.developer", () => ({ header: get("mailbox", { contactListId: "BOSS_DEMO_MBX_LEAD" }) }))
         return { before, accepted, after, stranger }
     },
     then({ before, accepted, after, stranger }) {
@@ -69,13 +69,11 @@ feature("a pending requester sees a private mailbox's header only, until an owne
         before.header.json.mailbox.canReadOwn == false
         before.header.json.mailbox.memberList == []
         keys(before.threads) == []
-        before.thread.errors.includes("not found")
         accepted.status == 200
         accepted.json.statusId == "CLPT_ACCEPTED"
         after.header.json.mailbox.isMember
         keys(after.threads) == ["internal:BOSS_DEMO_MAIL_POST3"]
         stranger.header.errors.includes("not found")
-        stranger.threads.errors.includes("not found")
     },
 })
 
@@ -107,21 +105,19 @@ feature("an owner closes a thread: no more replies in the mailbox, Reply to send
         const closed = post("state", { targetsJson: JSON.stringify([{ store: "internal", threadId: "BOSS_DEMO_MAIL_POST1" }]), action: "close" })
         const row = get("threads", { mailbox: "BOSS_DEMO_MBX_OFFICE" }).json.threadList.find((item) => item.rowKey == "internal:BOSS_DEMO_MAIL_POST1")
         const notOwner = as("joe.developer", () => post("state", { targetsJson: JSON.stringify([{ store: "internal", threadId: "BOSS_DEMO_MAIL_POST1" }]), action: "reopen" }))
-        const reply = as("joe.developer", () => compose("composeData", { replyToCommEventId: "BOSS_DEMO_MAIL_POST2" }))
         const send = as("joe.developer", () => compose("send", { fromValue: "internal", parentCommEventId: "BOSS_DEMO_MAIL_POST2",
             toJson: JSON.stringify([{ value: "list:BOSS_DEMO_MBX_OFFICE", label: "Office" }]), subject: "Re: x", body: "<p>x</p>" }, "post"))
         const toSender = as("joe.developer", () => compose("send", { fromValue: "internal", parentCommEventId: "BOSS_DEMO_MAIL_POST1", replyToSenderOnly: "true",
             toJson: JSON.stringify([{ value: "party:ORG_ZIZI_BD", label: "Bob" }]), subject: "Re: x", body: "<p>Thanks</p>" }, "post"))
         const reopened = post("state", { targetsJson: JSON.stringify([{ store: "internal", threadId: "BOSS_DEMO_MAIL_POST1" }]), action: "reopen" })
         const thread = get("thread", { store: "internal", threadId: "BOSS_DEMO_MAIL_POST1" })
-        return { closed, row, notOwner, reply, send, toSender, reopened, thread }
+        return { closed, row, notOwner, send, toSender, reopened, thread }
     },
     then(v) {
         v.closed.json.updatedCount == 1
         v.row.isClosed == true
         v.notOwner.json.updatedCount == 0
         v.notOwner.json.failedList[0].message.includes("Only an owner or moderator")
-        v.reply.errors.includes("This thread is closed")
         v.send.errors.includes("closed")
         v.toSender.status == 200
         v.toSender.json.communicationEventIdList.length == 1

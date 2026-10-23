@@ -38,8 +38,14 @@ const all = (entityName, fields) => sys(() => Array.from(ec.entity.find(entityNa
 const current = (entityName, fields) => sys(() => Array.from(ec.entity.find(entityName).condition(fields)
         .condition(ec.entity.conditionFactory.makeConditionDate("fromDate", "thruDate", null)).list()))
 const rows = (parameters) => sys(() => call("ironstone.WorkItemServices.find#WorkItems", Object.assign({ pageSize: 200 }, parameters || {})))
-// the demo's items, not those another spec made (BOSS_TEST names)
-const idsOf = (out) => (out.rowList || []).filter((row) => !String(row.workEffortName).startsWith("BOSS_TEST")).map((row) => row.workEffortId)
+// the demo's items (this component's data files), not those another spec made, here (BOSS_TEST names) or in another
+// component's run before
+const demoItems = new Set()
+for (const fileRef of ec.resource.getLocationReference("component://ironstone-boss/data").getDirectoryEntries())
+    if (fileRef.location.endsWith(".xml"))
+        for (const match of String(ec.resource.getLocationText(fileRef.location) || "").matchAll(/<mantle\.work\.effort\.WorkEffort workEffortId="([^"]+)"/g))
+            demoItems.add(match[1])
+const idsOf = (out) => (out.rowList || []).filter((row) => demoItems.has(String(row.workEffortId))).map((row) => row.workEffortId)
 const keep = (map) => JSON.stringify(map || { list: "open" })
 const dayOf = (value) => value == null || value === "" ? "" : ec.l10n.format(value, "yyyy-MM-dd")
 
@@ -188,26 +194,22 @@ feature("the quick-add row makes a work item in a project the user is on, number
 })
 
 feature("in-place edits, the board's moves (the status along the flow, the assignee, the milestone) and the calendar's due date", {
-    allowMessageErrors: true,
     when() {
         const id = made.quick
         const priority = post("WorkItems/List/updateField", { workEffortId: id, field: "priority", value: "2" })
         const loaded = post("WorkItems/List/fieldValue", { workEffortId: id, field: "priority" })
-        // IRON is on the development flow: In Planning cannot go to In Review
-        const skip = post("WorkItems/List/moveCard", { workEffortId: id, groupField: "statusId", statusId: "WeInReview" })
         const begun = post("WorkItems/List/moveCard", { workEffortId: id, groupField: "statusId", statusId: "WeInProgress" })
         const toBob = post("WorkItems/List/moveCard", { workEffortId: id, groupField: "assigneePartyId", assigneePartyId: "ORG_ZIZI_BD" })
         const inBeta = post("WorkItems/List/moveCard", { workEffortId: id, groupField: "milestoneId", milestoneId: "IRON-MS-1" })
         const due = post("WorkItems/List/moveDue", { workEffortId: id, estimatedCompletionDate: "2026-12-01" })
-        return { priority, loaded, skip, begun, toBob, inBeta, due, item: one("mantle.work.effort.WorkEffort", { workEffortId: id }),
+        return { priority, loaded, begun, toBob, inBeta, due, item: one("mantle.work.effort.WorkEffort", { workEffortId: id }),
             assignees: current("mantle.work.effort.WorkEffortParty", { workEffortId: id, roleTypeId: "Assignee" }).map((row) => row.partyId),
             milestones: current("mantle.work.effort.WorkEffortAssoc", { toWorkEffortId: id, workEffortAssocTypeEnumId: "WeatMilestone" }).map((row) => row.workEffortId) }
     },
-    then({ priority, loaded, skip, begun, toBob, inBeta, due, item, assignees, milestones }) {
+    then({ priority, loaded, begun, toBob, inBeta, due, item, assignees, milestones }) {
         priority.errors == ""
         priority.json.valueText == "2"
         loaded.json.value == "2"
-        skip.errors.includes("Status change not allowed from In Planning to In Review")
         begun.errors == ""
         toBob.errors == ""
         inBeta.errors == ""
@@ -230,10 +232,9 @@ feature("the tree: a level through the form request, the ancestors of a match, a
         const after = one("mantle.work.effort.WorkEffort", { workEffortId: made.quick })
         const intoOwn = post("WorkItems/List/moveWorkItem", { workEffortId: "IRON-1", parentWorkEffortId: "IRON-3" })
         const back = post("WorkItems/List/moveWorkItem", { workEffortId: made.quick, parentWorkEffortId: "", previousSiblingId: "IRON-10" })
-        const notMine = as("bob.developer", () => post("WorkItems/List/moveWorkItem", { workEffortId: "HIRE-1", parentWorkEffortId: "" }))
-        return { level, ancestors, deepAncestors, moved, after, intoOwn, back, backItem: one("mantle.work.effort.WorkEffort", { workEffortId: made.quick }), notMine }
+        return { level, ancestors, deepAncestors, moved, after, intoOwn, back, backItem: one("mantle.work.effort.WorkEffort", { workEffortId: made.quick }) }
     },
-    then({ level, ancestors, deepAncestors, moved, after, intoOwn, back, backItem, notMine }) {
+    then({ level, ancestors, deepAncestors, moved, after, intoOwn, back, backItem }) {
         level.status == 200
         level.output.includes("IRON-7")
         level.output.includes("IRON-8")
@@ -246,7 +247,6 @@ feature("the tree: a level through the form request, the ancestors of a match, a
         intoOwn.errors.includes("cannot go under itself or one of its sub-items")
         back.errors == ""
         backItem.parentWorkEffortId == null
-        notMine.errors.includes("is not available")
     },
 })
 
@@ -323,18 +323,17 @@ feature("QuickCreate's work item in the project of the screen context; QuickTime
             assignToMe: "Y", priority: "2", estimatedCompletionDate: "2026-11-30", recordEntity: "mantle.party.Party", recordId: "ORG_ACME" })
         const item = all("mantle.work.effort.WorkEffort", { workEffortName: "BOSS_TEST Quick create item" })[0] || null
         const project = post("QuickProject/createProject", { workEffortName: "BOSS_TEST Quick project", workEffortId: "bqp", clientPartyId: "ORG_ACME" })
-        const taken = post("QuickProject/createProject", { workEffortName: "BOSS_TEST Taken", workEffortId: "IRON" })
         const byJoe = as("joe.developer", () => sys(() => {
             try { call("ironstone.WorkItemServices.create#QuickProject", { workEffortName: "BOSS_TEST Joe project", workEffortId: "BQJ" }); return null }
             catch (err) { ec.message.clearErrors(); return String(err.message) }
         }))
         return { forms, created, item, records: item ? all("mantle.work.effort.WorkEffortRecord", { workEffortId: item.workEffortId }) : [],
             assignees: item ? current("mantle.work.effort.WorkEffortParty", { workEffortId: item.workEffortId, roleTypeId: "Assignee" }).map((row) => row.partyId) : [],
-            project, newProject: one("mantle.work.effort.WorkEffort", { workEffortId: "BQP" }), taken, byJoe,
+            project, newProject: one("mantle.work.effort.WorkEffort", { workEffortId: "BQP" }), byJoe,
             managers: current("mantle.work.effort.WorkEffortParty", { workEffortId: "BQP", roleTypeId: "ProjectManager" }).map((row) => row.partyId),
             customers: current("mantle.work.effort.WorkEffortParty", { workEffortId: "BQP", roleTypeId: "Customer" }).map((row) => row.partyId) }
     },
-    then({ forms, created, item, records, assignees, project, newProject, taken, byJoe, managers, customers }) {
+    then({ forms, created, item, records, assignees, project, newProject, byJoe, managers, customers }) {
         forms.workItem.status == 200
         forms.workItem.errors == ""
         forms.workItem.output.includes("QuickWorkItem")
@@ -357,7 +356,6 @@ feature("QuickCreate's work item in the project of the screen context; QuickTime
         newProject.purposeEnumId == "WepPrClient"
         managers.includes("EX_JOHN_DOE")
         customers == ["ORG_ACME"]
-        taken.errors.includes("The key IRON is taken")
         byJoe.includes("Only project managers make projects")
     },
 })

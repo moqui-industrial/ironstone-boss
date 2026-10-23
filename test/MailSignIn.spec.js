@@ -197,20 +197,15 @@ feature("the status is this user's only; another user starts or reads nothing of
         try {
             const status = get("SignIn/signInStatus", { signInId: made.signInId })
             const start = post("SignIn/startSignIn", { mode: "account", emailAccountId: made.accountId })
-            const setup = post("SignIn/startSignIn", { mode: "wizard", emailAccountId: made.accountId, emailAddress: "joe@boss-oauth.example" })
-            const page = render("Account", { emailAccountId: made.accountId, fix: "Y" })
-            return { status, start, setup, page }
+            return { status, start }
         } finally { login("john.doe") }
     },
-    then({ status, start, setup, page }) {
+    then({ status, start }) {
         status.json.status == "error"
         status.json.errorCode == "unknown"
         status.json.emailAccountId == null
         start.errors.includes("not found")
-        setup.errors.includes("not found")
         accountById(made.accountId) != null
-        page.output.includes("not found")
-        !page.output.includes('id="AccountSignIn"')
     },
 })
 

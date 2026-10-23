@@ -168,33 +168,29 @@ feature("a client's Billing: the menu has Invoices only, Billing opens on Invoic
                 for (const level of Array.isArray(found.json) ? found.json : [])
                     levels[level.name] = (level.subscreens || []).filter((item) => item.menuInclude).map((item) => item.name)
             }
-            return { levels, billing: render("Billing", {}), unbilled: render("Billing/Unbilled", {}), rates: render("Billing/Rates", {}),
-                createInvoice: render("Billing/Unbilled/CreateInvoice", { rootWorkEffortId: "ACME" }), order: render("Billing/OrderDetail", { orderId: "BOSS_DEMO_ACME_SO" }),
+            // one refused screen here: test/ClientIsolation.spec.js renders every screen file as the client (Rates, CreateInvoice, OrderDetail)
+            return { levels, billing: render("Billing", {}), unbilled: render("Billing/Unbilled", {}),
                 money: service("ironstone.BillingServices.check#Money", { need: "none" }) }
         })
     },
-    then({ levels, billing, unbilled, rates, createInvoice, order, money }) {
+    then({ levels, billing, unbilled, money }) {
         levels.Projects.includes("Billing")
         levels.Billing == ["Invoices"]
         billing.status == 200 && !billing.broken
         billing.output.includes(INV.sent)
         unbilled.refused
-        rates.refused
-        createInvoice.refused
-        order.refused
         money.managesMoney == false
     },
 })
 
 feature("the team is still refused all of Billing, and john.doe's Billing still opens on Unbilled", {
     when() {
-        const joe = as("joe.developer", () => ({ invoices: render("Billing/Invoices", {}), detail: render("Billing/InvoiceDetail", { invoiceId: INV.sent }) }))
+        const joe = as("joe.developer", () => ({ invoices: render("Billing/Invoices", {}) }))
         const john = as("john.doe", () => ({ billing: render("Billing", {}), list: render("Billing/Invoices", {}) }))
         return { joe, john }
     },
     then({ joe, john }) {
         joe.invoices.refused
-        joe.detail.refused
         john.billing.status == 200
         john.billing.output.includes("All unbilled")
         john.list.output.includes(INV.draft)
@@ -288,17 +284,11 @@ feature("a client's print and PDF of its invoice: the time as hours only; any ot
 feature("no write of InvoiceDetail works for a client, through the screen or the services", {
     when() {
         const before = emailIds("BOSS_PROJECT_INVOICE")
+        // every write of an invoice asks get#InvoiceAccess for change: one post, one service and the access itself
         const posts = as(SHELDON, () => [
-            hit("Billing/InvoiceDetail/changeStatus", { invoiceId: INV.sent, action: "cancel" }, "post"),
-            hit("Billing/InvoiceDetail/changeStatus", { invoiceId: INV.draft, action: "approve" }, "post"),
-            hit("Billing/InvoiceDetail/updateHeader", { invoiceId: INV.sent, description: "ZQX changed by the client" }, "post"),
-            hit("Billing/InvoiceDetail/removeLine", { invoiceId: INV.sent, invoiceItemSeqId: "01" }, "post"),
-            hit("Billing/InvoiceDetail/sendInvoice", { invoiceId: INV.sent, toAddresses: "sheldon.acme@test.com" }, "post")])
+            hit("Billing/InvoiceDetail/changeStatus", { invoiceId: INV.sent, action: "cancel" }, "post")])
         const calls = as(SHELDON, () => [
             service("ironstone.BillingServices.update#InvoiceStatus", { invoiceId: INV.sent, action: "cancel" }),
-            service("ironstone.BillingServices.update#InvoiceHeader", { invoiceId: INV.sent, description: "ZQX changed by the client" }),
-            service("ironstone.BillingServices.remove#InvoiceLine", { invoiceId: INV.sent, invoiceItemSeqId: "01" }),
-            service("ironstone.BillingServices.send#Invoice", { invoiceId: INV.sent, toAddresses: "sheldon.acme@test.com" }),
             service("ironstone.BillingServices.get#InvoiceAccess", { invoiceId: INV.sent, need: "change" })])
         return { posts, calls, invoice: one("mantle.account.invoice.Invoice", { invoiceId: INV.sent }), draft: one("mantle.account.invoice.Invoice", { invoiceId: INV.draft }),
             line: one("mantle.account.invoice.InvoiceItem", { invoiceId: INV.sent, invoiceItemSeqId: "01" }), emails: newEmails("BOSS_PROJECT_INVOICE", before) }
@@ -311,7 +301,7 @@ feature("no write of InvoiceDetail works for a client, through the screen or the
         line != null
         emails == []
         calls.every((out) => out._errors.length > 0)
-        calls[4].canView == false
+        calls[1].canView == false
     },
 })
 

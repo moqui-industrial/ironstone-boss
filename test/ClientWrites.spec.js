@@ -7,7 +7,6 @@
 // Run: ./moq test ironstone-boss --spec ClientWrites
 const webroot = "component://webroot/screen/webroot.xml"
 const SHELDON = "sheldon.acme"
-const GOB = "gob.bluth"
 const CLIENT = "ironstone.client.ClientServices."
 
 function hit(path, parameters, method) {
@@ -49,24 +48,17 @@ const messageCount = () => count("mantle.party.communication.CommunicationEvent"
 
 spec({ stepwise: false })
 
-feature("a client's message and reply: refused on another client's record, an internal item, a party, a note, and to an internal user", {
+feature("a client's message and reply: refused on another client's record, a party, a note, off the record, and to an internal user", {
     when() {
         const before = messageCount()
         const body = "<p>ZQW-REFUSED</p>"
+        // a record the client does not see is one rule (get#ClientWriteContext over get#RecordLinkInfo, whose kinds of record
+        // test/ClientChatDrive.spec.js checks): another client's item, and a party
         const sheldon = as(SHELDON, () => ({
             otherClient: hit("Projects/Chatter/sendMessage", { recordEntity: "mantle.work.effort.WorkEffort", recordId: "BLUTH-1", body }, "post"),
-            workGroup: hit("Projects/Chatter/sendMessage", { recordEntity: "mantle.work.effort.WorkEffort", recordId: "ACME-3", body }, "post"),
-            internalProject: hit("Projects/Chatter/sendMessage", { recordEntity: "mantle.work.effort.WorkEffort", recordId: "IRON", body }, "post"),
-            otherRequest: hit("Projects/Chatter/sendMessage", { recordEntity: "mantle.request.Request", recordId: "BOSS_DEMO_PREQ_IRON1", body }, "post"),
             party: hit("Projects/Chatter/sendMessage", { recordEntity: "mantle.party.Party", recordId: "ORG_ACME", body }, "post"),
             replyToNote: hit("Projects/Chatter/reply", { recordEntity: "mantle.work.effort.WorkEffort", recordId: "ACME-1", parentCommEventId: "BOSS_DEMO_ACME_NOTE1", body }, "post"),
             replyOffRecord: hit("Projects/Chatter/reply", { recordEntity: "mantle.work.effort.WorkEffort", recordId: "ACME-4", parentCommEventId: "BOSS_DEMO_ACME_MSG1", body }, "post"),
-            replyOtherClient: hit("Projects/Chatter/reply", { recordEntity: "mantle.work.effort.WorkEffort", recordId: "BLUTH-1", parentCommEventId: "BOSS_DEMO_ACME_MSG1", body }, "post"),
-            logNote: hit("Projects/Chatter/logNote", { recordEntity: "mantle.work.effort.WorkEffort", recordId: "ACME-1", body }, "post"),
-        }))
-        const gob = as(GOB, () => ({
-            acme: hit("Projects/Chatter/sendMessage", { recordEntity: "mantle.work.effort.WorkEffort", recordId: "ACME-1", body }, "post"),
-            acmeReply: hit("Projects/Chatter/reply", { recordEntity: "mantle.work.effort.WorkEffort", recordId: "ACME-1", parentCommEventId: "BOSS_DEMO_ACME_MSG1", body }, "post"),
         }))
         // an internal user is no client: the client services refuse it
         // (with authorization off, so the refusal is the service's own and not the authorization's)
@@ -74,13 +66,11 @@ feature("a client's message and reply: refused on another client's record, an in
             send: service(CLIENT + "send#ChatterMessage", { recordEntityName: "mantle.work.effort.WorkEffort", recordId: "ACME-1", body }),
             raise: service(CLIENT + "raise#ClientRequest", { rootWorkEffortId: "ACME", requestName: "ZQW-REFUSED" }),
             gate: service(CLIENT + "decide#ClientGate", { workEffortId: "ACME-MS-1", decision: "approve" }),
-            context: service(CLIENT + "get#ClientWriteContext", { recordEntityName: "mantle.work.effort.WorkEffort", recordId: "ACME-1" }),
         })))
-        return { before, after: messageCount(), sheldon, gob, internal }
+        return { before, after: messageCount(), sheldon, internal }
     },
-    then({ before, after, sheldon, gob, internal }) {
+    then({ before, after, sheldon, internal }) {
         Object.values(sheldon).every(refusedHit)
-        Object.values(gob).every(refusedHit)
         Object.values(internal).every(refusedOut)
         after == before
     },
@@ -131,34 +121,20 @@ feature("a client raises a request only in its own sign-in project, adds files o
         const before = count("mantle.request.Request", { requestName: "ZQW-REFUSED" })
         const sheldon = as(SHELDON, () => ({
             raiseOther: hit("Projects/Requests/List/raiseClientRequest", { newProjectId: "BLUTH", requestName: "ZQW-REFUSED" }, "post"),
-            raiseInternal: hit("Projects/Requests/List/raiseClientRequest", { newProjectId: "IRON", requestName: "ZQW-REFUSED" }, "post"),
             raiseNoSignIn: hit("Projects/Requests/List/raiseClientRequest", { newProjectId: "ACMEAPP", requestName: "ZQW-REFUSED" }, "post"),
-            raiseInternalForm: hit("Projects/Requests/List/createRequest", { newProjectId: "ACME", requestName: "ZQW-REFUSED" }, "post"),
-            uploadOther: hit("Projects/RecordFiles/upload", { recordEntity: "mantle.request.Request", recordId: "BOSS_DEMO_PREQ_IRON1",
-                contentFile: uploadedFile("x.txt", "x") }, "post"),
             uploadItem: hit("Projects/RecordFiles/upload", { recordEntity: "mantle.work.effort.WorkEffort", recordId: "ACME-1",
                 contentFile: uploadedFile("x.txt", "x") }, "post"),
             uploadScript: hit("Projects/RecordFiles/upload", { recordEntity: "mantle.request.Request", recordId: "BOSS_DEMO_PREQ_ACME1",
                 contentFile: uploadedFile("x.svg", "<svg onload='alert(1)'/>") }, "post"),
             cancelNotMine: hit("Projects/Requests/RequestDetail/changeStatus", { requestId: "BOSS_DEMO_PREQ_ACME2", toStatusId: "ReqCancelled" }, "post"),
             moveOn: hit("Projects/Requests/RequestDetail/changeStatus", { requestId: "BOSS_DEMO_PREQ_ACME1", toStatusId: "ReqCompleted" }, "post"),
-            comment: hit("Projects/Requests/RequestDetail/addComment", { requestId: "BOSS_DEMO_PREQ_ACME1", body: "ZQW-REFUSED" }, "post"),
-        }))
-        const gob = as(GOB, () => ({
-            raiseAcme: hit("Projects/Requests/List/raiseClientRequest", { newProjectId: "ACME", requestName: "ZQW-REFUSED" }, "post"),
-            uploadAcme: hit("Projects/RecordFiles/upload", { recordEntity: "mantle.request.Request", recordId: "BOSS_DEMO_PREQ_ACME1",
-                contentFile: uploadedFile("x.txt", "x") }, "post"),
-            cancelAcme: hit("Projects/Requests/RequestDetail/changeStatus", { requestId: "BOSS_DEMO_PREQ_ACME1", toStatusId: "ReqCancelled" }, "post"),
         }))
         const statuses = sys(() => ["BOSS_DEMO_PREQ_ACME1", "BOSS_DEMO_PREQ_ACME2"].map((id) => ec.entity.find("mantle.request.Request").condition("requestId", id).one().statusId))
-        return { before, after: count("mantle.request.Request", { requestName: "ZQW-REFUSED" }), sheldon, gob, statuses,
-            files: count("mantle.request.RequestContent", { requestId: "BOSS_DEMO_PREQ_IRON1", description: "x.txt" })
-                + count("mantle.request.RequestContent", { requestId: "BOSS_DEMO_PREQ_ACME1", description: "x.txt" })
-                + count("mantle.request.RequestContent", { requestId: "BOSS_DEMO_PREQ_ACME1", description: "x.svg" }) }
+        return { before, after: count("mantle.request.Request", { requestName: "ZQW-REFUSED" }), sheldon, statuses,
+            files: count("mantle.request.RequestContent", { requestId: "BOSS_DEMO_PREQ_ACME1", description: "x.svg" }) }
     },
-    then({ before, after, sheldon, gob, statuses, files }) {
+    then({ before, after, sheldon, statuses, files }) {
         Object.values(sheldon).every(refusedHit)
-        Object.values(gob).every(refusedHit)
         after == before
         statuses == ["ReqReviewed", "ReqSubmitted"]
         files == 0
@@ -168,9 +144,8 @@ feature("a client raises a request only in its own sign-in project, adds files o
 feature("a client decides only the gate it is the approver of, and refuses only with a reason", {
     when() {
         const approvedBefore = count("mantle.work.effort.WorkEffortApproval", { workEffortId: "ACME-MS-1", statusId: "WeaApproved" })
-        const gob = as(GOB, () => hit("Projects/Projects/MilestoneDetail/decideGate", { workEffortId: "ACME-MS-1", action: "approve" }, "post"))
+        // a milestone the client does not see, and an action but approve and refuse: test/ClientIsolation.spec.js
         const noReason = as(SHELDON, () => hit("Projects/Projects/MilestoneDetail/decideGate", { workEffortId: "ACME-MS-1", action: "refuse", comments: "" }, "post"))
-        const otherAction = as(SHELDON, () => hit("Projects/Projects/MilestoneDetail/decideGate", { workEffortId: "ACME-MS-1", action: "cancel" }, "post"))
         const notAwaiting = as(SHELDON, () => hit("Projects/Projects/MilestoneDetail/decideGate", { workEffortId: "ACME-MS-2", action: "approve" }, "post"))
         // the approver another Acme contact: Sheldon is not it
         sys(() => ec.entity.find("mantle.work.effort.WorkEffortSetting").condition({ workEffortId: "ACME-MS-1", settingTypeEnumId: "WstApproverParty" })
@@ -184,15 +159,13 @@ feature("a client decides only the gate it is the approver of, and refuses only 
             sys(() => ec.entity.find("mantle.work.effort.WorkEffortSetting").condition({ workEffortId: "ACME-MS-1", settingTypeEnumId: "WstApproverParty" })
                 .updateAll({ settingValue: "ORG_ACME_SA" }))
         }
-        return { approvedBefore, gob, noReason, otherAction, notAwaiting, notApprover,
+        return { approvedBefore, noReason, notAwaiting, notApprover,
             approvedAfter: count("mantle.work.effort.WorkEffortApproval", { workEffortId: "ACME-MS-1", statusId: "WeaApproved" }),
             refused: count("mantle.work.effort.WorkEffortApproval", { workEffortId: "ACME-MS-1", statusId: "WeaRefused" }),
             waiting: count("mantle.work.effort.WorkEffortApproval", { workEffortId: "ACME-MS-1", statusId: "WeaRequested" }) }
     },
-    then({ approvedBefore, gob, noReason, otherAction, notAwaiting, notApprover, approvedAfter, refused, waiting }) {
-        refusedHit(gob)
+    then({ approvedBefore, noReason, notAwaiting, notApprover, approvedAfter, refused, waiting }) {
         refusedHit(noReason)
-        refusedHit(otherAction)
         refusedHit(notAwaiting)
         refusedHit(notApprover.hit)
         !String(notApprover.page).includes("Refuse ")
@@ -207,15 +180,12 @@ feature("outside its own services a client writes no Mantle record, even through
         return as(SHELDON, () => ({
             event: service("create#mantle.party.communication.CommunicationEvent", { communicationEventTypeId: "Message", fromPartyId: "ORG_ACME_SA", subject: "ZQW-REFUSED" }),
             message: service("mantle.party.CommunicationServices.create#Message", { toPartyIdList: ["EX_JOHN_DOE"], subject: "ZQW-REFUSED", body: "x" }),
-            request: service("mantle.request.RequestServices.create#Request", { requestName: "ZQW-REFUSED", rootWorkEffortId: "ACME" }),
             workItem: service("update#mantle.work.effort.WorkEffort", { workEffortId: "ACME-1", workEffortName: "ZQW-REFUSED" }),
-            ironstone: service("ironstone.ChatterServices.send#Message", { recordEntityName: "mantle.work.effort.WorkEffort", recordId: "ACME-1", toUserIds: ["EX_JOHN_DOE"], body: "<p>x</p>" }),
         }))
     },
     then(out) {
         Object.values(out).every(refusedOut)
         count("mantle.party.communication.CommunicationEvent", { subject: "ZQW-REFUSED" }) == 0
-        count("mantle.request.Request", { requestName: "ZQW-REFUSED" }) == 0
         count("mantle.work.effort.WorkEffort", { workEffortName: "ZQW-REFUSED" }) == 0
     },
 })

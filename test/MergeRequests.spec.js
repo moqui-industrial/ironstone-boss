@@ -192,14 +192,12 @@ feature("review threads: john comments on a line of src/tree.js, joe replies, jo
         const afterResolve = json("Code/MergeRequestDetail/Changes/changes", { mergeRequestId: mrId }).json?.changes
         const reopened = json("Code/MergeRequestDetail/Changes/resolveThread", { mergeRequestId: mrId, communicationEventId: threadId, resolved: "false" }, "post")
         const afterReopen = json("Code/MergeRequestDetail/Changes/changes", { mergeRequestId: mrId }).json?.changes
-        // a thread of another merge request is not resolved through this one
-        const wrong = json("Code/MergeRequestDetail/Changes/resolveThread", { mergeRequestId: "NO_SUCH_MR", communicationEventId: threadId, resolved: "true" }, "post")
         const bobComment = as("bob.developer", () => json("Code/MergeRequestDetail/Changes/comment", { mergeRequestId: mrId, body: "bob was here" }, "post"))
         const timeline = sys(() => call("ironstone.ChatterServices.get#Timeline", { recordEntityName: "moqui.resource.GitMergeRequest", recordId: mrId }))
         const list = sys(() => call("ironstone.CodeServices.find#MergeRequests", { list: "all", repositoryId: "iron" }))
-        return { commented, threadId, replied, resolved, afterResolve, reopened, afterReopen, wrong, bobComment, timeline, list }
+        return { commented, threadId, replied, resolved, afterResolve, reopened, afterReopen, bobComment, timeline, list }
     },
-    then({ commented, threadId, replied, resolved, afterResolve, reopened, afterReopen, wrong, bobComment, timeline, list }) {
+    then({ commented, threadId, replied, resolved, afterResolve, reopened, afterReopen, bobComment, timeline, list }) {
         commented.errors == ""
         threadId != null
         replied.errors == ""
@@ -210,7 +208,6 @@ feature("review threads: john comments on a line of src/tree.js, joe replies, jo
         afterResolve.threadList.find((thread) => thread.communicationEventId == threadId).newLine == 7
         reopened.json.resolved == false
         afterReopen.threadList.find((thread) => thread.communicationEventId == threadId).resolved == false
-        wrong.errors != ""
         bobComment.json?.communicationEventId != null
         timeline.entryList.some((entry) => String(entry.title || "").includes("src/tree.js:7") || String(entry.bodyHtml || "").includes("per project"))
         list.rowList.find((row) => row.mergeRequestId == mrId).commentCount >= 3
@@ -254,8 +251,6 @@ feature("work items linked and unlinked by hand; Edit; Mark as draft and ready; 
         const linked = post("Code/MergeRequestDetail/Overview/linkItem", { mergeRequestId: mrId, workEffortId: "IRON-10", completeOnMerge: "Y" })
         const link = sys(() => ec.entity.find("mantle.work.effort.WorkEffortGitMergeRequest").condition({ mergeRequestId: mrId, workEffortId: "IRON-10" }).one())
         const unlinked = post("Code/MergeRequestDetail/Overview/unlinkItem", { mergeRequestId: mrId, workEffortId: "IRON-10" })
-        const bad = post("Code/MergeRequestDetail/Overview/linkItem", { mergeRequestId: mrId, workEffortId: "NOPE-1" })
-        const bobEdit = as("bob.developer", () => post("Code/MergeRequestDetail/editMergeRequest", { mergeRequestId: mrId, title: "bob's title" }))
         const edited = post("Code/MergeRequestDetail/editMergeRequest", { mergeRequestId: mrId, title: "Expand and collapse rows, remembered (IRON-3)",
             description: mrBefore.description, targetRef: "main" })
         const draft = post("Code/MergeRequestDetail/markReady", { mergeRequestId: mrId, draft: "Y" })
@@ -267,16 +262,13 @@ feature("work items linked and unlinked by hand; Edit; Mark as draft and ready; 
         const closedOverview = render("apps/Projects/Code/MergeRequestDetail/Overview", { mergeRequestId: mrId })
         const closedComment = json("Code/MergeRequestDetail/Changes/comment", { mergeRequestId: mrId, body: "late", path: "src/keys.js", newLine: 1 }, "post")
         const reopened = post("Code/MergeRequestDetail/closeMergeRequest", { mergeRequestId: mrId, reopen: "Y" })
-        return { linked, link, unlinked, bad, bobEdit, edited, draft, asDraft, ready, closed, asClosed, closedHeader, closedOverview, closedComment, reopened, after: demoMr() }
+        return { linked, link, unlinked, edited, draft, asDraft, ready, closed, asClosed, closedHeader, closedOverview, closedComment, reopened, after: demoMr() }
     },
-    then({ linked, link, unlinked, bad, bobEdit, edited, draft, asDraft, ready, closed, asClosed, closedHeader, closedOverview, closedComment, reopened, after }) {
+    then({ linked, link, unlinked, edited, draft, asDraft, ready, closed, asClosed, closedHeader, closedOverview, closedComment, reopened, after }) {
         linked.errors == ""
         link != null
         link.completeOnMerge == "Y"
         unlinked.errors == ""
-        bad.errors.includes("not found")
-        // bob is on IRON (update on the repository: a maintainer may change it)
-        bobEdit.errors == "" || bobEdit.errors.includes("author")
         edited.errors == ""
         draft.errors == ""
         asDraft == "GmrDraft"

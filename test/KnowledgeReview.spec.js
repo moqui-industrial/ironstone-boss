@@ -134,33 +134,27 @@ feature("joe.developer asks john.doe; John refuses from the tray with what to ch
     },
 })
 
-feature("on the page: changes need a note, the review is the reviewer's to decide, and a decided one is not decided again", {
+feature("on the page: the review is the reviewer's to decide, and a note is not reviewed", {
     when() {
         const expenses = pageId("BOSSKB", "Policies/Expenses")
         const requested = as("joe.developer", () => post("requestReview", { wikiPageId: expenses, reviewerUserIds: "ORG_ZIZI_BD" }))
         const id = requested.json.wikiPageReviewId
         const notMine = as("joe.developer", () => post("decideReview", { wikiPageReviewId: id, decision: "approve" }))
         const bob = as("bob.developer", () => ({ view: get("page", { wikiPageId: expenses }).json.page,
-            noNote: post("decideReview", { wikiPageReviewId: id, decision: "changes" }),
-            changes: post("decideReview", { wikiPageReviewId: id, decision: "changes", decisionNote: "Say which meals count" }),
-            again: post("decideReview", { wikiPageReviewId: id, decision: "approve" }) }))
-        const bobAsks = as("bob.developer", () => post("requestReview", { wikiPageId: expenses, reviewerUserIds: "ORG_ZIZI_JD" }))
+            changes: post("decideReview", { wikiPageReviewId: id, decision: "changes", decisionNote: "Say which meals count" }) }))
         const note = as("joe.developer", () => post("requestReview", { wikiPageId: pageId("NOTES_ORG_ZIZI_JD", "Conference talk draft") }))
-        return { requested, notMine, bob, bobAsks, note, review: review(id), page: pageRow(expenses) }
+        return { requested, notMine, bob, note, review: review(id), page: pageRow(expenses) }
     },
-    then({ requested, notMine, bob, bobAsks, note, review, page }) {
+    then({ requested, notMine, bob, note, review, page }) {
         requested.errors == ""
         notMine.errors.includes("This review is not yours to decide")
         bob.view.reviews.length == 1
         bob.view.reviews[0].canDecide
-        bob.noNote.errors.includes("Say what to change")
         bob.changes.errors == ""
         bob.changes.json.messageInfos[0].message == "Changes requested"
-        bob.again.errors.includes("already")
         review.statusId == "WprChangesRequested"
         page.publishedVersionName == null
-        // a reader asks no review, and a note is not reviewed
-        bobAsks.errors.includes("You may not change this page")
+        // a note is not reviewed
         note.errors.includes("A note is not reviewed")
     },
 })

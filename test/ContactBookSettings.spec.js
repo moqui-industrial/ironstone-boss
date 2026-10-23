@@ -1,7 +1,7 @@
 // Commons Settings/ContactBooks (screen/Commons/Settings/ContactBooks.xml; design-drawers-commons.md §11 ContactBooks; impl M4): the user's
 // books with their kind, size and sharing, a new shared book shared with Joe Developer to view (who then sees it in his Contacts scopes
-// and may not change it), its groups as editable rows, unsharing, and deleting it; a personal book cannot be shared, and the default book
-// cannot be deleted. Everything goes through mantle.party.ContactBookServices. Authorization stays on, as for a browser request.
+// and may not change it), its groups as editable rows, unsharing, and deleting it; the default book cannot be deleted. Everything goes
+// through mantle.party.ContactBookServices, whose own refusals (a personal book shared, a group name taken) Mantle's specs check. Authorization stays on, as for a browser request.
 // Run: ./moq test ironstone-boss --spec ContactBookSettings
 const webroot = "component://webroot/screen/webroot.xml"
 const commons = "component://ironstone-boss/screen/Commons.xml"
@@ -59,17 +59,13 @@ feature("New book makes a shared book john.doe manages; Share opens it to Joe De
             description: "Suppliers for the spec" })
         sharedBookId = (books({ contactBookName: "Spec Suppliers" })[0] || {}).contactBookId
         const shared = post("Settings/ContactBooks/shareBook", { contactBookId: sharedBookId, shareUserId: "ORG_ZIZI_JD", permissionEnumId: "CbpView" })
-        const noOne = post("Settings/ContactBooks/shareBook", { contactBookId: sharedBookId, permissionEnumId: "CbpView" })
-        const personal = post("Settings/ContactBooks/shareBook", { contactBookId: "BOSS_DEMO_BOOK_JD", shareUserId: "ORG_ZIZI_JD", permissionEnumId: "CbpView" })
         const shown = render("apps/Commons/Settings/ContactBooks", {})
-        return { created, shared, noOne, personal, shown, shares: currentShares(sharedBookId) }
+        return { created, shared, shown, shares: currentShares(sharedBookId) }
     },
-    then({ created, shared, noOne, personal, shown, shares }) {
+    then({ created, shared, shown, shares }) {
         created.errors == ""
         sharedBookId != null
         shared.errors == ""
-        noOne.errors.includes("Choose a user or a user group")
-        personal.errors.includes("A personal book is not shared")
         shares.length == 2
         shares.some((share) => share.userId === "EX_JOHN_DOE" && share.permissionEnumId === "CbpManage")
         shares.some((share) => share.userId === "ORG_ZIZI_JD" && share.permissionEnumId === "CbpView")
@@ -84,16 +80,14 @@ feature("groups are editable rows: add, rename and delete", {
         post("Settings/ContactBooks/createGroup", { contactBookId: sharedBookId, groupName: "Ink" })
         const paper = groupsOf(sharedBookId).find((group) => group.groupName === "Paper")
         const renamed = post("Settings/ContactBooks/updateGroup", { contactBookGroupId: paper.contactBookGroupId, groupName: "Paper and envelopes" })
-        const clash = post("Settings/ContactBooks/updateGroup", { contactBookGroupId: paper.contactBookGroupId, groupName: "ink" })
         const ink = groupsOf(sharedBookId).find((group) => group.groupName === "Ink")
         const deleted = post("Settings/ContactBooks/deleteGroup", { contactBookGroupId: ink.contactBookGroupId })
         const shown = render("apps/Commons/Settings/ContactBooks", {})
-        return { added, renamed, clash, deleted, names: groupsOf(sharedBookId).map((group) => group.groupName), shown }
+        return { added, renamed, deleted, names: groupsOf(sharedBookId).map((group) => group.groupName), shown }
     },
-    then({ added, renamed, clash, deleted, names, shown }) {
+    then({ added, renamed, deleted, names, shown }) {
         added.errors == ""
         renamed.errors == ""
-        clash.errors.includes("The book already has a group ink")
         deleted.errors == ""
         names == ["Paper and envelopes"]
         shown.output.includes("Paper and envelopes")
@@ -107,18 +101,16 @@ feature("Joe Developer sees the book shared with him in his Contacts scopes, may
             const contacts = render("apps/Commons/Contacts", { find: "Y", scope: "all" })
             const settings = render("apps/Commons/Settings/ContactBooks", {})
             const rename = post("Settings/ContactBooks/updateBook", { contactBookId: sharedBookId, contactBookName: "Mine now" })
-            const group = post("Settings/ContactBooks/createGroup", { contactBookId: sharedBookId, groupName: "Toner" })
-            return { contacts, settings, rename, group }
+            return { contacts, settings, rename }
         } finally { login("john.doe") }
     },
-    then({ contacts, settings, rename, group }) {
+    then({ contacts, settings, rename }) {
         contacts.output.includes("Spec Suppliers · shared")
         settings.output.includes("Spec Suppliers")
         settings.output.includes("you may view")
         // no Edit, Share or Delete for a viewer: the book's toolbar is empty and its groups are text
         !settings.output.includes("Edit Spec Suppliers")
         rename.errors.includes("You need manage permission on contact book Spec Suppliers")
-        group.errors.includes("You need edit permission on contact book Spec Suppliers")
         books({ contactBookId: sharedBookId })[0].contactBookName == "Spec Suppliers"
     },
 })

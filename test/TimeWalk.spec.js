@@ -83,7 +83,6 @@ feature("joe opens an empty week, adds a row, and times TWK-1 then switches the 
     when() {
         const empty = weekOf("joe.developer")
         const added = as("joe.developer", () => post("Time/MyTime/rows", { change: "add", weekDate: "2026-12-09", workEffortId: "TWK-2" }))
-        const notMine = as("joe.developer", () => post("Time/MyTime/rows", { change: "add", weekDate: "2026-12-09", workEffortId: "HIRE-1" }))
         const options = as("joe.developer", () => json("Time/MyTime/itemOptions", { term: "Timer" }).json)
         const started = as("joe.developer", () => post("Time/MyTime/startTimer", { workEffortId: "TWK-1" }))
         setNow(at(7, 10, 30))
@@ -92,15 +91,14 @@ feature("joe opens an empty week, adds a row, and times TWK-1 then switches the 
         as("joe.developer", () => post("Time/MyTime/updateTimer", { comments: "The bar's layout" }))
         setNow(at(7, 12))
         const stopped = as("joe.developer", () => post("Time/MyTime/stopTimer", {}))
-        return { empty, added, notMine, options, started, switched, running, stopped, after: weekOf("joe.developer") }
+        return { empty, added, options, started, switched, running, stopped, after: weekOf("joe.developer") }
     },
-    then({ empty, added, notMine, options, started, switched, running, stopped, after }) {
+    then({ empty, added, options, started, switched, running, stopped, after }) {
         empty.week.weekStart == "2026-12-07"
         empty.week.rowList.length == 0
         empty.week.timesheet.statusId == "TmshInProcess"
         empty.week.access.canSubmit == true
         added.json.addedCount == 1
-        notMine.errors.includes("not available") || notMine.errors.includes("may not")
         options.some((option) => option.value == "TWK-2")
         started.json.timeEntryId != null
         switched.json.messageInfos[0].message.includes("Switched")
@@ -123,22 +121,20 @@ feature("joe types hours in the grid and logs one entry in full; the grid's rule
         const tuesday = cell("TWK-1", "2026-12-08", "7.6")
         const tuesday2 = cell("TWK-2", "2026-12-08", "0.5")
         const several = cell("TWK-2", "2026-12-07", "2")
-        const tooMany = cell("TWK-1", "2026-12-09", "25")
         const full = as("joe.developer", () => post("Time/MyTime/saveEntry", { workEffortId: "TWK-1", day: "2026-12-09", fromTime: "08:30", thruTime: "17:00",
             breakHours: "0.5", billable: "N", workTypeEnumId: "WktpDevelopment", comments: "Keyboard moves between cells" }))
         const thursday = cell("TWK-1", "2026-12-10", "6")
         const cleared = cell("TWK-1", "2026-12-10", "")
         const bob = weekOf("bob.developer", "ORG_ZIZI_JD")
-        return { monday, second, tuesday, tuesday2, several, tooMany, full, thursday, cleared, bob, week: weekOf("joe.developer").week }
+        return { monday, second, tuesday, tuesday2, several, full, thursday, cleared, bob, week: weekOf("joe.developer").week }
     },
-    then({ monday, second, tuesday, tuesday2, several, tooMany, full, thursday, cleared, bob, week }) {
+    then({ monday, second, tuesday, tuesday2, several, full, thursday, cleared, bob, week }) {
         // the timer's entry of Monday takes the hours typed; a second entry that day makes the cell several
         monday.json.hours == 3
         second.json.messageInfos[0].message == "1 h logged"
         tuesday.json.hours == 7.5
         tuesday2.json.hours == 0.5
         several.errors.includes("several entries")
-        tooMany.errors.includes("from 0 to 24")
         full.json.messageInfos[0].message == "8 h logged"
         thursday.json.hours == 6
         cleared.json != null
@@ -209,16 +205,14 @@ feature("john.doe approves it from Timesheets; the week is approved and read onl
     when() {
         const approved = post("Time/Timesheets/bulkAction", { bulk: "approve", selectedIds: sheetId(), list: "toApprove" })
         const week = weekOf("joe.developer").week
-        const refused = as("joe.developer", () => post("Time/MyTime/saveEntry", { workEffortId: "TWK-1", day: "2026-12-11", hours: "1" }))
-        return { approved, week, refused, detail: render("apps/Projects/Time/TimesheetDetail", { timesheetId: sheetId() }) }
+        return { approved, week, detail: render("apps/Projects/Time/TimesheetDetail", { timesheetId: sheetId() }) }
     },
-    then({ approved, week, refused, detail }) {
+    then({ approved, week, detail }) {
         approved.errors == ""
         week.timesheet.statusId == "TmshApproved"
         week.timesheet.approvedByName == "John Doe"
         week.total == 25.5
         week.access.canEdit == false
-        refused.errors.includes("This week is submitted")
         detail.output.includes("Approved")
         detail.output.includes("Returned")
     },

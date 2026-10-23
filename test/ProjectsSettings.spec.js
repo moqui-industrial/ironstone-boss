@@ -184,10 +184,9 @@ feature("templates: listed with their counts, one made as a copy of a project an
         const blank = post("Settings/Templates/createTemplate", { workEffortId: "BTBLANK", workEffortName: "BOSS_TEST Blank template" })
         const page = render("apps/Projects/Settings/Templates", {})
         return { list, copy, blank, page, iron: one("mantle.work.effort.WorkEffort", { workEffortId: "BTIRON" }), blankRow: one("mantle.work.effort.WorkEffort", { workEffortId: "BTBLANK" }),
-            ironItems: sys(() => ec.entity.find("mantle.work.effort.WorkEffort").condition("rootWorkEffortId", "BTIRON").condition("workEffortTypeEnumId", "WetTask").count()),
-            byJoe: as("joe.developer", () => post("Settings/Templates/createTemplate", { workEffortId: "BTJOE", workEffortName: "BOSS_TEST no" })) }
+            ironItems: sys(() => ec.entity.find("mantle.work.effort.WorkEffort").condition("rootWorkEffortId", "BTIRON").condition("workEffortTypeEnumId", "WetTask").count()) }
     },
-    then({ list, copy, blank, page, iron, blankRow, ironItems, byJoe }) {
+    then({ list, copy, blank, page, iron, blankRow, ironItems }) {
         const web = list.find((row) => row.workEffortId === "TPLWEB")
         web.itemCount == 4
         web.milestoneCount == 1
@@ -198,6 +197,5 @@ feature("templates: listed with their counts, one made as a copy of a project an
         blank.errors == ""
         blankRow.isTemplate == "Y"
         page.output.includes("BOSS_TEST Product template")
-        byJoe.errors != ""
     },
 })

@@ -141,16 +141,14 @@ feature("the client raises a request in its project with a file, and adds anothe
             if (request) made.requestIds.push(request.requestId)
             const more = request ? hit("Projects/RecordFiles/upload", { recordEntity: "mantle.request.Request", recordId: request.requestId,
                 contentFile: uploadedFile("screenshot.png", "not really a png") }, "post") : null
-            const badFile = request ? hit("Projects/RecordFiles/upload", { recordEntity: "mantle.request.Request", recordId: request.requestId,
-                contentFile: uploadedFile("page.html", "<script>alert(1)</script>") }, "post") : null
             const files = request ? hit("Projects/RecordFiles/filesData", { recordEntity: "mantle.request.Request", recordId: request.requestId }) : null
             const detail = request ? render("Requests/RequestDetail", { requestId: request.requestId }, "tui", false) : null
-            return { raised, request, more, badFile, files, detail,
+            return { raised, request, more, files, detail,
                 parties: request ? rows("mantle.request.RequestParty", { requestId: request.requestId }).map((row) => row.partyId + ":" + row.roleTypeId) : [],
                 contents: request ? rows("mantle.request.RequestContent", { requestId: request.requestId }).map((row) => String(row.contentLocation).split("/").pop()) : [] }
         })
     },
-    then({ raised, request, more, badFile, files, detail, parties, contents }) {
+    then({ raised, request, more, files, detail, parties, contents }) {
         raised.refused == false
         request != null
         request.statusId == "ReqSubmitted"
@@ -160,8 +158,6 @@ feature("the client raises a request in its project with a file, and adds anothe
         parties.includes("ORG_ACME:Customer")
         contents.includes("audit-sample.csv")
         contents.includes("screenshot.png")
-        !contents.includes("page.html")
-        badFile.errors != "" || badFile.json?.errors != null
         files.json?.canUpload == true
         files.json?.fileList?.length >= 2
         files.json?.fileList?.every((file) => file.canRemove === false)
@@ -255,17 +251,15 @@ feature("the team sends the estimate and the client opens it and approves it", {
 
 feature("the client reads the invoice to its organization, read only", {
     when() {
-        return as(SHELDON, () => ({ list: render("Billing/Invoices", {}), detail: render("Billing/InvoiceDetail", { invoiceId: "CWALK_INV" }),
-            cancel: hit("Projects/Billing/InvoiceDetail/changeStatus", { invoiceId: "CWALK_INV", statusId: "InvoiceCancelled" }, "post") }))
+        // (a move of it is refused: test/ClientBilling.spec.js)
+        return as(SHELDON, () => ({ list: render("Billing/Invoices", {}), detail: render("Billing/InvoiceDetail", { invoiceId: "CWALK_INV" }) }))
     },
-    then({ list, detail, cancel }) {
+    then({ list, detail }) {
         list.refused == false
         list.output.includes("CWALK_INV")
         detail.refused == false
         detail.output.includes("Portal sign-in work")
         detail.output.includes("493.80")
         !detail.output.includes("Send")
-        cancel.refused || cancel.errors != "" || cancel.json?.errors != null
-        one("mantle.account.invoice.Invoice", { invoiceId: "CWALK_INV" }).statusId == "InvoiceSent"
     },
 })

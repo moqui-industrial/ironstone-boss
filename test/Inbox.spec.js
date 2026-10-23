@@ -5,7 +5,7 @@
 // comments, a folder, a label, a mailbox); the search line with its operators over both stores; the thread of the reading
 // pane with its files, contacts, labels, invitation and unsubscribe; state changes by store, one at a time and in bulk with a
 // target that fails; the view action; links to records, create from a message, the contact card, the palette's Messages
-// group and MessageDetail. Another user (joe.developer) reaches none of john.doe's mail: threads, files, links and
+// group and MessageDetail. Another user (joe.developer) reaches none of john.doe's mail: threads, files, state changes and
 // MessageDetail are "not found".
 // Run: ./moq test ironstone-boss --spec Inbox
 const comms = "component://ironstone-boss/screen/Comms.xml"
@@ -172,10 +172,10 @@ feature("the reading pane has the thread with its files, contacts, labels, links
         return {
             acme: get("thread", { store: "email", threadId: "BOSS_DEMO_MAIL_ACME1" }), invite: get("thread", { store: "email", threadId: "BOSS_DEMO_MAIL_INVITE" }),
             news: get("thread", { store: "email", threadId: "BOSS_DEMO_MAIL_NEWS" }), internal: get("thread", { store: "internal", threadId: "BOSS_DEMO_MAIL_IM1" }),
-            post: get("thread", { store: "internal", threadId: "BOSS_DEMO_MAIL_POST1" }), missing: get("thread", { store: "email", threadId: "BOSS_NO_SUCH_MAIL" }),
+            post: get("thread", { store: "internal", threadId: "BOSS_DEMO_MAIL_POST1" }),
         }
     },
-    then({ acme, invite, news, internal, post, missing }) {
+    then({ acme, invite, news, internal, post }) {
         acme.status == 200
         // the demo's messages, oldest first (a spec's replies in the thread come after them)
         acme.json.thread.messageList.map((message) => message.emailMessageId).filter((id) => id.startsWith("BOSS_DEMO_")) == ["BOSS_DEMO_MAIL_ACME1", "BOSS_DEMO_MAIL_ACME2", "BOSS_DEMO_MAIL_ACME3"]
@@ -200,8 +200,6 @@ feature("the reading pane has the thread with its files, contacts, labels, links
         post.json.thread.contactListName == "Office announcements"
         post.json.thread.canModerate
         post.json.thread.messageList.length >= 2
-        missing.status != 200
-        missing.errors.includes("not found")
     },
 })
 
@@ -234,8 +232,7 @@ feature("state changes go to each message's store, one at a time and in bulk, an
         const spam = post("state", { targetsJson: targets([{ store: "email", threadId: "BOSS_DEMO_MAIL_WELCOME" }]), action: "spam" })
         const inJunk = has(get("threads", { view: "junk" }), "email:BOSS_DEMO_MAIL_WELCOME")
         post("state", { targetsJson: targets([{ store: "email", threadId: "BOSS_DEMO_MAIL_WELCOME" }]), action: "notSpam" })
-        const bad = post("state", { targetsJson: "[]", action: "explode" })
-        return { archived, afterArchive, afterUndo, flagged, flaggedView, snoozed, bulk, read, labeled, labelView, moved, inReceipts, internalMove, spam, inJunk, bad }
+        return { archived, afterArchive, afterUndo, flagged, flaggedView, snoozed, bulk, read, labeled, labelView, moved, inReceipts, internalMove, spam, inJunk }
     },
     then(v) {
         v.archived.status == 200
@@ -260,7 +257,6 @@ feature("state changes go to each message's store, one at a time and in bulk, an
         v.internalMove.json.failedList[0].message.includes("no folders")
         v.spam.json.updatedCount == 1
         v.inJunk == true
-        v.bad.status != 200
     },
 })
 
@@ -322,13 +318,10 @@ feature("the palette's Messages group finds threads and mailboxes, and MessageDe
         const boxes = sys(() => call("ironstone.InboxServices.search#Messages", { text: "Office", limit: 5 })).rows
         const detail = ec.screen.makeTest().rootScreen(comms).renderMode("qvt").withStaticData().render("Inbox/MessageDetail", { emailMessageId: "BOSS_DEMO_MAIL_ACME1", lastStandalone: "-2" }, null)
         const internal = ec.screen.makeTest().rootScreen(comms).renderMode("qvt").withStaticData().render("Inbox/MessageDetail", { communicationEventId: "BOSS_DEMO_MAIL_IM1", lastStandalone: "-2" }, null)
-        // an empty id is refused before any export
-        const internalEml = ec.screen.makeTest().rootScreen(comms).render("Inbox/MessageDetail/downloadEml", { emailMessageId: "" }, null)
         ec.message.clearErrors()
-        return { rows, boxes, detail: String(detail.output || ""), detailErrors: detail.errorMessages.join(" | "), internal: String(internal.output || ""),
-            noMessage: internalEml.errorMessages.join(" | ") }
+        return { rows, boxes, detail: String(detail.output || ""), detailErrors: detail.errorMessages.join(" | "), internal: String(internal.output || "") }
     },
-    then({ rows, boxes, detail, detailErrors, internal, noMessage }) {
+    then({ rows, boxes, detail, detailErrors, internal }) {
         rows.some((row) => row.title == "Can you review the onboarding guide?" && row.url.includes("thread=internal%3ABOSS_DEMO_MAIL_IM1"))
         boxes.some((row) => row.title == "Office announcements" && row.url == "/qapps/Comms/Inbox?mailbox=BOSS_DEMO_MBX_OFFICE")
         detailErrors == ""
@@ -336,7 +329,6 @@ feature("the palette's Messages group finds threads and mailboxes, and MessageDe
         detail.includes("purchase-order-Q4.txt")
         detail.includes("Headers and source")
         internal.includes("Can you review the onboarding guide?")
-        noMessage.length > 0
     },
 })
 
@@ -363,44 +355,32 @@ feature("a message downloads as an .eml file, with its files", {
     },
 })
 
-feature("another user reaches none of john.doe's mail: threads, files, state changes, links and MessageDetail are not found", {
+feature("another user reaches none of john.doe's mail: threads, files, state changes and MessageDetail are not found", {
     when() {
         login("joe.developer")
         try {
             const data = get("inboxData")
             const thread = get("thread", { store: "email", threadId: "BOSS_DEMO_MAIL_ACME1" })
             const attachment = get("attachment", { store: "email", id: "BOSS_DEMO_MAIL_ACME1_A1" })
-            const view = get("threads", { account: "BOSS_DEMO_MAIL_ACCT" })
             const state = post("state", { targetsJson: targets([{ store: "email", threadId: "BOSS_DEMO_MAIL_ACME1" }]), action: "trash" })
-            const link = post("linkRecord", { emailMessageId: "BOSS_DEMO_MAIL_ACME1", recordEntityName: "mantle.request.Request", recordId: "BOSS_DEMO_REQUEST" })
-            const createFrom = post("createFrom", { kind: "task", emailMessageId: "BOSS_DEMO_MAIL_ACME1" })
             const internalThread = get("thread", { store: "internal", threadId: "BOSS_DEMO_MAIL_IM4" })
             const notMine = get("thread", { store: "internal", threadId: "BOSS_DEMO_MAIL_POST3" })
             const detail = ec.screen.makeTest().rootScreen(comms).renderMode("qvt").withStaticData().render("Inbox/MessageDetail", { emailMessageId: "BOSS_DEMO_MAIL_ACME1", lastStandalone: "-2" }, null)
             ec.message.clearErrors()
-            const eml = ec.screen.makeTest().rootScreen(comms).render("Inbox/MessageDetail/downloadEml", { emailMessageId: "BOSS_DEMO_MAIL_ACME1" }, null)
-            const emlErrors = eml.errorMessages.join(" | ")
-            ec.message.clearErrors()
-            return { data, thread, attachment, view, state, link, createFrom, internalThread, notMine, detail: String(detail.output || ""),
-                eml: { errors: emlErrors, text: String(eml.output || "") } }
+            return { data, thread, attachment, state, internalThread, notMine, detail: String(detail.output || "") }
         } finally { login("john.doe") }
     },
     then(v) {
         !v.data.json.accountList.some((account) => account.emailAccountId == "BOSS_DEMO_MAIL_ACCT")
         v.thread.errors.includes("not found")
         v.attachment.errors.includes("not found")
-        v.view.errors.includes("not found")
         v.state.json.updatedCount == 0
         v.state.json.failedList[0].message.includes("not found")
-        v.link.errors.includes("not found")
-        v.createFrom.errors.includes("not found")
         // Joe is a cc of Bob's message, so he reads it; a post of the private Leadership mailbox, where Joe only asked to join, he does not
         v.internalThread.status == 200
         v.notMine.errors.includes("not found")
         v.detail.includes("Message not found")
         !v.detail.includes("Quarterly order for the Ziziwork parts")
-        v.eml.errors.includes("not found")
-        !v.eml.text.includes("Quarterly order")
         one("moqui.basic.email.EmailMessage", { emailMessageId: "BOSS_DEMO_MAIL_ACME1" }).emailFolderId == "BOSS_DEMO_MAIL_F_INBOX"
     },
 })

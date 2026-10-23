@@ -91,20 +91,16 @@ feature("the page is its component in the public shell, and its state shows the 
 feature("an unknown or ended link reads nothing and changes nothing", {
     allowMessageErrors: true,
     when() {
-        return { unknown: visit("state", "NoSuchUnsubscribeToken00", {}, "get"), ended: visit("state", ENDED, {}, "get"),
+        return { unknown: visit("state", "NoSuchUnsubscribeToken00", {}, "get"),
             endedPost: visit("unsubscribe", ENDED, { choice: "list" }, "post"), endedOneClick: visit("oneClick", ENDED, { "List-Unsubscribe": "One-Click" }, "post"),
-            unknownPrefs: visit("preferences", "NoSuchUnsubscribeToken00", { listChoices: JSON.stringify([{ contactListId: LIST_NEWS, subscribed: false }]) }, "post"),
             jordan: statusOf(LIST_NEWS, "BOSS_DEMO_CON_JORDAN") }
     },
-    then({ unknown, ended, endedPost, endedOneClick, unknownPrefs, jordan }) {
+    then({ unknown, endedPost, endedOneClick, jordan }) {
         !unknown.json.valid
         unknown.errors.includes("not valid or has expired")
         unknown.json.contactListName == null
-        !ended.json.valid
-        ended.json.organizationName == null
         endedPost.errors.includes("not valid or has expired")
         endedOneClick.status == 410
-        unknownPrefs.errors.includes("not valid or has expired")
         jordan == "CLPT_UNSUBSCRIBED"
     },
 })

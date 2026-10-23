@@ -80,8 +80,9 @@ feature("a reason chip narrows the tab to its reason", {
     },
 })
 
+// with the Commons app chip, as the Updates toggle: the Mantle specs before this one leave newer notices past the first page
 feature("the center lists both inboxes in its rail, the approvals first, and renders the Updates inbox", {
-    when() { return { notifications: render("Notifications"), updates: render("Notifications", { inboxEnumId: "NinUpdates", appName: "Commons" }) } },
+    when() { return { notifications: render("Notifications", { appName: "Commons" }), updates: render("Notifications", { inboxEnumId: "NinUpdates", appName: "Commons" }) } },
     then({ notifications, updates }) {
         notifications.status == 200
         notifications.errors == ""

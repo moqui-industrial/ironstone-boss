@@ -4,7 +4,7 @@
 // RepositoryDetail with Files, Commits, Branches, Tags and Merge requests, CommitDetail, MergeRequests and MergeRequestDetail with
 // its Commits and Changes. It never reads an internal repository (iron), nor one its project does not share (sharing off again), and
 // another client (gob.bluth of Bluth) never reads Acme's, even with its own project sharing; Compare, Git access, Activity and
-// Settings are refused; every write of the Code screens is refused and changes nothing; no review note, line comment, check
+// Settings are refused; the writes of the Code screens are refused and change nothing; no review note, line comment, check
 // description, internal work item or Acme secret reaches the client. An internal user's Code screens are unchanged.
 // The fixtures: a branch cc-theme in acme-portal with a commit, a merge request of it linked to ACME-1 (shared) and ACME-3 (Work
 // group), a reviewer's note, a line comment, and a check with a description and a link, all with ZQX sentinels; taken out after.
@@ -330,9 +330,7 @@ feature("refused: an internal repository, Compare, Git access, Activity, Setting
             ironChanges: hit("Code/MergeRequestDetail/Changes/changes", { mergeRequestId: ironMr }),
             ironRaw: hit("Code/RepositoryDetail/Files/raw", { repositoryId: "iron", ref: "main", path: "README.md" }),
             compare: render("Code/Compare", { repositoryId: REPO, head: BRANCH }),
-            gitAccess: render("Code/GitAccess", {}),
-            activity: render("Code/RepositoryDetail/Activity", { repositoryId: REPO }),
-            settings: render("Code/RepositoryDetail/Settings", { repositoryId: REPO }),
+            // Git access, Activity and Settings: refused as every screen file is in test/ClientIsolation.spec.js
             activityService: service("ironstone.CodeServices.get#RepositoryActivity", { repositoryId: REPO }),
             compareService: service("ironstone.CodeServices.get#CompareInfo", { repositoryId: REPO, head: BRANCH }),
             palette: service("ironstone.CodeServices.search#CodePalette", { text: "acme" }),
@@ -374,9 +372,6 @@ feature("refused: an internal repository, Compare, Git access, Activity, Setting
         sheldon.ironChanges.json?.changes == null
         sheldon.ironRaw.status == 404
         sheldon.compare.refused
-        sheldon.gitAccess.refused
-        sheldon.activity.refused
-        sheldon.settings.refused
         sheldon.activityService._errors != ""
         !sheldon.activityService.updateList?.length
         sheldon.compareService._errors != ""
@@ -403,43 +398,21 @@ feature("refused: an internal repository, Compare, Git access, Activity, Setting
     },
 })
 
-feature("a client changes nothing through the Code screens: every write transition is refused and the repository is unchanged", {
+feature("a client changes nothing through the Code screens: a write of each is refused and the repository is unchanged", {
     when() {
         const before = state()
         const p = { repositoryId: REPO }
         const m = { mergeRequestId: made.mrId }
+        // the client's deny is one pattern of write verbs (BOSS_PROJECTS_INTERNAL): one write of each Code screen, and IronStone's own service
         const results = as(SHELDON, () => [
             ["Branches/createBranch", hit("Code/RepositoryDetail/Branches/createBranch", Object.assign({ refName: "cc-client" }, p), "post")],
-            ["Branches/deleteBranch", hit("Code/RepositoryDetail/Branches/deleteBranch", Object.assign({ refName: BRANCH }, p), "post")],
             ["Tags/createTag", hit("Code/RepositoryDetail/Tags/createTag", Object.assign({ refName: "cc-client-tag" }, p), "post")],
-            ["Tags/deleteTag", hit("Code/RepositoryDetail/Tags/deleteTag", Object.assign({ refName: "ACME/v0.1" }, p), "post")],
-            ["Tags/linkTag", hit("Code/RepositoryDetail/Tags/linkTag", Object.assign({ refName: "refs/tags/ACME/v0.1", workEffortId: "ACME-1" }, p), "post")],
-            ["Tags/unlinkTag", hit("Code/RepositoryDetail/Tags/unlinkTag", Object.assign({ refName: "refs/tags/ACME/v0.1", workEffortId: "ACME" }, p), "post")],
             ["CommitDetail/linkItem", hit("Code/CommitDetail/linkItem", Object.assign({ commitId: made.commitId, workEffortId: "ACME-1" }, p), "post")],
-            ["CommitDetail/unlinkItem", hit("Code/CommitDetail/unlinkItem", Object.assign({ commitId: made.commitId, workEffortId: "ACME-1" }, p), "post")],
             ["Repositories/createRepository", hit("Code/Repositories/createRepository", { workEffortId: "ACME", repositoryId: "cc-client-repo" }, "post")],
-            ["Repositories/linkRepository", hit("Code/Repositories/linkRepository", { workEffortId: "ACME", repositoryId: REPO }, "post")],
-            ["Repositories/createMirror", hit("Code/Repositories/createMirror", { repositoryId: "cc-client-mirror", remoteUrl: "https://example.com/x.git" }, "post")],
-            ["ProjectCode/createRepository", hit("Projects/ProjectDetail/Code/createRepository", { workEffortId: "ACME", repositoryId: "cc-client-repo2" }, "post")],
             ["ProjectCode/linkRepository", hit("Projects/ProjectDetail/Code/linkRepository", { workEffortId: "ACME", repositoryId: REPO }, "post")],
-            ["ProjectCode/unlinkRepository", hit("Projects/ProjectDetail/Code/unlinkRepository", { workEffortId: "ACME", repositoryId: REPO }, "post")],
-            ["ProjectCode/unlinkTag", hit("Projects/ProjectDetail/Code/unlinkTag", { workEffortId: "ACME", repositoryId: REPO, refName: "refs/tags/ACME/v0.1", tagWorkEffortId: "ACME" }, "post")],
-            ["MergeRequestDetail/markReady", hit("Code/MergeRequestDetail/markReady", Object.assign({ draft: "Y" }, m), "post")],
-            ["MergeRequestDetail/editMergeRequest", hit("Code/MergeRequestDetail/editMergeRequest", Object.assign({ title: "cc client title" }, m), "post")],
-            ["MergeRequestDetail/addReviewers", hit("Code/MergeRequestDetail/addReviewers", Object.assign({ addUserIds: "EX_JOHN_DOE" }, m), "post")],
-            ["MergeRequestDetail/submitReview", hit("Code/MergeRequestDetail/submitReview", Object.assign({ decision: "approve", note: "cc" }, m), "post")],
-            ["MergeRequestDetail/closeMergeRequest", hit("Code/MergeRequestDetail/closeMergeRequest", Object.assign({ reopen: "N" }, m), "post")],
             ["MergeRequestDetail/mergeMergeRequest", hit("Code/MergeRequestDetail/mergeMergeRequest", Object.assign({ mergeMethodEnumId: "GmmMerge" }, m), "post")],
             ["Overview/mergeMergeRequest", hit("Code/MergeRequestDetail/Overview/mergeMergeRequest", Object.assign({ mergeMethodEnumId: "GmmMerge" }, m), "post")],
-            ["Overview/removeReviewer", hit("Code/MergeRequestDetail/Overview/removeReviewer", Object.assign({ removeUserId: "EX_JOHN_DOE" }, m), "post")],
-            ["Overview/addReviewers", hit("Code/MergeRequestDetail/Overview/addReviewers", Object.assign({ addUserIds: "EX_JOHN_DOE" }, m), "post")],
-            ["Overview/linkItem", hit("Code/MergeRequestDetail/Overview/linkItem", Object.assign({ workEffortId: "ACME-4" }, m), "post")],
-            ["Overview/unlinkItem", hit("Code/MergeRequestDetail/Overview/unlinkItem", Object.assign({ workEffortId: "ACME-1" }, m), "post")],
             ["Changes/comment", hit("Code/MergeRequestDetail/Changes/comment", Object.assign({ body: "cc client comment", path: "src/theme.css", newLine: "1" }, m), "post")],
-            ["Changes/resolveThread", hit("Code/MergeRequestDetail/Changes/resolveThread", Object.assign({ communicationEventId: made.commentId, resolved: "true" }, m), "post")],
-            ["Changes/submitReview", hit("Code/MergeRequestDetail/Changes/submitReview", Object.assign({ decision: "approve" }, m), "post")],
-            ["create#ReviewComment", { errors: service("mantle.work.GitServices.create#ReviewComment", Object.assign({ body: "cc direct" }, m))._errors }],
-            ["resolve#ReviewThread", { errors: service("mantle.work.GitServices.resolve#ReviewThread", { communicationEventId: made.commentId })._errors }],
             ["comment#MergeRequest", { errors: service("ironstone.CodeServices.comment#MergeRequest", Object.assign({ body: "cc boss" }, m))._errors }],
         ])
         const after = state()

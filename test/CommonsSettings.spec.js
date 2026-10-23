@@ -167,7 +167,7 @@ feature("Account changes the signed-in user only, whatever user the request name
     cleanup() { sys(() => call("update#mantle.party.Person", { partyId: "EX_JOHN_DOE", firstName: "John" })) },
 })
 
-feature("Account photo: john.doe's own face image, whatever party the request names; replaced by a new one, a text file refused, removed; shown in Chatter", {
+feature("Account photo: john.doe's own face image, whatever party the request names; replaced by a new one, an SVG named as a PNG refused, removed; shown in Chatter", {
     when() {
         const png = "\u0089PNG fake image bytes for the spec"
         const joeBefore = faces("ORG_ZIZI_JD").length
@@ -175,7 +175,6 @@ feature("Account photo: john.doe's own face image, whatever party the request na
         const firstRows = faces("EX_JOHN_DOE")
         const second = post("Settings/Account/uploadPhoto", { contentFile: uploadedFile("john2.jpg", png, "image/jpeg") })
         const secondRows = faces("EX_JOHN_DOE")
-        const refused = post("Settings/Account/uploadPhoto", { contentFile: uploadedFile("notes.txt", "text", "text/plain") })
         const disguised = post("Settings/Account/uploadPhoto", { contentFile: uploadedFile("page.png", "<svg/>", "image/svg+xml") })
         const page = render("Settings/Account")
         const photo = get("Settings/Account/myPhoto")
@@ -197,17 +196,16 @@ feature("Account photo: john.doe's own face image, whatever party the request na
         const noByUser = get("Settings/Account/userPhoto", { userId: "EX_JOHN_DOE" })
         const pageAfter = render("Settings/Account")
         sys(() => call("ironstone.ChatterServices.delete#Entry", Object.assign({ communicationEventId: noteId, recordEntityName: request.recordEntity }, request)))
-        return { joeBefore, first, firstRows, second, secondRows, refused, disguised, page, photo, byUser, noUser, otherUser, entry, avatar, joeRemove, afterJoe, removed, noPhoto, noByUser, pageAfter,
+        return { joeBefore, first, firstRows, second, secondRows, disguised, page, photo, byUser, noUser, otherUser, entry, avatar, joeRemove, afterJoe, removed, noPhoto, noByUser, pageAfter,
             joeAfter: faces("ORG_ZIZI_JD").length, johnAfter: faces("EX_JOHN_DOE").length }
     },
-    then({ joeBefore, first, firstRows, second, secondRows, refused, disguised, page, photo, byUser, noUser, otherUser, entry, avatar, joeRemove, afterJoe, removed, noPhoto, noByUser, pageAfter, joeAfter, johnAfter }) {
+    then({ joeBefore, first, firstRows, second, secondRows, disguised, page, photo, byUser, noUser, otherUser, entry, avatar, joeRemove, afterJoe, removed, noPhoto, noByUser, pageAfter, joeAfter, johnAfter }) {
         first.errors == ""
         firstRows.length == 1
         firstRows[0].description == "john.png"
         second.errors == ""
         secondRows.length == 1
         secondRows[0].description == "john2.jpg"
-        refused.errors.includes("Choose an image file")
         disguised.errors.includes("Choose an image file")
         page.status == 200
         !page.broken

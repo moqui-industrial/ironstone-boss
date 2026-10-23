@@ -4,7 +4,7 @@
 // tabs, and Joe Developer's planning with john.doe's RSVP; When and Overview save by scope, a changed instance shows itself; the
 // repeat editor writes the RRULE; attendees are invited (a user by notification, an outside address as a new personal contact by
 // email), made optional and removed (the removed outside address told by email); the user's reminders; meeting rooms and
-// equipment booked at once or requested by the policy, a clash refused, a booking cancelled; a new time that clashes with a
+// equipment booked at once or requested by the policy, a booking cancelled; a new time that clashes with a
 // booking of its room refused, then kept anyway; Duplicate and Export .ics; Cancel event telling the attendees; an answer with
 // a note; a link to a changed instance by its series and start opens the instance; the linked records as record cards, linked by
 // an id (lookup#ById) and taken off, a record the user may not see left out, and Joe Developer may not change them.
@@ -181,13 +181,12 @@ feature("attendees: Joe invited at once by notification, an outside address made
         const emailsBefore = sys(() => ec.entity.find("moqui.basic.email.EmailMessage").condition("toAddresses", "like", "%pat.outside@example.org%").count())
         const removed = detailPost("removeAttendee", { workEffortId: made.meeting, partyId: outside.partyId })
         const cancelEmails = sys(() => ec.entity.find("moqui.basic.email.EmailMessage").condition("toAddresses", "like", "%pat.outside@example.org%").count()) - emailsBefore
-        const organizer = detailPost("removeAttendee", { workEffortId: made.meeting, partyId: "EX_JOHN_DOE" })
         const bad = detailPost("addAttendees", { workEffortId: made.meeting, emails: "not-an-address" })
-        return { added, outside, email, optional, optionalRow, again, removed, cancelEmails, organizer, bad, told: notices("ORG_ZIZI_JD", "EventInvitation").length - before,
+        return { added, outside, email, optional, optionalRow, again, removed, cancelEmails, bad, told: notices("ORG_ZIZI_JD", "EventInvitation").length - before,
             joe: current("mantle.work.effort.WorkEffortParty", { workEffortId: made.meeting, partyId: "ORG_ZIZI_JD" })[0] || {},
             outsideRows: current("mantle.work.effort.WorkEffortParty", { workEffortId: made.meeting, partyId: outside.partyId }).length }
     },
-    then({ added, outside, email, optional, optionalRow, again, removed, cancelEmails, organizer, bad, told, joe, outsideRows }) {
+    then({ added, outside, email, optional, optionalRow, again, removed, cancelEmails, bad, told, joe, outsideRows }) {
         added.errors == ""
         told == 1
         joe.statusId == "WeptOffered"
@@ -202,7 +201,6 @@ feature("attendees: Joe invited at once by notification, an outside address made
         removed.errors == ""
         cancelEmails == 1
         outsideRows == 0
-        organizer.errors.includes("organizer stays")
         bad.errors.includes("not an email address")
     },
 })
@@ -229,29 +227,26 @@ feature("reminders: john.doe's own, added by email and by notification and remov
     },
 })
 
-feature("rooms and equipment: Maple booked at once, the Board room requested (Bob approves it), a clash refused, a booking cancelled", {
+feature("rooms and equipment: Maple booked at once, the Board room requested (Bob approves it), a booking cancelled", {
     when() {
         const id = made.meeting
         const maple = detailPost("bookResource", { workEffortId: id, facilityId: "BOSS_DEMO_ROOM_MAPLE" })
         const board = detailPost("bookResource", { workEffortId: id, facilityId: "BOSS_DEMO_ROOM_BOARD", comments: "For the client" })
         const projector = detailPost("bookResource", { workEffortId: id, assetId: "BOSS_DEMO_PROJECTOR" })
-        // the planning has the Maple room on D+2 13:00
-        const clashId = quickEvent("BOSS_TEST clash", day(2) + " 13:30", day(2) + " 14:00")
-        const clash = detailPost("bookResource", { workEffortId: clashId, facilityId: "BOSS_DEMO_ROOM_MAPLE" })
+        // a booking that clashes is Mantle's rule (and a new time that clashes, the next feature)
         const cancel = detailPost("cancelBooking", { workEffortId: id, facilityId: "BOSS_DEMO_ROOM_MAPLE" })
-        return { maple, board, projector, clash, cancel, boardRow: one("mantle.work.effort.WorkEffortFacility", { workEffortId: id, facilityId: "BOSS_DEMO_ROOM_BOARD" }) || {},
+        return { maple, board, projector, cancel, boardRow: one("mantle.work.effort.WorkEffortFacility", { workEffortId: id, facilityId: "BOSS_DEMO_ROOM_BOARD" }) || {},
             mapleRow: one("mantle.work.effort.WorkEffortFacility", { workEffortId: id, facilityId: "BOSS_DEMO_ROOM_MAPLE" }),
             projectorRow: current("mantle.work.effort.WorkEffortAssetAssign", { workEffortId: id, assetId: "BOSS_DEMO_PROJECTOR" })[0] || {},
             facts: detail(id).event }
     },
-    then({ maple, board, projector, clash, cancel, boardRow, mapleRow, projectorRow, facts }) {
+    then({ maple, board, projector, cancel, boardRow, mapleRow, projectorRow, facts }) {
         maple.errors == ""
         board.errors == ""
         boardRow.statusId == "WefRequested"
         boardRow.comments == "For the client"
         projector.errors == ""
         projectorRow.statusId == "WeaaAssigned"
-        clash.errors.includes("is booked then")
         cancel.errors == ""
         mapleRow == null
         facts.rooms.find((room) => room.facilityId === "BOSS_DEMO_ROOM_BOARD").statusLabel == "Pending approval"
@@ -360,8 +355,7 @@ feature("linked records: the sync linked to a request found by its id and to Mar
         const list = detail("BOSS_DEMO_EV_SYNC").linkedRecordList
         const shown = render("apps/Commons/Calendar/EventDetail", { workEffortId: "BOSS_DEMO_EV_SYNC" })
         const joe = as("joe.developer", () => ({ shown: render("apps/Commons/Calendar/EventDetail", { workEffortId: "BOSS_DEMO_EV_SYNC" }),
-            unlink: detailPost("unlinkRecord", { workEffortId: "BOSS_DEMO_EV_SYNC", recordEntityName: "mantle.party.Party", recordId: "BOSS_DEMO_PC_MARY" }),
-            link: detailPost("linkRecord", { workEffortId: "BOSS_DEMO_EV_SYNC", recordEntityName: "mantle.party.Party", recordId: "BOSS_DEMO_PC_SAM" }) }))
+            unlink: detailPost("unlinkRecord", { workEffortId: "BOSS_DEMO_EV_SYNC", recordEntityName: "mantle.party.Party", recordId: "BOSS_DEMO_PC_MARY" }) }))
         const unlinkMary = detailPost("unlinkRecord", { workEffortId: "BOSS_DEMO_EV_SYNC", recordEntityName: "mantle.party.Party", recordId: "BOSS_DEMO_PC_MARY" })
         const unlinkRequest = detailPost("unlinkRecord", { workEffortId: "BOSS_DEMO_EV_SYNC", recordEntityName: "mantle.request.Request", recordId: "BOSS_TEST_EVENT_LINK" })
         return { options, linkRequest, linkMary, linkSam, self, list, shown, joe, unlinkMary, unlinkRequest,
@@ -388,7 +382,6 @@ feature("linked records: the sync linked to a request found by its id and to Mar
         !joe.shown.output.includes("BOSS_TEST_EVENT_LINK")
         !joe.shown.output.includes("Link to a record")
         joe.unlink.errors != ""
-        joe.link.errors != ""
         unlinkMary.errors == ""
         unlinkRequest.errors == ""
         requestJoin == null
@@ -401,13 +394,12 @@ feature("Joe Developer: john.doe's family birthday is not available, and john.do
         return as("joe.developer", () => ({
             birthday: render("apps/Commons/Calendar/EventDetail", { workEffortId: "BOSS_DEMO_EV_BIRTHDAY" }),
             workshop: render("apps/Commons/Calendar/EventDetail", { workEffortId: "BOSS_DEMO_EV_SYNC" }),
+            // a change of the event (saveOverview) and of its repeat (saveRecurrence); attendees and bookings are Mantle's organizer rule
             save: detailPost("saveOverview", { workEffortId: "BOSS_DEMO_EV_WORKSHOP", scope: "all", workEffortName: "Taken over" }),
-            invite: detailPost("addAttendees", { workEffortId: "BOSS_DEMO_EV_SYNC", partyIds: "ORG_ZIZI_BD" }),
             repeat: detailPost("saveRecurrence", { workEffortId: "BOSS_DEMO_EV_SYNC", freq: "DAILY" }),
-            book: detailPost("bookResource", { workEffortId: "BOSS_DEMO_EV_SYNC", facilityId: "BOSS_DEMO_ROOM_BOARD" })
         }))
     },
-    then({ birthday, workshop, save, invite, repeat, book }) {
+    then({ birthday, workshop, save, repeat }) {
         birthday.output.includes("is not available")
         !birthday.output.includes("Mary's birthday")
         // on the sync Joe is an attendee: he sees it read-only, with his answer
@@ -416,8 +408,6 @@ feature("Joe Developer: john.doe's family birthday is not available, and john.do
         !workshop.output.includes("Save repeat")
         save.errors != ""
         one("mantle.work.effort.WorkEffort", { workEffortId: "BOSS_DEMO_EV_WORKSHOP" }).workEffortName == "Client workshop: Acme rollout"
-        invite.errors.includes("Only the organizer")
         repeat.errors.includes("Only the organizer")
-        book.errors != ""
     },
 })

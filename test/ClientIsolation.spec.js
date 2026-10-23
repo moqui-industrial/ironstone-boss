@@ -211,17 +211,16 @@ feature("a client signs in to Projects alone: the shell lists no other app, and 
         return as(SHELDON, () => {
             const shell = hit("../shellData")
             const apps = (shell.json?.apps || []).map((app) => app.name)
-            return { apps, commons: hit("Commons/Home"), comms: hit("Comms/Inbox"), commonsTasks: hit("Commons/Tasks"),
+            return { apps, commons: hit("Commons/Home"), comms: hit("Comms/Inbox"),
                 commonsMenu: hit("../menuData/apps/Commons"), projectsMenu: hit("../menuData/apps/Projects"),
                 quickKinds: (((shell.json?.apps || []).find((app) => app.name === "Projects")?.providers || {}).quickCreate || []).map((kind) => kind.kind),
                 paletteActions: (((shell.json?.apps || []).find((app) => app.name === "Projects")?.providers || {}).paletteActions || []).map((one) => one.label) }
         })
     },
-    then({ apps, commons, comms, commonsTasks, commonsMenu, projectsMenu, quickKinds, paletteActions }) {
+    then({ apps, commons, comms, commonsMenu, projectsMenu, quickKinds, paletteActions }) {
         apps == ["Projects"]
         commons.refused
         comms.refused
-        commonsTasks.refused
         commonsMenu.status == 403
         projectsMenu.status == 200
         // no quick-create kind or palette action of an internal screen
@@ -407,14 +406,11 @@ feature("Chatter of a client: the message to it, never the note; no note attachm
             const party = hit("Projects/Chatter/chatterData", { recordEntity: "mantle.party.Party", recordId: "ORG_ZIZI_SERVICES" })
             const note = hit("Projects/Chatter/chatterData", { recordEntity: "mantle.party.communication.CommunicationEvent", recordId: made.notes[0] })
             const logNote = hit("Projects/Chatter/logNote", { recordEntity: "mantle.work.effort.WorkEffort", recordId: "ACME-1", body: "<p>hello</p>" }, "post")
-            const follow = hit("Projects/Chatter/follow", { recordEntity: "mantle.work.effort.WorkEffort", recordId: "ACME-1" }, "post")
             const tui = render("Chatter", { recordEntity: "mantle.work.effort.WorkEffort", recordId: "ACME-1" }, "tui")
-            return { timeline, notesOnly, project, request, data, attachment, bluth, bluthData, party, note, logNote, follow, tui,
-                followers: sys(() => ec.entity.find("mantle.party.communication.RecordFollower").condition({ recordEntityName: "mantle.work.effort.WorkEffort",
-                    recordId: "ACME-1", userId: "ORG_ACME_SA" }).count()) }
+            return { timeline, notesOnly, project, request, data, attachment, bluth, bluthData, party, note, logNote, tui }
         })
     },
-    then({ timeline, notesOnly, project, request, data, attachment, bluth, bluthData, party, note, logNote, follow, tui, followers }) {
+    then({ timeline, notesOnly, project, request, data, attachment, bluth, bluthData, party, note, logNote, tui }) {
         timeline.output.includes("Could you send us two test accounts")
         leaksOf(timeline.output, ACME_SECRETS) == []
         notesOnly.json?.entryList == []
@@ -433,8 +429,6 @@ feature("Chatter of a client: the message to it, never the note; no note attachm
         party.json?.visible != true
         note.json?.visible != true
         logNote.refused || logNote.errors != ""
-        follow.refused || follow.errors != ""
-        followers == 0
         leaksOf(tui.output, ACME_SECRETS) == []
     },
 })
@@ -507,45 +501,34 @@ feature("REST: a client reads no project, work item, request or party through th
     },
 })
 
-feature("a client changes nothing but its own: status, fields, quick add, bulk, roadmap, gate and release moves are refused", {
+feature("a client changes nothing but its own: IronStone writes (status, roadmap, release), a gate it does not approve and a message on a record it does not see are refused", {
     when() {
         const before = sys(() => ec.entity.find("mantle.work.effort.WorkEffort").condition("workEffortId", "ACME-1").one().getMap())
         const tries = as(SHELDON, () => ({
-            status: hit("Projects/WorkItems/WorkItemDetail/changeStatus", { workEffortId: "ACME-1", statusId: "WeComplete" }, "post"),
-            field: hit("Projects/WorkItems/List/updateField", { workEffortId: "ACME-1", fieldName: "workEffortName", value: "Changed by a client" }, "post"),
-            quickAdd: hit("Projects/WorkItems/List/quickAdd", { rootWorkEffortId: "ACME", workEffortName: "Added by a client" }, "post"),
-            bulk: hit("Projects/Projects/List/bulkAction", { action: "status", statusId: "WeOnHold", workEffortIds: "ACME" }, "post"),
-            projectStatus: hit("Projects/Projects/ProjectDetail/changeStatus", { workEffortId: "ACME", statusId: "WeOnHold" }, "post"),
-            postUpdate: hit("Projects/Projects/ProjectDetail/postUpdate", { workEffortId: "ACME", healthEnumId: "WehOnTrack", body: "client" }, "post"),
+            // every write verb of an IronStone service is one deny (BOSS_PROJECTS_INTERNAL in data/BossSetupData.xml): one of them
+            status: hit("Projects/WorkItems/WorkItemDetail/changeStatus", { workEffortId: "ACME-1", toStatusId: "WeComplete" }, "post"),
+            // and the roadmap and release moves, the only calls of their services in a run without git (ReleaseWalk needs it)
             plan: hit("Projects/Projects/Roadmap/savePlanItem", { rootWorkEffortId: "ACME", workEffortTypeEnumId: "WetMilestone", workEffortName: "Client milestone" }, "post"),
+            release: hit("Projects/Projects/ReleaseDetail/releaseRelease", { workEffortId: "ACME-MS-1" }, "post"),
             // P10b: a client decides only a gate it is the approver of, sends a message only on a record it sees (test/ClientWrites.spec.js)
             gate: hit("Projects/Projects/MilestoneDetail/decideGate", { workEffortId: "IRON-MS-2", action: "approve" }, "post"),
             gateSet: hit("Projects/Projects/MilestoneDetail/decideGate", { workEffortId: "ACME-MS-1", action: "gate", approvalRequired: "N" }, "post"),
-            release: hit("Projects/Projects/ReleaseDetail/releaseRelease", { workEffortId: "ACME-MS-1" }, "post"),
-            request: hit("Projects/Requests/RequestDetail/triage", { requestId: "BOSS_DEMO_PREQ_ACME2", statusId: "ReqReviewed" }, "post"),
-            timer: hit("Projects/WorkItems/WorkItemDetail/startTimer", { workEffortId: "ACME-1" }, "post"),
             sendMessage: hit("Projects/Chatter/sendMessage", { recordEntity: "mantle.work.effort.WorkEffort", recordId: "ACME-3", body: "<p>Hi</p>" }, "post"),
         }))
         const after = sys(() => ({ item: ec.entity.find("mantle.work.effort.WorkEffort").condition("workEffortId", "ACME-1").one().getMap(),
-            project: ec.entity.find("mantle.work.effort.WorkEffort").condition("workEffortId", "ACME").one().statusId,
-            added: ec.entity.find("mantle.work.effort.WorkEffort").condition("workEffortName", "Added by a client").count(),
             milestone: ec.entity.find("mantle.work.effort.WorkEffort").condition("workEffortName", "Client milestone").count(),
             gate: ec.entity.find("mantle.work.effort.WorkEffortApproval").condition("workEffortId", "ACME-MS-1").condition("statusId", "WeaApproved").count(),
             gateRequired: ec.entity.find("mantle.work.effort.WorkEffortSetting").condition({ workEffortId: "ACME-MS-1", settingTypeEnumId: "WstApprovalRequired" }).one()?.settingValue,
-            request: ec.entity.find("mantle.request.Request").condition("requestId", "BOSS_DEMO_PREQ_ACME2").one().statusId,
             messages: ec.entity.find("mantle.party.communication.CommunicationEvent").condition("fromPartyId", "ORG_ACME_SA").condition("body", "<p>Hi</p>").count() }))
         return { before, tries, after }
     },
     then({ before, tries, after }) {
         Object.values(tries).every((found) => found.refused || found.errors != "" || found.json?.errors)
+        tries.status.refused
         after.item.statusId == before.statusId
-        after.item.workEffortName == before.workEffortName
-        after.project == "WeInProgress"
-        after.added == 0
         after.milestone == 0
         after.gate == 0
         after.gateRequired == "Y"
-        after.request == "ReqSubmitted"
         after.messages == 0
     },
 })

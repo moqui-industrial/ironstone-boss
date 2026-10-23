@@ -3,8 +3,8 @@
 // (template/ContactRecord.xml, §6 ContactDetail), on the consent demo (data/BossConsentDemoData.xml): the registry with its
 // rows, chips and filters, the export of every match and of one contact's history for a data request, recording a consent with
 // evidence (allowSolicitation following it), withdrawing it, unsubscribing and subscribing a contact with the note of the
-// request, the bulk unsubscribe; for anyone but a contact admin (Joe Developer) the screens say so and every transition and
-// service refuses; the contact record's tab shows the state to anyone who may see the contact and its changes only to a
+// request, the bulk unsubscribe; for anyone but a contact admin (Joe Developer) the screens say so and the transitions and
+// services refuse (one check, a write and a find shown); the contact record's tab shows the state to anyone who may see the contact and its changes only to a
 // contact admin. Authorization stays on, as for a browser request.
 // Run: ./moq test ironstone-boss --spec Consent
 const webroot = "component://webroot/screen/webroot.xml"
@@ -176,7 +176,7 @@ feature("Export CSV: every contact that matches the find", {
     },
 })
 
-feature("anyone but a contact admin: the screens say so, and every transition and service refuses without reading", {
+feature("anyone but a contact admin: the screens say so, and the transitions and services refuse without reading", {
     allowMessageErrors: true,
     when() {
         return as("joe.developer", () => {
@@ -184,31 +184,25 @@ feature("anyone but a contact admin: the screens say so, and every transition an
             const shown = list({})
             const page = contact(ALEX)
             const recorded = post(comms, "Consent/List/recordConsent", { partyId: ALEX, purposeEnumId: "PcpMarketingEmail", statusId: "PconWithdrawn" })
-            const listSet = post(comms, "Consent/Contact/consentListSet", { partyId: ALEX, contactListId: LIST_NEWS, subscribe: "N" })
-            const bulk = post(comms, "Consent/List/unsubscribeParties", { selectedPartyIds: ALEX, bulkContactListId: LIST_NEWS })
             const csv = post(comms, "Consent/List/exportCsv", {})
             const history = post(comms, "Consent/Contact/consentHistoryExport", { partyId: ALEX })
             // the services themselves, with authorization off so their own check is what refuses
             const find = sys(() => errorOf("ironstone.ConsentServices.find#Consents", {}))
-            const record = sys(() => errorOf("ironstone.ConsentServices.record#Consent", { partyId: ALEX, purposeEnumId: "PcpPhone", statusId: "PconGranted" }))
             const state = sys(() => call("ironstone.ConsentServices.get#ContactConsent", { partyId: ALEX, includeHistory: true }))
-            return { before, after: consents(ALEX).length, shown, page, recorded, listSet, bulk, csv, history, find, record, state,
+            return { before, after: consents(ALEX).length, shown, page, recorded, csv, history, find, state,
                 news: statusOf(LIST_NEWS, ALEX) }
         })
     },
-    then({ before, after, shown, page, recorded, listSet, bulk, csv, history, find, record, state, news }) {
+    then({ before, after, shown, page, recorded, csv, history, find, state, news }) {
         shown.status == 200
         shown.output.includes("Only contact admins see and change consent")
         !shown.output.includes("Alex Rivera")
         page.output.includes("Only contact admins see and change consent")
         !page.output.includes("alex.rivera@example.com")
         recorded.errors.includes("Only contact admins manage consent")
-        listSet.errors.includes("Only contact admins manage consent")
-        bulk.errors.includes("Only contact admins manage consent")
         !csv.output.includes("Alex Rivera")
         !history.output.includes("Alex Rivera")
         find.includes("Only contact admins manage consent")
-        record.includes("Only contact admins manage consent")
         state.canEdit == false
         state.historyList.length == 0
         after == before

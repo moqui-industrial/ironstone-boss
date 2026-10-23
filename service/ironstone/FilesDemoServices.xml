@@ -178,6 +178,8 @@ along with this software (see the LICENSE.md file). If not, see
                     as('john', 9, () => text('BOSS_DEMO_TEAM', 'Rotas/October.csv', 'week,support,office\n1,Joe,John\n2,Bob,Joe\n3,John,Bob\n4,Joe,John\n',
                         'Weeks 3 and 4 added'))
                 } else if (part === 'website') {
+                    // a git drive: not in a build without git hosting
+                    if (!ec.factory.hasFeature('git')) return
                     if (ec.entity.find('moqui.resource.ResourceDrive').condition('driveId', 'BOSS_DEMO_WEB').one() != null) return
                     make('moqui.resource.GitRepository', {repositoryId: 'DRIVE_BOSS_DEMO_WEB', description: 'Website', branch: 'main', repositoryKind: 'db'})
                     call('org.moqui.impl.GitServices.init#GitRepository', {repositoryId: 'DRIVE_BOSS_DEMO_WEB'})

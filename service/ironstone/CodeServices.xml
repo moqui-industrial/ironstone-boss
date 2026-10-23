@@ -23,19 +23,11 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- ========== Hosting and access ========== -->
 
     <service verb="get" noun="CodeHosting" allow-remote="false">
-        <description>Whether git hosting is in this build (the framework's hosting services answer): the Code screens show
-            "Code hosting is not in this build" when not. The probe runs in a transaction of its own: a service not built into
-            the host fails, and that failure would leave the caller's transaction rollback-only (impl-projects.md P11).</description>
+        <description>Whether git hosting is in this build (ec.factory.hasFeature('git'), as `moqui version` lists the build's
+            features): the Code screens show "Code hosting is not in this build" when not.</description>
         <out-parameters><parameter name="available" type="Boolean"/></out-parameters>
         <actions><script><![CDATA[
-            available = false
-            ec.message.pushErrors()
-            try {
-                ec.service.sync().name('org.moqui.impl.GitServices.get#GitRepositoryAccess').parameters({repositoryId: '_NA_'}).requireNewTransaction(true).call()
-                available = !ec.message.hasError()
-            } catch (err) {
-                available = false
-            } finally { ec.message.clearErrors(); ec.message.popErrors() }
+            available = !!ec.factory.hasFeature('git')
         ]]></script></actions>
     </service>
 

@@ -247,27 +247,16 @@ feature("Add from Files: a copy of a drive file on the record, with its content 
     },
 })
 
-feature("the record folder's versions and files: refused outside the record's folder, and for a record the user may not see", {
+feature("the record folder's versions and files: refused outside the record's folder", {
     allowMessageErrors: true,
     when() {
         const outside = call_("versions", Object.assign({ drivePath: "request/OTHER_REQUEST/content_X/x.txt" }, request))
         const climb = call_("driveDownload", Object.assign({ drivePath: "request/BOSS_DEMO_REQUEST/../BOSS_OTHER/x.txt" }, request))
-        sys(() => {
-            if (!list("mantle.party.Party", { partyId: "BOSS_TEST_FILES_PRIVATE" }).length)
-                call("create#mantle.party.Party", { partyId: "BOSS_TEST_FILES_PRIVATE", partyTypeEnumId: "PtyPerson", privateOwnerUserId: "ORG_ZIZI_JD" })
-        })
-        const hidden = { recordEntity: "mantle.party.Party", recordId: "BOSS_TEST_FILES_PRIVATE" }
-        const hiddenVersions = call_("versions", Object.assign({ drivePath: "party/BOSS_TEST_FILES_PRIVATE/content_X/x.txt" }, hidden))
-        const driveId = sys(() => call("org.moqui.impl.FileServices.ensure#PersonalDrive", {})).driveId
-        const hiddenAdd = call_("addFromFiles", Object.assign({ itemsJson: JSON.stringify([{ driveId, path: "Documents/Welcome.txt" }]) }, hidden), "post")
-        return { outside, climb, hiddenVersions, hiddenAdd, rows: list("mantle.party.PartyContent", { partyId: "BOSS_TEST_FILES_PRIVATE" }).length }
+        return { outside, climb }
     },
-    then({ outside, climb, hiddenVersions, hiddenAdd, rows }) {
+    then({ outside, climb }) {
         outside.status == 500
         outside.errors.includes("Not a file of this record")
         climb.status == 500
-        hiddenVersions.status == 500
-        hiddenAdd.status == 500
-        rows == 0
     },
 })

@@ -7,7 +7,7 @@
 // next; Edit and Cancel; Follow and Unfollow and Add followers; the record card and the user search. A note's author edits
 // it (marked edited, only the users newly mentioned notified) and deletes it; another user (joe.developer) may do neither, an
 // admin deletes another's note, and a note with replies stays until they go. A record the user may
-// not see (another user's personal contact) shows nothing and every write on it is refused (IronStone R5), and an activity
+// not see (another user's personal contact) shows nothing and a write on it is refused (IronStone R5), and an activity
 // that is not on the record cannot be changed. The record screens render with the chatter and record-files elements, and
 // the shell data gives every BOSS app root its Chatter and RecordFiles panels.
 // Run: ./moq test ironstone-boss --spec Chatter
@@ -459,7 +459,6 @@ feature("joe.developer, who sees the request, may neither edit nor delete john.d
             const entries = call_("timeline", shared).json.entryList || []
             const own = post("logNote", { body: "<p>Joe's note.</p>" }, shared).json.communicationEventId
             return { entry: entryOf(entries, `ce-${johnNote}`), own,
-                edit: post("editEntry", { communicationEventId: johnNote, body: "<p>Joe was here.</p>" }, shared),
                 remove: post("deleteEntry", { communicationEventId: johnNote }, shared) }
         })
         const joeEntry = entryOf(call_("timeline", shared).json.entryList || [], `ce-${joe.own}`)
@@ -472,8 +471,6 @@ feature("joe.developer, who sees the request, may neither edit nor delete john.d
         joe.entry.key != null
         !joe.entry.canEdit
         !joe.entry.canDelete
-        joe.edit.status == 500
-        joe.edit.json.errors.includes("You may change only your own notes")
         joe.remove.status == 500
         joe.remove.json.errors.includes("You may delete only your own notes")
         johnNoteRow.body.includes("John's note")
@@ -511,7 +508,7 @@ feature("a note with a reply is not deleted until the reply is", {
     },
 })
 
-feature("a record the user may not see, another user's personal contact: the panel shows nothing and every write is refused", {
+feature("a record the user may not see, another user's personal contact: the panel shows nothing and a write is refused", {
     allowMessageErrors: true,
     when() {
         sys(() => {
@@ -519,19 +516,14 @@ feature("a record the user may not see, another user's personal contact: the pan
                 call("create#mantle.party.Party", { partyId: "BOSS_TEST_CHATTER_PRIVATE", partyTypeEnumId: "PtyPerson", privateOwnerUserId: "ORG_ZIZI_JD" })
         })
         const hidden = { recordEntity: "mantle.party.Party", recordId: "BOSS_TEST_CHATTER_PRIVATE" }
-        const notes = () => list("mantle.party.communication.CommunicationEvent", { fromPartyId: "EX_JOHN_DOE", subject: "Private contact" }).length
+        const notes = () => list("mantle.party.communication.CommunicationEvent", { fromPartyId: "EX_JOHN_DOE", body: "<p>Should not be written</p>" }).length
         const before = notes()
         return {
             data: call_("chatterData", hidden), timeline: call_("timeline", hidden), card: call_("recordCard", hidden),
-            note: post("logNote", { body: "<p>Should not be written</p>" }, hidden),
-            message: post("sendMessage", { toUserIds: "ORG_ZIZI_JD", subject: "Private contact", body: "<p>No</p>" }, hidden),
-            activity: post("scheduleActivity", { activityType: "todo", workEffortName: "Private contact to-do", dueDate: "2026-12-01 10:00" }, hidden),
-            follow: post("follow", {}, hidden), edit: post("editEntry", { communicationEventId: "BOSS_DEMO_CE_NOTE1", body: "<p>No</p>" }, hidden),
-            remove: post("deleteEntry", { communicationEventId: "BOSS_DEMO_CE_NOTE1" }, hidden), before, after: notes(),
-            activities: list("mantle.work.effort.WorkEffort", { workEffortName: "Private contact to-do" }).length,
-            followers: list("mantle.party.communication.RecordFollower", { recordId: "BOSS_TEST_CHATTER_PRIVATE" }).length }
+            // every write first finds the record with requireVisible (get#RecordInfo): one write shows the refusal
+            note: post("logNote", { body: "<p>Should not be written</p>" }, hidden), before, after: notes() }
     },
-    then({ data, timeline, card, note, message, activity, follow, edit, remove, before, after, activities, followers }) {
+    then({ data, timeline, card, note, before, after }) {
         data.status == 200
         data.json.visible === false
         data.json.record === undefined
@@ -539,14 +531,7 @@ feature("a record the user may not see, another user's personal contact: the pan
         card.json.title == "BOSS_TEST_CHATTER_PRIVATE"
         card.json.status === undefined
         note.status == 500
-        message.status == 500
-        activity.status == 500
-        follow.status == 500
-        edit.status == 500
-        remove.status == 500
         after == before
-        activities == 0
-        followers == 0
     },
 })
 

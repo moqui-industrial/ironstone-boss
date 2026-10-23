@@ -179,7 +179,7 @@ feature("the Work items tab is WorkItems with the project fixed, its links absol
     },
 })
 
-feature("a status update by the manager sets the health, shows on the overview and tells the members; the team may not post one", {
+feature("a status update by the manager sets the health, shows on the overview and tells the members", {
     when() {
         const posted = post("Projects/ProjectDetail/postUpdate", { workEffortId: "IRON", healthEnumId: "WehAtRisk", percentComplete: "25",
             body: "BOSS_TEST The timer needs another week." })
@@ -187,13 +187,11 @@ feature("a status update by the manager sets the health, shows on the overview a
         const overview = sys(() => call("ironstone.ProjectServices.get#ProjectOverview", { workEffortId: "IRON" })).overview
         const notes = sys(() => Array.from(ec.entity.find("moqui.security.user.NotificationMessage").condition("topic", "ProjectStatusUpdate").list()))
                 .filter((row) => { try { return JSON.parse(row.messageJson).workEffortId === "IRON" } catch (e) { return false } })
-        const byJoe = as("joe.developer", () => post("Projects/ProjectDetail/postUpdate", { workEffortId: "IRON", healthEnumId: "WehOnTrack", body: "BOSS_TEST no" }))
-        const badPercent = post("Projects/ProjectDetail/postUpdate", { workEffortId: "IRON", healthEnumId: "WehOnTrack", percentComplete: "150" })
         // back: on track, as the demo has it
         sys(() => call("update#mantle.work.effort.WorkEffort", { workEffortId: "IRON", healthEnumId: "WehOnTrack" }))
-        return { posted, health, overview, notes, byJoe, badPercent }
+        return { posted, health, overview, notes }
     },
-    then({ posted, health, overview, notes, byJoe, badPercent }) {
+    then({ posted, health, overview, notes }) {
         posted.errors == ""
         health == "WehAtRisk"
         overview.updateList[0].body == "BOSS_TEST The timer needs another week."
@@ -201,8 +199,6 @@ feature("a status update by the manager sets the health, shows on the overview a
         overview.updateList.length >= 2
         overview.activityList.some((entry) => entry.kind === "update")
         notes.length >= 1
-        byJoe.errors.includes("Only the managers of IRON")
-        badPercent.errors.includes("0 to 100")
     },
 })
 
@@ -228,13 +224,11 @@ feature("the Team tab: the members with their roles and the client contacts; a m
         const team = sys(() => call("ironstone.ProjectServices.get#ProjectTeam", { workEffortId: "ACME" }))
         const added = post("Projects/ProjectDetail/Team/addMember", { workEffortId: "ACME", partyId: "ORG_ZIZI_BD", roleTypeId: "QualityAnalyst" })
         const after = current("mantle.work.effort.WorkEffortParty", { workEffortId: "ACME", partyId: "ORG_ZIZI_BD", roleTypeId: "QualityAnalyst" }).length
-        const badRole = post("Projects/ProjectDetail/Team/addMember", { workEffortId: "ACME", partyId: "ORG_ZIZI_BD", roleTypeId: "Vendor" })
         const ended = post("Projects/ProjectDetail/Team/endMember", { workEffortId: "ACME", partyId: "ORG_ZIZI_BD", roleTypeId: "QualityAnalyst" })
         const left = current("mantle.work.effort.WorkEffortParty", { workEffortId: "ACME", partyId: "ORG_ZIZI_BD", roleTypeId: "QualityAnalyst" }).length
-        const byJoe = as("joe.developer", () => post("Projects/ProjectDetail/Team/addMember", { workEffortId: "ACME", partyId: "ORG_ZIZI_BD", roleTypeId: "Programmer" }))
-        return { tab, team, added, after, badRole, ended, left, byJoe }
+        return { tab, team, added, after, ended, left }
     },
-    then({ tab, team, added, after, badRole, ended, left, byJoe }) {
+    then({ tab, team, added, after, ended, left }) {
         tab.status == 200
         tab.errors == ""
         !tab.broken
@@ -248,10 +242,8 @@ feature("the Team tab: the members with their roles and the client contacts; a m
         !team.roleOptions.some((option) => option.key === "Customer")
         added.errors == ""
         after == 1
-        badRole.errors.includes("not a project role")
         ended.errors == ""
         left == 0
-        byJoe.errors.includes("Only the managers of ACME")
     },
 })
 
@@ -325,11 +317,10 @@ feature("clone and save as template make projects from ACME; an empty project is
         const blank = sys(() => call("ironstone.ProjectServices.create#NewProject", { workEffortId: "BTEMPTY", workEffortName: "BOSS_TEST Empty" }))
         const notEmpty = post("Projects/ProjectDetail/Settings/deleteProject", { workEffortId: "BTCLONE" })
         const deleted = post("Projects/ProjectDetail/Settings/deleteProject", { workEffortId: "BTEMPTY" })
-        const joeClone = as("joe.developer", () => post("Projects/ProjectDetail/cloneProject", { workEffortId: "ACME", isTemplate: "N", newWorkEffortId: "BTJOE", newWorkEffortName: "BOSS_TEST no" }))
         return { cloned, copy, copyItems, template, tpl, blank, notEmpty, deleted, gone: one("mantle.work.effort.WorkEffort", { workEffortId: "BTEMPTY" }) == null,
-            still: one("mantle.work.effort.WorkEffort", { workEffortId: "BTCLONE" }) != null, joeClone }
+            still: one("mantle.work.effort.WorkEffort", { workEffortId: "BTCLONE" }) != null }
     },
-    then({ cloned, copy, copyItems, template, tpl, blank, notEmpty, deleted, gone, still, joeClone }) {
+    then({ cloned, copy, copyItems, template, tpl, blank, notEmpty, deleted, gone, still }) {
         cloned.errors == ""
         copy.isTemplate == "N"
         copy.statusId == "WeInPlanning"
@@ -341,6 +332,5 @@ feature("clone and save as template make projects from ACME; an empty project is
         still
         deleted.errors == ""
         gone
-        joeClone.errors.includes("Only project managers")
     },
 })

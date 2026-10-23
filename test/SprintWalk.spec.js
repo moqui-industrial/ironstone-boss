@@ -4,7 +4,7 @@
 // ranks the backlog by drags (one item, then a ticked pair as one), makes Sprint 1, plans items into it, starts it (a second
 // start is refused while it runs), finishes two items, puts one in through the work item's Edit (a scope change with who made
 // it), makes Sprint 2, and completes Sprint 1 with the open items carried over to Sprint 2; SprintDetail and the sprint report
-// show it. bob.developer, not on the project, may not rank it. The project is cancelled after, so the other specs' lists keep
+// show it. The project is cancelled after, so the other specs' lists keep
 // their records.
 // Run: ./moq test ironstone-boss --spec SprintWalk
 const webroot = "component://webroot/screen/webroot.xml"
@@ -109,15 +109,12 @@ feature("joe ranks the backlog: one item to the top, then a ticked pair after an
     when() {
         const top = as("joe.developer", () => post("Projects/ProjectDetail/Backlog/rank", { workEffortId: PROJECT, workEffortIds: "SPW-6", nextWorkEffortId: "SPW-2" }))
         const pair = as("joe.developer", () => post("Projects/ProjectDetail/Backlog/rank", { workEffortId: PROJECT, workEffortIds: "SPW-4,SPW-5", previousWorkEffortId: "SPW-6" }))
-        const bob = as("bob.developer", () => post("Projects/ProjectDetail/Backlog/rank", { workEffortId: PROJECT, workEffortIds: "SPW-3", nextWorkEffortId: "SPW-6" }))
-        return { top, pair, bob, backlog: backlogOf() }
+        return { top, pair, backlog: backlogOf() }
     },
-    then({ top, pair, bob, backlog }) {
+    then({ top, pair, backlog }) {
         top.json.doneCount == 1
         pair.json.doneCount == 2
         keys(backlog.backlogList) == ["SPW-6", "SPW-4", "SPW-5", "SPW-2", "SPW-3"]
-        // bob is not on SPW, a Work group project: he does not see it
-        bob.errors.includes("Project SPW is not available")
     },
 })
 

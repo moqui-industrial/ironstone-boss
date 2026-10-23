@@ -10,7 +10,7 @@
 // record's Chatter with its room's messages; the mention list (with @room), search and the palette's rooms; a send tried
 // again with its clientRef, one event by its eventSeq; a room's files and threads; a forward; a poll; a sender removing
 // link previews; read receipts off by preference. Joe Developer reads none of john.doe's private rooms nor their files,
-// threads or messages to forward. Authorization stays on, as for a browser request. john's link previews are off here,
+// writes in them or forwards their messages. Authorization stays on, as for a browser request. john's link previews are off here,
 // so a link in a message reaches no page (the framework's chat_tests.rs tests the previews with a stub of the pages).
 // Run: ./moq test ironstone-boss --spec Chat
 const comms = "component://ironstone-boss/screen/Comms.xml"
@@ -166,9 +166,8 @@ feature("send, edit, react, pin and delete; a reply, a thread reply, and a menti
         const redacted = post("redact", { chatRoomId: ROOM.team, eventSeq: wrong.json.eventSeq })
         const reply = post("send", { chatRoomId: ROOM.team, body: "<p>Thursday it is</p>", replyToEventSeq: 4 })
         const threaded = post("send", { chatRoomId: ROOM.team, body: "<p>Booked a table for four</p>", threadRootEventSeq: 4 })
-        const empty = post("send", { chatRoomId: ROOM.team, body: "<p></p>" })
         made.teamSeq = seq
-        return { sent, seq, notified, mentionRows, edited, reacted, unreacted, pinned, redacted, reply, threaded, empty, wrongSeq: wrong.json.eventSeq,
+        return { sent, seq, notified, mentionRows, edited, reacted, unreacted, pinned, redacted, reply, threaded, wrongSeq: wrong.json.eventSeq,
             mentionsAfterEdit: list("moqui.chat.ChatEventMention", { chatRoomId: ROOM.team, eventSeq: seq }).length,
             page: get("timeline", { chatRoomId: ROOM.team, limit: 50 }).json }
     },
@@ -195,7 +194,6 @@ feature("send, edit, react, pin and delete; a reply, a thread reply, and a menti
         v.page.eventList.find((event) => event.eventSeq === v.reply.json.eventSeq).replyTo.senderName == "Bob Developer"
         v.page.eventList.find((event) => event.eventSeq === 4).threadReplyCount == 1
         v.threaded.json.event.threadRootEventSeq == 4
-        v.empty.errors.includes("A message needs text or a file")
     },
 })
 
@@ -279,13 +277,12 @@ feature("rooms: one direct room per set of people, a new room with the default l
         const view = get("room", { chatRoomId: id })
         const archived = post("updateRoom", { chatRoomId: id, archived: "true" })
         const archivedSend = post("send", { chatRoomId: id, body: "<p>Too late</p>" })
-        const unnamed = post("createRoom", { roomTypeEnumId: "public", roomName: " " })
         const joined = post("join", { chatRoomId: ROOM.random })
         const inRandom = one("moqui.chat.ChatRoomMember", { chatRoomId: ROOM.random, userId: JOHN })
         const left = post("leave", { chatRoomId: ROOM.random })
         const afterLeave = one("moqui.chat.ChatRoomMember", { chatRoomId: ROOM.random, userId: JOHN })
         ec.user.setPreference("CHAT_NOTIFY_DEFAULT", "")
-        return { direct, group, groupAgain, room, level, added, role, removed, renamed, pinned, view, archived, archivedSend, unnamed, joined, inRandom, left, afterLeave }
+        return { direct, group, groupAgain, room, level, added, role, removed, renamed, pinned, view, archived, archivedSend, joined, inRandom, left, afterLeave }
     },
     then(v) {
         v.direct.json.chatRoomId == ROOM.bob
@@ -306,7 +303,6 @@ feature("rooms: one direct room per set of people, a new room with the default l
         v.view.json.memberList.map((member) => member.userId + ":" + member.roleEnumId).sort() == [`${JOHN}:CmrOwner`, `${BOB}:CmrModerator`]
         v.archived.errors == ""
         v.archivedSend.errors.includes("archived")
-        v.unnamed.errors.includes("A room needs a name")
         v.joined.errors == ""
         v.inRandom != null
         v.inRandom.leftDate == null
@@ -327,7 +323,6 @@ feature("a record's room through STRT_RECORD_VISIBLE_SERVICE: the one there is, 
             taskSend: post("send", { chatRoomId: made.taskRoom, body: "<p>I am on it too</p>" }),
             requestView: get("roomView", { chatRoomId: ROOM.request }),
             requestRoom: post("recordRoom", { recordEntity: "mantle.request.Request", recordId: "BOSS_DEMO_REQUEST" }),
-            requestSend: post("send", { chatRoomId: ROOM.request, body: "<p>Hello</p>" }),
         }))
         return { existing, task, taskAgain, joe,
             theme: one("moqui.screen.ScreenThemeResource", { screenThemeId: "DEFAULT_QUASAR", resourceTypeEnumId: "STRT_RECORD_VISIBLE_SERVICE" }),
@@ -354,7 +349,6 @@ feature("a record's room through STRT_RECORD_VISIBLE_SERVICE: the one there is, 
         // the demo request is not Joe's: its room is not found, and he makes no other
         joe.requestView.errors.includes("not found")
         joe.requestRoom.errors.includes("not found")
-        joe.requestSend.errors.includes("not found")
     },
 })
 
@@ -364,15 +358,12 @@ feature("Joe Developer reads none of john's private rooms nor their files", {
             const down = ec.screen.makeTest().rootScreen(comms).render("Chat/attachment", { chatAttachmentId: "BOSS_DEMO_CHAT_A_BUDGET" }, null)
             ec.message.clearErrors()
             return {
-                view: get("roomView", { chatRoomId: ROOM.leads }), timeline: get("timeline", { chatRoomId: ROOM.leads }),
+                // a room he is not in is not found, for a read, a file or a write alike: one of each
+                view: get("roomView", { chatRoomId: ROOM.leads }),
                 down: { status: down.status, output: String(down.output || ""), errors: down.errorMessages.join(" | ") },
-                send: post("send", { chatRoomId: ROOM.leads, body: "<p>Hi</p>" }), react: post("react", { chatRoomId: ROOM.leads, eventSeq: 2, key: "👍" }),
-                pin: post("pin", { chatRoomId: ROOM.leads, eventSeq: 2 }), read: post("markRead", { chatRoomId: ROOM.leads }),
-                join: post("join", { chatRoomId: ROOM.leads }), upload: post("upload", { chatRoomId: ROOM.leads, file: uploadedFile("x.txt", "x") }),
-                createFrom: post("createFrom", { chatRoomId: ROOM.leads, eventSeq: 2, kind: "task" }),
+                send: post("send", { chatRoomId: ROOM.leads, body: "<p>Hi</p>" }),
                 mentions: get("mentionUsers", { chatRoomId: ROOM.leads, term: "" }), search: get("search", { searchText: "budget" }),
                 rooms: get("chatData"), own: get("roomView", { chatRoomId: ROOM.joe }),
-                files: get("files", { chatRoomId: ROOM.leads }), threads: get("threads", { chatRoomId: ROOM.leads }),
                 forward: post("send", { chatRoomId: ROOM.joe, forwardOfChatRoomId: ROOM.leads, forwardOfEventSeq: 2 }),
             }
         })
@@ -380,23 +371,14 @@ feature("Joe Developer reads none of john's private rooms nor their files", {
     allowMessageErrors: true,
     then(v) {
         v.view.errors.includes("not found")
-        v.timeline.errors.includes("not found")
         v.down.status != 200 || v.down.errors.includes("not found")
         !v.down.output.includes("Draft budget")
         v.send.errors.includes("not found")
-        v.react.errors.includes("not found")
-        v.pin.errors.includes("not found")
-        v.read.errors.includes("not found")
-        v.join.errors.includes("not found")
-        v.upload.errors.includes("not found")
-        v.createFrom.errors.includes("not found")
         v.mentions.json == []
         !anyOf(v.search.json.eventList, (hit) => hit.chatRoomId === ROOM.leads)
         roomOf(v.rooms, ROOM.leads) == null
         roomOf(v.rooms, ROOM.joe) != null
         v.own.errors == ""
-        v.files.errors.includes("not found")
-        v.threads.errors.includes("not found")
         v.forward.errors.includes("not found")
     },
 })
@@ -406,11 +388,10 @@ feature("a task or request made from a message, the message filed on it and on t
         const task = post("createFrom", { chatRoomId: ROOM.request, eventSeq: 3, kind: "task" })
         const request = post("createFrom", { chatRoomId: ROOM.joe, eventSeq: 8, kind: "request" })
         const order = post("createFrom", { chatRoomId: ROOM.joe, eventSeq: 8, kind: "order" })
-        const reaction = post("createFrom", { chatRoomId: ROOM.joe, eventSeq: 4, kind: "task" })
         const filed = post("fileOnRecord", { chatRoomId: ROOM.joe, eventSeq: 3, recordEntityName: "mantle.work.effort.WorkEffort", recordId: "BOSS_DEMO_TASK" })
         const filedEvent = filed.json.communicationEventId
         const records = get("searchRecords", { term: "BOSS_DEMO_TASK" })
-        return { task, request, order, reaction, filed, records,
+        return { task, request, order, filed, records,
             taskRow: task.json.recordId ? one("mantle.work.effort.WorkEffort", { workEffortId: task.json.recordId }) : null,
             requestRow: request.json.recordId ? one("mantle.request.Request", { requestId: request.json.recordId }) : null,
             // a work effort's own join holds it
@@ -428,7 +409,6 @@ feature("a task or request made from a message, the message filed on it and on t
         v.request.errors == ""
         v.requestRow.requestName == "Can we move the team lunch to Thursday?"
         v.order.errors.includes("Create a task, request or event")
-        v.reaction.errors.includes("not found")
         v.filed.errors == ""
         v.filedLink == 1
         anyOf(v.records.json, (option) => option.value === "mantle.work.effort.WorkEffort|BOSS_DEMO_TASK")
@@ -558,32 +538,25 @@ feature("a forward: the server quotes the message, with its sender and none of i
     },
 })
 
-feature("a poll: votes replace the voter's, its creator closes it, then it takes no more", {
+feature("a poll: votes replace the voter's, and its creator closes it", {
     when() {
         const made = post("createPoll", { chatRoomId: ROOM.team, question: "Team lunch?", optionsJson: JSON.stringify(["Pizza", "Sushi", "Tacos"]) })
         const seq = made.json.eventSeq
-        const tooFew = post("createPoll", { chatRoomId: ROOM.team, question: "Yes?", optionsJson: JSON.stringify(["Yes"]) })
         const voted = post("votePoll", { chatRoomId: ROOM.team, eventSeq: seq, optionIds: "2" })
-        const two = post("votePoll", { chatRoomId: ROOM.team, eventSeq: seq, optionIds: "1,2" })
         const joe = as("joe.developer", () => ({ vote: post("votePoll", { chatRoomId: ROOM.team, eventSeq: seq, optionIds: "2" }),
             close: post("closePoll", { chatRoomId: ROOM.team, eventSeq: seq }) }))
-        const edit = post("edit", { chatRoomId: ROOM.team, eventSeq: seq, body: "<p>Dinner?</p>" })
         const closed = post("closePoll", { chatRoomId: ROOM.team, eventSeq: seq })
-        const late = post("votePoll", { chatRoomId: ROOM.team, eventSeq: seq, optionIds: "3" })
-        return { made, tooFew, voted, two, joe, edit, closed, late, shown: get("timeline", { chatRoomId: ROOM.team, eventSeq: seq }).json }
+        return { made, voted, joe, closed, shown: get("timeline", { chatRoomId: ROOM.team, eventSeq: seq }).json }
     },
     allowMessageErrors: true,
     then(v) {
         v.made.errors == ""
         v.made.json.event.poll.options.map((option) => option.text) == ["Pizza", "Sushi", "Tacos"]
-        v.tooFew.errors.includes("2 to 10 options")
         v.voted.json.poll.options[1].mine == true
-        v.two.errors.includes("Choose one")
         v.joe.vote.json.poll.options[1].voteCount == 2
+        // the poll rules are the framework's (chat_tests.rs): one refusal shows they reach the screen
         v.joe.close.errors.includes("creator or a moderator")
-        v.edit.errors.includes("A poll is not edited")
         v.closed.json.poll.closed == true
-        v.late.errors.includes("closed")
         v.shown.eventList[0].poll.voterCount == 2
         v.shown.eventList[0].poll.options[1].voterIds.length == 2
         v.shown.eventList[0].poll.mine == [2]

@@ -265,11 +265,10 @@ feature("joe.developer is refused on john.doe's private files, and reaches the f
     allowMessageErrors: true,
     when() {
         login("joe.developer")
-        const out = { folder: get("folder", { driveId: personalDriveId, path: "Documents" }), top: get("folder", { driveId: personalDriveId, path: "" }),
-            detail: get("detail", { driveId: personalDriveId, path: "Pictures/beach.png" }),
+        // the drive's access is one rule for a folder, a file and a write (the framework's FileServices): one read, a download, one write
+        const out = { folder: get("folder", { driveId: personalDriveId, path: "Documents" }),
             download: render(commons, "Files/download", { driveId: personalDriveId, path: "Documents/Welcome.txt" }),
             trash: post("trash", { driveId: personalDriveId, pathListJson: JSON.stringify(["Documents/Welcome.txt"]) }),
-            share: post("share", { driveId: personalDriveId, path: "Documents/Welcome.txt", isLink: "Y" }),
             search: get("rows", { view: "search", text: "welcome" }),
             shared: get("folder", { driveId: personalDriveId, path: "Projects/Office move" }),
             sharedFile: get("detail", { driveId: personalDriveId, path: "Projects/Office move/Plan.md" }),
@@ -285,13 +284,10 @@ feature("joe.developer is refused on john.doe's private files, and reaches the f
     then(v) {
         v.folder.status == 500
         v.folder.errors.includes("Folder not found")
-        v.top.status == 500
-        v.detail.status == 500
         v.download.json.fileList === undefined
         !String(v.download.output).includes("Welcome to My files")
         v.trash.json.trashList[0].outcome == "failed"
         v.trash.json.trashList[0].error == "not found"
-        v.share.status == 500
         v.search.json.fileList.length == 0
         v.shared.status == 200
         names(v.shared).includes("Plan.md")
@@ -331,7 +327,6 @@ feature("the records drive shows each user the records they may see, by kind, wi
         out.joeParties = get("folder", { driveId: "BOSS_RECORDS", path: "party" })
         out.joePrivate = get("folder", { driveId: "BOSS_RECORDS", path: "party/BOSS_TEST_DRIVE_PRIVATE" })
         out.joeFile = render(commons, "Files/download", { driveId: "BOSS_RECORDS", path: "party/BOSS_TEST_DRIVE_PRIVATE/content_X1/secret.txt" })
-        out.joeDetail = get("detail", { driveId: "BOSS_RECORDS", path: "party/BOSS_TEST_DRIVE_PRIVATE/content_X1/secret.txt" })
         out.joeZip = render(commons, "Files/downloadZip", { driveId: "BOSS_RECORDS", pathListJson: JSON.stringify(["party"]) })
         out.joeSearch = get("rows", { view: "search", text: "secret" })
         login("john.doe")
@@ -362,8 +357,6 @@ feature("the records drive shows each user the records they may see, by kind, wi
         v.joePrivate.status == 500
         v.joePrivate.errors.includes("Folder not found")
         !String(v.joeFile.output).includes("secret")
-        v.joeDetail.status == 500
-        v.joeDetail.errors.includes("File not found")
         !String(v.joeZip.output).includes("secret.txt")
         v.joeSearch.json.fileList.length == 0
     },

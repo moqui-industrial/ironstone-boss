@@ -141,6 +141,8 @@ along with this software (see the LICENSE.md file). If not, see
         <out-parameters><parameter name="choice" type="Map"/></out-parameters>
         <actions><script><![CDATA[
             choice = null
+            // a host without the mail client has no sign-in with a provider: nothing to ask
+            if (!ec.factory.hasFeature('imap')) return
             const LABELS = {EopGoogle: 'Google', EopMicrosoft: 'Microsoft'}
             let id = oauthProviderEnumId || null
             // A host without the mail client reports that the service is not built in. The account page and the wizard
@@ -473,10 +475,12 @@ along with this software (see the LICENSE.md file). If not, see
                         mailUsername: row.mailUsername || '', hasPassword: !!row.mailPassword, hasStore: !!row.storeHost,
                         smtpUsername: row.smtpUsername || '', hasSmtpPassword: !!row.smtpPassword,
                         authTypeEnumId: row.authTypeEnumId || 'EatPassword', oauthProviderEnumId: row.oauthProviderEnumId || null}
-                    // the sign-in with a provider (get#OAuthStatus answers no token)
-                    const status = ec.service.sync().name('org.moqui.impl.EmailClientServices.get#OAuthStatus').parameter('emailAccountId', emailAccountId)
-                            .requireNewTransaction(true).call()
-                    if (ec.message.hasError()) { ec.logger.warn(`The sign-in state of email account ${emailAccountId} is left out: ${ec.message.getErrorsString()}`); ec.message.clearErrors() }
+                    // the sign-in with a provider (get#OAuthStatus answers no token); a host without the mail client has none
+                    const mailClient = ec.factory.hasFeature('imap')
+                    const status = mailClient ? ec.service.sync().name('org.moqui.impl.EmailClientServices.get#OAuthStatus')
+                            .parameter('emailAccountId', emailAccountId).requireNewTransaction(true).call() : null
+                    if (!mailClient) signIn = null
+                    else if (ec.message.hasError()) { ec.logger.warn(`The sign-in state of email account ${emailAccountId} is left out: ${ec.message.getErrorsString()}`); ec.message.clearErrors() }
                     else signIn = {isOAuth: status?.authTypeEnumId === 'EatOAuth2', signedIn: status?.signedIn === true, needsSignIn: status?.needsSignIn === true,
                         oauthProviderEnumId: status?.oauthProviderEnumId || null, signInDate: status?.signInDate ?? null,
                         signInText: status?.signInDate ? ec.l10n.format(status.signInDate, 'MMM d, yyyy') : null}

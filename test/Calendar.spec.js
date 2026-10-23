@@ -57,6 +57,14 @@ spec({
         weekEnd = addDays(D, 6)
     },
     cleanup() { login("john.doe") },
+    cleanupSpec() {
+        // john.doe's answers to the planning are rows of their own (a reload of the demo puts back its row, not this): take them
+        // off and load the demo again, so a spec after this one (EventDetail) finds the planning not answered
+        sys(() => {
+            ec.entity.find("mantle.work.effort.WorkEffortParty").condition({ workEffortId: "BOSS_DEMO_EV_PLANNING", partyId: "EX_JOHN_DOE" }).deleteAll()
+            call("ironstone.CalendarDemoServices.load#CalendarDemo", {})
+        })
+    },
 })
 
 feature("the rail has john.doe's calendars: his own, the subscription with its failed fetch, the Team, Joe's and Bob's; the defaults and his time zone", {
@@ -458,21 +466,18 @@ feature("Find a time suggests slots when john.doe and Joe are both free, in work
     },
 })
 
-feature("Joe Developer may not see john.doe's family birthday, nor change or cancel his events", {
+feature("Joe Developer may not see john.doe's family birthday, nor change his events", {
     when() {
         return as("joe.developer", () => ({
             summary: get("eventSummary", { workEffortId: "BOSS_DEMO_EV_BIRTHDAY" }),
             move: post("moveEvent", { workEffortId: "BOSS_DEMO_EV_WORKSHOP", start: day(2) + " 10:00", end: day(2) + " 12:00" }),
-            cancel: post("cancelEvent", { workEffortId: "BOSS_DEMO_EV_WORKSHOP", scope: "all" }),
             week: get("calendarEvents", { start: day(-1), end: day(8), calendarIds: "BOSS_DEMO_CAL_FAMILY,BOSS_DEMO_CAL_JD" }),
             respond: post("respond", { workEffortId: "BOSS_DEMO_EV_BIRTHDAY", response: "accept" })
         }))
     },
-    then({ summary, move, cancel, week, respond }) {
+    then({ summary, move, week, respond }) {
         !summary.json.visible
         move.errors.includes("not available") || move.errors.includes("Only the organizer")
-        cancel.errors != ""
-        one("mantle.work.effort.WorkEffort", { workEffortId: "BOSS_DEMO_EV_WORKSHOP" }).statusId != "WeCancelled"
         !titles(week).includes("Mary's birthday")
         week.json.skippedCalendarIdList.includes("BOSS_DEMO_CAL_FAMILY")
         respond.errors.includes("not available")

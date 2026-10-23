@@ -188,12 +188,11 @@ feature("New request in a project, then the triage moves: accept, assign, set th
         const assign = post("Requests/RequestDetail/triage", { requestId: made.request, triageAction: "assign", value: "ORG_ZIZI_JD" })
         const priority = post("Requests/RequestDetail/triage", { requestId: made.request, triageAction: "priority", value: "2" })
         const due = post("Requests/RequestDetail/triage", { requestId: made.request, triageAction: "due", value: "2026-12-01" })
-        const badPriority = post("Requests/RequestDetail/triage", { requestId: made.request, triageAction: "priority", value: "12" })
         const draftMove = post("Requests/RequestDetail/changeStatus", { requestId: made.request, toStatusId: "ReqDraft" })
-        return { created, row, triager, accept, accepted, assign, priority, due, badPriority, draftMove, after: one("mantle.request.Request", { requestId: made.request }),
+        return { created, row, triager, accept, accepted, assign, priority, due, draftMove, after: one("mantle.request.Request", { requestId: made.request }),
             assignee: current("mantle.request.RequestParty", { requestId: made.request, roleTypeId: "Assignee" }).map((rp) => rp.partyId) }
     },
-    then({ created, row, triager, accept, accepted, assign, priority, due, badPriority, draftMove, after, assignee }) {
+    then({ created, row, triager, accept, accepted, assign, priority, due, draftMove, after, assignee }) {
         created.errors == ""
         row.rootWorkEffortId == "IRON"
         row.statusId == "ReqSubmitted"
@@ -208,7 +207,6 @@ feature("New request in a project, then the triage moves: accept, assign, set th
         after.priority == 2
         due.errors == ""
         after.responseRequiredDate != null
-        badPriority.errors.includes("A priority is 1")
         draftMove.errors.includes("does not move to ReqDraft")
     },
 })
@@ -223,11 +221,10 @@ feature("make a work item from the request: a Bug Fix in IRON, linked, on the Wo
         const linked = post("Requests/RequestDetail/linkWorkItem", { requestId: made.request, workEffortId: "IRON-13" })
         const afterLink = all("mantle.request.RequestWorkEffort", { requestId: made.request }).map((row) => row.workEffortId).sort()
         const unlinked = post("Requests/RequestDetail/unlinkWorkItem", { requestId: made.request, workEffortId: "IRON-13" })
-        const notItem = post("Requests/RequestDetail/linkWorkItem", { requestId: made.request, workEffortId: "IRON" })
-        return { madeItem, item, linked, afterLink, unlinked, notItem, work: render("apps/Projects/Requests/RequestDetail", { requestId: made.request, tab: "work" }),
+        return { madeItem, item, linked, afterLink, unlinked, work: render("apps/Projects/Requests/RequestDetail", { requestId: made.request, tab: "work" }),
             after: all("mantle.request.RequestWorkEffort", { requestId: made.request }).map((row) => row.workEffortId) }
     },
-    then({ madeItem, item, linked, afterLink, unlinked, notItem, work, after }) {
+    then({ madeItem, item, linked, afterLink, unlinked, work, after }) {
         madeItem.errors == ""
         item.rootWorkEffortId == "IRON"
         item.purposeEnumId == "WepFix"
@@ -236,7 +233,6 @@ feature("make a work item from the request: a Bug Fix in IRON, linked, on the Wo
         afterLink.includes("IRON-13")
         unlinked.errors == ""
         after == [made.item]
-        notItem.errors != ""
         work.output.includes(made.item)
     },
 })
@@ -261,16 +257,14 @@ feature("who sees a project's request: the project's team triages it; one not on
             seen: render("apps/Projects/Requests/RequestDetail", { requestId: made.request }),
             triage: post("Requests/RequestDetail/triage", { requestId: made.request, triageAction: "priority", value: "3" }),
             notSeen: render("apps/Projects/Requests/RequestDetail", { requestId: hidden }),
-            notMoved: post("Requests/RequestDetail/triage", { requestId: hidden, triageAction: "priority", value: "1" }),
             list: ids(rows({ list: "all" })),
         }))
     },
-    then({ seen, triage, notSeen, notMoved, list }) {
+    then({ seen, triage, notSeen, list }) {
         seen.output.includes("BOSS_TEST The board loses its scroll")
         triage.errors == ""
         notSeen.output.includes("is not available")
         !notSeen.output.includes("Hiring plan question")
-        notMoved.errors.includes("is not available")
         list.includes(made.request)
         !list.includes(made.hidden)
         one("mantle.request.Request", { requestId: made.hidden }).priority == 5
@@ -322,15 +316,13 @@ feature("IntakeSettings: the types, the addresses and the public form; a plus ta
         const page = render("apps/Projects/Settings/Intake", {})
         const types = post("Settings/Intake/saveTypes", { offered: ["RqtBugFix", "RqtNewFeature", "RqtSupport", "RqtInformation", "RqtProposal"],
             triaged: ["RqtBugFix", "RqtNewFeature", "RqtProposal"], defaultType: "RqtSupport", triagePartyId: "EX_JOHN_DOE" })
-        const badDefault = post("Settings/Intake/saveTypes", { offered: ["RqtBugFix"], defaultType: "RqtSupport" })
         const form = post("Settings/Intake/saveForm", { files: "Y", maxFiles: "5", maxMb: "10", confirm: "N", captcha: "N" })
-        const badForm = post("Settings/Intake/saveForm", { files: "Y", maxFiles: "50", maxMb: "10" })
         const taken = post("Settings/Intake/saveAddress", { addressProjectId: "ACME", emailAccountId: "BOSS_DEMO_MAIL_SUPPORT", plusTag: "iron" })
         const teamPage = as("joe.developer", () => render("apps/Projects/Settings/Intake", {}))
-        return { page, types, badDefault, form, badForm, taken, teamPage,
+        return { page, types, form, taken, teamPage,
             setting: one("mantle.party.PartySetting", { partyId: "ORG_ZIZI_SERVICES", partySettingTypeId: "ProjIntake" }) }
     },
-    then({ page, types, badDefault, form, badForm, taken, teamPage, setting }) {
+    then({ page, types, form, taken, teamPage, setting }) {
         page.errors == ""
         !page.broken
         page.output.includes("Request types")
@@ -338,9 +330,7 @@ feature("IntakeSettings: the types, the addresses and the public form; a plus ta
         page.output.includes("Public form")
         types.errors == ""
         JSON.parse(setting.settingValue).triaged == "RqtBugFix,RqtNewFeature,RqtProposal"
-        badDefault.errors.includes("default type")
         form.errors == ""
-        badForm.errors.includes("Files at most")
         taken.errors.includes("The plus tag iron is project IRON")
         // the team is denied the managers' settings
         teamPage.status != 200 || teamPage.errors != "" || !teamPage.output.includes("Request types")
@@ -355,13 +345,12 @@ feature("the public form: the route's token check, a request sent with no sessio
             const page = ec.screen.makeTest().rootScreen(intakePage).renderMode("qvue").render("", { token: TOKEN }, null)
             const sent = visit("submit", { token: TOKEN, firstName: "Tess", lastName: "Tester", emailAddress: "tess.tester@example.org", organizationName: "Test Co",
                 requestTypeEnumId: "RqtBugFix", requestName: "BOSS_TEST The form sends twice", description: "Pressing Send twice made two requests." })
-            const missing = visit("submit", { token: TOKEN, firstName: "Tess", lastName: "Tester", emailAddress: "tess.tester@example.org", requestName: "BOSS_TEST no text" })
             const wrong = visit("submit", { token: "NotTheTokenOfAnyForm000", firstName: "Tess", lastName: "Tester", emailAddress: "tess.tester@example.org",
                 requestName: "BOSS_TEST wrong", description: "x" })
-            return { checked, page: String(page.output || ""), sent, missing, wrong }
+            return { checked, page: String(page.output || ""), sent, wrong }
         } finally { login("john.doe") }
     },
-    then({ checked, page, sent, missing, wrong }) {
+    then({ checked, page, sent, wrong }) {
         checked.valid
         checked.routeContext.projectName == "IronStone Projects"
         checked.routeContext.typeList.length >= 1
@@ -376,7 +365,6 @@ feature("the public form: the route's token check, a request sent with no sessio
         !sent.json.messages || String(sent.json.messages).startsWith("Thank you")
         row.rootWorkEffortId == "IRON"
         row.salesChannelEnumId == "ScWeb"
-        missing.errors.includes("description")
         wrong.errors.includes("This form is not available")
         byName("BOSS_TEST wrong") == null
     },

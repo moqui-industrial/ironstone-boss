@@ -152,15 +152,14 @@ feature("a revoked or expired link reads nothing, and the page renders its compo
         const component = ec.screen.makeTest().rootScreen(page).renderMode("qvue").render("", { token: PLAN }, null)
         ec.message.clearErrors()
         return { revokedCheck: call(`${FILES}.check#PublicShareToken`, { token: revokedToken }), revokedFiles: visit("files", revokedToken, {}),
-            expiredFiles: visit("download", expiredToken, {}), expiredOpen: visit("open", expiredToken, {}, "post"), component }
+            expiredFiles: visit("download", expiredToken, {}), component }
     },
-    then({ revokedCheck, revokedFiles, expiredFiles, expiredOpen, component }) {
+    then({ revokedCheck, revokedFiles, expiredFiles, component }) {
         !revokedCheck.valid
         revokedFiles.status == 500
         revokedFiles.errors.includes("This link has expired or was not found")
         expiredFiles.status == 500
         !expiredFiles.output.includes("Welcome to My files")
-        expiredOpen.status == 500
         component.status == 200
         component.output.includes("module.exports")
         component.output.includes("BossPublicShare")

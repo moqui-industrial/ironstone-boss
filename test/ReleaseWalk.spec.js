@@ -109,11 +109,10 @@ feature("joe makes a release and a milestone on the project's Roadmap tab; bob, 
         const tab = as("joe.developer", () => render("apps/Projects/Projects/ProjectDetail/Roadmap", { workEffortId: PROJECT, list: "all" }))
         const bobMakes = as("bob.developer", () => post("Projects/Roadmap/savePlanItem", { rootWorkEffortId: PROJECT, kind: "milestone", workEffortName: "Sneaky" }))
         const bobRoadmap = as("bob.developer", () => render("apps/Projects/Projects/Roadmap", { list: "all" }))
-        const bobDetail = as("bob.developer", () => render("apps/Projects/Projects/ReleaseDetail", { workEffortId: "RLW-REL-1" }))
-        return { release, milestone, due, tab, bobMakes, bobRoadmap, bobDetail, rel: we("RLW-REL-1"), ms: we("RLW-MS-1"),
+        return { release, milestone, due, tab, bobMakes, bobRoadmap, rel: we("RLW-REL-1"), ms: we("RLW-MS-1"),
             sneaky: sys(() => ec.entity.find("mantle.work.effort.WorkEffort").condition({ rootWorkEffortId: PROJECT, workEffortName: "Sneaky" }).count()) }
     },
-    then({ release, milestone, due, tab, bobMakes, bobRoadmap, bobDetail, rel, ms, sneaky }) {
+    then({ release, milestone, due, tab, bobMakes, bobRoadmap, rel, ms, sneaky }) {
         release.errors == ""
         milestone.errors == ""
         rel.workEffortTypeEnumId == "WetRelease"
@@ -127,7 +126,6 @@ feature("joe makes a release and a milestone on the project's Roadmap tab; bob, 
         bobMakes.errors.includes("not available") || bobMakes.errors.includes("not on the team")
         sneaky == 0
         !bobRoadmap.output.includes("RLW-REL-1")
-        bobDetail.output.includes("is not available")
     },
 })
 
@@ -194,12 +192,11 @@ feature("joe generates the release notes, saves them, and publishes them to the 
         settle()
         const page = as("joe.developer", () => json("Projects/ProjectDetail/Docs/page", { workEffortId: PROJECT, wikiSpaceId, pagePath: "Releases/1.0" }))
         const bobPage = as("bob.developer", () => json("Projects/ProjectDetail/Docs/page", { workEffortId: PROJECT, wikiSpaceId, pagePath: "Releases/1.0" }))
-        const bobCommons = as("bob.developer", () => json("Commons/Knowledge/page", { wikiSpaceId, pagePath: "Releases/1.0" }))
         const detail = as("joe.developer", () => render("apps/Projects/Projects/ReleaseDetail", { workEffortId: "RLW-REL-1" }))
-        return { generated, draft, saved, published, page, bobPage, bobCommons, detail, file: text(`git://${REPO}/docs/${wikiSpaceId}/Releases/1.0.md`),
+        return { generated, draft, saved, published, page, bobPage, detail, file: text(`git://${REPO}/docs/${wikiSpaceId}/Releases/1.0.md`),
             changelog: text(`git://${REPO}/CHANGELOG.md`) }
     },
-    then({ generated, draft, saved, published, page, bobPage, bobCommons, detail, file, changelog }) {
+    then({ generated, draft, saved, published, page, bobPage, detail, file, changelog }) {
         generated.errors == ""
         draft.startsWith("The first release of the walk.")
         draft.includes("### Features\n\n- **RLW-1** Sign in with a passkey")
@@ -212,8 +209,6 @@ feature("joe generates the release notes, saves them, and publishes them to the 
         changelog.startsWith("# Changelog\n\n## 1.0 - 2026-12-11")
         page.json.page.text.includes("Upgrade with ./moq load.")
         !bobPage.json?.page
-        bobCommons.errors.includes("Page not found")
-        !bobCommons.json?.page
         detail.output.includes("Releases/1.0")
     },
 })

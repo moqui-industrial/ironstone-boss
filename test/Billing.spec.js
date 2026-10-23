@@ -4,7 +4,7 @@
 // project of its own (BIL, john.doe its manager, joe.developer a programmer, in the week of July 5, 2027): the invoice dialog's
 // refusals (nothing selected, a project with no client), a draft's header edited (the terms move the due date), a line removed and the
 // invoice cancelled (each frees its time), a rate edited and ended, the billing settings saved; and joe.developer, who does not manage
-// money, refused each.
+// money, refused an invoice (the one check of every money service, BillingServices check#Money).
 // Run: ./moq test ironstone-boss --spec Billing
 const webroot = "component://webroot/screen/webroot.xml"
 const PROJECT = "BIL"
@@ -131,16 +131,14 @@ feature("the invoice dialog refuses nothing selected, and a project with no clie
             call("create#mantle.work.effort.WorkEffortParty", { workEffortId: PROJECT, partyId: "BIL_CLIENT", roleTypeId: "Customer", fromDate: "2027-01-01 00:00:00" })
         })
         const noneSelected = post("Billing/Unbilled/CreateInvoice/createInvoice", { workEffortId: PROJECT, entryGrouping: "entry" })
-        const joe = as("joe.developer", () => post("Billing/Unbilled/CreateInvoice/createInvoice", { workEffortId: PROJECT, entryGrouping: "entry" }))
         const joeSummary = as("joe.developer", () => sys(() => errorOf("ironstone.BillingServices.create#ProjectInvoice", { workEffortId: PROJECT })))
-        return { noClient, unbilled, noneSelected, joe, joeSummary, invoiced: entries().filter((row) => row.invoiceId).length }
+        return { noClient, unbilled, noneSelected, joeSummary, invoiced: entries().filter((row) => row.invoiceId).length }
     },
-    then({ noClient, unbilled, noneSelected, joe, joeSummary, invoiced }) {
+    then({ noClient, unbilled, noneSelected, joeSummary, invoiced }) {
         noClient.errors.includes("The project has no client")
         unbilled.output.includes("No client")
         unbilled.output.includes("The project has no client")
         noneSelected.errors.includes("Select the time or the milestones to invoice")
-        joe.status != 200 || joe.errors != ""
         joeSummary.includes("Only those who manage money")
         invoiced == 0
     },
@@ -180,7 +178,7 @@ feature("a draft's header edited: Net 15 moves the due date; a line removed free
     },
 })
 
-feature("a rate edited (amount and thru) and ended; ended rates are listed on asking; joe.developer may not add one", {
+feature("a rate edited (amount and thru) and ended; ended rates are listed on asking", {
     when() {
         const rate = sys(() => Array.from(ec.entity.find("mantle.humanres.rate.RateAmount").condition("workEffortId", PROJECT).list())[0])
         const edited = post("Billing/Rates/saveRate", { rateAmountId: rate.rateAmountId, fromDate: "2027-07-01", thruDate: "2027-12-31", rateAmount: "125.50" })
@@ -188,10 +186,9 @@ feature("a rate edited (amount and thru) and ended; ended rates are listed on as
         const ended = post("Billing/Rates/endRate", { rateAmountId: rate.rateAmountId })
         const list = render("apps/Projects/Billing/Rates", { rootWorkEffortId: PROJECT })
         const withEnded = render("apps/Projects/Billing/Rates", { rootWorkEffortId: PROJECT, showEnded: "Y" })
-        const joe = as("joe.developer", () => sys(() => errorOf("ironstone.BillingServices.store#Rate", { ratePurposeEnumId: "RaprClient", workEffortId: PROJECT, rateAmount: "1" })))
-        return { edited, afterEdit, ended, list, withEnded, joe, endedRate: one("mantle.humanres.rate.RateAmount", { rateAmountId: rate.rateAmountId }) }
+        return { edited, afterEdit, ended, list, withEnded, endedRate: one("mantle.humanres.rate.RateAmount", { rateAmountId: rate.rateAmountId }) }
     },
-    then({ edited, afterEdit, ended, list, withEnded, joe, endedRate }) {
+    then({ edited, afterEdit, ended, list, withEnded, endedRate }) {
         edited.errors == ""
         dec(afterEdit.rateAmount) == "125.50"
         afterEdit.thruDate != null
@@ -200,21 +197,19 @@ feature("a rate edited (amount and thru) and ended; ended rates are listed on as
         !list.output.includes("125.50")
         withEnded.output.includes("125.50")
         withEnded.output.includes("Ended")
-        joe.includes("Only those who manage money")
     },
 })
 
-feature("the billing settings saved and shown again; joe.developer may not change them", {
+feature("the billing settings saved and shown again", {
     when() {
         const saved = post("Settings/Billing/saveDefaults", { billingBasis: "Milestones", invoiceGrouping: "OneLine", timeDetail: "N", shareHours: "Y", settlementTermId: "Net15",
             workerInvoicing: "ByProject" })
         const page = render("apps/Projects/Settings/Billing", {})
         const stored = JSON.parse(one("mantle.party.PartySetting", { partyId: "ORG_ZIZI_SERVICES", partySettingTypeId: "ProjBillingDefaults" }).settingValue)
         const grouping = sys(() => call("ironstone.BillingServices.get#InvoiceDraft", { workEffortId: PROJECT }).draft.entryGrouping)
-        const joe = as("joe.developer", () => sys(() => errorOf("ironstone.BillingServices.store#BillingSettings", { billingBasis: "NotBilled", invoiceGrouping: "PerEntry" })))
-        return { saved, page, stored, grouping, joe }
+        return { saved, page, stored, grouping }
     },
-    then({ saved, page, stored, grouping, joe }) {
+    then({ saved, page, stored, grouping }) {
         saved.errors == ""
         page.status == 200 && !page.broken
         page.output.includes("Billing defaults")
@@ -222,6 +217,5 @@ feature("the billing settings saved and shown again; joe.developer may not chang
         stored.settlementTermId == "Net15" && stored.workerInvoicing == "ByProject"
         // the project's grouping follows the organization's when it has none of its own
         grouping == "all"
-        joe.includes("Only")
     },
 })

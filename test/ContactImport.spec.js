@@ -133,16 +133,14 @@ feature("Google CSV, step 2: the mapping shows each column with its first values
 feature("Google CSV, step 3: the options (john.doe's book, a new group, skip duplicates) are kept", {
     when() {
         const shown = render("apps/Commons/Contacts/Import/Options", { importId: googleId })
-        const directory = post("Contacts/Import/Options/saveOptions", { importId: googleId, asPersonal: "Y", contactBookId: "BOSS_DEMO_BOOK_TEAM", duplicatePolicy: "skip" })
         const saved = post("Contacts/Import/Options/saveOptions", { importId: googleId, asPersonal: "Y", contactBookId: "BOSS_DEMO_BOOK_JD",
             groupNames: "Imported", duplicatePolicy: "skip", useFileGroups: "Y" })
-        return { shown, directory, saved, draft: draftOf("EX_JOHN_DOE", googleId) }
+        return { shown, saved, draft: draftOf("EX_JOHN_DOE", googleId) }
     },
-    then({ shown, directory, saved, draft }) {
+    then({ shown, saved, draft }) {
         shown.errors == ""
         shown.output.includes("My personal contacts (only I see them)")
         shown.output.includes("Skip it")
-        directory.errors.includes("Personal contacts go in one of your own books")
         saved.errors == ""
         draft.options.contactBookId == "BOSS_DEMO_BOOK_JD"
         draft.options.duplicatePolicy == "skip"

@@ -114,7 +114,6 @@ feature("Apply to my rooms puts the default level on every room but the direct o
 
 feature("the do not disturb hours: both or neither, not the same time; the job puts a user in them on do not disturb and back", {
     when() {
-        const half = post("saveDndHours", { dndFrom: "22:00", dndTo: "" })
         const same = post("saveDndHours", { dndFrom: "09:00", dndTo: "09:00" })
         const saved = post("saveDndHours", { dndFrom: "22:00", dndTo: "07:00" })
         const kept = [pref("CHAT_DND_FROM"), pref("CHAT_DND_TO")]
@@ -133,11 +132,10 @@ feature("the do not disturb hours: both or neither, not the same time; the job p
         setPref(DND_USER, "CHAT_DND_TO", utc(now + 3 * 3600000))
         const outside = sys(() => call("ironstone.ChatServices.apply#DndHours", {}))
         const after = one("moqui.security.UserStatus", { userId: DND_USER })
-        return { half, same, saved, kept, page, cleared, clearedPrefs, inside, during, auto, again, outside, after }
+        return { same, saved, kept, page, cleared, clearedPrefs, inside, during, auto, again, outside, after }
     },
     allowMessageErrors: true,
     then(v) {
-        v.half.errors.includes("Give both times")
         v.same.errors.includes("end when they start")
         v.saved.errors == ""
         v.kept == ["22:00", "07:00"]

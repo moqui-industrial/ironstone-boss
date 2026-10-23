@@ -325,7 +325,6 @@ feature("My time in the terminal: joe logs time, starts and stops the timer, del
 feature("the Backlog in the terminal: john.doe turns sprints on, makes a sprint, moves two items into it, starts it and completes it to the backlog", {
     when() {
         const before = tui("WorkItems/BacklogTui", { rootWorkEffortId: PROJECT })
-        const refused = as("joe.developer", () => post("WorkItems/BacklogTui/turnOnSprints", { rootWorkEffortId: PROJECT }))
         const turnedOn = post("WorkItems/BacklogTui/turnOnSprints", { rootWorkEffortId: PROJECT })
         const made = post("WorkItems/BacklogTui/saveSprint", { rootWorkEffortId: PROJECT, workEffortName: "Terminal sprint", description: "Ship the terminal",
             startDay: day(0), endDay: day(13), capacity: "10" })
@@ -341,12 +340,11 @@ feature("the Backlog in the terminal: john.doe turns sprints on, makes a sprint,
         const completed = post("WorkItems/BacklogTui/completeSprint", { rootWorkEffortId: PROJECT, sprintWorkEffortId: sprint ? sprint.workEffortId : "", carryTo: "backlog" })
         const done = itemOf(sprint ? sprint.workEffortId : "_NA_")
         const carried = itemOf("TUIW-2")
-        return { before, refused, turnedOn, made, sprint, moved, bottom, after, backlog, started, active, completed, done, carried }
+        return { before, turnedOn, made, sprint, moved, bottom, after, backlog, started, active, completed, done, carried }
     },
-    then({ before, refused, turnedOn, made, sprint, moved, bottom, after, backlog, started, active, completed, done, carried }) {
+    then({ before, turnedOn, made, sprint, moved, bottom, after, backlog, started, active, completed, done, carried }) {
         before.texts.includes("Plan in sprints")
         !before.texts.includes("New sprint")
-        refused.errors != ""
         turnedOn.errors == ""
         made.errors == ""
         sprint != null

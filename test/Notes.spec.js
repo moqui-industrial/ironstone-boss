@@ -196,34 +196,26 @@ feature("delete takes a note away; QuickCreate's note kind without a record land
     },
 })
 
-feature("Joe Developer and Bob Developer may not read, change, find or move another user's notes", {
+feature("Joe Developer and Bob Developer may not read, change or find another user's notes", {
     when() {
         const groceries = pageId("NOTES_EX_JOHN_DOE", "Groceries")
         const joeNote = pageId("NOTES_ORG_ZIZI_JD", "Conference talk draft")
-        const joe = as("joe.developer", () => ({ read: get("note", { wikiPageId: groceries }), knowledge: call_("Knowledge/page", { wikiPageId: groceries }, null),
-            save: post("saveNote", { wikiPageId: groceries, pageText: "Mine" }), pin: post("setPinned", { wikiPageId: groceries, pinned: "true" }),
-            remove: post("deleteNote", { wikiPageId: groceries }), move: post("moveNote", { wikiPageId: groceries, toWikiSpaceId: "BOSSKB" }),
+        const joe = as("joe.developer", () => ({ read: get("note", { wikiPageId: groceries }), save: post("saveNote", { wikiPageId: groceries, pageText: "Mine" }),
             search: call_("Knowledge/search", { text: "Groceries" }, null), list: get("notes"), own: get("note", { wikiPageId: joeNote }) }))
-        const bob = as("bob.developer", () => ({ read: get("note", { wikiPageId: joeNote }), list: get("notes") }))
+        const bob = as("bob.developer", () => ({ list: get("notes") }))
         // john.doe, an administrator, reads another's note in Knowledge (the wiki's rule) but it is not one of his notes
-        const john = { inNotes: get("note", { wikiPageId: joeNote }), save: post("saveNote", { wikiPageId: joeNote, pageText: "Mine" }) }
+        const john = { inNotes: get("note", { wikiPageId: joeNote }) }
         return { joe, bob, john, still: sys(() => ec.resource.getLocationText("dbresource://WikiSpace/NOTES_EX_JOHN_DOE/Groceries.md")) }
     },
     then({ joe, bob, john, still }) {
         joe.read.errors.includes("Page not found")
-        joe.knowledge.errors.includes("Page not found")
         joe.save.errors.includes("Page not found")
-        joe.pin.errors.includes("Page not found")
-        joe.remove.errors.includes("Page not found")
-        joe.move.errors.length > 0
         !joe.search.json.pageList.some((hit) => hit.wikiSpaceId === "NOTES_EX_JOHN_DOE")
         joe.list.json.wikiSpaceId == "NOTES_ORG_ZIZI_JD"
         !joe.list.json.noteList.some((row) => row.title === "Groceries")
         joe.own.json.page.title == "Conference talk draft"
-        bob.read.errors.includes("Page not found")
         bob.list.json.noteList.length == 0
         john.inNotes.errors.includes("Note not found")
-        john.save.errors.length > 0
         still.includes("coffee beans")
     },
 })

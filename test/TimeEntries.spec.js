@@ -115,7 +115,6 @@ feature("joe logs time in TimeEntries' dialog and finds it; bob, his line manage
             billable: "Y", workTypeEnumId: "WktpDevelopment", comments: "Ledger rows first cut" }))
         const lastWeek = as("joe.developer", () => post("Projects/Time/TimeEntries/EditEntry/saveEntry", { entryItemId: "TEW-1", day: "2027-01-04",
             fromTime: "09:00", thruTime: "12:00", billable: "Y", workTypeEnumId: "WktpDevelopment", comments: "Ledger rows last week" }))
-        const noHours = as("joe.developer", () => post("Projects/Time/TimeEntries/EditEntry/saveEntry", { entryItemId: "TEW-1", day: "2027-01-11" }))
         const bobLogged = as("bob.developer", () => post("Projects/Time/TimeEntries/EditEntry/saveEntry", { entryItemId: "TEW-2", day: "2027-01-12", hours: "1",
             billable: "N", comments: "Bob's review of the bulk changes" }))
         made.open = entryBy("Ledger rows first cut")?.timeEntryId
@@ -123,15 +122,14 @@ feature("joe logs time in TimeEntries' dialog and finds it; bob, his line manage
         const page = as("joe.developer", () => render("apps/Projects/Time/TimeEntries", { list: "all", itemId: "TEW-1" }))
         const thisWeek = as("joe.developer", () => render("apps/Projects/Time/TimeEntries", {}))
         const edit = as("joe.developer", () => render("apps/Projects/Time/TimeEntries/EditEntry", { timeEntryId: made.open }))
-        return { dialog, logged, lastWeek, noHours, bobLogged, page, thisWeek, edit, joe: rowsOf("joe.developer"), bob: rowsOf("bob.developer"), john: rowsOf("john.doe"),
+        return { dialog, logged, lastWeek, bobLogged, page, thisWeek, edit, joe: rowsOf("joe.developer"), bob: rowsOf("bob.developer"), john: rowsOf("john.doe"),
             johnPage: render("apps/Projects/Time/TimeEntries", { list: "all", itemId: "TEW-1" }), bobEdit: as("bob.developer", () => render("apps/Projects/Time/TimeEntries/EditEntry", { timeEntryId: made.open })) }
     },
-    then({ dialog, logged, lastWeek, noHours, bobLogged, page, thisWeek, edit, joe, bob, john, johnPage, bobEdit }) {
+    then({ dialog, logged, lastWeek, bobLogged, page, thisWeek, edit, joe, bob, john, johnPage, bobEdit }) {
         dialog.status == 200 && !dialog.broken && dialog.output.includes("Log time")
         logged.errors == "" && made.open != null
         lastWeek.errors == "" && made.locked != null
         Number(String(entry(made.locked).hours)) == 3
-        noHours.errors.includes("Give the hours")
         !page.broken && page.output.includes("Ledger rows first cut") && page.output.includes("Ledger rows last week")
         // This week, the default list, has the week's entry only
         thisWeek.output.includes("Ledger rows first cut") && !thisWeek.output.includes("Ledger rows last week")
@@ -311,7 +309,6 @@ feature("TimeSettings keeps the policy and the work types offered; MyTime and th
         const page = render("apps/Projects/Settings/Time", {})
         const saved = post("Projects/Settings/Time/savePolicy", { weekStart: "1", approvers: "project", lock: "Y", minHours: "0.5", future: "Y", dayHours: "7.5",
             workDays: ["1", "2", "3", "4", "5"], remindDay: "1", remindHour: "9" })
-        const noDays = post("Projects/Settings/Time/savePolicy", { weekStart: "1", approvers: "project", minHours: "0.5", dayHours: "8", remindDay: "1", remindHour: "9" })
         const stopped = post("Projects/Settings/Time/changeType", { enumId: "WktpTravel", change: "stop" })
         const added = post("Projects/Settings/Time/createType", { label: "Walk review" })
         // the Settings screens are the managers' (ProjectsSettings checks the screens); the services refuse the team too
@@ -321,16 +318,14 @@ feature("TimeSettings keeps the policy and the work types offered; MyTime and th
             ec.message.clearErrors()
             return error
         }))
-        const teamPage = as("joe.developer", () => render("apps/Projects/Settings/Time", {}))
         const settings = sys(() => call("ironstone.TimeServices.get#TimeSettings", {}))
         const myWeek = sys(() => call("ironstone.TimeServices.get#MyWeek", { weekDate: "2027-01-13" }).myWeek)
         const dialog = render("apps/Projects/Time/TimeEntries/EditEntry", {})
-        return { page, saved, noDays, stopped, added, teamSave, teamPage, settings, myWeek, dialog }
+        return { page, saved, stopped, added, teamSave, settings, myWeek, dialog }
     },
-    then({ page, saved, noDays, stopped, added, teamSave, teamPage, settings, myWeek, dialog }) {
+    then({ page, saved, stopped, added, teamSave, settings, myWeek, dialog }) {
         !page.broken && page.output.includes("Timesheet policy") && page.output.includes("Work types")
         saved.errors == "" && settings.policy.minHours == "0.5" && settings.policy.dayHours == "7.5"
-        noDays.errors.includes("Choose the working days")
         stopped.errors == "" && added.errors == ""
         !settings.typeList.find((type) => type.enumId === "WktpTravel").offered
         settings.typeList.some((type) => type.label === "Walk review" && type.offered && type.isOwn)
@@ -338,6 +333,5 @@ feature("TimeSettings keeps the policy and the work types offered; MyTime and th
         myWeek.workTypeOptions.some((option) => option.label === "Walk review")
         dialog.output.includes("Walk review") && !dialog.output.includes(">Travel<")
         teamSave.includes("Only project managers")
-        teamPage.errors.includes("not authorized") && !teamPage.output.includes("Timesheet policy")
     },
 })

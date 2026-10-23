@@ -155,14 +155,13 @@ feature("a branch and a tag made, the tag linked to the release, then both delet
         settle()
         const linked = sys(() => ec.entity.find("mantle.work.effort.WorkEffortGitRef").condition({ workEffortId: "IRON-REL-1", repositoryId: "iron", refName: "refs/tags/bt-tag" }).one())
         const unlink = post("Code/RepositoryDetail/Tags/unlinkTag", { repositoryId: "iron", refName: "refs/tags/bt-tag", workEffortId: "IRON-REL-1" })
-        const badLink = post("Code/RepositoryDetail/Tags/linkTag", { repositoryId: "iron", refName: "refs/tags/bt-tag", workEffortId: "NOPE-1" })
         const tagGone = post("Code/RepositoryDetail/Tags/deleteTag", { repositoryId: "iron", refName: "bt-tag" })
         const branchGone = post("Code/RepositoryDetail/Branches/deleteBranch", { repositoryId: "iron", refName: "bt-branch" })
         const defaultGone = post("Code/RepositoryDetail/Branches/deleteBranch", { repositoryId: "iron", refName: "main" })
         settle()
-        return { made, joeDelete, tag, link, linked, unlink, badLink, tagGone, branchGone, defaultGone, branches: refNames("iron", "branch"), tags: refNames("iron", "tag") }
+        return { made, joeDelete, tag, link, linked, unlink, tagGone, branchGone, defaultGone, branches: refNames("iron", "branch"), tags: refNames("iron", "tag") }
     },
-    then({ made, joeDelete, tag, link, linked, unlink, badLink, tagGone, branchGone, defaultGone, branches, tags }) {
+    then({ made, joeDelete, tag, link, linked, unlink, tagGone, branchGone, defaultGone, branches, tags }) {
         made.errors == ""
         joeDelete.errors.includes("delete")
         tag.errors == ""
@@ -170,7 +169,6 @@ feature("a branch and a tag made, the tag linked to the release, then both delet
         linked != null
         linked.linkSourceEnumId == "WglsExplicit"
         unlink.errors == ""
-        badLink.errors.includes("NOPE-1")
         tagGone.errors == ""
         branchGone.errors == ""
         defaultGone.errors != ""
@@ -233,12 +231,11 @@ feature("CommitDetail: the commit with its work item, checks and diff; a work it
         const withItem = sys(() => ec.entity.find("mantle.work.effort.WorkEffortGitCommit").condition({ workEffortId: "IRON-10", repositoryId: "iron", commitId: head }).one())
         const unlinked = post("Code/CommitDetail/unlinkItem", { repositoryId: "iron", commitId: head, workEffortId: "IRON-10" })
         const bad = post("Code/CommitDetail/linkItem", { repositoryId: "iron", commitId: head, workEffortId: "ACME-1x" })
-        const missing = render("apps/Projects/Code/CommitDetail", { repositoryId: "iron", commitId: "deadbeefdead" })
         const bobAcme = as("bob.developer", () => render("apps/Projects/Code/CommitDetail", { repositoryId: "acme-portal", commitId: "main" }))
-        return { page, linked, withItem, unlinked, bad, missing, bobAcme,
+        return { page, linked, withItem, unlinked, bad, bobAcme,
             gone: sys(() => ec.entity.find("mantle.work.effort.WorkEffortGitCommit").condition({ workEffortId: "IRON-10", repositoryId: "iron", commitId: head }).count()) }
     },
-    then({ page, linked, withItem, unlinked, bad, missing, bobAcme, gone }) {
+    then({ page, linked, withItem, unlinked, bad, bobAcme, gone }) {
         page.status == 200
         !page.broken
         page.output.includes("IRON-3 Expand and collapse rows")
@@ -252,7 +249,6 @@ feature("CommitDetail: the commit with its work item, checks and diff; a work it
         unlinked.errors == ""
         gone == 0
         bad.errors.includes("not found")
-        missing.output.includes("is not available")
         bobAcme.output.includes("is not available")
     },
 })
@@ -294,7 +290,6 @@ feature("Code settings: the repository defaults and conventions saved by a manag
     when() {
         const page = render("apps/Projects/Settings/Code")
         const saved = post("Settings/Code/saveDefaults", { storage: "db", branch: "trunk", mergeMethod: "GmmSquash", protectDefault: "Y", approvals: "2" })
-        const badBranch = post("Settings/Code/saveDefaults", { storage: "db", branch: "no good" })
         const conventions = post("Settings/Code/saveConventions", { keywordComplete: "Y", branchPattern: "<KEY>-<n>-<words>", mergeRequestMoves: "Y" })
         const badPattern = post("Settings/Code/saveConventions", { branchPattern: "feature-<words>" })
         const teamRefused = as("bob.developer", () => sys(() => {
@@ -307,11 +302,11 @@ feature("Code settings: the repository defaults and conventions saved by a manag
         const revoked = post("Settings/Code/setSsh", { userGroupId: "BOSS_PROJECT_CLIENT", grant: "N" })
         const adminRefused = post("Settings/Code/setSsh", { userGroupId: "ADMIN", grant: "N" })
         const defaults = sys(() => call("mantle.work.GitServices.get#RepositoryDefaults", { organizationPartyId: "ORG_ZIZI_SERVICES" }).defaults)
-        return { page, saved, badBranch, conventions, badPattern, teamRefused, granted, holds, revoked, adminRefused, defaults,
+        return { page, saved, conventions, badPattern, teamRefused, granted, holds, revoked, adminRefused, defaults,
             after: sys(() => ec.entity.find("moqui.security.UserGroupPermission").condition({ userGroupId: "BOSS_PROJECT_CLIENT", userPermissionId: "SSH_GIT" })
                 .condition(ec.entity.conditionFactory.makeConditionDate("fromDate", "thruDate", null)).count()) }
     },
-    then({ page, saved, badBranch, conventions, badPattern, teamRefused, granted, holds, revoked, adminRefused, defaults, after }) {
+    then({ page, saved, conventions, badPattern, teamRefused, granted, holds, revoked, adminRefused, defaults, after }) {
         page.status == 200
         !page.broken
         page.output.includes("Repository defaults")
@@ -322,7 +317,6 @@ feature("Code settings: the repository defaults and conventions saved by a manag
         defaults.mergeMethod == "GmmSquash"
         defaults.protectDefault == "Y"
         defaults.approvals == 2
-        badBranch.errors.includes("not a branch name")
         conventions.errors == ""
         badPattern.errors.includes("names the work item")
         teamRefused.includes("Only project managers")

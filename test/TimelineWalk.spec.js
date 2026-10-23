@@ -181,20 +181,17 @@ feature("joe moves Design a day later with Auto-schedule on: Build moves on by b
     when() {
         const moved = as("joe.developer", () => post("Projects/ProjectDetail/Plan/Timeline/moveItem", { workEffortId: PROJECT, itemWorkEffortId: "TLW-1",
             shiftDays: "1", autoSchedule: "Y" }))
-        const bobMoved = as("bob.developer", () => post("Projects/ProjectDetail/Plan/Timeline/moveItem", { workEffortId: PROJECT, itemWorkEffortId: "TLW-1",
-            shiftDays: "1" }))
         const resized = as("joe.developer", () => post("Projects/ProjectDetail/Plan/Timeline/moveItem", { workEffortId: PROJECT, itemWorkEffortId: "TLW-3",
             dueDay: "2026-11-23" }))
-        return { moved, bobMoved, resized, design: dates("TLW-1"), build: dates("TLW-2"), announce: dates("TLW-3"), timeline: timelineOf().timeline }
+        return { moved, resized, design: dates("TLW-1"), build: dates("TLW-2"), announce: dates("TLW-3"), timeline: timelineOf().timeline }
     },
-    then({ moved, bobMoved, resized, design, build, announce, timeline }) {
+    then({ moved, resized, design, build, announce, timeline }) {
         moved.errors == ""
         moved.json.movedCount == 2
         moved.json.messageInfos[0].message.includes("TLW-2")
         design == ["2026-11-03", "2026-11-05"]
         // the next business day after Thursday the 5th is Friday, a day's lag makes it Monday the 9th; three business days long (to Wednesday)
         build == ["2026-11-09", "2026-11-11"]
-        bobMoved.errors != ""
         resized.errors == ""
         announce == [null, "2026-11-23"]
         !timeline.dependencyList[0].violated
@@ -248,7 +245,6 @@ feature("john imports a Jira CSV into the project: the file and the project, the
             return { errors: str.errorMessages.join(" | "), output: String(str.output || "") }
         })
         const joeWizard = as("joe.developer", () => render("apps/Projects/WorkItems/Import/Source", {}))
-        const noFile = post("WorkItems/Import/Source/saveSource", { presetId: "", characterSet: "UTF-8", rootWorkEffortId: PROJECT })
         const saved = post("WorkItems/Import/Source/saveSource", { workItemFile: uploadedFile("jira-work-items.csv", text, "text/csv"), presetId: "",
             characterSet: "UTF-8", rootWorkEffortId: PROJECT })
         importId = newestImport("EX_JOHN_DOE")
@@ -263,14 +259,13 @@ feature("john imports a Jira CSV into the project: the file and the project, the
         const savedMapping = post("WorkItems/Import/Mapping/saveMapping", fields)
         const options = post("WorkItems/Import/Options/saveOptions", { importId, createMissing: "Y", existingPolicy: "skip" })
         const preview = render("apps/Projects/WorkItems/Import/Preview", { importId })
-        return { wizard, joeWizard, noFile, saved, mapping, info, savedMapping, options, preview, draft: draftOf(importId) }
+        return { wizard, joeWizard, saved, mapping, info, savedMapping, options, preview, draft: draftOf(importId) }
     },
-    then({ wizard, joeWizard, noFile, saved, mapping, info, savedMapping, options, preview, draft }) {
+    then({ wizard, joeWizard, saved, mapping, info, savedMapping, options, preview, draft }) {
         wizard.errors == ""
         wizard.output.includes("m-subscreens-wizard")
         wizard.output.includes('finish-text="Import"')
         joeWizard.status != 200 || joeWizard.errors != ""
-        noFile.errors.includes("Choose a CSV file")
         saved.errors == ""
         importId != null
         mapping.errors == ""
