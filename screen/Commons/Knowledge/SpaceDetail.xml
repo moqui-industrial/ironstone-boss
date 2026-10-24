@@ -94,13 +94,18 @@ along with this software (see the LICENSE.md file). If not, see
     </actions>
     <widgets>
         <section name="SpaceFound" condition="space"><widgets>
-            <container style="row items-center q-mb-sm q-gutter-x-sm">
-                <container style="col">
-                    <link url="spaces" link-type="anchor" text="Spaces" style="text-caption"/>
-                    <label type="h5" text="${space.description || space.wikiSpaceId}" style="q-my-none"/>
-                    <label type="div" text="${space.wikiSpaceId} · ${space.storageText}" style="text-caption m-muted"/>
+            <container style="q-mb-xs"><link url="spaces" link-type="anchor" text="Spaces" style="text-caption"/></container>
+            <!-- the header card (style-guide §3.3): the space's name and storage, its link at their right -->
+            <container style="m-record-header">
+                <container style="row items-start q-col-gutter-x-md q-col-gutter-y-sm">
+                    <container style="col-12 col-md m-record-title">
+                        <label type="h5" text="${space.description || space.wikiSpaceId}"/>
+                        <label type="div" text="${space.wikiSpaceId} · ${space.storageText}" style="text-caption m-muted"/>
+                    </container>
+                    <container style="col-12 col-md-auto row items-center q-gutter-y-xs m-record-actions">
+                        <link url="openSpace" text="Open the space" icon="sym_o_menu_book" parameter-map="{wikiSpaceId:wikiSpaceId}"/>
+                    </container>
                 </container>
-                <link url="openSpace" text="Open the space" icon="sym_o_menu_book" parameter-map="{wikiSpaceId:wikiSpaceId}"/>
             </container>
 
             <container-row>

@@ -121,23 +121,33 @@ along with this software (see the LICENSE.md file). If not, see
             </box-body></container-box>
         </widgets></section>
         <section name="Found" condition="!notFound"><widgets>
-            <container style="row items-center q-gutter-sm q-px-sm q-pt-sm">
-                <label type="h5" text="${detail.subject || ec.l10n.localize('(no subject)')}" style="q-my-none col-12 col-sm"/>
-                <link url="${inboxUrl}" url-type="plain" text="Open in Inbox" icon="sym_o_inbox" condition="inboxUrl"/>
-                <link url="${replyUrl}" url-type="plain" text="Reply" icon="sym_o_reply" condition="replyUrl"/>
-                <link url="${emlUrl}" url-type="plain" text="Download .eml" icon="sym_o_download" target-window="_blank" condition="emlUrl"/>
-                <link url="${printUrl}" url-type="plain" text="Print" icon="sym_o_print" target-window="_blank"/>
-                <link url="resend" text="Resend" icon="sym_o_forward_to_inbox" btn-type="warning" condition="detail.canResend"
-                        confirmation="Send this message again to its recipients?" parameter-map="{emailMessageId:detail.emailMessageId}"/>
-                <container-dialog id="LinkRecordDialog" button-text="Link to a record" icon="sym_o_add_link" width="520">
-                    <form-single name="LinkRecordForm" transition="linkRecord">
-                        <field name="emailMessageId" from="detail.emailMessageId"><default-field><hidden/></default-field></field>
-                        <field name="communicationEventId" from="detail.communicationEventId"><default-field><hidden/></default-field></field>
-                        <field name="recordValue"><default-field title="Record by id or name">
-                            <drop-down><dynamic-options transition="searchRecords" server-search="true" min-length="2"/></drop-down></default-field></field>
-                        <field name="submitButton"><default-field title="Link"><submit/></default-field></field>
-                    </form-single>
-                </container-dialog>
+            <!-- the header card (style-guide §3.3): the subject, who sent it and when, and its status; the actions at their right -->
+            <container style="m-record-header m-message-header">
+                <container style="row items-start q-col-gutter-x-md q-col-gutter-y-sm">
+                    <container style="col-12 col-md m-record-title">
+                        <label type="h5" text="${detail.subject || ec.l10n.localize('(no subject)')}"/>
+                        <label type="div" text="${detail.fromText} · ${dateText}" style="text-caption m-muted"/>
+                        <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="m-tonal text-${statusColor} q-ml-none">${statusHtml}</q-chip>]]></text><text type="tui"><![CDATA[${JSON.stringify(Object.assign({t: "html", id: "MessageStatus"}, JSON.parse(sri.htmlText(statusHtml))))}]]></text>
+                            <text type="html,text"><![CDATA[${statusHtml}]]></text></render-mode>
+                    </container>
+                    <container style="col-12 col-md-auto row items-center q-gutter-y-xs m-record-actions m-message-actions">
+                        <link url="${inboxUrl}" url-type="plain" text="Open in Inbox" icon="sym_o_inbox" condition="inboxUrl"/>
+                        <link url="${replyUrl}" url-type="plain" text="Reply" icon="sym_o_reply" condition="replyUrl"/>
+                        <link url="${emlUrl}" url-type="plain" text="Download .eml" icon="sym_o_download" target-window="_blank" condition="emlUrl"/>
+                        <link url="${printUrl}" url-type="plain" text="Print" icon="sym_o_print" target-window="_blank"/>
+                        <link url="resend" text="Resend" icon="sym_o_forward_to_inbox" btn-type="warning" condition="detail.canResend"
+                                confirmation="Send this message again to its recipients?" parameter-map="{emailMessageId:detail.emailMessageId}"/>
+                        <container-dialog id="LinkRecordDialog" button-text="Link to a record" icon="sym_o_add_link" width="520">
+                            <form-single name="LinkRecordForm" transition="linkRecord">
+                                <field name="emailMessageId" from="detail.emailMessageId"><default-field><hidden/></default-field></field>
+                                <field name="communicationEventId" from="detail.communicationEventId"><default-field><hidden/></default-field></field>
+                                <field name="recordValue"><default-field title="Record by id or name">
+                                    <drop-down><dynamic-options transition="searchRecords" server-search="true" min-length="2"/></drop-down></default-field></field>
+                                <field name="submitButton"><default-field title="Link"><submit/></default-field></field>
+                            </form-single>
+                        </container-dialog>
+                    </container>
+                </container>
             </container>
 
             <container-box><box-header title="Message"/><box-body>
@@ -150,8 +160,6 @@ along with this software (see the LICENSE.md file). If not, see
                         <label type="p" style="q-mb-xs" text="${ec.l10n.localize('Date')}: ${dateText}"/>
                     </container>
                     <container style="col-12 col-md-4">
-                        <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="m-tonal text-${statusColor} q-ml-none">${statusHtml}</q-chip>]]></text><text type="tui"><![CDATA[${JSON.stringify(Object.assign({t: "html", id: "MessageStatus"}, JSON.parse(sri.htmlText(statusHtml))))}]]></text>
-                            <text type="html,text"><![CDATA[${statusHtml}]]></text></render-mode>
                         <label type="p" style="q-mb-xs text-caption" text="${ec.l10n.localize('Account')}: ${detail.accountText}" condition="detail.accountText"/>
                         <label type="p" style="q-mb-xs text-caption" text="${ec.l10n.localize('Folder')}: ${detail.folderText}" condition="detail.folderText"/>
                         <label type="p" style="q-mb-xs text-caption" text="${ec.l10n.localize('Type')}: ${detail.typeText}" condition="detail.typeText"/>

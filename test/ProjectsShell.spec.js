@@ -71,7 +71,7 @@ feature("shellData lists Projects with its quick-create kinds, palette actions a
     },
     then({ team, status, title, kinds, kindUrls, actions, actionUrls, types, keymaps }) {
         status == 200
-        title == "IronStone Projects"
+        title == "Projects"
         kinds == ["workItem", "time", "project"]
         kindUrls == ["/qapps/Projects/QuickCreate?kind=workItem", "/qapps/Projects/QuickCreate?kind=time", "/qapps/Projects/QuickProject"]
         actions == ["New work item", "New project", "Log time", "My time", "Team planner"]

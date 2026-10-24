@@ -55,7 +55,7 @@ along with this software (see the LICENSE.md file). If not, see
             httpsUrl = repoAccess.httpsUrl || ''
             sshUrl = repoAccess.sshUrl || ''
             const chip = (text, cls, icon) => '<q-chip dense square class="q-my-none q-ml-none q-mr-sm ' + cls + '"' + (icon ? ' icon="' + icon + '"' : '') + '>' + enc(text) + '</q-chip>'
-            chipsHtml = '<div class="row items-center q-mt-xs">' + chip(repo.kindLabel, 'm-tonal text-grey-8', repo.repositoryKind === 'remote' ? 'sym_o_sync' : repo.repositoryKind === 'db' ? 'sym_o_database' : 'sym_o_hard_drive')
+            chipsHtml = '<div class="row items-center">' + chip(repo.kindLabel, 'm-tonal text-grey-8', repo.repositoryKind === 'remote' ? 'sym_o_sync' : repo.repositoryKind === 'db' ? 'sym_o_database' : 'sym_o_hard_drive')
                 + chip(repo.branch, 'm-tonal text-grey-8 text-mono', 'sym_o_call_split') + (isArchived ? chip(L('Archived'), 'm-tonal text-warning', 'sym_o_archive') : '')
                 + projectList.map((project) => '<m-link href="/qapps/Projects/Projects/ProjectDetail?workEffortId=' + encodeURIComponent(project.workEffortId) + '">'
                     + chip(project.workEffortId + ' · ' + project.workEffortName, 'm-tonal text-primary', 'sym_o_assignment') + '</m-link>').join('') + '</div>'
@@ -80,28 +80,35 @@ along with this software (see the LICENSE.md file). If not, see
         <section name="RepositoryFound" condition="codeHosting &amp;&amp; recordFound"><widgets>
             <context record-entity="moqui.resource.GitRepository" record-id="${repositoryId}" title="${repositoryId}"/>
 
-            <container style="row items-start q-col-gutter-sm q-mb-sm">
-                <container style="col-12 col-md">
-                    <container style="row items-center no-wrap">
-                        <render-mode><text type="qvt"><![CDATA[<q-icon name="sym_o_folder_data" size="sm" class="q-mr-sm text-primary"></q-icon>]]></text>
-                            <text type="tui" template="false">[]</text></render-mode>
-                        <label text="${repositoryId}" type="h5" style="q-my-none text-mono"/>
+            <!-- the header card (style-guide §3.3): the name and description with the actions at their right, then the chips -->
+            <container style="m-record-header">
+                <container style="row items-start q-col-gutter-x-md q-col-gutter-y-sm">
+                    <container style="col-12 col-md m-record-title">
+                        <container style="row items-center no-wrap">
+                            <render-mode><text type="qvt"><![CDATA[<q-icon name="sym_o_folder_data" size="sm" class="q-mr-sm text-primary"></q-icon>]]></text>
+                                <text type="tui" template="false">[]</text></render-mode>
+                            <label text="${repositoryId}" type="h5" style="text-mono"/>
+                        </container>
+                        <label text="${repo.description}" type="div" style="m-muted" condition="repo.description"/>
                     </container>
-                    <label text="${repo.description}" type="div" style="m-muted" condition="repo.description"/>
-                    <render-mode><text type="qvt"><![CDATA[${chipsHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(chipsTui)}]]></text></render-mode>
+                    <container style="col-12 col-md-auto row items-center q-gutter-xs m-record-actions">
+                        <container-dialog id="RepositoryCloneDialog" button-text="Clone" icon="sym_o_download" width="600" title="Clone ${repositoryId}">
+                            <label text="${clientUser ? 'HTTPS, with your user name and password (read only)' : 'HTTPS, with your user name and an access token as the password'}" type="div" style="text-subtitle2"/>
+                            <label text="git clone ${httpsUrl}" type="div" style="text-mono q-mb-sm" condition="httpsUrl"/>
+                            <section name="CloneSsh" condition="sshUrl &amp;&amp; !clientUser"><widgets>
+                                <label text="SSH, with a key you added" type="div" style="text-subtitle2"/>
+                                <label text="git clone ${sshUrl}" type="div" style="text-mono q-mb-sm"/>
+                            </widgets></section>
+                            <link url="gitAccess" text="Set up an SSH key or an access token" link-type="anchor" icon="sym_o_key" condition="!clientUser"/>
+                        </container-dialog>
+                        <link url="compare" text="New merge request" icon="sym_o_merge" btn-type="primary" parameter-map="{repositoryId:repositoryId}"
+                                condition="canPush &amp;&amp; !isArchived &amp;&amp; !clientUser"/>
+                    </container>
                 </container>
-                <container style="col-12 col-md-auto row items-center q-gutter-xs">
-                    <container-dialog id="RepositoryCloneDialog" button-text="Clone" icon="sym_o_download" width="600" title="Clone ${repositoryId}">
-                        <label text="${clientUser ? 'HTTPS, with your user name and password (read only)' : 'HTTPS, with your user name and an access token as the password'}" type="div" style="text-subtitle2"/>
-                        <label text="git clone ${httpsUrl}" type="div" style="text-mono q-mb-sm" condition="httpsUrl"/>
-                        <section name="CloneSsh" condition="sshUrl &amp;&amp; !clientUser"><widgets>
-                            <label text="SSH, with a key you added" type="div" style="text-subtitle2"/>
-                            <label text="git clone ${sshUrl}" type="div" style="text-mono q-mb-sm"/>
-                        </widgets></section>
-                        <link url="gitAccess" text="Set up an SSH key or an access token" link-type="anchor" icon="sym_o_key" condition="!clientUser"/>
-                    </container-dialog>
-                    <link url="compare" text="New merge request" icon="sym_o_merge" btn-type="primary" parameter-map="{repositoryId:repositoryId}"
-                            condition="canPush &amp;&amp; !isArchived &amp;&amp; !clientUser"/>
+                <container style="row items-center q-col-gutter-x-md q-col-gutter-y-sm m-record-foot">
+                    <container style="col-12">
+                        <render-mode><text type="qvt"><![CDATA[${chipsHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(chipsTui)}]]></text></render-mode>
+                    </container>
                 </container>
             </container>
 

@@ -63,18 +63,21 @@ along with this software (see the LICENSE.md file). If not, see
             </box-body></container-box>
         </widgets></section>
         <section name="PersonFound" condition="personFound"><widgets>
-            <container style="row items-center q-col-gutter-sm q-mb-sm">
-                <container style="col-12 col-md row items-center no-wrap">
-                    <render-mode><text type="qvt"><![CDATA[${avatarHtml}]]></text><text type="tui" template="false">[]</text></render-mode>
-                    <container>
-                        <label text="${person.name}" type="h5" style="q-my-none"/>
-                        <label text="${captionText}" type="div" style="text-caption m-muted" condition="captionText"/>
+            <!-- the header card (style-guide §3.3): the person with the actions at the right -->
+            <container style="m-record-header">
+                <container style="row items-center q-col-gutter-x-md q-col-gutter-y-sm">
+                    <container style="col-12 col-md row items-center no-wrap m-record-title">
+                        <render-mode><text type="qvt"><![CDATA[${avatarHtml}]]></text><text type="tui" template="false">[]</text></render-mode>
+                        <container>
+                            <label text="${person.name}" type="h5"/>
+                            <label text="${captionText}" type="div" style="text-caption m-muted" condition="captionText"/>
+                        </container>
                     </container>
-                </container>
-                <container style="col-12 col-md-auto row items-center q-gutter-sm">
-                    <link url="planner" text="Team planner" icon="sym_o_group_work" link-type="anchor-button"/>
-                    <dynamic-dialog id="PersonNewAllocation" button-text="New allocation" icon="sym_o_add" transition="EditAllocation" width="600" title="New allocation for ${person.name}"
-                            parameter-map="{partyId:partyId}" condition="canRequest"/>
+                    <container style="col-12 col-md-auto row items-center q-gutter-sm m-record-actions">
+                        <link url="planner" text="Team planner" icon="sym_o_group_work" link-type="anchor-button"/>
+                        <dynamic-dialog id="PersonNewAllocation" button-text="New allocation" icon="sym_o_add" transition="EditAllocation" width="600" title="New allocation for ${person.name}"
+                                parameter-map="{partyId:partyId}" condition="canRequest"/>
+                    </container>
                 </container>
             </container>
             <subscreens-panel id="PersonTabs" type="tab"/>

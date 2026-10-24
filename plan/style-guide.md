@@ -273,7 +273,13 @@ A find and list screen over one record type; the entry to every detail.
 One record with its parts and actions. Most screens of most apps.
 
 ```
-┌ SO10023 · Acme Co.            [Created]─[Approved]─[Shipped]─[Completed]    [Approve] [Hold ▾] ⋮ │
+← Orders
+┌ SO10023                                          Created › Approved › Shipped › Completed │
+│ Sales order · Acme Co. · placed Oct 2                              [Approve] [Hold]       │
+│ ───────────────────────────────────────────────────────────────────────────────────────── │
+│ TOTAL       SHIP BY     OWNER                                  [Edit] [Send] [More ▾]     │
+│ 12,400.00   Oct 28      (AL) Ann Lee                                                      │
+└───────────────────────────────────────────────────────────────────────────────────────────┘
 ├ Overview │ Items │ Shipments │ Invoices │ Payments │ History ──────────────────────┬ Chatter ───┤
 │ ┌ Header (box) ──────────────┐ ┌ Customer (box) ────────────────┐                  │ ✎ message  │
 │ │ fields…                    │ │ fields…                        │                  │ ⏱ activity │
@@ -283,10 +289,17 @@ One record with its parts and actions. Most screens of most apps.
 └────────────────────────────────────────────────────────────────────────────────────┴────────────┘
 ```
 
-- Skeleton: a title row (`container` with the identifier as `label type="h5"`, a `status-bar`
-  (§8), the primary action as a `submit` or `link`, secondary actions in a `button-menu`);
-  `subscreens-panel type="tab"` for the parts, or `container-box`es on one page when there are
-  three or fewer; `chatter` (§8) as the right column from 1440 px and as the last tab below.
+- Skeleton: the way back (a back link, or the path) above a header card, `container style="m-record-header"`,
+  of two rows. The top row (`row items-start q-col-gutter-x-md q-col-gutter-y-sm`): the identity in
+  `col-12 col-md m-record-title` (the identifier or name as `label type="h5"` with no margin classes, the caption
+  under it) and the `status-bar` (§8) in `col-12 col-md-auto m-record-status`, which from 1024 px puts its stages
+  on one line and its buttons under them, at the right. The foot (`row items-center … m-record-foot`, under a faint
+  divider): the facts or chips in `col-12 col-md`, the actions in `col-12 col-md-auto row items-center
+  m-record-actions` (the primary action as a `submit` or `link`, secondary ones in a `button-menu`). A record
+  with no status puts its actions in the top row's right column and has a foot only for facts. Then
+  `subscreens-panel type="tab"` for the parts, or `container-box`es on one page when there are three or fewer;
+  `chatter` (§8) as the right column from 1440 px and as the last tab below. Nothing of the body sits loose on
+  the page: a description or a list goes in a box.
 - Rules: one primary action, chosen by status (Approve when created, Ship when approved); every
   status change confirms; the header card shows what every role needs (identifier, status, who,
   when, total); an `include-screen` or `section-include` for parts shared with other details
@@ -823,6 +836,11 @@ Flat and bordered: cards, boxes, lists and the drawer are `flat bordered` with Q
 separator color (`rgba(0,0,0,.12)` light, `rgba(255,255,255,.28)` dark). Shadows appear only on
 things that float: menus, dialogs, the live-call window, a dragged board card. A box's accent
 is a 3 px left border in its semantic color, never a colored header.
+
+The page is a shade darker than the surfaces on it, in both themes: in light the page is `#f4f5f7` and the
+header, drawer, cards, boxes, dialogs and an outlined field on the page are white; in dark the page is Quasar's
+`--q-dark-page` (`#121212`) and the surfaces `--q-dark` (`#1d1d1d`). A detail's header card (§3.3) is such a
+surface.
 
 ### 5.6 Icons
 

@@ -172,7 +172,7 @@ along with this software (see the LICENSE.md file). If not, see
         projectUrl = '/qapps/Projects/Projects/ProjectDetail/Roadmap?workEffortId=' + encodeURIComponent(milestone.rootWorkEffortId)
         const dates = [milestone.startText ? L('Start') + ' ' + milestone.startText : '', milestone.dueText ? L('Due') + ' ' + milestone.dueText : '',
             milestone.reachedText ? L('Reached') + ' ' + milestone.reachedText : ''].filter((part) => part)
-        factsHtml = '<div class="row items-center q-gutter-x-md q-mt-xs text-body2">'
+        factsHtml = '<div class="row items-center q-gutter-x-md text-body2">'
             + '<m-link href="' + enc(projectUrl) + '"><q-chip dense square clickable icon="sym_o_folder" class="q-ma-none m-tonal text-primary">'
             + enc(milestone.projectName + ' (' + milestone.rootWorkEffortId + ')') + '</q-chip></m-link>'
             + (dates.length ? '<span class="' + (milestone.overdue ? 'text-warning' : '') + '"><q-icon name="sym_o_date_range" size="xs" class="q-mr-xs m-muted"></q-icon>' + enc(dates.join(' · ')) + '</span>' : '')
@@ -234,90 +234,96 @@ along with this software (see the LICENSE.md file). If not, see
 
         <section name="MilestoneFound" condition="recordFound"><widgets>
             <context record-entity="mantle.work.effort.WorkEffort" record-id="${workEffortId}" title="${milestone.workEffortName}"/>
-            <container style="row items-start q-col-gutter-sm q-mb-sm m-plan-header">
-                <container style="col-12 col-md">
-                    <container style="row items-center no-wrap">
-                        <render-mode><text type="qvt"><![CDATA[<q-icon name="sym_o_flag" size="sm" class="q-mr-sm m-muted"></q-icon>]]></text><text type="tui" template="false">[]</text></render-mode>
-                        <label text="${milestone.workEffortName}" type="h5" style="q-my-none"/>
-                        <label text="${workEffortId}" type="span" style="text-caption text-mono m-muted q-ml-sm"/>
+            <!-- the header card (style-guide §3.3): the name with the status-bar at its right, then the facts with the actions at their right -->
+            <container style="m-record-header m-plan-header">
+                <container style="row items-start q-col-gutter-x-md q-col-gutter-y-sm">
+                    <container style="col-12 col-md m-record-title">
+                        <container style="row items-center no-wrap">
+                            <render-mode><text type="qvt"><![CDATA[<q-icon name="sym_o_flag" size="sm" class="q-mr-sm m-muted"></q-icon>]]></text><text type="tui" template="false">[]</text></render-mode>
+                            <label text="${milestone.workEffortName}" type="h5"/>
+                            <label text="${workEffortId}" type="span" style="text-caption text-mono m-muted q-ml-sm"/>
+                        </container>
                     </container>
-                    <status-bar id="MilestoneStatusBar" status-id="${milestone.statusId}" status-flow-id="Default" stages="${milestone.stageStatusIds}" read-only="true"/>
-                    <render-mode><text type="qvt"><![CDATA[${factsHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(factsTui)}]]></text></render-mode>
+                    <container style="col-12 col-md-auto m-record-status">
+                        <status-bar id="MilestoneStatusBar" status-id="${milestone.statusId}" status-flow-id="Default" stages="${milestone.stageStatusIds}" read-only="true"/>
+                    </container>
                 </container>
-                <container style="col-12 col-md-auto row items-center q-gutter-x-xs q-gutter-y-xs">
-                    <container-dialog id="MilestoneAskApproval" button-text="Ask for approval" icon="sym_o_approval" width="520" type="primary"
-                            title="Ask ${extras.approverName} to approve ${milestone.workEffortName}" condition="extras.canRequest">
-                        <form-single name="AskApproval" transition="decideGate" focus-field="comments">
-                            <field name="workEffortId"><default-field><hidden/></default-field></field>
-                            <field name="action" from="'request'"><default-field><hidden/></default-field></field>
-                            <field name="comments"><default-field title="Message (what to look at)"><text-area rows="3" cols="50"/></default-field></field>
-                            <field name="submitButton"><default-field title="Ask for approval"><submit/></default-field></field>
-                        </form-single>
-                        <label type="p" text="Approving it reaches the milestone." style="text-caption m-muted"/>
-                    </container-dialog>
-                    <section name="MilestoneDecide" condition="extras.canDecide"><widgets>
-                        <link url="decideGate" link-type="hidden-form" text="Approve" btn-type="primary" icon="sym_o_thumb_up"
-                                confirmation="Approve ${milestone.workEffortName}? It is reached. ${approveNote}" parameter-map="{workEffortId:workEffortId, action:'approve'}"/>
-                        <container-dialog id="MilestoneRefuse" button-text="Refuse" icon="sym_o_thumb_down" width="480" title="Refuse ${milestone.workEffortName}">
-                            <form-single name="RefuseApproval" transition="decideGate" focus-field="comments">
+                <container style="row items-center q-col-gutter-x-md q-col-gutter-y-sm m-record-foot">
+                    <container style="col-12 col-md">
+                        <render-mode><text type="qvt"><![CDATA[${factsHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(factsTui)}]]></text></render-mode>
+                    </container>
+                    <container style="col-12 col-md-auto row items-center q-gutter-y-xs m-record-actions">
+                        <container-dialog id="MilestoneAskApproval" button-text="Ask for approval" icon="sym_o_approval" width="520" type="primary"
+                                title="Ask ${extras.approverName} to approve ${milestone.workEffortName}" condition="extras.canRequest">
+                            <form-single name="AskApproval" transition="decideGate" focus-field="comments">
                                 <field name="workEffortId"><default-field><hidden/></default-field></field>
-                                <field name="action" from="'refuse'"><default-field><hidden/></default-field></field>
-                                <field name="comments"><default-field title="Why (required)"><text-area rows="3" cols="50"/></default-field></field>
-                                <field name="submitButton"><default-field title="Refuse"><submit/></default-field></field>
+                                <field name="action" from="'request'"><default-field><hidden/></default-field></field>
+                                <field name="comments"><default-field title="Message (what to look at)"><text-area rows="3" cols="50"/></default-field></field>
+                                <field name="submitButton"><default-field title="Ask for approval"><submit/></default-field></field>
                             </form-single>
-                            <label type="p" text="${approveNote}" style="text-caption m-muted" condition="approveNote"/>
+                            <label type="p" text="Approving it reaches the milestone." style="text-caption m-muted"/>
                         </container-dialog>
-                    </widgets></section>
-                    <section name="MilestonePrimaryMove" condition="primaryMove"><widgets>
-                        <link url="changeStatus" link-type="hidden-form" text="${primaryMove.label}" btn-type="primary" icon="sym_o_arrow_forward"
-                                confirmation="${primaryMove.label}: ${milestone.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:primaryMove.statusId}"/>
-                    </widgets></section>
-                    <container-dialog id="MilestoneEditDialog" button-text="Edit" icon="sym_o_edit" width="520" title="Edit ${milestone.workEffortName}" condition="canUpdate">
-                        <form-single name="MilestoneForm" transition="savePlanItem" focus-field="workEffortName">
-                            <field name="workEffortId"><default-field><hidden/></default-field></field>
-                            <field name="workEffortName" from="milestone.workEffortName"><default-field title="Name"><text-line size="40"/></default-field></field>
-                            <field name="startDay" from="milestone.startDay"><default-field title="Start (when it marks a phase)"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
-                            <field name="dueDay" from="milestone.dueDay"><default-field title="Due"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
-                            <field name="description" from="milestone.description"><default-field title="Description"><text-area rows="3" cols="60"/></default-field></field>
-                            <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
-                            <field-layout><field-ref name="workEffortName"/><field-row><field-ref name="startDay"/><field-ref name="dueDay"/></field-row>
-                                <field-ref name="description"/><field-ref name="submitButton"/></field-layout>
-                        </form-single>
-                    </container-dialog>
-                    <button-menu text="More" icon="more_horiz" condition="canUpdate">
-                        <link url="changeStatus" link-type="hidden-form-link" text="${beginLabel}" icon="sym_o_play_arrow" condition="moveIds.includes('WeInProgress')"
-                                confirmation="${beginLabel}: ${milestone.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:'WeInProgress'}"/>
-                        <link url="changeStatus" link-type="hidden-form-link" text="Hold" icon="sym_o_pause" condition="moveIds.includes('WeOnHold')"
-                                confirmation="Hold: ${milestone.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:'WeOnHold'}"/>
-                        <link url="changeStatus" link-type="hidden-form-link" text="Reach" icon="sym_o_flag_check" condition="moveIds.includes('WeComplete')"
-                                confirmation="Reach: ${milestone.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:'WeComplete'}"/>
-                        <link url="changeStatus" link-type="hidden-form-link" text="Close" icon="sym_o_archive" condition="moveIds.includes('WeClosed')"
-                                confirmation="Close: ${milestone.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:'WeClosed'}"/>
-                        <link url="changeStatus" link-type="hidden-form-link" text="Re-open" icon="sym_o_undo" condition="moveIds.includes('WeInPlanning')"
-                                confirmation="Re-open: ${milestone.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:'WeInPlanning'}"/>
-                        <link url="changeStatus" link-type="hidden-form-link" text="Cancel" icon="sym_o_cancel" btn-type="danger" condition="moveIds.includes('WeCancelled')"
-                                confirmation="Cancel: ${milestone.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:'WeCancelled'}"/>
-                        <container-dialog id="MilestoneMoveDialog" button-text="Move unfinished items" icon="sym_o_low_priority" width="480" title="Move the unfinished items of ${milestone.workEffortName}"
-                                condition="unfinishedCount">
-                            <label type="p" text="${unfinishedCount} work items are not done."/>
-                            <form-single name="MoveUnfinished" transition="moveUnfinished">
+                        <section name="MilestoneDecide" condition="extras.canDecide"><widgets>
+                            <link url="decideGate" link-type="hidden-form" text="Approve" btn-type="primary" icon="sym_o_thumb_up"
+                                    confirmation="Approve ${milestone.workEffortName}? It is reached. ${approveNote}" parameter-map="{workEffortId:workEffortId, action:'approve'}"/>
+                            <container-dialog id="MilestoneRefuse" button-text="Refuse" icon="sym_o_thumb_down" width="480" title="Refuse ${milestone.workEffortName}">
+                                <form-single name="RefuseApproval" transition="decideGate" focus-field="comments">
+                                    <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                    <field name="action" from="'refuse'"><default-field><hidden/></default-field></field>
+                                    <field name="comments"><default-field title="Why (required)"><text-area rows="3" cols="50"/></default-field></field>
+                                    <field name="submitButton"><default-field title="Refuse"><submit/></default-field></field>
+                                </form-single>
+                                <label type="p" text="${approveNote}" style="text-caption m-muted" condition="approveNote"/>
+                            </container-dialog>
+                        </widgets></section>
+                        <section name="MilestonePrimaryMove" condition="primaryMove"><widgets>
+                            <link url="changeStatus" link-type="hidden-form" text="${primaryMove.label}" btn-type="primary" icon="sym_o_arrow_forward"
+                                    confirmation="${primaryMove.label}: ${milestone.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:primaryMove.statusId}"/>
+                        </widgets></section>
+                        <container-dialog id="MilestoneEditDialog" button-text="Edit" icon="sym_o_edit" width="520" title="Edit ${milestone.workEffortName}" condition="canUpdate">
+                            <form-single name="MilestoneForm" transition="savePlanItem" focus-field="workEffortName">
                                 <field name="workEffortId"><default-field><hidden/></default-field></field>
-                                <field name="toWorkEffortId" from="milestone.otherOptions.length ? milestone.otherOptions[0].key : ''"><default-field title="To">
-                                    <radio><list-options list="moveOptions" key="${key}" text="${text}"/></radio></default-field></field>
-                                <field name="submitButton"><default-field title="Move"><submit/></default-field></field>
+                                <field name="workEffortName" from="milestone.workEffortName"><default-field title="Name"><text-line size="40"/></default-field></field>
+                                <field name="startDay" from="milestone.startDay"><default-field title="Start (when it marks a phase)"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                                <field name="dueDay" from="milestone.dueDay"><default-field title="Due"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                                <field name="description" from="milestone.description"><default-field title="Description"><text-area rows="3" cols="60"/></default-field></field>
+                                <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                                <field-layout><field-ref name="workEffortName"/><field-row><field-ref name="startDay"/><field-ref name="dueDay"/></field-row>
+                                    <field-ref name="description"/><field-ref name="submitButton"/></field-layout>
                             </form-single>
                         </container-dialog>
-                        <link url="decideGate" link-type="hidden-form-link" text="Withdraw the request" icon="sym_o_undo" condition="extras.canCancel"
-                                confirmation="Withdraw the approval request of ${milestone.workEffortName}?" parameter-map="{workEffortId:workEffortId, action:'cancel'}"/>
-                        <link url="invoiceMilestone" link-type="hidden-form-link" text="Invoice milestone" icon="sym_o_receipt_long" condition="extras.canInvoice"
-                                confirmation="Invoice the share of ${milestone.workEffortName} due? A new draft invoice to the client is made." parameter-map="{workEffortId:workEffortId}"/>
-                        <link url="/qapps/Projects/WorkItems" url-type="plain" text="In Work items" icon="sym_o_checklist" parameter-map="{rootWorkEffortId:milestone.rootWorkEffortId, milestoneId:workEffortId, list:'all'}"/>
-                    </button-menu>
+                        <button-menu text="More" icon="more_horiz" condition="canUpdate">
+                            <link url="changeStatus" link-type="hidden-form-link" text="${beginLabel}" icon="sym_o_play_arrow" condition="moveIds.includes('WeInProgress')"
+                                    confirmation="${beginLabel}: ${milestone.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:'WeInProgress'}"/>
+                            <link url="changeStatus" link-type="hidden-form-link" text="Hold" icon="sym_o_pause" condition="moveIds.includes('WeOnHold')"
+                                    confirmation="Hold: ${milestone.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:'WeOnHold'}"/>
+                            <link url="changeStatus" link-type="hidden-form-link" text="Reach" icon="sym_o_flag_check" condition="moveIds.includes('WeComplete')"
+                                    confirmation="Reach: ${milestone.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:'WeComplete'}"/>
+                            <link url="changeStatus" link-type="hidden-form-link" text="Close" icon="sym_o_archive" condition="moveIds.includes('WeClosed')"
+                                    confirmation="Close: ${milestone.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:'WeClosed'}"/>
+                            <link url="changeStatus" link-type="hidden-form-link" text="Re-open" icon="sym_o_undo" condition="moveIds.includes('WeInPlanning')"
+                                    confirmation="Re-open: ${milestone.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:'WeInPlanning'}"/>
+                            <link url="changeStatus" link-type="hidden-form-link" text="Cancel" icon="sym_o_cancel" btn-type="danger" condition="moveIds.includes('WeCancelled')"
+                                    confirmation="Cancel: ${milestone.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:'WeCancelled'}"/>
+                            <container-dialog id="MilestoneMoveDialog" button-text="Move unfinished items" icon="sym_o_low_priority" width="480" title="Move the unfinished items of ${milestone.workEffortName}"
+                                    condition="unfinishedCount">
+                                <label type="p" text="${unfinishedCount} work items are not done."/>
+                                <form-single name="MoveUnfinished" transition="moveUnfinished">
+                                    <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                    <field name="toWorkEffortId" from="milestone.otherOptions.length ? milestone.otherOptions[0].key : ''"><default-field title="To">
+                                        <radio><list-options list="moveOptions" key="${key}" text="${text}"/></radio></default-field></field>
+                                    <field name="submitButton"><default-field title="Move"><submit/></default-field></field>
+                                </form-single>
+                            </container-dialog>
+                            <link url="decideGate" link-type="hidden-form-link" text="Withdraw the request" icon="sym_o_undo" condition="extras.canCancel"
+                                    confirmation="Withdraw the approval request of ${milestone.workEffortName}?" parameter-map="{workEffortId:workEffortId, action:'cancel'}"/>
+                            <link url="invoiceMilestone" link-type="hidden-form-link" text="Invoice milestone" icon="sym_o_receipt_long" condition="extras.canInvoice"
+                                    confirmation="Invoice the share of ${milestone.workEffortName} due? A new draft invoice to the client is made." parameter-map="{workEffortId:workEffortId}"/>
+                            <link url="/qapps/Projects/WorkItems" url-type="plain" text="In Work items" icon="sym_o_checklist" parameter-map="{rootWorkEffortId:milestone.rootWorkEffortId, milestoneId:workEffortId, list:'all'}"/>
+                        </button-menu>
+                    </container>
                 </container>
             </container>
-            <section name="MilestoneDescription" condition="milestone.description"><widgets>
-                <markdown-view text="${milestone.description}"/>
-            </widgets></section>
 
             <dashboard min-width="150" style="q-mb-sm">
                 <number-card title="Items done" value="${doneValue}" icon="sym_o_task_alt" size="sm"/>
@@ -328,6 +334,11 @@ along with this software (see the LICENSE.md file). If not, see
 
             <container style="row q-col-gutter-sm">
                 <container style="col-12 col-lg-8">
+                    <container-box><box-header title="Description"/><box-body>
+                        <markdown-view text="${milestone.description}"/>
+                        <label text="No description" type="p" style="m-muted q-mb-none" condition="!milestone.description"/>
+                    </box-body></container-box>
+                    <!-- the state filters of the work items under them -->
                     <container style="row q-gutter-xs q-mb-sm m-task-chips">
                         <section-iterate name="MilestoneStateChip" list="stateChips" entry="chip"><widgets>
                             <section name="MilestoneStateChipOn" condition="chip.on"><widgets>
