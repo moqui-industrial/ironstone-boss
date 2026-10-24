@@ -150,7 +150,7 @@ feature("Connect shows the provider's app-password help and the servers; Next wi
         shown.output.includes("https://myaccount.google.com/apppasswords")
         shown.output.includes("App password")
         shown.output.includes("imap.gmail.com")
-        shown.output.includes("IronStone knows the server settings of your provider")
+        shown.output.includes("We know the server settings of your provider")
         saved.errors == ""
         account != null
         account.statusId == "EasPaused"

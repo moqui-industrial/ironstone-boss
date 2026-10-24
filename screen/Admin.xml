@@ -16,7 +16,7 @@ along with this software (see the LICENSE.md file). If not, see
     design-admin.md when that file is written. Not yet implemented: its BOSS_ADMIN grant in data/BossSetupData.xml
     is commented out, so no one may open it and it is in no menu. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="IronStone Admin" menu-image="sym_o_admin_panel_settings" menu-image-type="icon">
+        default-menu-title="Admin" menu-image="sym_o_admin_panel_settings" menu-image-type="icon">
 
     <always-actions>
         <set field="appRoot" value="Admin"/>

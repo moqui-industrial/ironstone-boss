@@ -48,7 +48,7 @@ function findScreenFiles(appList, matches) {
 const demoRecords = {
     // M2: Today, notifications, quick create, Home and the settings (the demo of service/ironstone/DemoServices.xml), on text
     // that does not depend on the time of day the data was loaded
-    "Commons/Home": { text: "Set up IronStone" },
+    "Commons/Home": { text: "Get started" },
     "Commons/Panel/Today": { text: "1 approval waiting" },
     "Commons/Panel/Notifications": { text: "Approve the shared calendar subscription: USD 120.00 a year" },
     "Commons/Notifications": { text: "Approve the shared calendar subscription: USD 120.00 a year" },
