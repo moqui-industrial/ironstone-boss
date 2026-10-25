@@ -40,7 +40,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <widgets>
         <render-mode>
-            <text type="qvue" location="component://ironstone-boss/screen/RequestIntake.qvue" template="false"/><text type="tui" location="component://ironstone-boss/screen/RequestIntake.tui.json" template="false"/>
+            <text type="qvue" location="component://mr-boss/screen/RequestIntake.qvue" template="false"/><text type="tui" location="component://mr-boss/screen/RequestIntake.tui.json" template="false"/>
             <text type="html,qvt"><![CDATA[<p>This request form opens in a browser with JavaScript.</p>]]></text>
         </render-mode>
     </widgets>

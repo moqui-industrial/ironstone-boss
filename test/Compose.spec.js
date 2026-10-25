@@ -6,9 +6,9 @@
 // shown in its Chatter; internal messages: new, to a mailbox, replies (reply all and to the sender only), Undo; the text
 // blocks; Discard. The sender is always the user: a fromPartyId in the request is not read, another user's identity or draft
 // is refused, and a file location the composer did not store is refused.
-// Run: ./moq test ironstone-boss --spec Compose
-const comms = "component://ironstone-boss/screen/Comms.xml"
-const commons = "component://ironstone-boss/screen/Commons.xml"
+// Run: ./moq test mr-boss --spec Compose
+const comms = "component://mr-boss/screen/Comms.xml"
+const commons = "component://mr-boss/screen/Commons.xml"
 const MAIL = "org.moqui.impl.EmailClientServices"
 const capture = ec.factory.getTool("MailCapture")
 let accountId, identityValue

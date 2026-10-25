@@ -3,7 +3,7 @@
 // data/BossSetupData.xml seeds on DEFAULT_QUASAR; shellSearch runs the Commons palette sources
 // (service/ironstone/PaletteServices.xml): a demo task under Records, john.doe's own party under People (the group the
 // client asks for with @John), and the id lookup of a demo request. Authorization stays on, as for a shell request.
-// Run: ./moq test ironstone-boss --spec Shell
+// Run: ./moq test mr-boss --spec Shell
 const webroot = "component://webroot/screen/webroot.xml"
 
 // a transition of the root screen as the shell fetches it: the status, the errors and the JSON

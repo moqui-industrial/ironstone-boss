@@ -9,9 +9,9 @@
 // a note; a link to a changed instance by its series and start opens the instance; the linked records as record cards, linked by
 // an id (lookup#ById) and taken off, a record the user may not see left out, and Joe Developer may not change them.
 // Joe Developer gets "not available" for john.doe's family birthday and may not change john.doe's events (IronStone R5, R28).
-// Run: ./moq test ironstone-boss --spec EventDetail
+// Run: ./moq test mr-boss --spec EventDetail
 const webroot = "component://webroot/screen/webroot.xml"
-const commons = "component://ironstone-boss/screen/Commons.xml"
+const commons = "component://mr-boss/screen/Commons.xml"
 let D
 const made = {}
 

@@ -6,10 +6,10 @@
 // request, the bulk unsubscribe; for anyone but a contact admin (Joe Developer) the screens say so and the transitions and
 // services refuse (one check, a write and a find shown); the contact record's tab shows the state to anyone who may see the contact and its changes only to a
 // contact admin. Authorization stays on, as for a browser request.
-// Run: ./moq test ironstone-boss --spec Consent
+// Run: ./moq test mr-boss --spec Consent
 const webroot = "component://webroot/screen/webroot.xml"
-const comms = "component://ironstone-boss/screen/Comms.xml"
-const commons = "component://ironstone-boss/screen/Commons.xml"
+const comms = "component://mr-boss/screen/Comms.xml"
+const commons = "component://mr-boss/screen/Commons.xml"
 const ALEX = "BOSS_DEMO_CON_ALEX", JORDAN = "BOSS_DEMO_CON_JORDAN", CASEY = "BOSS_DEMO_CON_CASEY", TAYLOR = "BOSS_DEMO_CON_TAYLOR", BOB = "ORG_ACME_BA"
 const LIST_NEWS = "BOSS_DEMO_LIST_NEWS", LIST_EVENTS = "BOSS_DEMO_LIST_EVENTS"
 

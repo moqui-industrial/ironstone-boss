@@ -3,7 +3,7 @@
 // Home, raises a request with a file, writes to the team in Chatter and answers the team's message, approves a milestone gate and the
 // project's estimate, and reads an invoice to Acme. Every write goes through ironstone.client.ClientServices; what it changes of the
 // demo data is put back in cleanupSpec (the gate of ACME-MS-1, the estimate milestone, the request and the messages).
-// Run: ./moq test ironstone-boss --spec ClientWalk
+// Run: ./moq test mr-boss --spec ClientWalk
 const webroot = "component://webroot/screen/webroot.xml"
 const SHELDON = "sheldon.acme"
 const made = { requestIds: [], eventIds: [] }

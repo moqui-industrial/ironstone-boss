@@ -7,7 +7,7 @@
 // week and work item of a project that shares them (WstShareHours, set on ACME here), on its shared items only, and is refused
 // internal users. A status update posted for the client is emailed to its contacts (sheldon) and to no other client.
 // The invoices, entries, timesheet, payments and setting are made in setupSpec with authorization off and removed after.
-// Run: ./moq test ironstone-boss --spec ClientBilling
+// Run: ./moq test mr-boss --spec ClientBilling
 const webroot = "component://webroot/screen/webroot.xml"
 const SHELDON = "sheldon.acme"
 const GOB = "gob.bluth"

@@ -5,9 +5,9 @@
 // draft, comment (add#RequestComment, shown in Chatter's timeline as a note), reassign when one is the assignee, add a task.
 // A request Joe Developer is not on is "not available" to him and his changes of it are refused (IronStone R5, R28). The
 // changes are made on the spec's own requests (BOSS_TEST_* names), so the demo stays for the specs after it.
-// Run: ./moq test ironstone-boss --spec Requests
+// Run: ./moq test mr-boss --spec Requests
 const webroot = "component://webroot/screen/webroot.xml"
-const commons = "component://ironstone-boss/screen/Commons.xml"
+const commons = "component://mr-boss/screen/Commons.xml"
 const made = {}
 
 function render(path, parameters) {

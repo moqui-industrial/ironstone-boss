@@ -8,9 +8,9 @@
 // by name, email and phone), the record by id, its transitions, the palette's People source, Compare or Duplicates; john.doe's
 // personal contacts never show to Joe Developer. The demo is data/BossDemoData.xml (M4). Authorization stays on, as for a
 // browser request.
-// Run: ./moq test ironstone-boss --spec Contacts
+// Run: ./moq test mr-boss --spec Contacts
 const webroot = "component://webroot/screen/webroot.xml"
-const commons = "component://ironstone-boss/screen/Commons.xml"
+const commons = "component://mr-boss/screen/Commons.xml"
 const MARY = "BOSS_DEMO_PC_MARY", ROBIN = "BOSS_DEMO_PC_ROBIN", TOM = "BOSS_DEMO_PC_TOM", PIPES = "BOSS_DEMO_PC_PIPES", SAM = "BOSS_DEMO_PC_SAM"
 // the demo's duplicates: Pat and Patricia Quinn (the same email and phone), Quinn Consulting and Quinn Consulting LLC
 const PAT = "BOSS_DEMO_DUP_A", PATRICIA = "BOSS_DEMO_DUP_B", QUINN_ORG = "BOSS_DEMO_DUP_ORG_A", QUINN_LLC = "BOSS_DEMO_DUP_ORG_B"

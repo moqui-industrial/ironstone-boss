@@ -5,7 +5,7 @@
 // refusals (nothing selected, a project with no client), a draft's header edited (the terms move the due date), a line removed and the
 // invoice cancelled (each frees its time), a rate edited and ended, the billing settings saved; and joe.developer, who does not manage
 // money, refused an invoice (the one check of every money service, BillingServices check#Money).
-// Run: ./moq test ironstone-boss --spec Billing
+// Run: ./moq test mr-boss --spec Billing
 const webroot = "component://webroot/screen/webroot.xml"
 const PROJECT = "BIL"
 const at = (day, hour) => Number(String(ec.l10n.parseTimestamp(`2027-07-${String(day).padStart(2, "0")} ${String(hour).padStart(2, "0")}:00:00.000`, "yyyy-MM-dd HH:mm:ss.SSS")))

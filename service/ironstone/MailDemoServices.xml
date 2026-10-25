@@ -38,7 +38,7 @@ along with this software (see the LICENSE.md file). If not, see
             emailMessageIdList = []
             communicationEventIdList = []
             if (ec.entity.find('mantle.party.Party').condition('partyId', 'EX_JOHN_DOE').disableAuthz().one() == null) {
-                ec.logger.warn('The mail demo needs the party EX_JOHN_DOE (mantle-usl demo data); nothing loaded')
+                ec.logger.warn('The mail demo needs the party EX_JOHN_DOE (mr-mantle demo data); nothing loaded')
                 return
             }
             const toMillis = (value) => value == null || value === '' ? null : (typeof value === 'number' ? value : (value instanceof Date ? value.getTime() : Number(String(value))))

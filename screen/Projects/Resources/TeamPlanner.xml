@@ -94,7 +94,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
 
     <widgets>
-        <render-mode><text type="qvue" location="component://ironstone-boss/screen/Projects/Resources/TeamPlanner.qvue" template="false"/>
+        <render-mode><text type="qvue" location="component://mr-boss/screen/Projects/Resources/TeamPlanner.qvue" template="false"/>
             <!-- the terminal: TeamPlannerTui, the plain screen beside this one, on the same find -->
             <text type="tui"><![CDATA[${JSON.stringify([{t: "dynamicContainer", id: "TeamPlannerTui",
                 url: sri.buildUrl("//Projects/Resources/TeamPlannerTui").addParameters({fromDate: fromDate || null, weeks: weeks || null,

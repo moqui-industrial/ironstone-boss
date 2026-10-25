@@ -48,7 +48,7 @@ named earlier in the same cell or row.
 | **Nextcloud** | `3p_other/nextcloud` | `<app>/src/…` (Collectives: `collectives/src/`) |
 | **Redmine** | `3p_other/redmine` | `app/{views,controllers,models}/…` |
 | **Moqui Sales**, **Moqui WorkManagement** | `3p_moqui/{Sales,WorkManagement}` | `screen/…` (XML screens with paired QVue components) |
-| **Moqui baseline** | `mr-moqui-base/runtime` | `component/MrSimpleScreens/screen/SimpleScreens/…`, `component/MrSimpleScreens/screen/MyAccount/…`, `component/MrMarbleERP/screen/…`, `component/mr-mantle-udm/{entity,data}/…`, `component/mr-mantle-usl/service/mantle/…`, `component/mr-mantle-usl/entity/…`, `base-component/framework/{entity,service}/…`, `component/ironstone-boss/screen/…` |
+| **Moqui baseline** | `mr-moqui-base/runtime` | `component/mr-marble/screen/SimpleScreens/…`, `component/mr-marble/screen/MyAccount/…`, `component/mr-marble/screen/…`, `component/mr-mantle/{entity,data}/…`, `component/mr-mantle/service/mantle/…`, `component/mr-mantle/entity/…`, `base-component/framework/{entity,service}/…`, `component/mr-boss/screen/…` |
 
 Not used here: Signal ships nothing relevant. Zimbra's admin `helpdesk/` folder
 (`zm-admin-console/WebRoot/js/zimbraAdmin/helpdesk/`) is the admin console's help view,
@@ -910,22 +910,22 @@ the action set.
 
 ---
 
-## 12. Current Moqui baseline (MrSimpleScreens / MarbleERP / Mantle)
+## 12. Current Moqui baseline (mr-marble / MarbleERP / Mantle)
 
 The baseline has the records Customer Service needs (`Request`, `ReturnHeader`,
 `CommunicationEvent`, wiki pages, available-to-promise services) and generic screens for
 each, but no service app: no queue per team, no SLA, no case conversation beyond nested
 comments, and no link between a case and an order or return. MarbleERP
-(`component/MrMarbleERP/screen/marble.xml`) mounts the SimpleScreens `Request`, `Return`,
+(`component/mr-marble/screen/marble.xml`) mounts the SimpleScreens `Request`, `Return`,
 `Customer`, `Order`, `Party`, `Survey` and `Wiki` trees; its flow map
-(`component/MrMarbleERP/screen/marble/dashboard.xml`) shows customer request counts
+(`component/mr-marble/screen/marble/dashboard.xml`) shows customer request counts
 (Submitted, In Progress) and links Sales Returns & RMA, Customer Return Shipments and
 Customer Credit Memos. Moqui Sales (`3p_moqui/Sales`) adds `ViewAccount` and an alpha
 `ViewOrder` (§5–§6).
 
 ### Screens
 
-Paths are under `component/MrSimpleScreens/screen/SimpleScreens/` unless they start with
+Paths are under `component/mr-marble/screen/SimpleScreens/` unless they start with
 `component/`.
 
 | Screen/page | What it is | Key files |
@@ -933,7 +933,7 @@ Paths are under `component/MrSimpleScreens/screen/SimpleScreens/` unless they st
 | Find Request | Saved finds and selectable columns; filters party + role, priority, ID, name, store, project, facility, type, status, resolution, request and due dates, customer, assignee; defaults to open statuses (Draft, Submitted, Reviewed, In Progress). **New Request** dialog: customer, store, project, facility, assignee (defaults to current user), priority 1–9, due date, type (default Support), initial status (default Submitted), name, description | `Request/FindRequest.xml` (`mantle.request.RequestAndParty`) |
 | Edit Request | Header form (ID, filed by, customer, store, project, facility, assignee, due date, type, resolution, name) and status change; nested comments (`RequestCommEventDetail`); parties with role and notify flag; notes; content attachments; linked task list | `Request/EditRequest.xml`, `Request/EditRequest/{RequestCommentNested,RequestCommentReply,RequestCommentUpdate}.xml` |
 | Request tabs | Items (request items, create purchase order from items), Tasks (link or create tasks), Assignments (parties and roles), Wiki Pages (link pages through `WikiPageRequest`) | `Request/{EditRequestItems,EditTasks,EditUsers,EditWikiPages}.xml` |
-| My Requests | The user's own open requests, New Request dialog (name, type, store, project, description), detail with comments; IronStone already has a copy under Base | `component/MrSimpleScreens/screen/MyAccount/User/Request/{MyRequests,EditRequest}.xml`, `component/ironstone-boss/screen/Base/User/Request/` |
+| My Requests | The user's own open requests, New Request dialog (name, type, store, project, description), detail with comments; IronStone already has a copy under Base | `component/mr-marble/screen/MyAccount/User/Request/{MyRequests,EditRequest}.xml`, `component/mr-boss/screen/Base/User/Request/` |
 | Find Return | Customer and supplier returns; **Create Customer Return** / **Create Supplier Return** dialogs | `Return/FindReturn.xml` |
 | Edit Return | Header (customer, vendor, warehouse, shipping address and phone, shipment method, credit account), **Set Requested**, **Approve**, **Cancel**, audit log | `Return/EditReturn.xml` |
 | Return items | Item, reason, response (Credit / Refund / Replace / Manual), immediate flag, return and received quantities, return price, response amount, inventory status, replacement product and order, credit memo invoice, refund payment; **Create Return Shipment**, **Receive without Shipment**, **Process Item Responses** | `Return/EditReturnItems.xml` |
@@ -951,24 +951,24 @@ Paths are under `component/MrSimpleScreens/screen/SimpleScreens/` unless they st
 
 | Entity / enum | What it gives Customer Service | Key files |
 | --- | --- | --- |
-| `mantle.request.Request` | Type, category, status (audit-logged), name, description, priority, request date, one due date (`responseRequiredDate`), resolution, store, **`salesChannelEnumId`** (Web, Phone, E-Mail, Fax, Postal Mail, … usable as intake channel), `emailContactMechId` (where to send results), facility, root work effort, filed-by party, visit | `component/mr-mantle-udm/entity/RequestEntities.xml` |
+| `mantle.request.Request` | Type, category, status (audit-logged), name, description, priority, request date, one due date (`responseRequiredDate`), resolution, store, **`salesChannelEnumId`** (Web, Phone, E-Mail, Fax, Postal Mail, … usable as intake channel), `emailContactMechId` (where to send results), facility, root work effort, filed-by party, visit | `component/mr-mantle/entity/RequestEntities.xml` |
 | Request types | `RqtSupport`, `RqtInformation`, `RqtBugFix`, `RqtNewFeature`, `RqtProposal`, `RqtQuote`, `RqtInventory`, `RqtPurchase`, `RqtContact` | same |
 | Request status and resolution | Draft → Submitted → Reviewed → In Progress → Completed, Cancelled; Re-open from Completed. Resolutions Fixed, Can't Reproduce, Won't Fix, Duplicate, Rejected, Insufficient Information, Completed, Unresolved. No waiting-on-customer or on-hold status, no status category | same |
 | `RequestCategory` | Category tree (`parentCategoryId`) with **`responsiblePartyId`** (person or group): the nearest thing to a team or queue | same |
 | `RequestParty` | Party + role over time with `receiveNotifications`; role group `RgpRequest`: Assignee, Manager, Reporter, Watcher, Customer, CustomerBillTo | same |
-| `RequestCommEvent`, `RequestEmailMessage` | Case conversation as `CommunicationEvent` (types Email, Comment, Phone, Message, WebSite, FaceToFace, Letter, Fax, AutoEmail; purposes include `CpCustomerService`, `CpCustomerSupport`; threads via `parentCommEventId` / `rootCommEventId`) and raw `EmailMessage` with party and status | same, `component/mr-mantle-udm/entity/PartyEntities.xml` |
-| `RequestNote`, `RequestContent` | Internal notes; attachments typed Internal, User Defined, Documentation, Story, Image | `component/mr-mantle-udm/entity/RequestEntities.xml` |
+| `RequestCommEvent`, `RequestEmailMessage` | Case conversation as `CommunicationEvent` (types Email, Comment, Phone, Message, WebSite, FaceToFace, Letter, Fax, AutoEmail; purposes include `CpCustomerService`, `CpCustomerSupport`; threads via `parentCommEventId` / `rootCommEventId`) and raw `EmailMessage` with party and status | same, `component/mr-mantle/entity/PartyEntities.xml` |
+| `RequestNote`, `RequestContent` | Internal notes; attachments typed Internal, User Defined, Documentation, Story, Image | `component/mr-mantle/entity/RequestEntities.xml` |
 | `RequestItem`, `RequestItemOrder` | Product and quantity lines; a request item can point at an order item (used for purchase requests) | same |
 | `RequestWorkEffort`, `WikiPageRequest` | Follow-up tasks; article links | same |
-| `mantle.order.return.ReturnHeader` | Customer, vendor, status (Created, Requested, Approved, Shipped, Received, Completed, Manual Response Required, Cancelled; audit-logged), refund payment method, single-refund flag, financial account, entry date, postal and telecom contact, facility, ship method and carrier (for labels), `displayId` / `externalId` / `originId`, `supplierRmaId` | `component/mr-mantle-udm/entity/OrderEntities.xml` |
+| `mantle.order.return.ReturnHeader` | Customer, vendor, status (Created, Requested, Approved, Shipped, Received, Completed, Manual Response Required, Cancelled; audit-logged), refund payment method, single-refund flag, financial account, entry date, postal and telecom contact, facility, ship method and carrier (for labels), `displayId` / `externalId` / `originId`, `supplierRmaId` | `component/mr-mantle/entity/OrderEntities.xml` |
 | `ReturnItem` | Parent item, reason (13 seeded `Rrsn*` reasons, e.g. Damaged in Shipping, Defective, Wrong Item Shipped), response (`RrspCredit`, `RrspRefund`, `RrspReplace`, `RrspManual`), `responseImmediate`, item type, product and replacement product, order item, status, `inventoryStatusId` of received stock, `returnQuantity` vs `receivedQuantity`, return price, response amount and date, replacement order, financial-account transaction, refund payment; links to `AssetIssuance`, `AssetReceipt`, `ShipmentItemSource` | same |
 | `ReturnItemBilling`, `ReturnContactMech` | Credit-memo invoice item per return item with quantity, amount and receipt; return contact mechanisms | same |
-| `ProductStore` return settings | Return postal address for labels (`returnPostalContactMechId`), store setting `PsstGetReturnLabels`, store email types `PsetReturnAccepted`, `PsetReturnCompleted`, `PsetReturnCancelled`; no return window or self-service switch | `component/mr-mantle-udm/entity/ProductStoreEntities.xml` |
+| `ProductStore` return settings | Return postal address for labels (`returnPostalContactMechId`), store setting `PsstGetReturnLabels`, store email types `PsetReturnAccepted`, `PsetReturnCompleted`, `PsetReturnCancelled`; no return window or self-service switch | `component/mr-mantle/entity/ProductStoreEntities.xml` |
 | Order status `OrderBeingChanged` | Orders can be put into Being Changed for edits and placed again | same |
-| `AssetSummaryView`, `ProductFacility` | On hand / available by product and facility | `component/mr-mantle-usl/entity/ProductAssetViewEntities.xml`, `component/mr-mantle-udm/entity/FacilityEntities.xml` |
-| `moqui.resource.wiki.WikiPage`; data documents `MantleWikiPage`, `MantleRequest` | KB pages and requests indexed for full-text search | `base-component/framework/entity/ResourceEntities.xml`, `component/mr-mantle-udm/data/{MantleDocumentData,MantleDocumentWorkData}.xml` |
+| `AssetSummaryView`, `ProductFacility` | On hand / available by product and facility | `component/mr-mantle/entity/ProductAssetViewEntities.xml`, `component/mr-mantle/entity/FacilityEntities.xml` |
+| `moqui.resource.wiki.WikiPage`; data documents `MantleWikiPage`, `MantleRequest` | KB pages and requests indexed for full-text search | `base-component/framework/entity/ResourceEntities.xml`, `component/mr-mantle/data/{MantleDocumentData,MantleDocumentWorkData}.xml` |
 | `moqui.screen.form.DbForm`, `FormResponse` | Survey forms and responses; a response records only `userId` and date, no link to a case | `base-component/framework/entity/ScreenEntities.xml` |
-| Holidays | `WorkEffort` events with purpose `WepHoliday` in categories `HolidayUsaFed`, `HolidayUsaBank`; no working-hours entity | `component/mr-mantle-udm/entity/WorkEffortEntities.xml`, `component/mr-mantle-udm/data/HolidayUsaData.xml` |
+| Holidays | `WorkEffort` events with purpose `WepHoliday` in categories `HolidayUsaFed`, `HolidayUsaBank`; no working-hours entity | `component/mr-mantle/entity/WorkEffortEntities.xml`, `component/mr-mantle/data/HolidayUsaData.xml` |
 
 **Missing for Customer Service:** SLA policy and targets; first-response and resolution
 due dates kept separately (only one `responseRequiredDate`); first-responded and resolved
@@ -983,16 +983,16 @@ return side: authorization expiration, assignee, notes, restock fee, disposition
 
 | Service | Purpose | Key files |
 | --- | --- | --- |
-| `create#Request` (defaults status `ReqDraft`, priority 5, type `RqtSupport`, resolution `RrUnresolved`, filed by current user; takes `assignToPartyId`, `customerPartyId`), `update#Request`, `replace#RequestParty` | Case create, update, reassign | `component/mr-mantle-usl/service/mantle/request/RequestServices.xml` |
+| `create#Request` (defaults status `ReqDraft`, priority 5, type `RqtSupport`, resolution `RrUnresolved`, filed by current user; takes `assignToPartyId`, `customerPartyId`), `update#Request`, `replace#RequestParty` | Case create, update, reassign | `component/mr-mantle/service/mantle/request/RequestServices.xml` |
 | `create#ContactRequest`, `create#ContactRequestReCaptcha` | Public contact-us intake | same |
 | `add#RequestComment`, `update#RequestComment`, `delete#RequestComment` | Comment as a `CommunicationEvent` (type Comment) joined by `RequestCommEvent` | same |
 | `get#RequestContentLocation`, `create#RequestContent`, `update#RequestContent`, `save#RequestContentFile` | Attachments | same |
-| `create#Return`, `create#ReturnFromOrder`, `find#OrderOpenReturns`, `find#ReturnableOrderItems`, `calculate#OrderItemReturnable`, `add#OrderItemToReturn` | Create returns and cap them by returnable quantity | `component/mr-mantle-usl/service/mantle/order/ReturnServices.xml` |
+| `create#Return`, `create#ReturnFromOrder`, `find#OrderOpenReturns`, `find#ReturnableOrderItems`, `calculate#OrderItemReturnable`, `add#OrderItemToReturn` | Create returns and cap them by returnable quantity | `component/mr-mantle/service/mantle/order/ReturnServices.xml` |
 | `request#Return`, `approve#Return`, `cancel#Return`, `cancel#ReturnItem`, `update#ReturnItem`, `delete#ReturnItem`, `update#ReturnStatus`, `checkUpdate#ReturnHeaderStatus` | Authorization flow | same |
 | `create#ReturnShipment`, `add#ReturnToShipment`, `receive#ReturnShipmentItems`, `receive#ReturnWithoutShipment`, `receive#ReturnItem`, `complete#ReturnItem`, `process#ReturnItemResponses` | Receipt and response (credit, refund, replacement); also used by the Warehouse and Accounting versions of the return screens | same |
-| `get#AvailableInventory`, `get#AvailableForOrder`, `get#AvailableInventoryMulti` (available to promise by product, facility or store); `check#AvailableInventory` on order items | Availability lookup | `component/mr-mantle-usl/service/mantle/product/AssetServices.xml`, `component/mr-mantle-usl/service/mantle/order/OrderServices.xml` |
-| `get#InventoryProjectedInfo` | Projected inventory from asset, order item and production documents in the search index; no screen uses it yet | `component/mr-mantle-usl/service/mantle/product/InventoryReportServices.xml` |
-| `find#PartyCommunicationEvents`, `create#Message`, `reply#CommunicationEvent` | Party message history and replies | `component/mr-mantle-usl/service/mantle/party/CommunicationServices.xml` |
+| `get#AvailableInventory`, `get#AvailableForOrder`, `get#AvailableInventoryMulti` (available to promise by product, facility or store); `check#AvailableInventory` on order items | Availability lookup | `component/mr-mantle/service/mantle/product/AssetServices.xml`, `component/mr-mantle/service/mantle/order/OrderServices.xml` |
+| `get#InventoryProjectedInfo` | Projected inventory from asset, order item and production documents in the search index; no screen uses it yet | `component/mr-mantle/service/mantle/product/InventoryReportServices.xml` |
+| `find#PartyCommunicationEvents`, `create#Message`, `reply#CommunicationEvent` | Party message history and replies | `component/mr-mantle/service/mantle/party/CommunicationServices.xml` |
 | `org.moqui.impl.WikiServices` (`get#UserWikiSpaces`, `get#UserSpaceWikiPageSimpleList`, `get#PublishedWikiPageText`, …) | Article lookup for case links | `base-component/framework/service/org/moqui/impl/WikiServices.xml` |
 
 No service creates or appends a case from inbound email or chat; that is the Comms

@@ -27,8 +27,8 @@ along with this software (see the LICENSE.md file). If not, see
     <subscreens default-item="Home" always-use-full-path="true">
         <!-- the record panels the chatter and record-files elements load under this app root, hidden from the menu
             (the theme values STRT_CHATTER_SCREEN and STRT_RECORD_FILES_SCREEN; impl-drawers-commons.md R5) -->
-        <subscreens-item name="Chatter" location="component://ironstone-boss/screen/Shared/Chatter.xml" menu-include="false"/>
-        <subscreens-item name="RecordFiles" location="component://ironstone-boss/screen/Shared/RecordFiles.xml" menu-include="false"/>
+        <subscreens-item name="Chatter" location="component://mr-boss/screen/Shared/Chatter.xml" menu-include="false"/>
+        <subscreens-item name="RecordFiles" location="component://mr-boss/screen/Shared/RecordFiles.xml" menu-include="false"/>
     </subscreens>
 
     <widgets><subscreens-panel id="insights-panel" type="popup"/></widgets>

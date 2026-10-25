@@ -5,8 +5,8 @@
 // linked request; delete; Move to a space (database files keep the rows, a git space gets the history replayed); QuickCreate's
 // note kind lands here; and Commons Home's recent pages. Joe Developer and Bob Developer may not read, change or find another
 // user's notes (the notes space's restrictView and restrictUpdate). Authorization stays on.
-// Run: ./moq test ironstone-boss --spec Notes
-const commons = "component://ironstone-boss/screen/Commons.xml"
+// Run: ./moq test mr-boss --spec Notes
+const commons = "component://mr-boss/screen/Commons.xml"
 const RUN = Date.now().toString(36).slice(-3).toUpperCase()
 const made = {}
 

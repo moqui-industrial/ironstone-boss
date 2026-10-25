@@ -50,7 +50,7 @@ earlier in the same cell.
 | **metasfresh** | `3p_other/metasfresh` | `backend/de.metas.<module>/…` (windows defined in SQL migrations), `frontend/src/…` |
 | **Ever Gauzy** | `3p_other/ever-co/ever-gauzy` | `packages/plugins/<plugin>/…` |
 | **Moqui components** (coarchy, resistmanagement, ridgecrest, Moqui Sales) | `3p_moqui/<component>` | `screen/…`, `service/…`, `entity/…` |
-| **Moqui baseline** | `mr-moqui-base/runtime` | `component/MrSimpleScreens/screen/SimpleScreens/…`, `component/mr-mantle-udm/entity/…`, `component/mr-mantle-usl/service/mantle/…`, `component/mr-mantle-usl/data/…`, `base-component/framework/{entity,service}/…`, `base-component/tools/screen/…` |
+| **Moqui baseline** | `mr-moqui-base/runtime` | `component/mr-marble/screen/SimpleScreens/…`, `component/mr-mantle/entity/…`, `component/mr-mantle/service/mantle/…`, `component/mr-mantle/data/…`, `base-component/framework/{entity,service}/…`, `base-component/tools/screen/…` |
 
 **Not used here.** Checked and found no marketing, campaign, newsletter, promotion or
 survey screens: Zimbra, Carbon (`apps/erp/app/modules/` has no marketing module),
@@ -907,9 +907,9 @@ record that Marketing includes for its audience; Comms is a suite used from ever
 
 ---
 
-## 12. Current Moqui baseline (MrSimpleScreens / MarbleERP / Mantle)
+## 12. Current Moqui baseline (mr-marble / MarbleERP / Mantle)
 
-There is no Marketing app or menu. MarbleERP (`component/MrMarbleERP/screen/marble.xml`)
+There is no Marketing app or menu. MarbleERP (`component/mr-marble/screen/marble.xml`)
 mounts the SimpleScreens `ProductStore`, `Survey` and `Wiki` trees, which hold the three
 marketing-adjacent pieces that exist today: store promotions and promo codes, the
 `DbForm` survey builder, and wiki blog posts. Mantle defines a complete marketing data
@@ -924,51 +924,51 @@ product identifications and category identifications.
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Find Promotion | New promotion (store, ID, item description, promotion service, from date) and list (store, sequence, description, service, from/thru, delete) | `component/MrSimpleScreens/screen/SimpleScreens/ProductStore/Promotion/FindPromotion.xml` |
-| Edit Promotion | Store, promotion service (a `ServiceRegister` of type Product Store Promotion), item description, sequence, from/thru, require code, use limits per order / customer / promotion, free ground shipping; parameter form; included/excluded products; order items that used the promotion | `component/MrSimpleScreens/screen/SimpleScreens/ProductStore/Promotion/EditPromotion.xml` |
-| Promo codes | Find/new code (store, promotion, code, from date) with limits; edit from/thru, use limit per code and per customer, user entered, require party; parties allowed to use the code | `component/MrSimpleScreens/screen/SimpleScreens/ProductStore/Promotion/PromoCode/FindPromoCode.xml`, `EditPromoCode.xml` |
-| Order promo codes | Add promo code, add party promo code, promo code list on the order | `component/MrSimpleScreens/screen/SimpleScreens/Order/OrderDetail.xml` (`AddPromoCode`, `AddPartyPromoCode`, `OrderPromoCodeList`) |
-| Store emails | Email template per store and email type with from/thru, header image, detail link, web order BCC | `component/MrSimpleScreens/screen/SimpleScreens/ProductStore/FindProductStoreEmails.xml` |
-| Find Survey | New survey (purpose Survey/Other, description, comments) and list of `DbForm` records | `component/MrSimpleScreens/screen/SimpleScreens/Survey/FindSurvey.xml` |
-| Edit Survey | Description, comments; user groups allowed to use the form | `component/MrSimpleScreens/screen/SimpleScreens/Survey/EditSurvey.xml` |
-| Fields | Add field (title, field name, field type, sequence); edit with a display condition; options per field; survey preview | `component/MrSimpleScreens/screen/SimpleScreens/Survey/Fields.xml` |
-| Responses, details, stats | Response list (form, user, date), one response's answers, total responses and counts per text field and per option | `component/MrSimpleScreens/screen/SimpleScreens/Survey/Responses.xml`, `ResponseDetails.xml`, `ResponseStats.xml` |
-| Wiki Blogs | Add blog post (title, publish date, author, summary, small image, wiki space, page, text) and blog list filtered by category and space, with view and public page links | `component/MrSimpleScreens/screen/SimpleScreens/Wiki/WikiBlogs.xml` |
-| Edit Blog | Title, publish date, author, summary, meta keywords, meta description, image, page; blog categories | `component/MrSimpleScreens/screen/SimpleScreens/Wiki/EditWikiBlog.xml` |
-| Party emails | `EmailMessage` list for a party | `component/MrSimpleScreens/screen/SimpleScreens/Party/PartyEmails.xml` |
-| Financial accounts | Find/edit financial accounts, including gift card and gift certificate types | `component/MrSimpleScreens/screen/SimpleScreens/Accounting/FinancialAccount.xml` |
+| Find Promotion | New promotion (store, ID, item description, promotion service, from date) and list (store, sequence, description, service, from/thru, delete) | `component/mr-marble/screen/SimpleScreens/ProductStore/Promotion/FindPromotion.xml` |
+| Edit Promotion | Store, promotion service (a `ServiceRegister` of type Product Store Promotion), item description, sequence, from/thru, require code, use limits per order / customer / promotion, free ground shipping; parameter form; included/excluded products; order items that used the promotion | `component/mr-marble/screen/SimpleScreens/ProductStore/Promotion/EditPromotion.xml` |
+| Promo codes | Find/new code (store, promotion, code, from date) with limits; edit from/thru, use limit per code and per customer, user entered, require party; parties allowed to use the code | `component/mr-marble/screen/SimpleScreens/ProductStore/Promotion/PromoCode/FindPromoCode.xml`, `EditPromoCode.xml` |
+| Order promo codes | Add promo code, add party promo code, promo code list on the order | `component/mr-marble/screen/SimpleScreens/Order/OrderDetail.xml` (`AddPromoCode`, `AddPartyPromoCode`, `OrderPromoCodeList`) |
+| Store emails | Email template per store and email type with from/thru, header image, detail link, web order BCC | `component/mr-marble/screen/SimpleScreens/ProductStore/FindProductStoreEmails.xml` |
+| Find Survey | New survey (purpose Survey/Other, description, comments) and list of `DbForm` records | `component/mr-marble/screen/SimpleScreens/Survey/FindSurvey.xml` |
+| Edit Survey | Description, comments; user groups allowed to use the form | `component/mr-marble/screen/SimpleScreens/Survey/EditSurvey.xml` |
+| Fields | Add field (title, field name, field type, sequence); edit with a display condition; options per field; survey preview | `component/mr-marble/screen/SimpleScreens/Survey/Fields.xml` |
+| Responses, details, stats | Response list (form, user, date), one response's answers, total responses and counts per text field and per option | `component/mr-marble/screen/SimpleScreens/Survey/Responses.xml`, `ResponseDetails.xml`, `ResponseStats.xml` |
+| Wiki Blogs | Add blog post (title, publish date, author, summary, small image, wiki space, page, text) and blog list filtered by category and space, with view and public page links | `component/mr-marble/screen/SimpleScreens/Wiki/WikiBlogs.xml` |
+| Edit Blog | Title, publish date, author, summary, meta keywords, meta description, image, page; blog categories | `component/mr-marble/screen/SimpleScreens/Wiki/EditWikiBlog.xml` |
+| Party emails | `EmailMessage` list for a party | `component/mr-marble/screen/SimpleScreens/Party/PartyEmails.xml` |
+| Financial accounts | Find/edit financial accounts, including gift card and gift certificate types | `component/mr-marble/screen/SimpleScreens/Accounting/FinancialAccount.xml` |
 | Visits | Web visit list and detail (framework tools) | `base-component/tools/screen/System/Visit/VisitList.xml`, `VisitDetail.xml` |
 
 ### Data model available
 
 | Entity / enum | What it gives Marketing | Key files |
 | --- | --- | --- |
-| `MarketingCampaign` (+ `MarketingCampaignNote`, `MarketingCampaignParty`) | Parent campaign, name, summary, **budgeted / estimated / actual cost** + currency, from/thru and start dates, expected response %, expected revenue, converted leads, number sent; statuses Planned, Approved, In Progress, Completed, Cancelled (`MKTG_CAMP_*`); notes; parties by role over time | `component/mr-mantle-udm/entity/MarketingEntities.xml` |
+| `MarketingCampaign` (+ `MarketingCampaignNote`, `MarketingCampaignParty`) | Parent campaign, name, summary, **budgeted / estimated / actual cost** + currency, from/thru and start dates, expected response %, expected revenue, converted leads, number sent; statuses Planned, Approved, In Progress, Completed, Cancelled (`MKTG_CAMP_*`); notes; parties by role over time | `component/mr-mantle/entity/MarketingEntities.xml` |
 | `ContactList`, `ContactListParty` | List type (Marketing, Newsletter, Announcement), contact mech type, campaign, public flag, single use, owner, verify-email and opt-out screen settings; members with from/thru, preferred contact mech, `optInVerifyCode` and statuses Pending Acceptance, Accepted, Rejected, In Use, Invalid, Unsubscribe Pending, Unsubscribed (`CLPT_*`) | same |
 | `ContactListEmail` | Per list and email type (Subscribe Notification, Unsubscribe Verify, Unsubscribe Notification, Outgoing Email): an `EmailTemplate` and a `WikiPageCategory` — the hook for mailing blog posts in a category to a list | same |
 | `ContactListCommStatus` | Per-recipient send record: list, `CommunicationEvent`, contact mech, party, unique `messageId`, status | same |
-| `MarketSegment` (+ `MarketSegmentClassification`, `MarketSegmentGeo`, `MarketSegmentDimension`, `MarketSegmentParty`, `MarketInterest`) | Segment tree (type Market or Sales Segment, intra-type sequence, parent, store, owner); rules by party classification, geo and party dimension min/max; explicit members by role; product-category interest. Segments also scope `ProductParameterValue`, `ProductDbForm`, `ProductOtherIdentification`, `ProductCategoryIdent` | same; `component/mr-mantle-udm/entity/ProductDefinitionEntities.xml` |
-| `TrackingCode`, `TrackingCodeVisit`, `TrackingCodeOrder`, `TrackingCodeOrderReturn` | Code with redirect URL, campaign, type (Access, Internal, External, Partner Managed), trackable and billable lifetimes, group/subgroup; visits by source (cookie, URL parameter) over `moqui.server.Visit`; orders and returns with billable flag and affiliate referred time | `component/mr-mantle-udm/entity/MarketingEntities.xml`; `base-component/framework/entity/ServerEntities.xml` (`Visit`, `Visitor`) |
-| `SalesOpportunity.marketingCampaignId`, `SalesOpportunityTracking` | Campaign and tracking code on opportunities (record included in Sales and Marketing) | `component/mr-mantle-udm/entity/SalesEntities.xml` |
-| `CommunicationEvent.contactListId`, `PartyContactMech.allowSolicitation` | List on a message; a per-contact-mech solicitation flag — the only consent data outside list membership | `component/mr-mantle-udm/entity/PartyEntities.xml` |
-| `ProductStorePromotion` (+ `ProductStorePromoParameter`, `ProductStorePromoProduct`), `ProductStorePromoCode` (+ `ProductStorePromoCodeParty`) | Store-scoped promotion implemented by a registered service, with parameters, products (include/exclude), window, require code, use limits, free ground shipping; codes with window, limits, user-entered and require-party flags; registered services New Customer Discount, Buy X Get Y, Flat Discount | `component/mr-mantle-udm/entity/ProductStoreEntities.xml`; `component/mr-mantle-usl/data/MantleSetupData.xml` |
-| `OrderPromoCode`; `OrderItem` promo fields; `OrderPart.disablePromotions` | Codes on an order; promo items carry `storePromotionId`, `promoCodeId`, `promoCodeText`, times used | `component/mr-mantle-udm/entity/OrderEntities.xml` |
-| `FinancialAccount` types `GiftCard`, `GiftCertificate`; `GiftCard` payment method | Stored-value balances for gift cards | `component/mr-mantle-udm/entity/AccountingAccountEntities.xml` |
+| `MarketSegment` (+ `MarketSegmentClassification`, `MarketSegmentGeo`, `MarketSegmentDimension`, `MarketSegmentParty`, `MarketInterest`) | Segment tree (type Market or Sales Segment, intra-type sequence, parent, store, owner); rules by party classification, geo and party dimension min/max; explicit members by role; product-category interest. Segments also scope `ProductParameterValue`, `ProductDbForm`, `ProductOtherIdentification`, `ProductCategoryIdent` | same; `component/mr-mantle/entity/ProductDefinitionEntities.xml` |
+| `TrackingCode`, `TrackingCodeVisit`, `TrackingCodeOrder`, `TrackingCodeOrderReturn` | Code with redirect URL, campaign, type (Access, Internal, External, Partner Managed), trackable and billable lifetimes, group/subgroup; visits by source (cookie, URL parameter) over `moqui.server.Visit`; orders and returns with billable flag and affiliate referred time | `component/mr-mantle/entity/MarketingEntities.xml`; `base-component/framework/entity/ServerEntities.xml` (`Visit`, `Visitor`) |
+| `SalesOpportunity.marketingCampaignId`, `SalesOpportunityTracking` | Campaign and tracking code on opportunities (record included in Sales and Marketing) | `component/mr-mantle/entity/SalesEntities.xml` |
+| `CommunicationEvent.contactListId`, `PartyContactMech.allowSolicitation` | List on a message; a per-contact-mech solicitation flag — the only consent data outside list membership | `component/mr-mantle/entity/PartyEntities.xml` |
+| `ProductStorePromotion` (+ `ProductStorePromoParameter`, `ProductStorePromoProduct`), `ProductStorePromoCode` (+ `ProductStorePromoCodeParty`) | Store-scoped promotion implemented by a registered service, with parameters, products (include/exclude), window, require code, use limits, free ground shipping; codes with window, limits, user-entered and require-party flags; registered services New Customer Discount, Buy X Get Y, Flat Discount | `component/mr-mantle/entity/ProductStoreEntities.xml`; `component/mr-mantle/data/MantleSetupData.xml` |
+| `OrderPromoCode`; `OrderItem` promo fields; `OrderPart.disablePromotions` | Codes on an order; promo items carry `storePromotionId`, `promoCodeId`, `promoCodeText`, times used | `component/mr-mantle/entity/OrderEntities.xml` |
+| `FinancialAccount` types `GiftCard`, `GiftCertificate`; `GiftCard` payment method | Stored-value balances for gift cards | `component/mr-mantle/entity/AccountingAccountEntities.xml` |
 | `moqui.screen.form.DbForm` (+ `DbFormField`, `DbFormFieldOption`, `DbFormUserGroup`), `FormResponse`, `FormResponseAnswer` | Form builder: purpose (Survey, Other), fields with type, required, display condition, sequence, print layout; options; allowed groups; responses with `userId` and date, answers as text | `base-component/framework/entity/ScreenEntities.xml` |
-| `ProductDbForm`, `OrderItemFormResponse` | Forms attached to a product (Sales Required Info, Sales Optional Info, Post Sale Survey; by role or segment) and answered per order item and party | `component/mr-mantle-udm/entity/ProductDefinitionEntities.xml`, `OrderEntities.xml` |
+| `ProductDbForm`, `OrderItemFormResponse` | Forms attached to a product (Sales Required Info, Sales Optional Info, Post Sale Survey; by role or segment) and answered per order item and party | `component/mr-mantle/entity/ProductDefinitionEntities.xml`, `OrderEntities.xml` |
 | `moqui.resource.wiki.WikiBlog`, `WikiBlogCategory` | Blog post over a `WikiPage`: title, author, summary, publish date, meta keywords and description, small image; categories with a sent date | `base-component/framework/entity/ResourceEntities.xml` |
 | `moqui.basic.email.EmailTemplate`, `EmailMessage` | Template: server, type, from/reply-to/bounce/cc/bcc, subject, body screen location, attachments; message statuses Draft, Ready, Sent, Received, Viewed, Bounced, Cancelled | `base-component/framework/entity/BasicEntities.xml` |
-| `WorkEffort` (`WetEvent`), `WorkEffortParty`, `WorkEffortProduct`, `WorkEffortCommEvent`, `OrderItemWorkEffort` | Event, registrant (statuses Offered, Assigned, Arrived, Departed, Declined; `mustRsvp`), ticket product, event messages, ticket orders | `component/mr-mantle-udm/entity/WorkEffortEntities.xml`, `OrderEntities.xml` |
+| `WorkEffort` (`WetEvent`), `WorkEffortParty`, `WorkEffortProduct`, `WorkEffortCommEvent`, `OrderItemWorkEffort` | Event, registrant (statuses Offered, Assigned, Arrived, Departed, Declined; `mustRsvp`), ticket product, event messages, ticket orders | `component/mr-mantle/entity/WorkEffortEntities.xml`, `OrderEntities.xml` |
 
 ### Services
 
 | Service | Purpose | Key files |
 | --- | --- | --- |
-| `mantle.product.PromotionServices.apply#OrderPromotions`, `add#OrderPromoCode`, `remove#OrderPromoCode`; interface `apply#Promotion` with `apply#NewCustomerDiscount`, `apply#BuyGetDiscount`, `apply#FlatDiscount` | Promotion evaluation on orders and promo code entry | `component/mr-mantle-usl/service/mantle/product/PromotionServices.xml` |
+| `mantle.product.PromotionServices.apply#OrderPromotions`, `add#OrderPromoCode`, `remove#OrderPromoCode`; interface `apply#Promotion` with `apply#NewCustomerDiscount`, `apply#BuyGetDiscount`, `apply#FlatDiscount` | Promotion evaluation on orders and promo code entry | `component/mr-mantle/service/mantle/product/PromotionServices.xml` |
 | `org.moqui.impl.ScreenServices.create#FormResponse`, `get#FormResponse`, `update#FormResponse`, `delete#FormResponse`, `get#FormResponseStats`, `update#DbFormField`, `delete#DbFormField` | Survey responses, stats and field maintenance | `base-component/framework/service/org/moqui/impl/ScreenServices.xml` |
 | `org.moqui.impl.WikiServices.create#WikiBlog`, `update#WikiBlog` | Blog post create/update | `base-component/framework/service/org/moqui/impl/WikiServices.xml` |
 | `org.moqui.impl.EmailServices.send#EmailTemplate`, `send#EmailMessage`, `poll#EmailServer` (Rust implementations) | Template send and mail polling — the Comms transport Marketing sends go through | `base-component/framework/service/org/moqui/impl/EmailServices.xml` |
-| `send#OrderStoreEmail`, `send#InvoiceStoreEmail`, `send#ShipmentStoreEmail` | Transactional store emails (not marketing) | `component/mr-mantle-usl/service/mantle/order/OrderInfoServices.xml`; `component/mr-mantle-usl/service/mantle/account/InvoiceServices.xml`; `component/mr-mantle-usl/service/mantle/shipment/ShipmentServices.xml` |
+| `send#OrderStoreEmail`, `send#InvoiceStoreEmail`, `send#ShipmentStoreEmail` | Transactional store emails (not marketing) | `component/mr-mantle/service/mantle/order/OrderInfoServices.xml`; `component/mr-mantle/service/mantle/account/InvoiceServices.xml`; `component/mr-mantle/service/mantle/shipment/ShipmentServices.xml` |
 
 **Missing services:** nothing creates or progresses a `MarketingCampaign`; no
 subscribe, verify, unsubscribe or import for `ContactList`; no segment membership

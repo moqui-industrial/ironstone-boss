@@ -113,7 +113,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="sprintDetail"><default-response url="//Projects/WorkItems/SprintDetail"/></transition>
 
     <widgets>
-        <render-mode><text type="qvue" location="component://ironstone-boss/screen/Projects/WorkItems/Backlog.qvue" template="false"/>
+        <render-mode><text type="qvue" location="component://mr-boss/screen/Projects/WorkItems/Backlog.qvue" template="false"/>
             <!-- the terminal: BacklogTui, the plain screen beside this one, on the same project (in ProjectDetail's tab its project even
                 when the user may not see it, so the twin says it is not available rather than show another) -->
             <text type="tui"><![CDATA[${JSON.stringify([{t: "dynamicContainer", id: "BacklogTui",

@@ -28,7 +28,7 @@ Four decisions shape every screen:
   `WorkEffortAssoc`.
 - **Code is part of the work.** Repositories are mr-moqui's (`moqui.resource.GitRepository`, cloned and pushed
   over HTTPS and SSH, mr-moqui `docs/Git-Hosting.md`), and Mantle's conventions already tie commits, branches and
-  tags to work items (`mantle.work.GitServices`, mr-mantle-usl `service/Work.gitecas.xml`). This file adds the
+  tags to work items (`mantle.work.GitServices`, mr-mantle `service/Work.gitecas.xml`). This file adds the
   browser, compare, merge requests with review, CI statuses, webhooks and branch rules, the Development tab of a
   work item, and releases tied to tags.
 - **Time is money.** Time entries go against work items, in a weekly grid with a timer; a weekly timesheet is
@@ -2404,7 +2404,7 @@ record is read through a service that checks the repository's rights (R21).
 | Need | Kind | Proposed as | Used by | Stub spec |
 | --- | --- | --- | --- | --- |
 | Notification topics | seed data | `WorkItemAssigned` (Notifications inbox), `MergeRequestReview` (review requested), `MergeRequestUpdate` (new commits, approvals, comments, merged; Updates), `CommitStatusFailed` (the head's author and the merge request's), `TimesheetApproval` (approval), `TimesheetReturned`, `TimesheetApproved` (Updates; added in P6a), `TimesheetMissing` (reminder), `AllocationRequest` (approval), `AllocationDecision`, `MilestoneApproval` (approval), `ProjectStatusUpdate` (Updates), `RequestTriage` (a new request in a project I triage), `RequestUpdate` (a request moved by its work, to its followers; Updates; added in P5), `ReleasePublished` (Updates); each with title and link templates into Projects' screens | the screens above, the tray | design-drawers-commons §19 "Notification fields and approvals" |
-| Search documents | seed data | `MantleTask` gains sprint, release, component and labels; `MantleProject` and `MantleRequest` link to Projects' screens; the `MantleTask` and `MantleRequest` topics' links (seeded by MrSimpleScreens with `/vapps/my/…`) map to Projects for its users | WorkItems search, palette | |
+| Search documents | seed data | `MantleTask` gains sprint, release, component and labels; `MantleProject` and `MantleRequest` link to Projects' screens; the `MantleTask` and `MantleRequest` topics' links (seeded by mr-marble with `/vapps/my/…`) map to Projects for its users | WorkItems search, palette | |
 
 ## 16. Decided
 

@@ -3,9 +3,9 @@
 // answers JSON messageInfos (so the shell's dialog closes) with the record's screen: a task (on a record), an activity on the
 // demo request (a call, and a meeting), an event with an attendee, a note on a record (its Chatter) and one without (the
 // user's notes space), a personal and a directory contact, and a request. A record the user may not see is refused.
-// Run: ./moq test ironstone-boss --spec QuickCreate
+// Run: ./moq test mr-boss --spec QuickCreate
 const webroot = "component://webroot/screen/webroot.xml"
-const commons = "component://ironstone-boss/screen/Commons.xml"
+const commons = "component://mr-boss/screen/Commons.xml"
 const request = { recordEntity: "mantle.request.Request", recordId: "BOSS_DEMO_REQUEST", recordTitle: "Set up the shared team calendar" }
 
 function render(parameters) {

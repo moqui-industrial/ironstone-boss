@@ -87,9 +87,9 @@ along with this software (see the LICENSE.md file). If not, see
         ]]></script></actions>
         <default-response type="none"/>
     </transition>
-    <transition-include name="pickerData" location="component://ironstone-boss/template/FilePickerTransitions.xml"/>
-    <transition-include name="pickerFolder" location="component://ironstone-boss/template/FilePickerTransitions.xml"/>
-    <transition-include name="pickerSearch" location="component://ironstone-boss/template/FilePickerTransitions.xml"/>
+    <transition-include name="pickerData" location="component://mr-boss/template/FilePickerTransitions.xml"/>
+    <transition-include name="pickerFolder" location="component://mr-boss/template/FilePickerTransitions.xml"/>
+    <transition-include name="pickerSearch" location="component://mr-boss/template/FilePickerTransitions.xml"/>
     <transition name="removeAttachment">
         <actions><script><![CDATA[
             const out = ec.service.sync().name('ironstone.ComposeServices.remove#ComposeAttachment').parameters({emailMessageId: emailMessageId || '',
@@ -138,8 +138,8 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
 
     <widgets>
-        <render-mode><text type="qvue" location="component://ironstone-boss/screen/Comms/Inbox/Compose.qvue" template="false"/>
+        <render-mode><text type="qvue" location="component://mr-boss/screen/Comms/Inbox/Compose.qvue" template="false"/>
             <!-- the terminal twin (style-guide 4.8): ComposeTui, a plain form over the same services, with these parameters -->
-            <text type="tui" location="component://ironstone-boss/screen/Comms/Inbox/Compose.tui.json" template="fancy"/></render-mode>
+            <text type="tui" location="component://mr-boss/screen/Comms/Inbox/Compose.tui.json" template="fancy"/></render-mode>
     </widgets>
 </screen>

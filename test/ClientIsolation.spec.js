@@ -9,9 +9,9 @@
 // an internal note on ACME-1, on ACME and on Acme's request, a client rate and a client budget on ACME with amounts found nowhere
 // else; and the names of the other client's project and items, of the team's Work group items and of the projects the client is
 // not on.
-// Run: ./moq test ironstone-boss --spec ClientIsolation
+// Run: ./moq test mr-boss --spec ClientIsolation
 const webroot = "component://webroot/screen/webroot.xml"
-const base = "component://ironstone-boss/screen"
+const base = "component://mr-boss/screen"
 const SHELDON = "sheldon.acme"
 const GOB = "gob.bluth"
 const made = { notes: [] }

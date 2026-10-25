@@ -5,8 +5,8 @@
 // stops getting its posts and joins a public one again at once; the delivery Mailbox only keeps posts out of the Inbox; an
 // owner closes a thread and it takes no more replies in the mailbox, while Reply to sender still works; a request is
 // declined; a new mailbox is made, changed and archived (out of the rail); another user browses only what may be seen.
-// Run: ./moq test ironstone-boss --spec InboxMailboxes
-const comms = "component://ironstone-boss/screen/Comms.xml"
+// Run: ./moq test mr-boss --spec InboxMailboxes
+const comms = "component://mr-boss/screen/Comms.xml"
 
 function transition(path, parameters, method) {
     const str = ec.screen.makeTest().rootScreen(comms).render(`Inbox/${path}`, parameters || {}, method || null)

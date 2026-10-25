@@ -3,8 +3,8 @@
 // joe.developer, who is told on the FileShare topic with a link into Files, sees it waiting in Shared with me, accepts it and
 // opens it; a share to a group reaches its members; a link comes back once with its address, is listed without it, and once
 // revoked no longer opens; the Shares screen lists what is shared both ways; joe.developer cannot share what he may only view.
-// Run: ./moq test ironstone-boss --spec FileShares
-const commons = "component://ironstone-boss/screen/Commons.xml"
+// Run: ./moq test mr-boss --spec FileShares
+const commons = "component://mr-boss/screen/Commons.xml"
 const FILES = "org.moqui.impl.FileServices"
 let personalDriveId
 

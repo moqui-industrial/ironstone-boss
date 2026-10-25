@@ -7,8 +7,8 @@
 // Shared/RecordFiles, Comms/Inbox/Mail, Comms/Inbox/Compose, Comms/Chat, Comms/Panel/Chat, Comms/Settings/Rules,
 // Comms/Settings/MailAccounts/SignIn, Commons/Knowledge, Commons/Notes and Commons/Files, which the shell loads in their best
 // client mode) renders in qvue, its component.
-// Run: ./moq test ironstone-boss
-const base = "component://ironstone-boss/screen"
+// Run: ./moq test mr-boss
+const base = "component://mr-boss/screen"
 const apps = ["Commons", "Comms", "Sales", "Marketing", "CustomerService", "Commerce", "Products", "Purchasing", "Warehouse",
     "Manufacturing", "Maintenance", "Accounting", "People", "Projects", "Insights", "Admin"]
 let placeholders, screens

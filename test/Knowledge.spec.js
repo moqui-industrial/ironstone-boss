@@ -6,8 +6,8 @@
 // files, watch and linked records; spaces made, cloned and shared. Joe Developer may not read the restricted page or the
 // members-only space, and Bob Developer, who reads the handbook, may not change it (the wiki's rule, IronStone R21, R28;
 // john.doe is ADMIN, so the refusals are other users'). Authorization stays on.
-// Run: ./moq test ironstone-boss --spec Knowledge
-const commons = "component://ironstone-boss/screen/Commons.xml"
+// Run: ./moq test mr-boss --spec Knowledge
+const commons = "component://mr-boss/screen/Commons.xml"
 const RUN = Date.now().toString(36).slice(-3).toUpperCase()
 const made = {}
 

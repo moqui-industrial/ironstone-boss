@@ -52,7 +52,7 @@ the crosscut file collects them.
   "one option is". Options that are still open go to the **Open** list at the end of the file,
   each with the choice the author would make and why.
 - **Verified names.** Mantle entity, service and status names are verified against
-  `mr-mantle-udm` and `mr-mantle-usl` as the research files did. Reference apps are named as in
+  `mr-mantle` as the research files did. Reference apps are named as in
   research-crosscut §6.
 
 ## 3. Design file skeleton
@@ -178,7 +178,7 @@ Rules:
   reads and writes through it. The same goes for tools (PDF generation, barcode printing,
   payment or shipping gateways, search indexes) and service types.
 - **Data needs** name the Mantle entity or field to add or enable (several are commented out in
-  `mr-mantle-udm` as future reference) and the seed data (enumerations, status flows) a screen
+  `mr-mantle` as future reference) and the seed data (enumerations, status flows) a screen
   expects.
 - **The crosscut file rolls them up.** `design-crosscut.md` ends with one table of every need
   from every file, de-duplicated, with the files that need it. That table is the framework and
@@ -192,12 +192,12 @@ baseline it replaces.
 
 The two inventory files track coverage in both directions:
 
-- [ss-inventory.md](ss-inventory.md) lists every MrSimpleScreens form. Its **Designed in** column
+- [ss-inventory.md](ss-inventory.md) lists every mr-marble form. Its **Designed in** column
   is filled when a design file is reviewed: the BOSS screen path, several separated by `;`, or
   `—` with the reason in that design's **Decided** table when the form is deliberately not carried
   forward. Its **Implemented in** column is filled during implementation with the screen and form
   that exist.
-- [usl-inventory.md](usl-inventory.md) lists every mantle-usl service. Its **Designed in** column
+- [usl-inventory.md](usl-inventory.md) lists every mr-mantle service. Its **Designed in** column
   names the BOSS screens whose form summaries call the service; **Implemented in** is filled during
   implementation. A service no screen calls stays blank, which is also useful to know.
 

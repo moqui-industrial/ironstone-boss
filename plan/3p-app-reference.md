@@ -99,7 +99,7 @@ screen split (`wcinternal` / `wcstatic`) is a useful pattern.
 
 ### coarchy
 
-Values / process / vision documentation app on Moqui (depends on mantle-usl), with an
+Values / process / vision documentation app on Moqui (depends on mr-mantle), with an
 internal app, a public site, and a billing/settings area.
 **IronStone relevance:** process and vision documentation for Insights/Commons; the
 internal + public-site + settings screen layout is a useful multi-face pattern.

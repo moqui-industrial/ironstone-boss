@@ -7,8 +7,8 @@
 // target that fails; the view action; links to records, create from a message, the contact card, the palette's Messages
 // group and MessageDetail. Another user (joe.developer) reaches none of john.doe's mail: threads, files, state changes and
 // MessageDetail are "not found".
-// Run: ./moq test ironstone-boss --spec Inbox
-const comms = "component://ironstone-boss/screen/Comms.xml"
+// Run: ./moq test mr-boss --spec Inbox
+const comms = "component://mr-boss/screen/Comms.xml"
 const MAIL = "org.moqui.impl.EmailClientServices"
 
 function transition(name, parameters, method) {

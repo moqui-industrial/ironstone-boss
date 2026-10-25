@@ -5,9 +5,9 @@
 // boxes, the Work items tab with the project fixed, a status update setting the health, the team's members, the settings boxes,
 // the status report printed, the project the team may not see or manage, clone and save as template, and an empty project
 // deleted. The spec makes its own projects (keys BT…) and moves back what it changes on the demo's. Authorization stays on.
-// Run: ./moq test ironstone-boss --spec ProjectDetail
+// Run: ./moq test mr-boss --spec ProjectDetail
 const webroot = "component://webroot/screen/webroot.xml"
-const projectsRoot = "component://ironstone-boss/screen/Projects.xml"
+const projectsRoot = "component://mr-boss/screen/Projects.xml"
 
 // a screen as the client fetches it (lastStandalone true: the last level alone, a tab; 2: the detail's own level, its header)
 function render(path, parameters, mode, standalone) {

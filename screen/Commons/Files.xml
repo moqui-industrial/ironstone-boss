@@ -349,7 +349,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <widgets>
         <render-mode>
-            <text type="qvue" location="component://ironstone-boss/screen/Commons/Files.qvue" template="false"/>
+            <text type="qvue" location="component://mr-boss/screen/Commons/Files.qvue" template="false"/>
             <!-- the terminal: FilesTui, the plain screen beside this one, on the same drive and folder -->
             <text type="tui"><![CDATA[${JSON.stringify([{t: "dynamicContainer", id: "FilesTui",
                 url: sri.buildUrl("../FilesTui").addParameters({drive: drive || null, path: path || null}).getUrlWithParams()}])}]]></text>

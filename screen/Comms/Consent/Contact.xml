@@ -24,9 +24,9 @@ along with this software (see the LICENSE.md file). If not, see
     <parameter name="partyId"/>
     <parameter name="pageIndex"/>
 
-    <transition-include name="consentRecord" location="component://ironstone-boss/template/ConsentRecord.xml"/>
-    <transition-include name="consentListSet" location="component://ironstone-boss/template/ConsentRecord.xml"/>
-    <transition-include name="consentHistoryExport" location="component://ironstone-boss/template/ConsentRecord.xml"/>
+    <transition-include name="consentRecord" location="component://mr-boss/template/ConsentRecord.xml"/>
+    <transition-include name="consentListSet" location="component://mr-boss/template/ConsentRecord.xml"/>
+    <transition-include name="consentHistoryExport" location="component://mr-boss/template/ConsentRecord.xml"/>
 
     <actions>
         <service-call name="ironstone.ConsentServices.check#ConsentAdmin" out-map="adminOut"/>
@@ -62,7 +62,7 @@ along with this software (see the LICENSE.md file). If not, see
                 <container style="col"/>
                 <link url="//Commons/Contacts/ContactDetail" text="Open the contact" icon="sym_o_person" parameter-map="{partyId:partyId}" condition="contactName"/>
             </container>
-            <section-include name="ConsentRecordSection" location="component://ironstone-boss/template/ConsentRecord.xml"/>
+            <section-include name="ConsentRecordSection" location="component://mr-boss/template/ConsentRecord.xml"/>
         </widgets></section>
     </widgets>
 </screen>

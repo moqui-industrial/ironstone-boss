@@ -350,7 +350,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
 
     <widgets>
-        <render-mode><text type="qvue" location="component://ironstone-boss/screen/Commons/Knowledge.qvue" template="false"/>
+        <render-mode><text type="qvue" location="component://mr-boss/screen/Commons/Knowledge.qvue" template="false"/>
             <!-- the terminal: KnowledgeTui, the plain screen beside this one, on the same space and page (in ProjectDetail's Docs tab the
                 hidden KnowledgeTui ProjectDetail mounts beside it, on the project) -->
             <text type="tui"><![CDATA[${JSON.stringify([{t: "dynamicContainer", id: "KnowledgeTui", url: sri.buildUrl("../KnowledgeTui")

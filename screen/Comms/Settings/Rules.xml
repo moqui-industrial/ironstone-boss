@@ -98,8 +98,8 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
 
     <widgets>
-        <render-mode><text type="qvue" location="component://ironstone-boss/screen/Comms/Settings/Rules.qvue" template="false"/>
+        <render-mode><text type="qvue" location="component://mr-boss/screen/Comms/Settings/Rules.qvue" template="false"/>
             <!-- the terminal twin (style-guide 4.8): RulesTui, the rules and blocked senders over the same services -->
-            <text type="tui" location="component://ironstone-boss/screen/Comms/Settings/Rules.tui.json" template="fancy"/></render-mode>
+            <text type="tui" location="component://mr-boss/screen/Comms/Settings/Rules.tui.json" template="fancy"/></render-mode>
     </widgets>
 </screen>

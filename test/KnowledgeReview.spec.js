@@ -5,8 +5,8 @@
 // on WikiPageReviewDecision with a link that opens the page on its review. On the knowledge demo (data/BossKnowledgeDemoData.xml):
 // joe.developer edits the Team handbook, bob.developer reads it, john.doe administers it. Every review this spec asks of
 // john.doe is decided here, so his tray keeps the M2 demo's one approval for the specs after this one.
-// Run: ./moq test ironstone-boss --spec KnowledgeReview
-const commons = "component://ironstone-boss/screen/Commons.xml"
+// Run: ./moq test mr-boss --spec KnowledgeReview
+const commons = "component://mr-boss/screen/Commons.xml"
 const NOTIFY = "org.moqui.impl.NotificationServices"
 
 function call_(path, parameters, method) {

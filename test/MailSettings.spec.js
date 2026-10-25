@@ -8,10 +8,10 @@
 // Each signature, reply and text block is cleaned as safe HTML.
 // joe.developer may not change john.doe's identities, rules, automatic reply or text blocks; he sees the shared text block and,
 // as a member who sends from Support, its identity without changing it. Authorization stays on, as for a browser request.
-// Run: ./moq test ironstone-boss --spec MailSettings
+// Run: ./moq test mr-boss --spec MailSettings
 const webroot = "component://webroot/screen/webroot.xml"
-const comms = "component://ironstone-boss/screen/Comms.xml"
-const commons = "component://ironstone-boss/screen/Commons.xml"
+const comms = "component://mr-boss/screen/Comms.xml"
+const commons = "component://mr-boss/screen/Commons.xml"
 const DEMO = "BOSS_DEMO_MAIL_ACCT"
 const SUPPORT = "BOSS_DEMO_MAIL_SUPPORT"
 

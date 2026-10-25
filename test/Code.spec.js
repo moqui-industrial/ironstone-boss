@@ -5,7 +5,7 @@
 // made and deleted, Compare with a merge request opened from it and its work items linked, a commit with a work item linked and
 // unlinked, git access (an SSH key, an access token), the code settings, the project's Code tab, the palette's Code group and the
 // raw file. Authorization stays on. The spec makes its own branches (bt-…), tags and merge request and takes them out after.
-// Run: ./moq test ironstone-boss --spec Code
+// Run: ./moq test mr-boss --spec Code
 const webroot = "component://webroot/screen/webroot.xml"
 const SSH_KEY = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl bt@example"
 
@@ -79,7 +79,7 @@ feature("Repositories: the demo's repositories by chip, each user seeing those o
         const page = render("apps/Projects/Code/Repositories", { list: "all" })
         const bob = as("bob.developer", () => render("apps/Projects/Code/Repositories", { list: "all" }))
         const joeMine = as("joe.developer", () => render("apps/Projects/Code/Repositories"))
-        // the mantle-usl specs that run first can put joe on their own projects with a repository: the chip counts those too, and
+        // the mr-mantle specs that run first can put joe on their own projects with a repository: the chip counts those too, and
         // of the demo's repositories (iron and acme-portal, both on projects joe is on) none is left out
         const joeRepos = as("joe.developer", () => sys(() => call("ironstone.CodeServices.find#Repositories", {})))
         const joeDemo = joeRepos.rowList.map((row) => row.repositoryId).filter((id) => id == "iron" || id == "acme-portal")

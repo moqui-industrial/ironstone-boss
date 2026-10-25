@@ -39,7 +39,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <subscreens default-item="Files">
         <!-- RepositoryMergeRequests (design-projects.md §7): MergeRequests with the repository fixed (it sees repoAccess) -->
-        <subscreens-item name="MergeRequests" location="component://ironstone-boss/screen/Projects/Code/MergeRequests.xml" menu-title="Merge requests" menu-index="5"/>
+        <subscreens-item name="MergeRequests" location="component://mr-boss/screen/Projects/Code/MergeRequests.xml" menu-title="Merge requests" menu-index="5"/>
     </subscreens>
 
     <transition name="repositories"><default-response url="../Repositories"/></transition>

@@ -63,7 +63,7 @@ along with this software (see the LICENSE.md file). If not, see
             const users = {john: 'john.doe', joe: 'joe.developer', bob: 'bob.developer'}
             const ids = {john: 'EX_JOHN_DOE', joe: 'ORG_ZIZI_JD', bob: 'ORG_ZIZI_BD'}
             const account = (userId) => ec.entity.find('moqui.security.UserAccount').condition('userId', userId).disableAuthz().one()
-            if (account(ids.john) == null) { ec.logger.warn('The code demo needs the user john.doe (mantle-usl demo data); nothing loaded'); return }
+            if (account(ids.john) == null) { ec.logger.warn('The code demo needs the user john.doe (mr-mantle demo data); nothing loaded'); return }
             const nowMs = Date.now()
             const day = 86400000
             const call = (name, parameters) => {

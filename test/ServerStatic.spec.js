@@ -2,8 +2,8 @@
 // ec.screen.staticReport runs the static half and the full check (an html render with the real actions and the wrapped ec) on
 // each plain XML screen with the demo record AppStructure uses, as john.doe. A screen marked server-static="qvt" must come back
 // clean; the list of the others and why is logged, for impl-drawers-commons.md §8 and impl-projects.md P11.
-// Run: ./moq test ironstone-boss --spec ServerStatic
-const base = "component://ironstone-boss/screen"
+// Run: ./moq test mr-boss --spec ServerStatic
+const base = "component://mr-boss/screen"
 let screens
 
 // [root screen location, path under it, location] of the plain XML screens (not .qvue, not placeholders) under the roots

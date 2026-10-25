@@ -6,8 +6,8 @@
 // or neither, and the job puts a user in them on do not disturb and back; the status presets are added, used (the user's
 // status) and removed, kept as the JSON list the account menu's status dialog reads (WebrootChat.js statusPresets); Apply to
 // my rooms sets the default level on every room but the direct ones.
-// Run: ./moq test ironstone-boss --spec ChatSettings
-const comms = "component://ironstone-boss/screen/Comms.xml"
+// Run: ./moq test mr-boss --spec ChatSettings
+const comms = "component://mr-boss/screen/Comms.xml"
 const DND_USER = "BOSS_TEST_CHAT_DND"
 
 function render(path, parameters, method) {

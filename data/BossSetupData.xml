@@ -21,13 +21,13 @@ along with this software (see the LICENSE.md file). If not, see
         MANTLE_USER_ORG limits to all the user's orgs. MANTLE_PRIVATE_CONTACT keeps another user's personal contacts
         hidden whether or not an organization is active. -->
     <artifactGroups artifactGroupId="BOSS_COMMONS" description="IronStone Commons App (via root screen)">
-        <artifacts artifactName="component://ironstone-boss/screen/Commons.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
+        <artifacts artifactName="component://mr-boss/screen/Commons.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
         <authz artifactAuthzId="BOSS_COMMONS_ALL_USERS" userGroupId="ALL_USERS" authzTypeEnumId="AUTHZT_ALLOW" authzActionEnumId="AUTHZA_ALL">
             <filters entityFilterSetId="MANTLE_ACTIVE_ORG"/>
             <filters entityFilterSetId="MANTLE_PRIVATE_CONTACT"/></authz>
     </artifactGroups>
     <artifactGroups artifactGroupId="BOSS_COMMS" description="IronStone Comms App (via root screen)">
-        <artifacts artifactName="component://ironstone-boss/screen/Comms.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
+        <artifacts artifactName="component://mr-boss/screen/Comms.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
         <authz artifactAuthzId="BOSS_COMMS_ALL_USERS" userGroupId="ALL_USERS" authzTypeEnumId="AUTHZT_ALLOW" authzActionEnumId="AUTHZA_ALL">
             <filters entityFilterSetId="MANTLE_ACTIVE_ORG"/>
             <filters entityFilterSetId="MANTLE_PRIVATE_CONTACT"/></authz>
@@ -35,80 +35,80 @@ along with this software (see the LICENSE.md file). If not, see
 
     <!-- Not yet implemented:
     <artifactGroups artifactGroupId="BOSS_SALES" description="IronStone Sales App (via root screen)">
-        <artifacts artifactName="component://ironstone-boss/screen/Sales.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
+        <artifacts artifactName="component://mr-boss/screen/Sales.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
         <authz artifactAuthzId="BOSS_SALES_ADMIN" userGroupId="ADMIN" authzTypeEnumId="AUTHZT_ALWAYS" authzActionEnumId="AUTHZA_ALL">
             <filters entityFilterSetId="MANTLE_ACTIVE_ORG"/>
             <filters entityFilterSetId="MANTLE_PRIVATE_CONTACT"/></authz>
     </artifactGroups>
     <artifactGroups artifactGroupId="BOSS_MARKETING" description="IronStone Marketing App (via root screen)">
-        <artifacts artifactName="component://ironstone-boss/screen/Marketing.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
+        <artifacts artifactName="component://mr-boss/screen/Marketing.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
         <authz artifactAuthzId="BOSS_MARKETING_ADMIN" userGroupId="ADMIN" authzTypeEnumId="AUTHZT_ALWAYS" authzActionEnumId="AUTHZA_ALL">
             <filters entityFilterSetId="MANTLE_ACTIVE_ORG"/>
             <filters entityFilterSetId="MANTLE_PRIVATE_CONTACT"/></authz>
     </artifactGroups>
     <artifactGroups artifactGroupId="BOSS_CUSTOMER_SERVICE" description="IronStone Customer Service App (via root screen)">
-        <artifacts artifactName="component://ironstone-boss/screen/CustomerService.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
+        <artifacts artifactName="component://mr-boss/screen/CustomerService.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
         <authz artifactAuthzId="BOSS_CUSTOMER_SERVICE_ADMIN" userGroupId="ADMIN" authzTypeEnumId="AUTHZT_ALWAYS" authzActionEnumId="AUTHZA_ALL">
             <filters entityFilterSetId="MANTLE_ACTIVE_ORG"/>
             <filters entityFilterSetId="MANTLE_PRIVATE_CONTACT"/></authz>
     </artifactGroups>
     <artifactGroups artifactGroupId="BOSS_COMMERCE" description="IronStone Commerce App (via root screen)">
-        <artifacts artifactName="component://ironstone-boss/screen/Commerce.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
+        <artifacts artifactName="component://mr-boss/screen/Commerce.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
         <authz artifactAuthzId="BOSS_COMMERCE_ADMIN" userGroupId="ADMIN" authzTypeEnumId="AUTHZT_ALWAYS" authzActionEnumId="AUTHZA_ALL">
             <filters entityFilterSetId="MANTLE_ACTIVE_ORG"/>
             <filters entityFilterSetId="MANTLE_PRIVATE_CONTACT"/></authz>
     </artifactGroups>
     <artifactGroups artifactGroupId="BOSS_PRODUCTS" description="IronStone Products App (via root screen)">
-        <artifacts artifactName="component://ironstone-boss/screen/Products.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
+        <artifacts artifactName="component://mr-boss/screen/Products.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
         <authz artifactAuthzId="BOSS_PRODUCTS_ADMIN" userGroupId="ADMIN" authzTypeEnumId="AUTHZT_ALWAYS" authzActionEnumId="AUTHZA_ALL">
             <filters entityFilterSetId="MANTLE_ACTIVE_ORG"/>
             <filters entityFilterSetId="MANTLE_PRIVATE_CONTACT"/></authz>
     </artifactGroups>
     <artifactGroups artifactGroupId="BOSS_PURCHASING" description="IronStone Purchasing App (via root screen)">
-        <artifacts artifactName="component://ironstone-boss/screen/Purchasing.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
+        <artifacts artifactName="component://mr-boss/screen/Purchasing.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
         <authz artifactAuthzId="BOSS_PURCHASING_ADMIN" userGroupId="ADMIN" authzTypeEnumId="AUTHZT_ALWAYS" authzActionEnumId="AUTHZA_ALL">
             <filters entityFilterSetId="MANTLE_ACTIVE_ORG"/>
             <filters entityFilterSetId="MANTLE_PRIVATE_CONTACT"/></authz>
     </artifactGroups>
     <artifactGroups artifactGroupId="BOSS_WAREHOUSE" description="IronStone Warehouse App (via root screen)">
-        <artifacts artifactName="component://ironstone-boss/screen/Warehouse.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
+        <artifacts artifactName="component://mr-boss/screen/Warehouse.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
         <authz artifactAuthzId="BOSS_WAREHOUSE_ADMIN" userGroupId="ADMIN" authzTypeEnumId="AUTHZT_ALWAYS" authzActionEnumId="AUTHZA_ALL">
             <filters entityFilterSetId="MANTLE_ACTIVE_ORG"/>
             <filters entityFilterSetId="MANTLE_PRIVATE_CONTACT"/></authz>
     </artifactGroups>
     <artifactGroups artifactGroupId="BOSS_MANUFACTURING" description="IronStone Manufacturing App (via root screen)">
-        <artifacts artifactName="component://ironstone-boss/screen/Manufacturing.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
+        <artifacts artifactName="component://mr-boss/screen/Manufacturing.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
         <authz artifactAuthzId="BOSS_MANUFACTURING_ADMIN" userGroupId="ADMIN" authzTypeEnumId="AUTHZT_ALWAYS" authzActionEnumId="AUTHZA_ALL">
             <filters entityFilterSetId="MANTLE_ACTIVE_ORG"/>
             <filters entityFilterSetId="MANTLE_PRIVATE_CONTACT"/></authz>
     </artifactGroups>
     <artifactGroups artifactGroupId="BOSS_MAINTENANCE" description="IronStone Maintenance App (via root screen)">
-        <artifacts artifactName="component://ironstone-boss/screen/Maintenance.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
+        <artifacts artifactName="component://mr-boss/screen/Maintenance.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
         <authz artifactAuthzId="BOSS_MAINTENANCE_ADMIN" userGroupId="ADMIN" authzTypeEnumId="AUTHZT_ALWAYS" authzActionEnumId="AUTHZA_ALL">
             <filters entityFilterSetId="MANTLE_ACTIVE_ORG"/>
             <filters entityFilterSetId="MANTLE_PRIVATE_CONTACT"/></authz>
     </artifactGroups>
     <artifactGroups artifactGroupId="BOSS_ACCOUNTING" description="IronStone Accounting App (via root screen)">
-        <artifacts artifactName="component://ironstone-boss/screen/Accounting.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
+        <artifacts artifactName="component://mr-boss/screen/Accounting.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
         <authz artifactAuthzId="BOSS_ACCOUNTING_ADMIN" userGroupId="ADMIN" authzTypeEnumId="AUTHZT_ALWAYS" authzActionEnumId="AUTHZA_ALL">
             <filters entityFilterSetId="MANTLE_ACTIVE_ORG"/>
             <filters entityFilterSetId="MANTLE_PRIVATE_CONTACT"/></authz>
     </artifactGroups>
     <artifactGroups artifactGroupId="BOSS_PEOPLE" description="IronStone People App (via root screen)">
-        <artifacts artifactName="component://ironstone-boss/screen/People.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
+        <artifacts artifactName="component://mr-boss/screen/People.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
         <authz artifactAuthzId="BOSS_PEOPLE_ADMIN" userGroupId="ADMIN" authzTypeEnumId="AUTHZT_ALWAYS" authzActionEnumId="AUTHZA_ALL">
             <filters entityFilterSetId="MANTLE_ACTIVE_ORG"/>
             <filters entityFilterSetId="MANTLE_PRIVATE_CONTACT"/></authz>
     </artifactGroups>
 
     <artifactGroups artifactGroupId="BOSS_INSIGHTS" description="IronStone Insights App (via root screen)">
-        <artifacts artifactName="component://ironstone-boss/screen/Insights.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
+        <artifacts artifactName="component://mr-boss/screen/Insights.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
         <authz artifactAuthzId="BOSS_INSIGHTS_ADMIN" userGroupId="ADMIN" authzTypeEnumId="AUTHZT_ALWAYS" authzActionEnumId="AUTHZA_ALL">
             <filters entityFilterSetId="MANTLE_ACTIVE_ORG"/>
             <filters entityFilterSetId="MANTLE_PRIVATE_CONTACT"/></authz>
     </artifactGroups>
     <artifactGroups artifactGroupId="BOSS_ADMIN" description="IronStone Admin App (via root screen)">
-        <artifacts artifactName="component://ironstone-boss/screen/Admin.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
+        <artifacts artifactName="component://mr-boss/screen/Admin.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
         <authz artifactAuthzId="BOSS_ADMIN_ADMIN" userGroupId="ADMIN" authzTypeEnumId="AUTHZT_ALWAYS" authzActionEnumId="AUTHZA_ALL">
             <filters entityFilterSetId="MANTLE_ACTIVE_ORG"/>
             <filters entityFilterSetId="MANTLE_PRIVATE_CONTACT"/></authz>
@@ -177,7 +177,7 @@ along with this software (see the LICENSE.md file). If not, see
     <moqui.security.UserGroup userGroupId="BOSS_PROJECT_MANAGER" description="Project managers (IronStone Projects): project, delivery and resource managers, and who bills the work"/>
     <moqui.security.UserGroup userGroupId="BOSS_PROJECT_CLIENT" description="Project clients (IronStone Projects): client contacts with a user account"/>
     <artifactGroups artifactGroupId="BOSS_PROJECTS" description="IronStone Projects App (via root screen)">
-        <artifacts artifactName="component://ironstone-boss/screen/Projects.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
+        <artifacts artifactName="component://mr-boss/screen/Projects.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
         <authz artifactAuthzId="BOSS_PROJECTS_ADMIN" userGroupId="ADMIN" authzTypeEnumId="AUTHZT_ALWAYS" authzActionEnumId="AUTHZA_ALL">
             <filters entityFilterSetId="MANTLE_ACTIVE_ORG"/>
             <filters entityFilterSetId="MANTLE_PRIVATE_CONTACT"/></authz>
@@ -193,23 +193,23 @@ along with this software (see the LICENSE.md file). If not, see
             <filters entityFilterSetId="MANTLE_PRIVATE_CONTACT"/></authz>
     </artifactGroups>
     <artifactGroups artifactGroupId="BOSS_PROJECTS_MANAGERS" description="IronStone Projects screens for managers only">
-        <artifacts artifactName="component://ironstone-boss/screen/Projects/WorkItems/Import.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
-        <artifacts artifactName="component://ironstone-boss/screen/Projects/Settings.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
+        <artifacts artifactName="component://mr-boss/screen/Projects/WorkItems/Import.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
+        <artifacts artifactName="component://mr-boss/screen/Projects/Settings.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
         <!-- the + menu's Project kind (impl-projects.md F8: the shell offers a kind by its screen's authorization) -->
-        <artifacts artifactName="component://ironstone-boss/screen/Projects/QuickProject.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
+        <artifacts artifactName="component://mr-boss/screen/Projects/QuickProject.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
         <!-- the NewProject wizard and a project's Settings tab (design-projects.md §4: managers) -->
-        <artifacts artifactName="component://ironstone-boss/screen/Projects/Projects/NewProject.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
-        <artifacts artifactName="component://ironstone-boss/screen/Projects/Projects/ProjectDetail/Settings.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
+        <artifacts artifactName="component://mr-boss/screen/Projects/Projects/NewProject.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
+        <artifacts artifactName="component://mr-boss/screen/Projects/Projects/ProjectDetail/Settings.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
         <!-- the reports of money and of people's load (design-projects.md §11: managers) -->
-        <artifacts artifactName="component://ironstone-boss/screen/Projects/Reports/Profitability.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
-        <artifacts artifactName="component://ironstone-boss/screen/Projects/Reports/Utilization.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
+        <artifacts artifactName="component://mr-boss/screen/Projects/Reports/Profitability.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
+        <artifacts artifactName="component://mr-boss/screen/Projects/Reports/Utilization.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
         <authz artifactAuthzId="BOSS_PROJECTS_MANAGERS_TEAM" userGroupId="BOSS_PROJECT_TEAM" authzTypeEnumId="AUTHZT_DENY" authzActionEnumId="AUTHZA_ALL"/>
         <authz artifactAuthzId="BOSS_PROJECTS_MANAGERS_CLIENT" userGroupId="BOSS_PROJECT_CLIENT" authzTypeEnumId="AUTHZT_DENY" authzActionEnumId="AUTHZA_ALL"/>
     </artifactGroups>
     <!-- Billing: the managers' (the team is refused all of it); a client opens its Invoices, InvoiceDetail and InvoicePrint read only for
         its own sent invoices (impl-projects.md P10b; BOSS_PROJECTS_INTERNAL refuses it Unbilled, Rates and OrderDetail) -->
     <artifactGroups artifactGroupId="BOSS_PROJECTS_BILLING" description="IronStone Projects Billing: managers, and a client's own invoices">
-        <artifacts artifactName="component://ironstone-boss/screen/Projects/Billing.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
+        <artifacts artifactName="component://mr-boss/screen/Projects/Billing.xml" artifactTypeEnumId="AT_XML_SCREEN" inheritAuthz="Y"/>
         <authz artifactAuthzId="BOSS_PROJECTS_BILLING_TEAM" userGroupId="BOSS_PROJECT_TEAM" authzTypeEnumId="AUTHZT_DENY" authzActionEnumId="AUTHZA_ALL"/>
     </artifactGroups>
     <!-- What the client contacts never reach (impl-projects.md P10; design-projects.md §1.1, §2 Roles): by location, so a screen
@@ -222,27 +222,27 @@ along with this software (see the LICENSE.md file). If not, see
         WorkItemDetail, Timeline), Requests (List, RequestDetail), Billing (Invoices, InvoiceDetail, InvoicePrint), Chatter and
         RecordFiles; test/ClientIsolation.spec.js fails when a screen file is neither. -->
     <artifactGroups artifactGroupId="BOSS_PROJECTS_INTERNAL" description="IronStone Projects screens and writes the client contacts never reach">
-        <artifacts artifactName="component://ironstone-boss/screen/Projects/(Time|Resources|Reports|Settings)(\.xml|/.*)"
+        <artifacts artifactName="component://mr-boss/screen/Projects/(Time|Resources|Reports|Settings)(\.xml|/.*)"
                 artifactTypeEnumId="AT_XML_SCREEN" nameIsPattern="Y" inheritAuthz="Y"/>
         <!-- Code (P10b): a client reads the repositories its projects share (check#GitRepositoryAuthz, decided by the repository's own
             records, impl-projects.md F23 and F119): Repositories, RepositoryDetail with Files, Commits, Branches, Tags and Merge
             requests, CommitDetail, MergeRequests and MergeRequestDetail (Overview, Commits, Changes), read only; never Compare (it
             opens a merge request), Git access, a repository's Activity (the push log) or Settings -->
-        <artifacts artifactName="component://ironstone-boss/screen/Projects/Code/(Compare|GitAccess|RepositoryDetail/Activity|RepositoryDetail/Settings)(\.xml|/.*)"
+        <artifacts artifactName="component://mr-boss/screen/Projects/Code/(Compare|GitAccess|RepositoryDetail/Activity|RepositoryDetail/Settings)(\.xml|/.*)"
                 artifactTypeEnumId="AT_XML_SCREEN" nameIsPattern="Y" inheritAuthz="Y"/>
-        <artifacts artifactName="component://ironstone-boss/screen/Projects/Billing/(Unbilled|Rates)(\.xml|/.*)"
+        <artifacts artifactName="component://mr-boss/screen/Projects/Billing/(Unbilled|Rates)(\.xml|/.*)"
                 artifactTypeEnumId="AT_XML_SCREEN" nameIsPattern="Y" inheritAuthz="Y"/>
-        <artifacts artifactName="component://ironstone-boss/screen/Projects/(QuickCreate|QuickProject)\.xml"
+        <artifacts artifactName="component://mr-boss/screen/Projects/(QuickCreate|QuickProject)\.xml"
                 artifactTypeEnumId="AT_XML_SCREEN" nameIsPattern="Y" inheritAuthz="Y"/>
-        <artifacts artifactName="component://ironstone-boss/screen/Projects/Projects/(NewProject|EstimatePrint|StatusReport)(\.xml|/.*)"
+        <artifacts artifactName="component://mr-boss/screen/Projects/Projects/(NewProject|EstimatePrint|StatusReport)(\.xml|/.*)"
                 artifactTypeEnumId="AT_XML_SCREEN" nameIsPattern="Y" inheritAuthz="Y"/>
-        <artifacts artifactName="component://ironstone-boss/screen/Projects/Projects/ProjectDetail/(Files|Money|Settings|Team|Plan/Calendar|Plan/CalendarTui)\.xml"
+        <artifacts artifactName="component://mr-boss/screen/Projects/Projects/ProjectDetail/(Files|Money|Settings|Team|Plan/Calendar|Plan/CalendarTui)\.xml"
                 artifactTypeEnumId="AT_XML_SCREEN" nameIsPattern="Y" inheritAuthz="Y"/>
-        <artifacts artifactName="component://ironstone-boss/screen/Projects/WorkItems/(Backlog|BacklogTui|Import|ImportProgress|SprintDetail|SprintReport)(\.xml|/.*)"
+        <artifacts artifactName="component://mr-boss/screen/Projects/WorkItems/(Backlog|BacklogTui|Import|ImportProgress|SprintDetail|SprintReport)(\.xml|/.*)"
                 artifactTypeEnumId="AT_XML_SCREEN" nameIsPattern="Y" inheritAuthz="Y"/>
-        <artifacts artifactName="component://ironstone-boss/screen/Shared/OrderDetail\.xml"
+        <artifacts artifactName="component://mr-boss/screen/Shared/OrderDetail\.xml"
                 artifactTypeEnumId="AT_XML_SCREEN" nameIsPattern="Y" inheritAuthz="Y"/>
-        <artifacts artifactName="component://ironstone-boss/screen/(Commons|Comms)(\.xml|/.*)"
+        <artifacts artifactName="component://mr-boss/screen/(Commons|Comms)(\.xml|/.*)"
                 artifactTypeEnumId="AT_XML_SCREEN" nameIsPattern="Y" inheritAuthz="Y"/>
         <!-- every write of an IronStone app service, by its verb: every verb but the reads (get, find, search, check, clean, decorate,
             describe, list, lookup, match, parse, suggest), which test/ClientIsolation.spec.js checks against every service file. The
@@ -274,8 +274,8 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- a client's Hours tab of ProjectDetail (impl-projects.md P10b; design-projects.md §4 ProjectTime): for the client group only,
         replacing the file's own item, so no internal user lists or opens it; the project's hours by week and work item when it
         shares them, without rates (ironstone.TimeServices.get#ClientHours) -->
-    <moqui.screen.SubscreensItem screenLocation="component://ironstone-boss/screen/Projects/Projects/ProjectDetail.xml" subscreenName="ClientHours"
-            userGroupId="BOSS_PROJECT_CLIENT" subscreenLocation="component://ironstone-boss/screen/Projects/Projects/ProjectDetail/ClientHours.xml"
+    <moqui.screen.SubscreensItem screenLocation="component://mr-boss/screen/Projects/Projects/ProjectDetail.xml" subscreenName="ClientHours"
+            userGroupId="BOSS_PROJECT_CLIENT" subscreenLocation="component://mr-boss/screen/Projects/Projects/ProjectDetail/ClientHours.xml"
             menuTitle="Hours" menuIndex="10" menuInclude="Y"/>
     <!-- F121 (impl-projects.md P10b): the framework's outside-user permission keeps the client contacts out of record-bound chat
         rooms (members too), public rooms they are not in, others' presence, the records drive over the screens, WebDAV and SFTP
@@ -315,21 +315,21 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the saved finds of WorkItems every Projects user has beside their own (design-projects.md §5 WorkItems; Blocked waits for the
         dependency find of impl-projects.md P4) -->
     <moqui.screen.form.FormListFind formListFindId="BOSS_PROJ_OPEN_BUGS" description="Open bugs"
-            formLocation="component://ironstone-boss/screen/Projects/WorkItems/List.xml.form_list$WorkItemList" orderByField="priority">
+            formLocation="component://mr-boss/screen/Projects/WorkItems/List.xml.form_list$WorkItemList" orderByField="priority">
         <moqui.screen.form.FormListFindField fieldName="list" fieldValue="open"/>
         <moqui.screen.form.FormListFindField fieldName="purposeEnumId" fieldValue="WepFix"/>
         <moqui.screen.form.FormListFindUserGroup userGroupId="BOSS_PROJECT_TEAM"/>
         <moqui.screen.form.FormListFindUserGroup userGroupId="BOSS_PROJECT_MANAGER"/>
     </moqui.screen.form.FormListFind>
     <moqui.screen.form.FormListFind formListFindId="BOSS_PROJ_IN_REVIEW" description="In review"
-            formLocation="component://ironstone-boss/screen/Projects/WorkItems/List.xml.form_list$WorkItemList">
+            formLocation="component://mr-boss/screen/Projects/WorkItems/List.xml.form_list$WorkItemList">
         <moqui.screen.form.FormListFindField fieldName="list" fieldValue="all"/>
         <moqui.screen.form.FormListFindField fieldName="statusId" fieldValue="WeInReview"/>
         <moqui.screen.form.FormListFindUserGroup userGroupId="BOSS_PROJECT_TEAM"/>
         <moqui.screen.form.FormListFindUserGroup userGroupId="BOSS_PROJECT_MANAGER"/>
     </moqui.screen.form.FormListFind>
     <moqui.screen.form.FormListFind formListFindId="BOSS_PROJ_CUR_SPRINT" description="Current sprint"
-            formLocation="component://ironstone-boss/screen/Projects/WorkItems/List.xml.form_list$WorkItemList">
+            formLocation="component://mr-boss/screen/Projects/WorkItems/List.xml.form_list$WorkItemList">
         <moqui.screen.form.FormListFindField fieldName="list" fieldValue="all"/>
         <moqui.screen.form.FormListFindField fieldName="sprintId" fieldValue="current"/>
         <moqui.screen.form.FormListFindUserGroup userGroupId="BOSS_PROJECT_TEAM"/>

@@ -5,7 +5,7 @@
 // settings; Create now opens the project; Team adds a member; Modules saves the modules, the flow, a repository in the database
 // and a documentation space; Money the budgets and a rate; Review lists them and Create opens the project; the team may not
 // open it. The spec's projects have keys BT…. Authorization stays on.
-// Run: ./moq test ironstone-boss --spec NewProject
+// Run: ./moq test mr-boss --spec NewProject
 const webroot = "component://webroot/screen/webroot.xml"
 
 function render(path, parameters) {

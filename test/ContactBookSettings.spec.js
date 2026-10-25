@@ -2,9 +2,9 @@
 // books with their kind, size and sharing, a new shared book shared with Joe Developer to view (who then sees it in his Contacts scopes
 // and may not change it), its groups as editable rows, unsharing, and deleting it; the default book cannot be deleted. Everything goes
 // through mantle.party.ContactBookServices, whose own refusals (a personal book shared, a group name taken) Mantle's specs check. Authorization stays on, as for a browser request.
-// Run: ./moq test ironstone-boss --spec ContactBookSettings
+// Run: ./moq test mr-boss --spec ContactBookSettings
 const webroot = "component://webroot/screen/webroot.xml"
-const commons = "component://ironstone-boss/screen/Commons.xml"
+const commons = "component://mr-boss/screen/Commons.xml"
 
 function render(path, parameters) {
     const str = ec.screen.makeTest().rootScreen(webroot).renderMode("qvt").withStaticData().render(path, Object.assign({ lastStandalone: "true" }, parameters || {}), null)

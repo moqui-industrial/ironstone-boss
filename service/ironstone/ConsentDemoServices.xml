@@ -37,7 +37,7 @@ along with this software (see the LICENSE.md file). If not, see
         <actions><script><![CDATA[
             if (ec.entity.find('mantle.marketing.contact.ContactList').condition('contactListId', 'BOSS_DEMO_LIST_NEWS').disableAuthz().one() != null) return
             if (ec.entity.find('mantle.party.Party').condition('partyId', 'ORG_ZIZI_RETAIL').disableAuthz().one() == null) {
-                ec.logger.warn('The consent demo needs Ziziwork Retail (mantle-usl demo data); nothing loaded'); return }
+                ec.logger.warn('The consent demo needs Ziziwork Retail (mr-mantle demo data); nothing loaded'); return }
             const startUser = ec.user.username || null
             for (const part of ['records', 'consent', 'campaign', 'links']) {
                 ec.message.pushErrors()

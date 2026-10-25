@@ -7,8 +7,8 @@
 // takes no file (IronStone R5). With Files and drives (M8) the record's folder is in the records drive: each file's path there,
 // the folder's other files, a file's versions, a new version with its note, a restore, a past version's download, files added
 // from Files as copies; none of it for a record the user may not see, nor for a path outside the record's folder.
-// Run: ./moq test ironstone-boss --spec RecordFiles
-const commons = "component://ironstone-boss/screen/Commons.xml"
+// Run: ./moq test mr-boss --spec RecordFiles
+const commons = "component://mr-boss/screen/Commons.xml"
 const request = { recordEntity: "mantle.request.Request", recordId: "BOSS_DEMO_REQUEST" }
 const task = { recordEntity: "mantle.work.effort.WorkEffort", recordId: "BOSS_DEMO_TASK" }
 let uploadedKey

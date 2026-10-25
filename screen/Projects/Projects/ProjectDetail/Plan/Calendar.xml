@@ -124,7 +124,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <widgets>
         <render-mode>
-            <text type="qvue" location="component://ironstone-boss/screen/Commons/Calendar.qvue" template="false"/>
+            <text type="qvue" location="component://mr-boss/screen/Commons/Calendar.qvue" template="false"/>
             <!-- the terminal: CalendarTui, the plain screen beside this one, an agenda of the next four weeks -->
             <text type="tui"><![CDATA[${JSON.stringify([{t: "dynamicContainer", id: "ProjectCalendarTui",
                 url: sri.buildUrl("../CalendarTui").addParameters({workEffortId: workEffortId || null, date: date || null}).getUrlWithParams()}])}]]></text>

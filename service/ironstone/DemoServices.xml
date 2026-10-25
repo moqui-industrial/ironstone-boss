@@ -39,7 +39,7 @@ along with this software (see the LICENSE.md file). If not, see
             const partyId = 'EX_JOHN_DOE'
             const userId = 'EX_JOHN_DOE'
             if (ec.entity.find('mantle.party.Party').condition('partyId', partyId).disableAuthz().one() == null) {
-                ec.logger.warn('The Commons demo needs the party EX_JOHN_DOE (mantle-usl demo data); nothing loaded')
+                ec.logger.warn('The Commons demo needs the party EX_JOHN_DOE (mr-mantle demo data); nothing loaded')
                 return
             }
             // john.doe's time zone for every time of day here, whatever the server's is (a data load has no user), as the calendar
@@ -177,7 +177,7 @@ along with this software (see the LICENSE.md file). If not, see
             communicationEventIdList = []
             workEffortIdList = []
             if (ec.entity.find('mantle.party.Party').condition('partyId', 'EX_JOHN_DOE').disableAuthz().one() == null) {
-                ec.logger.warn('The Chatter demo needs the party EX_JOHN_DOE (mantle-usl demo data); nothing loaded')
+                ec.logger.warn('The Chatter demo needs the party EX_JOHN_DOE (mr-mantle demo data); nothing loaded')
                 return
             }
             const pattern = 'yyyy-MM-dd HH:mm:ss.SSS'
@@ -263,7 +263,7 @@ along with this software (see the LICENSE.md file). If not, see
                         '2. Hosted calendar service: USD 120.00 a year, room booking\n3. Paper wall planner: no sharing\n'})
                 file('mantle.request.RequestContent', 'requestContentId', 'BOSS_DEMO_RC_PICTURE', {requestId: 'BOSS_DEMO_REQUEST',
                     contentTypeEnumId: 'RqCntInternal', contentDate: ts('2026-10-03 09:40'), description: 'How the shared calendar will look'},
-                    'request/BOSS_DEMO_REQUEST', 'team-calendar.png', {copyFrom: 'component://ironstone-boss/data/demo/team-calendar.png'})
+                    'request/BOSS_DEMO_REQUEST', 'team-calendar.png', {copyFrom: 'component://mr-boss/data/demo/team-calendar.png'})
 
                 // the task: a note, a to-do done, an email planned in two days, a file
                 note('BOSS_DEMO_CE_NOTE3', 'EX_JOHN_DOE', '2026-10-06 14:00', '<p>Three requests are open; two wait on the customer.</p>', task)
@@ -350,7 +350,7 @@ along with this software (see the LICENSE.md file). If not, see
             const wasDisabled = ec.artifactExecution.disableAuthz()
             try {
                 if (ec.entity.find('mantle.party.Party').condition('partyId', 'EX_JOHN_DOE').one() == null) {
-                    ec.logger.warn('The Tasks demo needs the party EX_JOHN_DOE (mantle-usl demo data); nothing loaded')
+                    ec.logger.warn('The Tasks demo needs the party EX_JOHN_DOE (mr-mantle demo data); nothing loaded')
                     return
                 }
                 const john = 'EX_JOHN_DOE'

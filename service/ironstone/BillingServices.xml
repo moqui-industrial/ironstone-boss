@@ -814,7 +814,7 @@ along with this software (see the LICENSE.md file). If not, see
                     toAddresses: addresses.join(','), bodyParameters: {subject: subject, fromAddress: fromAddress, fromName: fromName, invoiceId: invoiceId},
                     body: body, bodyText: bodyText,
                     attachments: [{fileName: 'Invoice-' + invoiceId + '.pdf', screenRenderMode: 'xsl-fo',
-                        attachmentLocation: 'component://ironstone-boss/screen/Projects/Billing/InvoicePrint.xml'}]}).call() || {}
+                        attachmentLocation: 'component://mr-boss/screen/Projects/Billing/InvoicePrint.xml'}]}).call() || {}
                 if (ec.message.hasError()) return
                 emailMessageId = sent.emailMessageId || null
                 if (['InvoiceFinalized'].includes(inv.statusId)) ec.service.sync().name('update#mantle.account.invoice.Invoice').parameters({invoiceId: invoiceId, statusId: 'InvoiceSent'}).call()

@@ -177,7 +177,7 @@ along with this software (see the LICENSE.md file). If not, see
     </actions>
 
     <subscreens>
-        <subscreens-item name="EditEntry" location="component://ironstone-boss/screen/Projects/Time/TimeEntries/EditEntry.xml" menu-include="false"/>
+        <subscreens-item name="EditEntry" location="component://mr-boss/screen/Projects/Time/TimeEntries/EditEntry.xml" menu-include="false"/>
     </subscreens>
 
     <widgets>

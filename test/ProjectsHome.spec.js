@@ -3,7 +3,7 @@
 // (data/BossProjectsDemoData.xml): a manager's counters (with the projects at risk and the milestones soon), my work items,
 // the recent changes and the projects I manage; a team member's Home without the managers' counters; the first-run card for a
 // user on no project. Read only. Authorization stays on.
-// Run: ./moq test ironstone-boss --spec ProjectsHome
+// Run: ./moq test mr-boss --spec ProjectsHome
 const webroot = "component://webroot/screen/webroot.xml"
 
 function render(path, parameters) {

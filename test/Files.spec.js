@@ -5,9 +5,9 @@
 // search, tags, favorites and recent; downloads and zips; the drives screens; the records drive, which shows only the
 // records a user may see; and another user (joe.developer) refused on john.doe's private files. Commons Home's recent
 // files and Compose's Attach from Files too.
-// Run: ./moq test ironstone-boss --spec Files
-const commons = "component://ironstone-boss/screen/Commons.xml"
-const comms = "component://ironstone-boss/screen/Comms.xml"
+// Run: ./moq test mr-boss --spec Files
+const commons = "component://mr-boss/screen/Commons.xml"
+const comms = "component://mr-boss/screen/Comms.xml"
 const FILES = "org.moqui.impl.FileServices"
 let personalDriveId
 
@@ -463,7 +463,7 @@ feature("Attach from Files refuses a file the user may not open", {
 
 // the bytes of a file under test/files, uploaded to a folder of My files as the demo loads its pictures
 function uploadFixture(folder, name) {
-    const stream = ec.resource.getLocationReference(`component://ironstone-boss/test/files/${name}`).openStream()
+    const stream = ec.resource.getLocationReference(`component://mr-boss/test/files/${name}`).openStream()
     let bytes
     try { bytes = stream.readAllBytes() } finally { if (stream && stream.close) stream.close() }
     return sys(() => call(`${FILES}.upload#Resource`, { driveId: personalDriveId, path: folder, fileList: [bytes], relativePathList: [name],

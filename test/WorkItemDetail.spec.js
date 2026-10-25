@@ -6,9 +6,9 @@
 // me, the repeat rule and Stop repeating; Move to project with the subtree; who may see and change an item (Joe Developer on
 // IRON's team, not on HIRE; impl-projects.md F1). The same screen in Commons keeps the Commons layout (Tasks.spec.js). The spec
 // changes only the items it makes, so the demo stays for the specs after it. Authorization stays on.
-// Run: ./moq test ironstone-boss --spec WorkItemDetail
+// Run: ./moq test mr-boss --spec WorkItemDetail
 const webroot = "component://webroot/screen/webroot.xml"
-const projectsRoot = "component://ironstone-boss/screen/Projects.xml"
+const projectsRoot = "component://mr-boss/screen/Projects.xml"
 const made = {}
 
 function render(path, parameters) {

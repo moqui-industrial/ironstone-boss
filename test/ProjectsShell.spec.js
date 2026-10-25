@@ -5,7 +5,7 @@
 // links of ironstone.PaletteServices.get#RecordLink: a project, and a task or request of a project, open in Projects for a
 // user who may open it, else a task or request in Commons and a project nowhere, while a personal task stays in Commons.
 // Authorization stays on, as for a shell request.
-// Run: ./moq test ironstone-boss --spec ProjectsShell
+// Run: ./moq test mr-boss --spec ProjectsShell
 const webroot = "component://webroot/screen/webroot.xml"
 
 function shellJson(path, parameters) {
@@ -139,7 +139,7 @@ feature("a project's records open in Projects for its users, in Commons for othe
 feature("the details the links open render: the project's detail and the work item's (P2), the request's (P5)", {
     when() {
         const render = (path, parameters) => {
-            const str = ec.screen.makeTest().rootScreen("component://ironstone-boss/screen/Projects.xml").renderMode("qvt").withStaticData()
+            const str = ec.screen.makeTest().rootScreen("component://mr-boss/screen/Projects.xml").renderMode("qvt").withStaticData()
                     .render(path, Object.assign({ lastStandalone: "-2" }, parameters), null)
             return { status: str.status, errors: str.errorMessages.join(" | "), output: String(str.output || "") }
         }

@@ -71,7 +71,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <widgets>
         <render-mode>
-            <text type="qvue" location="component://ironstone-boss/screen/Commons/Calendar/Schedules.qvue" template="false"/>
+            <text type="qvue" location="component://mr-boss/screen/Commons/Calendar/Schedules.qvue" template="false"/>
             <!-- the terminal: SchedulesTui, the plain screen beside this one, on the same day and type -->
             <text type="tui"><![CDATA[${JSON.stringify([{t: "dynamicContainer", id: "SchedulesTui",
                 url: sri.buildUrl("../SchedulesTui").addParameters({date: date || null, type: type || null}).getUrlWithParams()}])}]]></text>

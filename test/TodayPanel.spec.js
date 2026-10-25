@@ -2,9 +2,9 @@
 // (service/ironstone/DemoServices.xml load#CommonsDemo, loaded again here with the clock at 08:00 today) in its groups, the
 // Requests today source of the Commons shell providers, and the quick actions: Mark done, Snooze, Reschedule and the quick-add
 // line, each answering JSON messages and changing the panel. A task the user is not on cannot be changed.
-// Run: ./moq test ironstone-boss --spec TodayPanel
+// Run: ./moq test mr-boss --spec TodayPanel
 const webroot = "component://webroot/screen/webroot.xml"
-const commons = "component://ironstone-boss/screen/Commons.xml"
+const commons = "component://mr-boss/screen/Commons.xml"
 const requestsSource = { service: "mantle.request.RequestServices.get#UserTodayRequests", label: "Requests" }
 let todayText, tomorrowText
 

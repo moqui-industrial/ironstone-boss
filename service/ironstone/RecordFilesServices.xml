@@ -35,7 +35,7 @@ along with this software (see the LICENSE.md file). If not, see
             const content = info.contentEntity
             if (!content) return
             // the create#<X>Content services (each saves the uploaded contentFile through its save#<X>ContentFile), and the
-            // enumeration type of the content type field (its relationship title in mantle-udm)
+            // enumeration type of the content type field (its relationship title in mr-mantle)
             const services = {
                 'mantle.party.agreement.Agreement': ['mantle.party.AgreementServices.create#AgreementContent', 'agreementContentId', 'AgreementContentType'],
                 'mantle.product.maintenance.AssetMaintenance': ['mantle.product.EquipmentServices.create#AssetMaintenanceContent', null, 'AssetMaintContentType'],

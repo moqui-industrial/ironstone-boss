@@ -24,7 +24,7 @@ Sections: [1 scope](#1-scope-and-order) · [2 step 0](#2-step-0) · [3 review](#
 ## 1. Scope and order
 
 - **Repositories.** Each of these is its own git repo: `mr-moqui-base` (`crates/`, `runtime/base-component`),
-  `runtime/component/mr-mantle-udm`, `runtime/component/mr-mantle-usl` and `runtime/component/ironstone-boss`.
+  `runtime/component/mr-mantle`, `runtime/component/mr-mantle` and `runtime/component/mr-boss`.
 - **Scope.** Every `parity` and `new` row of design §3. The `later` rows are in §6.
 - **Order** (decided Oct 18): the shell foundation (M0–M3), then Contacts, Mail, Tasks and Requests, Calendar, Files,
   Knowledge and Notes, Chat, Consent. Contacts come before mail so recipients, contact cards and "Add to contacts" have
@@ -48,14 +48,14 @@ Each finding was verified in the code. Each resolution is now part of the design
 | R1 | Design §1.3: Assist depends on mr-moqui Phase 13, which is deferred. No Assist or LLM client code exists. | The shell reserves the right `q-drawer` slot, with no toggle until the port. It builds `screenContext` and `assistReach` now, as the port's inputs. BOSS skills and agent chat members wait for Phase 13. |
 | R2 | §19 Shell providers: menu data is built per path (`crates/moqui-core/src/screen/menu.rs:81`). Aggregating every app root's providers there would happen on every navigation. | A new webroot transition `shellData`, fetched once per page load. It returns the launcher apps, each permitted app root's `<shell-providers>`, its menu titles to depth 2 (for the palette's Screens group), the shell theme values and the first counts. A root that fails is logged and left out. |
 | R3 | §1.5 palette: the People, Messages and rooms, Pages and files, Events, Records and id-lookup groups have no provider element, and the framework cannot call Mantle. | `<palette-source group service prefix id-pattern sequence>`. Each source service takes `{text, limit, docTypes}` and returns `[{title, subtitle, icon, url}]`. Commons registers Records (`search#Universal` over the `<palette-type>` document types of the permitted apps), People, Pages and files, Events, and the id lookup (`lookup#ById`). Comms registers Messages and rooms. A failing source drops its group and is logged. |
-| R4 | §1.5 Records, §5 Search: `search#Universal` drops CommunicationEvent and the Project, Task, Event and Request documents whenever an org filter is on (`mr-mantle-usl/service/mantle/search/UniversalSearchServices.xml:65-68`). Every BOSS authz carries MANTLE_ACTIVE_ORG. | Mantle replaces the exclusion with per-user conditions. A task, event or request shows when the user is one of its parties or its organization is in `filterOrgIds`. A communication event shows when the user is its from, to or recipient party. |
+| R4 | §1.5 Records, §5 Search: `search#Universal` drops CommunicationEvent and the Project, Task, Event and Request documents whenever an org filter is on (`mr-mantle/service/mantle/search/UniversalSearchServices.xml:65-68`). Every BOSS authz carries MANTLE_ACTIVE_ORG. | Mantle replaces the exclusion with per-user conditions. A task, event or request shows when the user is one of its parties or its organization is in `filterOrgIds`. A communication event shows when the user is its from, to or recipient party. |
 | R5 | §9, §15, §19 `chatter` and `record-files`: the client fetches the theme-named screen as its own request, so the host screen's authz is not part of it, and nothing mounts `Shared/`. | Each BOSS app root mounts `Shared/Chatter.xml` and `Shared/RecordFiles.xml` as hidden subscreens `Chatter` and `RecordFiles` (design-doc-guide §10). The theme values hold that subscreen name. The elements load `<app root>/<name>?recordEntity=&recordId=`, so the app's authz and entity filters apply. Both screens first find the record under the user's filters. If it is not visible they render nothing (logged once) and refuse writes. |
 | R6 | §12 Compose "File on", §15 SendMessage: the framework's `send#Draft` cannot write a Mantle record join. | A Mantle wrapper, `mantle.party.CommunicationServices.send#EmailDraft`. It calls `EmailClientServices.send#Draft`, then creates the `CommunicationEvent` with `emailMessageId` and writes the record join. Compose and Chatter call it when a record chip is set. |
 | R7 | §6, §19 personal contacts: entity filters are not global. They come only from the ArtifactAuthz that authorized the artifact (`crates/moqui-core/src/user/filter.rs:33,137`) and are skipped with authz disabled. `search#Party` reads the index. | The `privateOwnerUserId` condition becomes a second EntityFilter in the existing MANTLE_USER_ORG and MANTLE_ACTIVE_ORG filter sets, so it applies wherever the org filter does. The same condition is added explicitly to `find#Party`, `search#Party` (as an index field and a query term), `lookup#ById`, DuplicateServices and the party drop-down transitions. Check whether `filter.rs` turns a null in an IN list into `IS NULL`; if not, write an or-condition. A spec proves another user never sees a personal contact through any of these paths. |
-| R8 | §12 replies: `reply#CommunicationEvent` always creates a `Comment` and answers only the parent's other party (`mr-mantle-usl/service/mantle/party/CommunicationServices.xml:69`). | It is extended to keep the parent's type (a `Message` stays a `Message`), `contactListId` and the thread's participants. `replyToSenderOnly` gives Reply to sender. |
+| R8 | §12 replies: `reply#CommunicationEvent` always creates a `Comment` and answers only the parent's other party (`mr-mantle/service/mantle/party/CommunicationServices.xml:69`). | It is extended to keep the parent's type (a `Message` stays a `Message`), `contactListId` and the thread's participants. `replyToSenderOnly` gives Reply to sender. |
 | R9 | §7 LinkedRecords, §12 LinkToRecord, §19 Record cards: `lookup#ById` returns no request and no communication event. | It is extended with Request and CommunicationEvent. |
 | R10 | §6 Duplicates and "Link to a directory party": `merge#Parties` does not move WorkEffortParty, RequestParty, CommunicationEventParty or ContactListParty. | It is extended with those and with the new party rows: ContactBookParty, ContactBookGroupParty, PartyConsent, and party shares. |
-| R11 | §7: Event `get#FullCalendarData` reads `WorkEffort.facilityId` rather than `WorkEffortFacility`, shows declined invitations and ignores `recurLimit`. The `WorkEffortPartyAsset` view aliases asset status and dates to the party member (`mr-mantle-usl/entity/WorkEffortViewEntities.xml:259-261`). | The view is fixed. The service gains the rooms from WorkEffortFacility, skips WeptDeclined unless "show declined" is on, and adds RRULE expansion and `calendarIdList`. |
+| R11 | §7: Event `get#FullCalendarData` reads `WorkEffort.facilityId` rather than `WorkEffortFacility`, shows declined invitations and ignores `recurLimit`. The `WorkEffortPartyAsset` view aliases asset status and dates to the party member (`mr-mantle/entity/WorkEffortViewEntities.xml:259-261`). | The view is fixed. The service gains the rooms from WorkEffortFacility, skips WeptDeclined unless "show declined" is on, and adds RRULE expansion and `calendarIdList`. |
 | R12 | §1.2: `get#UserNoticeCounts` counts declined events and completed tasks, and reads messages by `toPartyId` only. | `get#ShellCounts` is written fresh over the new state: WorkEffortParty status and snooze, `CommunicationEventParty.readDate`, `EmailMessage.isRead`, `ChatRoomMember.lastReadEventId` and `NotificationMessageUser.viewedDate`. The old service stays until MyAccountNav retires. |
 | R13 | §19 `shellCounts`: "the services that change those counts publish" has no owner, and theme values are resolved per render. | A framework service, `org.moqui.impl.ShellServices.publish#ShellCounts(userIdList)`. It resolves `STRT_SHELL_COUNTS_SERVICE` from the user's qapps theme, as `qapps.xml` does, falling back to DEFAULT_QUASAR. It sends a non-persisted NotificationMessage on topic `shellCounts`, coalesced per user (one per ~2 s). Framework and Mantle EECAs and SECAs call it. |
 | R14 | §1.2: theme values are per theme. | BOSS seeds them on DEFAULT_QUASAR and on any other Quasar theme it ships. With any other theme the tray, badges and Chatter are absent, as in a deployment without BOSS. |
@@ -72,7 +72,7 @@ Each finding was verified in the code. Each resolution is now part of the design
 | R25 | §9 Records drive: the content folders are not uniform. `CommunicationEvent/` is capitalised, AssetMaintenance sits under `asset/<id>/maintenance/`, and Facility has no pair. | BOSS seeds an explicit map from folder to entity and id field. A naming rule would not cover these cases. |
 | R26 | §1.2 Inbox count, §12 mailboxes delivered to the Inbox: count and unread are per row (R15). | `get#ShellCounts.messages` counts an internal message once per user: internal messages and Inbox-delivered posts on that user's rows. Changed Oct 19 (§5 M2): the header has separate Mail, Messages and Notifications counts. |
 | R27 | §19: the shell changes every `/qapps` user (MarbleERP, SimpleScreens, tools). | Every new header element hides when its theme value or provider is empty. Without BOSS a deployment gains only the launcher, the palette (Recent, Screens, Saved finds, Actions) and icons. |
-| R28 | Found building M3, Oct 19: Request, WorkEffort and CommunicationEvent have no entity filter, OrderHeader's is on OrderPart, and WikiPage is a `moqui.*` entity, so R5's "find the record under the user's filters" let any app user read those records' Chatter by id; universal search also found restricted wiki pages and notes. | `get#RecordLinkInfo` applies per-user rules under an organization filter (a work effort or request by its parties and organizations, a message by its parties, mailbox or the record it is filed on, an order by its parts' parties, a wiki page by the wiki's own view rule; ADMIN and explicit entity authz see all; no active organization means all the user's organizations) and offers `checkOnly`; search uses the same rules (mantle-usl b5b2e64, eed058a). |
+| R28 | Found building M3, Oct 19: Request, WorkEffort and CommunicationEvent have no entity filter, OrderHeader's is on OrderPart, and WikiPage is a `moqui.*` entity, so R5's "find the record under the user's filters" let any app user read those records' Chatter by id; universal search also found restricted wiki pages and notes. | `get#RecordLinkInfo` applies per-user rules under an organization filter (a work effort or request by its parties and organizations, a message by its parties, mailbox or the record it is filed on, an order by its parts' parties, a wiki page by the wiki's own view rule; ADMIN and explicit entity authz see all; no active organization means all the user's organizations) and offers `checkOnly`; search uses the same rules (mr-mantle b5b2e64, eed058a). |
 
 ## 4. Ground rules
 
@@ -93,7 +93,7 @@ Each finding was verified in the code. Each resolution is now part of the design
 - **Demo data.** BOSS adds `data/BossDemoData.xml` (type demo) per milestone so specs and screenshots have content.
 - **Done for a milestone:**
   - Tests: `cargo test` for the touched crates, with goldens reviewed; the new Mantle specs in `test/suite.js` passing
-    under `./moq test mantle-usl`; `./moq test ironstone-boss` passing, with `test/AppStructure.spec.js` extended to
+    under `./moq test mr-mantle`; `./moq test mr-boss` passing, with `test/AppStructure.spec.js` extended to
     every implemented Commons and Comms screen (not only the placeholders); `moqui lint --screens` clean for BOSS.
   - Screens: screenshots of each new screen with `example/test/gallery-shots.mjs`, light and dark, at 390, 1280 and
     1440 px.
@@ -155,7 +155,7 @@ Done: AppStructure passes, the 8 lint failures are gone, and the icons show in t
 
 Built Oct 18: mr-moqui 0fa00fc (failure tolerance, Material Symbols `@material-symbols/font-400` with Quasar's icon set,
 loaded only when the theme has the font, `m-menu-icon`), BOSS 1fce896 (the moved screens, `data/BossDemoData.xml`,
-AppStructure renders every screen with its demo record), MrSimpleScreens e26a723. An existing database needs a load for
+AppStructure renders every screen with its demo record), mr-marble e26a723. An existing database needs a load for
 the new theme stylesheet rows.
 
 ### M1 — Shell framework (mr-moqui; Mantle; BOSS seed and providers)
@@ -263,7 +263,7 @@ the record-update topics seeded into Updates. BOSS: the theme values and the M2 
   - Settings index, Settings/Notifications, Settings/Preferences (Appearance and Keymap) and a rewrite of
     Settings/Account.
 - **Specs:**
-  - `mr-mantle-usl/test/CommonsToday.spec.js`: today items with snooze, shell counts (excluding declined events and
+  - `mr-mantle/test/CommonsToday.spec.js`: today items with snooze, shell counts (excluding declined events and
     completed tasks), the approval services, and a failing today source.
   - BOSS screen specs.
 
@@ -639,7 +639,7 @@ with what the drawers and Commons gained for it.
 ## 8. Save point, Oct 19, 2026
 
 Every milestone M0–M11 is built and committed: mr-moqui-base e6d8504 (then the merge below), Mantle udm f443cb8 and usl 8c3b30c, BOSS eb4a3d3
-(MrSimpleScreens 5330d2a). The last full `./moq test` was 1076 features, all passing, before the final follow-ups; those
+(mr-marble 5330d2a). The last full `./moq test` was 1076 features, all passing, before the final follow-ups; those
 were checked with their own specs only. Build notes per milestone are in §5; the framework's own list is mr-moqui
 plans/Remaining-Work.md.
 
@@ -647,8 +647,8 @@ plans/Remaining-Work.md.
 - mr-moqui `entity-modified-fields` (merged Oct 19 after the save point, at the user's call, to be watched): a found
   value's `update()` writes only the fields that changed, so two transactions changing different fields of one row no
   longer undo each other. This goes beyond Java, whose `update()` of a found value writes every field it holds
-  (plans/Parity-Diffs.md, "Modified fields"). Checked with moqui-core (1306), mantle-usl with SimpleScreens (620) and
-  ironstone-boss (378).
+  (plans/Parity-Diffs.md, "Modified fields"). Checked with moqui-core (1306), mr-mantle with SimpleScreens (620) and
+  mr-boss (378).
 
 **Decided**
 - view-calendar `range-find` stays opt-in (Tasks and the gallery Views screen set it). A calendar view paints the list's current page. With `range-find="true"`, and only while that view is showing, the client GETs `{screen}/actions/{form}` once (twice when the calendar has an end field) with `{field}_from`, `{field}_thru` and `pageNoLimit=true` for the dates on screen. Making that the default would fire the request for every form-list that has a view-calendar, including a list whose actions ignore the range or honor `pageNoLimit` without it. It does not add a request to Calendar.qvue or to the table and board.
@@ -692,7 +692,7 @@ plans/Remaining-Work.md.
     the frames on `/notws` with the cluster topic `collab-update`, `CollabServices` `save#` and `get#CollabDocument`, and
     `m-coedit` with its provider (the Tiptap bundle gained Collaboration, CollaborationCaret and Yjs).
 - Mantle: `mantle.work.CalendarDavServices` (calendars, and a Tasks collection of the user's tasks as VTODO) and
-  `mantle.party.ContactDavServices` (contact books as vCard 3.0, personal books written), named in mr-mantle-usl
+  `mantle.party.ContactDavServices` (contact books as vCard 3.0, personal books written), named in mr-mantle
   `MoquiConf.xml`, granted to all users by the seed group `MantleDavServices`; `CalendarWorkEffort.davName`,
   `ContactBookParty.davName` and `davUid`; `export#Contacts` `vcardVersion`; `test/Dav.spec.js`.
 - BOSS: Commons Settings/Sync (devices and their app passwords, the password shown once, the addresses, the steps for

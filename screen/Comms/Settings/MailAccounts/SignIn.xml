@@ -47,6 +47,6 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
 
     <widgets>
-        <render-mode><text type="qvue" location="component://ironstone-boss/screen/Comms/Settings/MailAccounts/SignIn.qvue" template="false"/><text type="tui" location="component://ironstone-boss/screen/Comms/Settings/MailAccounts/SignIn.tui.json" template="false"/></render-mode>
+        <render-mode><text type="qvue" location="component://mr-boss/screen/Comms/Settings/MailAccounts/SignIn.qvue" template="false"/><text type="tui" location="component://mr-boss/screen/Comms/Settings/MailAccounts/SignIn.tui.json" template="false"/></render-mode>
     </widgets>
 </screen>

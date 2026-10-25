@@ -6,9 +6,9 @@
 // answer (its status failed, with the reason) and stored from a feed's text (ok, its event on the grid); an .ics file is
 // imported into a calendar and a calendar exported. The calendar defaults are saved as preferences that the calendar reads. Joe
 // may not change or export john.doe's Family calendar.
-// Run: ./moq test ironstone-boss --spec CalendarSettings
+// Run: ./moq test mr-boss --spec CalendarSettings
 const webroot = "component://webroot/screen/webroot.xml"
-const commons = "component://ironstone-boss/screen/Commons.xml"
+const commons = "component://mr-boss/screen/Commons.xml"
 let D
 const made = {}
 

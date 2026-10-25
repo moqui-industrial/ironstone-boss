@@ -4,9 +4,9 @@
 // decorated (client, manager, health, items, hours, next milestone); the sub-projects under their program; the list in qvt with
 // its board; a board move along the Default flow by a manager and refused for the team; the bulk changes, each project on its
 // own. The spec moves back what it moves. Authorization stays on.
-// Run: ./moq test ironstone-boss --spec Projects
+// Run: ./moq test mr-boss --spec Projects
 const webroot = "component://webroot/screen/webroot.xml"
-const projectsRoot = "component://ironstone-boss/screen/Projects.xml"
+const projectsRoot = "component://mr-boss/screen/Projects.xml"
 
 function render(path, parameters) {
     const str = ec.screen.makeTest().rootScreen(webroot).renderMode("qvt").withStaticData().render(path, Object.assign({ lastStandalone: "true" }, parameters || {}), null)
@@ -36,7 +36,7 @@ const setStatus = (workEffortId, statusId) => sys(() => { const row = ec.entity.
 const rows = (parameters) => sys(() => call("ironstone.ProjectServices.find#Projects", Object.assign({ pageSize: 200 }, parameters || {})))
 // the demo's projects (this component's data files), not those another spec made, here or in another component's run before
 const demoProjects = new Set()
-for (const fileRef of ec.resource.getLocationReference("component://ironstone-boss/data").getDirectoryEntries())
+for (const fileRef of ec.resource.getLocationReference("component://mr-boss/data").getDirectoryEntries())
     if (fileRef.location.endsWith(".xml"))
         for (const match of String(ec.resource.getLocationText(fileRef.location) || "").matchAll(/<mantle\.work\.effort\.WorkEffort workEffortId="([^"]+)" workEffortTypeEnumId="WetProject"/g))
             demoProjects.add(match[1])

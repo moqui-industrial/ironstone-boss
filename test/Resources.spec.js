@@ -6,7 +6,7 @@
 // Home's Allocation requests counter and approvals; joe.developer sees the plan read only and may not move an allocation or open the
 // requests to decide; bob.developer may not open Ana, on no project he sees. NewProject's Team step allocates a member it adds with
 // hours a week. Nothing is changed but a draft project, cancelled after.
-// Run: ./moq test ironstone-boss --spec Resources
+// Run: ./moq test mr-boss --spec Resources
 const webroot = "component://webroot/screen/webroot.xml"
 const made = {}
 

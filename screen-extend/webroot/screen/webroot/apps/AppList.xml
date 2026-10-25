@@ -18,15 +18,15 @@ along with this software (see the LICENSE.md file). If not, see
 <screen-extend>
     <actions-extend when="append">
         <script><![CDATA[
-            appSuites.push({name: 'IronStoneBoss', title: 'IronStone BOSS', component: 'ironstone-boss', order: 10,
+            appSuites.push({name: 'IronStoneBoss', title: 'IronStone BOSS', component: 'mr-boss', order: 10,
                 titlePrefix: 'IronStone ', groups: [
                     {name: 'Workspace', title: 'Workspace', tiles: true, names: ['Commons', 'Comms']},
                     {name: 'Customers', title: 'Customer-facing', names: ['Sales', 'Marketing', 'CustomerService', 'Commerce']},
                     {name: 'Operations', title: 'Supply & Operations', names: ['Products', 'Purchasing', 'Warehouse', 'Manufacturing', 'Maintenance']},
                     {name: 'Finance', title: 'Finance, People & Projects', names: ['Accounting', 'People', 'Projects']},
                     {name: 'Management', title: 'Management', names: ['Insights', 'Admin']}],
-                templates: {html: 'component://ironstone-boss/template/AppList.html.fancy',
-                    qvt: 'component://ironstone-boss/template/AppList.qvt.fancy', tui: 'component://ironstone-boss/template/AppList.tui.fancy'}})
+                templates: {html: 'component://mr-boss/template/AppList.html.fancy',
+                    qvt: 'component://mr-boss/template/AppList.qvt.fancy', tui: 'component://mr-boss/template/AppList.tui.fancy'}})
         ]]></script>
     </actions-extend>
 </screen-extend>

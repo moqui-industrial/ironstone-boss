@@ -5,9 +5,9 @@
 // screen (each level lists the subscreens the user may open) and the render of their app roots and main screens are the same
 // with the records as ALWAYS (put back for the comparison) and as ALLOW; the new client groups and filter set change nothing
 // for them either: the Projects menu and what the team is denied are as before, and no client filter reaches their finds.
-// Run: ./moq test ironstone-boss --spec ClientAccessInternal
+// Run: ./moq test mr-boss --spec ClientAccessInternal
 const webroot = "component://webroot/screen/webroot.xml"
-const base = "component://ironstone-boss/screen"
+const base = "component://mr-boss/screen"
 const USERS = ["john.doe", "joe.developer", "boss.test.allusers"]
 const MAIN = ["Commons/Home", "Commons/Tasks", "Commons/Contacts", "Commons/Calendar", "Commons/Knowledge", "Commons/Notes", "Commons/Files",
     "Commons/Settings/Index", "Comms/Home", "Comms/Inbox", "Comms/Chat", "Comms/Settings"]

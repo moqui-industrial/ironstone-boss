@@ -61,7 +61,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- Insights ScheduledReports and ScheduledReports/ScheduledReportDetail: a saved find of the Commons Tasks list,
         scheduled weekly and paused by its past thruDate, so the scheduled screen job never sends it -->
     <moqui.screen.form.FormListFind formListFindId="BOSS_DEMO_MY_TASKS" description="Open tasks by priority"
-            orderByField="priority" formLocation="component://ironstone-boss/screen/Commons/Tasks/List.xml.form_list$Tasks">
+            orderByField="priority" formLocation="component://mr-boss/screen/Commons/Tasks/List.xml.form_list$Tasks">
         <users userId="EX_JOHN_DOE"/>
     </moqui.screen.form.FormListFind>
     <moqui.screen.ScreenScheduled screenScheduledId="BOSS_DEMO_MY_TASKS" screenPath="/apps/Commons/Tasks"

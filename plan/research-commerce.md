@@ -25,7 +25,7 @@ Deeper research pass on the **IronStone Commerce** app — the initial-design se
 | **metasfresh** | `3p_other/metasfresh` | `backend/de.metas.<module>/…`, connector services `misc/services/camel/…` |
 | **ridgecrest** | `3p_moqui/ridgecrest` | `screen/…`, `service/…`, `entity/…`, `data/…` — storefront `screen/rcherbals/`, PopRestStore overlays `screen/{popdynamic,popstatic,poptemplate}/`, admin `screen/rcadmin/` |
 | **coarchy** | `3p_moqui/coarchy` | `screen/…`, `service/…` — self-serve credits checkout in `screen/settings/settingsinternal/` |
-| **Moqui baseline** | `mr-moqui-base/runtime` | `component/MrSimpleScreens/screen/SimpleScreens/…`, `component/mr-mantle-udm/entity/…`, `component/mr-mantle-usl/service/mantle/…`, `base-component/tools/screen/…` |
+| **Moqui baseline** | `mr-moqui-base/runtime` | `component/mr-marble/screen/SimpleScreens/…`, `component/mr-mantle/entity/…`, `component/mr-mantle/service/mantle/…`, `base-component/tools/screen/…` |
 
 **Not used here.** Checked and found no storefront, store/channel or commerce-integration UI: Carbon (B2B ERP; no storefront, channel or shop connector in `apps/erp/app/modules/`), Akaunting (customer portal for invoice payment only, catalogued in research-accounting.md), Moqui Sales (rep-side order entry; its `screen/Sales/Order/FindOrder.xml` includes `OrderOpen` carts by default, noted for research-sales.md), WorkManagement, WeCreate, resistmanagement, ServiceJobMonitor. Not in any checkout: Frappe `webshop` and `ecommerce_integrations` (ERPNext points to them, §8), Odoo Enterprise marketplace connectors.
 
@@ -211,28 +211,28 @@ Sections: [1 commerce home & dashboards](#1-commerce-home--dashboards) · [2 sto
 
 ---
 
-## 11. Current Moqui baseline (MrSimpleScreens / MarbleERP / Mantle)
+## 11. Current Moqui baseline (mr-marble / MarbleERP / Mantle)
 
-The baseline has a complete store data model and back-office store screens, but no commerce app: no store landing page, no cart or abandoned-cart view, no store category tree, no review moderation, no store content/space management, no integrations view per store. MarbleERP's `component/MrMarbleERP/screen/marble.xml` mounts SimpleScreens `Catalog`, `Order`, `ProductStore` and (menu-hidden) `Gateway`; it adds no commerce screens. The storefronts themselves live outside the baseline (PopRestStore, ridgecrest).
+The baseline has a complete store data model and back-office store screens, but no commerce app: no store landing page, no cart or abandoned-cart view, no store category tree, no review moderation, no store content/space management, no integrations view per store. MarbleERP's `component/mr-marble/screen/marble.xml` mounts SimpleScreens `Catalog`, `Order`, `ProductStore` and (menu-hidden) `Gateway`; it adds no commerce screens. The storefronts themselves live outside the baseline (PopRestStore, ridgecrest).
 
 ### Screens
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Stores (find) | Store list and **New Store** (id, name, organization) | `component/MrSimpleScreens/screen/SimpleScreens/ProductStore.xml`, `component/MrSimpleScreens/screen/SimpleScreens/ProductStore/FindProductStore.xml` |
-| Product Store (edit) | Store form: organization, inventory facility, reservation order and auto-reserve, require inventory, default disable promotions / shipping calc / tax calc, ship-label markups, any-carrier-method, insurance threshold, auto-approve delay, store domain, profile URL path, wiki space, locale, currency, default sales channel, require customer role, tax gateway, system message remote; **Clone Store**; sections **Shipping Options** (`ProductStoreShipOption` via `create#StoreShippingOption`), **Shipping Gateways** (per carrier, geo, billing), **Payment Gateways** (per instrument), **Data Documents** | `component/MrSimpleScreens/screen/SimpleScreens/ProductStore/EditProductStore.xml` |
-| Store sub-tabs | **Categories** (`ProductStoreCategory`), **Emails** (`ProductStoreEmail`), **Facilities** (`ProductStoreFacility`), **Parties** (`ProductStoreParty` with role), **Settings** (`ProductStoreSetting`) | `component/MrSimpleScreens/screen/SimpleScreens/ProductStore/{FindProductStoreCategory,FindProductStoreEmails,FindProductStoreFacility,FindProductStoreParty,FindProductStoreSettings}.xml` |
-| Store Promotions | Find/edit `ProductStorePromotion` (service, dates, code required, use limits, free ground shipping), parameters and products, orders that used it; **Promo Codes** with parties | `component/MrSimpleScreens/screen/SimpleScreens/ProductStore/Promotion/{FindPromotion,EditPromotion}.xml`, `component/MrSimpleScreens/screen/SimpleScreens/ProductStore/Promotion/PromoCode/{FindPromoCode,EditPromoCode}.xml` |
-| Gateways | Payment and shipping gateway configs (find/edit), reached from the store screen | `component/MrSimpleScreens/screen/SimpleScreens/Gateway/Payment/{FindPaymentGateway,EditPaymentGateway}.xml`, `component/MrSimpleScreens/screen/SimpleScreens/Gateway/Shipping/{FindShippingGateway,EditShippingGateway}.xml` |
-| Catalog | Products (edit, prices with a **Store** column, categories, associations, content list/detail/compare), categories (edit with **URL slug** generation, products, content), features, feature groups, search | `component/MrSimpleScreens/screen/SimpleScreens/Catalog/Product/{EditProduct,EditPrices,EditCategories,Content}.xml`, `component/MrSimpleScreens/screen/SimpleScreens/Catalog/Category/{EditCategory,EditProducts,Content}.xml` |
-| Find Order | Order list with store and sales-channel fields; default status filter excludes `OrderOpen` "to exclude shopping cart orders" | `component/MrSimpleScreens/screen/SimpleScreens/Order/FindOrder.xml`, `component/MrSimpleScreens/screen/SimpleScreens/Order/OrderDetail.xml` |
+| Stores (find) | Store list and **New Store** (id, name, organization) | `component/mr-marble/screen/SimpleScreens/ProductStore.xml`, `component/mr-marble/screen/SimpleScreens/ProductStore/FindProductStore.xml` |
+| Product Store (edit) | Store form: organization, inventory facility, reservation order and auto-reserve, require inventory, default disable promotions / shipping calc / tax calc, ship-label markups, any-carrier-method, insurance threshold, auto-approve delay, store domain, profile URL path, wiki space, locale, currency, default sales channel, require customer role, tax gateway, system message remote; **Clone Store**; sections **Shipping Options** (`ProductStoreShipOption` via `create#StoreShippingOption`), **Shipping Gateways** (per carrier, geo, billing), **Payment Gateways** (per instrument), **Data Documents** | `component/mr-marble/screen/SimpleScreens/ProductStore/EditProductStore.xml` |
+| Store sub-tabs | **Categories** (`ProductStoreCategory`), **Emails** (`ProductStoreEmail`), **Facilities** (`ProductStoreFacility`), **Parties** (`ProductStoreParty` with role), **Settings** (`ProductStoreSetting`) | `component/mr-marble/screen/SimpleScreens/ProductStore/{FindProductStoreCategory,FindProductStoreEmails,FindProductStoreFacility,FindProductStoreParty,FindProductStoreSettings}.xml` |
+| Store Promotions | Find/edit `ProductStorePromotion` (service, dates, code required, use limits, free ground shipping), parameters and products, orders that used it; **Promo Codes** with parties | `component/mr-marble/screen/SimpleScreens/ProductStore/Promotion/{FindPromotion,EditPromotion}.xml`, `component/mr-marble/screen/SimpleScreens/ProductStore/Promotion/PromoCode/{FindPromoCode,EditPromoCode}.xml` |
+| Gateways | Payment and shipping gateway configs (find/edit), reached from the store screen | `component/mr-marble/screen/SimpleScreens/Gateway/Payment/{FindPaymentGateway,EditPaymentGateway}.xml`, `component/mr-marble/screen/SimpleScreens/Gateway/Shipping/{FindShippingGateway,EditShippingGateway}.xml` |
+| Catalog | Products (edit, prices with a **Store** column, categories, associations, content list/detail/compare), categories (edit with **URL slug** generation, products, content), features, feature groups, search | `component/mr-marble/screen/SimpleScreens/Catalog/Product/{EditProduct,EditPrices,EditCategories,Content}.xml`, `component/mr-marble/screen/SimpleScreens/Catalog/Category/{EditCategory,EditProducts,Content}.xml` |
+| Find Order | Order list with store and sales-channel fields; default status filter excludes `OrderOpen` "to exclude shopping cart orders" | `component/mr-marble/screen/SimpleScreens/Order/FindOrder.xml`, `component/mr-marble/screen/SimpleScreens/Order/OrderDetail.xml` |
 | System messages | Message remotes, types and messages (integration plumbing, Admin) | `base-component/tools/screen/System/SystemMessage.xml`, `base-component/tools/screen/System/SystemMessage/{Message,Remote,Type}.xml` |
 
 ### Data model available
 
 | Record | Entity file | Notes |
 | --- | --- | --- |
-| `ProductStore` | `component/mr-mantle-udm/entity/ProductStoreEntities.xml` | The store/channel record: fields listed above, plus `returnPostalContactMechId` and deprecated `*DataDocumentId` fields |
+| `ProductStore` | `component/mr-mantle/entity/ProductStoreEntities.xml` | The store/channel record: fields listed above, plus `returnPostalContactMechId` and deprecated `*DataDocumentId` fields |
 | `ProductStoreCategory` | same | Store ↔ category by type (`PsctHomePage`, `PsctBrowseRoot`, `PsctSearch`, `PsctQuickAdd`, `PsctQuickInternal`, `PsctPromotions`, `PsctNewProducts`, `PsctFeatured`, `PsctViewAllow`, `PsctPurchaseAllow`, `PsctAdminAllow`), dated |
 | `ProductStoreSetting` | same | Typed, dated settings (`PsstRestApiLocation`, `PsstContentLocation`, `PsstProductImageLoc`, `PsstProductDetailUrl`, `PsstShipLabelName`, shipment template locations, …; PopRestStore adds `PsstHostname` and client template types) |
 | `ProductStoreShipOption`, `ProductStoreShippingGateway`, `ProductStorePaymentGateway` | same | Checkout options with markups; gateway per carrier; gateway per payment instrument |
@@ -241,11 +241,11 @@ The baseline has a complete store data model and back-office store screens, but 
 | `ProductStoreWikiSpace`, `ProductStoreWikiContent`, `ProductStoreDataDocument` | same | Content spaces by type (`PstFull`, `PstBlog`, `PstSnip`, `PstTmpSrv`, `PstTmpClt`) and locale; content by store content type; search documents |
 | `ProductStoreApprove`, `ProductStoreApproveParam` | same | Per-store pre-approve order validation services |
 | `ProductStoreGroup`, `ProductStoreGroupMember`, `ProductStoreGroupParty` | same | Store groups |
-| `OrderHeader` (`productStoreId`, `salesChannelEnumId`, `externalId`, `syncStatusId`, `systemMessageRemoteId`, `visitId`), `OrderPromoCode` | `component/mr-mantle-udm/entity/OrderEntities.xml` | Cart = `OrderOpen`; channels `ScWeb`, `ScWebExternal`, `ScPos`, `ScPhone`, `ScEbay`, `ScAmazon`, `ScEdi`, … |
-| `ProductReview` | `component/mr-mantle-udm/entity/ProductDefinitionEntities.xml` | Per store; `PrvwPending` → `PrvwApproved` / `PrvwDeleted`; rating, text, anonymous flag |
+| `OrderHeader` (`productStoreId`, `salesChannelEnumId`, `externalId`, `syncStatusId`, `systemMessageRemoteId`, `visitId`), `OrderPromoCode` | `component/mr-mantle/entity/OrderEntities.xml` | Cart = `OrderOpen`; channels `ScWeb`, `ScWebExternal`, `ScPos`, `ScPhone`, `ScEbay`, `ScAmazon`, `ScEdi`, … |
+| `ProductReview` | `component/mr-mantle/entity/ProductDefinitionEntities.xml` | Per store; `PrvwPending` → `PrvwApproved` / `PrvwDeleted`; rating, text, anonymous flag |
 | `ProductContent`, `ProductCategoryContent`, `ProductIdentification`, `ProductCategoryIdent`, `ProductCategory` (`PctCatalog`, …), `ProductCategoryRollup`, `ProductCategoryMember` | same | Storefront content incl. meta types; URL slugs (`PidtUrlSlug`, `PcitUrlSlug`) |
 | `ProductPrice` (`productStoreId`) | same | Store prices (crosscut §5) |
-| `PaymentGatewayConfig` / `ShippingGatewayConfig` / `TaxGatewayConfig`, `CarrierShipmentMethod` | `component/mr-mantle-udm/entity/{AccountingAccountEntities,ShipmentEntities,AccountingOtherEntities}.xml` | Gateway definitions with service names per operation |
+| `PaymentGatewayConfig` / `ShippingGatewayConfig` / `TaxGatewayConfig`, `CarrierShipmentMethod` | `component/mr-mantle/entity/{AccountingAccountEntities,ShipmentEntities,AccountingOtherEntities}.xml` | Gateway definitions with service names per operation |
 
 Missing: abandoned-cart tracking or follow-up settings, ribbons/badges, per-store product publish flag (beyond view-allow categories), product feeds, storefront checkout-step records, shipping rate tables (zones, weight bands), store domain/region child records.
 
@@ -253,14 +253,14 @@ Missing: abandoned-cart tracking or follow-up settings, ribbons/badges, per-stor
 
 | Service | Location | Use in Commerce |
 | --- | --- | --- |
-| `create#StoreShippingOption`, `get#StoreShippingOptions`, `clone#ProductStore`, `format#UrlSlug`, `generate#UrlSlugFromProductName`, `generate#UrlSlugFromCategoryName` | `component/mr-mantle-usl/service/mantle/product/StoreServices.xml` | Ship options, store cloning, slugs |
-| `apply#Promotion`, `apply#OrderPromotions`, `add#OrderPromoCode`, `remove#OrderPromoCode`, `apply#NewCustomerDiscount`, `apply#BuyGetDiscount`, `apply#FlatDiscount` | `component/mr-mantle-usl/service/mantle/product/PromotionServices.xml` | Promotion evaluation (shared price resolver, not a Commerce screen) |
-| `get#ProductPrice` (anonymous-view), `get#ProductPriceByType` | `component/mr-mantle-usl/service/mantle/product/PriceServices.xml` | Store price lookup |
-| `add#OrderProductQuantity`, `update#OrderProductQuantity`, `set#OrderBillingShippingInfo`, `place#Order`, `cancel#Order` | `component/mr-mantle-usl/service/mantle/order/OrderServices.xml` | Cart and checkout |
-| `get#OrderDisplayInfo`, `get#OrderItemsTotalCount` | `component/mr-mantle-usl/service/mantle/order/OrderInfoServices.xml` | Cart and order summaries |
-| `authorize#OrderPayments`; `get#PartyPaymentMethodInfoList`, `store#PaymentMethodInfo` | `component/mr-mantle-usl/service/mantle/account/{PaymentServices,PaymentMethodServices}.xml` | Checkout payment |
-| `get#OrderShippingRate` (interface), `get#OrderShippingRatesBulk`, `get#OrderShippingRateLocal` | `component/mr-mantle-usl/service/mantle/shipment/CarrierServices.xml` | Checkout rates via gateway |
-| `calculate#SalesTax` (interface), `calculate#SalesTaxLocal` | `component/mr-mantle-usl/service/mantle/other/TaxServices.xml` | Store tax gateway |
+| `create#StoreShippingOption`, `get#StoreShippingOptions`, `clone#ProductStore`, `format#UrlSlug`, `generate#UrlSlugFromProductName`, `generate#UrlSlugFromCategoryName` | `component/mr-mantle/service/mantle/product/StoreServices.xml` | Ship options, store cloning, slugs |
+| `apply#Promotion`, `apply#OrderPromotions`, `add#OrderPromoCode`, `remove#OrderPromoCode`, `apply#NewCustomerDiscount`, `apply#BuyGetDiscount`, `apply#FlatDiscount` | `component/mr-mantle/service/mantle/product/PromotionServices.xml` | Promotion evaluation (shared price resolver, not a Commerce screen) |
+| `get#ProductPrice` (anonymous-view), `get#ProductPriceByType` | `component/mr-mantle/service/mantle/product/PriceServices.xml` | Store price lookup |
+| `add#OrderProductQuantity`, `update#OrderProductQuantity`, `set#OrderBillingShippingInfo`, `place#Order`, `cancel#Order` | `component/mr-mantle/service/mantle/order/OrderServices.xml` | Cart and checkout |
+| `get#OrderDisplayInfo`, `get#OrderItemsTotalCount` | `component/mr-mantle/service/mantle/order/OrderInfoServices.xml` | Cart and order summaries |
+| `authorize#OrderPayments`; `get#PartyPaymentMethodInfoList`, `store#PaymentMethodInfo` | `component/mr-mantle/service/mantle/account/{PaymentServices,PaymentMethodServices}.xml` | Checkout payment |
+| `get#OrderShippingRate` (interface), `get#OrderShippingRatesBulk`, `get#OrderShippingRateLocal` | `component/mr-mantle/service/mantle/shipment/CarrierServices.xml` | Checkout rates via gateway |
+| `calculate#SalesTax` (interface), `calculate#SalesTaxLocal` | `component/mr-mantle/service/mantle/other/TaxServices.xml` | Store tax gateway |
 
 No services exist for cart abandonment, review moderation beyond CRUD, or feed generation.
 

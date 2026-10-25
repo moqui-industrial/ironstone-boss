@@ -21,8 +21,8 @@ along with this software (see the LICENSE.md file). If not, see
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Chat" default-menu-include="false" render-modes="vue,qvue,tui" server-static="vue,qvue">
     <widgets>
-        <render-mode><text type="qvue" location="component://ironstone-boss/screen/Comms/Panel/ChatPanel.qvue" template="false"/>
+        <render-mode><text type="qvue" location="component://mr-boss/screen/Comms/Panel/ChatPanel.qvue" template="false"/>
             <!-- the terminal twin (style-guide 4.8): the short room list of ChatTui, each room opening in Chat -->
-            <text type="tui" location="component://ironstone-boss/screen/Comms/Panel/Chat.tui.json" template="fancy"/></render-mode>
+            <text type="tui" location="component://mr-boss/screen/Comms/Panel/Chat.tui.json" template="fancy"/></render-mode>
     </widgets>
 </screen>

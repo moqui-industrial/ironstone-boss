@@ -2,8 +2,8 @@
 // roots and in screen/Shared renders in the tui render mode as a document of the TUI model (v 1) with no error node, on the
 // demo records AppStructure uses; the twins of the custom screens show their data (a list's rows, the Inbox's threads).
 // A .qvue screen's twin is its Name.tui.json, mostly a dynamicContainer of a hidden plain-XML twin screen beside it.
-// Run: ./moq test ironstone-boss --spec TuiRender
-const base = "component://ironstone-boss/screen"
+// Run: ./moq test mr-boss --spec TuiRender
+const base = "component://mr-boss/screen"
 const webroot = "component://webroot/screen/webroot.xml"
 let screens
 

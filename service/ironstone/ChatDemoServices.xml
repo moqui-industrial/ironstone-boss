@@ -145,7 +145,7 @@ along with this software (see the LICENSE.md file). If not, see
                 message('BOSS_DEMO_CHAT_JOE', JOE, 27, '<p>Morning! The new floor plan for the office move is ready.</p>')
                 message('BOSS_DEMO_CHAT_JOE', JOHN, 26.9, '<p>Great, can you send it over?</p>')
                 const plan = file('BOSS_DEMO_CHAT_JOE', 'BOSS_DEMO_CHAT_A_PLAN', 'floor-plan.png', 'image/png',
-                    (ref) => ref.copyFrom('component://ironstone-boss/data/demo/floor-plan.png'))
+                    (ref) => ref.copyFrom('component://mr-boss/data/demo/floor-plan.png'))
                 const planSeq = message('BOSS_DEMO_CHAT_JOE', JOE, 26.8, '<p>Here it is: desks by the windows, the meeting room in the middle.</p>', {attachments: [plan]})
                 react('BOSS_DEMO_CHAT_JOE', JOHN, 26.6, planSeq, '👍')
                 const askSeq = message('BOSS_DEMO_CHAT_JOE', JOHN, 26.5, '<p>Looks good. Where does the printer go?</p>')

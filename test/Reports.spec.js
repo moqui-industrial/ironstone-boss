@@ -6,7 +6,7 @@
 // html-print and the terminal too; Home shows him Hours by project and Unbilled by client. joe.developer (the team, no money) sees five
 // reports, may not open Profitability or Utilization, and sees no money in any report nor the charts on Home. The timesheet and the team
 // timesheet print. Nothing is changed.
-// Run: ./moq test ironstone-boss --spec Reports
+// Run: ./moq test mr-boss --spec Reports
 const webroot = "component://webroot/screen/webroot.xml"
 const REPORT = "mantle.work.ProjectReportServices"
 

@@ -22,6 +22,6 @@ along with this software (see the LICENSE.md file). If not, see
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Sync progress" default-menu-include="false" render-modes="vue,qvue,tui" server-static="vue,qvue">
     <widgets>
-        <render-mode><text type="qvue" location="component://ironstone-boss/screen/Comms/Settings/MailAccounts/SyncProgress.qvue" template="false"/><text type="tui" location="component://ironstone-boss/screen/Comms/Settings/MailAccounts/SyncProgress.tui.json" template="false"/></render-mode>
+        <render-mode><text type="qvue" location="component://mr-boss/screen/Comms/Settings/MailAccounts/SyncProgress.qvue" template="false"/><text type="tui" location="component://mr-boss/screen/Comms/Settings/MailAccounts/SyncProgress.tui.json" template="false"/></render-mode>
     </widgets>
 </screen>

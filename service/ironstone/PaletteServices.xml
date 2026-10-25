@@ -87,7 +87,7 @@ along with this software (see the LICENSE.md file). If not, see
                 if (!ec.user.userId) return false
                 try {
                     const groupIds = Array.from(ec.user.getUserGroupIdSet() || [])
-                    const root = 'component://ironstone-boss/screen/Projects.xml'
+                    const root = 'component://mr-boss/screen/Projects.xml'
                     const rows = Array.from(ec.entity.find('moqui.security.ArtifactAuthzCheckView').condition('userGroupId', 'in', groupIds)
                             .condition('artifactTypeEnumId', 'AT_XML_SCREEN').condition('authzActionEnumId', 'in', ['AUTHZA_ALL', 'AUTHZA_VIEW'])
                             .disableAuthz().list()).filter((row) => row.nameIsPattern === 'Y' ? new RegExp(`^(?:${row.artifactName})$`).test(root)

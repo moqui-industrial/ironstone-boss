@@ -4,7 +4,7 @@
 // (never another client, even one put on the project); the Mantle entity writes stay denied to a client outside those services; and
 // every IronStone write service but the client's is in the client's deny pattern (BOSS_PROJECTS_INTERNAL), checked against every
 // service file. sheldon.acme (Acme, ACME) and gob.bluth (Bluth Corp, BLUTH) are the clients; what a feature changes is put back.
-// Run: ./moq test ironstone-boss --spec ClientWrites
+// Run: ./moq test mr-boss --spec ClientWrites
 const webroot = "component://webroot/screen/webroot.xml"
 const SHELDON = "sheldon.acme"
 const CLIENT = "ironstone.client.ClientServices."
@@ -196,7 +196,7 @@ feature("every IronStone write service is in the client's deny pattern, and only
         const member = sys(() => ec.entity.find("moqui.security.ArtifactGroupMember").condition({ artifactGroupId: "BOSS_PROJECTS_INTERNAL",
             artifactTypeEnumId: "AT_SERVICE" }).list()).map((row) => row.artifactName)
         const patterns = member.map((text) => new RegExp("^(?:" + text + ")$"))
-        const root = "component://ironstone-boss/service/ironstone"
+        const root = "component://mr-boss/service/ironstone"
         const notDenied = []
         const nested = []
         const clientWrites = []

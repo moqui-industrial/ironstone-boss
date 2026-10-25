@@ -3,9 +3,9 @@
 // Notifications inbox with the approval waiting, and in the automatic Updates inbox; the reason chips; opening a row marks it
 // read and answers its record's screen; mark all read leaves the approval waiting; approve and refuse (with the reason the
 // demo topic requires) go through the framework's services to the demo topic's, which note the decision on the record.
-// Run: ./moq test ironstone-boss --spec Notifications
+// Run: ./moq test mr-boss --spec Notifications
 const webroot = "component://webroot/screen/webroot.xml"
-const commons = "component://ironstone-boss/screen/Commons.xml"
+const commons = "component://mr-boss/screen/Commons.xml"
 // the Updates toggle with its unread count
 const updatesToggle = new RegExp("Updates \u00b7 [0-9]+")
 

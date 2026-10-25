@@ -48,25 +48,25 @@ along with this software (see the LICENSE.md file). If not, see
     ]]></script></always-actions>
 
     <subscreens default-item="Overview">
-        <subscreens-item name="WorkItems" location="component://ironstone-boss/screen/Projects/WorkItems/List.xml" menu-title="Work items" menu-index="2"/>
+        <subscreens-item name="WorkItems" location="component://mr-boss/screen/Projects/WorkItems/List.xml" menu-title="Work items" menu-index="2"/>
         <!-- the backlog and sprints with the project fixed (design-projects.md §4 ProjectBacklog); always there (impl-projects.md F24):
             without the Backlog and sprints module it ranks the backlog only, with Plan in sprints for the managers -->
-        <subscreens-item name="Backlog" location="component://ironstone-boss/screen/Projects/WorkItems/Backlog.xml" menu-title="Backlog" menu-index="3"/>
+        <subscreens-item name="Backlog" location="component://mr-boss/screen/Projects/WorkItems/Backlog.xml" menu-title="Backlog" menu-index="3"/>
         <!-- the milestones, releases and sprints with the project fixed (design-projects.md §4 ProjectRoadmap); Plan (4) is
             ProjectDetail/Plan.xml beside this file -->
-        <subscreens-item name="Roadmap" location="component://ironstone-boss/screen/Projects/Projects/Roadmap.xml" menu-title="Roadmap" menu-index="5"/>
+        <subscreens-item name="Roadmap" location="component://mr-boss/screen/Projects/Projects/Roadmap.xml" menu-title="Roadmap" menu-index="5"/>
         <!-- the project's requests (design-projects.md §4 ProjectRequests): Requests/List with the project fixed; always there
             (impl-projects.md F24): without the Requests module the project still takes requests linked to it -->
-        <subscreens-item name="Requests" location="component://ironstone-boss/screen/Projects/Requests/List.xml" menu-title="Requests" menu-index="6"/>
+        <subscreens-item name="Requests" location="component://mr-boss/screen/Projects/Requests/List.xml" menu-title="Requests" menu-index="6"/>
         <!-- the project's documentation space in Commons Knowledge with the space fixed, and its linked pages (design-projects.md §4
             ProjectDocs); always there (impl-projects.md F24): without a space it offers Set up documentation -->
-        <subscreens-item name="Docs" location="component://ironstone-boss/screen/Commons/Knowledge.xml" menu-title="Docs" menu-index="8"/>
+        <subscreens-item name="Docs" location="component://mr-boss/screen/Commons/Knowledge.xml" menu-title="Docs" menu-index="8"/>
         <!-- the Docs tab's terminal twin (Knowledge.xml's tui text names ../KnowledgeTui): Commons' KnowledgeTui in its project mode
             (impl-projects.md P11) -->
-        <subscreens-item name="KnowledgeTui" location="component://ironstone-boss/screen/Commons/KnowledgeTui.xml" menu-include="false"/>
+        <subscreens-item name="KnowledgeTui" location="component://mr-boss/screen/Commons/KnowledgeTui.xml" menu-include="false"/>
         <!-- the project's time (design-projects.md §4 ProjectTime): Time/TimeEntries with the project fixed and its totals box; always
             there (impl-projects.md F24): without the Time module the project's time is still logged and found here -->
-        <subscreens-item name="Time" location="component://ironstone-boss/screen/Projects/Time/TimeEntries.xml" menu-title="Time" menu-index="10"/>
+        <subscreens-item name="Time" location="component://mr-boss/screen/Projects/Time/TimeEntries.xml" menu-title="Time" menu-index="10"/>
     </subscreens>
 
     <transition name="projects"><default-response url="../List"/></transition>

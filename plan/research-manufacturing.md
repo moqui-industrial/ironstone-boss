@@ -42,7 +42,7 @@ folders are literal parts of Carbon file names.
 | **AureusERP** | `3p_other/aureuserp` | `plugins/webkul/manufacturing/src/Filament/…`; in AureusERP rows `.../` elides the `Clusters/<cluster>/Resources/` folders down to the named one |
 | **Dolibarr** | `3p_other/dolibarr` | `htdocs/{mrp,bom,workstation}/…` |
 | **metasfresh** | `3p_other/metasfresh` | `frontend/src/…`, `backend/de.metas.manufacturing*/…`, mobile web UI `misc/services/mobile-webui/mobile-webui-frontend/src/…` |
-| **Moqui baseline** | `mr-moqui-base/runtime` | `component/MrSimpleScreens/screen/SimpleScreens/…`, `component/MrSimpleScreens/template/…`, `component/MrMarbleERP/screen/…`, `component/mr-mantle-udm/entity/…`, `component/mr-mantle-usl/{service,test}/…` |
+| **Moqui baseline** | `mr-moqui-base/runtime` | `component/mr-marble/screen/SimpleScreens/…`, `component/mr-marble/template/…`, `component/mr-marble/screen/…`, `component/mr-mantle/entity/…`, `component/mr-mantle/{service,test}/…` |
 
 **Not used here:** checked and found no production or manufacturing UI in Twenty,
 Akaunting, Ever Gauzy, Ever Teams, Nextcloud, Zimbra, Signal, OpenProject, Redmine,
@@ -855,12 +855,12 @@ suggests Manufacturing supplying counts rather than charts beyond its landing st
 
 ---
 
-## 13. Current Moqui baseline (MrSimpleScreens / MarbleERP / Mantle)
+## 13. Current Moqui baseline (mr-marble / MarbleERP / Mantle)
 
 The existing implementation is a production-run worklist with asset-based issue and
 receipt, not a manufacturing app. MarbleERP adds no manufacturing screens of its own: it
 mounts the SimpleScreens tree as its **Manufacturing** menu item
-(`component/MrMarbleERP/screen/marble.xml`). The Mantle data model is wider than the
+(`component/mr-marble/screen/marble.xml`). The Mantle data model is wider than the
 screens: routings, routing tasks, subcontracting and assembling purposes, production
 lines and production estimates exist with no screen or service using them.
 
@@ -868,23 +868,23 @@ lines and production estimates exist with no screen or service using them.
 
 | Screen/page | What it is | Key files |
 | --- | --- | --- |
-| Manufacturing root | Top-level **Manufacturing** (icon `fa-industry`) with a popup subscreen panel; default item is the dashboard | `component/MrSimpleScreens/screen/SimpleScreens/Manufacturing.xml` |
-| Manufacturing dashboard | Three links: **Production Runs**, **Inventory Assets** (Asset summary filtered to `AstTpInventory`), **Equipment Assets** (`AstTpEquipment`) | `component/MrSimpleScreens/screen/SimpleScreens/Manufacturing/dashboard.xml` |
-| Runs shell | Tab panel, default Find Run | `component/MrSimpleScreens/screen/SimpleScreens/Manufacturing/Run.xml` |
-| Find Run | `WorkEffortProductionRunFind` list; default status filter In Planning / Approved / In Progress / On Hold; **WH/Line** filter limited to facility types `FcTpLine`, `FcTpPlant`, `FcTpWarehouse`; start date, produce/consume product columns; **New Production Run** dialog (name, WH/Line, run date, est. hours, product to produce, est. quantity) calling `create#ProductionRun`; saved finds, column selection | `component/MrSimpleScreens/screen/SimpleScreens/Manufacturing/Run/FindRun.xml` |
-| Edit Run | Header (name, WH/Line, start, est. hours), status change and history (`StatusChangeAndHistorySection`), **Clone Run** (`clone#WorkEffort`, copies equipment), **Run Pick PDF**, notes (`WorkEffortNote`), equipment assignments with status (`WorkEffortAssetAssign`), parties assigned | `component/MrSimpleScreens/screen/SimpleScreens/Manufacturing/Run/EditRun.xml`, `component/MrSimpleScreens/template/basic/StatusWidgets.xml` |
-| Run Products | **Products to Produce** (add product, receive/produce asset, ATP/QOH, estimated vs produced) and **Products to Consume** (BOM suggestion with remaining quantity, add/issue asset, over-consumption warning) | `component/MrSimpleScreens/screen/SimpleScreens/Manufacturing/Run/RunProducts.xml`, `RunProducts/{ConsumeAsset,ConsumeProduct,ProduceAsset}.xml` |
-| Assets Consumed / Produced | Issued-asset list (issue any asset or a chosen asset, return) and received-asset list (receive, issue back) per run | `component/MrSimpleScreens/screen/SimpleScreens/Manufacturing/Run/{RunConsumed,RunProduced}.xml` |
-| Pick document | Printable run pick sheet (HTML / XSL-FO) | `component/MrSimpleScreens/screen/SimpleScreens/Manufacturing/Run/RunPickDocument.xml`, `component/MrSimpleScreens/template/work/ProductionRunPick.{print.html.fancy,xsl-fo.ftl}` |
-| BOM editing | Generic product associations: add (product, type defaulting to **Manufacturing Bill of Materials** `PatMfgBom`, quantity), a "to" list (components) and a "from" list (where-used). No scrap factor, instruction, operation link or effective-date editing | `component/MrSimpleScreens/screen/SimpleScreens/Catalog/Product/EditAssocs.xml` |
-| Production lines and equipment | Generic Facility edit (type can be Production Line) and Facility calendar; equipment through the Asset screens shared with Maintenance | `component/MrSimpleScreens/screen/SimpleScreens/Facility/{EditFacility,FacilityCalendar}.xml`, `component/MrSimpleScreens/screen/SimpleScreens/Asset/Asset/FindAsset.xml` |
-| Time entry | Time entries exist for tasks, projects and parties, not for runs or operations | `component/MrSimpleScreens/screen/SimpleScreens/Task/EditTimeEntries.xml`, `component/MrSimpleScreens/screen/SimpleScreens/Party/PartyTimeEntries.xml` |
+| Manufacturing root | Top-level **Manufacturing** (icon `fa-industry`) with a popup subscreen panel; default item is the dashboard | `component/mr-marble/screen/SimpleScreens/Manufacturing.xml` |
+| Manufacturing dashboard | Three links: **Production Runs**, **Inventory Assets** (Asset summary filtered to `AstTpInventory`), **Equipment Assets** (`AstTpEquipment`) | `component/mr-marble/screen/SimpleScreens/Manufacturing/dashboard.xml` |
+| Runs shell | Tab panel, default Find Run | `component/mr-marble/screen/SimpleScreens/Manufacturing/Run.xml` |
+| Find Run | `WorkEffortProductionRunFind` list; default status filter In Planning / Approved / In Progress / On Hold; **WH/Line** filter limited to facility types `FcTpLine`, `FcTpPlant`, `FcTpWarehouse`; start date, produce/consume product columns; **New Production Run** dialog (name, WH/Line, run date, est. hours, product to produce, est. quantity) calling `create#ProductionRun`; saved finds, column selection | `component/mr-marble/screen/SimpleScreens/Manufacturing/Run/FindRun.xml` |
+| Edit Run | Header (name, WH/Line, start, est. hours), status change and history (`StatusChangeAndHistorySection`), **Clone Run** (`clone#WorkEffort`, copies equipment), **Run Pick PDF**, notes (`WorkEffortNote`), equipment assignments with status (`WorkEffortAssetAssign`), parties assigned | `component/mr-marble/screen/SimpleScreens/Manufacturing/Run/EditRun.xml`, `component/mr-marble/template/basic/StatusWidgets.xml` |
+| Run Products | **Products to Produce** (add product, receive/produce asset, ATP/QOH, estimated vs produced) and **Products to Consume** (BOM suggestion with remaining quantity, add/issue asset, over-consumption warning) | `component/mr-marble/screen/SimpleScreens/Manufacturing/Run/RunProducts.xml`, `RunProducts/{ConsumeAsset,ConsumeProduct,ProduceAsset}.xml` |
+| Assets Consumed / Produced | Issued-asset list (issue any asset or a chosen asset, return) and received-asset list (receive, issue back) per run | `component/mr-marble/screen/SimpleScreens/Manufacturing/Run/{RunConsumed,RunProduced}.xml` |
+| Pick document | Printable run pick sheet (HTML / XSL-FO) | `component/mr-marble/screen/SimpleScreens/Manufacturing/Run/RunPickDocument.xml`, `component/mr-marble/template/work/ProductionRunPick.{print.html.fancy,xsl-fo.ftl}` |
+| BOM editing | Generic product associations: add (product, type defaulting to **Manufacturing Bill of Materials** `PatMfgBom`, quantity), a "to" list (components) and a "from" list (where-used). No scrap factor, instruction, operation link or effective-date editing | `component/mr-marble/screen/SimpleScreens/Catalog/Product/EditAssocs.xml` |
+| Production lines and equipment | Generic Facility edit (type can be Production Line) and Facility calendar; equipment through the Asset screens shared with Maintenance | `component/mr-marble/screen/SimpleScreens/Facility/{EditFacility,FacilityCalendar}.xml`, `component/mr-marble/screen/SimpleScreens/Asset/Asset/FindAsset.xml` |
+| Time entry | Time entries exist for tasks, projects and parties, not for runs or operations | `component/mr-marble/screen/SimpleScreens/Task/EditTimeEntries.xml`, `component/mr-marble/screen/SimpleScreens/Party/PartyTimeEntries.xml` |
 
 ### Data model available
 
 | Entity / enum | What it gives Manufacturing | Key files |
 | --- | --- | --- |
-| `WorkEffort` purposes under **Manufacturing** (`WepManufacturing`) | `WepProductionRun` (used), `WepRouting` and `WepRoutingTask` (unused), `WepAssembling` (unused), `WepPickAssembly` (kit assembly at shipment pick); `WepSubcontracting` exists as a top-level purpose, unused | `component/mr-mantle-udm/entity/WorkEffortEntities.xml` |
+| `WorkEffort` purposes under **Manufacturing** (`WepManufacturing`) | `WepProductionRun` (used), `WepRouting` and `WepRoutingTask` (unused), `WepAssembling` (unused), `WepPickAssembly` (kit assembly at shipment pick); `WepSubcontracting` exists as a top-level purpose, unused | `component/mr-mantle/entity/WorkEffortEntities.xml` |
 | `WorkEffort` fields | `parentWorkEffortId` / `rootWorkEffortId` (operations under a run), `facilityId` (line or warehouse), `priority`, `revisionNumber`, estimated/actual start and completion, `estimatedWorkTime`, `estimatedSetupTime`, `actualWorkTime`, `actualSetupTime`, `remainingWorkTime`, `percentComplete`, `actualCost`; production runs are created as type `WetEvent` | same |
 | WorkEffort status | Generic flow `WeInPlanning` → `WeApproved` → `WeInProgress` ↔ `WeOnHold` → `WeComplete` → `WeClosed`, plus `WeCancelled` and re-open; no manufacturing-specific statuses | same |
 | `WorkEffortAssoc` | Types `WeatRoutingComp` (routing → routing task), `WeatDependsOn` (blocked by), `WeatIndependentOf`, `WeatComponent`; `sequenceNum` and from/thru | same |
@@ -893,26 +893,26 @@ lines and production estimates exist with no screen or service using them.
 | `WorkEffortFacility` | Extra facilities on a run: `WeftOrigin` (inventory origin, set by `create#ProductionRun`), `WeftUsed` | same |
 | `TimeEntry` | `workEffortId`, `partyId`, from/thru, `hours`, `breakHours`, **`pieceCount`** and piece rates, `facilityId` | same |
 | `Measurement` | Typed value + UOM per `workEffortId`, `assetId`, `productId`, with reason and user; a possible basis for inspection readings | same |
-| `ProductionEstimate` (+ `ProductionEstimateWorkEff`, `ProductionEstimateAsset`) | Planned output per product, facility, destination and ready date; only a DataDocument and a view entity use it | same; `component/mr-mantle-usl/entity/WorkEffortViewEntities.xml` |
-| `ProductAssoc` | BOM line: `PatMfgBom` (and `PatEngBom`, `PatMfgAs`, `PatUsedToProduce`) with `quantity`, **`scrapFactor`**, **`instruction`**, **`routingWorkEffortId`** (consuming operation), `sequenceNum`, from/thru effective dates. No BOM header, so no BOM revision or status | `component/mr-mantle-udm/entity/ProductDefinitionEntities.xml` |
+| `ProductionEstimate` (+ `ProductionEstimateWorkEff`, `ProductionEstimateAsset`) | Planned output per product, facility, destination and ready date; only a DataDocument and a view entity use it | same; `component/mr-mantle/entity/WorkEffortViewEntities.xml` |
+| `ProductAssoc` | BOM line: `PatMfgBom` (and `PatEngBom`, `PatMfgAs`, `PatUsedToProduce`) with `quantity`, **`scrapFactor`**, **`instruction`**, **`routingWorkEffortId`** (consuming operation), `sequenceNum`, from/thru effective dates. No BOM header, so no BOM revision or status | `component/mr-mantle/entity/ProductDefinitionEntities.xml` |
 | Product type `PtPickAssembly` | Kit product: availability computed from `PatMfgBom` components; assembled during shipment pick | same |
-| `Facility` | Types `FcTpLine` (**Production Line**) and `FcTpPlant`, with `parentFacilityId`; no capacity, efficiency or cost-rate fields | `component/mr-mantle-udm/entity/FacilityEntities.xml` |
-| `Requirement` | Planning output that becomes a PO | `component/mr-mantle-udm/entity/RequestEntities.xml` |
-| GL account type `GatWipInventory` | WIP account used when posting issuance to and receipt from a run | `component/mr-mantle-udm/data/ZaaGlAccountsInstallData.xml` |
+| `Facility` | Types `FcTpLine` (**Production Line**) and `FcTpPlant`, with `parentFacilityId`; no capacity, efficiency or cost-rate fields | `component/mr-mantle/entity/FacilityEntities.xml` |
+| `Requirement` | Planning output that becomes a PO | `component/mr-mantle/entity/RequestEntities.xml` |
+| GL account type `GatWipInventory` | WIP account used when posting issuance to and receipt from a run | `component/mr-mantle/data/ZaaGlAccountsInstallData.xml` |
 
 ### Services
 
 | Service | Purpose | Key files |
 | --- | --- | --- |
-| `create#ProductionRun` (with BOM-driven consume lines), `set#ProducedProductQuantity`, `recreate#ConsumeProductsFromProduce`, `get#ProductBomDetail` (single level; reads `PatMfgBom` plus `PatVariant` substitutes; ignores scrap factor and effective dates), `get#ProductionRunProduceConsumeDetail`, `get#ConsumedAssetRemaining`, `get#ProducedProductComplete`, `get#ProductionRunDisplayInfo`, `get#ProductionRunPickInfo` | Production-run lifecycle and display | `component/mr-mantle-usl/service/mantle/work/ManufacturingServices.xml` |
+| `create#ProductionRun` (with BOM-driven consume lines), `set#ProducedProductQuantity`, `recreate#ConsumeProductsFromProduce`, `get#ProductBomDetail` (single level; reads `PatMfgBom` plus `PatVariant` substitutes; ignores scrap factor and effective dates), `get#ProductionRunProduceConsumeDetail`, `get#ConsumedAssetRemaining`, `get#ProducedProductComplete`, `get#ProductionRunDisplayInfo`, `get#ProductionRunPickInfo` | Production-run lifecycle and display | `component/mr-mantle/service/mantle/work/ManufacturingServices.xml` |
 | `create#ShipmentAssemblyWorkEffort`, `produce#AvailableAssemblies`, `breakDown#Assembly`, `unissue#AssemblyComponents`, `unissue#Component`, `cancel#AssemblyWorkEffort` | Kit/assembly produce, break-down and undo | same |
-| `issue#AssetToWorkEffort`, `issue#AnyAssetToWorkEffort`, `receive#Asset`, `get#AvailableInventory` (adds `PtPickAssembly` availability from components) | Material issue, finished-goods receipt, availability; issue and receipt add `WeptConsume` / `WeptProduce` rows when missing | `component/mr-mantle-usl/service/mantle/product/AssetServices.xml` |
-| `post#AssetIssuance`, `post#AssetReceipt` | GL posting to and from `GatWipInventory` when the issuance or receipt has a `workEffortId` | `component/mr-mantle-usl/service/mantle/ledger/AssetAutoPostServices.xml` |
-| `clone#WorkEffort` (`deepClone`, `copyAssoc`, `copyAssetNeeded`, `copySkillStandard`, `copyProduct`), `add#WorkEffortProduct` | Clone a run, or a routing template with its tasks | `component/mr-mantle-usl/service/mantle/work/WorkEffortServices.xml` |
-| `store#TimeEntry`, `create#TimeEntryClockIn`, `store#TimeEntryWorkEffort` | Time entry against a WorkEffort | `component/mr-mantle-usl/service/mantle/work/TimeServices.xml` |
+| `issue#AssetToWorkEffort`, `issue#AnyAssetToWorkEffort`, `receive#Asset`, `get#AvailableInventory` (adds `PtPickAssembly` availability from components) | Material issue, finished-goods receipt, availability; issue and receipt add `WeptConsume` / `WeptProduce` rows when missing | `component/mr-mantle/service/mantle/product/AssetServices.xml` |
+| `post#AssetIssuance`, `post#AssetReceipt` | GL posting to and from `GatWipInventory` when the issuance or receipt has a `workEffortId` | `component/mr-mantle/service/mantle/ledger/AssetAutoPostServices.xml` |
+| `clone#WorkEffort` (`deepClone`, `copyAssoc`, `copyAssetNeeded`, `copySkillStandard`, `copyProduct`), `add#WorkEffortProduct` | Clone a run, or a routing template with its tasks | `component/mr-mantle/service/mantle/work/WorkEffortServices.xml` |
+| `store#TimeEntry`, `create#TimeEntryClockIn`, `store#TimeEntryWorkEffort` | Time entry against a WorkEffort | `component/mr-mantle/service/mantle/work/TimeServices.xml` |
 | (none) | No routing, operation, work-center, scheduling, MRP, scrap, downtime or inspection services | — |
 
-The spec `component/mr-mantle-usl/test/ManufacturingServices.spec.js` exercises BOM
+The spec `component/mr-mantle/test/ManufacturingServices.spec.js` exercises BOM
 lookup, run creation, quantity change, issue/receive, break-down, unissue and cancel.
 
 ---

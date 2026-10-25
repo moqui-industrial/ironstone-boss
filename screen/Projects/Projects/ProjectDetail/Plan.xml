@@ -19,7 +19,7 @@ along with this software (see the LICENSE.md file). If not, see
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Plan" default-menu-index="4" menu-image="sym_o_view_timeline" menu-image-type="icon">
     <subscreens default-item="Timeline">
-        <subscreens-item name="Timeline" location="component://ironstone-boss/screen/Projects/WorkItems/Timeline.xml" menu-title="Timeline" menu-index="1"/>
+        <subscreens-item name="Timeline" location="component://mr-boss/screen/Projects/WorkItems/Timeline.xml" menu-title="Timeline" menu-index="1"/>
     </subscreens>
     <widgets>
         <subscreens-active/>

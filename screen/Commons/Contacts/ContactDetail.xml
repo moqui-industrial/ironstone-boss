@@ -25,26 +25,26 @@ along with this software (see the LICENSE.md file). If not, see
     <parameter name="tab"/>
     <parameter name="showExpired"/>
 
-    <transition-include name="contactUpdate" location="component://ironstone-boss/template/ContactRecord.xml"/>
-    <transition-include name="contactOrganization" location="component://ironstone-boss/template/ContactRecord.xml"/>
-    <transition-include name="contactInfoStore" location="component://ironstone-boss/template/ContactRecord.xml"/>
-    <transition-include name="contactInfoPurpose" location="component://ironstone-boss/template/ContactRecord.xml"/>
-    <transition-include name="contactRelationshipAdd" location="component://ironstone-boss/template/ContactRecord.xml"/>
-    <transition-include name="contactNote" location="component://ironstone-boss/template/ContactRecord.xml"/>
-    <transition-include name="contactAvatarUpload" location="component://ironstone-boss/template/ContactRecord.xml"/>
-    <transition-include name="contactAvatarRemove" location="component://ironstone-boss/template/ContactRecord.xml"/>
-    <transition-include name="contactFavorite" location="component://ironstone-boss/template/ContactRecord.xml"/>
-    <transition-include name="contactBooks" location="component://ironstone-boss/template/ContactRecord.xml"/>
-    <transition-include name="contactLink" location="component://ironstone-boss/template/ContactRecord.xml"/>
-    <transition-include name="contactDelete" location="component://ironstone-boss/template/ContactRecord.xml"/>
-    <transition-include name="contactExport" location="component://ironstone-boss/template/ContactRecord.xml"/>
-    <transition-include name="contactAvatar" location="component://ironstone-boss/template/ContactRecord.xml"/>
-    <transition-include name="contactSearch" location="component://ironstone-boss/template/ContactRecord.xml"/>
-    <transition-include name="contactGeoRegions" location="component://ironstone-boss/template/ContactRecord.xml"/>
-    <transition-include name="contactBookGroups" location="component://ironstone-boss/template/ContactRecord.xml"/>
+    <transition-include name="contactUpdate" location="component://mr-boss/template/ContactRecord.xml"/>
+    <transition-include name="contactOrganization" location="component://mr-boss/template/ContactRecord.xml"/>
+    <transition-include name="contactInfoStore" location="component://mr-boss/template/ContactRecord.xml"/>
+    <transition-include name="contactInfoPurpose" location="component://mr-boss/template/ContactRecord.xml"/>
+    <transition-include name="contactRelationshipAdd" location="component://mr-boss/template/ContactRecord.xml"/>
+    <transition-include name="contactNote" location="component://mr-boss/template/ContactRecord.xml"/>
+    <transition-include name="contactAvatarUpload" location="component://mr-boss/template/ContactRecord.xml"/>
+    <transition-include name="contactAvatarRemove" location="component://mr-boss/template/ContactRecord.xml"/>
+    <transition-include name="contactFavorite" location="component://mr-boss/template/ContactRecord.xml"/>
+    <transition-include name="contactBooks" location="component://mr-boss/template/ContactRecord.xml"/>
+    <transition-include name="contactLink" location="component://mr-boss/template/ContactRecord.xml"/>
+    <transition-include name="contactDelete" location="component://mr-boss/template/ContactRecord.xml"/>
+    <transition-include name="contactExport" location="component://mr-boss/template/ContactRecord.xml"/>
+    <transition-include name="contactAvatar" location="component://mr-boss/template/ContactRecord.xml"/>
+    <transition-include name="contactSearch" location="component://mr-boss/template/ContactRecord.xml"/>
+    <transition-include name="contactGeoRegions" location="component://mr-boss/template/ContactRecord.xml"/>
+    <transition-include name="contactBookGroups" location="component://mr-boss/template/ContactRecord.xml"/>
     <!-- the Consent tab's changes (template/ConsentRecord.xml) -->
-    <transition-include name="consentRecord" location="component://ironstone-boss/template/ConsentRecord.xml"/>
-    <transition-include name="consentListSet" location="component://ironstone-boss/template/ConsentRecord.xml"/>
+    <transition-include name="consentRecord" location="component://mr-boss/template/ConsentRecord.xml"/>
+    <transition-include name="consentListSet" location="component://mr-boss/template/ConsentRecord.xml"/>
     <transition name="contacts"><default-response url="//Commons/Contacts"/></transition>
 
     <actions>
@@ -84,7 +84,7 @@ along with this software (see the LICENSE.md file). If not, see
             <container style="q-mb-xs">
                 <link url="//Commons/Contacts" link-type="anchor" text="Contacts" icon="arrow_back" parameter-map="{partyId:partyId}"/>
             </container>
-            <section-include name="ContactRecordSection" location="component://ironstone-boss/template/ContactRecord.xml"/>
+            <section-include name="ContactRecordSection" location="component://mr-boss/template/ContactRecord.xml"/>
         </fail-widgets></section>
     </widgets>
 </screen>

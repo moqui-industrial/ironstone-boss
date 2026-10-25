@@ -3,9 +3,9 @@
 // digest choice (NotificationTopicUser.digest); Preferences saves the appearance and a key binding into the KEYMAP preference
 // and resets it; the setup card's Done and Dismiss are kept in COMMONS_SETUP; Account changes only the signed-in user, and
 // its photo (the face image of the user's own party) is uploaded, replaced and removed, and shown by m-avatar in Chatter.
-// Run: ./moq test ironstone-boss --spec CommonsSettings
+// Run: ./moq test mr-boss --spec CommonsSettings
 const webroot = "component://webroot/screen/webroot.xml"
-const commons = "component://ironstone-boss/screen/Commons.xml"
+const commons = "component://mr-boss/screen/Commons.xml"
 
 function render(path, parameters) {
     const str = ec.screen.makeTest().rootScreen(webroot).renderMode("qvt").withStaticData().render(`apps/Commons/${path}`, Object.assign({ lastStandalone: "true" }, parameters || {}), null)

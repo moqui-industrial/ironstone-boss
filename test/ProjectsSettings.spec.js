@@ -4,9 +4,9 @@
 // and a type of the organization's own, which QuickCreate then offers; a move of the Development flow added and removed and a
 // status's color set and cleared; labels made, renamed, merged and deleted; templates listed and made. The team may change none.
 // The spec puts back what it changes on the demo. Authorization stays on.
-// Run: ./moq test ironstone-boss --spec ProjectsSettings
+// Run: ./moq test mr-boss --spec ProjectsSettings
 const webroot = "component://webroot/screen/webroot.xml"
-const projectsRoot = "component://ironstone-boss/screen/Projects.xml"
+const projectsRoot = "component://mr-boss/screen/Projects.xml"
 
 function render(path, parameters, mode) {
     const str = ec.screen.makeTest().rootScreen(webroot).renderMode(mode || "qvt").withStaticData().render(path, Object.assign({ lastStandalone: "true" }, parameters || {}), null)

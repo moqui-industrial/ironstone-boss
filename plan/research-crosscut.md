@@ -20,7 +20,7 @@ what each app's version emphasizes; they do not assign an owning app.
 Inputs: [initial-design.md](initial-design.md) (its **Decided** table is fixed),
 [3p-app-reference.md](3p-app-reference.md), [ss-inventory.md](ss-inventory.md),
 [usl-inventory.md](usl-inventory.md), and the Mantle entity definitions in
-`runtime/component/mr-mantle-udm/entity/`.
+`runtime/component/mr-mantle/entity/`.
 
 Sections: [1 paths](#1-path-conventions) · [2 file skeleton](#2-research-file-skeleton) ·
 [3 reused screens](#3-reused-screens) · [4 overlapping functions](#4-overlapping-functions) ·
@@ -69,7 +69,7 @@ and `mr-moqui-base/…` below).
 | **OpenProject** | `3p_other/openproject` | `app/…`, `modules/<module>/…`, `frontend/src/app/features/…` |
 | **Redmine** | `3p_other/redmine` | `app/{views,controllers,models}/…` |
 | **Moqui components** (Sales, WorkManagement, WeCreate, coarchy, resistmanagement, ServiceJobMonitor, ridgecrest) | `3p_moqui/<component>` | `screen/…`, `service/…`, `entity/…` |
-| **Moqui baseline** | `mr-moqui-base/runtime` | `component/MrSimpleScreens/screen/SimpleScreens/…`, `component/MrSimpleScreens/screen/{MyAccount,BasicHandheld}/…` (siblings of `SimpleScreens/`, not under it), `component/MrMarbleERP/screen/…`, `component/mr-mantle-udm/entity/…`, `component/mr-mantle-usl/{service/mantle,entity}/…` (`entity/` holds view entities and EECAs), `base-component/tools/screen/…`, `base-component/framework/entity/…`, `component/ironstone-boss/screen/…` |
+| **Moqui baseline** | `mr-moqui-base/runtime` | `component/mr-marble/screen/SimpleScreens/…`, `component/mr-marble/screen/{MyAccount,BasicHandheld}/…` (siblings of `SimpleScreens/`, not under it), `component/mr-marble/screen/…`, `component/mr-mantle/entity/…`, `component/mr-mantle/{service/mantle,entity}/…` (`entity/` holds view entities and EECAs), `base-component/tools/screen/…`, `base-component/framework/entity/…`, `component/mr-boss/screen/…` |
 
 Notes that trip people up:
 
@@ -105,7 +105,7 @@ Closing sections (the last numbered sections, in this order, with these headings
 | Heading | Contents |
 | --- | --- |
 | `## N. Cross-app surfaces` | Table `Reused screen or link \| Use in <App> \| Other apps that include it \| Reference evidence`, per §3–§4 of this file |
-| `## N+1. Current Moqui baseline (MrSimpleScreens / MarbleERP / Mantle)` | `### Screens`, `### Data model available`, `### Services` tables with verified paths (relative to the Moqui baseline checkout); what exists, what is missing |
+| `## N+1. Current Moqui baseline (mr-marble / MarbleERP / Mantle)` | `### Screens`, `### Data model available`, `### Services` tables with verified paths (relative to the Moqui baseline checkout); what exists, what is missing |
 | `## N+2. Gaps & BOSS implications` | The sub-sections below, in order |
 
 Sub-sections of **Gaps & BOSS implications**:
@@ -114,7 +114,7 @@ Sub-sections of **Gaps & BOSS implications**:
 2. `### Notable gaps in the Moqui baseline` — what the baseline lacks for this app's audience.
 3. `### What each reference contributes` — table `Reference | Take`.
 4. `### Candidate screen inventory (IronStone <App>)` — table `Area | Screens`: the screens the research points to for this app's audience, marking screens other apps would also include as **(reused: <apps>)**. Input to design, not a design.
-5. `### Data-model findings` — which Mantle records fit (names verified against `mr-mantle-udm`, not commented out), what they lack, and where new records look necessary; options rather than choices.
+5. `### Data-model findings` — which Mantle records fit (names verified against `mr-mantle`, not commented out), what they lack, and where new records look necessary; options rather than choices.
 6. `### Sequencing notes` — dependencies and what the baseline already makes cheap or expensive (for example "quotes need agreement pricing in `get#ProductPrice`"); no release decisions.
 7. `### Open questions` — questions for the design pass, including disagreements with this file or initial-design.
 
@@ -186,7 +186,7 @@ The notes give the verified Mantle basis.
 
 ## 5. Mantle basis for recurring records
 
-Verified against `runtime/component/mr-mantle-udm/entity/` on Oct 18, 2026. Research files
+Verified against `runtime/component/mr-mantle/entity/` on Oct 18, 2026. Research files
 cite these names exactly; a claim that "Mantle has no X" must be checked against this list
 and the entity files. Several entity definitions in those files are inside XML comments and
 do not exist at runtime: check that an entity is not commented out before citing it.
@@ -226,7 +226,7 @@ for `apps/mes`), AureusERP, Dolibarr, metasfresh, Akaunting, Ever Gauzy, Ever Te
 Nextcloud (with the app: Nextcloud Calendar, Nextcloud Talk, …), Zimbra (zm-web-client,
 zm-admin-console, zd-full), Signal Desktop, OpenProject, Redmine, Moqui Sales, Moqui
 WorkManagement, WeCreate, coarchy, resistmanagement, ServiceJobMonitor, ridgecrest, and
-**Moqui baseline** for MrSimpleScreens + MrMarbleERP + Mantle + tools together.
+**Moqui baseline** for mr-marble + Mantle + tools together.
 
 **BOSS terms.**
 
@@ -306,7 +306,7 @@ Cross-file questions for the design pass. Per-file questions stay in each file.
   Maintenance; which records (case, repair order, maintenance work order) carry it?
 - **Commented-out Mantle entities.** Enable the "future reference" definitions (HR reviews,
   training and recruiting; cost components; product configuration; tax rates) in
-  mr-mantle-udm, or define BOSS records?
+  mr-mantle, or define BOSS records?
 - **Smaller cross-app questions:** internal stock requests (`RqtInventory`); replenishment and
   Manufacturing MRP planning over the same requirements; non-equipment downtime; rate cards
   (`RateAmount`, edited under HumanRes today); working-hours calendars used by SLA, People

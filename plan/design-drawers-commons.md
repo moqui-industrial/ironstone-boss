@@ -35,7 +35,7 @@ and drawers in more depth than style-guide §2, because the Assist port in mr-mo
 [initial-design.md](initial-design.md) (its **Decided** table is fixed),
 [style-guide.md](style-guide.md) §2–§8,
 [ss-inventory.md](ss-inventory.md), [usl-inventory.md](usl-inventory.md), the Mantle entities in
-`mr-mantle-udm/entity/`, the framework entities in `base-component/framework/entity/`, the
+`mr-mantle/entity/`, the framework entities in `base-component/framework/entity/`, the
 Java Assist panel (`moqui/runtime/.../webroot/js/assist/`) and its tools
 (`moqui/framework/.../impl/llm/tools/`), and mr-moqui's `plans/Remaining-Work.md`.
 
@@ -152,7 +152,7 @@ the A2A server (the Java framework's `plans/A2A-Server.md`) so a remote agent re
 - **Agents in Comms.** Later, an Assist profile or an A2A remote agent can be a member of a chat
   room (§13) and answers when mentioned; the port exposes a server-side entry point that takes
   a room message as a user turn and posts the reply as the agent member.
-- **BOSS skills.** Commons and Comms ship skills (`component://ironstone-boss/skill/*.md`) for
+- **BOSS skills.** Commons and Comms ship skills (`component://mr-boss/skill/*.md`) for
   the things Assist is asked most: find a message, draft a reply, summarize a thread, find a
   time for a meeting, file an email on a record, make a task from a message. A skill that
   writes yields a `write_ui` confirm; the user clicks.

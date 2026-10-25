@@ -63,8 +63,8 @@ along with this software (see the LICENSE.md file). If not, see
         ]]></script></actions>
         <default-response type="none"/>
     </transition>
-    <transition-include name="pickerData" location="component://ironstone-boss/template/FilePickerTransitions.xml"/>
-    <transition-include name="pickerFolder" location="component://ironstone-boss/template/FilePickerTransitions.xml"/>
+    <transition-include name="pickerData" location="component://mr-boss/template/FilePickerTransitions.xml"/>
+    <transition-include name="pickerFolder" location="component://mr-boss/template/FilePickerTransitions.xml"/>
     <!-- an attachment's file, inline for an image or a PDF when asked -->
     <transition name="attachment" method="get" read-only="true">
         <actions><script><![CDATA[
@@ -311,9 +311,9 @@ along with this software (see the LICENSE.md file). If not, see
 
     <widgets>
         <render-mode>
-            <text type="qvue" location="component://ironstone-boss/screen/Comms/Inbox/Mail.qvue" template="false"/>
+            <text type="qvue" location="component://mr-boss/screen/Comms/Inbox/Mail.qvue" template="false"/>
             <!-- the terminal twin (style-guide 4.8): MailTui, a plain screen of the same services, with this view's parameters -->
-            <text type="tui" location="component://ironstone-boss/screen/Comms/Inbox/Mail.tui.json" template="fancy"/>
+            <text type="tui" location="component://mr-boss/screen/Comms/Inbox/Mail.tui.json" template="fancy"/>
             <text type="html,qvt"><![CDATA[<p><strong>Inbox</strong>: open it under /qapps to read and send mail.</p>]]></text>
         </render-mode>
     </widgets>

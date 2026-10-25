@@ -4,10 +4,10 @@
 // updated with the card's phone), and a CSV with a row that fails, whose failures download as CSV. Between the steps the draft is in
 // john.doe's own folder of the resource store (dbresource://ironstone/ContactImport/EX_JOHN_DOE/<importId>/), which another user's
 // wizard never reads. Authorization stays on, as for a browser request.
-// Run: ./moq test ironstone-boss --spec ContactImport
+// Run: ./moq test mr-boss --spec ContactImport
 const webroot = "component://webroot/screen/webroot.xml"
-const commons = "component://ironstone-boss/screen/Commons.xml"
-const demo = "component://ironstone-boss/data/demo"
+const commons = "component://mr-boss/screen/Commons.xml"
+const demo = "component://mr-boss/data/demo"
 
 function render(path, parameters) {
     const str = ec.screen.makeTest().rootScreen(webroot).renderMode("qvt").withStaticData().render(path, Object.assign({ lastStandalone: "true" }, parameters || {}), null)
@@ -62,7 +62,7 @@ spec({
 feature("the wizard shows its five steps, Source first", {
     when() {
         // the wizard's own screen, as its root
-        const str = sys(() => ec.screen.makeTest().rootScreen("component://ironstone-boss/screen/Commons/Contacts/Import.xml").renderMode("qvt").withStaticData().render("", {}, null))
+        const str = sys(() => ec.screen.makeTest().rootScreen("component://mr-boss/screen/Commons/Contacts/Import.xml").renderMode("qvt").withStaticData().render("", {}, null))
         const shown = { status: str.status, errors: str.errorMessages.join(" | "), output: String(str.output || ""), broken: /Error rendering|Exception in render/.test(String(str.output || "")) }
         ec.message.clearErrors()
         return { shown, source: render("apps/Commons/Contacts/Import/Source", {}) }

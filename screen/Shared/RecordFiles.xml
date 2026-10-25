@@ -130,9 +130,9 @@ along with this software (see the LICENSE.md file). If not, see
         ]]></script></actions>
         <default-response type="none"/>
     </transition>
-    <transition-include name="pickerData" location="component://ironstone-boss/template/FilePickerTransitions.xml"/>
-    <transition-include name="pickerFolder" location="component://ironstone-boss/template/FilePickerTransitions.xml"/>
-    <transition-include name="pickerSearch" location="component://ironstone-boss/template/FilePickerTransitions.xml"/>
+    <transition-include name="pickerData" location="component://mr-boss/template/FilePickerTransitions.xml"/>
+    <transition-include name="pickerFolder" location="component://mr-boss/template/FilePickerTransitions.xml"/>
+    <transition-include name="pickerSearch" location="component://mr-boss/template/FilePickerTransitions.xml"/>
 
     <!-- a file, inline for an image or a PDF when asked, else as a download -->
     <transition name="download" method="get" read-only="true">
@@ -147,11 +147,11 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
 
     <!-- the terminal twin, a plain screen under this one so it is under the same app root -->
-    <subscreens><subscreens-item name="RecordFilesTui" location="component://ironstone-boss/screen/Shared/RecordFilesTui.xml" menu-include="false"/></subscreens>
+    <subscreens><subscreens-item name="RecordFilesTui" location="component://mr-boss/screen/Shared/RecordFilesTui.xml" menu-include="false"/></subscreens>
 
     <widgets>
         <render-mode>
-            <text type="qvue" location="component://ironstone-boss/screen/Shared/RecordFiles.qvue" template="false"/>
+            <text type="qvue" location="component://mr-boss/screen/Shared/RecordFiles.qvue" template="false"/>
             <!-- the terminal: RecordFilesTui on the same record -->
             <text type="tui"><![CDATA[${JSON.stringify([{t: "dynamicContainer", id: "RecordFilesTui", url: sri.buildUrl("RecordFilesTui")
                 .addParameters({recordEntity: recordEntity || null, recordId: recordId || null, appRoot: appRoot || null}).getUrlWithParams()}])}]]></text>

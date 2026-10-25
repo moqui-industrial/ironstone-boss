@@ -3,9 +3,9 @@
 // an app password for a phone (shown once, then a device with its name), sees the addresses a device uses (the DAV server,
 // his calendars, contact books and drives, from org.moqui.impl.DavServices.get#SyncAddresses) and the steps per platform, and
 // revokes it. The password then logs a DAV request in until it is revoked.
-// Run: ./moq test ironstone-boss --spec SyncSettings
+// Run: ./moq test mr-boss --spec SyncSettings
 const webroot = "component://webroot/screen/webroot.xml"
-const commons = "component://ironstone-boss/screen/Commons.xml"
+const commons = "component://mr-boss/screen/Commons.xml"
 const made = {}
 
 function render(path, parameters) {

@@ -32,8 +32,8 @@ along with this software (see the LICENSE.md file). If not, see
     <parameter name="thruDate"/>
 
     <subscreens>
-        <subscreens-item name="EditAllocation" location="component://ironstone-boss/screen/Projects/Resources/Allocations/EditAllocation.xml" menu-include="false"/>
-        <subscreens-item name="Staff" location="component://ironstone-boss/screen/Projects/Resources/Allocations/Staff.xml" menu-include="false"/>
+        <subscreens-item name="EditAllocation" location="component://mr-boss/screen/Projects/Resources/Allocations/EditAllocation.xml" menu-include="false"/>
+        <subscreens-item name="Staff" location="component://mr-boss/screen/Projects/Resources/Allocations/Staff.xml" menu-include="false"/>
     </subscreens>
 
     <transition name="decide">

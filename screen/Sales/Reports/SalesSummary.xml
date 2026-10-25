@@ -15,8 +15,8 @@ along with this software (see the LICENSE.md file). If not, see
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Sales Summary" default-menu-index="1" menu-image="sym_o_list_alt" menu-image-type="icon">
 
-    <transition-include name="searchPartyList" location="component://ironstone-boss/template/SearchTransitions.xml"/>
-    <transition-include name="getProductList" location="component://ironstone-boss/template/SearchTransitions.xml"/>
+    <transition-include name="searchPartyList" location="component://mr-boss/template/SearchTransitions.xml"/>
+    <transition-include name="getProductList" location="component://mr-boss/template/SearchTransitions.xml"/>
 
     <actions>
         <set field="interval" from="interval || 'w'"/>
@@ -243,9 +243,9 @@ along with this software (see the LICENSE.md file). If not, see
             <label text="Products: ${selectedProductList.map((it) => ec.resource.expand('ProductNameTemplate', '', it)).join(', ')}" condition="(selectedProductList?.length > 0)" type="h5"/>
         </container>
 
-        <render-mode><text type="html,vuet,qvt" location="component://ironstone-boss/screen/Sales/Reports/SalesSummaryStats.fancy"/><text type="tui" template="false"><![CDATA[{"t": "text", "id": "SalesSummaryStats", "text": "Order statistics show in the browser."}]]></text></render-mode>
+        <render-mode><text type="html,vuet,qvt" location="component://mr-boss/screen/Sales/Reports/SalesSummaryStats.fancy"/><text type="tui" template="false"><![CDATA[{"t": "text", "id": "SalesSummaryStats", "text": "Order statistics show in the browser."}]]></text></render-mode>
 
-        <render-mode><text type="html,vuet,qvt" location="component://ironstone-boss/screen/Sales/Reports/SalesSummaryCharts.fancy"/><text type="tui" template="false"><![CDATA[{"t": "text", "id": "SalesSummaryCharts", "text": "The charts show in the browser."}]]></text></render-mode>
+        <render-mode><text type="html,vuet,qvt" location="component://mr-boss/screen/Sales/Reports/SalesSummaryCharts.fancy"/><text type="tui" template="false"><![CDATA[{"t": "text", "id": "SalesSummaryCharts", "text": "The charts show in the browser."}]]></text></render-mode>
 
         <container-box><box-header title="Top Products Ordered (${{d:'Day', w:'Week', M:'Month', q:'Quarter', y:'Year'}[interval||'w']} from ${ec.l10n.format(topProductStart, 'dd MMM yyyy')} to ${ec.l10n.format((topProductEnd ? topProductEnd - 1 : null), 'dd MMM yyyy')})"/><box-body-nopad>
             <form-list name="TopProductList" list="topProductList" skip-form="true">

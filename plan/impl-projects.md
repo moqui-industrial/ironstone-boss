@@ -24,7 +24,7 @@ Sections: [1 scope](#1-scope-and-order) · [2 rules](#2-ground-rules) · [3 phas
 ## 1. Scope and order
 
 - **Repositories.** Each its own git repo: `mr-moqui-base` (`crates/`, `runtime/base-component`),
-  `runtime/component/mr-mantle-udm`, `runtime/component/mr-mantle-usl` and `runtime/component/ironstone-boss`.
+  `runtime/component/mr-mantle`, `runtime/component/mr-mantle` and `runtime/component/mr-boss`.
 - **Scope.** Every `parity` and `new` row of design §2 and the §15 needs they use. The `later` needs of §15 and §16 are
   in §7.
 - **Order** (decided Oct 21, 2026): the foundation, projects and work items, then Code early (the differentiator for the
@@ -43,7 +43,7 @@ Sections: [1 scope](#1-scope-and-order) · [2 rules](#2-ground-rules) · [3 phas
 - **Shared screens.** `Shared/WorkItemDetail` and `Shared/RequestDetail` replace Commons' TaskDetail and RequestDetail;
   Commons keeps its paths and its specs keep passing.
 - **Done for a phase:** impl-drawers-commons §4 "Done" (cargo tests for touched crates with goldens reviewed, the new
-  Mantle specs under `./moq test mantle-usl`, `./moq test ironstone-boss` with AppStructure covering the new screens,
+  Mantle specs under `./moq test mr-mantle`, `./moq test mr-boss` with AppStructure covering the new screens,
   `moqui lint --screens` clean for BOSS, screenshots light and dark at 390, 1280 and 1440 px, the inventories'
   **Implemented in** columns), the phase's walk in §8, and its row and **Built** note here.
 
@@ -112,8 +112,8 @@ paths are left to P1, which reads them as it builds.
 `form-list` `peek-url`; `m-elapsed`; the gallery's Views (board by status or type, a work-breakdown tree, peek into the
 new ExampleDetail). moqui-core 1548 passed, moqui-tui 139, node 187, `./moq test example` 83.
 
-- Tests: mantle-usl 559 of 564 features passed, 3 skipped, 2 failed (`ContactListSend` site address, `InboxThreads`
-  operators) the same with the changes stashed; ironstone-boss 400 of 412 passed, 12 skipped (git, xlsx and imap are
+- Tests: mr-mantle 559 of 564 features passed, 3 skipped, 2 failed (`ContactListSend` site address, `InboxThreads`
+  operators) the same with the changes stashed; mr-boss 400 of 412 passed, 12 skipped (git, xlsx and imap are
   not in the lite build); `moqui lint --screens` clean.
 
 ### P2 — Projects and work items
@@ -145,7 +145,7 @@ new ExampleDetail). moqui-core 1548 passed, moqui-tui 139, node 187, `./moq test
   `WorkItemDetail`, AppStructure, ProjectsShell and TuiRender updated.
 
 **Built, projects half** (Oct 22, 2026):
-- Step 0 baseline on the Debug package after P3a's merge: ironstone-boss 436/436, mantle-usl the two known failures,
+- Step 0 baseline on the Debug package after P3a's merge: mr-boss 436/436, mr-mantle the two known failures,
   example 86/86, moqui-core lib 1564; the gallery TUI snapshots regenerated (P3a's enumerations widened the List).
   gate3 fails two tests that today's ScreenWeb parity commits outdated, not Projects: the `display String` class on a
   display field, and the static Cache-Control `max-age=86400, must-revalidate, public` (f9ee72a7 and nearby).
@@ -161,7 +161,7 @@ new ExampleDetail). moqui-core 1548 passed, moqui-tui 139, node 187, `./moq test
   Modules, Money, Review), `StatusReport` (print), Home, Settings Index, WorkItemTypes, Workflows, Labels, Templates;
   QuickWorkItem and quick add offer the project's types; QuickProject links to NewProject; demo `ACMEAPP` (sub-project),
   `TPLWEB` (template), an IRON status update, modules; specs `Projects`, `ProjectDetail`, `NewProject`, `ProjectsHome`,
-  `ProjectsSettings`. Final runs: ironstone-boss 461/461, mantle-usl the two known failures, lint clean, screenshots light
+  `ProjectsSettings`. Final runs: mr-boss 461/461, mr-mantle the two known failures, lint clean, screenshots light
   and dark at 390, 1280 and 1440.
 
 ### P3a — Code: framework
@@ -183,7 +183,7 @@ last commits, compare, ref writes and annotated tags); archived repositories ref
 pushes); the commit status REST endpoint in the tools `moqui` resource; webhooks signed `X-Hub-Signature-256`,
 internal addresses refused unless `git-server` `webhook-private-network`, retried by their own job; `code-view` and
 `m-code` (highlight.js, Kotlin added). docs/Git-Hosting.md "Hosting through Moqui". Tests: moqui-core 1563 passed (the
-one failure needs MrSimpleScreens, absent from a worktree), the new merge, rules, webhook and hosting integration
+one failure needs mr-marble, absent from a worktree), the new merge, rules, webhook and hosting integration
 tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
 
 ### P3b — Code: Mantle and BOSS
@@ -215,7 +215,7 @@ tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
   Settings/Code, ProjectDetail's Code tab and Settings Code box; the `!` Code palette source; "Code hosting is not in this
   build" on the lite build; demo `BossProjectsDemoDataCode.xml` (repositories `iron` and more, merge request !1, a failed
   check on IRON-7-timer); `test/Code.spec.js`. Review fix: Raw shows only images and PDFs inline (F32).
-- Runs (Debug): ironstone-boss 469/469, mantle-usl 594/596 (ContactListSend and its stepwise skip; InboxThreads passed),
+- Runs (Debug): mr-boss 469/469, mr-mantle 594/596 (ContactListSend and its stepwise skip; InboxThreads passed),
   moqui-core lib 1565, example 86/86, SimpleScreens GitScreens 8/8; moqui-host `it` fails
   `system_sync::system_messages_and_entity_syncs_run_over_rest` with or without these changes (not Projects).
 
@@ -231,7 +231,7 @@ tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
   Create branch; merge requests, commits, tags); Home's Reviews waiting counter and block; demo !1 with a review
   thread; specs `MergeRequests` and `CodeReviewWalk` (the usable-when walk, authorization on, through the screens'
   transitions).
-- Runs (Debug): ironstone-boss 482/482, mantle-usl 594/596 (ContactListSend), lint clean with the Debug binary.
+- Runs (Debug): mr-boss 482/482, mr-mantle 594/596 (ContactListSend), lint clean with the Debug binary.
 
 ### P4 — Planning
 
@@ -255,7 +255,7 @@ tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
   column, board group, bulk, quick add), WorkItemDetail and QuickWorkItem; the Current sprint saved find; demo IRON
   sprints 1 (complete, a carry-over), 2 (active) and 3 (planned); `test/SprintWalk.spec.js` (the walk: rank, plan,
   start, complete with a carry-over).
-- Runs (Debug): ironstone-boss 488/488, mantle-usl 600/602 (ContactListSend), lint clean.
+- Runs (Debug): mr-boss 488/488, mr-mantle 600/602 (ContactListSend), lint clean.
 
 **Built, P4b** (Oct 22, 2026):
 - F7 checked: a wiki space rooted at `git://<repositoryId>/docs` works with no framework change (a moqui-core test with
@@ -270,7 +270,7 @@ tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
   project docs; Roadmap, MilestoneDetail, ReleaseDetail; ProjectDetail's Roadmap and Docs tabs (Commons Knowledge in a
   project mode); NewProject's documentation in the repository; demo IRON-MS-2, IRON-REL-2 and IRON's docs space in
   `iron`; `test/ReleaseWalk.spec.js` (the walk: notes generated and published to the docs space in the repository).
-- Runs (Debug): ironstone-boss 494/494, mantle-usl 607/609 (ContactListSend), moqui-core lib 1691, example 86/86, lint
+- Runs (Debug): mr-boss 494/494, mr-mantle 607/609 (ContactListSend), moqui-core lib 1691, example 86/86, lint
   clean.
 
 **Built, P4c** (Oct 22, 2026):
@@ -286,7 +286,7 @@ tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
   Calendar's project mode; the Import wizard (Source, Mapping, Options, Preview, Result, progress); Timeline buttons on
   Roadmap and Projects; `add#WorkItemLink` dependencies through Mantle; demo dates and dependencies on IRON (one
   broken); `test/TimelineWalk.spec.js` with `test/files/jira-work-items.csv`.
-- Runs (Debug): ironstone-boss 502/502, mantle-usl 617/619 (ContactListSend), example 86/86, moqui-core lib 1691, node
+- Runs (Debug): mr-boss 502/502, mr-mantle 617/619 (ContactListSend), example 86/86, moqui-core lib 1691, node
   190/190, lint clean.
 
 ### P5 — Requests
@@ -311,7 +311,7 @@ tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
   per-address limits, the `request-form` web-protection rate limit, reCAPTCHA by preference, uploads limited by type,
   nothing internal answered); `ProjectRequestServices`, `RequestDemoServices`; demo requests on IRON by email and form;
   specs `ProjectRequests`, `RequestWalk` (the usable-when walk).
-- Runs (Debug): ironstone-boss 521/521, mantle-usl 630/632 (ContactListSend), example 86/86, moqui-core lib 1692, gate3
+- Runs (Debug): mr-boss 521/521, mr-mantle 630/632 (ContactListSend), example 86/86, moqui-core lib 1692, gate3
   8/10 (the known two; the token route passes), lint clean.
 
 ### P6 — Time
@@ -336,7 +336,7 @@ tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
   TimesheetDetail; QuickTime; Home's timer strip, My hours and Approve time counters and Approvals block; Start and
   Stop timer on WorkItemDetail; demo project SUPP with submitted, approved and returned weeks and a running timer;
   `test/TimeWalk.spec.js` (the walk with authorization on).
-- Runs (Debug): ironstone-boss 527/527, mantle-usl 638/640 (ContactListSend), lint clean.
+- Runs (Debug): mr-boss 527/527, mr-mantle 638/640 (ContactListSend), lint clean.
 
 **Built, P6b** (Oct 22, 2026):
 - Mantle udm: setting type `ProjWorkTypes`. Mantle usl: `get#`/`store#WorkTypes`; `TimeServices` `find#TimeEntries`
@@ -347,7 +347,7 @@ tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
   WorkItemDetail's all-time box, the time import wizard (Source, Preview, Result; generic CSV; re-import adds nothing;
   over 200 rows as a job), Settings/Time (the policy and work types offered), the Today source (timer with Stop, reviews,
   weeks to submit, requests to triage), time in Chatter; TIME_ENTRY_RATE for managers; `test/TimeEntries.spec.js`.
-- Runs (Debug): ironstone-boss 533/533, mantle-usl 643/645 (ContactListSend), lint clean.
+- Runs (Debug): mr-boss 533/533, mr-mantle 643/645 (ContactListSend), lint clean.
 
 ### P7 — Resources
 
@@ -370,7 +370,7 @@ tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
   ProjectDetail Team's Allocations box; NewProject Team's hours a week; Home's counter and approvals; demo people,
   skills, leave, allocations (Joe over-allocated, a placeholder request); specs `Resources`, `ResourceWalk` (the
   usable-when walk with authorization on).
-- Runs (Debug, with the F77 fix): ironstone-boss 541/541, mantle-usl 648/650 (ContactListSend), moqui-core lib 1754,
+- Runs (Debug, with the F77 fix): mr-boss 541/541, mr-mantle 648/650 (ContactListSend), moqui-core lib 1754,
   tui_screens ok, lint clean. TimeEntries.spec now asserts authorization is on after the Today panel (F77).
 
 ### P8 — Billing and money
@@ -393,7 +393,7 @@ tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
   (html-print and PDF), Rates (with Which rate), Settings/Billing; Home's Unbilled counter and ProjectDetail's Unbilled
   card; email template `BOSS_PROJECT_INVOICE`; demo client Brightwater Dental Group for SUPP, rates, a draft invoice of
   Joe's approved week; specs `Billing` and `BillingWalk` (the walk with authorization on).
-- Runs (Debug): ironstone-boss 552/552, mantle-usl 655/657 (ContactListSend), lint clean.
+- Runs (Debug): mr-boss 552/552, mr-mantle 655/657 (ContactListSend), lint clean.
 
 **Built, P8b** (Oct 22, 2026):
 - Mantle udm: `OrderItemWorkEffort.invoicePercent` and `invoiceAmount`; `WorkEffortApproval` (Requested, Approved,
@@ -410,7 +410,7 @@ tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
   dialog; InvoiceDetail's milestone lines; NewProject Money's order line; demo Acme order with two milestone shares (one
   due, one awaiting approval); `test/MilestoneBillingWalk.spec.js` (P8's walk: approved time and an approved milestone
   on one invoice with its time detail; an estimate sent and approved).
-- Runs (Debug): ironstone-boss 560/560, mantle-usl 665/667 (ContactListSend), lint clean.
+- Runs (Debug): mr-boss 560/560, mr-mantle 665/667 (ContactListSend), lint clean.
 
 ### P9 — Reports and outputs
 
@@ -429,7 +429,7 @@ tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
   (chart config, options); Home's Hours by project and Unbilled by client charts; TimesheetPrint and TeamTimesheet
   prints; Profitability and Utilization for managers only; demo ACME time; `test/Reports.spec.js` (every report on the
   demo in qvt, html-print and tui, measures recomputed, joe sees no money).
-- Runs (Debug): ironstone-boss 567/567, mantle-usl 673/675 (ContactListSend), lint clean.
+- Runs (Debug): mr-boss 567/567, mr-mantle 673/675 (ContactListSend), lint clean.
 
 ### P10 — Client access
 
@@ -456,7 +456,7 @@ tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
   code services; a minimal client Home; demo clients sheldon.acme (ACME) and gob.bluth (new project BLUTH); specs
   `ClientIsolation` (every allowed screen and a sample of denied ones, Chatter, files, search, palette) and
   `ClientAccessInternal` (internal users' Commons and Comms identical before and after the ALLOW flip).
-- Runs (Debug): ironstone-boss 582/582, mantle-usl 682/684 (ContactListSend), moqui-core lib 1772 (an LLM members test
+- Runs (Debug): mr-boss 582/582, mr-mantle 682/684 (ContactListSend), moqui-core lib 1772 (an LLM members test
   failed once under load and passes alone), tui_screens ok, gate3 the known two, lint clean.
 
 **Built, P10b** (Oct 22, 2026):
@@ -476,7 +476,7 @@ tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
   Compare, GitAccess, Activity or Settings; no review threads or CI statuses); `BOSS_PROJECTS_INTERNAL`'s write verbs
   completed (F124) with a spec that checks every service file; specs `ClientWalk`, `ClientWrites`, `ClientBilling`,
   `ClientCode`, `ClientChatDrive`, `ClientIsolation` extended.
-- Runs (Debug): ironstone-boss 620/620, mantle-usl 685/687 (ContactListSend), example 86/86, moqui-core lib 1777/1778 (a
+- Runs (Debug): mr-boss 620/620, mr-mantle 685/687 (ContactListSend), example 86/86, moqui-core lib 1777/1778 (a
   chat preview test while a server ran; passes alone; the LLM members tests pass alone), tui_screens ok, gate3 the known
   two, node 262/262, lint clean. Host `collab::dav_routes_and_coediting_over_the_socket` fails at HEAD before P10b too
   (F136).
@@ -501,9 +501,9 @@ tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
   the Code screens hold without git.
 - Docs: design-projects.md's Impl column and §1.1 (F134); ss-inventory and usl-inventory Implemented in; mr-moqui
   Remaining-Work's IronStone and Git hosting rows; docs/Git-Hosting.md.
-- Final runs, Debug: ironstone-boss 627/627, mantle-usl 685/687 (ContactListSend), example 86/86, moqui-core lib 1778,
+- Final runs, Debug: mr-boss 627/627, mr-mantle 685/687 (ContactListSend), example 86/86, moqui-core lib 1778,
   tui_screens ok, gate3 8/10 (the known two), node 230/230 (P10b reported 262; no JS changed since, F149), lint clean.
-  Lite: ironstone-boss 575 passed, 1 failed (NewProject Money after a git-only step, also at HEAD, F141), 18 skipped.
+  Lite: mr-boss 575 passed, 1 failed (NewProject Money after a git-only step, also at HEAD, F141), 18 skipped.
 
 ## 4. Decisions
 

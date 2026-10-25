@@ -8,7 +8,7 @@
 // description, internal work item or Acme secret reaches the client. An internal user's Code screens are unchanged.
 // The fixtures: a branch cc-theme in acme-portal with a commit, a merge request of it linked to ACME-1 (shared) and ACME-3 (Work
 // group), a reviewer's note, a line comment, and a check with a description and a link, all with ZQX sentinels; taken out after.
-// Run: ./moq test ironstone-boss --spec ClientCode
+// Run: ./moq test mr-boss --spec ClientCode
 const webroot = "component://webroot/screen/webroot.xml"
 const SHELDON = "sheldon.acme"
 const GOB = "gob.bluth"

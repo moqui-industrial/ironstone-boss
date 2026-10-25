@@ -5,9 +5,9 @@
 // manufacturing equipment; the bookings of a week with their status; a booking made at once, one waiting for approval, a clash
 // refused with no event left behind, a booking cancelled with the event made for it; ResourceDetail with its policy, the user's
 // bookings and Book. Joe Developer may not cancel john.doe's booking.
-// Run: ./moq test ironstone-boss --spec Schedules
+// Run: ./moq test mr-boss --spec Schedules
 const webroot = "component://webroot/screen/webroot.xml"
-const commons = "component://ironstone-boss/screen/Commons.xml"
+const commons = "component://mr-boss/screen/Commons.xml"
 let D
 
 function call_(name, parameters, method) {

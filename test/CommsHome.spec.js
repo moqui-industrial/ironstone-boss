@@ -3,7 +3,7 @@
 // Support) with Fix for its owner only; Needs reply; a follow-up email and a meeting with a join link of this spec's own; the
 // mailboxes with unread (the demo's Office announcements); the shortcuts. Each part stands alone: a user with no party and no mail
 // still gets the page. joe.developer sees his own counts, Support (which he shares) without Fix, and none of john.doe's account.
-// Run: ./moq test ironstone-boss --spec CommsHome
+// Run: ./moq test mr-boss --spec CommsHome
 const webroot = "component://webroot/screen/webroot.xml"
 const FOLLOW_UP = "BOSS_TEST_HOME_FOLLOWUP", MEETING = "BOSS_TEST_HOME_MEETING"
 

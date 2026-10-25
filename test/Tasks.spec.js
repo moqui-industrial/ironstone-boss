@@ -7,9 +7,9 @@
 // column, along the flow) and calendar (a task moved to another day, a task added on an empty day). A task Joe Developer is
 // not on is "not available" to him and its changes are refused (IronStone R5, R28). The spec changes only the tasks it makes (BOSS_TEST_* names),
 // so the demo stays for the specs after it. Authorization stays on, as for a browser request.
-// Run: ./moq test ironstone-boss --spec Tasks
+// Run: ./moq test mr-boss --spec Tasks
 const webroot = "component://webroot/screen/webroot.xml"
-const commons = "component://ironstone-boss/screen/Commons.xml"
+const commons = "component://mr-boss/screen/Commons.xml"
 let todayText, tomorrowText, inThreeText
 const made = {}
 

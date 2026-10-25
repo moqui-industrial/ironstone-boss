@@ -4,9 +4,9 @@
 // tray asks (shellRefresh) and loads the room view from Comms/Chat (chat-room); the light room list it asks
 // for (chatData with a limit) has john.doe's rooms with their counts; New message finds the direct room there is or makes
 // one; Mark all read clears every count. On the chat demo (data/BossChatDemoData.xml), loaded again here.
-// Run: ./moq test ironstone-boss --spec ChatPanel
+// Run: ./moq test mr-boss --spec ChatPanel
 const webroot = "component://webroot/screen/webroot.xml"
-const comms = "component://ironstone-boss/screen/Comms.xml"
+const comms = "component://mr-boss/screen/Comms.xml"
 
 function transition(name, parameters, method) {
     const str = ec.screen.makeTest().rootScreen(comms).render(`Chat/${name}`, parameters || {}, method || null)

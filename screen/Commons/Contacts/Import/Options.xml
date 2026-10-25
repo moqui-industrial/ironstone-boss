@@ -45,7 +45,7 @@ along with this software (see the LICENSE.md file). If not, see
         <default-response url="."><parameter name="importId"/></default-response>
         <error-response url="."/>
     </transition>
-    <transition-include name="contactBookGroups" location="component://ironstone-boss/template/ContactRecord.xml"/>
+    <transition-include name="contactBookGroups" location="component://mr-boss/template/ContactRecord.xml"/>
 
     <actions>
         <service-call name="ironstone.ContactServices.get#ImportDraft" in-map="{importId:importId}" out-map="draftOut"/>

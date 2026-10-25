@@ -7,7 +7,7 @@
 // calendar, and removes the dependency; bob.developer, not on the project, sees none of it and moves nothing; john imports a Jira
 // CSV (test/files/jira-work-items.csv) into the project through the wizard's steps (the row without a title fails alone, named),
 // and the timeline draws what came in. The project is cancelled after, so the other specs' lists keep their records.
-// Run: ./moq test ironstone-boss --spec TimelineWalk
+// Run: ./moq test mr-boss --spec TimelineWalk
 const webroot = "component://webroot/screen/webroot.xml"
 const PROJECT = "TLW"
 
@@ -237,10 +237,10 @@ feature("joe removes the dependency on its DependencyForm", {
 
 feature("john imports a Jira CSV into the project: the file and the project, the mapping from the Jira preset, the options and the preview", {
     when() {
-        const text = ec.resource.getLocationReference("component://ironstone-boss/test/files/jira-work-items.csv").getText()
+        const text = ec.resource.getLocationReference("component://mr-boss/test/files/jira-work-items.csv").getText()
         // the wizard's own screen, as its root
         const wizard = sys(() => {
-            const str = ec.screen.makeTest().rootScreen("component://ironstone-boss/screen/Projects/WorkItems/Import.xml").renderMode("qvt").withStaticData().render("", {}, null)
+            const str = ec.screen.makeTest().rootScreen("component://mr-boss/screen/Projects/WorkItems/Import.xml").renderMode("qvt").withStaticData().render("", {}, null)
             ec.message.clearErrors()
             return { errors: str.errorMessages.join(" | "), output: String(str.output || "") }
         })

@@ -4,8 +4,8 @@
 // ended link, a share that also names a user, a password (missing, wrong, right), and a free/busy link that shows Busy.
 // The demo Family calendar (CalendarDemoServices.load#CalendarDemo) is published here and unshared again at the end.
 // The token route itself (the 404 page, the public shell) is the framework's: crates/moqui-host/tests/gate3.rs.
-// Run: ./moq test ironstone-boss --spec PublishedCalendar
-const page = "component://ironstone-boss/screen/PublishedCalendar.xml"
+// Run: ./moq test mr-boss --spec PublishedCalendar
+const page = "component://mr-boss/screen/PublishedCalendar.xml"
 const CHECK = "ironstone.CalendarServices.check#PublishedCalendarToken"
 const SHARE = "mantle.work.CalendarServices.share#Calendar"
 const UNSHARE = "mantle.work.CalendarServices.unshare#Calendar"

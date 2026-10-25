@@ -6,8 +6,8 @@
 // submitted and returned; items moved between the backlog and a sprint, a sprint made, started and completed; an item's dates moved
 // and a dependency added and removed on the timeline; an allocation moved and decided on the planner. The project is cancelled after,
 // so the other specs' lists keep their records.
-// Run: ./moq test ironstone-boss --spec ProjectsTui
-const base = "component://ironstone-boss/screen"
+// Run: ./moq test mr-boss --spec ProjectsTui
+const base = "component://mr-boss/screen"
 const projectsRoot = `${base}/Projects.xml`
 const PROJECT = "TUIW"
 let screens

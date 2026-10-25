@@ -80,7 +80,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
 
     <widgets>
-        <render-mode><text type="qvue" location="component://ironstone-boss/screen/Projects/WorkItems/Timeline.qvue" template="false"/>
+        <render-mode><text type="qvue" location="component://mr-boss/screen/Projects/WorkItems/Timeline.qvue" template="false"/>
             <!-- the terminal: TimelineTui, the plain screen beside this one, on the same project and mode (in ProjectDetail's Plan
                 tab its project even when the user may not see it) -->
             <text type="tui"><![CDATA[${JSON.stringify([{t: "dynamicContainer", id: "TimelineTui",

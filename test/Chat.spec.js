@@ -12,8 +12,8 @@
 // link previews; read receipts off by preference. Joe Developer reads none of john.doe's private rooms nor their files,
 // writes in them or forwards their messages. Authorization stays on, as for a browser request. john's link previews are off here,
 // so a link in a message reaches no page (the framework's chat_tests.rs tests the previews with a stub of the pages).
-// Run: ./moq test ironstone-boss --spec Chat
-const comms = "component://ironstone-boss/screen/Comms.xml"
+// Run: ./moq test mr-boss --spec Chat
+const comms = "component://mr-boss/screen/Comms.xml"
 const JOHN = "EX_JOHN_DOE", JOE = "ORG_ZIZI_JD", BOB = "ORG_ZIZI_BD"
 const ROOM = { joe: "BOSS_DEMO_CHAT_JOE", bob: "BOSS_DEMO_CHAT_BOB", general: "BOSS_DEMO_CHAT_GENERAL", team: "BOSS_DEMO_CHAT_TEAM",
     leads: "BOSS_DEMO_CHAT_LEADS", request: "BOSS_DEMO_CHAT_REQUEST", random: "BOSS_DEMO_CHAT_RANDOM" }
@@ -417,7 +417,7 @@ feature("a task or request made from a message, the message filed on it and on t
 
 feature("the demo request's Chatter shows its room's messages, each a link to the room at the message", {
     when() {
-        const str = ec.screen.makeTest().rootScreen("component://ironstone-boss/screen/Commons.xml").render("Chatter/timeline",
+        const str = ec.screen.makeTest().rootScreen("component://mr-boss/screen/Commons.xml").render("Chatter/timeline",
             { recordEntity: "mantle.request.Request", recordId: "BOSS_DEMO_REQUEST" }, null)
         let json = null
         try { json = JSON.parse(str.output) } catch (err) { json = null }

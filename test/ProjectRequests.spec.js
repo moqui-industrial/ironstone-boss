@@ -6,9 +6,9 @@
 // work item, the Work tab), the bulk changes, who sees a project's request (its members; one not on a members-only project
 // does not), IntakeSettings and the project's Intake box, and the public form at /r/<token> as a visitor with no session user.
 // The changes are made on the spec's own requests (BOSS_TEST_* names), so the demo stays for the specs after it.
-// Run: ./moq test ironstone-boss --spec ProjectRequests
+// Run: ./moq test mr-boss --spec ProjectRequests
 const webroot = "component://webroot/screen/webroot.xml"
-const intakePage = "component://ironstone-boss/screen/RequestIntake.xml"
+const intakePage = "component://mr-boss/screen/RequestIntake.xml"
 const TOKEN = "BossDemoIronIntakeForm1"
 const made = {}
 

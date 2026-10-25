@@ -4,8 +4,8 @@
 // grant for a link with a password, reads nothing), the password and its grant, a folder with its files and a zip, one file,
 // and the file drop of an upload-only link with the uploader's name in the version note, a name already there kept beside it.
 // The token route itself (the 404 page, the public shell) is the framework's: crates/moqui-host/tests/gate3.rs.
-// Run: ./moq test ironstone-boss --spec PublicShare
-const page = "component://ironstone-boss/screen/PublicShare.xml"
+// Run: ./moq test mr-boss --spec PublicShare
+const page = "component://mr-boss/screen/PublicShare.xml"
 const FILES = "org.moqui.impl.FileServices"
 const PHOTOS = "BossDemoPhotosLink2026", DROP = "BossDemoQuoteDrop2026", PLAN = "BossDemoOfficePlan2026"
 

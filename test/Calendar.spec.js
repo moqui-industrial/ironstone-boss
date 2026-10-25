@@ -8,8 +8,8 @@
 // update#EventOccurrence), and cancelled the same ways (one instance as an EXDATE of its series); the answer to an
 // invitation; the popover; the search and Find a time. Joe
 // Developer may not see john.doe's family event nor change john.doe's events (IronStone R5, R28). Authorization stays on.
-// Run: ./moq test ironstone-boss --spec Calendar
-const commons = "component://ironstone-boss/screen/Commons.xml"
+// Run: ./moq test mr-boss --spec Calendar
+const commons = "component://mr-boss/screen/Commons.xml"
 const pattern = "yyyy-MM-dd HH:mm:ss.SSS"
 let D, weekStart, weekEnd
 const made = {}

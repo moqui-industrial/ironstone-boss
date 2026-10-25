@@ -8,8 +8,8 @@
 // /oneClick going to the page), and the confirmation an unsubscribe waits for on a list that requires it. The token route itself
 // (the 404 page, the public shell, a POST to /u/<token> running its post-transition) is the framework's:
 // crates/moqui-host/tests/gate3.rs; a spec renders the screen, so a POST to /u/<token> is the oneClick transition it runs.
-// Run: ./moq test ironstone-boss --spec Unsubscribe
-const page = "component://ironstone-boss/screen/Unsubscribe.xml"
+// Run: ./moq test mr-boss --spec Unsubscribe
+const page = "component://mr-boss/screen/Unsubscribe.xml"
 const CONSENT = "mantle.party.ConsentServices"
 const NEWS = "BossDemoUnsubNews2026", UPDATES = "BossDemoUnsubUpdates2026", ENDED = "BossDemoUnsubExpired2026"
 const ALEX = "BOSS_DEMO_CON_ALEX", TAYLOR = "BOSS_DEMO_CON_TAYLOR"
@@ -152,7 +152,7 @@ feature("the RFC 8058 one-click POST to /u/<token> unsubscribes at once with a l
     allowMessageErrors: true,
     when() {
         // the u route runs oneClick for a POST to the page's URL itself, the List-Unsubscribe URL (create#UnsubscribeToken)
-        const conf = String(ec.resource.getLocationText("component://ironstone-boss/MoquiConf.xml") || "")
+        const conf = String(ec.resource.getLocationText("component://mr-boss/MoquiConf.xml") || "")
         const route = (conf.match(/<token-route\s+name="u"[^>]*>/) || [""])[0]
         // the link of a new list email (a signed-in send makes it), its List-Unsubscribe the page's URL
         login("john.doe")
@@ -167,7 +167,7 @@ feature("the RFC 8058 one-click POST to /u/<token> unsubscribes at once with a l
     },
     then({ route, link, first, status, again, noField, viewed, consent }) {
         route.includes('post-transition="oneClick"')
-        route.includes('screen-location="component://ironstone-boss/screen/Unsubscribe.xml"')
+        route.includes('screen-location="component://mr-boss/screen/Unsubscribe.xml"')
         link.listUnsubscribeHeaders["List-Unsubscribe"] == `<https://shop.example.com/u/${link.token}>`
         link.oneClickUrl == link.unsubscribeUrl
         first.status == 200

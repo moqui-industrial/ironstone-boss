@@ -239,11 +239,11 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
 
     <!-- the terminal twin, a plain screen under this one so it is under the same app root -->
-    <subscreens><subscreens-item name="ChatterTui" location="component://ironstone-boss/screen/Shared/ChatterTui.xml" menu-include="false"/></subscreens>
+    <subscreens><subscreens-item name="ChatterTui" location="component://mr-boss/screen/Shared/ChatterTui.xml" menu-include="false"/></subscreens>
 
     <widgets>
         <render-mode>
-            <text type="qvue" location="component://ironstone-boss/screen/Shared/Chatter.qvue" template="false"/>
+            <text type="qvue" location="component://mr-boss/screen/Shared/Chatter.qvue" template="false"/>
             <!-- the terminal: ChatterTui on the same record -->
             <text type="tui"><![CDATA[${JSON.stringify([{t: "dynamicContainer", id: "ChatterTui", url: sri.buildUrl("ChatterTui")
                 .addParameters({recordEntity: recordEntity || null, recordId: recordId || null, appRoot: appRoot || null}).getUrlWithParams()}])}]]></text>

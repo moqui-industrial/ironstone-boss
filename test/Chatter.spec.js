@@ -10,9 +10,9 @@
 // not see (another user's personal contact) shows nothing and a write on it is refused (IronStone R5), and an activity
 // that is not on the record cannot be changed. The record screens render with the chatter and record-files elements, and
 // the shell data gives every BOSS app root its Chatter and RecordFiles panels.
-// Run: ./moq test ironstone-boss --spec Chatter
+// Run: ./moq test mr-boss --spec Chatter
 const webroot = "component://webroot/screen/webroot.xml"
-const commons = "component://ironstone-boss/screen/Commons.xml"
+const commons = "component://mr-boss/screen/Commons.xml"
 const request = { recordEntity: "mantle.request.Request", recordId: "BOSS_DEMO_REQUEST" }
 const requestUrl = "/qapps/Commons/Requests/RequestDetail?requestId=BOSS_DEMO_REQUEST"
 let scheduledId, nextId

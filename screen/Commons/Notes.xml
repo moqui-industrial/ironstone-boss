@@ -170,7 +170,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
 
     <widgets>
-        <render-mode><text type="qvue" location="component://ironstone-boss/screen/Commons/Notes.qvue" template="false"/>
+        <render-mode><text type="qvue" location="component://mr-boss/screen/Commons/Notes.qvue" template="false"/>
             <!-- the terminal: NotesTui, the plain screen beside this one, on the same note -->
             <text type="tui"><![CDATA[${JSON.stringify([{t: "dynamicContainer", id: "NotesTui",
                 url: sri.buildUrl("../NotesTui").addParameters({wikiPageId: wikiPageId || null}).getUrlWithParams()}])}]]></text></render-mode>

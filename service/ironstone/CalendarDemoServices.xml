@@ -42,7 +42,7 @@ along with this software (see the LICENSE.md file). If not, see
             workEffortIdList = []
             const john = 'EX_JOHN_DOE', joe = 'ORG_ZIZI_JD', bob = 'ORG_ZIZI_BD', org = 'ORG_ZIZI_SERVICES'
             if (ec.entity.find('mantle.party.Party').condition('partyId', john).disableAuthz().one() == null) {
-                ec.logger.warn('The calendar demo needs the party EX_JOHN_DOE (mantle-usl demo data); nothing loaded')
+                ec.logger.warn('The calendar demo needs the party EX_JOHN_DOE (mr-mantle demo data); nothing loaded')
                 return
             }
             // john.doe's time zone for every date here, whatever the server's is (a data load has no user)

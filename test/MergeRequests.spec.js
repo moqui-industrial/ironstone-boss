@@ -6,7 +6,7 @@
 // threads (a line comment, a reply, resolve and reopen), a review, reviewers added and removed, work items linked and unlinked,
 // the draft and close moves, the Development tab with a branch made for a work item, and Home. The usable-when walk of P3b is
 // CodeReviewWalk.spec.js. Authorization stays on. The spec puts the demo's !1 back as it found it.
-// Run: ./moq test ironstone-boss --spec MergeRequests
+// Run: ./moq test mr-boss --spec MergeRequests
 const webroot = "component://webroot/screen/webroot.xml"
 
 function render(path, parameters, mode, standalone) {

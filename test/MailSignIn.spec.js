@@ -12,9 +12,9 @@
 // in a page), sign in instead of a password, and a password that switches the account back. POP: the framework's sign-in
 // (start#OAuthSignIn storeProtocol pop3) asks for the POP scope and makes the account on the provider's POP server only when it
 // succeeds; a provider with no POP server here is not offered POP. Another user reaches none of it.
-// Run: ./moq test ironstone-boss --spec MailSignIn
+// Run: ./moq test mr-boss --spec MailSignIn
 const webroot = "component://webroot/screen/webroot.xml"
-const comms = "component://ironstone-boss/screen/Comms.xml"
+const comms = "component://mr-boss/screen/Comms.xml"
 const SETTINGS = "ironstone.MailSettingsServices"
 const BASE = "Settings/MailAccounts"
 const PROVIDER = "EopBossSpec"

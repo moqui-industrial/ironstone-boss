@@ -6,9 +6,9 @@
 // the board (status along the flow, assignee, milestone), the calendar and the tree (a level, the ancestors, a move); the
 // bulk changes, each item on its own; QuickCreate's work item and the managers' QuickProject (F8, F10). The spec changes
 // only the items it makes and moves back what it moves, so the demo stays for the specs after it. Authorization stays on.
-// Run: ./moq test ironstone-boss --spec WorkItems
+// Run: ./moq test mr-boss --spec WorkItems
 const webroot = "component://webroot/screen/webroot.xml"
-const projectsRoot = "component://ironstone-boss/screen/Projects.xml"
+const projectsRoot = "component://mr-boss/screen/Projects.xml"
 const made = {}
 
 function render(path, parameters) {
@@ -41,7 +41,7 @@ const rows = (parameters) => sys(() => call("ironstone.WorkItemServices.find#Wor
 // the demo's items (this component's data files), not those another spec made, here (BOSS_TEST names) or in another
 // component's run before
 const demoItems = new Set()
-for (const fileRef of ec.resource.getLocationReference("component://ironstone-boss/data").getDirectoryEntries())
+for (const fileRef of ec.resource.getLocationReference("component://mr-boss/data").getDirectoryEntries())
     if (fileRef.location.endsWith(".xml"))
         for (const match of String(ec.resource.getLocationText(fileRef.location) || "").matchAll(/<mantle\.work\.effort\.WorkEffort workEffortId="([^"]+)"/g))
             demoItems.add(match[1])

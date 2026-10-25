@@ -8,7 +8,7 @@
 // triage. ProjectDetail's Time tab renders with its totals (impl-projects.md F52: AppStructure walks files only); a work item's
 // Chatter and its Time tab show the time logged on it. TimeSettings keeps the policy and the work types offered, which MyTime offers.
 // The project is cancelled after, and the organization's time settings put back.
-// Run: ./moq test ironstone-boss --spec TimeEntries
+// Run: ./moq test mr-boss --spec TimeEntries
 const webroot = "component://webroot/screen/webroot.xml"
 const PROJECT = "TEW"
 // a moment of a day of January 2027 in the session's time zone
@@ -245,7 +245,7 @@ feature("the Today source gives joe's running timer and his week to submit, and 
         const week = group.items.find((item) => item.kind === "timesheet") || {}
         const panel = as("joe.developer", () => render("apps/Commons/Panel/Today", {}))
         const stopped = as("joe.developer", () => {
-            const str = ec.screen.makeTest().rootScreen("component://ironstone-boss/screen/Commons.xml").render("Panel/Today/stopTimer", { timeEntryId: timer.timeEntryId }, "post")
+            const str = ec.screen.makeTest().rootScreen("component://mr-boss/screen/Commons.xml").render("Panel/Today/stopTimer", { timeEntryId: timer.timeEntryId }, "post")
             ec.message.clearErrors()
             return JSON.parse(String(str.output || "{}"))
         })

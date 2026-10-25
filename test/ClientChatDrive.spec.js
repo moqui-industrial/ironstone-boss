@@ -7,7 +7,7 @@
 // never gets an agent (the Agent* permissions are withheld, the Assist drawer refused, a model call refused). The webroot
 // chat transitions run their services with authorization disabled, so the client is checked there too, and Mantle's
 // get#RecordLinkInfo applies the client rule with authorization disabled. Internal users keep all of it (the regression part).
-// Run: ./moq test ironstone-boss --spec ClientChatDrive
+// Run: ./moq test mr-boss --spec ClientChatDrive
 const webroot = "component://webroot/screen/webroot.xml"
 const SHELDON = "sheldon.acme"
 const SHELDON_ID = "ORG_ACME_SA"
