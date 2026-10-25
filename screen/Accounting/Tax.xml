@@ -15,7 +15,7 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- Placeholder for the Tax section of IronStone Accounting (initial-design.md app table); design-accounting.md decides
     its screens. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Tax" default-menu-index="6">
+        default-menu-title="Tax" default-menu-index="6" menu-image="sym_o_percent" menu-image-type="icon">
     <widgets>
         <label text="Placeholder: Tax." type="p"/>
     </widgets>

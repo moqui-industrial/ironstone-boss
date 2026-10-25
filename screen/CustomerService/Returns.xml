@@ -15,7 +15,7 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- Placeholder for the Returns / RMA section of IronStone Customer Service (initial-design.md app table);
     design-customer-service.md decides its screens. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Returns / RMA" default-menu-index="4">
+        default-menu-title="Returns / RMA" default-menu-index="4" menu-image="sym_o_replay" menu-image-type="icon">
     <widgets>
         <label text="Placeholder: Returns and RMAs." type="p"/>
     </widgets>

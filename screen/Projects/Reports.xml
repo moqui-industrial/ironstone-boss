@@ -18,7 +18,7 @@ along with this software (see the LICENSE.md file). If not, see
     (BOSS_PROJECTS_MANAGERS in data/BossSetupData.xml). Every report reads only the projects, time and money the user may see
     (mantle.work.ProjectReportServices). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Reports" default-menu-index="9" server-static="qvt">
+        default-menu-title="Reports" default-menu-index="9" server-static="qvt" menu-image="sym_o_table_chart" menu-image-type="icon">
     <subscreens default-item="Index"/>
     <widgets>
         <subscreens-active/>

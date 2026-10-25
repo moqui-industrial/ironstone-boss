@@ -15,7 +15,7 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- Placeholder for the Banking & reconciliation section of IronStone Accounting (initial-design.md app table);
     design-accounting.md decides its screens. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Banking &amp; reconciliation" default-menu-index="4">
+        default-menu-title="Banking &amp; reconciliation" default-menu-index="4" menu-image="sym_o_account_balance_wallet" menu-image-type="icon">
     <widgets>
         <label text="Placeholder: Banking and reconciliation." type="p"/>
     </widgets>

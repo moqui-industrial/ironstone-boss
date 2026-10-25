@@ -19,7 +19,7 @@ along with this software (see the LICENSE.md file). If not, see
     week, requests assigned, events of the next 7 days) and the shortcuts, which open the shell's quick create, and the recent pages
     (M9) and files (M8). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Home" default-menu-index="1">
+        default-menu-title="Home" default-menu-index="1" menu-image="sym_o_dashboard" menu-image-type="icon">
 
     <transition name="setSetup">
         <service-call name="ironstone.CommonsServices.set#SetupItem" in-map="{item:item, state:state}"/>

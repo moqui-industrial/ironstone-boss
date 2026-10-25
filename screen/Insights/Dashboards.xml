@@ -15,7 +15,7 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- Placeholder for the Dashboards & KPIs section of IronStone Insights (initial-design.md app table);
     design-insights.md decides its screens. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Dashboards &amp; KPIs" default-menu-index="2">
+        default-menu-title="Dashboards &amp; KPIs" default-menu-index="2" menu-image="sym_o_widgets" menu-image-type="icon">
     <widgets>
         <label text="Placeholder: Dashboards and KPIs." type="p"/>
     </widgets>

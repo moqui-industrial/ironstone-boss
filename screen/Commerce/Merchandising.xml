@@ -15,7 +15,7 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- Placeholder for the Merchandising section of IronStone Commerce (initial-design.md app table); design-commerce.md
     decides its screens. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Merchandising" default-menu-index="3">
+        default-menu-title="Merchandising" default-menu-index="3" menu-image="sym_o_category" menu-image-type="icon">
     <widgets>
         <label text="Placeholder: Merchandising: categories, product content, SEO." type="p"/>
     </widgets>

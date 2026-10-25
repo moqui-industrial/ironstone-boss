@@ -15,7 +15,7 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- Placeholder for the Scheduling admin section of IronStone Maintenance (initial-design.md app table);
     design-maintenance.md decides its screens. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Scheduling admin" default-menu-index="5">
+        default-menu-title="Scheduling admin" default-menu-index="5" menu-image="sym_o_calendar_view_month" menu-image-type="icon">
     <widgets>
         <label text="Placeholder: Facility and equipment scheduling admin." type="p"/>
     </widgets>
