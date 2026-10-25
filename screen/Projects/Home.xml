@@ -440,8 +440,12 @@ along with this software (see the LICENSE.md file). If not, see
                 </box-toolbar><box-body-nopad>
                     <form-list name="MyProjects" list="projectList" skip-form="true" skip-header="true" paginate="false">
                         <field name="workEffortName"><default-field>
-                            <link url="projectDetail" text="${workEffortName}" parameter-map="{workEffortId:workEffortId}"/>
-                            <label text="${workEffortId}${nextMilestoneText ? ' · ' + nextMilestoneText : ''}" type="div" style="text-caption m-muted"/></default-field></field>
+                            <render-mode><text type="qvt"><![CDATA[
+                                <span class="row inline no-wrap items-center">${colorName ? '<span class="q-mr-xs bg-' + WebUtilities.encodeHtml(colorName) + '" style="display:inline-block;width:10px;height:10px;border-radius:50%"></span>' : ''}<a class="no-underline" href="/qapps/Projects/Projects/ProjectDetail?workEffortId=${WebUtilities.encodeHtml(workEffortId)}">${WebUtilities.encodeHtml(workEffortName)}</a></span>
+                                <span class="text-caption m-muted q-ml-sm">${WebUtilities.encodeHtml(workEffortId)}${nextMilestoneText ? ' · ' + WebUtilities.encodeHtml(nextMilestoneText) : ''}</span>
+                            ]]></text>
+                                <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify((workEffortName ?? '') + ' ' + (workEffortId ?? '') + (nextMilestoneText ? ' · ' + nextMilestoneText : ''))}}]]></text></render-mode>
+                        </default-field></field>
                         <field name="healthLabel"><default-field>
                             <render-mode><text type="qvt"><![CDATA[<div class="row no-wrap">${healthLabel ? '<q-chip dense square class="q-my-none q-ml-none q-mr-xs m-tonal text-' + healthColor + '">' + WebUtilities.encodeHtml(healthLabel) + '</q-chip>' : ''}<q-chip dense square class="q-ma-none m-tonal text-${statusColor}">${WebUtilities.encodeHtml(statusLabel ?? '')}</q-chip></div>]]></text>
                                 <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify([healthLabel, statusLabel].filter((part) => part).join(" · "))}}]]></text></render-mode></default-field></field>
