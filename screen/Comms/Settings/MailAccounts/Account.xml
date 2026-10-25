@@ -250,23 +250,23 @@ along with this software (see the LICENSE.md file). If not, see
             </box-body></container-box>
         </widgets></section>
         <section name="Found" condition="found"><widgets>
-            <container style="row items-center q-mb-sm q-gutter-x-sm">
-                <label type="h5" text="${account.accountName}" style="q-my-none"/>
-                <render-mode><text type="qvt"><![CDATA[${statusChip}]]></text><text type="tui"><![CDATA[${JSON.stringify({t: "text", style: "strong", text: String(statusChip ?? "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()})}]]></text></render-mode>
-                <label type="span" text="${account.statusLabel}"/>
-                <render-mode><text type="qvt"><![CDATA[</q-chip>]]></text><text type="tui" template="false">[]</text></render-mode>
-                <container style="col"/>
-                <link url="syncNow" link-type="hidden-form" text="Sync now" icon="sym_o_sync" condition="account.canSync" parameter-map="{emailAccountId:emailAccountId}"/>
-                <link url="pause" link-type="hidden-form" text="Pause" icon="sym_o_pause" condition="account.canPause &amp;&amp; !account.setupIncomplete" parameter-map="{emailAccountId:emailAccountId}"/>
-                <link url="resume" link-type="hidden-form" text="Resume" icon="sym_o_play_arrow" condition="account.canResume" parameter-map="{emailAccountId:emailAccountId}"/>
-                <link url="../List" text="Mail accounts" icon="sym_o_arrow_back"/>
-            </container>
-            <section name="AccountStorage" condition="account.storageText"><widgets>
-                <container style="text-caption m-muted q-mb-sm">
-                    <label type="span" text="Storage"/>
-                    <label type="span" text=" · ${account.storageText}"/>
+            <container style="q-mb-xs"><link url="../List" link-type="anchor" text="Mail accounts" icon="arrow_back"/></container>
+            <!-- the header card (style-guide §3.3): the name and status, Sync, Pause and Resume at their right -->
+            <container style="m-record-header">
+                <container style="row items-start q-col-gutter-x-md q-col-gutter-y-sm">
+                    <container style="col-12 col-md m-record-title">
+                        <label type="h5" text="${account.accountName}"/>
+                        <render-mode><text type="qvt"><![CDATA[${statusChip}]]></text><text type="tui"><![CDATA[${JSON.stringify({t: "text", style: "strong", text: String(statusChip ?? "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()})}]]></text></render-mode>
+                        <label type="span" text="${account.statusLabel}"/>
+                        <render-mode><text type="qvt"><![CDATA[</q-chip>]]></text><text type="tui" template="false">[]</text></render-mode>
+                    </container>
+                    <container style="col-12 col-md-auto row items-center q-gutter-y-xs m-record-actions">
+                        <link url="syncNow" link-type="hidden-form" text="Sync now" icon="sym_o_sync" condition="account.canSync" parameter-map="{emailAccountId:emailAccountId}"/>
+                        <link url="pause" link-type="hidden-form" text="Pause" icon="sym_o_pause" condition="account.canPause &amp;&amp; !account.setupIncomplete" parameter-map="{emailAccountId:emailAccountId}"/>
+                        <link url="resume" link-type="hidden-form" text="Resume" icon="sym_o_play_arrow" condition="account.canResume" parameter-map="{emailAccountId:emailAccountId}"/>
+                    </container>
                 </container>
-            </widgets></section>
+            </container>
             <!-- while it syncs: how far it is -->
             <section name="AccountSyncProgress" condition="account.hasServer"><widgets>
                 <dynamic-container id="AccountSyncProgress" transition="../SyncProgress">
@@ -379,6 +379,12 @@ along with this software (see the LICENSE.md file). If not, see
                     <container-box><box-header title="About"/><box-body>
                         <label type="div" text="${account.emailAddress}" style="text-body1"/>
                         <label type="div" text="${account.kindLabel} · ${account.accessText}" style="text-caption m-muted"/>
+                        <section name="AccountStorage" condition="account.storageText"><widgets>
+                            <container style="text-caption m-muted">
+                                <label type="span" text="Storage"/>
+                                <label type="span" text=" · ${account.storageText}"/>
+                            </container>
+                        </widgets></section>
                         <label type="p" text="${account.problemText}" style="${account.statusColor == 'negative' ? 'text-negative' : (account.statusColor == 'warning' ? 'text-warning' : 'm-muted')} q-mt-sm q-mb-xs" condition="account.problemText"/>
                         <container style="row q-col-gutter-sm q-mt-xs">
                             <container style="col-6 col-sm-3"><label type="div" text="Unread" style="text-caption m-muted"/>

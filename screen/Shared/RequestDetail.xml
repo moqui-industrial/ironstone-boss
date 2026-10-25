@@ -282,7 +282,7 @@ along with this software (see the LICENSE.md file). If not, see
                 projectName = pd.projectName || ''
                 workText = workList.length ? pd.workDoneCount + '/' + workList.length + ' ' + L('done') : ''
                 const projectUrl = request.rootWorkEffortId ? '/qapps/Projects/Projects/ProjectDetail/Requests?workEffortId=' + encodeURIComponent(request.rootWorkEffortId) : null
-                factsHtml = '<div class="row q-col-gutter-lg q-mb-sm m-request-facts">'
+                factsHtml = '<div class="row q-col-gutter-lg m-request-facts">'
                     + fact('Customer', person(request.customerName, request.customerUserId), '')
                     + fact('Project', projectUrl ? link(projectName, projectUrl) : enc(L('None yet')), projectUrl ? '' : 'm-muted')
                     + fact('Priority', enc(request.priorityText || '—'), '')
@@ -314,7 +314,7 @@ along with this software (see the LICENSE.md file). If not, see
                 const suggested = String(request.requestName || '').toUpperCase().replace(/[^A-Z0-9 ]/g, '').split(/\s+/).filter((word) => word).map((word) => word[0]).join('').substring(0, 6)
                 convertValues = {requestId: requestId, newProjectName: request.requestName || '', newProjectId: suggested.length >= 2 ? suggested : ''}
             }
-            factsCommonsHtml = '<div class="row q-col-gutter-lg q-mb-sm m-request-facts">'
+            factsCommonsHtml = '<div class="row q-col-gutter-lg m-request-facts">'
                 + fact('Priority', enc(request.priorityText || '—'), '')
                 + fact('Customer', person(request.customerName, request.customerUserId), '')
                 + fact('Assigned', person(request.assigneeName, request.assigneeUserId), '')
@@ -359,218 +359,235 @@ along with this software (see the LICENSE.md file). If not, see
             <container style="q-mb-xs"><link url="requests" link-type="anchor" text="Requests" icon="arrow_back"/></container>
 
             <section name="CommonsHeader" condition="!projects"><widgets>
-                <!-- ===== header ===== -->
-                <container style="row items-start q-col-gutter-sm q-mb-sm m-request-header">
-                    <container style="col-12 col-md">
-                        <label text="${request.requestName || requestId}" type="h5" style="q-my-none"/>
-                        <label text="${captionText}" type="div" style="text-caption m-muted q-mb-xs"/>
-                        <status-bar id="RequestStatusBar" status-id="${request.statusId}" stages="${stageStatusIds}" allowed-status-ids="${allowedStatusIds}"
-                                transition="changeStatus" parameter-name="toStatusId" parameter-map="{requestId:requestId, tab:tab}"
-                                title="${request.requestName || requestId}"/>
-                    </container>
-                    <container style="col-12 col-md-auto row items-center q-gutter-y-xs m-request-actions">
-                        <container-dialog id="RequestCommentDialog" button-text="Comment" icon="sym_o_add_comment" width="560" title="Comment on ${request.requestName || requestId}">
-                            <form-single name="RequestComment" transition="addComment" focus-field="body">
-                                <field name="requestId"><default-field><hidden/></default-field></field>
-                                <field name="tab"><default-field><hidden/></default-field></field>
-                                <field name="body" from="''"><default-field title="Comment"><text-area rows="4" cols="60"/></default-field></field>
-                                <field name="submitButton"><default-field title="Comment"><submit/></default-field></field>
-                            </form-single>
-                        </container-dialog>
-                        <container-dialog id="RequestReassignDialog" button-text="Reassign" icon="sym_o_person_add" width="480" title="Assign ${request.requestName || requestId} to"
-                                condition="canReassign">
-                            <form-single name="RequestReassign" transition="reassign">
-                                <field name="requestId"><default-field><hidden/></default-field></field>
-                                <field name="tab"><default-field><hidden/></default-field></field>
-                                <field name="assignToPartyId"><default-field title="Assignee">
-                                    <drop-down><dynamic-options transition="assigneeSearch" server-search="true" min-length="0"/></drop-down></default-field></field>
-                                <field name="submitButton"><default-field title="Reassign"><submit/></default-field></field>
-                            </form-single>
-                        </container-dialog>
-                        <container-dialog id="RequestEditDialog" button-text="Edit" icon="sym_o_edit" width="640" title="Edit the draft" condition="canEdit">
-                            <form-single name="RequestEdit" transition="updateRequest" map="requestEdit" focus-field="requestName">
-                                <field name="requestId"><default-field><hidden/></default-field></field>
-                                <field name="tab" from="tab"><default-field><hidden/></default-field></field>
-                                <field name="requestName"><default-field title="Request"><text-line size="40"/></default-field></field>
-                                <field name="requestTypeEnumId"><default-field title="Type">
-                                    <drop-down><entity-options key="${enumId}" text="${description}">
-                                        <entity-find entity-name="moqui.basic.Enumeration" cache="true">
-                                            <econdition field-name="enumTypeId" value="RequestType"/><order-by field-name="description"/></entity-find>
-                                    </entity-options></drop-down></default-field></field>
-                                <field name="priority"><default-field title="Priority">
-                                    <drop-down><option key="1" text="1 (highest)"/><option key="2" text="2 (high)"/><option key="3"/><option key="4"/>
-                                        <option key="5" text="5 (normal)"/><option key="6"/><option key="7"/><option key="8" text="8 (low)"/><option key="9" text="9 (lowest)"/></drop-down>
-                                </default-field></field>
-                                <field name="customerPartyId"><default-field title="Customer">
-                                    <drop-down allow-empty="true" current-description="${customerName}">
-                                        <dynamic-options transition="customerSearch" server-search="true" min-length="1"/></drop-down></default-field></field>
-                                <field name="responseRequiredDate"><default-field title="Response wanted by"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
-                                <field name="description"><default-field title="Description"><text-area rows="4" cols="60"/></default-field></field>
-                                <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
-                                <field-layout>
-                                    <field-ref name="requestName"/>
-                                    <field-row><field-ref name="requestTypeEnumId"/><field-ref name="priority"/></field-row>
-                                    <field-row><field-ref name="customerPartyId"/><field-ref name="responseRequiredDate"/></field-row>
-                                    <field-ref name="description"/><field-ref name="submitButton"/>
-                                </field-layout>
-                            </form-single>
-                        </container-dialog>
-                        <link url="${filesUrl}" url-type="plain" link-type="anchor-button" text="Attach" icon="sym_o_attach_file" style="q-ml-xs"/>
-                    </container>
-                </container>
-            </widgets></section>
-
-            <!-- ===== Projects: the id, the name, the type, the flow's status-bar and the triage actions ===== -->
-            <section name="ProjectsHeader" condition="projects"><widgets>
-                <container style="row items-start q-col-gutter-sm q-mb-sm m-request-header">
-                    <container style="col-12 col-md">
-                        <container style="row items-baseline">
-                            <label text="${requestId}" type="span" style="text-mono text-caption m-muted q-mr-sm"/>
-                            <label text="${request.requestName || requestId}" type="h5" style="q-my-none"/>
+                <!-- ===== the header card (style-guide §3.3): the name with the status-bar at its right, then the facts with the actions at their right ===== -->
+                <container style="m-record-header m-request-header">
+                    <container style="row items-start q-col-gutter-x-md q-col-gutter-y-sm">
+                        <container style="col-12 col-md m-record-title">
+                            <label text="${request.requestName || requestId}" type="h5"/>
+                            <label text="${captionText}" type="div" style="text-caption m-muted"/>
                         </container>
-                        <container style="row items-center q-mt-xs">
-                            <render-mode><text type="qvt"><![CDATA[${typeChipHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify({t: "text", id: "RequestType", text: request.typeLabel || ""})}]]></text></render-mode>
+                        <container style="col-12 col-md-auto m-record-status">
                             <status-bar id="RequestStatusBar" status-id="${request.statusId}" stages="${stageStatusIds}" allowed-status-ids="${allowedStatusIds}"
                                     transition="changeStatus" parameter-name="toStatusId" parameter-map="{requestId:requestId, tab:tab}"
                                     title="${request.requestName || requestId}"/>
                         </container>
                     </container>
-                    <container style="col-12 col-md-auto row items-center q-gutter-y-xs m-request-actions">
-                        <!-- a client contact writes in the Conversation (to the team), never a note (impl-projects.md P10b) -->
-                        <container-dialog id="RequestCommentDialog" button-text="Comment" icon="sym_o_add_comment" width="560" title="Comment on ${request.requestName || requestId}"
-                                condition="!clientView">
-                            <form-single name="RequestComment" transition="addComment" focus-field="body">
-                                <field name="requestId"><default-field><hidden/></default-field></field>
-                                <field name="tab"><default-field><hidden/></default-field></field>
-                                <field name="body" from="''"><default-field title="Comment (a note: the team sees it)"><text-area rows="4" cols="60"/></default-field></field>
-                                <field name="submitButton"><default-field title="Comment"><submit/></default-field></field>
-                            </form-single>
-                        </container-dialog>
-                        <container-dialog id="RequestHeaderDialog" button-text="Edit" icon="sym_o_edit" width="720" title="Edit request ${requestId}" condition="canTriage">
-                            <form-single name="RequestHeader" transition="saveRequest" map="requestEdit" focus-field="requestName">
-                                <field name="requestId"><default-field><hidden/></default-field></field>
-                                <field name="tab"><default-field><hidden/></default-field></field>
-                                <field name="requestName"><default-field title="Request"><text-line size="50"/></default-field></field>
-                                <field name="requestTypeEnumId"><default-field title="Type">
-                                    <drop-down><entity-options key="${enumId}" text="${description}">
-                                        <entity-find entity-name="moqui.basic.Enumeration" cache="true">
-                                            <econdition field-name="enumTypeId" value="RequestType"/><order-by field-name="description"/></entity-find>
-                                    </entity-options></drop-down></default-field></field>
-                                <field name="priority"><default-field title="Priority">
-                                    <drop-down><option key="1" text="1 (highest)"/><option key="2" text="2 (high)"/><option key="3"/><option key="4"/>
-                                        <option key="5" text="5 (normal)"/><option key="6"/><option key="7"/><option key="8" text="8 (low)"/><option key="9" text="9 (lowest)"/></drop-down>
-                                </default-field></field>
-                                <field name="customerPartyId"><default-field title="Customer">
-                                    <drop-down allow-empty="true" current-description="${customerName}">
-                                        <dynamic-options transition="customerSearch" server-search="true" min-length="1"/></drop-down></default-field></field>
-                                <field name="rootWorkEffortId"><default-field title="Project">
-                                    <drop-down allow-empty="true"><list-options list="projectOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
-                                <field name="assigneePartyId"><default-field title="Assignee">
-                                    <drop-down allow-empty="true" current-description="${assigneeName}">
-                                        <dynamic-options transition="assigneeSearch" server-search="true" min-length="0"/></drop-down></default-field></field>
-                                <field name="responseRequiredDate"><default-field title="Due"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
-                                <field name="description"><default-field title="Description"><text-area rows="6" cols="60" editor-type="md"/></default-field></field>
-                                <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
-                                <field-layout>
-                                    <field-ref name="requestName"/>
-                                    <field-row><field-ref name="requestTypeEnumId"/><field-ref name="priority"/></field-row>
-                                    <field-row><field-ref name="customerPartyId"/><field-ref name="rootWorkEffortId"/></field-row>
-                                    <field-row><field-ref name="assigneePartyId"/><field-ref name="responseRequiredDate"/></field-row>
-                                    <field-ref name="description"/><field-ref name="submitButton"/>
-                                </field-layout>
-                            </form-single>
-                        </container-dialog>
-                        <container-dialog id="MakeWorkItemDialog" button-text="Make work item" icon="sym_o_add_task" width="720" title="A work item from request ${requestId}"
-                                condition="canTriage &amp;&amp; isOpen &amp;&amp; projectOptions.length">
-                            <form-single name="MakeWorkItem" transition="makeWorkItem" map="makeValues" focus-field="workEffortName">
-                                <field name="requestId"><default-field><hidden/></default-field></field>
-                                <field name="rootWorkEffortId"><default-field title="Project">
-                                    <drop-down><list-options list="projectOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
-                                <field name="workEffortName"><default-field title="Title"><text-line size="50"/></default-field></field>
-                                <field name="purposeEnumId"><default-field title="Type">
-                                    <drop-down><list-options list="makeTypes" key="${enumId}" text="${label}"/></drop-down></default-field></field>
-                                <field name="priority"><default-field title="Priority">
-                                    <drop-down><option key="1" text="1 (highest)"/><option key="2" text="2 (high)"/><option key="3"/><option key="4"/>
-                                        <option key="5" text="5 (normal)"/><option key="6"/><option key="7"/><option key="8" text="8 (low)"/><option key="9" text="9 (lowest)"/></drop-down>
-                                </default-field></field>
-                                <field name="assignToPartyId"><default-field title="Assignee">
-                                    <drop-down allow-empty="true"><dynamic-options transition="assigneeSearch" server-search="true" min-length="0"/></drop-down></default-field></field>
-                                <field name="parentWorkEffortId"><default-field title="Under (an item's key)"><text-line size="14"/></default-field></field>
-                                <field name="estimatedCompletionDate"><default-field title="Due"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
-                                <field name="estimatedWorkTime"><default-field title="Estimate (hours)"><text-line size="6" input-type="number"/></default-field></field>
-                                <field name="description"><default-field title="Description"><text-area rows="4" cols="60"/></default-field></field>
-                                <field name="submitButton"><default-field title="Make work item"><submit/></default-field></field>
-                                <field-layout>
-                                    <field-row><field-ref name="rootWorkEffortId"/><field-ref name="purposeEnumId"/></field-row>
-                                    <field-ref name="workEffortName"/>
-                                    <field-row><field-ref name="assignToPartyId"/><field-ref name="priority"/></field-row>
-                                    <field-row><field-ref name="parentWorkEffortId"/><field-ref name="estimatedCompletionDate"/><field-ref name="estimatedWorkTime"/></field-row>
-                                    <field-ref name="description"/><field-ref name="submitButton"/>
-                                </field-layout>
-                            </form-single>
-                        </container-dialog>
-                        <button-menu text="More" icon="more_horiz" style="q-ml-xs" condition="canTriage">
-                            <container-dialog id="LinkWorkItemDialog" button-text="Link work item" icon="sym_o_add_link" width="560" title="Link a work item to request ${requestId}"
-                                    condition="isOpen">
-                                <form-single name="LinkWorkItem" transition="linkWorkItem">
+                    <container style="row items-center q-col-gutter-x-md q-col-gutter-y-sm m-record-foot">
+                        <container style="col-12 col-md">
+                            <render-mode><text type="qvt"><![CDATA[${factsHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(Object.assign({t: "html", id: "RequestFacts"}, JSON.parse(sri.htmlText(factsHtml))))}]]></text></render-mode>
+                        </container>
+                        <container style="col-12 col-md-auto row items-center q-gutter-y-xs m-record-actions m-request-actions">
+                            <container-dialog id="RequestCommentDialog" button-text="Comment" icon="sym_o_add_comment" width="560" title="Comment on ${request.requestName || requestId}">
+                                <form-single name="RequestComment" transition="addComment" focus-field="body">
                                     <field name="requestId"><default-field><hidden/></default-field></field>
-                                    <field name="workEffortId"><default-field title="Work item (a key or title)">
-                                        <drop-down><dynamic-options transition="workItemSearch" server-search="true" min-length="1" parameter-map="{rootWorkEffortId:request.rootWorkEffortId}"/></drop-down>
+                                    <field name="tab"><default-field><hidden/></default-field></field>
+                                    <field name="body" from="''"><default-field title="Comment"><text-area rows="4" cols="60"/></default-field></field>
+                                    <field name="submitButton"><default-field title="Comment"><submit/></default-field></field>
+                                </form-single>
+                            </container-dialog>
+                            <container-dialog id="RequestReassignDialog" button-text="Reassign" icon="sym_o_person_add" width="480" title="Assign ${request.requestName || requestId} to"
+                                    condition="canReassign">
+                                <form-single name="RequestReassign" transition="reassign">
+                                    <field name="requestId"><default-field><hidden/></default-field></field>
+                                    <field name="tab"><default-field><hidden/></default-field></field>
+                                    <field name="assignToPartyId"><default-field title="Assignee">
+                                        <drop-down><dynamic-options transition="assigneeSearch" server-search="true" min-length="0"/></drop-down></default-field></field>
+                                    <field name="submitButton"><default-field title="Reassign"><submit/></default-field></field>
+                                </form-single>
+                            </container-dialog>
+                            <container-dialog id="RequestEditDialog" button-text="Edit" icon="sym_o_edit" width="640" title="Edit the draft" condition="canEdit">
+                                <form-single name="RequestEdit" transition="updateRequest" map="requestEdit" focus-field="requestName">
+                                    <field name="requestId"><default-field><hidden/></default-field></field>
+                                    <field name="tab" from="tab"><default-field><hidden/></default-field></field>
+                                    <field name="requestName"><default-field title="Request"><text-line size="40"/></default-field></field>
+                                    <field name="requestTypeEnumId"><default-field title="Type">
+                                        <drop-down><entity-options key="${enumId}" text="${description}">
+                                            <entity-find entity-name="moqui.basic.Enumeration" cache="true">
+                                                <econdition field-name="enumTypeId" value="RequestType"/><order-by field-name="description"/></entity-find>
+                                        </entity-options></drop-down></default-field></field>
+                                    <field name="priority"><default-field title="Priority">
+                                        <drop-down><option key="1" text="1 (highest)"/><option key="2" text="2 (high)"/><option key="3"/><option key="4"/>
+                                            <option key="5" text="5 (normal)"/><option key="6"/><option key="7"/><option key="8" text="8 (low)"/><option key="9" text="9 (lowest)"/></drop-down>
                                     </default-field></field>
-                                    <field name="submitButton"><default-field title="Link"><submit/></default-field></field>
+                                    <field name="customerPartyId"><default-field title="Customer">
+                                        <drop-down allow-empty="true" current-description="${customerName}">
+                                            <dynamic-options transition="customerSearch" server-search="true" min-length="1"/></drop-down></default-field></field>
+                                    <field name="responseRequiredDate"><default-field title="Response wanted by"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                                    <field name="description"><default-field title="Description"><text-area rows="4" cols="60"/></default-field></field>
+                                    <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                                    <field-layout>
+                                        <field-ref name="requestName"/>
+                                        <field-row><field-ref name="requestTypeEnumId"/><field-ref name="priority"/></field-row>
+                                        <field-row><field-ref name="customerPartyId"/><field-ref name="responseRequiredDate"/></field-row>
+                                        <field-ref name="description"/><field-ref name="submitButton"/>
+                                    </field-layout>
                                 </form-single>
                             </container-dialog>
-                            <container-dialog id="AssignRequestDialog" button-text="Assign" icon="sym_o_person_add" width="480" title="Assign request ${requestId} to">
-                                <form-single name="AssignRequest" transition="triage">
-                                    <field name="requestId"><default-field><hidden/></default-field></field>
-                                    <field name="tab" from="tab"><default-field><hidden/></default-field></field>
-                                    <field name="triageAction" from="'assign'"><default-field><hidden/></default-field></field>
-                                    <field name="value" from="request.assigneePartyId || ''"><default-field title="Assignee (empty: unassigned)">
-                                        <drop-down allow-empty="true" current-description="${assigneeName}"><dynamic-options transition="assigneeSearch" server-search="true" min-length="0"/></drop-down>
-                                    </default-field></field>
-                                    <field name="submitButton"><default-field title="Assign"><submit/></default-field></field>
-                                </form-single>
-                            </container-dialog>
-                            <container-dialog id="SetProjectDialog" button-text="Set project" icon="sym_o_folder_open" width="480" title="The project of request ${requestId}">
-                                <form-single name="SetProject" transition="triage">
-                                    <field name="requestId"><default-field><hidden/></default-field></field>
-                                    <field name="tab" from="tab"><default-field><hidden/></default-field></field>
-                                    <field name="triageAction" from="'project'"><default-field><hidden/></default-field></field>
-                                    <field name="value" from="request.rootWorkEffortId || ''"><default-field title="Project (empty: none)">
-                                        <drop-down allow-empty="true"><list-options list="projectOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
-                                    <field name="submitButton"><default-field title="Set project"><submit/></default-field></field>
-                                </form-single>
-                            </container-dialog>
-                            <container-dialog id="ResolveRequestDialog" button-text="Resolve" icon="sym_o_task_alt" width="560" title="Complete or cancel request ${requestId}"
-                                    condition="isOpen">
-                                <form-single name="ResolveRequest" transition="resolve">
-                                    <field name="requestId"><default-field><hidden/></default-field></field>
-                                    <field name="tab" from="tab"><default-field><hidden/></default-field></field>
-                                    <field name="toStatusId" from="'ReqCompleted'"><default-field title="">
-                                        <radio><option key="ReqCompleted" text="Complete"/><option key="ReqCancelled" text="Cancel"/></radio></default-field></field>
-                                    <field name="resolutionEnumId" from="request.requestTypeEnumId == 'RqtBugFix' ? 'RrFixed' : 'RrCompleted'"><default-field title="Resolution">
-                                        <drop-down><option key="RrFixed" text="Fixed"/><option key="RrCompleted" text="Completed"/><option key="RrWontFix" text="Won't fix"/>
-                                            <option key="RrDuplicate" text="Duplicate"/><option key="RrCantReproduce" text="Can't reproduce"/>
-                                            <option key="RrInsufficient" text="Insufficient information"/><option key="RrRejected" text="Rejected"/></drop-down></default-field></field>
-                                    <field name="comment" from="''"><default-field title="Note on the conversation (the requester hears through Send message)"><text-area rows="3" cols="60"/></default-field></field>
-                                    <field name="submitButton"><default-field title="Resolve"><submit/></default-field></field>
-                                </form-single>
-                            </container-dialog>
-                            <container-dialog id="ConvertToProjectDialog" button-text="Convert to project" icon="sym_o_create_new_folder" width="560"
-                                    title="A project from request ${requestId}" condition="canConvert">
-                                <form-single name="ConvertToProject" transition="convertToProject" map="convertValues">
-                                    <field name="requestId"><default-field><hidden/></default-field></field>
-                                    <field name="newProjectName"><default-field title="Project name"><text-line size="40"/></default-field></field>
-                                    <field name="newProjectId"><default-field title="Key (letters and digits, upper case)"><text-line size="10"/></default-field></field>
-                                    <field name="submitButton"><default-field title="Make the project"><submit/></default-field></field>
-                                </form-single>
-                                <label type="p" text="The request's customer is the client and its description the project's; the request moves to In Progress in it." style="text-caption m-muted q-mb-none"/>
-                            </container-dialog>
-                        </button-menu>
+                            <link url="${filesUrl}" url-type="plain" link-type="anchor-button" text="Attach" icon="sym_o_attach_file" style="q-ml-xs"/>
+                        </container>
                     </container>
                 </container>
             </widgets></section>
-            <render-mode><text type="qvt"><![CDATA[${factsHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(Object.assign({t: "html", id: "RequestFacts"}, JSON.parse(sri.htmlText(factsHtml))))}]]></text></render-mode>
+
+            <!-- ===== Projects: the id, the name and the type with the flow's status-bar at their right, then the facts with the triage actions at their right ===== -->
+            <section name="ProjectsHeader" condition="projects"><widgets>
+                <container style="m-record-header m-request-header">
+                    <container style="row items-start q-col-gutter-x-md q-col-gutter-y-sm">
+                        <container style="col-12 col-md m-record-title">
+                            <container style="row items-baseline">
+                                <label text="${requestId}" type="span" style="text-mono text-caption m-muted q-mr-sm"/>
+                                <label text="${request.requestName || requestId}" type="h5"/>
+                            </container>
+                            <container style="row items-center">
+                                <render-mode><text type="qvt"><![CDATA[${typeChipHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify({t: "text", id: "RequestType", text: request.typeLabel || ""})}]]></text></render-mode>
+                            </container>
+                        </container>
+                        <container style="col-12 col-md-auto m-record-status">
+                            <status-bar id="RequestStatusBar" status-id="${request.statusId}" stages="${stageStatusIds}" allowed-status-ids="${allowedStatusIds}"
+                                    transition="changeStatus" parameter-name="toStatusId" parameter-map="{requestId:requestId, tab:tab}"
+                                    title="${request.requestName || requestId}"/>
+                        </container>
+                    </container>
+                    <container style="row items-center q-col-gutter-x-md q-col-gutter-y-sm m-record-foot">
+                        <container style="col-12 col-md">
+                            <render-mode><text type="qvt"><![CDATA[${factsHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(Object.assign({t: "html", id: "RequestFacts"}, JSON.parse(sri.htmlText(factsHtml))))}]]></text></render-mode>
+                        </container>
+                        <container style="col-12 col-md-auto row items-center q-gutter-y-xs m-record-actions m-request-actions">
+                            <!-- a client contact writes in the Conversation (to the team), never a note (impl-projects.md P10b) -->
+                            <container-dialog id="RequestCommentDialog" button-text="Comment" icon="sym_o_add_comment" width="560" title="Comment on ${request.requestName || requestId}"
+                                    condition="!clientView">
+                                <form-single name="RequestComment" transition="addComment" focus-field="body">
+                                    <field name="requestId"><default-field><hidden/></default-field></field>
+                                    <field name="tab"><default-field><hidden/></default-field></field>
+                                    <field name="body" from="''"><default-field title="Comment (a note: the team sees it)"><text-area rows="4" cols="60"/></default-field></field>
+                                    <field name="submitButton"><default-field title="Comment"><submit/></default-field></field>
+                                </form-single>
+                            </container-dialog>
+                            <container-dialog id="RequestHeaderDialog" button-text="Edit" icon="sym_o_edit" width="720" title="Edit request ${requestId}" condition="canTriage">
+                                <form-single name="RequestHeader" transition="saveRequest" map="requestEdit" focus-field="requestName">
+                                    <field name="requestId"><default-field><hidden/></default-field></field>
+                                    <field name="tab"><default-field><hidden/></default-field></field>
+                                    <field name="requestName"><default-field title="Request"><text-line size="50"/></default-field></field>
+                                    <field name="requestTypeEnumId"><default-field title="Type">
+                                        <drop-down><entity-options key="${enumId}" text="${description}">
+                                            <entity-find entity-name="moqui.basic.Enumeration" cache="true">
+                                                <econdition field-name="enumTypeId" value="RequestType"/><order-by field-name="description"/></entity-find>
+                                        </entity-options></drop-down></default-field></field>
+                                    <field name="priority"><default-field title="Priority">
+                                        <drop-down><option key="1" text="1 (highest)"/><option key="2" text="2 (high)"/><option key="3"/><option key="4"/>
+                                            <option key="5" text="5 (normal)"/><option key="6"/><option key="7"/><option key="8" text="8 (low)"/><option key="9" text="9 (lowest)"/></drop-down>
+                                    </default-field></field>
+                                    <field name="customerPartyId"><default-field title="Customer">
+                                        <drop-down allow-empty="true" current-description="${customerName}">
+                                            <dynamic-options transition="customerSearch" server-search="true" min-length="1"/></drop-down></default-field></field>
+                                    <field name="rootWorkEffortId"><default-field title="Project">
+                                        <drop-down allow-empty="true"><list-options list="projectOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                    <field name="assigneePartyId"><default-field title="Assignee">
+                                        <drop-down allow-empty="true" current-description="${assigneeName}">
+                                            <dynamic-options transition="assigneeSearch" server-search="true" min-length="0"/></drop-down></default-field></field>
+                                    <field name="responseRequiredDate"><default-field title="Due"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                                    <field name="description"><default-field title="Description"><text-area rows="6" cols="60" editor-type="md"/></default-field></field>
+                                    <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                                    <field-layout>
+                                        <field-ref name="requestName"/>
+                                        <field-row><field-ref name="requestTypeEnumId"/><field-ref name="priority"/></field-row>
+                                        <field-row><field-ref name="customerPartyId"/><field-ref name="rootWorkEffortId"/></field-row>
+                                        <field-row><field-ref name="assigneePartyId"/><field-ref name="responseRequiredDate"/></field-row>
+                                        <field-ref name="description"/><field-ref name="submitButton"/>
+                                    </field-layout>
+                                </form-single>
+                            </container-dialog>
+                            <container-dialog id="MakeWorkItemDialog" button-text="Make work item" icon="sym_o_add_task" width="720" title="A work item from request ${requestId}"
+                                    condition="canTriage &amp;&amp; isOpen &amp;&amp; projectOptions.length">
+                                <form-single name="MakeWorkItem" transition="makeWorkItem" map="makeValues" focus-field="workEffortName">
+                                    <field name="requestId"><default-field><hidden/></default-field></field>
+                                    <field name="rootWorkEffortId"><default-field title="Project">
+                                        <drop-down><list-options list="projectOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                    <field name="workEffortName"><default-field title="Title"><text-line size="50"/></default-field></field>
+                                    <field name="purposeEnumId"><default-field title="Type">
+                                        <drop-down><list-options list="makeTypes" key="${enumId}" text="${label}"/></drop-down></default-field></field>
+                                    <field name="priority"><default-field title="Priority">
+                                        <drop-down><option key="1" text="1 (highest)"/><option key="2" text="2 (high)"/><option key="3"/><option key="4"/>
+                                            <option key="5" text="5 (normal)"/><option key="6"/><option key="7"/><option key="8" text="8 (low)"/><option key="9" text="9 (lowest)"/></drop-down>
+                                    </default-field></field>
+                                    <field name="assignToPartyId"><default-field title="Assignee">
+                                        <drop-down allow-empty="true"><dynamic-options transition="assigneeSearch" server-search="true" min-length="0"/></drop-down></default-field></field>
+                                    <field name="parentWorkEffortId"><default-field title="Under (an item's key)"><text-line size="14"/></default-field></field>
+                                    <field name="estimatedCompletionDate"><default-field title="Due"><date-time type="date" format="yyyy-MM-dd"/></default-field></field>
+                                    <field name="estimatedWorkTime"><default-field title="Estimate (hours)"><text-line size="6" input-type="number"/></default-field></field>
+                                    <field name="description"><default-field title="Description"><text-area rows="4" cols="60"/></default-field></field>
+                                    <field name="submitButton"><default-field title="Make work item"><submit/></default-field></field>
+                                    <field-layout>
+                                        <field-row><field-ref name="rootWorkEffortId"/><field-ref name="purposeEnumId"/></field-row>
+                                        <field-ref name="workEffortName"/>
+                                        <field-row><field-ref name="assignToPartyId"/><field-ref name="priority"/></field-row>
+                                        <field-row><field-ref name="parentWorkEffortId"/><field-ref name="estimatedCompletionDate"/><field-ref name="estimatedWorkTime"/></field-row>
+                                        <field-ref name="description"/><field-ref name="submitButton"/>
+                                    </field-layout>
+                                </form-single>
+                            </container-dialog>
+                            <button-menu text="More" icon="more_horiz" style="q-ml-xs" condition="canTriage">
+                                <container-dialog id="LinkWorkItemDialog" button-text="Link work item" icon="sym_o_add_link" width="560" title="Link a work item to request ${requestId}"
+                                        condition="isOpen">
+                                    <form-single name="LinkWorkItem" transition="linkWorkItem">
+                                        <field name="requestId"><default-field><hidden/></default-field></field>
+                                        <field name="workEffortId"><default-field title="Work item (a key or title)">
+                                            <drop-down><dynamic-options transition="workItemSearch" server-search="true" min-length="1" parameter-map="{rootWorkEffortId:request.rootWorkEffortId}"/></drop-down>
+                                        </default-field></field>
+                                        <field name="submitButton"><default-field title="Link"><submit/></default-field></field>
+                                    </form-single>
+                                </container-dialog>
+                                <container-dialog id="AssignRequestDialog" button-text="Assign" icon="sym_o_person_add" width="480" title="Assign request ${requestId} to">
+                                    <form-single name="AssignRequest" transition="triage">
+                                        <field name="requestId"><default-field><hidden/></default-field></field>
+                                        <field name="tab" from="tab"><default-field><hidden/></default-field></field>
+                                        <field name="triageAction" from="'assign'"><default-field><hidden/></default-field></field>
+                                        <field name="value" from="request.assigneePartyId || ''"><default-field title="Assignee (empty: unassigned)">
+                                            <drop-down allow-empty="true" current-description="${assigneeName}"><dynamic-options transition="assigneeSearch" server-search="true" min-length="0"/></drop-down>
+                                        </default-field></field>
+                                        <field name="submitButton"><default-field title="Assign"><submit/></default-field></field>
+                                    </form-single>
+                                </container-dialog>
+                                <container-dialog id="SetProjectDialog" button-text="Set project" icon="sym_o_folder_open" width="480" title="The project of request ${requestId}">
+                                    <form-single name="SetProject" transition="triage">
+                                        <field name="requestId"><default-field><hidden/></default-field></field>
+                                        <field name="tab" from="tab"><default-field><hidden/></default-field></field>
+                                        <field name="triageAction" from="'project'"><default-field><hidden/></default-field></field>
+                                        <field name="value" from="request.rootWorkEffortId || ''"><default-field title="Project (empty: none)">
+                                            <drop-down allow-empty="true"><list-options list="projectOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                        <field name="submitButton"><default-field title="Set project"><submit/></default-field></field>
+                                    </form-single>
+                                </container-dialog>
+                                <container-dialog id="ResolveRequestDialog" button-text="Resolve" icon="sym_o_task_alt" width="560" title="Complete or cancel request ${requestId}"
+                                        condition="isOpen">
+                                    <form-single name="ResolveRequest" transition="resolve">
+                                        <field name="requestId"><default-field><hidden/></default-field></field>
+                                        <field name="tab" from="tab"><default-field><hidden/></default-field></field>
+                                        <field name="toStatusId" from="'ReqCompleted'"><default-field title="">
+                                            <radio><option key="ReqCompleted" text="Complete"/><option key="ReqCancelled" text="Cancel"/></radio></default-field></field>
+                                        <field name="resolutionEnumId" from="request.requestTypeEnumId == 'RqtBugFix' ? 'RrFixed' : 'RrCompleted'"><default-field title="Resolution">
+                                            <drop-down><option key="RrFixed" text="Fixed"/><option key="RrCompleted" text="Completed"/><option key="RrWontFix" text="Won't fix"/>
+                                                <option key="RrDuplicate" text="Duplicate"/><option key="RrCantReproduce" text="Can't reproduce"/>
+                                                <option key="RrInsufficient" text="Insufficient information"/><option key="RrRejected" text="Rejected"/></drop-down></default-field></field>
+                                        <field name="comment" from="''"><default-field title="Note on the conversation (the requester hears through Send message)"><text-area rows="3" cols="60"/></default-field></field>
+                                        <field name="submitButton"><default-field title="Resolve"><submit/></default-field></field>
+                                    </form-single>
+                                </container-dialog>
+                                <container-dialog id="ConvertToProjectDialog" button-text="Convert to project" icon="sym_o_create_new_folder" width="560"
+                                        title="A project from request ${requestId}" condition="canConvert">
+                                    <form-single name="ConvertToProject" transition="convertToProject" map="convertValues">
+                                        <field name="requestId"><default-field><hidden/></default-field></field>
+                                        <field name="newProjectName"><default-field title="Project name"><text-line size="40"/></default-field></field>
+                                        <field name="newProjectId"><default-field title="Key (letters and digits, upper case)"><text-line size="10"/></default-field></field>
+                                        <field name="submitButton"><default-field title="Make the project"><submit/></default-field></field>
+                                    </form-single>
+                                    <label type="p" text="The request's customer is the client and its description the project's; the request moves to In Progress in it." style="text-caption m-muted q-mb-none"/>
+                                </container-dialog>
+                            </button-menu>
+                        </container>
+                    </container>
+                </container>
+            </widgets></section>
             <render-mode><text type="qvt"><![CDATA[${tabsHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(tabsTui)}]]></text></render-mode>
 
             <section name="CommonsOverview" condition="!projects"><widgets>

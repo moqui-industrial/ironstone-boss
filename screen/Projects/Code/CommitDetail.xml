@@ -93,17 +93,20 @@ along with this software (see the LICENSE.md file). If not, see
         </widgets></section>
 
         <section name="CommitFound" condition="codeHosting &amp;&amp; commitFound"><widgets>
-            <container style="row items-start q-col-gutter-sm q-mb-sm">
-                <container style="col-12 col-md">
-                    <label text="${commit.summary}" type="h5" style="q-my-none"/>
-                    <container style="row items-center q-gutter-x-sm q-mt-xs">
-                        <link url="repositoryDetail" text="${repositoryId}" link-type="anchor" parameter-map="{repositoryId:repositoryId}" style="text-mono"/>
-                        <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none text-mono m-tonal text-grey-8" title="${WebUtilities.encodeHtml(commit.commitId)}">${WebUtilities.encodeHtml(commit.shortId)}</q-chip>]]></text>
-                            <text type="tui"><![CDATA[${JSON.stringify({t: "text", id: "CommitId", style: "strong", text: commit.commitId})}]]></text></render-mode>
+            <!-- the header card (style-guide §3.3): the summary with the repository and the commit under it, the actions at their right -->
+            <container style="m-record-header">
+                <container style="row items-start q-col-gutter-x-md q-col-gutter-y-sm">
+                    <container style="col-12 col-md m-record-title">
+                        <label text="${commit.summary}" type="h5"/>
+                        <container style="row items-center q-gutter-x-sm">
+                            <link url="repositoryDetail" text="${repositoryId}" link-type="anchor" parameter-map="{repositoryId:repositoryId}" style="text-mono"/>
+                            <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none text-mono m-tonal text-grey-8" title="${WebUtilities.encodeHtml(commit.commitId)}">${WebUtilities.encodeHtml(commit.shortId)}</q-chip>]]></text>
+                                <text type="tui"><![CDATA[${JSON.stringify({t: "text", id: "CommitId", style: "strong", text: commit.commitId})}]]></text></render-mode>
+                        </container>
                     </container>
-                </container>
-                <container style="col-12 col-md-auto row items-center">
-                    <link url="files" text="Browse files" icon="sym_o_folder_open" parameter-map="{repositoryId:repositoryId, ref:commit.commitId}"/>
+                    <container style="col-12 col-md-auto row items-center q-gutter-y-xs m-record-actions">
+                        <link url="files" text="Browse files" icon="sym_o_folder_open" parameter-map="{repositoryId:repositoryId, ref:commit.commitId}"/>
+                    </container>
                 </container>
             </container>
 

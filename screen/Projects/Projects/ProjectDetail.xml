@@ -141,7 +141,7 @@ along with this software (see the LICENSE.md file). If not, see
                     .condition('recordId', workEffortId).condition('userId', ec.user.userId).count() > 0
             // the chips of the title row: health with the date of its update, the client, the manager
             const chip = (text, cls, icon) => '<q-chip dense square class="q-my-none q-ml-none q-mr-sm ' + cls + '"' + (icon ? ' icon="' + icon + '"' : '') + '>' + enc(text) + '</q-chip>'
-            chipsHtml = '<div class="row items-center q-mt-xs m-project-chips">'
+            chipsHtml = '<div class="row items-center m-project-chips">'
                 + (header.healthLabel ? chip(header.healthLabel + (header.healthDateText ? ' · ' + header.healthDateText : ''), 'm-tonal text-' + header.healthColor, 'sym_o_monitor_heart') : '')
                 + (header.clientName ? chip(header.clientName, 'm-tonal text-grey-8', 'sym_o_domain') : '')
                 + (header.managerName ? '<span class="row inline items-center no-wrap q-mr-sm text-body2"><m-avatar name="' + enc(header.managerName) + '"'
@@ -176,76 +176,84 @@ along with this software (see the LICENSE.md file). If not, see
                 </box-body></container-box>
             </widgets></section>
 
-            <!-- title row -->
-            <container style="row items-start q-col-gutter-sm q-mb-sm m-project-header">
-                <container style="col-12 col-md">
-                    <container style="row items-center no-wrap">
-                        <render-mode><text type="qvt"><![CDATA[${header.colorName ? '<span class="q-mr-sm bg-' + WebUtilities.encodeHtml(header.colorName) + '" style="display:inline-block;width:12px;height:12px;border-radius:50%"></span>' : ''}<q-chip dense square class="q-ma-none q-mr-sm text-mono m-project-key">${WebUtilities.encodeHtml(workEffortId)}</q-chip>]]></text>
-                            <text type="tui"><![CDATA[${JSON.stringify({t: "text", id: "ProjectKey", style: "strong", text: workEffortId})}]]></text></render-mode>
-                        <label text="${header.workEffortName}" type="h5" style="q-my-none ${header.isEnded ? 'm-muted' : ''}"/>
+            <!-- the header card (style-guide §3.3): the key and name with the status-bar at their right, then the chips with the actions at their right -->
+            <container style="m-record-header m-project-header">
+                <container style="row items-start q-col-gutter-x-md q-col-gutter-y-sm">
+                    <container style="col-12 col-md m-record-title">
+                        <container style="row items-center no-wrap">
+                            <render-mode><text type="qvt"><![CDATA[${header.colorName ? '<span class="q-mr-sm bg-' + WebUtilities.encodeHtml(header.colorName) + '" style="display:inline-block;width:12px;height:12px;border-radius:50%"></span>' : ''}<q-chip dense square class="q-ma-none q-mr-sm text-mono m-project-key">${WebUtilities.encodeHtml(workEffortId)}</q-chip>]]></text>
+                                <text type="tui"><![CDATA[${JSON.stringify({t: "text", id: "ProjectKey", style: "strong", text: workEffortId})}]]></text></render-mode>
+                            <label text="${header.workEffortName}" type="h5" style="${header.isEnded ? 'm-muted' : ''}"/>
+                        </container>
                     </container>
-                    <status-bar id="ProjectStatusBar" status-id="${header.statusId}" status-flow-id="Default" stages="${header.stageStatusIds}" read-only="true"/>
-                    <render-mode><text type="qvt"><![CDATA[${chipsHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(chipsTui)}]]></text></render-mode>
+                    <container style="col-12 col-md-auto m-record-status">
+                        <status-bar id="ProjectStatusBar" status-id="${header.statusId}" status-flow-id="Default" stages="${header.stageStatusIds}" read-only="true"/>
+                    </container>
                 </container>
-                <container style="col-12 col-md-auto row items-center q-gutter-y-xs m-project-actions">
-                    <!-- the primary action: a move along the flow, or in progress the status update -->
-                    <section name="PrimaryMove" condition="primaryAction &amp;&amp; primaryAction.kind == 'status'"><widgets>
-                        <link url="changeStatus" link-type="hidden-form" text="${primaryAction.label}" btn-type="primary" icon="sym_o_arrow_forward"
-                                confirmation="${primaryAction.label}: ${header.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:primaryAction.statusId}"/>
-                    </widgets></section>
-                    <container-dialog id="ProjectPostUpdateDialog" button-text="Post update" icon="sym_o_campaign" width="640" title="Status update of ${header.workEffortName}"
-                            condition="canManage">
-                        <form-single name="PostUpdate" transition="postUpdate" focus-field="body">
-                            <field name="workEffortId"><default-field><hidden/></default-field></field>
-                            <field name="healthEnumId" from="healthToday"><default-field title="Health">
-                                <radio><option key="WehOnTrack" text="On track"/><option key="WehAtRisk" text="At risk"/><option key="WehOffTrack" text="Off track"/></radio></default-field></field>
-                            <field name="percentComplete"><default-field title="Progress (%)"><text-line size="5" input-type="number"/></default-field></field>
-                            <field name="body"><default-field title="Summary (markdown): what was done, what comes next, what is in the way">
-                                <text-area rows="7" cols="70" editor-type="md"/></default-field></field>
-                            <field name="clientVisible"><default-field title=" "><check><option key="Y" text="Shown to the client"/></check></default-field></field>
-                            <field name="submitButton"><default-field title="Post update"><submit/></default-field></field>
-                            <field-layout><field-row><field-ref name="healthEnumId"/><field-ref name="percentComplete"/></field-row>
-                                <field-ref name="body"/><field-ref name="clientVisible"/><field-ref name="submitButton"/></field-layout>
-                        </form-single>
-                    </container-dialog>
-                    <button-menu text="More" icon="more_horiz" style="q-ml-xs" condition="!clientView">
-                        <link url="changeStatus" link-type="hidden-form-link" text="Approve" icon="sym_o_thumb_up" condition="moveIds.includes('WeApproved')"
-                                confirmation="Approve: ${header.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:'WeApproved'}"/>
-                        <link url="changeStatus" link-type="hidden-form-link" text="${header.statusId == 'WeInPlanning' || header.statusId == 'WeApproved' ? 'Begin' : 'Resume'}" icon="sym_o_play_arrow" condition="moveIds.includes('WeInProgress')"
-                                confirmation="${header.statusId == 'WeInPlanning' || header.statusId == 'WeApproved' ? 'Begin' : 'Resume'}: ${header.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:'WeInProgress'}"/>
-                        <link url="changeStatus" link-type="hidden-form-link" text="Hold" icon="sym_o_pause" condition="moveIds.includes('WeOnHold')"
-                                confirmation="Hold: ${header.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:'WeOnHold'}"/>
-                        <link url="changeStatus" link-type="hidden-form-link" text="Complete" icon="sym_o_task_alt" condition="moveIds.includes('WeComplete')"
-                                confirmation="Complete: ${header.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:'WeComplete'}"/>
-                        <link url="changeStatus" link-type="hidden-form-link" text="Close" icon="sym_o_archive" condition="moveIds.includes('WeClosed')"
-                                confirmation="Close: ${header.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:'WeClosed'}"/>
-                        <link url="changeStatus" link-type="hidden-form-link" text="Re-open" icon="sym_o_undo" condition="moveIds.includes('WeInPlanning')"
-                                confirmation="Re-open: ${header.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:'WeInPlanning'}"/>
-                        <link url="changeStatus" link-type="hidden-form-link" text="Cancel" icon="sym_o_cancel" btn-type="danger" condition="moveIds.includes('WeCancelled')"
-                                confirmation="Cancel: ${header.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:'WeCancelled'}"/>
-                        <link url="follow" link-type="hidden-form-link" text="Follow" icon="sym_o_visibility" condition="!isFollower" parameter-map="{workEffortId:workEffortId}"/>
-                        <link url="unfollow" link-type="hidden-form-link" text="Unfollow" icon="sym_o_visibility_off" condition="isFollower" parameter-map="{workEffortId:workEffortId}"/>
-                        <container-dialog id="ProjectCloneDialog" button-text="Clone" icon="sym_o_content_copy" width="520" title="A copy of ${header.workEffortName}" condition="isProjectsManager">
-                            <form-single name="CloneProject" transition="cloneProject" focus-field="newWorkEffortName">
+                <container style="row items-center q-col-gutter-x-md q-col-gutter-y-sm m-record-foot">
+                    <container style="col-12 col-md">
+                        <render-mode><text type="qvt"><![CDATA[${chipsHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(chipsTui)}]]></text></render-mode>
+                    </container>
+                    <container style="col-12 col-md-auto row items-center q-gutter-y-xs m-record-actions m-project-actions">
+                        <!-- the primary action: a move along the flow, or in progress the status update -->
+                        <section name="PrimaryMove" condition="primaryAction &amp;&amp; primaryAction.kind == 'status'"><widgets>
+                            <link url="changeStatus" link-type="hidden-form" text="${primaryAction.label}" btn-type="primary" icon="sym_o_arrow_forward"
+                                    confirmation="${primaryAction.label}: ${header.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:primaryAction.statusId}"/>
+                        </widgets></section>
+                        <container-dialog id="ProjectPostUpdateDialog" button-text="Post update" icon="sym_o_campaign" width="640" title="Status update of ${header.workEffortName}"
+                                condition="canManage">
+                            <form-single name="PostUpdate" transition="postUpdate" focus-field="body">
                                 <field name="workEffortId"><default-field><hidden/></default-field></field>
-                                <field name="isTemplate" from="header.isTemplate ? 'Y' : 'N'"><default-field><hidden/></default-field></field>
-                                <field name="newWorkEffortName" from="header.workEffortName + ' (copy)'"><default-field title="Name"><text-line size="40"/></default-field></field>
-                                <field name="newWorkEffortId"><default-field title="Key (1 to 8 letters or digits)"><text-line size="10"/></default-field></field>
-                                <field name="submitButton"><default-field title="Clone"><submit/></default-field></field>
-                            </form-single>
-                            <label type="p" text="The copy has the work items, members and settings, its items back in planning and without dates." style="text-caption m-muted"/>
-                        </container-dialog>
-                        <container-dialog id="ProjectTemplateDialog" button-text="Save as template" icon="sym_o_content_paste" width="520" title="A template from ${header.workEffortName}"
-                                condition="isProjectsManager &amp;&amp; !header.isTemplate">
-                            <form-single name="SaveAsTemplate" transition="saveAsTemplate" focus-field="templateName">
-                                <field name="workEffortId"><default-field><hidden/></default-field></field>
-                                <field name="templateName" from="header.workEffortName + ' template'"><default-field title="Template name"><text-line size="40"/></default-field></field>
-                                <field name="templateWorkEffortId"><default-field title="Key (1 to 8 letters or digits)"><text-line size="10"/></default-field></field>
-                                <field name="submitButton"><default-field title="Save as template"><submit/></default-field></field>
+                                <field name="healthEnumId" from="healthToday"><default-field title="Health">
+                                    <radio><option key="WehOnTrack" text="On track"/><option key="WehAtRisk" text="At risk"/><option key="WehOffTrack" text="Off track"/></radio></default-field></field>
+                                <field name="percentComplete"><default-field title="Progress (%)"><text-line size="5" input-type="number"/></default-field></field>
+                                <field name="body"><default-field title="Summary (markdown): what was done, what comes next, what is in the way">
+                                    <text-area rows="7" cols="70" editor-type="md"/></default-field></field>
+                                <field name="clientVisible"><default-field title=" "><check><option key="Y" text="Shown to the client"/></check></default-field></field>
+                                <field name="submitButton"><default-field title="Post update"><submit/></default-field></field>
+                                <field-layout><field-row><field-ref name="healthEnumId"/><field-ref name="percentComplete"/></field-row>
+                                    <field-ref name="body"/><field-ref name="clientVisible"/><field-ref name="submitButton"/></field-layout>
                             </form-single>
                         </container-dialog>
-                        <link url="${printUrl}" url-type="plain" text="Print status report" icon="sym_o_print" target-window="_blank"/>
-                    </button-menu>
+                        <button-menu text="More" icon="more_horiz" style="q-ml-xs" condition="!clientView">
+                            <link url="changeStatus" link-type="hidden-form-link" text="Approve" icon="sym_o_thumb_up" condition="moveIds.includes('WeApproved')"
+                                    confirmation="Approve: ${header.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:'WeApproved'}"/>
+                            <link url="changeStatus" link-type="hidden-form-link" text="${header.statusId == 'WeInPlanning' || header.statusId == 'WeApproved' ? 'Begin' : 'Resume'}" icon="sym_o_play_arrow" condition="moveIds.includes('WeInProgress')"
+                                    confirmation="${header.statusId == 'WeInPlanning' || header.statusId == 'WeApproved' ? 'Begin' : 'Resume'}: ${header.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:'WeInProgress'}"/>
+                            <link url="changeStatus" link-type="hidden-form-link" text="Hold" icon="sym_o_pause" condition="moveIds.includes('WeOnHold')"
+                                    confirmation="Hold: ${header.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:'WeOnHold'}"/>
+                            <link url="changeStatus" link-type="hidden-form-link" text="Complete" icon="sym_o_task_alt" condition="moveIds.includes('WeComplete')"
+                                    confirmation="Complete: ${header.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:'WeComplete'}"/>
+                            <link url="changeStatus" link-type="hidden-form-link" text="Close" icon="sym_o_archive" condition="moveIds.includes('WeClosed')"
+                                    confirmation="Close: ${header.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:'WeClosed'}"/>
+                            <link url="changeStatus" link-type="hidden-form-link" text="Re-open" icon="sym_o_undo" condition="moveIds.includes('WeInPlanning')"
+                                    confirmation="Re-open: ${header.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:'WeInPlanning'}"/>
+                            <link url="changeStatus" link-type="hidden-form-link" text="Cancel" icon="sym_o_cancel" btn-type="danger" condition="moveIds.includes('WeCancelled')"
+                                    confirmation="Cancel: ${header.workEffortName}?" parameter-map="{workEffortId:workEffortId, statusId:'WeCancelled'}"/>
+                            <link url="follow" link-type="hidden-form-link" text="Follow" icon="sym_o_visibility" condition="!isFollower" parameter-map="{workEffortId:workEffortId}"/>
+                            <link url="unfollow" link-type="hidden-form-link" text="Unfollow" icon="sym_o_visibility_off" condition="isFollower" parameter-map="{workEffortId:workEffortId}"/>
+                            <container-dialog id="ProjectCloneDialog" button-text="Clone" icon="sym_o_content_copy" width="520" title="A copy of ${header.workEffortName}" condition="isProjectsManager">
+                                <form-single name="CloneProject" transition="cloneProject" focus-field="newWorkEffortName">
+                                    <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                    <field name="isTemplate" from="header.isTemplate ? 'Y' : 'N'"><default-field><hidden/></default-field></field>
+                                    <field name="newWorkEffortName" from="header.workEffortName + ' (copy)'"><default-field title="Name"><text-line size="40"/></default-field></field>
+                                    <field name="newWorkEffortId"><default-field title="Key (1 to 8 letters or digits)"><text-line size="10"/></default-field></field>
+                                    <field name="submitButton"><default-field title="Clone"><submit/></default-field></field>
+                                </form-single>
+                                <label type="p" text="The copy has the work items, members and settings, its items back in planning and without dates." style="text-caption m-muted"/>
+                            </container-dialog>
+                            <container-dialog id="ProjectTemplateDialog" button-text="Save as template" icon="sym_o_content_paste" width="520" title="A template from ${header.workEffortName}"
+                                    condition="isProjectsManager &amp;&amp; !header.isTemplate">
+                                <form-single name="SaveAsTemplate" transition="saveAsTemplate" focus-field="templateName">
+                                    <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                    <field name="templateName" from="header.workEffortName + ' template'"><default-field title="Template name"><text-line size="40"/></default-field></field>
+                                    <field name="templateWorkEffortId"><default-field title="Key (1 to 8 letters or digits)"><text-line size="10"/></default-field></field>
+                                    <field name="submitButton"><default-field title="Save as template"><submit/></default-field></field>
+                                </form-single>
+                            </container-dialog>
+                            <link url="${printUrl}" url-type="plain" text="Print status report" icon="sym_o_print" target-window="_blank"/>
+                        </button-menu>
+                    </container>
                 </container>
             </container>
 

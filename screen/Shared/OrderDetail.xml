@@ -67,31 +67,38 @@ along with this software (see the LICENSE.md file). If not, see
 
         <section name="OrderFound" condition="recordFound"><widgets>
             <context record-entity="mantle.order.OrderHeader" record-id="${orderId}" title="Order ${orderId} · ${ord.customerName}"/>
-            <container style="row items-start q-col-gutter-sm q-mb-sm">
-                <container style="col-12 col-md">
-                    <container style="row items-center q-gutter-x-sm">
-                        <label text="Order ${orderId}" type="h5" style="q-my-none"/>
-                        <label text="${ord.customerName}" type="span" style="text-subtitle1 m-muted"/>
+            <!-- the header card (style-guide §3.3): the order, its customer and the estimate's state with the status-bar at their right, then the actions -->
+            <container style="m-record-header">
+                <container style="row items-start q-col-gutter-x-md q-col-gutter-y-sm">
+                    <container style="col-12 col-md m-record-title">
+                        <container style="row items-center q-gutter-x-sm">
+                            <label text="Order ${orderId}" type="h5"/>
+                            <label text="${ord.customerName}" type="span" style="text-subtitle1 m-muted"/>
+                        </container>
+                        <label text="${ord.estimateText}" type="div" style="text-caption m-muted" condition="ord.estimateText"/>
                     </container>
-                    <status-bar id="OrderStatusBar" status-id="${ord.statusId}" status-flow-id="Default" stages="${ord.stageStatusIds}" read-only="true"/>
-                    <label text="${ord.estimateText}" type="div" style="text-body2 m-muted" condition="ord.estimateText"/>
+                    <container style="col-12 col-md-auto m-record-status">
+                        <status-bar id="OrderStatusBar" status-id="${ord.statusId}" status-flow-id="Default" stages="${ord.stageStatusIds}" read-only="true"/>
+                    </container>
                 </container>
-                <container style="col-12 col-md-auto row items-center q-gutter-x-xs q-gutter-y-xs">
-                    <container-dialog id="OrderSendEstimate" button-text="Send estimate for approval" icon="sym_o_send" width="560" type="primary"
-                            title="Send the estimate of ${ord.projectName} for approval" condition="ord.canSendEstimate">
-                        <form-single name="OrderSendEstimateForm" transition="sendEstimate" map="sendValue">
-                            <field name="orderId"><default-field><hidden/></default-field></field>
-                            <field name="projectId"><default-field><hidden/></default-field></field>
-                            <field name="depth"><default-field title="Work breakdown to">
-                                <radio><option key="1" text="Top-level items"/><option key="2" text="Two levels"/><option key="3" text="Three levels"/></radio></default-field></field>
-                            <field name="comments"><default-field title="Message to the client"><text-area rows="3" cols="50"/></default-field></field>
-                            <field name="submitButton"><default-field title="Send for approval"><submit/></default-field></field>
-                        </form-single>
-                        <label type="p" text="The order becomes a quote; the client approves the estimate on the project's Estimate milestone, which approves the order and the project."
-                                style="text-caption m-muted"/>
-                    </container-dialog>
-                    <link url="${ord.printUrl}" url-type="plain" text="Print estimate" icon="sym_o_print" link-type="anchor-button" target-window="_blank" condition="ord.printUrl"/>
-                    <link url="${ord.estimateMilestoneUrl}" url-type="plain" text="Estimate milestone" icon="sym_o_approval" link-type="anchor-button" condition="ord.estimateMilestoneUrl"/>
+                <container style="row items-center q-col-gutter-x-md q-col-gutter-y-sm m-record-foot">
+                    <container style="col-12 row items-center q-gutter-x-xs q-gutter-y-xs m-record-actions">
+                        <container-dialog id="OrderSendEstimate" button-text="Send estimate for approval" icon="sym_o_send" width="560" type="primary"
+                                title="Send the estimate of ${ord.projectName} for approval" condition="ord.canSendEstimate">
+                            <form-single name="OrderSendEstimateForm" transition="sendEstimate" map="sendValue">
+                                <field name="orderId"><default-field><hidden/></default-field></field>
+                                <field name="projectId"><default-field><hidden/></default-field></field>
+                                <field name="depth"><default-field title="Work breakdown to">
+                                    <radio><option key="1" text="Top-level items"/><option key="2" text="Two levels"/><option key="3" text="Three levels"/></radio></default-field></field>
+                                <field name="comments"><default-field title="Message to the client"><text-area rows="3" cols="50"/></default-field></field>
+                                <field name="submitButton"><default-field title="Send for approval"><submit/></default-field></field>
+                            </form-single>
+                            <label type="p" text="The order becomes a quote; the client approves the estimate on the project's Estimate milestone, which approves the order and the project."
+                                    style="text-caption m-muted"/>
+                        </container-dialog>
+                        <link url="${ord.printUrl}" url-type="plain" text="Print estimate" icon="sym_o_print" link-type="anchor-button" target-window="_blank" condition="ord.printUrl"/>
+                        <link url="${ord.estimateMilestoneUrl}" url-type="plain" text="Estimate milestone" icon="sym_o_approval" link-type="anchor-button" condition="ord.estimateMilestoneUrl"/>
+                    </container>
                 </container>
             </container>
 

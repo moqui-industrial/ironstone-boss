@@ -282,22 +282,98 @@ along with this software (see the LICENSE.md file). If not, see
                     <!-- the record for the shell: quick create's link chip, the activity kind; the side list's selection in the split -->
                     <context record-entity="mantle.party.Party" record-id="${recordPartyId}" title="${record.name}" selection-form="${inSplit ? 'ContactRows' : ''}"/>
 
-                    <!-- ===== header ===== -->
-                    <container style="row items-center no-wrap q-mb-sm m-contact-header">
-                        <render-mode><text type="qvt"><![CDATA[<div class="q-mr-md m-contact-avatar">${avatarHtml}</div>]]></text></render-mode>
-                        <container style="col" >
-                            <container style="row items-center q-gutter-x-sm">
-                                <label text="${record.name}" type="h5" style="q-my-none"/>
-                                <section name="FavoriteOn" condition="record.isFavorite"><widgets>
-                                    <link url="contactFavorite" link-type="hidden-form-link" icon="star" text="" tooltip="Starred: unstar" style="m-btn-flat text-warning"
-                                            parameter-map="{partyId:recordPartyId, contactBookId:favoriteBookId, isFavorite:'N'}"/>
-                                </widgets><fail-widgets>
-                                    <link url="contactFavorite" link-type="hidden-form-link" icon="star_border" text="" tooltip="Star" style="m-btn-flat"
-                                            parameter-map="{partyId:recordPartyId, contactBookId:favoriteBookId, isFavorite:'Y'}"/>
-                                </fail-widgets></section>
+                    <!-- ===== the header card (style-guide §3.3): the avatar, name, star and caption, the actions at their right; the banners under it ===== -->
+                    <container style="m-record-header m-contact-header">
+                        <container style="row items-start q-col-gutter-x-md q-col-gutter-y-sm">
+                            <container style="col-12 col-md m-record-title">
+                                <container style="row items-center no-wrap">
+                                    <render-mode><text type="qvt"><![CDATA[<div class="q-mr-md m-contact-avatar">${avatarHtml}</div>]]></text></render-mode>
+                                    <container style="col">
+                                        <container style="row items-center q-gutter-x-sm">
+                                            <label text="${record.name}" type="h5"/>
+                                            <section name="FavoriteOn" condition="record.isFavorite"><widgets>
+                                                <link url="contactFavorite" link-type="hidden-form-link" icon="star" text="" tooltip="Starred: unstar" style="m-btn-flat text-warning"
+                                                        parameter-map="{partyId:recordPartyId, contactBookId:favoriteBookId, isFavorite:'N'}"/>
+                                            </widgets><fail-widgets>
+                                                <link url="contactFavorite" link-type="hidden-form-link" icon="star_border" text="" tooltip="Star" style="m-btn-flat"
+                                                        parameter-map="{partyId:recordPartyId, contactBookId:favoriteBookId, isFavorite:'Y'}"/>
+                                            </fail-widgets></section>
+                                        </container>
+                                        <label text="${record.subtitle}" type="div" style="text-body2" condition="record.subtitle"/>
+                                        <label text="${captionText}" type="div" style="text-caption m-muted"/>
+                                    </container>
+                                </container>
                             </container>
-                            <label text="${record.subtitle}" type="div" style="text-body2" condition="record.subtitle"/>
-                            <label text="${captionText}" type="div" style="text-caption m-muted"/>
+                            <!-- the actions at its right (in the split's narrow pane under it): email; chat with a contact who is a user; new event and task; the rest in More -->
+                            <container style="${inSplit ? 'col-12 row items-center q-gutter-y-xs m-contact-actions' : 'col-12 col-md-auto row items-center q-gutter-y-xs m-record-actions m-contact-actions'}">
+                                <section name="EmailAction" condition="composeUrl"><widgets>
+                                    <render-mode><text type="qvt"><![CDATA[<m-link href="${composeUrl}"><q-btn unelevated no-caps dense color="primary" icon="sym_o_mail" label="${ec.l10n.localize('Email')}"></q-btn></m-link>]]></text></render-mode>
+                                </widgets></section>
+                                <section name="ChatAction" condition="chatUrl"><widgets>
+                                    <render-mode><text type="qvt"><![CDATA[<m-link href="${chatUrl}" class="q-ml-xs"><q-btn unelevated no-caps dense class="m-btn-tonal" icon="sym_o_chat" label="${ec.l10n.localize('Chat')}"></q-btn></m-link>]]></text></render-mode>
+                                </widgets></section>
+                                <render-mode><text type="qvt"><![CDATA[${quickHtml}]]></text></render-mode>
+                                <button-menu text="More" icon="more_horiz" style="q-ml-xs">
+                                    <container-dialog id="ContactAddToBookDialog" button-text="Add to a book or group" icon="sym_o_bookmark_add" width="520" title="Add to a book or group"
+                                            condition="bookOptions.length">
+                                        <form-single name="ContactAddToBook" transition="contactBooks">
+                                            <field name="partyId" from="recordPartyId"><default-field><hidden/></default-field></field>
+                                            <field name="contactBookId"><default-field title="Book">
+                                                <drop-down><list-options list="bookOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                            <field name="contactBookGroupIdList"><default-field title="Groups">
+                                                <drop-down allow-multiple="true" allow-empty="true">
+                                                    <dynamic-options transition="contactBookGroups" depends-optional="true"><depends-on field="contactBookId"/></dynamic-options>
+                                                </drop-down></default-field></field>
+                                            <field name="submitButton"><default-field title="Add"><submit/></default-field></field>
+                                        </form-single>
+                                    </container-dialog>
+                                    <container-dialog id="ContactMergeDialog" button-text="Merge with…" icon="sym_o_merge" width="560" title="Merge with another contact"
+                                            condition="canEdit">
+                                        <label type="p" text="Choose the other contact; the next step compares them side by side before anything is merged." style="m-muted"/>
+                                        <form-single name="ContactMergePick" transition="../Compare">
+                                            <field name="partyId" from="recordPartyId"><default-field><hidden/></default-field></field>
+                                            <field name="otherPartyId"><default-field title="Other contact">
+                                                <drop-down><dynamic-options transition="contactSearch" server-search="true" min-length="2"
+                                                        parameter-map="{excludePartyId:recordPartyId}"/></drop-down></default-field></field>
+                                            <field name="submitButton"><default-field title="Compare"><submit/></default-field></field>
+                                        </form-single>
+                                    </container-dialog>
+                                    <!-- the photo: add, change or remove it (the owner of a personal contact, a contact admin for the directory) -->
+                                    <container-dialog id="ContactPhotoDialog" button-text="${record.hasFaceImage ? 'Change photo' : 'Add a photo'}" icon="sym_o_add_a_photo"
+                                            width="480" title="Photo of ${record.name}" condition="canEdit">
+                                        <container style="row items-center no-wrap q-col-gutter-md m-contact-photo-row">
+                                            <render-mode><text type="qvt"><![CDATA[<div class="col-auto">${photoAvatarHtml}</div>]]></text></render-mode>
+                                            <container style="col">
+                                                <form-single name="ContactPhotoUpload" transition="contactAvatarUpload">
+                                                    <field name="partyId" from="recordPartyId"><default-field><hidden/></default-field></field>
+                                                    <field name="contentFile"><default-field title="${record.hasFaceImage ? 'New photo' : 'Photo'}">
+                                                        <file accept="image/png,image/jpeg,image/gif,image/webp"/></default-field></field>
+                                                    <field name="submitButton"><default-field title="Upload"><submit/></default-field></field>
+                                                </form-single>
+                                                <label type="div" text="PNG, JPEG, GIF or WebP, at most 5 MB." style="text-caption m-muted"/>
+                                                <link url="contactAvatarRemove" link-type="hidden-form-link" text="Remove photo" btn-type="danger" condition="record.hasFaceImage"
+                                                        confirmation="Remove the photo of ${record.name}?" parameter-map="{partyId:recordPartyId}"/>
+                                            </container>
+                                        </container>
+                                    </container-dialog>
+                                    <link url="contactExport" link-type="hidden-form-link" text="Export vCard" icon="sym_o_contact_page" parameter-map="{partyId:recordPartyId, format:'vcard'}"/>
+                                    <link url="/apps/Commons/Contacts/ContactDetail?renderMode=html-print&amp;partyId=${recordPartyId}" url-type="plain" text="Print"
+                                            icon="sym_o_print" target-window="_blank"/>
+                                    <container-dialog id="ContactLinkDialog" button-text="Link to a directory party" icon="sym_o_link" width="560" title="Link to a directory party"
+                                            condition="access.isMine">
+                                        <label type="p" text="Make this personal contact a directory contact your organization sees, or merge it into a directory party that is the same person or organization." style="m-muted"/>
+                                        <form-single name="ContactLinkForm" transition="contactLink">
+                                            <field name="partyId" from="recordPartyId"><default-field><hidden/></default-field></field>
+                                            <field name="targetPartyId"><default-field title="Directory party (empty: this contact joins the directory)">
+                                                <drop-down allow-empty="true"><dynamic-options transition="contactSearch" server-search="true" min-length="2"
+                                                        parameter-map="{directoryOnly:'Y', excludePartyId:recordPartyId}"/></drop-down></default-field></field>
+                                            <field name="submitButton"><default-field title="Link"><submit/></default-field></field>
+                                        </form-single>
+                                    </container-dialog>
+                                    <link url="contactDelete" link-type="hidden-form-link" text="Delete" icon="sym_o_delete" btn-type="danger" condition="access.canDelete"
+                                            confirmation="Delete ${record.name}?" parameter-map="{partyId:recordPartyId}"/>
+                                </button-menu>
+                            </container>
                         </container>
                     </container>
                     <section name="PersonalBanner" condition="isPersonal"><widgets>
@@ -316,77 +392,6 @@ along with this software (see the LICENSE.md file). If not, see
                             </widgets></section>
                         </box-body></container-box>
                     </widgets></section>
-
-                    <!-- ===== actions: email; chat with a contact who is a user; new event and task; the rest in More ===== -->
-                    <container style="row items-center q-gutter-y-xs q-mb-sm m-contact-actions">
-                        <section name="EmailAction" condition="composeUrl"><widgets>
-                            <render-mode><text type="qvt"><![CDATA[<m-link href="${composeUrl}"><q-btn unelevated no-caps dense color="primary" icon="sym_o_mail" label="${ec.l10n.localize('Email')}"></q-btn></m-link>]]></text></render-mode>
-                        </widgets></section>
-                        <section name="ChatAction" condition="chatUrl"><widgets>
-                            <render-mode><text type="qvt"><![CDATA[<m-link href="${chatUrl}" class="q-ml-xs"><q-btn unelevated no-caps dense class="m-btn-tonal" icon="sym_o_chat" label="${ec.l10n.localize('Chat')}"></q-btn></m-link>]]></text></render-mode>
-                        </widgets></section>
-                        <render-mode><text type="qvt"><![CDATA[${quickHtml}]]></text></render-mode>
-                        <button-menu text="More" icon="more_horiz" style="q-ml-xs">
-                            <container-dialog id="ContactAddToBookDialog" button-text="Add to a book or group" icon="sym_o_bookmark_add" width="520" title="Add to a book or group"
-                                    condition="bookOptions.length">
-                                <form-single name="ContactAddToBook" transition="contactBooks">
-                                    <field name="partyId" from="recordPartyId"><default-field><hidden/></default-field></field>
-                                    <field name="contactBookId"><default-field title="Book">
-                                        <drop-down><list-options list="bookOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
-                                    <field name="contactBookGroupIdList"><default-field title="Groups">
-                                        <drop-down allow-multiple="true" allow-empty="true">
-                                            <dynamic-options transition="contactBookGroups" depends-optional="true"><depends-on field="contactBookId"/></dynamic-options>
-                                        </drop-down></default-field></field>
-                                    <field name="submitButton"><default-field title="Add"><submit/></default-field></field>
-                                </form-single>
-                            </container-dialog>
-                            <container-dialog id="ContactMergeDialog" button-text="Merge with…" icon="sym_o_merge" width="560" title="Merge with another contact"
-                                    condition="canEdit">
-                                <label type="p" text="Choose the other contact; the next step compares them side by side before anything is merged." style="m-muted"/>
-                                <form-single name="ContactMergePick" transition="../Compare">
-                                    <field name="partyId" from="recordPartyId"><default-field><hidden/></default-field></field>
-                                    <field name="otherPartyId"><default-field title="Other contact">
-                                        <drop-down><dynamic-options transition="contactSearch" server-search="true" min-length="2"
-                                                parameter-map="{excludePartyId:recordPartyId}"/></drop-down></default-field></field>
-                                    <field name="submitButton"><default-field title="Compare"><submit/></default-field></field>
-                                </form-single>
-                            </container-dialog>
-                            <!-- the photo: add, change or remove it (the owner of a personal contact, a contact admin for the directory) -->
-                            <container-dialog id="ContactPhotoDialog" button-text="${record.hasFaceImage ? 'Change photo' : 'Add a photo'}" icon="sym_o_add_a_photo"
-                                    width="480" title="Photo of ${record.name}" condition="canEdit">
-                                <container style="row items-center no-wrap q-col-gutter-md m-contact-photo-row">
-                                    <render-mode><text type="qvt"><![CDATA[<div class="col-auto">${photoAvatarHtml}</div>]]></text></render-mode>
-                                    <container style="col">
-                                        <form-single name="ContactPhotoUpload" transition="contactAvatarUpload">
-                                            <field name="partyId" from="recordPartyId"><default-field><hidden/></default-field></field>
-                                            <field name="contentFile"><default-field title="${record.hasFaceImage ? 'New photo' : 'Photo'}">
-                                                <file accept="image/png,image/jpeg,image/gif,image/webp"/></default-field></field>
-                                            <field name="submitButton"><default-field title="Upload"><submit/></default-field></field>
-                                        </form-single>
-                                        <label type="div" text="PNG, JPEG, GIF or WebP, at most 5 MB." style="text-caption m-muted"/>
-                                        <link url="contactAvatarRemove" link-type="hidden-form-link" text="Remove photo" btn-type="danger" condition="record.hasFaceImage"
-                                                confirmation="Remove the photo of ${record.name}?" parameter-map="{partyId:recordPartyId}"/>
-                                    </container>
-                                </container>
-                            </container-dialog>
-                            <link url="contactExport" link-type="hidden-form-link" text="Export vCard" icon="sym_o_contact_page" parameter-map="{partyId:recordPartyId, format:'vcard'}"/>
-                            <link url="/apps/Commons/Contacts/ContactDetail?renderMode=html-print&amp;partyId=${recordPartyId}" url-type="plain" text="Print"
-                                    icon="sym_o_print" target-window="_blank"/>
-                            <container-dialog id="ContactLinkDialog" button-text="Link to a directory party" icon="sym_o_link" width="560" title="Link to a directory party"
-                                    condition="access.isMine">
-                                <label type="p" text="Make this personal contact a directory contact your organization sees, or merge it into a directory party that is the same person or organization." style="m-muted"/>
-                                <form-single name="ContactLinkForm" transition="contactLink">
-                                    <field name="partyId" from="recordPartyId"><default-field><hidden/></default-field></field>
-                                    <field name="targetPartyId"><default-field title="Directory party (empty: this contact joins the directory)">
-                                        <drop-down allow-empty="true"><dynamic-options transition="contactSearch" server-search="true" min-length="2"
-                                                parameter-map="{directoryOnly:'Y', excludePartyId:recordPartyId}"/></drop-down></default-field></field>
-                                    <field name="submitButton"><default-field title="Link"><submit/></default-field></field>
-                                </form-single>
-                            </container-dialog>
-                            <link url="contactDelete" link-type="hidden-form-link" text="Delete" icon="sym_o_delete" btn-type="danger" condition="access.canDelete"
-                                    confirmation="Delete ${record.name}?" parameter-map="{partyId:recordPartyId}"/>
-                        </button-menu>
-                    </container>
 
                     <render-mode><text type="qvt"><![CDATA[${tabsHtml}]]></text></render-mode>
 

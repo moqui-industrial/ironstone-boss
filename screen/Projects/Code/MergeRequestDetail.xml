@@ -108,7 +108,7 @@ along with this software (see the LICENSE.md file). If not, see
             primaryAction = detail.primaryAction
             const chip = (text, cls, icon) => '<q-chip dense square class="q-my-none q-ml-none q-mr-sm ' + cls + '"' + (icon ? ' icon="' + icon + '"' : '') + '>' + enc(text) + '</q-chip>'
             const repoUrl = '/qapps/Projects/Code/RepositoryDetail?repositoryId=' + encodeURIComponent(mr.repositoryId)
-            chipsHtml = '<div class="row items-center q-mt-xs m-mr-chips">'
+            chipsHtml = '<div class="row items-center m-mr-chips">'
                 + '<m-link href="' + enc(repoUrl) + '">' + chip(mr.repositoryId, 'm-tonal text-primary text-mono', 'sym_o_folder_data') + '</m-link>'
                 + chip(mr.sourceRef, 'm-tonal text-grey-8 text-mono', 'sym_o_call_split') + '<q-icon name="sym_o_arrow_forward" size="xs" class="q-mr-sm m-muted"></q-icon>'
                 + chip(mr.targetRef, 'm-tonal text-grey-8 text-mono', 'sym_o_call_merge')
@@ -157,82 +157,91 @@ along with this software (see the LICENSE.md file). If not, see
                 </box-body></container-box>
             </widgets></section>
 
-            <container style="row items-start q-col-gutter-sm q-mb-sm m-mr-header">
-                <container style="col-12 col-md">
-                    <container style="row items-center no-wrap">
-                        <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none q-mr-sm text-mono m-tonal text-${mr.statusColor}" icon="${mr.statusIcon}">${WebUtilities.encodeHtml(mr.numText)}</q-chip>]]></text>
-                            <text type="tui"><![CDATA[${JSON.stringify({t: "text", id: "MergeRequestNum", style: "strong", text: mr.numText})}]]></text></render-mode>
-                        <label text="${mr.title}" type="h5" style="q-my-none ${mr.isOpen ? '' : 'm-muted'}"/>
+            <!-- the header card (style-guide §3.3): the number and title with the status-bar at their right, then the chips with the actions at their right -->
+            <container style="m-record-header m-mr-header">
+                <container style="row items-start q-col-gutter-x-md q-col-gutter-y-sm">
+                    <container style="col-12 col-md m-record-title">
+                        <container style="row items-center no-wrap">
+                            <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none q-mr-sm text-mono m-tonal text-${mr.statusColor}" icon="${mr.statusIcon}">${WebUtilities.encodeHtml(mr.numText)}</q-chip>]]></text>
+                                <text type="tui"><![CDATA[${JSON.stringify({t: "text", id: "MergeRequestNum", style: "strong", text: mr.numText})}]]></text></render-mode>
+                            <label text="${mr.title}" type="h5" style="${mr.isOpen ? '' : 'm-muted'}"/>
+                        </container>
                     </container>
-                    <status-bar id="MergeRequestStatusBar" status-id="${mr.statusId}" status-flow-id="Default" stages="${stageStatusIds}" read-only="true"/>
-                    <render-mode><text type="qvt"><![CDATA[${chipsHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(chipsTui)}]]></text></render-mode>
+                    <container style="col-12 col-md-auto m-record-status">
+                        <status-bar id="MergeRequestStatusBar" status-id="${mr.statusId}" status-flow-id="Default" stages="${stageStatusIds}" read-only="true"/>
+                    </container>
                 </container>
-                <container style="col-12 col-md-auto row items-center q-gutter-y-xs m-mr-actions">
-                    <section name="PrimaryReady" condition="primaryAction == 'ready'"><widgets>
-                        <link url="markReady" link-type="hidden-form" text="Mark ready" btn-type="primary" icon="sym_o_done_all"
-                                confirmation="Mark ${mr.numText} ready for review? Its reviewers are told." parameter-map="{mergeRequestId:mergeRequestId, draft:'N'}"/>
-                    </widgets></section>
-                    <section name="PrimaryMerge" condition="primaryAction == 'merge'"><widgets>
-                        <container-dialog id="MergeDialog" button-text="Merge" icon="sym_o_call_merge" type="primary" width="560" title="Merge ${mr.numText} into ${mr.targetRef}">
-                            <form-single name="MergeHeader" transition="mergeMergeRequest" map="mergeValue">
-                                <field name="mergeRequestId"><default-field><hidden/></default-field></field>
-                                <field name="mergeMethodEnumId"><default-field title="Method">
-                                    <drop-down><list-options list="methodOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
-                                <field name="commitMessage"><default-field title="Commit message (of a merge commit or a squash)"><text-area rows="3" cols="60"/></default-field></field>
-                                <field name="deleteSourceBranch"><default-field title=" "><check><option key="Y" text="Delete ${mr.sourceRef} after the merge"/></check></default-field></field>
-                                <field name="submitButton"><default-field title="Merge into ${mr.targetRef}"><submit confirmation="Merge ${mr.numText} into ${mr.targetRef}?"/></default-field></field>
-                            </form-single>
-                        </container-dialog>
-                    </widgets></section>
-                    <section name="PrimaryReview" condition="primaryAction == 'review'"><widgets>
-                        <link url="${reviewUrl}" url-type="plain" text="Review" btn-type="primary" icon="sym_o_rate_review"/>
-                    </widgets></section>
-                    <button-menu text="More" icon="more_horiz" style="q-ml-xs">
-                        <container-dialog id="EditMergeRequestDialog" button-text="Edit" icon="sym_o_edit" width="720" title="Edit ${mr.numText}" condition="detail.canEdit">
-                            <form-single name="EditMergeRequest" transition="editMergeRequest" map="editValue" focus-field="title">
-                                <field name="mergeRequestId"><default-field><hidden/></default-field></field>
-                                <field name="title"><default-field title="Title"><text-line size="70"/></default-field></field>
-                                <field name="description"><default-field title="Description (markdown; Closes PROJ-12 completes the item when it merges)">
-                                    <text-area rows="8" cols="70" editor-type="md"/></default-field></field>
-                                <field name="targetRef"><default-field title="Target branch">
-                                    <drop-down><list-options list="targetOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
-                                <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
-                            </form-single>
-                        </container-dialog>
-                        <container-dialog id="AddReviewersDialog" button-text="Add reviewers" icon="sym_o_person_add" width="480" title="Ask for a review of ${mr.numText}"
-                                condition="detail.canEdit">
-                            <form-single name="AddReviewers" transition="addReviewers">
-                                <field name="mergeRequestId"><default-field><hidden/></default-field></field>
-                                <field name="addUserIds"><default-field title="Reviewers">
-                                    <drop-down allow-multiple="true"><list-options list="reviewerOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
-                                <field name="submitButton"><default-field title="Request review"><submit/></default-field></field>
-                            </form-single>
-                        </container-dialog>
-                        <container-dialog id="ReviewDialog" button-text="Review" icon="sym_o_rate_review" width="560" title="Review ${mr.numText}" condition="detail.canReview">
-                            <form-single name="SubmitReview" transition="submitReview">
-                                <field name="mergeRequestId"><default-field><hidden/></default-field></field>
-                                <field name="decision" from="'comment'"><conditional-field condition="detail.canApprove" title="Your review">
-                                    <radio><option key="comment" text="Comment: feedback without a decision"/><option key="approve" text="Approve: ready to merge"/>
-                                        <option key="request_changes" text="Request changes: to be fixed before it merges"/></radio></conditional-field>
-                                    <default-field title="Your review">
-                                    <radio><option key="comment" text="Comment: feedback without a decision"/>
-                                        <option key="request_changes" text="Request changes: to be fixed before it merges"/></radio></default-field></field>
-                                <field name="note"><default-field title="Summary (markdown)"><text-area rows="5" cols="60" editor-type="md"/></default-field></field>
-                                <field name="submitButton"><default-field title="Submit review"><submit/></default-field></field>
-                            </form-single>
-                            <label type="p" text="Line comments are made on Changes." style="text-caption m-muted q-mb-none"/>
-                        </container-dialog>
-                        <link url="markReady" link-type="hidden-form-link" text="Mark as draft" icon="sym_o_draft" condition="detail.canEdit &amp;&amp; mr.statusId == 'GmrOpen'"
-                                confirmation="Make ${mr.numText} a draft? It does not merge until marked ready." parameter-map="{mergeRequestId:mergeRequestId, draft:'Y'}"/>
-                        <link url="closeMergeRequest" link-type="hidden-form-link" text="Close" icon="sym_o_cancel" btn-type="danger" condition="detail.canEdit"
-                                confirmation="Close ${mr.numText} without merging it?" parameter-map="{mergeRequestId:mergeRequestId, reopen:'N'}"/>
-                        <link url="closeMergeRequest" link-type="hidden-form-link" text="Reopen" icon="sym_o_undo"
-                                condition="mr.statusId == 'GmrClosed' &amp;&amp; (canPush || mr.authorUserId == ec.user.userId) &amp;&amp; !detail.archived &amp;&amp; !clientUser"
-                                confirmation="Reopen ${mr.numText}?" parameter-map="{mergeRequestId:mergeRequestId, reopen:'Y'}"/>
-                        <container-dialog id="CheckoutDialog" button-text="Checkout commands" icon="sym_o_terminal" width="520" title="Check out ${mr.sourceRef}">
-                            <label text="${detail.checkoutText}" type="pre" style="text-mono q-mb-none"/>
-                        </container-dialog>
-                    </button-menu>
+                <container style="row items-center q-col-gutter-x-md q-col-gutter-y-sm m-record-foot">
+                    <container style="col-12 col-md">
+                        <render-mode><text type="qvt"><![CDATA[${chipsHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(chipsTui)}]]></text></render-mode>
+                    </container>
+                    <container style="col-12 col-md-auto row items-center q-gutter-y-xs m-record-actions m-mr-actions">
+                        <section name="PrimaryReady" condition="primaryAction == 'ready'"><widgets>
+                            <link url="markReady" link-type="hidden-form" text="Mark ready" btn-type="primary" icon="sym_o_done_all"
+                                    confirmation="Mark ${mr.numText} ready for review? Its reviewers are told." parameter-map="{mergeRequestId:mergeRequestId, draft:'N'}"/>
+                        </widgets></section>
+                        <section name="PrimaryMerge" condition="primaryAction == 'merge'"><widgets>
+                            <container-dialog id="MergeDialog" button-text="Merge" icon="sym_o_call_merge" type="primary" width="560" title="Merge ${mr.numText} into ${mr.targetRef}">
+                                <form-single name="MergeHeader" transition="mergeMergeRequest" map="mergeValue">
+                                    <field name="mergeRequestId"><default-field><hidden/></default-field></field>
+                                    <field name="mergeMethodEnumId"><default-field title="Method">
+                                        <drop-down><list-options list="methodOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                    <field name="commitMessage"><default-field title="Commit message (of a merge commit or a squash)"><text-area rows="3" cols="60"/></default-field></field>
+                                    <field name="deleteSourceBranch"><default-field title=" "><check><option key="Y" text="Delete ${mr.sourceRef} after the merge"/></check></default-field></field>
+                                    <field name="submitButton"><default-field title="Merge into ${mr.targetRef}"><submit confirmation="Merge ${mr.numText} into ${mr.targetRef}?"/></default-field></field>
+                                </form-single>
+                            </container-dialog>
+                        </widgets></section>
+                        <section name="PrimaryReview" condition="primaryAction == 'review'"><widgets>
+                            <link url="${reviewUrl}" url-type="plain" text="Review" btn-type="primary" icon="sym_o_rate_review"/>
+                        </widgets></section>
+                        <button-menu text="More" icon="more_horiz" style="q-ml-xs">
+                            <container-dialog id="EditMergeRequestDialog" button-text="Edit" icon="sym_o_edit" width="720" title="Edit ${mr.numText}" condition="detail.canEdit">
+                                <form-single name="EditMergeRequest" transition="editMergeRequest" map="editValue" focus-field="title">
+                                    <field name="mergeRequestId"><default-field><hidden/></default-field></field>
+                                    <field name="title"><default-field title="Title"><text-line size="70"/></default-field></field>
+                                    <field name="description"><default-field title="Description (markdown; Closes PROJ-12 completes the item when it merges)">
+                                        <text-area rows="8" cols="70" editor-type="md"/></default-field></field>
+                                    <field name="targetRef"><default-field title="Target branch">
+                                        <drop-down><list-options list="targetOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                    <field name="submitButton"><default-field title="Save"><submit/></default-field></field>
+                                </form-single>
+                            </container-dialog>
+                            <container-dialog id="AddReviewersDialog" button-text="Add reviewers" icon="sym_o_person_add" width="480" title="Ask for a review of ${mr.numText}"
+                                    condition="detail.canEdit">
+                                <form-single name="AddReviewers" transition="addReviewers">
+                                    <field name="mergeRequestId"><default-field><hidden/></default-field></field>
+                                    <field name="addUserIds"><default-field title="Reviewers">
+                                        <drop-down allow-multiple="true"><list-options list="reviewerOptions" key="${key}" text="${text}"/></drop-down></default-field></field>
+                                    <field name="submitButton"><default-field title="Request review"><submit/></default-field></field>
+                                </form-single>
+                            </container-dialog>
+                            <container-dialog id="ReviewDialog" button-text="Review" icon="sym_o_rate_review" width="560" title="Review ${mr.numText}" condition="detail.canReview">
+                                <form-single name="SubmitReview" transition="submitReview">
+                                    <field name="mergeRequestId"><default-field><hidden/></default-field></field>
+                                    <field name="decision" from="'comment'"><conditional-field condition="detail.canApprove" title="Your review">
+                                        <radio><option key="comment" text="Comment: feedback without a decision"/><option key="approve" text="Approve: ready to merge"/>
+                                            <option key="request_changes" text="Request changes: to be fixed before it merges"/></radio></conditional-field>
+                                        <default-field title="Your review">
+                                        <radio><option key="comment" text="Comment: feedback without a decision"/>
+                                            <option key="request_changes" text="Request changes: to be fixed before it merges"/></radio></default-field></field>
+                                    <field name="note"><default-field title="Summary (markdown)"><text-area rows="5" cols="60" editor-type="md"/></default-field></field>
+                                    <field name="submitButton"><default-field title="Submit review"><submit/></default-field></field>
+                                </form-single>
+                                <label type="p" text="Line comments are made on Changes." style="text-caption m-muted q-mb-none"/>
+                            </container-dialog>
+                            <link url="markReady" link-type="hidden-form-link" text="Mark as draft" icon="sym_o_draft" condition="detail.canEdit &amp;&amp; mr.statusId == 'GmrOpen'"
+                                    confirmation="Make ${mr.numText} a draft? It does not merge until marked ready." parameter-map="{mergeRequestId:mergeRequestId, draft:'Y'}"/>
+                            <link url="closeMergeRequest" link-type="hidden-form-link" text="Close" icon="sym_o_cancel" btn-type="danger" condition="detail.canEdit"
+                                    confirmation="Close ${mr.numText} without merging it?" parameter-map="{mergeRequestId:mergeRequestId, reopen:'N'}"/>
+                            <link url="closeMergeRequest" link-type="hidden-form-link" text="Reopen" icon="sym_o_undo"
+                                    condition="mr.statusId == 'GmrClosed' &amp;&amp; (canPush || mr.authorUserId == ec.user.userId) &amp;&amp; !detail.archived &amp;&amp; !clientUser"
+                                    confirmation="Reopen ${mr.numText}?" parameter-map="{mergeRequestId:mergeRequestId, reopen:'Y'}"/>
+                            <container-dialog id="CheckoutDialog" button-text="Checkout commands" icon="sym_o_terminal" width="520" title="Check out ${mr.sourceRef}">
+                                <label text="${detail.checkoutText}" type="pre" style="text-mono q-mb-none"/>
+                            </container-dialog>
+                        </button-menu>
+                    </container>
                 </container>
             </container>
 

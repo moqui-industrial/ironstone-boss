@@ -66,38 +66,45 @@ along with this software (see the LICENSE.md file). If not, see
 
         <section name="TimesheetFound" condition="recordFound"><widgets>
             <context record-entity="mantle.work.time.Timesheet" record-id="${timesheetId}" title="${sheet.personName} · ${sheet.weekText}"/>
-            <container style="row items-start q-col-gutter-sm q-mb-sm">
-                <container style="col-12 col-md">
-                    <container style="row items-center no-wrap">
-                        <render-mode><text type="qvt"><![CDATA[<m-avatar name="${WebUtilities.encodeHtml(sheet.personName ?? '')}" size="32px" class="q-mr-sm"></m-avatar>]]></text><text type="tui" template="false">[]</text></render-mode>
-                        <label text="${sheet.personName} · ${sheet.weekText}" type="h5" style="q-my-none"/>
+            <!-- the header card (style-guide §3.3): the person, the week and its state with the status-bar at their right, then the actions -->
+            <container style="m-record-header">
+                <container style="row items-start q-col-gutter-x-md q-col-gutter-y-sm">
+                    <container style="col-12 col-md m-record-title">
+                        <container style="row items-center no-wrap">
+                            <render-mode><text type="qvt"><![CDATA[<m-avatar name="${WebUtilities.encodeHtml(sheet.personName ?? '')}" size="32px" class="q-mr-sm"></m-avatar>]]></text><text type="tui" template="false">[]</text></render-mode>
+                            <label text="${sheet.personName} · ${sheet.weekText}" type="h5"/>
+                        </container>
+                        <label text="${stateText}" type="div" style="text-caption ${stateStyle}" condition="stateText"/>
                     </container>
-                    <status-bar id="TimesheetStatusBar" status-id="${sheet.statusId}" status-flow-id="Default" stages="${stageStatusIds}" read-only="true"/>
-                    <label text="${stateText}" type="div" style="text-body2 ${stateStyle}" condition="stateText"/>
+                    <container style="col-12 col-md-auto m-record-status">
+                        <status-bar id="TimesheetStatusBar" status-id="${sheet.statusId}" status-flow-id="Default" stages="${stageStatusIds}" read-only="true"/>
+                    </container>
                 </container>
-                <container style="col-12 col-md-auto row items-center q-gutter-x-xs q-gutter-y-xs">
-                    <link url="decide" link-type="hidden-form" btn-type="primary" text="Approve" icon="sym_o_task_alt" parameter-map="{timesheetId:timesheetId, action:'approve'}"
-                            condition="access.canApprove"/>
-                    <container-dialog id="TimesheetReturnDialog" button-text="Return" icon="sym_o_undo" width="480" title="Return the week" condition="access.canReturn">
-                        <form-single name="ReturnWeek" transition="decide" focus-field="reason">
-                            <field name="timesheetId"><default-field><hidden/></default-field></field>
-                            <field name="action" from="'return'"><default-field><hidden/></default-field></field>
-                            <field name="reason"><default-field title="What to change"><text-area rows="3" cols="50"/></default-field></field>
-                            <field name="submitButton"><default-field title="Return"><submit/></default-field></field>
-                        </form-single>
-                    </container-dialog>
-                    <container-dialog id="TimesheetReopenDialog" button-text="Reopen" icon="sym_o_lock_open" width="480" title="Reopen the week" condition="access.canReopen">
-                        <form-single name="ReopenWeek" transition="decide" focus-field="reason">
-                            <field name="timesheetId"><default-field><hidden/></default-field></field>
-                            <field name="action" from="'reopen'"><default-field><hidden/></default-field></field>
-                            <field name="reason"><default-field title="Why (optional)"><text-area rows="3" cols="50"/></default-field></field>
-                            <field name="submitButton"><default-field title="Reopen"><submit/></default-field></field>
-                        </form-single>
-                    </container-dialog>
-                    <link url="decide" link-type="hidden-form" btn-type="primary" text="Submit week" icon="sym_o_send" parameter-map="{timesheetId:timesheetId, action:'submit'}"
-                            condition="access.canSubmit" confirmation="Submit the week? It is locked until its approver returns it."/>
-                    <link url="${sheet.weekUrl}" url-type="plain" text="Open the week" icon="sym_o_calendar_view_week" link-type="anchor-button"/>
-                    <link url="${printUrl}" url-type="plain" text="Print" icon="sym_o_print" target-window="_blank" link-type="anchor-button"/>
+                <container style="row items-center q-col-gutter-x-md q-col-gutter-y-sm m-record-foot">
+                    <container style="col-12 row items-center q-gutter-x-xs q-gutter-y-xs m-record-actions">
+                        <link url="decide" link-type="hidden-form" btn-type="primary" text="Approve" icon="sym_o_task_alt" parameter-map="{timesheetId:timesheetId, action:'approve'}"
+                                condition="access.canApprove"/>
+                        <container-dialog id="TimesheetReturnDialog" button-text="Return" icon="sym_o_undo" width="480" title="Return the week" condition="access.canReturn">
+                            <form-single name="ReturnWeek" transition="decide" focus-field="reason">
+                                <field name="timesheetId"><default-field><hidden/></default-field></field>
+                                <field name="action" from="'return'"><default-field><hidden/></default-field></field>
+                                <field name="reason"><default-field title="What to change"><text-area rows="3" cols="50"/></default-field></field>
+                                <field name="submitButton"><default-field title="Return"><submit/></default-field></field>
+                            </form-single>
+                        </container-dialog>
+                        <container-dialog id="TimesheetReopenDialog" button-text="Reopen" icon="sym_o_lock_open" width="480" title="Reopen the week" condition="access.canReopen">
+                            <form-single name="ReopenWeek" transition="decide" focus-field="reason">
+                                <field name="timesheetId"><default-field><hidden/></default-field></field>
+                                <field name="action" from="'reopen'"><default-field><hidden/></default-field></field>
+                                <field name="reason"><default-field title="Why (optional)"><text-area rows="3" cols="50"/></default-field></field>
+                                <field name="submitButton"><default-field title="Reopen"><submit/></default-field></field>
+                            </form-single>
+                        </container-dialog>
+                        <link url="decide" link-type="hidden-form" btn-type="primary" text="Submit week" icon="sym_o_send" parameter-map="{timesheetId:timesheetId, action:'submit'}"
+                                condition="access.canSubmit" confirmation="Submit the week? It is locked until its approver returns it."/>
+                        <link url="${sheet.weekUrl}" url-type="plain" text="Open the week" icon="sym_o_calendar_view_week" link-type="anchor-button"/>
+                        <link url="${printUrl}" url-type="plain" text="Print" icon="sym_o_print" target-window="_blank" link-type="anchor-button"/>
+                    </container>
                 </container>
             </container>
 

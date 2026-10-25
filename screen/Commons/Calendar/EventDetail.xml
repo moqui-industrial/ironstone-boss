@@ -265,7 +265,7 @@ along with this software (see the LICENSE.md file). If not, see
             const fact = (label, value, cls) => '<div class="col-auto" style="max-width:100%"><div class="text-caption m-muted">' + enc(L(label)) + '</div><div class="text-body2'
                     + (cls ? ' ' + cls : '') + '">' + value + '</div></div>'
             const where = [event.location].concat(roomList.map((room) => room.name)).filter((part, index, all) => part && all.indexOf(part) === index)
-            factsHtml = '<div class="row q-col-gutter-lg q-mb-sm m-event-facts">'
+            factsHtml = '<div class="row q-col-gutter-lg m-event-facts">'
                 + fact('When', enc(event.whenText) + (event.recurrenceText ? '<div class="text-caption m-muted">' + enc(event.recurrenceText) + '</div>' : ''), '')
                 + (where.length ? fact('Where', enc(where.join(' · ')), '') : '')
                 + (event.organizer ? fact('Organizer', enc(event.organizer.name) + (event.organizer.isMe ? ' (' + enc(L('you')) + ')' : ''), '') : '')
@@ -327,80 +327,84 @@ along with this software (see the LICENSE.md file). If not, see
             <context record-entity="mantle.work.effort.WorkEffort" record-id="${workEffortId}" title="${event.name}"/>
             <container style="q-mb-xs"><link url="calendar" link-type="anchor" text="Calendar" icon="arrow_back"/></container>
 
-            <!-- ===== header: name, calendar, status, the answer and the actions ===== -->
-            <container style="row items-start q-col-gutter-sm q-mb-sm m-event-header">
-                <container style="col-12 col-md">
-                    <label text="${event.name}" type="h5" style="q-my-none ${event.cancelled ? 'text-strike m-muted' : ''}"/>
-                    <label text="${captionText}" type="div" style="text-caption m-muted q-mb-xs"/>
-                    <render-mode><text type="qvt"><![CDATA[${chipsHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(Object.assign({t: "html", id: "EventChips"}, JSON.parse(sri.htmlText(chipsHtml))))}]]></text></render-mode>
+            <!-- ===== the header card (style-guide §3.3): name, calendar, status and the answer with the actions at their right, then the facts ===== -->
+            <container style="m-record-header m-event-header">
+                <container style="row items-start q-col-gutter-x-md q-col-gutter-y-sm">
+                    <container style="col-12 col-md m-record-title">
+                        <label text="${event.name}" type="h5" style="${event.cancelled ? 'text-strike m-muted' : ''}"/>
+                        <label text="${captionText}" type="div" style="text-caption m-muted"/>
+                        <render-mode><text type="qvt"><![CDATA[${chipsHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(Object.assign({t: "html", id: "EventChips"}, JSON.parse(sri.htmlText(chipsHtml))))}]]></text></render-mode>
+                    </container>
+                    <container style="col-12 col-md-auto row items-center q-gutter-y-xs m-record-actions m-event-actions">
+                        <!-- an attendee's answer -->
+                        <section name="Rsvp" condition="canRsvp"><widgets>
+                            <label text="Going?" type="span" style="text-body2 q-mr-xs"/>
+                            <link url="respond" link-type="hidden-form" text="Yes" icon="sym_o_check" btn-type="${myStatusId == 'WeptAssigned' ? 'primary' : 'default'}"
+                                    parameter-map="{workEffortId:workEffortId, instanceStart:instanceStart, tab:tab, response:'accept'}"/>
+                            <link url="respond" link-type="hidden-form" text="Maybe" icon="sym_o_help" btn-type="${myStatusId == 'WeptTentative' ? 'primary' : 'default'}"
+                                    parameter-map="{workEffortId:workEffortId, instanceStart:instanceStart, tab:tab, response:'tentative'}"/>
+                            <link url="respond" link-type="hidden-form" text="No" icon="sym_o_close" btn-type="${myStatusId == 'WeptDeclined' ? 'primary' : 'default'}"
+                                    parameter-map="{workEffortId:workEffortId, instanceStart:instanceStart, tab:tab, response:'decline'}"/>
+                            <container-dialog id="EventAnswerDialog" button-text="With a note" icon="sym_o_chat" width="480" title="Answer ${event.name}">
+                                <form-single name="EventAnswer" transition="respond" focus-field="message">
+                                    <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                    <field name="instanceStart"><default-field><hidden/></default-field></field>
+                                    <field name="tab"><default-field><hidden/></default-field></field>
+                                    <field name="response" from="'accept'"><default-field title="Answer"><radio><option key="accept" text="Yes"/>
+                                        <option key="tentative" text="Maybe"/><option key="decline" text="No"/></radio></default-field></field>
+                                    <field name="message"><default-field title="Note to the organizer"><text-area rows="3" cols="50"/></default-field></field>
+                                    <field name="submitButton"><default-field title="Send the answer"><submit/></default-field></field>
+                                </form-single>
+                            </container-dialog>
+                        </widgets></section>
+                        <!-- the organizer's invitations -->
+                        <section name="Invitations" condition="canEdit &amp;&amp; hasAttendees &amp;&amp; !event.cancelled"><widgets>
+                            <container-dialog id="EventSendDialog" button-text="${pendingInvites ? 'Send invitations (' + pendingInvites + ')' : 'Send again'}" icon="sym_o_send"
+                                    width="520" title="Send the invitations of ${event.name}">
+                                <label type="p" text="${pendingInvites ? pendingInvites + ' of the attendees have not had the latest: they get an invitation or an update, the others nothing.' : 'Everyone has the latest invitation. Send it to everyone again?'}"
+                                        style="text-body2"/>
+                                <form-single name="EventSend" transition="sendInvitations">
+                                    <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                    <field name="instanceStart"><default-field><hidden/></default-field></field>
+                                    <field name="tab"><default-field><hidden/></default-field></field>
+                                    <field name="resendAll" from="pendingInvites ? 'N' : 'Y'"><default-field><hidden/></default-field></field>
+                                    <field name="note"><default-field title="A note to the attendees"><text-area rows="3" cols="50"/></default-field></field>
+                                    <field name="submitButton"><default-field title="Send"><submit icon="sym_o_send"/></default-field></field>
+                                </form-single>
+                            </container-dialog>
+                        </widgets></section>
+                        <button-menu text="More" icon="more_horiz">
+                            <link url="duplicateEvent" link-type="hidden-form-link" text="Duplicate" icon="sym_o_content_copy" parameter-map="{workEffortId:workEffortId}"/>
+                            <link url="exportIcs" link-type="hidden-form-link" text="Export .ics" icon="sym_o_download" parameter-map="{workEffortId:workEffortId}"/>
+                        </button-menu>
+                        <section name="CancelAction" condition="canEdit &amp;&amp; !event.cancelled"><widgets>
+                            <container-dialog id="EventCancelDialog" button-text="${hasAttendees || isRecurring ? 'Cancel event' : 'Delete'}" icon="sym_o_event_busy" width="480"
+                                    title="Cancel ${event.name}" type="danger">
+                                <form-single name="EventCancel" transition="cancelEvent">
+                                    <field name="workEffortId"><default-field><hidden/></default-field></field>
+                                    <field name="instanceStart"><default-field><hidden/></default-field></field>
+                                    <field name="scope" from="isRecurring ? 'this' : 'all'"><conditional-field condition="isRecurring" title="It repeats: which events are cancelled?">
+                                        <radio><list-options list="scopeOptions" key="${key}" text="${text}"/></radio></conditional-field>
+                                        <default-field><hidden/></default-field></field>
+                                    <field name="notify" from="notifyDefault"><conditional-field condition="hasAttendees" title="">
+                                        <check><option key="Y" text="Tell the attendees it is cancelled"/></check></conditional-field>
+                                        <default-field><hidden/></default-field></field>
+                                    <field name="submitButton"><default-field title="${hasAttendees || isRecurring ? 'Cancel event' : 'Delete'}"><submit type="danger"/></default-field></field>
+                                </form-single>
+                            </container-dialog>
+                        </widgets></section>
+                    </container>
                 </container>
-                <container style="col-12 col-md-auto row items-center q-gutter-xs m-event-actions">
-                    <!-- an attendee's answer -->
-                    <section name="Rsvp" condition="canRsvp"><widgets>
-                        <label text="Going?" type="span" style="text-body2 q-mr-xs"/>
-                        <link url="respond" link-type="hidden-form" text="Yes" icon="sym_o_check" btn-type="${myStatusId == 'WeptAssigned' ? 'primary' : 'default'}"
-                                parameter-map="{workEffortId:workEffortId, instanceStart:instanceStart, tab:tab, response:'accept'}"/>
-                        <link url="respond" link-type="hidden-form" text="Maybe" icon="sym_o_help" btn-type="${myStatusId == 'WeptTentative' ? 'primary' : 'default'}"
-                                parameter-map="{workEffortId:workEffortId, instanceStart:instanceStart, tab:tab, response:'tentative'}"/>
-                        <link url="respond" link-type="hidden-form" text="No" icon="sym_o_close" btn-type="${myStatusId == 'WeptDeclined' ? 'primary' : 'default'}"
-                                parameter-map="{workEffortId:workEffortId, instanceStart:instanceStart, tab:tab, response:'decline'}"/>
-                        <container-dialog id="EventAnswerDialog" button-text="With a note" icon="sym_o_chat" width="480" title="Answer ${event.name}">
-                            <form-single name="EventAnswer" transition="respond" focus-field="message">
-                                <field name="workEffortId"><default-field><hidden/></default-field></field>
-                                <field name="instanceStart"><default-field><hidden/></default-field></field>
-                                <field name="tab"><default-field><hidden/></default-field></field>
-                                <field name="response" from="'accept'"><default-field title="Answer"><radio><option key="accept" text="Yes"/>
-                                    <option key="tentative" text="Maybe"/><option key="decline" text="No"/></radio></default-field></field>
-                                <field name="message"><default-field title="Note to the organizer"><text-area rows="3" cols="50"/></default-field></field>
-                                <field name="submitButton"><default-field title="Send the answer"><submit/></default-field></field>
-                            </form-single>
-                        </container-dialog>
-                    </widgets></section>
-                    <!-- the organizer's invitations -->
-                    <section name="Invitations" condition="canEdit &amp;&amp; hasAttendees &amp;&amp; !event.cancelled"><widgets>
-                        <container-dialog id="EventSendDialog" button-text="${pendingInvites ? 'Send invitations (' + pendingInvites + ')' : 'Send again'}" icon="sym_o_send"
-                                width="520" title="Send the invitations of ${event.name}">
-                            <label type="p" text="${pendingInvites ? pendingInvites + ' of the attendees have not had the latest: they get an invitation or an update, the others nothing.' : 'Everyone has the latest invitation. Send it to everyone again?'}"
-                                    style="text-body2"/>
-                            <form-single name="EventSend" transition="sendInvitations">
-                                <field name="workEffortId"><default-field><hidden/></default-field></field>
-                                <field name="instanceStart"><default-field><hidden/></default-field></field>
-                                <field name="tab"><default-field><hidden/></default-field></field>
-                                <field name="resendAll" from="pendingInvites ? 'N' : 'Y'"><default-field><hidden/></default-field></field>
-                                <field name="note"><default-field title="A note to the attendees"><text-area rows="3" cols="50"/></default-field></field>
-                                <field name="submitButton"><default-field title="Send"><submit icon="sym_o_send"/></default-field></field>
-                            </form-single>
-                        </container-dialog>
-                    </widgets></section>
-                    <button-menu text="More" icon="more_horiz">
-                        <link url="duplicateEvent" link-type="hidden-form-link" text="Duplicate" icon="sym_o_content_copy" parameter-map="{workEffortId:workEffortId}"/>
-                        <link url="exportIcs" link-type="hidden-form-link" text="Export .ics" icon="sym_o_download" parameter-map="{workEffortId:workEffortId}"/>
-                    </button-menu>
-                    <section name="CancelAction" condition="canEdit &amp;&amp; !event.cancelled"><widgets>
-                        <container-dialog id="EventCancelDialog" button-text="${hasAttendees || isRecurring ? 'Cancel event' : 'Delete'}" icon="sym_o_event_busy" width="480"
-                                title="Cancel ${event.name}" type="danger">
-                            <form-single name="EventCancel" transition="cancelEvent">
-                                <field name="workEffortId"><default-field><hidden/></default-field></field>
-                                <field name="instanceStart"><default-field><hidden/></default-field></field>
-                                <field name="scope" from="isRecurring ? 'this' : 'all'"><conditional-field condition="isRecurring" title="It repeats: which events are cancelled?">
-                                    <radio><list-options list="scopeOptions" key="${key}" text="${text}"/></radio></conditional-field>
-                                    <default-field><hidden/></default-field></field>
-                                <field name="notify" from="notifyDefault"><conditional-field condition="hasAttendees" title="">
-                                    <check><option key="Y" text="Tell the attendees it is cancelled"/></check></conditional-field>
-                                    <default-field><hidden/></default-field></field>
-                                <field name="submitButton"><default-field title="${hasAttendees || isRecurring ? 'Cancel event' : 'Delete'}"><submit type="danger"/></default-field></field>
-                            </form-single>
-                        </container-dialog>
+                <container style="m-record-foot">
+                    <render-mode><text type="qvt"><![CDATA[${factsHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(Object.assign({t: "html", id: "EventFacts"}, JSON.parse(sri.htmlText(factsHtml))))}]]></text></render-mode>
+                    <section name="InstanceNote" condition="event.isInstance"><widgets>
+                        <container style="q-mt-xs text-body2">
+                            <label type="span" text="This instance was changed on its own from its repeating series. " style="m-muted"/>
+                            <link url="${seriesUrl}" url-type="plain" link-type="anchor" text="Open the series"/>
+                        </container>
                     </widgets></section>
                 </container>
             </container>
-            <render-mode><text type="qvt"><![CDATA[${factsHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(Object.assign({t: "html", id: "EventFacts"}, JSON.parse(sri.htmlText(factsHtml))))}]]></text></render-mode>
-            <section name="InstanceNote" condition="event.isInstance"><widgets>
-                <container style="q-mb-sm text-body2">
-                    <label type="span" text="This instance was changed on its own from its repeating series. " style="m-muted"/>
-                    <link url="${seriesUrl}" url-type="plain" link-type="anchor" text="Open the series"/>
-                </container>
-            </widgets></section>
 
             <render-mode><text type="qvt"><![CDATA[${tabsHtml}]]></text><text type="tui"><![CDATA[${JSON.stringify(tabsTui)}]]></text></render-mode>
 

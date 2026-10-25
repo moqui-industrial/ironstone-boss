@@ -73,14 +73,17 @@ along with this software (see the LICENSE.md file). If not, see
         <section name="ResourceFound" condition="recordFound"><widgets>
             <context record-entity="${resourceType == 'room' ? 'mantle.facility.Facility' : 'mantle.product.asset.Asset'}" record-id="${resourceId}" title="${resource.name}"/>
             <container style="q-mb-xs"><link url="schedules" link-type="anchor" text="Rooms and equipment" icon="arrow_back"/></container>
-            <container style="row items-start q-col-gutter-sm q-mb-sm">
-                <container style="col-12 col-md">
-                    <label text="${resource.name}" type="h5" style="q-my-none"/>
-                    <label text="${resource.typeLabel}${resource.site ? ' · ' + resource.site : ''}" type="div" style="text-caption m-muted"/>
-                </container>
-                <container style="col-12 col-md-auto row items-center q-gutter-xs">
-                    <link url="${weekUrl}" url-type="plain" text="See its week" icon="sym_o_date_range"/>
-                    <link url="${maintenanceUrl}" text="Open in Maintenance" icon="sym_o_build" condition="maintenanceAllowed"/>
+            <!-- the header card (style-guide §3.3): the name and kind, the links at their right -->
+            <container style="m-record-header">
+                <container style="row items-start q-col-gutter-x-md q-col-gutter-y-sm">
+                    <container style="col-12 col-md m-record-title">
+                        <label text="${resource.name}" type="h5"/>
+                        <label text="${resource.typeLabel}${resource.site ? ' · ' + resource.site : ''}" type="div" style="text-caption m-muted"/>
+                    </container>
+                    <container style="col-12 col-md-auto row items-center q-gutter-y-xs m-record-actions">
+                        <link url="${weekUrl}" url-type="plain" text="See its week" icon="sym_o_date_range"/>
+                        <link url="${maintenanceUrl}" text="Open in Maintenance" icon="sym_o_build" condition="maintenanceAllowed"/>
+                    </container>
                 </container>
             </container>
             <container-row>
