@@ -3,6 +3,8 @@
 Oct 18, 2026
 
 Reviewed against sources Oct 18, 2026; follows [research-crosscut.md](research-crosscut.md).
+Updated Oct 25, 2026 with references to the framework dashboards and reports tooling planned in
+mr-moqui `plans/Monitoring.md`.
 
 Deeper research pass on the **IronStone Insights** app (initial-design sections: Dashboards
 & KPIs · Report builder · Saved reports · Business flow map as clickable documentation),
@@ -16,6 +18,21 @@ the management digest (crosscut §4). Each app has its own landing page, and dri
 the reused record screens in an Insights context. Style mirrors
 [research-maintenance.md](research-maintenance.md) and
 [research-people.md](research-people.md).
+
+**Framework tooling (planned).** mr-moqui `plans/Monitoring.md` ("Dashboards and reports",
+Oct 25, 2026) plans a framework dashboards and reports tool on the SearchFacade. It is drawn
+from Grafana and OpenSearch Dashboards, and has its own Dashboards app in the tools component.
+Monitor uses it first, and Insights can reuse its screens and widgets. It provides:
+- datasets over DataDocuments
+- report queries
+- panels, and dashboards with library panels
+- Explore
+- alert rules
+- scheduled dashboard reports
+
+[Framework tooling planned in mr-moqui](#framework-tooling-planned-in-mr-moqui) maps it onto
+the Insights screens and notes which open questions it answers. This file still records
+findings; what Insights takes from the tool is for the Insights design file.
 
 **Organization.** Sorted by functional area (not by app): all dashboard viewers together,
 all report builders together, etc. Within each area, sub-tables per reference app.
@@ -224,8 +241,10 @@ screen without the sidebar.
 
 The design already calls for switchable views on every find screen (list, kanban,
 calendar, pivot, graph), generalized in mr-moqui forms and lists (initial-design). Insights
-reuses the same pivot/graph renderer for its widgets and adds "add to dashboard"; whether
-the renderer is framework code or an Insights component is an open question (§17).
+reuses the same pivot/graph renderer for its widgets and adds "add to dashboard". Whether
+the renderer is framework code or an Insights component was an open question (§17). mr-moqui
+`plans/Monitoring.md` now plans the panel renderers and the pivot transformation as framework
+code; the find-screen view modes themselves are not in that plan.
 
 | App | Screen/page | What it is | Key files |
 | --- | --- | --- | --- |
@@ -414,6 +433,9 @@ paths are relative to `mr-moqui-base/runtime`.
 
 Missing: any dashboard, widget, widget placement, KPI/number-card definition, alert or flow-map
 record. The Mantle `*Dimension` entities are measurements, not analytics dimensions (§11).
+mr-moqui `plans/Monitoring.md` plans the dashboard, panel and alert definitions; the flow map is
+not part of it (see
+[Framework tooling planned in mr-moqui](#framework-tooling-planned-in-mr-moqui)).
 
 ### Services
 
@@ -430,7 +452,8 @@ record. The Mantle `*Dimension` entities are measurements, not analytics dimensi
 | `mantle.party.PartyServices.get#UserNoticeCounts` | Notification, message, event and task counts for the header | `component/mr-mantle/service/mantle/party/PartyServices.xml` |
 
 Missing: services to evaluate a widget definition (dataset + measure + grain + period +
-comparison), to check alert conditions, and to count flow-map steps.
+comparison), to check alert conditions, and to count flow-map steps. The mr-moqui plan covers
+the first two, with a generic report query service and alert rule evaluation.
 
 ---
 
@@ -525,6 +548,15 @@ comparison), to check alert conditions, and to count flow-map steps.
   condition, frequency, channel, recipients, run-as user, last/next run); report catalog
   entry and pin (screen path, app, user pins); flow map → lane (actor) → step (label, target
   screen + parameter map or saved find, count definition, sequence).
+- **Planned in mr-moqui:** `plans/Monitoring.md` plans one saved-definition entity, holding JSON
+  definitions with versions and named references. It covers:
+  - the dashboard, with widget placement in its layout tree
+  - the widget definition, as a library panel
+  - dashboard filters, as variables
+  - the KPI alert, as an alert rule
+  - the dataset, and scheduled reports
+
+  The report catalog entry, pins and the flow map are not in it.
 - **Flow-map counts** can read Mantle status fields: `OrderPart.statusId`, `Request.statusId`
   (`RequestAndParty` for the customer role), `Shipment`, `Invoice`, `Payment`, `ReturnHeader`.
   Marble's three lanes are candidate seed data.
@@ -543,29 +575,69 @@ comparison), to check alert conditions, and to count flow-map steps.
   find-screen entry point also depends on the framework form-list's switchable views; drill
   rows depend on the reused record screens accepting an Insights context; KPI alerts depend
   on widget definitions and on notification topics; the management digest depends on
-  scheduled delivery and widget readings.
+  scheduled delivery and widget readings. In the mr-moqui plan's milestones, panels and frames
+  are M2, dashboards and widget records are M3, alerts are M6, and scheduled dashboard reports
+  are M7.
 - **Expensive:** SQL/script queries, external data sources and a data store, map, sankey and
   bubble charts, public links, alert conditions beyond thresholds, and agent APIs have no
   baseline support.
+
+### Framework tooling planned in mr-moqui
+
+mr-moqui `plans/Monitoring.md`, section "Dashboards and reports" (Oct 25, 2026), plans the
+tooling below as framework pieces. It has its own **Dashboards** app in the tools component, at
+menu-index 96, with these screens:
+- dashboard
+- Dashboard
+- Explore
+- Panels
+- Datasets
+- Alerts
+- Reports
+- Annotations
+
+The concepts come from Grafana (ideas only, since it is AGPL) and OpenSearch Dashboards.
+Monitor uses the tool first. A business dashboard on `mantle_sales`, shipped from mr-mantle, is
+its check that business reporting works. Section names in the table are those of
+`plans/Monitoring.md`.
+
+| Insights area | Planned framework piece | Plan section | Milestone | Not covered by the plan |
+| --- | --- | --- | --- | --- |
+| Dashboards | Dashboard list (starred, recent, folders, tags) and Dashboard view and edit with versions; `m-dashboard`; panels kept apart from a layout tree (24-column grid, auto grid, rows, tabs); variables (query, custom, ad hoc filters, group-by) synced to the URL; relative and fiscal time ranges; kiosk mode and playlists | Dashboards | M3 | Per-breakpoint arrangements |
+| Widgets | Panels: stat (sparkline, percent change against the previous period), time series, bar, pie, gauge, table (footer totals), heatmap, text. Field config: units (currency from `Uom`), thresholds, value mappings from StatusItem/Enumeration, entity lookups for id keys, data links. **Library panels** as the one widget registry. An XML element that places a saved panel or dashboard on any screen (landing pages, record pages) | Panels, Dashboards | M2 (time series, stat, table), M3 (the rest) | Number-card target and gap; funnel and map are later; "Add to dashboard" from find screens |
+| Drill | Click-to-filter on bars, slices and cells; data links to record and find screens; Explore with "add to dashboard" | Report queries, Panels, Explore | M3 | A drill dialog with rows, breakdown and breadcrumbs |
+| Report builder | Datasets over DataDocuments (field defaults, `DataDocumentUserGroup`, row filters added on the server); report queries as an ordered aggregation list (metric, x-axis, split series, split rows) with date grain; server-side transformations (group by, calculated fields, pivot with totals, compare to the previous period); a service source for computed reports such as the ledger statements | Datasets, Report queries, Frames and transformations | M3 (telemetry datasets in M2) | SQL or script queries; joins across datasets beyond join by time |
+| Saved reports | Saved definitions (dashboards, library panels, saved searches) with versions, references, export and import; components ship definitions read-only, changed by "save as copy" | Definitions | M3 | Report catalog with pins |
+| Delivery & alerts | Scheduled dashboard reports extending `ScreenScheduled` (several dashboards with their own time and variables, PDF/PNG/CSV/xlsx, send only if data, preview, send now). Alert rules on report queries (pending period, recovery threshold, No Data state) routed to NotificationMessage topics, email and webhook, with silences and mute timings; "New alert rule" from a panel | Alerts, Scheduled reports and sharing | M6 (alerts), M7 (reports) | The management digest as its own feature; Telegram |
+| Sharing | Links with an absolute time range; embeds in other screens | Scheduled reports and sharing | M7 | Public links (deferred) |
+| Data | Datasets screen; queries run on the SearchFacade indexes the DataFeeds fill (`mantle_sales`, `mantle_inventory`, `mantle`), through an authorized generic report query service | Datasets, Report queries | M3 | `moqui.olap` tables stay unused |
+| Flow map, Home board | None | | | Not covered |
 
 ### Open questions
 
 - Is the Insights widget the same object as each app's landing-page tile (one registry), or
   do apps have hand-built landing screens that embed widgets? This file assumes one
-  registry.
+  registry. *The mr-moqui plan takes one registry:* library panels, placed on any screen by
+  an XML element.
 - Pivot and graph view modes on find screens: initial-design puts switchable views in the
   framework form-list; should the pivot/graph renderer be framework code that Insights reuses,
-  or an Insights component the framework loads? (Not settled in crosscut §3–§4.)
+  or an Insights component the framework loads? (Not settled in crosscut §3–§4.) *The mr-moqui
+  plan makes the renderers framework code* (`m-report-panel`, the pivot transformation). It
+  does not plan the find-screen view modes.
 - How far does the report builder go: DataDocument + functions + grain, or a pipeline model
-  like Insights operations?
+  like Insights operations? *The mr-moqui plan uses a dataset over a DataDocument, an
+  aggregation list with date grain, and a pipeline of server-side transformations.* It has no
+  SQL or script mode.
 - Do we need a site-local analytics store (DuckDB-like) for heavy reports, or are view
   entities on the main DB enough for target businesses? Should the empty `moqui.olap` tables
-  be filled or ignored?
+  be filled or ignored? *The mr-moqui plan reads the SearchFacade indexes that DataFeeds fill*,
+  on Postgres or OpenSearch, and does not use `moqui.olap`.
 - Should the flow map be one fixed suite map, or editable per business (coarchy-style
   process stories) with the suite map as the default?
 - Does the cross-app "needs attention" board on the Insights home duplicate the header Today
   panel and each app's landing page, or is it the business owner's view across them?
-- Public/anonymous dashboard links: allowed at all given the self-hosting audience?
+- Public/anonymous dashboard links: allowed at all given the self-hosting audience? *The
+  mr-moqui plan defers them.*
 
 ### Checkout path quirks
 
@@ -582,4 +654,6 @@ comparison), to check alert conditions, and to count flow-map steps.
 definitions placed on many pages, a query or dataset under them, drill to rows, saved views,
 and scheduled delivery. Moqui already has the dataset (DataDocument with functions), saved
 finds and scheduled renders, so the gap the research finds is mostly new dashboard and widget
-records plus their screens, with drill handing off to the reused record screens.
+records plus their screens, with drill handing off to the reused record screens. mr-moqui's
+planned dashboards and reports tool supplies most of those records and screens as framework
+pieces ([Framework tooling planned in mr-moqui](#framework-tooling-planned-in-mr-moqui)).
