@@ -229,17 +229,21 @@ along with this software (see the LICENSE.md file). If not, see
                                             <span v-if="row.messageCount > 1" class="text-caption m-muted q-ml-xs">{{row.messageCount}}</span>
                                             <span v-if="row.draftCount && view !== 'drafts'" class="text-caption text-negative q-ml-xs">{{t('Draft')}}</span>
                                             <q-space></q-space>
-                                            <div v-if="hoverKey === row.rowKey && !isTouch" class="row no-wrap" @click.stop>
-                                                <q-btn flat round dense size="sm" icon="sym_o_archive" :aria-label="t('Archive')" @click="rowAction(row, 'archive')"><q-tooltip>{{t('Archive')}}</q-tooltip></q-btn>
-                                                <q-btn flat round dense size="sm" icon="sym_o_delete" :aria-label="t('Delete')" @click="rowAction(row, view === 'trash' ? 'deleteForever' : 'trash')"><q-tooltip>{{t('Delete')}}</q-tooltip></q-btn>
-                                                <q-btn flat round dense size="sm" :icon="row.isUnread ? 'sym_o_drafts' : 'sym_o_mark_email_unread'" :aria-label="row.isUnread ? t('Mark read') : t('Mark unread')"
-                                                        @click="rowAction(row, row.isUnread ? 'read' : 'unread')"><q-tooltip>{{row.isUnread ? t('Mark read') : t('Mark unread')}}</q-tooltip></q-btn>
-                                                <q-btn flat round dense size="sm" icon="sym_o_snooze" :aria-label="t('Snooze')" @click="openSnooze([row])"><q-tooltip>{{t('Snooze')}}</q-tooltip></q-btn>
+                                            <!-- the date and the hover actions share a fixed-width end column, so the row never shifts on hover:
+                                                 the actions fade in over the date (opacity only, no layout change) -->
+                                            <div class="m-inbox-row-end">
+                                                <div class="m-inbox-row-end-date row no-wrap items-center" :class="{ 'm-inbox-hidden': hoverKey === row.rowKey && !isTouch }">
+                                                    <q-icon v-if="row.hasAttachment" name="sym_o_attach_file" size="14px" class="m-muted"></q-icon>
+                                                    <span class="text-caption q-ml-xs text-no-wrap" :class="row.isUnread ? 'text-weight-bold' : 'm-muted'">{{shortDate(row.sortDate)}}</span>
+                                                </div>
+                                                <div class="m-inbox-row-end-actions row no-wrap items-center" :class="{ 'm-inbox-shown': hoverKey === row.rowKey && !isTouch }" @click.stop>
+                                                    <q-btn flat round dense size="sm" icon="sym_o_archive" :aria-label="t('Archive')" @click="rowAction(row, 'archive')"><q-tooltip>{{t('Archive')}}</q-tooltip></q-btn>
+                                                    <q-btn flat round dense size="sm" icon="sym_o_delete" :aria-label="t('Delete')" @click="rowAction(row, view === 'trash' ? 'deleteForever' : 'trash')"><q-tooltip>{{t('Delete')}}</q-tooltip></q-btn>
+                                                    <q-btn flat round dense size="sm" :icon="row.isUnread ? 'sym_o_drafts' : 'sym_o_mark_email_unread'" :aria-label="row.isUnread ? t('Mark read') : t('Mark unread')"
+                                                            @click="rowAction(row, row.isUnread ? 'read' : 'unread')"><q-tooltip>{{row.isUnread ? t('Mark read') : t('Mark unread')}}</q-tooltip></q-btn>
+                                                    <q-btn flat round dense size="sm" icon="sym_o_snooze" :aria-label="t('Snooze')" @click="openSnooze([row])"><q-tooltip>{{t('Snooze')}}</q-tooltip></q-btn>
+                                                </div>
                                             </div>
-                                            <template v-else>
-                                                <q-icon v-if="row.hasAttachment" name="sym_o_attach_file" size="14px" class="m-muted q-ml-xs"></q-icon>
-                                                <span class="text-caption q-ml-xs text-no-wrap" :class="row.isUnread ? 'text-weight-bold' : 'm-muted'">{{shortDate(row.sortDate)}}</span>
-                                            </template>
                                         </q-item-label>
                                         <q-item-label class="ellipsis">
                                             <span :class="row.isUnread ? 'text-weight-bold' : ''">{{row.subject || t('(no subject)')}}</span>
@@ -2280,3 +2284,13 @@ module.exports = {
     }
 };
 </script>
+<style>
+/* the end column of a thread row: the date and the hover actions share one fixed width, so the row never shifts on hover —
+   the actions fade in over the date (opacity only, no layout change) */
+.m-inbox-root .m-inbox-row-end { position:relative; width:112px; height:24px; flex:none; }
+.m-inbox-root .m-inbox-row-end-date, .m-inbox-root .m-inbox-row-end-actions { position:absolute; right:0; top:0; bottom:0; }
+.m-inbox-root .m-inbox-row-end-date { transition:opacity 120ms ease-out; }
+.m-inbox-root .m-inbox-row-end-date.m-inbox-hidden { opacity:0; }
+.m-inbox-root .m-inbox-row-end-actions { opacity:0; pointer-events:none; transition:opacity 120ms ease-out; }
+.m-inbox-root .m-inbox-row-end-actions.m-inbox-shown { opacity:1; pointer-events:auto; }
+</style>
