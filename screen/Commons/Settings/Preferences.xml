@@ -109,7 +109,7 @@ along with this software (see the LICENSE.md file). If not, see
                             <drop-down allow-empty="true"><list-options list="appOptions" key="${name}" text="${title}"/></drop-down></default-field></field>
                         <field name="saveButton"><default-field title="Save"><submit/></default-field></field>
                     </form-single>
-                    <label type="p" text="The page loads again with dark mode and the menu. Density and the app to start in are kept for the shell, which does not apply them yet." style="text-caption m-muted q-mb-none"/>
+                    <label type="p" text="Dark mode, the menu and density apply when saved; the app to start in applies the next time you open the apps. For the color scheme, fonts, text sizes and the rest, open Appearance in the account menu." style="text-caption m-muted q-mb-none"/>
                 </box-body></container-box>
                 <container-box><box-header title="Calendar"/><box-body>
                     <form-single name="CalendarDefaults" transition="saveCalendarDefaults" map="calendarDefaults">
