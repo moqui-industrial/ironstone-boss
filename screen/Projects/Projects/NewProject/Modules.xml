@@ -19,7 +19,7 @@ along with this software (see the LICENSE.md file). If not, see
     database files, or in the repository made or linked here at docs/ (impl-projects.md P4b). Next saves them
     (ironstone.ProjectServices.save#ProjectModules); without git hosting in the build no repository can be made or linked. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Modules and code" default-menu-index="3">
+        default-menu-title="Modules and code" default-menu-index="3" menu-image="sym_o_apps" menu-image-type="icon">
 
     <parameter name="workEffortId"/>
 

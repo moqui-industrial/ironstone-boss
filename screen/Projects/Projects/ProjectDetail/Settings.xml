@@ -23,12 +23,12 @@ along with this software (see the LICENSE.md file). If not, see
     save#ProjectIntake, change#IntakeForm). The Billing box comes with P8; components with the plan items of P4. Service: ironstone.ProjectServices get#ProjectSettingsInfo, save#ProjectGeneral, save#ProjectSettingValues,
     set#ProjectTemplateFlag, set#ProjectStatus, delete#EmptyProject. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Settings" default-menu-index="13">
+        default-menu-title="Settings" default-menu-index="13" menu-image="sym_o_settings" menu-image-type="icon">
 
     <transition name="saveGeneral">
         <actions>
             <service-call name="ironstone.ProjectServices.save#ProjectGeneral" out-map="saveOut" in-map="{workEffortId:workEffortId, workEffortName:workEffortName,
-                    purposeEnumId:purposeEnumId, priority:priority, visibilityEnumId:visibilityEnumId, clientPartyId:clientPartyId,
+                    purposeEnumId:purposeEnumId, priority:priority, visibilityEnumId:visibilityEnumId, colorName:colorName, clientPartyId:clientPartyId,
                     parentWorkEffortId:parentWorkEffortId, estimatedStartDate:estimatedStartDate, estimatedCompletionDate:estimatedCompletionDate,
                     description:description}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if>
@@ -170,6 +170,11 @@ along with this software (see the LICENSE.md file). If not, see
                         <field name="visibilityEnumId"><default-field title="Who sees it">
                             <drop-down><option key="WevGeneral" text="Everyone in the organization (General)"/><option key="WevAllUsers" text="All users"/>
                                 <option key="WevWorkGroup" text="Its members only (Work group)"/></drop-down></default-field></field>
+                        <field name="colorName"><default-field title="Color">
+                            <drop-down allow-empty="true"><option key="grey" text="Grey"/><option key="blue" text="Blue"/><option key="indigo" text="Indigo"/>
+                                <option key="purple" text="Purple"/><option key="pink" text="Pink"/><option key="red" text="Red"/><option key="orange" text="Orange"/>
+                                <option key="amber" text="Amber"/><option key="green" text="Green"/><option key="teal" text="Teal"/><option key="cyan" text="Cyan"/>
+                                <option key="brown" text="Brown"/></drop-down></default-field></field>
                         <field name="clientPartyId"><default-field title="Client">
                             <drop-down allow-empty="true" current-description="${general.clientName}"><dynamic-options transition="clientSearch" server-search="true" min-length="0"/></drop-down></default-field></field>
                         <field name="parentWorkEffortId"><default-field title="Program (the project it is under)">
@@ -182,7 +187,7 @@ along with this software (see the LICENSE.md file). If not, see
                             <field-ref name="workEffortName"/>
                             <field-row><field-ref name="purposeEnumId"/><field-ref name="priority"/></field-row>
                             <field-row><field-ref name="visibilityEnumId"/><field-ref name="clientPartyId"/></field-row>
-                            <field-ref name="parentWorkEffortId"/>
+                            <field-row><field-ref name="colorName"/><field-ref name="parentWorkEffortId"/></field-row>
                             <field-row><field-ref name="estimatedStartDate"/><field-ref name="estimatedCompletionDate"/></field-row>
                             <field-ref name="description"/><field-ref name="submitButton"/>
                         </field-layout>

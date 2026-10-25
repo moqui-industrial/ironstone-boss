@@ -181,7 +181,7 @@ along with this software (see the LICENSE.md file). If not, see
                 <container style="row items-start q-col-gutter-x-md q-col-gutter-y-sm">
                     <container style="col-12 col-md m-record-title">
                         <container style="row items-center no-wrap">
-                            <render-mode><text type="qvt"><![CDATA[<q-chip dense square class="q-ma-none q-mr-sm text-mono m-project-key">${WebUtilities.encodeHtml(workEffortId)}</q-chip>]]></text>
+                            <render-mode><text type="qvt"><![CDATA[${header.colorName ? '<span class="q-mr-sm bg-' + WebUtilities.encodeHtml(header.colorName) + '" style="display:inline-block;width:12px;height:12px;border-radius:50%"></span>' : ''}<q-chip dense square class="q-ma-none q-mr-sm text-mono m-project-key">${WebUtilities.encodeHtml(workEffortId)}</q-chip>]]></text>
                                 <text type="tui"><![CDATA[${JSON.stringify({t: "text", id: "ProjectKey", style: "strong", text: workEffortId})}]]></text></render-mode>
                             <label text="${header.workEffortName}" type="h5" style="${header.isEnded ? 'm-muted' : ''}"/>
                         </container>

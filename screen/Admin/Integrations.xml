@@ -15,7 +15,7 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- Placeholder for the Integrations & system messages section of IronStone Admin (initial-design.md app table);
     design-admin.md decides its screens. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Integrations &amp; system messages" default-menu-index="4">
+        default-menu-title="Integrations &amp; system messages" default-menu-index="4" menu-image="sym_o_fiber_new" menu-image-type="icon">
     <widgets>
         <label text="Placeholder: Integrations and system messages." type="p"/>
     </widgets>

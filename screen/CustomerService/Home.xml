@@ -15,7 +15,7 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- Placeholder for the IronStone Customer Service landing page (initial-design.md); design-customer-service.md designs
     it. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Home" default-menu-index="1">
+        default-menu-title="Home" default-menu-index="1" menu-image="sym_o_dashboard" menu-image-type="icon">
     <widgets>
         <label text="Placeholder: The Customer Service landing page for support and the order desk." type="p"/>
     </widgets>

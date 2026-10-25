@@ -15,7 +15,7 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- Placeholder for the Channel and marketplace integrations section of IronStone Commerce (initial-design.md app
     table); design-commerce.md decides its screens. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Channel and marketplace integrations" default-menu-index="5">
+        default-menu-title="Channel and marketplace integrations" default-menu-index="5" menu-image="sym_o_fiber_new" menu-image-type="icon">
     <widgets>
         <label text="Placeholder: Channel and marketplace integrations." type="p"/>
     </widgets>

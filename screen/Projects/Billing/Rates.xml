@@ -22,7 +22,7 @@ along with this software (see the LICENSE.md file). If not, see
     day finds (mantle.work.TimeServices.find#RateAmount), and why. A rate applies to time logged in its dates; the rates already found for
     time not invoiced are found again by the project's Update rates (ProjectTime). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Rates" default-menu-index="3">
+        default-menu-title="Rates" default-menu-index="3" menu-image="sym_o_percent" menu-image-type="icon">
 
     <parameter name="purpose"/>
     <parameter name="rootWorkEffortId"/>

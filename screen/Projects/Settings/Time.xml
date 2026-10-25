@@ -23,7 +23,7 @@ along with this software (see the LICENSE.md file). If not, see
     TimeEntries and the import offer these. Service: ironstone.TimeServices get# and store#TimeSettings, change#WorkTypes,
     create#WorkType. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Time" default-menu-index="5" server-static="qvt">
+        default-menu-title="Time" default-menu-index="5" server-static="qvt" menu-image="sym_o_work_history" menu-image-type="icon">
 
     <transition name="savePolicy">
         <service-call name="ironstone.TimeServices.store#TimeSettings" out-map="saveOut" in-map="{weekStart:weekStart, approvers:approvers, lock:(lock || 'N'),

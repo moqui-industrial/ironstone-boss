@@ -14,7 +14,7 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- Placeholder for the IronStone Accounting landing page (initial-design.md); design-accounting.md designs it. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Home" default-menu-index="1">
+        default-menu-title="Home" default-menu-index="1" menu-image="sym_o_dashboard" menu-image-type="icon">
     <widgets>
         <label text="Placeholder: The Accounting landing page for finance and bookkeepers." type="p"/>
     </widgets>

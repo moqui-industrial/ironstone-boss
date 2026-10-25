@@ -21,7 +21,7 @@ along with this software (see the LICENSE.md file). If not, see
     row; CSV and XLSX) and the totals by client (ProfitabilityClients). Print opens the same report in html-print. Over
     mantle.work.ProjectReportServices.get#ProjectProfitability, with §11's measures. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Profitability" default-menu-index="6">
+        default-menu-title="Profitability" default-menu-index="6" menu-image="sym_o_trending_up" menu-image-type="icon">
 
     <parameter name="fromDate"/>
     <parameter name="thruDate"/>

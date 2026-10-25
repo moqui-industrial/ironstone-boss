@@ -15,7 +15,7 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- Placeholder for the Promotions & coupons section of IronStone Marketing (initial-design.md app table);
     design-marketing.md decides its screens. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Promotions &amp; coupons" default-menu-index="5">
+        default-menu-title="Promotions &amp; coupons" default-menu-index="5" menu-image="sym_o_sell" menu-image-type="icon">
     <widgets>
         <label text="Placeholder: Promotions and coupons." type="p"/>
     </widgets>

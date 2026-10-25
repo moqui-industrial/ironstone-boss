@@ -15,7 +15,7 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- Placeholder for the Time & leave section of IronStone People (initial-design.md app table); design-people.md
     decides its screens. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Time &amp; leave" default-menu-index="4">
+        default-menu-title="Time &amp; leave" default-menu-index="4" menu-image="sym_o_work_history" menu-image-type="icon">
     <widgets>
         <label text="Placeholder: Time and leave." type="p"/>
     </widgets>

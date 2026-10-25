@@ -20,7 +20,7 @@ along with this software (see the LICENSE.md file). If not, see
     default: each needs its own secret, kept encrypted on the repository (impl-projects.md P3b). Services: ironstone.CodeServices
     get#CodeSettings, store#RepositoryDefaults, store#Conventions, set#SshAccess. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Code" default-menu-index="7">
+        default-menu-title="Code" default-menu-index="7" menu-image="sym_o_code" menu-image-type="icon">
 
     <transition name="saveDefaults">
         <service-call name="ironstone.CodeServices.store#RepositoryDefaults" out-map="saveOut" in-map="{storage:storage, branch:branch, mergeMethod:mergeMethod,

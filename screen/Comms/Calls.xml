@@ -14,7 +14,7 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- Placeholder for Calls: design-drawers-commons.md §14, list archetype, xml, scope later. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Calls" default-menu-index="4">
+        default-menu-title="Calls" default-menu-index="4" menu-image="sym_o_call" menu-image-type="icon">
     <widgets>
         <label text="Placeholder: Call history, call links and upcoming meetings with Join." type="p"/>
         <subscreens-active/>

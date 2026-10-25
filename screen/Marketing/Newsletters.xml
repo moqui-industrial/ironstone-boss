@@ -15,7 +15,7 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- Placeholder for the Email & newsletters section of IronStone Marketing (initial-design.md app table);
     design-marketing.md decides its screens. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Email &amp; newsletters" default-menu-index="4">
+        default-menu-title="Email &amp; newsletters" default-menu-index="4" menu-image="sym_o_outgoing_mail" menu-image-type="icon">
     <widgets>
         <label text="Placeholder: Marketing email and newsletters." type="p"/>
     </widgets>

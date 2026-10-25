@@ -43,7 +43,7 @@ along with this software (see the LICENSE.md file). If not, see
     team's recent messages to it, milestones soon and invoices due. Each counter comes from
     mantle.work.ProjectServices.get#ProjectHomeCounts, which answers null for one the user does not get. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Home" default-menu-index="1">
+        default-menu-title="Home" default-menu-index="1" menu-image="sym_o_dashboard" menu-image-type="icon">
 
     <transition name="workItemDetail"><default-response url="../WorkItems/WorkItemDetail"/></transition>
     <transition name="projectDetail"><default-response url="../Projects/ProjectDetail"/></transition>
@@ -135,6 +135,11 @@ along with this software (see the LICENSE.md file). If not, see
             dueWeekLink = '../WorkItems?list=week&assigneePartyId=' + encodeURIComponent(me)
             overdueLink = '../WorkItems?list=overdue&assigneePartyId=' + encodeURIComponent(me)
             workItemList = Array.from(home.workItemList || [])
+            myWorkProgress = home.myWorkProgress || null
+            myWorkDone = myWorkProgress ? myWorkProgress.done : 0
+            myWorkOpen = myWorkProgress ? myWorkProgress.open : 0
+            myWorkPercent = myWorkProgress ? myWorkProgress.percent : 0
+            myWorkProgressShown = !!(myWorkProgress && myWorkProgress.total > 0)
             activityList = Array.from(home.activityList || [])
             projectList = Array.from(home.projectList || [])
             projectsTitle = isManager ? L('Projects I manage') : L('My projects')
@@ -350,6 +355,18 @@ along with this software (see the LICENSE.md file). If not, see
                 <container-box><box-header title="My work items"/><box-toolbar>
                     <link url="../WorkItems" link-type="anchor" text="All my work items" parameter-map="{list:'mine'}"/>
                 </box-toolbar><box-body-nopad>
+                    <section name="MyWorkProgress" condition="myWorkProgressShown"><widgets>
+                        <container style="q-px-md q-pt-md q-pb-xs">
+                            <render-mode><text type="qvt"><![CDATA[
+                                <div class="row items-center no-wrap q-col-gutter-x-sm">
+                                    <div class="col-auto"><span class="text-caption m-muted">${myWorkDone} done · ${myWorkOpen} open</span></div>
+                                    <div class="col"><q-linear-progress rounded size="6px" :value="${myWorkPercent / 100}" color="primary" track-color="grey-3"></q-linear-progress></div>
+                                    <div class="col-auto"><span class="text-caption m-muted">${myWorkPercent}%</span></div>
+                                </div>
+                            ]]></text>
+                                <text type="tui"><![CDATA[${JSON.stringify([{t: "text", text: myWorkDone + " done · " + myWorkOpen + " open (" + myWorkPercent + "%)", style: "caption"}])}]]></text></render-mode>
+                        </container>
+                    </widgets></section>
                     <form-list name="MyWorkItems" list="workItemList" skip-form="true" skip-header="true" paginate="false">
                         <field name="workEffortId"><default-field>
                             <link url="workItemDetail" text="${workEffortId}" parameter-map="{workEffortId:workEffortId}" link-type="anchor" style="text-mono text-no-wrap"/></default-field></field>
@@ -423,8 +440,12 @@ along with this software (see the LICENSE.md file). If not, see
                 </box-toolbar><box-body-nopad>
                     <form-list name="MyProjects" list="projectList" skip-form="true" skip-header="true" paginate="false">
                         <field name="workEffortName"><default-field>
-                            <link url="projectDetail" text="${workEffortName}" parameter-map="{workEffortId:workEffortId}"/>
-                            <label text="${workEffortId}${nextMilestoneText ? ' · ' + nextMilestoneText : ''}" type="div" style="text-caption m-muted"/></default-field></field>
+                            <render-mode><text type="qvt"><![CDATA[
+                                <span class="row inline no-wrap items-center">${colorName ? '<span class="q-mr-xs bg-' + WebUtilities.encodeHtml(colorName) + '" style="display:inline-block;width:10px;height:10px;border-radius:50%"></span>' : ''}<a class="no-underline" href="/qapps/Projects/Projects/ProjectDetail?workEffortId=${WebUtilities.encodeHtml(workEffortId)}">${WebUtilities.encodeHtml(workEffortName)}</a></span>
+                                <span class="text-caption m-muted q-ml-sm">${WebUtilities.encodeHtml(workEffortId)}${nextMilestoneText ? ' · ' + WebUtilities.encodeHtml(nextMilestoneText) : ''}</span>
+                            ]]></text>
+                                <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify((workEffortName ?? '') + ' ' + (workEffortId ?? '') + (nextMilestoneText ? ' · ' + nextMilestoneText : ''))}}]]></text></render-mode>
+                        </default-field></field>
                         <field name="healthLabel"><default-field>
                             <render-mode><text type="qvt"><![CDATA[<div class="row no-wrap">${healthLabel ? '<q-chip dense square class="q-my-none q-ml-none q-mr-xs m-tonal text-' + healthColor + '">' + WebUtilities.encodeHtml(healthLabel) + '</q-chip>' : ''}<q-chip dense square class="q-ma-none m-tonal text-${statusColor}">${WebUtilities.encodeHtml(statusLabel ?? '')}</q-chip></div>]]></text>
                                 <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify([healthLabel, statusLabel].filter((part) => part).join(" · "))}}]]></text></render-mode></default-field></field>

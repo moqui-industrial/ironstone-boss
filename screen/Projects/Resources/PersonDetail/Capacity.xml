@@ -16,7 +16,7 @@ along with this software (see the LICENSE.md file). If not, see
     holidays and leave taken off, the capacity, the allocated (and requested) hours, the assigned work, the time logged, the load and
     the utilization of the weeks past (ironstone.ResourceServices.get#PersonOverview over mantle.work.ResourceServices.get#TeamPlan). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Capacity" default-menu-index="5">
+        default-menu-title="Capacity" default-menu-index="5" menu-image="sym_o_speed" menu-image-type="icon">
 
     <actions><script><![CDATA[
         weekList = []

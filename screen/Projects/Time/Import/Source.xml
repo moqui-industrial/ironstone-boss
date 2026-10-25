@@ -17,7 +17,7 @@ along with this software (see the LICENSE.md file). If not, see
     saveSource keeps it in the import's draft (ironstone.TimeImportServices.save#ImportSource, which checks the file has a date and
     hours or start and end) and answers the importId the next steps carry. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Source" default-menu-index="1" server-static="qvt">
+        default-menu-title="Source" default-menu-index="1" server-static="qvt" menu-image="sym_o_dynamic_feed" menu-image-type="icon">
 
     <parameter name="importId"/>
     <parameter name="fresh"><description>Y: a new import, leaving the one in the URL</description></parameter>

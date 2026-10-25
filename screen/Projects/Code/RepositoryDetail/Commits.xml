@@ -17,7 +17,7 @@ along with this software (see the LICENSE.md file). If not, see
     id, date, linked work items (to WorkItemDetail) and combined CI state. Service: ironstone.CodeServices get#RepositoryCommits
     (org.moqui.impl.GitServices.get#GitLog, get#GitCommitStatuses; WorkEffortGitCommit). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Commits" default-menu-index="2">
+        default-menu-title="Commits" default-menu-index="2" menu-image="sym_o_commit" menu-image-type="icon">
 
     <parameter name="ref"/>
     <parameter name="path"/>

@@ -293,6 +293,7 @@ along with this software (see the LICENSE.md file). If not, see
                     clientPartyId: client?.partyId || null, clientName: client ? nameOf(client.partyId) : '',
                     managerPartyId: manager?.partyId || null, managerName: manager ? nameOf(manager.partyId) : '', managerUserId: managerUser?.userId || null,
                     statusId: project.statusId || null, statusLabel: label('moqui.basic.StatusItem', 'statusId', project.statusId), statusColor: colors[project.statusId] || 'grey-7',
+                    colorName: project.colorName || null,
                     healthEnumId: project.healthEnumId || null, healthLabel: label('moqui.basic.Enumeration', 'enumId', project.healthEnumId),
                     healthColor: healthColors[project.healthEnumId] || 'grey-7', purposeLabel: label('moqui.basic.Enumeration', 'enumId', project.purposeEnumId),
                     nextMilestoneId: milestone?.workEffortId || null, nextMilestoneName: milestone?.workEffortName || '',
@@ -779,6 +780,7 @@ along with this software (see the LICENSE.md file). If not, see
             info = {canManage: !!access.canManage, project: project,
                 general: {workEffortId: workEffortId, workEffortName: project.workEffortName || '', purposeEnumId: project.purposeEnumId || '',
                     priority: project.priority != null ? String(project.priority) : '5', visibilityEnumId: project.visibilityEnumId || '',
+                    colorName: project.colorName || '',
                     clientPartyId: client?.partyId || '', clientName: clientParty ? (clientParty.organizationName || [clientParty.firstName, clientParty.lastName].filter((part) => part).join(' ')) : '',
                     parentWorkEffortId: project.parentWorkEffortId || '', programName: program ? (program.workEffortName || program.workEffortId) + ' (' + program.workEffortId + ')' : '',
                     estimatedStartDate: day(project.estimatedStartDate), estimatedCompletionDate: day(project.estimatedCompletionDate), description: project.description || ''},
@@ -808,6 +810,7 @@ along with this software (see the LICENSE.md file). If not, see
             <parameter name="parentWorkEffortId"/>
             <parameter name="estimatedStartDate"/>
             <parameter name="estimatedCompletionDate"/>
+            <parameter name="colorName"/>
             <parameter name="description" allow-html="any"/>
         </in-parameters>
         <out-parameters><parameter name="message"/></out-parameters>
@@ -837,7 +840,7 @@ along with this software (see the LICENSE.md file). If not, see
             ec.service.sync().name('mantle.work.ProjectServices.update#Project').parameters({workEffortId: workEffortId, workEffortName: name,
                 purposeEnumId: purposeEnumId || null, priority: priority && /^[1-9]$/.test(String(priority)) ? Number(priority) : null,
                 visibilityEnumId: visibilityEnumId || null, parentWorkEffortId: program || null, estimatedStartDate: start, estimatedCompletionDate: due,
-                description: description || null, clientPartyId: clientPartyId || null}).call()
+                colorName: colorName || null, description: description || null, clientPartyId: clientPartyId || null}).call()
             if (!ec.message.hasError()) message = ec.l10n.localize('Project saved')
         ]]></script></actions>
     </service>
@@ -1295,6 +1298,26 @@ along with this software (see the LICENSE.md file). If not, see
                 const due = (row) => row.estimatedCompletionDate == null ? Number.MAX_SAFE_INTEGER : Number(String(row.estimatedCompletionDate))
                 rows.sort((a, b) => due(a) - due(b) || Number(a.priority ?? 5) - Number(b.priority ?? 5))
                 home.workItemList = rows.slice(0, 10)
+                // the user's task progress: the open tasks assigned to them plus those completed in the last seven days,
+                // so the Home shows how much of their recent work is done (a task app's "today" progress)
+                const me = ec.user.userAccount?.partyId
+                if (me) {
+                    const cf = ec.entity.conditionFactory
+                    const myTaskIds = Array.from(new Set(ec.entity.find('mantle.work.effort.WorkEffortParty').condition('partyId', me)
+                        .condition('roleTypeId', 'Assignee').condition('statusId', 'not-in', ['WeptDeclined', 'WeptUnassigned'])
+                        .selectField('workEffortId').list().map((row) => row.workEffortId)))
+                    if (myTaskIds.length) {
+                        const base = [cf.makeCondition('workEffortId', 'in', myTaskIds), cf.makeCondition('workEffortTypeEnumId', 'equals', 'WetTask'),
+                            cf.makeCondition('isTemplate', 'not-equals', 'Y', true)]
+                        const openCount = ec.entity.find('mantle.work.effort.WorkEffort').condition(cf.makeCondition(base.concat(
+                            [cf.makeCondition('statusId', 'not-in', ['WeComplete', 'WeClosed', 'WeCancelled'])]), 'and')).count()
+                        const doneCount = ec.entity.find('mantle.work.effort.WorkEffort').condition(cf.makeCondition(base.concat([
+                            cf.makeCondition('statusId', 'in', ['WeComplete', 'WeClosed']),
+                            cf.makeCondition('actualCompletionDate', 'greater-equals', new Date(nowMillis - 7 * 86400000))]), 'and')).count()
+                        const total = openCount + doneCount
+                        home.myWorkProgress = {done: doneCount, open: openCount, total: total, percent: total ? Math.round(doneCount / total * 100) : 0}
+                    }
+                }
             })
             const projectIds = (() => {
                 const managed = Array.from(vis.managedProjectIds || [])

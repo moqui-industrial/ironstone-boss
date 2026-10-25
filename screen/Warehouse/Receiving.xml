@@ -15,7 +15,7 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- Placeholder for the Receiving section of IronStone Warehouse (initial-design.md app table); design-warehouse.md
     decides its screens. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Receiving" default-menu-index="2">
+        default-menu-title="Receiving" default-menu-index="2" menu-image="sym_o_inbox" menu-image-type="icon">
     <widgets>
         <label text="Placeholder: Receiving: inbound, put-away, inspection." type="p"/>
     </widgets>

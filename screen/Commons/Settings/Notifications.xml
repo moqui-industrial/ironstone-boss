@@ -17,7 +17,7 @@ along with this software (see the LICENSE.md file). If not, see
     data), by inbox; each an editable row of in app, email and daily digest, saved as the user's NotificationTopicUser
     (ironstone.CommonsServices.get#NotificationTopicRows, store#TopicSetting). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Notifications" default-menu-index="3">
+        default-menu-title="Notifications" default-menu-index="3" menu-image="sym_o_notifications" menu-image-type="icon">
 
     <transition name="storeTopic">
         <service-call name="ironstone.CommonsServices.store#TopicSetting"

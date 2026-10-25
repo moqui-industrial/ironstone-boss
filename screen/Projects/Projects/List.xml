@@ -222,8 +222,10 @@ along with this software (see the LICENSE.md file). If not, see
                     <link url="projectDetail" text="${workEffortId}" parameter-map="{workEffortId:workEffortId}" link-type="anchor" style="text-mono text-no-wrap"/>
                 </default-field></field>
                 <field name="workEffortName"><header-field title="Name" show-order-by="true"/><default-field>
-                    <link url="projectDetail" text="${isSubProject ? '↳ ' : ''}${workEffortName}${subProjectCount &amp;&amp; !subProjectsOn ? ' · ' + subProjectCount + (subProjectCount == 1 ? ' sub-project' : ' sub-projects') : ''}"
-                            parameter-map="{workEffortId:workEffortId}"/>
+                    <render-mode><text type="qvt"><![CDATA[
+                        <span class="row inline no-wrap items-center">${colorName ? '<span class="q-mr-xs bg-' + WebUtilities.encodeHtml(colorName) + '" style="display:inline-block;width:10px;height:10px;border-radius:50%"></span>' : ''}<a class="no-underline" href="/qapps/Projects/Projects/ProjectDetail?workEffortId=${WebUtilities.encodeHtml(workEffortId)}">${isSubProject ? '↳ ' : ''}${WebUtilities.encodeHtml(workEffortName)}${subProjectCount && !subProjectsOn ? ' · ' + subProjectCount + (subProjectCount == 1 ? ' sub-project' : ' sub-projects') : ''}</a></span>
+                    ]]></text>
+                        <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify((isSubProject ? '↳ ' : '') + (workEffortName ?? ''))}}]]></text></render-mode>
                 </default-field></field>
                 <field name="clientPartyId"><header-field title="Client">
                         <drop-down allow-empty="true"><dynamic-options transition="clientSearch" server-search="true" min-length="0"/></drop-down></header-field>

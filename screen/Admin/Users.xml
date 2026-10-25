@@ -15,7 +15,7 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- Placeholder for the Users, groups & permissions section of IronStone Admin (initial-design.md app table);
     design-admin.md decides its screens. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Users, groups &amp; permissions" default-menu-index="2">
+        default-menu-title="Users, groups &amp; permissions" default-menu-index="2" menu-image="sym_o_manage_accounts" menu-image-type="icon">
     <widgets>
         <label text="Placeholder: Users, groups and permissions." type="p"/>
     </widgets>

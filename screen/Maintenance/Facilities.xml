@@ -15,7 +15,7 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- Placeholder for the Facilities section of IronStone Maintenance (initial-design.md app table);
     design-maintenance.md decides its screens. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Facilities" default-menu-index="2">
+        default-menu-title="Facilities" default-menu-index="2" menu-image="sym_o_domain" menu-image-type="icon">
     <widgets>
         <label text="Placeholder: Facilities." type="p"/>
     </widgets>
