@@ -18,7 +18,7 @@ along with this software (see the LICENSE.md file). If not, see
     when it is made), each with Stop sharing or Revoke. Through org.moqui.impl.FileServices get#Shares, accept#Share,
     decline#Share and revoke#Share, which answer only the user's own shares and those of drives the user manages. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Shares" default-menu-index="2">
+        default-menu-title="Shares" default-menu-index="2" menu-image="sym_o_folder_shared" menu-image-type="icon">
 
     <transition name="answerShare">
         <actions><script><![CDATA[

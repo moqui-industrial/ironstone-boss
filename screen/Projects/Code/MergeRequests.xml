@@ -25,7 +25,7 @@ along with this software (see the LICENSE.md file). If not, see
     hosting in the build it says so. A client contact (clientUser; impl-projects.md P10b) sees the merge requests of the
     repositories its projects share, without reviewers, comments or New merge request. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Merge requests" default-menu-index="2">
+        default-menu-title="Merge requests" default-menu-index="2" menu-image="sym_o_merge" menu-image-type="icon">
 
     <parameter name="list"/>
     <parameter name="text"/>

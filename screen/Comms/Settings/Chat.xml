@@ -23,7 +23,7 @@ along with this software (see the LICENSE.md file). If not, see
     on do not disturb in them); and the status presets (CHAT_STATUS_PRESETS) the Chat rail's status menu and the account menu's
     status dialog offer (Use sets one now). The Chat screens read these when they open. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Chat" default-menu-index="6" server-static="qvt">
+        default-menu-title="Chat" default-menu-index="6" server-static="qvt" menu-image="sym_o_chat" menu-image-type="icon">
 
     <transition name="savePreferences">
         <service-call name="ironstone.ChatServices.store#ChatPrefs" in-map="{enterSends:enterSends, sounds:sounds, readReceipts:readReceipts, typing:typing,

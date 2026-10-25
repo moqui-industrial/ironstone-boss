@@ -24,7 +24,7 @@ along with this software (see the LICENSE.md file). If not, see
     through ironstone.CommonsServices.upload#MyPhoto; Remove takes it away), shown here and by m-avatar wherever BOSS passes a
     party's face image (Contacts, Chatter). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Account" default-menu-index="1">
+        default-menu-title="Account" default-menu-index="1" menu-image="sym_o_manage_accounts" menu-image-type="icon">
 
     <always-actions>
         <set field="partyId" from="ec.user.userAccount?.partyId"/>

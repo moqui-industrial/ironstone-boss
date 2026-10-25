@@ -20,7 +20,7 @@ along with this software (see the LICENSE.md file). If not, see
     (ironstone.MailSettingsServices.save#AccountOptions; each member added on its own). The folders the sync maps are shown
     after the test and on the account's page. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Options" default-menu-index="4">
+        default-menu-title="Options" default-menu-index="4" menu-image="sym_o_tune" menu-image-type="icon">
 
     <parameter name="emailAccountId"/>
 

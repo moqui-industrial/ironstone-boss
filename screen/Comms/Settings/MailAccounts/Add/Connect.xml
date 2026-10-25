@@ -27,7 +27,7 @@ along with this software (see the LICENSE.md file). If not, see
     password and no server: the address, the plus-tag note, and that the gateway delivers the mail. The settings shown are
     the URL's (from Address, or from the last save), else the account's, else a new lookup. A password is never shown again. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Connect" default-menu-index="2">
+        default-menu-title="Connect" default-menu-index="2" menu-image="sym_o_link" menu-image-type="icon">
 
     <parameter name="emailAccountId"/>
     <parameter name="emailAddress"/>

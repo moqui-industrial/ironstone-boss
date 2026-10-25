@@ -20,7 +20,7 @@ along with this software (see the LICENSE.md file). If not, see
     ask for approval), Approve and Cancel on a row, and the team planner on the project. Services: ironstone.ProjectServices
     get#ProjectTeam, add#ProjectMember, end#ProjectMember; ironstone.ResourceServices get#ProjectAllocations, save#, decide#Allocation. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Team" default-menu-index="9">
+        default-menu-title="Team" default-menu-index="9" menu-image="sym_o_groups" menu-image-type="icon">
 
     <transition name="addMember">
         <actions>

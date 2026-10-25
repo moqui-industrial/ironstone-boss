@@ -17,7 +17,7 @@ along with this software (see the LICENSE.md file). If not, see
     item of the project with the row's original key) are skipped or updated; people are matched by user name, email or full name,
     else left unassigned; the original key is kept on each item. saveOptions keeps them in the import's draft. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Options" default-menu-index="3" server-static="qvt">
+        default-menu-title="Options" default-menu-index="3" server-static="qvt" menu-image="sym_o_tune" menu-image-type="icon">
 
     <parameter name="importId"/>
 

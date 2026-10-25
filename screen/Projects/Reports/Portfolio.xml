@@ -20,7 +20,7 @@ along with this software (see the LICENSE.md file). If not, see
     and for those who manage money the client budget and budget used, the actual client cost over it; managers and client; CSV and
     XLSX). Print opens the same report in html-print. Over mantle.work.ProjectReportServices.get#PortfolioStatus. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Portfolio" default-menu-index="4">
+        default-menu-title="Portfolio" default-menu-index="4" menu-image="sym_o_insights" menu-image-type="icon">
 
     <parameter name="statusId"/>
     <parameter name="managerPartyId"/>

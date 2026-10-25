@@ -18,7 +18,7 @@ along with this software (see the LICENSE.md file). If not, see
     with (empty: just me); only its owner changes or deletes a block. ironstone.MailSettingsServices get and store#TextBlock
     (the body cleaned as safe HTML) over the framework's text block services, which check the owner and the group. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Text blocks" default-menu-index="5">
+        default-menu-title="Text blocks" default-menu-index="5" menu-image="sym_o_text_snippet" menu-image-type="icon">
 
     <parameter name="searchText"/>
 

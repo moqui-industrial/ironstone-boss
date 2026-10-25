@@ -18,7 +18,7 @@ along with this software (see the LICENSE.md file). If not, see
     fail) and its problems (a row without a title fails) and warnings (a date or number not read, a person, parent or plan item not
     found), with the counts over the whole file. confirmPreview notes the preview in the draft; the next step imports. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Preview" default-menu-index="4" server-static="qvt">
+        default-menu-title="Preview" default-menu-index="4" server-static="qvt" menu-image="sym_o_visibility" menu-image-type="icon">
 
     <parameter name="importId"/>
 

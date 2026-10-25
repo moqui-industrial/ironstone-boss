@@ -18,7 +18,7 @@ along with this software (see the LICENSE.md file). If not, see
     lines (per entry, per worker, one line), the time detail on invoices, hours shared with clients, the payment terms of a new invoice
     and how contractors bill their time. A project's own settings (WorkEffortSetting) win over these. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
-        default-menu-title="Billing" default-menu-index="6" server-static="qvt">
+        default-menu-title="Billing" default-menu-index="6" server-static="qvt" menu-image="sym_o_receipt_long" menu-image-type="icon">
 
     <transition name="saveDefaults">
         <service-call name="ironstone.BillingServices.store#BillingSettings" out-map="saveOut" in-map="{billingBasis:billingBasis, invoiceGrouping:invoiceGrouping,
