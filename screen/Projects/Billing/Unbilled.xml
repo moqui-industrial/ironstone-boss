@@ -177,6 +177,13 @@ along with this software (see the LICENSE.md file). If not, see
                     </default-field></field>
                     <field name="findButton"><header-field title="Find"><submit/></header-field></field>
 
+                    <columns>
+                        <column><field-ref name="projectName"/><field-ref name="clientName"/></column>
+                        <column><field-ref name="periodText"/><field-ref name="lastInvoiceText"/></column>
+                        <column><field-ref name="amountText"/><field-ref name="readyAmountText"/></column>
+                        <column><field-ref name="waitingText"/><field-ref name="expenseText"/></column>
+                        <column><field-ref name="actions"/></column>
+                    </columns>
                     <columns type="mobile">
                         <column><field-ref name="projectName"/><field-ref name="clientName"/></column>
                         <column><field-ref name="amountText"/><field-ref name="actions"/></column>

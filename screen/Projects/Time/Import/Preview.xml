@@ -69,6 +69,13 @@ along with this software (see the LICENSE.md file). If not, see
                     <field name="billableText"><default-field title="Billable"><display/></default-field></field>
                     <field name="actionLabel"><default-field title="Action"><display style="${actionStyle} text-weight-medium"/></default-field></field>
                     <field name="problemText"><default-field title="Problems"><display style="${problemStyle} text-caption"/></default-field></field>
+                    <columns>
+                        <column><field-ref name="rowNumber"/><field-ref name="day"/></column>
+                        <column><field-ref name="personName"/><field-ref name="itemText"/></column>
+                        <column><field-ref name="hoursText"/><field-ref name="spanText"/></column>
+                        <column><field-ref name="workTypeLabel"/><field-ref name="billableText"/></column>
+                        <column><field-ref name="actionLabel"/><field-ref name="problemText"/></column>
+                    </columns>
                     <columns type="mobile">
                         <column><field-ref name="itemText"/><field-ref name="problemText"/></column>
                         <column><field-ref name="actionLabel"/><field-ref name="hoursText"/></column>

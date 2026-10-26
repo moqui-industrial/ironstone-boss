@@ -104,18 +104,18 @@ along with this software (see the LICENSE.md file). If not, see
 
             <field name="find"><header-field title="Find"><submit/></header-field></field>
 
-            <form-list-column><field-ref name="vendorPartyId"/><field-ref name="productStoreId"/></form-list-column>
-            <form-list-column><field-ref name="pseudoId"/><field-ref name="productName"/></form-list-column>
-            <form-list-column><field-ref name="minUnitAmount"/></form-list-column>
-            <form-list-column><field-ref name="maxUnitAmount"/></form-list-column>
-            <form-list-column><field-ref name="averageAmount"/></form-list-column>
-            <form-list-column><field-ref name="quantity"/></form-list-column>
-            <form-list-column><field-ref name="totalSales"/></form-list-column>
-            <form-list-column><field-ref name="issuedQuantity"/></form-list-column>
-            <form-list-column><field-ref name="totalIssued"/></form-list-column>
-            <form-list-column><field-ref name="totalCost"/></form-list-column>
-            <form-list-column><field-ref name="marginAmount"/></form-list-column>
-            <form-list-column><field-ref name="marginPercent"/></form-list-column>
+            <columns>
+                <column><field-ref name="pseudoId"/><field-ref name="productName"/></column>
+                <column><field-ref name="vendorPartyId"/><field-ref name="productStoreId"/></column>
+                <column><field-ref name="minUnitAmount"/><field-ref name="maxUnitAmount"/><field-ref name="averageAmount"/></column>
+                <column><field-ref name="quantity"/><field-ref name="issuedQuantity"/></column>
+                <column><field-ref name="totalSales"/><field-ref name="totalIssued"/><field-ref name="totalCost"/></column>
+                <column><field-ref name="marginAmount"/><field-ref name="marginPercent"/></column>
+            </columns>
+            <columns type="mobile">
+                <column><field-ref name="pseudoId"/><field-ref name="productName"/></column>
+                <column><field-ref name="totalSales"/><field-ref name="marginPercent"/></column>
+            </columns>
         </form-list>
         <section name="ShowSql" condition="summaryList_xafind?.getQueryTextList()"><widgets>
             <container-dialog id="ShowSqlDialog" button-text="Show SQL" type="info">

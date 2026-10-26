@@ -130,6 +130,14 @@ along with this software (see the LICENSE.md file). If not, see
                     </default-field></field>
                     <field name="findButton"><header-field title="Find"><submit/></header-field></field>
 
+                    <columns>
+                        <column><field-ref name="invoiceId"/><field-ref name="kindText"/></column>
+                        <column><field-ref name="projectText"/></column>
+                        <column><field-ref name="fromName"/><field-ref name="toName"/></column>
+                        <column><field-ref name="dateText"/><field-ref name="dueText"/></column>
+                        <column><field-ref name="totalText"/><field-ref name="unpaidText"/></column>
+                        <column><field-ref name="statusLabel"/></column>
+                    </columns>
                     <columns type="mobile">
                         <column><field-ref name="invoiceId"/><field-ref name="toName"/><field-ref name="dateText"/></column>
                         <column><field-ref name="totalText"/><field-ref name="statusLabel"/></column>

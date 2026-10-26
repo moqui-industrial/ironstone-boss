@@ -260,15 +260,12 @@ along with this software (see the LICENSE.md file). If not, see
                 <field name="reachedText"><default-field title="Reached or released"><label text="${reachedText}" type="span" style="text-no-wrap"/></default-field></field>
                 <field name="findButton"><header-field title="Find"><submit/></header-field></field>
 
-                <form-list-column><field-ref name="workEffortName"/></form-list-column>
-                <form-list-column><field-ref name="rootWorkEffortId"/></form-list-column>
-                <form-list-column><field-ref name="kindLabel"/></form-list-column>
-                <form-list-column><field-ref name="startText"/></form-list-column>
-                <form-list-column><field-ref name="due"/></form-list-column>
-                <form-list-column><field-ref name="statusId"/></form-list-column>
-                <form-list-column><field-ref name="percentDone"/></form-list-column>
-                <form-list-column><field-ref name="reachedText"/></form-list-column>
-                <form-list-column><field-ref name="findButton"/></form-list-column>
+                <columns>
+                    <column><field-ref name="workEffortName"/><field-ref name="rootWorkEffortId"/></column>
+                    <column><field-ref name="kindLabel"/><field-ref name="statusId"/></column>
+                    <column><field-ref name="startText"/><field-ref name="due"/></column>
+                    <column><field-ref name="percentDone"/><field-ref name="reachedText"/></column>
+                </columns>
                 <columns type="mobile">
                     <column><field-ref name="workEffortName"/><field-ref name="percentDone"/></column>
                     <column><field-ref name="due"/><field-ref name="statusId"/></column>

@@ -381,8 +381,17 @@ along with this software (see the LICENSE.md file). If not, see
                                 <link url="removeItem" link-type="hidden-form-link" text="Remove" icon="sym_o_remove_circle_outline"
                                         confirmation="Take ${workEffortId} out of ${milestone.workEffortName}?" parameter-map="{workEffortId:milestone.workEffortId, itemWorkEffortId:workEffortId}"/>
                             </conditional-field><default-field title=""><label text="" type="span"/></default-field></field>
+                            <columns>
+                                <column><field-ref name="workEffortId"/></column>
+                                <column><field-ref name="workEffortName"/><field-ref name="purposeEnumId"/></column>
+                                <column><field-ref name="statusId"/><field-ref name="priority"/></column>
+                                <column><field-ref name="assigneePartyId"/><field-ref name="dueText"/></column>
+                                <column><field-ref name="estimatedWorkTime"/><field-ref name="actualWorkTime"/></column>
+                                <column><field-ref name="removeItem"/></column>
+                            </columns>
                             <columns type="mobile">
-                                <column><field-ref name="workEffortId"/><field-ref name="workEffortName"/></column>
+                                <column><field-ref name="workEffortId"/></column>
+                                <column><field-ref name="workEffortName"/></column>
                                 <column><field-ref name="statusId"/><field-ref name="dueText"/></column>
                             </columns>
                         </form-list>

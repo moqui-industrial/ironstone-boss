@@ -418,6 +418,17 @@ along with this software (see the LICENSE.md file). If not, see
                             parameter-map="{workEffortId:workEffortId, keep:keepJson}"/>
                 </default-field></field>
 
+                <columns>
+                    <column><field-ref name="done"/><field-ref name="workEffortName"/></column>
+                    <column><field-ref name="statusId"/><field-ref name="priority"/></column>
+                    <column><field-ref name="estimatedCompletionDate"/><field-ref name="assigneeText"/></column>
+                    <column><field-ref name="projectName"/><field-ref name="hoursText"/><field-ref name="rowActions"/></column>
+                </columns>
+                <columns type="mobile">
+                    <column><field-ref name="workEffortName"/></column>
+                    <column><field-ref name="statusId"/><field-ref name="estimatedCompletionDate"/></column>
+                </columns>
+
                 <!-- the views: a card is the row's name (with its record), priority, due and assignees as the list writes them -->
                 <view-board group-field="statusId" card-title-field="workEffortName" card-fields="estimatedCompletionDate,assigneeText" badge-field="priority"
                         column-order="${boardColumnOrder}" key-fields="workEffortId" transition="moveTaskStatus" parameter-name="toStatusId"/>

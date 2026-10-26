@@ -243,6 +243,18 @@ along with this software (see the LICENSE.md file). If not, see
                             <field name="sizeText" align="right"><default-field title="${sprint.unitLabel == 'h' ? 'Est. (h)' : 'Points'}"><display/></default-field></field>
                             <field name="remainingWorkTime" align="right"><default-field title="Rem. (h)"><display format="#,##0.##"/></default-field></field>
                             <field name="labelText"><default-field title="Labels"><display/></default-field></field>
+                            <columns>
+                                <column><field-ref name="workEffortId"/></column>
+                                <column><field-ref name="workEffortName"/><field-ref name="purposeEnumId"/></column>
+                                <column><field-ref name="statusId"/><field-ref name="assigneePartyId"/></column>
+                                <column><field-ref name="sizeText"/><field-ref name="remainingWorkTime"/></column>
+                                <column><field-ref name="labelText"/></column>
+                            </columns>
+                            <columns type="mobile">
+                                <column><field-ref name="workEffortId"/></column>
+                                <column><field-ref name="workEffortName"/></column>
+                                <column><field-ref name="statusId"/><field-ref name="sizeText"/></column>
+                            </columns>
                             <view-board group-field="statusId" card-title-field="workEffortName" card-fields="workEffortId,assigneePartyId,sizeText" key-fields="workEffortId"
                                     transition="moveCard" all-rows="true"/>
                         </form-list>

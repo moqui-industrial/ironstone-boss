@@ -179,6 +179,12 @@ along with this software (see the LICENSE.md file). If not, see
                     <field name="removedText" align="right"><default-field title="Removed"><display/></default-field></field>
                     <field name="completedText" align="right"><default-field title="Completed"><display style="text-weight-medium"/></default-field></field>
                     <field name="carriedText" align="right"><default-field title="Carried over"><display/></default-field></field>
+                    <columns>
+                        <column><field-ref name="workEffortName"/><field-ref name="stateLabel"/></column>
+                        <column><field-ref name="capacityText"/><field-ref name="committedText"/></column>
+                        <column><field-ref name="addedText"/><field-ref name="removedText"/></column>
+                        <column><field-ref name="completedText"/><field-ref name="carriedText"/></column>
+                    </columns>
                     <columns type="mobile">
                         <column><field-ref name="workEffortName"/><field-ref name="stateLabel"/></column>
                         <column><field-ref name="committedText"/><field-ref name="completedText"/></column>

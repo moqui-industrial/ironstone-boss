@@ -1049,6 +1049,18 @@ along with this software (see the LICENSE.md file). If not, see
                         <field name="totalRemainingText" align="right"><default-field title="Total rem."><display/></default-field></field>
                         <field name="totalActualText" align="right"><default-field title="Total act."><display/></default-field></field>
                         <field name="doneOfTotal" align="right"><default-field title="Done"><display/></default-field></field>
+                        <!-- the name is the record link and stays alone in the first column; the tree shows the first field of each column -->
+                        <columns>
+                            <column><field-ref name="workEffortName"/></column>
+                            <column><field-ref name="statusLabel"/><field-ref name="assigneeText"/></column>
+                            <column><field-ref name="dueText"/></column>
+                            <column><field-ref name="estimatedText"/><field-ref name="remainingText"/><field-ref name="actualText"/></column>
+                            <column><field-ref name="totalEstimatedText"/><field-ref name="totalRemainingText"/><field-ref name="totalActualText"/><field-ref name="doneOfTotal"/></column>
+                        </columns>
+                        <columns type="mobile">
+                            <column><field-ref name="workEffortName"/></column>
+                            <column><field-ref name="statusLabel"/><field-ref name="dueText"/></column>
+                        </columns>
                     </form-list>
                     <section name="NoSubItems" condition="!subItemList.length"><widgets>
                         <label type="p" text="No sub-items: add one above to break the work down" style="m-muted q-pa-sm q-mb-none"/>
@@ -1282,6 +1294,16 @@ along with this software (see the LICENSE.md file). If not, see
                                 <field name="vendorAmountText" align="right" hide="!itemTime.ratesShown"><default-field title="Worker amount"><display/></default-field></field>
                                 <field name="statusLabel"><default-field title="Week"><display/></default-field></field>
                                 <field name="comments"><default-field title="Comment"><display/></default-field></field>
+                                <columns>
+                                    <column><field-ref name="dateText"/><field-ref name="personName"/></column>
+                                    <column><field-ref name="hoursText"/><field-ref name="workTypeLabel"/><field-ref name="billableText"/></column>
+                                    <column><field-ref name="clientAmountText"/><field-ref name="vendorAmountText"/></column>
+                                    <column><field-ref name="statusLabel"/><field-ref name="comments"/></column>
+                                </columns>
+                                <columns type="mobile">
+                                    <column><field-ref name="dateText"/><field-ref name="personName"/></column>
+                                    <column><field-ref name="hoursText"/><field-ref name="statusLabel"/></column>
+                                </columns>
                             </form-list>
                             <label type="p" text="No time on this item yet" style="m-muted q-pa-sm q-mb-none" condition="!itemTimeRows.length"/>
                             <label type="p" text="The latest ${itemTimeRows.length} entries are shown" style="text-caption m-muted q-pa-sm q-mb-none" condition="itemTime.more"/>

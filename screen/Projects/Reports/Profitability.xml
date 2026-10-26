@@ -150,6 +150,14 @@ along with this software (see the LICENSE.md file). If not, see
                     <field name="marginPctText" align="right"><default-field title="Margin %"><display style="${negative ? 'text-negative' : ''}"/></default-field></field>
                     <field name="budgetUsedText" align="right"><default-field title="Budget used"><display/></default-field></field>
                     <field name="noteText"><default-field title="Note"><display style="text-caption text-warning"/></default-field></field>
+                    <columns>
+                        <column><field-ref name="workEffortName"/><field-ref name="clientName"/></column>
+                        <column><field-ref name="budgetText"/><field-ref name="budgetUsedText"/></column>
+                        <column><field-ref name="costText"/><field-ref name="valueText"/></column>
+                        <column><field-ref name="billedText"/><field-ref name="unbilledText"/></column>
+                        <column><field-ref name="marginText"/><field-ref name="marginPctText"/></column>
+                        <column><field-ref name="noteText"/></column>
+                    </columns>
                     <columns type="mobile">
                         <column><field-ref name="workEffortName"/><field-ref name="clientName"/></column>
                         <column><field-ref name="valueText"/><field-ref name="marginText"/></column>
@@ -169,6 +177,16 @@ along with this software (see the LICENSE.md file). If not, see
                         <field name="unbilledText" align="right"><default-field title="Unbilled"><display/></default-field></field>
                         <field name="marginText" align="right"><default-field title="Margin"><display style="${negative ? 'text-negative' : ''}"/></default-field></field>
                         <field name="marginPctText" align="right"><default-field title="Margin %"><display/></default-field></field>
+                        <columns>
+                            <column><field-ref name="clientName"/><field-ref name="projectCount"/></column>
+                            <column><field-ref name="costText"/><field-ref name="valueText"/></column>
+                            <column><field-ref name="billedText"/><field-ref name="unbilledText"/></column>
+                            <column><field-ref name="marginText"/><field-ref name="marginPctText"/></column>
+                        </columns>
+                        <columns type="mobile">
+                            <column><field-ref name="clientName"/></column>
+                            <column><field-ref name="valueText"/><field-ref name="marginText"/></column>
+                        </columns>
                     </form-list>
                 </box-body-nopad></container-box>
             </widgets></section>

@@ -146,6 +146,13 @@ along with this software (see the LICENSE.md file). If not, see
                 <field name="approverNames"><default-field title="Approvers"><display/></default-field></field>
                 <field name="findButton"><header-field title="Find"><submit/></header-field></field>
 
+                <columns>
+                    <column><field-ref name="partyId"/><field-ref name="weekText"/></column>
+                    <column><field-ref name="statusLabel"/><field-ref name="submittedText"/></column>
+                    <column><field-ref name="hoursText"/><field-ref name="billableText"/></column>
+                    <column><field-ref name="expectedText"/><field-ref name="differenceText"/></column>
+                    <column><field-ref name="approverNames"/></column>
+                </columns>
                 <columns type="mobile">
                     <column><field-ref name="partyId"/><field-ref name="weekText"/></column>
                     <column><field-ref name="statusLabel"/><field-ref name="hoursText"/></column>

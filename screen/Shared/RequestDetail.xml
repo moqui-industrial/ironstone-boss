@@ -788,6 +788,18 @@ along with this software (see the LICENSE.md file). If not, see
                                     condition="canTriage" confirmation="Take ${workEffortId} off the request? The work item stays."
                                     parameter-map="{requestId:requestId, workEffortId:workEffortId}"/>
                         </default-field></field>
+                        <columns>
+                            <column><field-ref name="workEffortId"/></column>
+                            <column><field-ref name="workEffortName"/><field-ref name="purposeLabel"/></column>
+                            <column><field-ref name="projectName"/></column>
+                            <column><field-ref name="statusId"/><field-ref name="dueText"/></column>
+                            <column><field-ref name="estimatedText"/><field-ref name="actualText"/></column>
+                            <column><field-ref name="unlink"/></column>
+                        </columns>
+                        <columns type="mobile">
+                            <column><field-ref name="workEffortName"/></column>
+                            <column><field-ref name="statusId"/><field-ref name="dueText"/></column>
+                        </columns>
                     </form-list>
                     <section name="NoWork" condition="!workList.length"><widgets>
                         <container style="q-pa-sm">
@@ -808,6 +820,16 @@ along with this software (see the LICENSE.md file). If not, see
                         <field name="maximumAmount" align="right"><default-field title="Maximum"><display/></default-field></field>
                         <field name="requiredByDate"><default-field title="Required by"><display format="yyyy-MM-dd"/></default-field></field>
                         <field name="description"><default-field title="Description"><display/></default-field></field>
+                        <columns>
+                            <column><field-ref name="requestItemSeqId"/></column>
+                            <column><field-ref name="productId"/><field-ref name="description"/></column>
+                            <column><field-ref name="quantity"/><field-ref name="maximumAmount"/></column>
+                            <column><field-ref name="requiredByDate"/></column>
+                        </columns>
+                        <columns type="mobile">
+                            <column><field-ref name="productId"/><field-ref name="description"/></column>
+                            <column><field-ref name="quantity"/><field-ref name="requiredByDate"/></column>
+                        </columns>
                     </form-list>
                     <section name="NoItems" condition="!itemList.length"><widgets>
                         <label type="p" text="No items asked for" style="m-muted q-pa-sm q-mb-none"/>

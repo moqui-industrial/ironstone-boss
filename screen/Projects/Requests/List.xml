@@ -469,19 +469,19 @@ along with this software (see the LICENSE.md file). If not, see
                     <label text="${updatedText}" type="span" style="text-no-wrap"/></default-field></field>
                 <field name="findButton"><header-field title="Find"><submit/></header-field></field>
 
-                <form-list-column><field-ref name="requestId"/></form-list-column>
-                <form-list-column><field-ref name="requestName"/></form-list-column>
-                <form-list-column><field-ref name="requestTypeEnumId"/></form-list-column>
-                <form-list-column><field-ref name="rootWorkEffortId"/></form-list-column>
-                <form-list-column><field-ref name="customerName"/></form-list-column>
-                <form-list-column><field-ref name="priority"/></form-list-column>
-                <form-list-column><field-ref name="statusId"/></form-list-column>
-                <form-list-column><field-ref name="assigneePartyId"/></form-list-column>
-                <form-list-column><field-ref name="responseRequiredDate"/></form-list-column>
-                <form-list-column><field-ref name="workText"/></form-list-column>
-                <form-list-column><field-ref name="channelLabel"/></form-list-column>
-                <form-list-column><field-ref name="lastUpdatedStamp"/></form-list-column>
-                <form-list-column><field-ref name="findButton"/></form-list-column>
+                <columns>
+                    <column><field-ref name="requestId"/></column>
+                    <column><field-ref name="requestName"/><field-ref name="requestTypeEnumId"/></column>
+                    <column><field-ref name="statusId"/><field-ref name="priority"/></column>
+                    <column><field-ref name="customerName"/><field-ref name="assigneePartyId"/></column>
+                    <column><field-ref name="rootWorkEffortId"/><field-ref name="channelLabel"/></column>
+                    <column><field-ref name="responseRequiredDate"/><field-ref name="workText"/></column>
+                    <column><field-ref name="lastUpdatedStamp"/></column>
+                </columns>
+                <columns type="mobile">
+                    <column><field-ref name="requestName"/></column>
+                    <column><field-ref name="statusId"/><field-ref name="responseRequiredDate"/></column>
+                </columns>
 
                 <!-- the board by status along the request flow: a card is the request's name with its id, project and assignee -->
                 <view-board group-field="statusId" card-title-field="requestName" card-fields="requestId,rootWorkEffortId,assigneePartyId" badge-field="priority"

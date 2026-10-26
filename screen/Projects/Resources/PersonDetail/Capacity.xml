@@ -41,6 +41,12 @@ along with this software (see the LICENSE.md file). If not, see
                     <render-mode><text type="qvt"><![CDATA[${loadText ? '<q-chip dense square class="q-ma-none m-tonal text-' + loadColor + '">' + WebUtilities.encodeHtml(loadText) + '</q-chip>' : ''}]]></text>
                         <text type="tui"><![CDATA[{"t": "text", "text": ${JSON.stringify(loadText ?? "")}}]]></text></render-mode></default-field></field>
                 <field name="utilizationText" align="right"><default-field title="Utilization"><display/></default-field></field>
+                <columns>
+                    <column><field-ref name="weekText"/></column>
+                    <column><field-ref name="base"/><field-ref name="offText"/><field-ref name="capacityText"/></column>
+                    <column><field-ref name="allocatedText"/><field-ref name="assignedText"/></column>
+                    <column><field-ref name="loggedText"/><field-ref name="loadText"/><field-ref name="utilizationText"/></column>
+                </columns>
                 <columns type="mobile">
                     <column><field-ref name="weekText"/><field-ref name="capacityText"/></column>
                     <column><field-ref name="allocatedText"/><field-ref name="loadText"/></column>

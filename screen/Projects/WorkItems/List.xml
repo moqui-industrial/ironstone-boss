@@ -534,25 +534,22 @@ along with this software (see the LICENSE.md file). If not, see
                 <field name="doneOfTotal" align="right"><default-field title="Done"><display/></default-field></field>
                 <field name="findButton"><header-field title="Find"><submit/></header-field></field>
 
-                <!-- the key first: the tree is drawn in the first column, the record's link (style-guide §3.15) -->
-                <form-list-column><field-ref name="workEffortId"/></form-list-column>
-                <form-list-column><field-ref name="purposeEnumId"/></form-list-column>
-                <form-list-column><field-ref name="workEffortName"/></form-list-column>
-                <form-list-column><field-ref name="statusId"/></form-list-column>
-                <form-list-column><field-ref name="priority"/></form-list-column>
-                <form-list-column><field-ref name="assigneePartyId"/></form-list-column>
-                <form-list-column><field-ref name="estimatedCompletionDate"/></form-list-column>
-                <form-list-column><field-ref name="rootWorkEffortId"/><field-ref name="parentWorkEffortId"/></form-list-column>
-                <form-list-column><field-ref name="milestoneId"/><field-ref name="releaseId"/><field-ref name="sprintId"/></form-list-column>
-                <form-list-column><field-ref name="labelText"/></form-list-column>
-                <form-list-column><field-ref name="estimatedWorkTime"/></form-list-column>
-                <form-list-column><field-ref name="remainingWorkTime"/></form-list-column>
-                <form-list-column><field-ref name="actualWorkTime"/></form-list-column>
-                <form-list-column><field-ref name="totalEstimatedText"/></form-list-column>
-                <form-list-column><field-ref name="totalRemainingText"/></form-list-column>
-                <form-list-column><field-ref name="totalActualText"/></form-list-column>
-                <form-list-column><field-ref name="doneOfTotal"/></form-list-column>
-                <form-list-column><field-ref name="findButton"/></form-list-column>
+                <!-- the key first and alone: the tree is drawn in the first field of each column (style-guide §3.15, §4.4) -->
+                <columns>
+                    <column><field-ref name="workEffortId"/></column>
+                    <column><field-ref name="workEffortName"/><field-ref name="purposeEnumId"/></column>
+                    <column><field-ref name="statusId"/><field-ref name="priority"/></column>
+                    <column><field-ref name="assigneePartyId"/><field-ref name="estimatedCompletionDate"/></column>
+                    <column><field-ref name="rootWorkEffortId"/><field-ref name="parentWorkEffortId"/></column>
+                    <column><field-ref name="milestoneId"/><field-ref name="releaseId"/><field-ref name="sprintId"/><field-ref name="labelText"/></column>
+                    <column><field-ref name="estimatedWorkTime"/><field-ref name="remainingWorkTime"/><field-ref name="actualWorkTime"/></column>
+                    <column><field-ref name="totalEstimatedText"/><field-ref name="totalRemainingText"/><field-ref name="totalActualText"/><field-ref name="doneOfTotal"/></column>
+                </columns>
+                <columns type="mobile">
+                    <column><field-ref name="workEffortId"/></column>
+                    <column><field-ref name="workEffortName"/></column>
+                    <column><field-ref name="statusId"/><field-ref name="estimatedCompletionDate"/></column>
+                </columns>
 
                 <!-- the views: a card is the item's key and title with its type, assignees, due and priority -->
                 <view-board group-field="statusId" group-fields="assigneePartyId,priority,sprintId,milestoneId,releaseId" card-title-field="workEffortName"

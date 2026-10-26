@@ -176,16 +176,13 @@ along with this software (see the LICENSE.md file). If not, see
                     <field name="updatedText"><default-field title="Updated"><label text="${updatedText}" type="span" style="text-no-wrap"/></default-field></field>
                     <field name="findButton"><header-field title="Find"><submit/></header-field></field>
 
-                    <form-list-column><field-ref name="mergeRequestId"/></form-list-column>
-                    <form-list-column><field-ref name="statusLabel"/></form-list-column>
-                    <form-list-column><field-ref name="repositoryId"/></form-list-column>
-                    <form-list-column><field-ref name="authorUserId"/></form-list-column>
-                    <form-list-column><field-ref name="reviewerUserId"/></form-list-column>
-                    <form-list-column><field-ref name="checkLabel"/></form-list-column>
-                    <form-list-column><field-ref name="commentCount"/></form-list-column>
-                    <form-list-column><field-ref name="itemsText"/></form-list-column>
-                    <form-list-column><field-ref name="updatedText"/></form-list-column>
-                    <form-list-column><field-ref name="findButton"/></form-list-column>
+                    <columns>
+                        <column><field-ref name="mergeRequestId"/></column>
+                        <column><field-ref name="statusLabel"/><field-ref name="checkLabel"/></column>
+                        <column><field-ref name="repositoryId"/><field-ref name="authorUserId"/></column>
+                        <column><field-ref name="reviewerUserId"/><field-ref name="itemsText"/></column>
+                        <column><field-ref name="commentCount"/><field-ref name="updatedText"/></column>
+                    </columns>
                     <columns type="mobile">
                         <column><field-ref name="mergeRequestId"/></column>
                         <column><field-ref name="statusLabel"/><field-ref name="checkLabel"/></column>

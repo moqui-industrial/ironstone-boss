@@ -170,14 +170,16 @@ along with this software (see the LICENSE.md file). If not, see
                     </default-field></field>
                     <field name="findButton"><header-field title="Find"><submit/></header-field></field>
 
-                    <form-list-column><field-ref name="repositoryId"/></form-list-column>
-                    <form-list-column><field-ref name="projectsText"/></form-list-column>
-                    <form-list-column><field-ref name="kindLabel"/></form-list-column>
-                    <form-list-column><field-ref name="branch"/></form-list-column>
-                    <form-list-column><field-ref name="lastText"/></form-list-column>
-                    <form-list-column><field-ref name="openMergeRequestCount"/></form-list-column>
-                    <form-list-column><field-ref name="httpsUrl"/></form-list-column>
-                    <form-list-column><field-ref name="findButton"/></form-list-column>
+                    <columns>
+                        <column><field-ref name="repositoryId"/><field-ref name="projectsText"/></column>
+                        <column><field-ref name="kindLabel"/><field-ref name="branch"/></column>
+                        <column><field-ref name="lastText"/><field-ref name="openMergeRequestCount"/></column>
+                        <column><field-ref name="httpsUrl"/></column>
+                    </columns>
+                    <columns type="mobile">
+                        <column><field-ref name="repositoryId"/></column>
+                        <column><field-ref name="lastText"/><field-ref name="openMergeRequestCount"/></column>
+                    </columns>
                 </form-list>
                 <section name="NoRepositories" condition="!repositoryRows.length"><widgets>
                     <container style="q-pa-sm">

@@ -272,6 +272,12 @@ along with this software (see the LICENSE.md file). If not, see
                             <field name="rateText" align="right"><default-field title="Rate"><label text="${rateText}" type="span" style="text-no-wrap"/></default-field></field>
                             <field name="amountText" align="right"><default-field title="Amount"><label text="${amountText}" type="span" style="text-no-wrap"/></default-field></field>
                             <field name="comments"><default-field title="Comment"><display/></default-field></field>
+                            <columns>
+                                <column><field-ref name="invoiceItemSeqId"/><field-ref name="dayText"/></column>
+                                <column><field-ref name="personName"/><field-ref name="itemText"/></column>
+                                <column><field-ref name="hoursText"/><field-ref name="rateText"/><field-ref name="amountText"/></column>
+                                <column><field-ref name="comments"/></column>
+                            </columns>
                             <columns type="mobile">
                                 <column><field-ref name="dayText"/><field-ref name="itemText"/></column>
                                 <column><field-ref name="hoursText"/><field-ref name="amountText"/></column>

@@ -265,8 +265,9 @@ A find and list screen over one record type; the entry to every detail.
   the user's format; at most two inline row actions; bulk actions appear in the nav row only when
   rows are selected; `views` (§8) names the alternative views, and the board's group field is a
   status or enumeration; the default view is list.
-- Phone: the table scrolls horizontally inside its card; the first column stays visible; filters
-  collapse into Find Options.
+- Phone: the list uses its `columns type="mobile"` set (§4.4), two columns, the record link in
+  the first. Horizontal scroll is what remains when a series (one column per period or status) is
+  still wider than the phone. The first column stays visible. Filters collapse into Find Options.
 
 ### 3.3 Detail
 
@@ -623,7 +624,7 @@ q-table--horizontal-separator`, 28 px rows, 12 px medium headers.
 | Selection and bulk | `multi="true"` with `row-selection` and its `action` children (`button-text`, `button-icon`, `dialog`, `id-field`, `list-mode`) | `q-checkbox` per row with shift range; the actions in the header's Row Actions menu, each a form posting the selected ids |
 | Per-row actions | `link`s in a field of the row | Text links in the cell; two at most, more go in a `button-menu`. `row-actions` is not UI: it is the block of actions run for each row (derived fields) |
 | Create and totals rows | `first-row-field`, `second-row-field`, `last-row-field` with their transitions | A create row above the rows; totals below |
-| Column groups | `columns` > `form-list-column` > `field-ref` | Several fields stacked in one column |
+| Column groups | `columns` > `column` > `field-ref` (the older `form-list-column` is the same shape) | The untyped `columns` is the desktop default: related fields stacked, about six to eight columns. `columns type="mobile"` is the phone and the narrow terminal (below 600 px, or below 80 terminal columns): two columns, the record link first and the status, due, or amount beside it. `select-columns` keeps every other field under Do Not Display. A list with `view-tree` keeps the record link alone in the first column, because the tree shows the first field of each column and the roll-ups as their own columns; on a phone the key, the title, and the status are each their own column. A series, one column per period or status, is not stacked. CSV and XLSX follow the untyped set, one spreadsheet column per field |
 | Inline edit | `editable` on a field, `editable-load` | `m-editable`, a `q-popup-edit` on click |
 | Sort | column header links | Arrows on the title line; the active one `text-primary` |
 | Alternative views | `views` + `view-board`, `view-calendar`, `view-tree` | §8; the tree view §3.15 |
@@ -904,7 +905,7 @@ width at `xs`.
 | --- | --- | --- |
 | Desktop | `md` and up, with the Assist drawer open | Every screen. Design at 1024 px with 420 px taken by Assist, so a detail's two-column layout collapses to one gracefully |
 | Tablet | `sm` | List, Detail, 360 (tabs scroll), Split (stacked), Task, Panel, Landing |
-| Phone | `xs` | Landing, Task, Panel (Today, Chat, Notifications), Split in stacked form, the Chatter column as a tab, the quick-create dialog, Calendar day view, Comms chat and inbox; a List in horizontal scroll |
+| Phone | `xs` | Landing, Task, Panel (Today, Chat, Notifications), Split in stacked form, the Chatter column as a tab, the quick-create dialog, Calendar day view, Comms chat and inbox; a List on its `columns type="mobile"` set (§4.4), with horizontal scroll only for a series that is still wider than the phone |
 | Handheld | `xs` with the handheld density (§8) | Warehouse and Manufacturing Task screens: 48 px controls, 18 px text, scan field focus, no drawer |
 | Terminal | The `tui` render mode: one column below 120 canvas columns, two from 120 (mr-moqui `plans/archive/Screen-TUI-Impl.md` §1.3) | Every XML screen with no design work; a raw `qvt` text or a `.qvue` screen once it has its `tui` text (§4.8) |
 

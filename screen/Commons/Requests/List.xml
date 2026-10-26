@@ -198,6 +198,17 @@ along with this software (see the LICENSE.md file). If not, see
                 <field name="assigneeName"><default-field title="Assigned"><label text="${assigneeName}${isMine ? ' (' + ec.l10n.localize('you') + ')' : ''}" type="span"/></default-field></field>
                 <field name="lastUpdatedStamp"><header-field title="Updated" show-order-by="true"/><default-field>
                     <label text="${updatedText}" type="span" style="text-no-wrap"/></default-field></field>
+                <columns>
+                    <column><field-ref name="requestId"/></column>
+                    <column><field-ref name="requestName"/><field-ref name="typeLabel"/></column>
+                    <column><field-ref name="statusId"/><field-ref name="priority"/></column>
+                    <column><field-ref name="customerName"/><field-ref name="assigneeName"/></column>
+                    <column><field-ref name="lastUpdatedStamp"/></column>
+                </columns>
+                <columns type="mobile">
+                    <column><field-ref name="requestName"/></column>
+                    <column><field-ref name="statusId"/><field-ref name="lastUpdatedStamp"/></column>
+                </columns>
             </form-list>
             <section name="NoRequests" condition="!requestRows.length"><widgets>
                 <container style="q-pa-sm">

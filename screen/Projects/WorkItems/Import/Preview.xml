@@ -84,6 +84,13 @@ along with this software (see the LICENSE.md file). If not, see
                     <field name="planText"><default-field title="Sprint, release, milestone"><display/></default-field></field>
                     <field name="actionLabel"><default-field title="Action"><display style="${actionStyle} text-weight-medium"/></default-field></field>
                     <field name="problemText"><default-field title="Problems"><display style="${problemStyle} text-caption"/></default-field></field>
+                    <columns>
+                        <column><field-ref name="rowNumber"/><field-ref name="key"/></column>
+                        <column><field-ref name="title"/><field-ref name="typeText"/></column>
+                        <column><field-ref name="statusText"/><field-ref name="assigneeText"/></column>
+                        <column><field-ref name="parentText"/><field-ref name="planText"/></column>
+                        <column><field-ref name="actionLabel"/><field-ref name="problemText"/></column>
+                    </columns>
                     <columns type="mobile">
                         <column><field-ref name="title"/><field-ref name="problemText"/></column>
                         <column><field-ref name="actionLabel"/><field-ref name="key"/></column>

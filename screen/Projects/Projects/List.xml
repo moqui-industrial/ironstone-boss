@@ -261,20 +261,19 @@ along with this software (see the LICENSE.md file). If not, see
                 <field name="updatedText"><default-field title="Updated"><display/></default-field></field>
                 <field name="findButton"><header-field title="Find"><submit/></header-field></field>
 
-                <form-list-column><field-ref name="workEffortId"/></form-list-column>
-                <form-list-column><field-ref name="workEffortName"/></form-list-column>
-                <form-list-column><field-ref name="clientPartyId"/></form-list-column>
-                <form-list-column><field-ref name="managerName"/></form-list-column>
-                <form-list-column><field-ref name="statusId"/></form-list-column>
-                <form-list-column><field-ref name="healthLabel"/></form-list-column>
-                <form-list-column><field-ref name="percentDone"/></form-list-column>
-                <form-list-column><field-ref name="nextMilestoneText"/></form-list-column>
-                <form-list-column><field-ref name="openItems"/></form-list-column>
-                <form-list-column><field-ref name="hoursText"/></form-list-column>
-                <form-list-column><field-ref name="budgetUsedText"/></form-list-column>
-                <form-list-column><field-ref name="estimatedCompletionDate"/></form-list-column>
-                <form-list-column><field-ref name="updatedText"/></form-list-column>
-                <form-list-column><field-ref name="findButton"/></form-list-column>
+                <columns>
+                    <column><field-ref name="workEffortId"/></column>
+                    <column><field-ref name="workEffortName"/><field-ref name="clientPartyId"/></column>
+                    <column><field-ref name="statusId"/><field-ref name="healthLabel"/></column>
+                    <column><field-ref name="managerName"/><field-ref name="nextMilestoneText"/></column>
+                    <column><field-ref name="percentDone"/><field-ref name="openItems"/></column>
+                    <column><field-ref name="hoursText"/><field-ref name="budgetUsedText"/></column>
+                    <column><field-ref name="estimatedCompletionDate"/><field-ref name="updatedText"/></column>
+                </columns>
+                <columns type="mobile">
+                    <column><field-ref name="workEffortName"/></column>
+                    <column><field-ref name="statusId"/><field-ref name="percentDone"/></column>
+                </columns>
 
                 <!-- the board by status along the Default flow: a card is the project's name with its key, client and health -->
                 <view-board group-field="statusId" card-title-field="workEffortName" card-fields="workEffortId,clientPartyId,healthLabel"

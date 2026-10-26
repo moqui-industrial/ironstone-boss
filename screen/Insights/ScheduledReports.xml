@@ -74,13 +74,19 @@ along with this software (see the LICENSE.md file). If not, see
                 <default-field><dynamic-dialog button-text="Update" id="UpdateScheduledFind" transition="ScheduledReportDetail"/></default-field>
             </field>
 
-            <form-list-column><field-ref name="screenLink"/></form-list-column>
-            <form-list-column><field-ref name="screenPath"/><field-ref name="description"/></form-list-column>
-            <form-list-column><field-ref name="renderMode"/><field-ref name="noResultsAbort"/></form-list-column>
-            <form-list-column><field-ref name="cronExpression"/></form-list-column>
-            <form-list-column><field-ref name="fromDate"/><field-ref name="thruDate"/></form-list-column>
-            <form-list-column><field-ref name="emailTemplateId"/><field-ref name="emailSubject"/></form-list-column>
-            <form-list-column><field-ref name="submitButton"/></form-list-column>
+            <columns>
+                <column><field-ref name="screenLink"/></column>
+                <column><field-ref name="screenPath"/><field-ref name="description"/></column>
+                <column><field-ref name="renderMode"/><field-ref name="noResultsAbort"/></column>
+                <column><field-ref name="cronExpression"/></column>
+                <column><field-ref name="fromDate"/><field-ref name="thruDate"/></column>
+                <column><field-ref name="emailTemplateId"/><field-ref name="emailSubject"/></column>
+                <column><field-ref name="submitButton"/></column>
+            </columns>
+            <columns type="mobile">
+                <column><field-ref name="screenLink"/></column>
+                <column><field-ref name="cronExpression"/><field-ref name="renderMode"/></column>
+            </columns>
         </form-list>
     </widgets>
 </screen>

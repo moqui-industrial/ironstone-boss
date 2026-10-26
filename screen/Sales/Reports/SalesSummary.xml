@@ -259,6 +259,16 @@ along with this software (see the LICENSE.md file). If not, see
                 <field name="marginPercent" from="1 - (costPercent || 0.0)" align="right"><default-field title="Margin %"><display format="0.0%"/></default-field></field>
                 <field name="percentOfTotal" from="ordersLast?.totalSales ? (totalSales / ordersLast.totalSales) : 0.0" align="right">
                     <default-field title="% of Sales"><display format="0.0%"/></default-field></field>
+                <columns>
+                    <column><field-ref name="productId"/></column>
+                    <column><field-ref name="totalSales"/><field-ref name="totalQuantity"/></column>
+                    <column><field-ref name="productIssuedTotal"/><field-ref name="productCostTotal"/></column>
+                    <column><field-ref name="costPercent"/><field-ref name="marginPercent"/><field-ref name="percentOfTotal"/></column>
+                </columns>
+                <columns type="mobile">
+                    <column><field-ref name="productId"/></column>
+                    <column><field-ref name="totalSales"/><field-ref name="marginPercent"/></column>
+                </columns>
             </form-list>
         </box-body-nopad></container-box>
 
@@ -293,6 +303,17 @@ along with this software (see the LICENSE.md file). If not, see
                     <display format="#,##0.00"/></default-field></field>
                 <field name="costPercent" align="right"><default-field title="Cost %" container-style="${rowStyle}">
                     <display format="0.0%"/></default-field></field>
+                <columns>
+                    <column><field-ref name="dateKey"/></column>
+                    <column><field-ref name="orderCount"/><field-ref name="newCustomerOrderCount"/><field-ref name="newCustomerPercent"/></column>
+                    <column><field-ref name="productQuantityTotal"/></column>
+                    <column><field-ref name="totalSales"/><field-ref name="productSaleTotal"/><field-ref name="discountTotal"/><field-ref name="netSales"/><field-ref name="discountPercent"/></column>
+                    <column><field-ref name="productIssuedTotal"/><field-ref name="productCostTotal"/><field-ref name="costPercent"/></column>
+                </columns>
+                <columns type="mobile">
+                    <column><field-ref name="dateKey"/></column>
+                    <column><field-ref name="netSales"/><field-ref name="orderCount"/></column>
+                </columns>
             </form-list>
         </box-body-nopad></container-box>
 
@@ -325,6 +346,17 @@ along with this software (see the LICENSE.md file). If not, see
                     <display format="#,##0.00"/></default-field></field>
                 <field name="costPercent" align="right"><default-field title="Cost %" container-style="${rowStyle}">
                     <display format="0.0%"/></default-field></field>
+                <columns>
+                    <column><field-ref name="classDescription"/></column>
+                    <column><field-ref name="invoiceCount"/><field-ref name="productQuantityTotal"/></column>
+                    <column><field-ref name="invoiceTotal"/><field-ref name="invoicePaymentsApplied"/><field-ref name="paidPercent"/></column>
+                    <column><field-ref name="productSaleTotal"/><field-ref name="discountTotal"/><field-ref name="netSales"/><field-ref name="discountPercent"/></column>
+                    <column><field-ref name="productIssuedTotal"/><field-ref name="productCostTotal"/><field-ref name="costPercent"/></column>
+                </columns>
+                <columns type="mobile">
+                    <column><field-ref name="classDescription"/></column>
+                    <column><field-ref name="netSales"/><field-ref name="invoiceTotal"/></column>
+                </columns>
             </form-list>
         </box-body-nopad></container-box>
 
@@ -360,6 +392,17 @@ along with this software (see the LICENSE.md file). If not, see
                     <display format="#,##0.00"/></default-field></field>
                 <field name="costPercent" align="right"><default-field title="Cost %" container-style="${rowStyle}">
                     <display format="0.0%"/></default-field></field>
+                <columns>
+                    <column><field-ref name="dateKey"/></column>
+                    <column><field-ref name="invoiceCount"/><field-ref name="productQuantityTotal"/></column>
+                    <column><field-ref name="invoiceTotal"/><field-ref name="invoicePaymentsApplied"/><field-ref name="paidPercent"/></column>
+                    <column><field-ref name="productSaleTotal"/><field-ref name="discountTotal"/><field-ref name="netSales"/><field-ref name="discountPercent"/></column>
+                    <column><field-ref name="productIssuedTotal"/><field-ref name="productCostTotal"/><field-ref name="costPercent"/></column>
+                </columns>
+                <columns type="mobile">
+                    <column><field-ref name="dateKey"/></column>
+                    <column><field-ref name="netSales"/><field-ref name="invoiceTotal"/></column>
+                </columns>
             </form-list>
         </box-body-nopad></container-box>
     </widgets>

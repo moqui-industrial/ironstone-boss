@@ -99,12 +99,18 @@ along with this software (see the LICENSE.md file). If not, see
                     <link url="cancelReview" link-type="hidden-form-link" text="Cancel request" condition="canCancel"
                             confirmation="Withdraw the request for a review of ${pageName}?" parameter-map="{wikiPageReviewId:wikiPageReviewId, filter:filter, status:status}"/>
                 </default-field></field>
-                <form-list-column><field-ref name="pageName"/><field-ref name="spaceDescription"/></form-list-column>
-                <form-list-column><field-ref name="shortVersionName"/><field-ref name="statusDescription"/></form-list-column>
-                <form-list-column><field-ref name="requestedByName"/><field-ref name="reviewerText"/></form-list-column>
-                <form-list-column><field-ref name="requestedText"/><field-ref name="dueText"/></form-list-column>
-                <form-list-column><field-ref name="note"/></form-list-column>
-                <form-list-column><field-ref name="actions"/></form-list-column>
+                <columns>
+                    <column><field-ref name="pageName"/><field-ref name="spaceDescription"/></column>
+                    <column><field-ref name="shortVersionName"/><field-ref name="statusDescription"/></column>
+                    <column><field-ref name="requestedByName"/><field-ref name="reviewerText"/></column>
+                    <column><field-ref name="requestedText"/><field-ref name="dueText"/></column>
+                    <column><field-ref name="note"/></column>
+                    <column><field-ref name="actions"/></column>
+                </columns>
+                <columns type="mobile">
+                    <column><field-ref name="pageName"/></column>
+                    <column><field-ref name="statusDescription"/><field-ref name="dueText"/></column>
+                </columns>
             </form-list>
             <section name="NoReviews" condition="!reviewList.length"><widgets>
                 <label type="p" text="Nothing ${filterLabel}" style="m-muted q-pa-sm q-mb-none"/>

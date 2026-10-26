@@ -167,6 +167,13 @@ along with this software (see the LICENSE.md file). If not, see
                 </default-field></field>
                 <field name="findButton"><header-field title="Find"><submit/></header-field></field>
 
+                <columns>
+                    <column><field-ref name="partyId"/><field-ref name="rootWorkEffortId"/></column>
+                    <column><field-ref name="fromDate"/><field-ref name="thruDate"/></column>
+                    <column><field-ref name="amountText"/><field-ref name="statusLabel"/></column>
+                    <column><field-ref name="requestedByName"/><field-ref name="comments"/></column>
+                    <column><field-ref name="actions"/></column>
+                </columns>
                 <columns type="mobile">
                     <column><field-ref name="partyId"/><field-ref name="rootWorkEffortId"/></column>
                     <column><field-ref name="statusLabel"/><field-ref name="amountText"/><field-ref name="actions"/></column>

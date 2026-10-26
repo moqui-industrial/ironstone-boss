@@ -123,6 +123,12 @@ along with this software (see the LICENSE.md file). If not, see
                 <field name="utilizationText" align="right"><default-field title="Utilization"><display style="${over ? 'text-warning text-weight-bold' : ''}"/></default-field></field>
                 <field name="billableUtilizationText" align="right"><default-field title="Billable utilization"><display/></default-field></field>
                 <field name="allocatedText" align="right"><default-field title="Allocated"><display/></default-field></field>
+                <columns>
+                    <column><field-ref name="name"/><field-ref name="roleText"/></column>
+                    <column><field-ref name="capacityText"/><field-ref name="loggedText"/></column>
+                    <column><field-ref name="billableText"/><field-ref name="utilizationText"/></column>
+                    <column><field-ref name="billableUtilizationText"/><field-ref name="allocatedText"/></column>
+                </columns>
                 <columns type="mobile">
                     <column><field-ref name="name"/><field-ref name="roleText"/></column>
                     <column><field-ref name="utilizationText"/><field-ref name="billableUtilizationText"/></column>
@@ -142,6 +148,12 @@ along with this software (see the LICENSE.md file). If not, see
                     <field name="utilizationText" align="right"><default-field title="Utilization"><display style="${over ? 'text-warning text-weight-bold' : ''}"/></default-field></field>
                     <field name="billableUtilizationText" align="right"><default-field title="Billable utilization"><display/></default-field></field>
                     <field name="allocatedText" align="right"><default-field title="Allocated"><display/></default-field></field>
+                    <columns>
+                        <column><field-ref name="name"/><field-ref name="weekText"/></column>
+                        <column><field-ref name="capacityText"/><field-ref name="loggedText"/></column>
+                        <column><field-ref name="billableText"/><field-ref name="utilizationText"/></column>
+                        <column><field-ref name="billableUtilizationText"/><field-ref name="allocatedText"/></column>
+                    </columns>
                     <columns type="mobile">
                         <column><field-ref name="name"/><field-ref name="weekText"/></column>
                         <column><field-ref name="loggedText"/><field-ref name="utilizationText"/></column>

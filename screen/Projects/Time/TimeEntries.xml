@@ -390,16 +390,16 @@ along with this software (see the LICENSE.md file). If not, see
                 <field name="comments"><default-field title="Comment"><label text="${comments}" type="span" style="text-body2"/></default-field></field>
                 <field name="findButton"><header-field title="Find"><submit/></header-field></field>
 
-                <form-list-column><field-ref name="edit"/></form-list-column>
-                <form-list-column><field-ref name="fromDate"/></form-list-column>
-                <form-list-column><field-ref name="partyId"/></form-list-column>
-                <form-list-column><field-ref name="workEffortId"/><field-ref name="projectName"/></form-list-column>
-                <form-list-column><field-ref name="hours"/><field-ref name="breakText"/></form-list-column>
-                <form-list-column><field-ref name="workTypeEnumId"/><field-ref name="billable"/></form-list-column>
-                <form-list-column><field-ref name="clientRateText"/><field-ref name="clientAmountText"/></form-list-column>
-                <form-list-column><field-ref name="vendorRateText"/><field-ref name="vendorAmountText"/></form-list-column>
-                <form-list-column><field-ref name="statusLabel"/><field-ref name="invoiceText"/></form-list-column>
-                <form-list-column><field-ref name="comments"/></form-list-column>
+                <columns>
+                    <column><field-ref name="edit"/></column>
+                    <column><field-ref name="fromDate"/><field-ref name="partyId"/></column>
+                    <column><field-ref name="workEffortId"/><field-ref name="projectName"/></column>
+                    <column><field-ref name="hours"/><field-ref name="breakText"/></column>
+                    <column><field-ref name="workTypeEnumId"/><field-ref name="billable"/></column>
+                    <column><field-ref name="clientRateText"/><field-ref name="clientAmountText"/><field-ref name="vendorRateText"/><field-ref name="vendorAmountText"/></column>
+                    <column><field-ref name="statusLabel"/><field-ref name="invoiceText"/></column>
+                    <column><field-ref name="comments"/></column>
+                </columns>
                 <columns type="mobile">
                     <column><field-ref name="fromDate"/><field-ref name="workEffortId"/></column>
                     <column><field-ref name="hours"/><field-ref name="statusLabel"/></column>

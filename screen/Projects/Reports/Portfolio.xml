@@ -130,6 +130,15 @@ along with this software (see the LICENSE.md file). If not, see
                 <field name="budgetUsedText" align="right" hide="!moneyShown"><default-field title="${moneyShown ? 'Budget used' : ''}"><display/></default-field></field>
                 <field name="managerNames"><default-field title="Managers"><display/></default-field></field>
                 <field name="clientName"><default-field title="Client"><display/></default-field></field>
+                <columns>
+                    <column><field-ref name="projectText"/><field-ref name="clientName"/></column>
+                    <column><field-ref name="statusLabel"/><field-ref name="healthLabel"/></column>
+                    <column><field-ref name="percentText"/><field-ref name="openCount"/><field-ref name="overdueCount"/></column>
+                    <column><field-ref name="targetText"/><field-ref name="forecastText"/></column>
+                    <column><field-ref name="hoursText"/><field-ref name="hoursUsedText"/></column>
+                    <column><field-ref name="budgetText"/><field-ref name="clientBudgetText"/><field-ref name="budgetUsedText"/></column>
+                    <column><field-ref name="managerNames"/></column>
+                </columns>
                 <columns type="mobile">
                     <column><field-ref name="projectText"/><field-ref name="healthLabel"/></column>
                     <column><field-ref name="percentText"/><field-ref name="forecastText"/></column>

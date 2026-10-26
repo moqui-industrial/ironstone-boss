@@ -150,6 +150,12 @@ along with this software (see the LICENSE.md file). If not, see
                         <field name="remainingDaysText" align="right"><default-field title="Rem. d"><display/></default-field></field>
                         <field name="actEstText" align="right"><default-field title="Act/est"><display/></default-field></field>
                         <field name="actRemEstText" align="right"><default-field title="Act+rem/est"><display style="${over ? 'text-warning text-weight-bold' : ''}"/></default-field></field>
+                        <columns>
+                            <column><field-ref name="workEffortName"/><field-ref name="startText"/></column>
+                            <column><field-ref name="estimatedText"/><field-ref name="actualText"/><field-ref name="remainingText"/></column>
+                            <column><field-ref name="estimatedDaysText"/><field-ref name="actualDaysText"/><field-ref name="remainingDaysText"/></column>
+                            <column><field-ref name="actEstText"/><field-ref name="actRemEstText"/></column>
+                        </columns>
                         <columns type="mobile">
                             <column><field-ref name="workEffortName"/><field-ref name="startText"/></column>
                             <column><field-ref name="actualText"/><field-ref name="actRemEstText"/></column>
@@ -181,8 +187,18 @@ along with this software (see the LICENSE.md file). If not, see
                     <field name="actRemEstText" align="right"><default-field title="Act+rem/est"><display style="${over ? 'text-warning text-weight-bold' : ''}"/></default-field></field>
                     <field name="actBgtText" align="right"><default-field title="Act/bgt"><display/></default-field></field>
                     <field name="actRemBgtText" align="right"><default-field title="Act+rem/bgt"><display/></default-field></field>
+                    <!-- the item link stays alone in the first column: the tree shows the first field of each column -->
+                    <columns>
+                        <column><field-ref name="workEffortId"/></column>
+                        <column><field-ref name="priority"/><field-ref name="level"/></column>
+                        <column><field-ref name="estimatedText"/><field-ref name="actualText"/><field-ref name="remainingText"/></column>
+                        <column><field-ref name="estimatedDaysText"/><field-ref name="actualDaysText"/><field-ref name="remainingDaysText"/></column>
+                        <column><field-ref name="budgetText"/></column>
+                        <column><field-ref name="actEstText"/><field-ref name="actRemEstText"/></column>
+                        <column><field-ref name="actBgtText"/><field-ref name="actRemBgtText"/></column>
+                    </columns>
                     <columns type="mobile">
-                        <column><field-ref name="workEffortId"/><field-ref name="priority"/></column>
+                        <column><field-ref name="workEffortId"/></column>
                         <column><field-ref name="actualText"/><field-ref name="actRemEstText"/></column>
                     </columns>
                     <view-tree parent-field="parentWorkEffortId" child-count-field="childCount" key-fields="workEffortId"/>
